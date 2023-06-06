@@ -279,19 +279,8 @@ class ArgoWorkflows(object):
     @classmethod
     def list(cls, name, states):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
-        try:
-            workflow_template = client.get_workflow_template(name)
-        except Exception as e:
-            raise ArgoWorkflowsException(str(e))
-        if workflow_template is None:
-            raise ArgoWorkflowsException(
-                "The workflow *%s* doesn't exist on Argo Workflows in namespace *%s*. "
-                "Please deploy your flow first." % (name, KUBERNETES_NAMESPACE)
-            )
 
-        executions = client.list_executions(name, states)
-
-        return executions
+        return client.list_executions(name, states)
 
     def _process_parameters(self):
         parameters = {}
@@ -530,7 +519,7 @@ class ArgoWorkflows(object):
                     Metadata()
                     .label("app.kubernetes.io/name", "metaflow-run")
                     .label("app.kubernetes.io/part-of", "metaflow")
-                    .label("workflows.argoproj.io/workflow-template", self.name)
+                    .label("workflow-template-hash", self.name)
                     .annotations(
                         {**annotations, **{"metaflow/run_id": "argo-{{workflow.name}}"}}
                     )

@@ -544,45 +544,39 @@ def trigger(obj, run_id_file=None, **kwargs):
         )
 
 
-@argo_workflows.command(help="List all runs of the workflow on Argo Workflows.")
+@argo_workflows.command(help="List all runs of the flow on Argo Workflows.")
 @click.option(
     "--pending",
     default=False,
     is_flag=True,
-    help="List all runs of the workflow in Pending state on " "Argo Workflows.",
+    help="List all pending runs of the flow on " "Argo Workflows.",
 )
 @click.option(
     "--running",
     default=False,
     is_flag=True,
-    help="List all runs of the workflow in Running state on " "Argo Workflows.",
+    help="List all running runs of the flow on " "Argo Workflows.",
 )
 @click.option(
     "--succeeded",
     default=False,
     is_flag=True,
-    help="List all runs of the workflow in Succeeded state on " "Argo Workflows.",
+    help="List all succeeded runs of the flow on " "Argo Workflows.",
 )
 @click.option(
     "--failed",
     default=False,
     is_flag=True,
-    help="List all runs of the workflow in Failed state on " "Argo Workflows.",
-)
-@click.option(
-    "--error",
-    default=False,
-    is_flag=True,
-    help="List all runs of the workflow in Error state on " "Argo Workflows.",
+    help="List all failed runs of the flow on " "Argo Workflows.",
 )
 @click.option(
     "--unknown",
     default=False,
     is_flag=True,
-    help="List all runs of the workflow in Unknown state on " "Argo Workflows.",
+    help="List all runs of the flow in Unknown state on " "Argo Workflows.",
 )
 @click.pass_obj
-def list_runs(obj, pending, running, succeeded, failed, error, unknown):
+def list_runs(obj, pending, running, succeeded, failed, unknown):
     states = []
     if pending:
         states.append("Pending")
@@ -591,18 +585,25 @@ def list_runs(obj, pending, running, succeeded, failed, error, unknown):
     if succeeded:
         states.append("Succeeded")
     if failed:
+        # group errors and failures together
         states.append("Failed")
-    if error:
         states.append("Error")
     if unknown:
+        # NOTE: These are errors related to communicating with the K8S node running the pod
         states.append("Unknown")
 
     executions = ArgoWorkflows.list(obj.workflow_name, states)
     found = False
 
-    def format_timestamp(timestamp):
-        TS_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
-        return datetime.strptime(timestamp, TS_FORMAT)
+    def format_timestamp(timestamp: None):
+        if timestamp is None:
+            return "-"
+        return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
+
+    def format_status(status):
+        if status == "Error":
+            return "Failed"
+        return status
 
     for execution in executions:
         found = True
@@ -612,11 +613,11 @@ def list_runs(obj, pending, running, succeeded, failed, error, unknown):
             "finishedAt: '{finishedAt}' "
             "*{status}*".format(
                 id=execution["metadata"]["name"],
-                status=execution["status"]["phase"],
-                startedAt=format_timestamp(execution["status"]["startedAt"]),
-                finishedAt=format_timestamp(execution["status"]["finishedAt"])
-                if execution["status"]["finishedAt"]
-                else "-",
+                status=format_status(execution["status"]["phase"]),
+                startedAt=format_timestamp(execution["status"].get("startedAt", None)),
+                finishedAt=format_timestamp(
+                    execution["status"].get("finishedAt", None)
+                ),
             )
         )
 
