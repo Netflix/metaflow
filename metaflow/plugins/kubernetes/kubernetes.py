@@ -422,7 +422,7 @@ class Kubernetes(object):
         )
         env_annotations = parse_kube_keyvalue_list(env_annotations, False)
         annotations = {**env_annotations, **extra_annotations}
-        validate_kube_annotations(annotations)
+        validate_kube_labels_or_annotations(annotations)
         return annotations
 
 
