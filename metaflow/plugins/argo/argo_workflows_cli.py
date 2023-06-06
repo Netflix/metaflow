@@ -606,7 +606,27 @@ def trigger(obj, run_id_file=None, **kwargs):
 @click.argument("run-id", required=True, type=str)
 @click.pass_obj
 def suspend(obj, run_id, authorize=None):
-    # TODO: implement production token authorize
+    def _token_instructions(flow_name, prev_user):
+        obj.echo(
+            "There is an existing version of *%s* on Argo Workflows which was "
+            "deployed by the user *%s*." % (flow_name, prev_user)
+        )
+        obj.echo(
+            "To suspend this flow, you need to use the same production token that they used."
+        )
+        obj.echo(
+            "Please reach out to them to get the token. Once you have it, call "
+            "this command:"
+        )
+        obj.echo(
+            "    argo-workflows suspend RUN_ID --authorize MY_TOKEN RUN_ID", fg="green"
+        )
+        obj.echo(
+            'See "Organizing Results" at docs.metaflow.org for more information '
+            "about production tokens."
+        )
+
+    validate_token(obj.workflow_name, obj.token_prefix, authorize, _token_instructions)
 
     # Verify that user is trying to change an Argo workflow
     if not run_id.startswith("argo-"):
@@ -629,7 +649,28 @@ def suspend(obj, run_id, authorize=None):
 @click.argument("run-id", required=True, type=str)
 @click.pass_obj
 def unsuspend(obj, run_id, authorize=None):
-    # TODO: implement production token authorize
+    def _token_instructions(flow_name, prev_user):
+        obj.echo(
+            "There is an existing version of *%s* on Argo Workflows which was "
+            "deployed by the user *%s*." % (flow_name, prev_user)
+        )
+        obj.echo(
+            "To unsuspend this flow, you need to use the same production token that they used."
+        )
+        obj.echo(
+            "Please reach out to them to get the token. Once you have it, call "
+            "this command:"
+        )
+        obj.echo(
+            "    argo-workflows unsuspend RUN_ID --authorize MY_TOKEN RUN_ID",
+            fg="green",
+        )
+        obj.echo(
+            'See "Organizing Results" at docs.metaflow.org for more information '
+            "about production tokens."
+        )
+
+    validate_token(obj.workflow_name, obj.token_prefix, authorize, _token_instructions)
 
     # Verify that user is trying to change an Argo workflow
     if not run_id.startswith("argo-"):
@@ -640,3 +681,43 @@ def unsuspend(obj, run_id, authorize=None):
 
     if workflow_suspended:
         obj.echo("Unsuspended execution of *%s*" % run_id)
+
+
+def validate_token(name, token_prefix, authorize, instructions_fn=None):
+    """
+    Validate that the production token matches that of the deployed flow.
+    In case both the user and token do not match, raises an error.
+    Optionally outputs instructions on token usage via the provided instruction_fn(flow_name, prev_user)
+    """
+    # TODO: Unify this with the existing resolve_token implementation.
+
+    # 1) retrieve the previous deployment, if one exists
+    workflow = ArgoWorkflows.get_existing_deployment(name)
+    if workflow is None:
+        prev_token = None
+    else:
+        prev_user, prev_token = workflow
+
+    # 2) authorize this deployment
+    if prev_token is not None:
+        if authorize is None:
+            authorize = load_token(token_prefix)
+        elif authorize.startswith("production:"):
+            authorize = authorize[11:]
+
+        # we allow the user who deployed the previous version to re-deploy,
+        # even if they don't have the token
+        # NOTE: The username is visible in multiple sources, and can be set by the user.
+        # Should we consider being stricter here?
+        if prev_user != get_username() and authorize != prev_token:
+            if instructions_fn:
+                instructions_fn(flow_name=name, prev_user=prev_user)
+            raise IncorrectProductionToken(
+                "Try again with the correct production token."
+            )
+
+    # 3) all validations passed, store the previous token for future use
+    token = prev_token
+
+    store_token(token_prefix, token)
+    return True
