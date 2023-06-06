@@ -163,6 +163,12 @@ class ArgoWorkflows(object):
         # allowed by Metaflow - guaranteeing uniqueness.
         return name.replace("_", "-")
 
+    @staticmethod
+    def _label_hash(name):
+        # Hash a name for use as a Kubernetes label.
+        # Use the maximum allowed 63 characters for the hash to minimize collisions.
+        return sha1(name.encode("utf-8")).hexdigest()[:63]
+
     @classmethod
     def trigger(cls, name, parameters=None):
         if parameters is None:
@@ -280,7 +286,7 @@ class ArgoWorkflows(object):
     def list(cls, name, states):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
-        return client.list_executions(name, states)
+        return client.list_executions(cls._label_hash(name), states)
 
     def _process_parameters(self):
         parameters = {}
@@ -519,7 +525,7 @@ class ArgoWorkflows(object):
                     Metadata()
                     .label("app.kubernetes.io/name", "metaflow-run")
                     .label("app.kubernetes.io/part-of", "metaflow")
-                    .label("workflow-template-hash", self.name)
+                    .label("workflow-template-hash", self._label_hash(self.name))
                     .annotations(
                         {**annotations, **{"metaflow/run_id": "argo-{{workflow.name}}"}}
                     )
