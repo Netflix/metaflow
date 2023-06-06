@@ -26,6 +26,7 @@ from metaflow.metaflow_config import (
     DEFAULT_AWS_CLIENT_PROVIDER,
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
+    KUBERNETES_ANNOTATIONS,
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_LABELS,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
@@ -174,6 +175,9 @@ class Kubernetes(object):
         job = (
             KubernetesClient()
             .job(
+                annotations={
+                    "cluster-autoscaler.kubernetes.io/scale-down-disabled": "true"
+                },
                 generate_name="t-",
                 namespace=namespace,
                 service_account=service_account,
