@@ -601,6 +601,13 @@ def delete(obj, authorize=None):
 
 
 def validate_token(name, token_prefix, authorize, instructions_fn=None):
+    """
+    Validate that the production token matches that of the deployed flow.
+    In case both the user and token do not match, raises an error.
+    Optionally outputs instructions on token usage via the provided instruction_fn(flow_name, prev_user)
+    """
+    # TODO: Unify this with the existing resolve_token implementation.
+
     # 1) retrieve the previous deployment, if one exists
     workflow = ArgoWorkflows.get_existing_deployment(name)
     if workflow is None:
