@@ -573,7 +573,9 @@ def trigger(obj, run_id_file=None, **kwargs):
     "--unknown",
     default=False,
     is_flag=True,
-    help="List all runs of the flow in Unknown state on " "Argo Workflows.",
+    help="List all runs of the flow in Unknown state on "
+    "Argo Workflows."
+    " (These happen when a pods status can not be obtained.)",
 )
 @click.pass_obj
 def list_runs(obj, pending, running, succeeded, failed, unknown):
@@ -589,7 +591,6 @@ def list_runs(obj, pending, running, succeeded, failed, unknown):
         states.append("Failed")
         states.append("Error")
     if unknown:
-        # NOTE: These are errors related to communicating with the K8S node running the pod
         states.append("Unknown")
 
     executions = ArgoWorkflows.list(obj.workflow_name, states)
