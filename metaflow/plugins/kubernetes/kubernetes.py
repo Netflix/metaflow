@@ -176,7 +176,6 @@ class Kubernetes(object):
         job = (
             KubernetesClient()
             .job(
-                annotations=self._get_annotations(annotations),
                 generate_name="t-",
                 namespace=namespace,
                 service_account=service_account,
@@ -295,6 +294,10 @@ class Kubernetes(object):
                     "metaflow/project_flow_name": current.project_flow_name,
                 }
             )
+
+        extra_annotations = self._get_annotations(annotations)
+        if extra_annotations:
+            annotations.update(extra_annotations)
 
         for name, value in annotations.items():
             job.annotation(name, value)
