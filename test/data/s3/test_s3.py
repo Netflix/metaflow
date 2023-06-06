@@ -46,7 +46,7 @@ def assert_results(
     info_should_be_empty=False,
     info_only=False,
     ranges_fetched=None,
-    encryption=None
+    encryption=None,
 ):
     # did we receive all expected objects and nothing else?
     if info_only:
@@ -816,11 +816,15 @@ def test_put_exceptions(inject_failure_rate):
 @pytest.fixture
 def s3_server_side_encryption():
     return "AES256"
+
+
 @pytest.mark.parametrize("inject_failure_rate", [0])
 @pytest.mark.parametrize(
     argnames=["s3root", "objs", "expected"], **s3_data.pytest_put_strings_case()
 )
-def test_put_many(inject_failure_rate, s3root, objs, expected, s3_server_side_encryption):
+def test_put_many(
+    inject_failure_rate, s3root, objs, expected, s3_server_side_encryption
+):
     encryption_settings = [None, s3_server_side_encryption]
     for setting in encryption_settings:
         with S3(
@@ -855,7 +859,7 @@ def test_put_many(inject_failure_rate, s3root, objs, expected, s3_server_side_en
 @pytest.mark.parametrize(
     argnames=["s3root", "objs", "expected"], **s3_data.pytest_put_strings_case()
 )
-def test_put_one(s3root, objs, expected,  s3_server_side_encryption):
+def test_put_one(s3root, objs, expected, s3_server_side_encryption):
     encryption_settings = [None, s3_server_side_encryption]
     for setting in encryption_settings:
         with S3(s3root=s3root, encryption=setting) as s3:
@@ -880,7 +884,7 @@ def test_put_one(s3root, objs, expected,  s3_server_side_encryption):
     argnames=["s3root", "blobs", "expected"], **s3_data.pytest_put_blobs_case()
 )
 def test_put_files(
-    tempdir, inject_failure_rate, s3root, blobs, expected,  s3_server_side_encryption
+    tempdir, inject_failure_rate, s3root, blobs, expected, s3_server_side_encryption
 ):
     def _files(blobs):
         for blob in blobs:
@@ -900,7 +904,7 @@ def test_put_files(
                 encryption=encryption,
             )
 
-    encryption_settings = [None,  s3_server_side_encryption]
+    encryption_settings = [None, s3_server_side_encryption]
     for setting in encryption_settings:
         with S3(
             s3root=s3root, inject_failure_rate=inject_failure_rate, encryption=setting

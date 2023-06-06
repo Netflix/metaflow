@@ -260,7 +260,9 @@ class Kubernetes(object):
         )
 
         if S3_SERVER_SIDE_ENCRYPTION is not None:
-            job.environment_variable("METAFLOW_S3_SERVER_SIDE_ENCRYPTION", S3_SERVER_SIDE_ENCRYPTION)
+            job.environment_variable(
+                "METAFLOW_S3_SERVER_SIDE_ENCRYPTION", S3_SERVER_SIDE_ENCRYPTION
+            )
 
         # Set environment variables to support metaflow.integrations.ArgoEvent
         job.environment_variable(
