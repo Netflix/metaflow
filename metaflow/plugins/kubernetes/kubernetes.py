@@ -282,10 +282,14 @@ class Kubernetes(object):
         for name, value in env.items():
             job.environment_variable(name, value)
 
-        annotations = {
-            "metaflow/user": user,
-            "metaflow/flow_name": flow_name,
-        }
+        annotations = self._get_annotations(annotations)
+        annotations.update(
+            {
+                "metaflow/user": user,
+                "metaflow/flow_name": flow_name,
+            }
+        )
+
         if current.get("project_name"):
             annotations.update(
                 {
@@ -294,10 +298,6 @@ class Kubernetes(object):
                     "metaflow/project_flow_name": current.project_flow_name,
                 }
             )
-
-        extra_annotations = self._get_annotations(annotations)
-        if extra_annotations:
-            annotations.update(extra_annotations)
 
         for name, value in annotations.items():
             job.annotation(name, value)
