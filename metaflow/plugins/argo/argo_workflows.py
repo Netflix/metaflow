@@ -443,14 +443,12 @@ class ArgoWorkflows(object):
             # Assign a sanitized name since we need this at many places to please
             # Argo Events sensors. There is a slight possibility of name collision
             # but quite unlikely for us to worry about at this point.
-            event["sanitized_name"] = event["name"]
-            if any([x in event["name"] for x in [".", "-"]]):
-                event["sanitized_name"] = "%s_%s" % (
-                    event["name"].replace(".", "").replace("-", ""),
-                    to_unicode(
-                        base64.b32encode(sha1(to_bytes(event["name"])).digest())
-                    )[:4].lower(),
-                )
+            event["sanitized_name"] = "%s_%s" % (
+                event["name"].replace(".", "").replace("-", ""),
+                to_unicode(base64.b32encode(sha1(to_bytes(event["name"])).digest()))[
+                    :4
+                ].lower(),
+            )
         return triggers, options
 
     def _compile_workflow_template(self):
@@ -933,10 +931,8 @@ class ArgoWorkflows(object):
                     ]
                     + [
                         # Parameter names can be hyphenated, hence we use
-                        # {{foo.bar['param_name']}}. We quote the value to
-                        # make sure whitespaces are properly handled since
-                        # Argo Events wouldn't do that for us.
-                        "--%s='{{workflow.parameters.%s}}'"
+                        # {{foo.bar['param_name']}}.
+                        "--%s={{workflow.parameters.%s}}"
                         % (parameter["name"], parameter["name"])
                         for parameter in self.parameters.values()
                     ]
@@ -1265,12 +1261,13 @@ class ArgoWorkflows(object):
                                 + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
                                 if k
                             ],
-                            # Assign a volume point to pass state to the next task.
                             volume_mounts=[
+                                # Assign a volume mount to pass state to the next task.
                                 kubernetes_sdk.V1VolumeMount(
                                     name="out", mount_path="/mnt/out"
                                 )
                             ]
+                            # Support tmpfs.
                             + (
                                 [
                                     kubernetes_sdk.V1VolumeMount(
@@ -1281,6 +1278,7 @@ class ArgoWorkflows(object):
                                 if tmpfs_enabled
                                 else []
                             )
+                            # Support persistent volume claims.
                             + (
                                 [
                                     kubernetes_sdk.V1VolumeMount(
@@ -1564,7 +1562,7 @@ class ArgoWorkflows(object):
                                                 # Technically, we don't need to create
                                                 # a payload carry-on and can stuff
                                                 # everything within the body.
-                                                data_key="body.payload.%s" % v,
+                                                data_key="body.payload.%s|@tostr" % v,
                                                 # Unfortunately the sensor needs to
                                                 # record the default values for
                                                 # the parameters - there doesn't seem
