@@ -601,10 +601,10 @@ def list_runs(obj, pending, running, succeeded, failed, unknown):
             return "-"
         return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
 
-    def format_status(status):
-        if status == "Error":
-            return "Failed"
-        return status
+    def remap_status(status):
+        # remap status for the grouped cases
+        STATUS_MAP = {"Error": "Failed"}
+        return STATUS_MAP.get(status, status)
 
     for execution in executions:
         found = True
@@ -614,7 +614,7 @@ def list_runs(obj, pending, running, succeeded, failed, unknown):
             "finishedAt: '{finishedAt}' "
             "*{status}*".format(
                 id=execution["metadata"]["name"],
-                status=format_status(execution["status"]["phase"]),
+                status=remap_status(execution["status"]["phase"]),
                 startedAt=format_timestamp(execution["status"].get("startedAt", None)),
                 finishedAt=format_timestamp(
                     execution["status"].get("finishedAt", None)
@@ -625,11 +625,9 @@ def list_runs(obj, pending, running, succeeded, failed, unknown):
     if not found:
         if len(states) > 0:
             status = ""
-            for idx, state in enumerate(states):
+            for idx, state in enumerate(set(remap_status(state) for state in states)):
                 if idx == 0:
                     pass
-                elif state == "Error":
-                    continue
                 elif idx == len(states) - 1:
                     status += " and "
                 else:
