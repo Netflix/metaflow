@@ -26,12 +26,21 @@ class TriggerDecorator(FlowDecorator):
     Additionally, you can specify the parameter mappings
     to map event payload to Metaflow parameters for the flow.
     ```
-    @trigger(event={'name':'foo', 'parameters':{'my_param': 'event_field'})
+    @trigger(event={'name':'foo', 'parameters':{'flow_param': 'event_field'}})
     ```
     or
     ```
-    @trigger(events=[{'name':'foo', 'parameters':{'my_param_1': 'event_field_1'},
-                     {'name':'bar', 'parameters':{'my_param_2': 'event_field_2'}])
+    @trigger(events=[{'name':'foo', 'parameters':{'flow_param_1': 'event_field_1'},
+                     {'name':'bar', 'parameters':{'flow_param_2': 'event_field_2'}])
+    ```
+
+    'parameters' can also be a list of strings and tuples like so:
+    ```
+    @trigger(event={'name':'foo', 'parameters':['common_name', ('flow_param', 'event_field')]})
+    ```
+    This is equivalent to:
+    ```
+    @trigger(event={'name':'foo', 'parameters':{'common_name': 'common_name', 'flow_param': 'event_field'}})
     ```
 
     Parameters
@@ -76,11 +85,26 @@ class TriggerDecorator(FlowDecorator):
             if is_stringish(self.attributes["event"]):
                 self.triggers.append({"name": str(self.attributes["event"])})
             elif isinstance(self.attributes["event"], dict):
-                if "name" not in dict(self.attributes["event"]):
+                if "name" not in self.attributes["event"]:
                     raise MetaflowException(
                         "The *event* attribute for *@trigger* is missing the "
                         "*name* key."
                     )
+                param_value = self.attributes["event"].get("parameters", {})
+                if isinstance(param_value, (list, tuple)):
+                    new_param_value = {}
+                    for mapping in param_value:
+                        if is_stringish(mapping):
+                            new_param_value[mapping] = mapping
+                        elif isinstance(mapping, (list, tuple)) and len(mapping) == 2:
+                            new_param_value[mapping[0]] = mapping[1]
+                        else:
+                            raise MetaflowException(
+                                "The *parameters* attribute for event '%s' is invalid. "
+                                "It should be a list/tuple of strings and lists/tuples "
+                                "of size 2" % self.attributes["event"]["name"]
+                            )
+                    self.attributes["event"]["parameters"] = new_param_value
                 self.triggers.append(self.attributes["event"])
             else:
                 raise MetaflowException(
@@ -100,11 +124,29 @@ class TriggerDecorator(FlowDecorator):
                     if is_stringish(event):
                         self.triggers.append({"name": str(event)})
                     elif isinstance(event, dict):
-                        if "name" not in dict(event):
+                        if "name" not in event:
                             raise MetaflowException(
                                 "One or more events in *events* attribute for "
                                 "*@trigger* are missing the *name* key."
                             )
+                        param_value = event.get("parameters", {})
+                        if isinstance(param_value, (list, tuple)):
+                            new_param_value = {}
+                            for mapping in param_value:
+                                if is_stringish(mapping):
+                                    new_param_value[mapping] = mapping
+                                elif (
+                                    isinstance(mapping, (list, tuple))
+                                    and len(mapping) == 2
+                                ):
+                                    new_param_value[mapping[0]] = mapping[1]
+                                else:
+                                    raise MetaflowException(
+                                        "The *parameters* attribute for event '%s' is "
+                                        "invalid. It should be a list/tuple of strings "
+                                        "and lists/tuples of size 2" % event["name"]
+                                    )
+                            event["parameters"] = new_param_value
                         self.triggers.append(event)
                     else:
                         raise MetaflowException(
@@ -163,11 +205,23 @@ class TriggerOnFinishDecorator(FlowDecorator):
     @trigger_on_finish(flows=['my_project.branch.my_branch.FooFlow', 'BarFlow'])
     ```
 
+    You can also specify just the project or project branch (other values will be
+    inferred from the current project or project branch):
+    ```
+    @trigger_on_finish(flow={"name": "FooFlow", "project": "my_project", "project_branch": "branch"})
+    ```
+
+    Note that `branch` is typically one of:
+      - `prod`
+      - `user.bob`
+      - `test.my_experiment`
+      - `prod.staging`
+
     Parameters
     ----------
-    flow : str, optional
+    flow : Union[str, Dict[str, str]], optional
         Upstream flow dependency for this flow.
-    flows : List[str], optional
+    flows : List[Union[str, Dict[str, str]], optional
         Upstream flow dependencies for this flow.
     options : dict, optional
         Backend-specific configuration for tuning eventing behavior.
@@ -212,11 +266,40 @@ class TriggerOnFinishDecorator(FlowDecorator):
                         "fq_name": self.attributes["flow"],
                     }
                 )
+            elif isinstance(self.attributes["flow"], dict):
+                if "name" not in self.attributes["flow"]:
+                    raise MetaflowException(
+                        "The *flow* attribute for *@trigger_on_finish* is missing the "
+                        "*name* key."
+                    )
+                flow_name = self.attributes["flow"]["name"]
+
+                if not is_stringish(flow_name) or "." in flow_name:
+                    raise MetaflowException(
+                        "The *name* attribute of the *flow* is not a valid string"
+                    )
+                result = {"fq_name": flow_name}
+                if "project" in self.attributes["flow"]:
+                    if is_stringish(self.attributes["flow"]["project"]):
+                        result["project"] = self.attributes["flow"]["project"]
+                    else:
+                        raise MetaflowException(
+                            "The *project* attribute of the *flow* is not a string"
+                        )
+                if "project_branch" in self.attributes["flow"]:
+                    if is_stringish(self.attributes["flow"]["project_branch"]):
+                        result["branch"] = self.attributes["flow"]["project_branch"]
+                    else:
+                        raise MetaflowException(
+                            "The *project_branch* attribute of the *flow* is not a string"
+                        )
+                self.triggers.append(result)
             else:
                 raise MetaflowException(
                     "Incorrect type for *flow* attribute in *@trigger_on_finish* "
-                    " decorator. Supported type is string - \n"
-                    "@trigger_on_finish(flow='FooFlow')"
+                    " decorator. Supported type is string or Dict[str, str] - \n"
+                    "@trigger_on_finish(flow='FooFlow') or "
+                    "@trigger_on_finish(flow={'name':'FooFlow', 'project_branch': 'branch'})"
                 )
         elif self.attributes["flows"]:
             # flows attribute supports the following formats -
@@ -229,11 +312,43 @@ class TriggerOnFinishDecorator(FlowDecorator):
                                 "fq_name": flow,
                             }
                         )
+                    elif isinstance(flow, dict):
+                        if "name" not in flow:
+                            raise MetaflowException(
+                                "One or more flows in the *flows* attribute for "
+                                "*@trigger_on_finish* is missing the "
+                                "*name* key."
+                            )
+                        flow_name = flow["name"]
+
+                        if not is_stringish(flow_name) or "." in flow_name:
+                            raise MetaflowException(
+                                "The *name* attribute '%s' is not a valid string"
+                                % str(flow_name)
+                            )
+                        result = {"fq_name": flow_name}
+                        if "project" in flow:
+                            if is_stringish(flow["project"]):
+                                result["project"] = flow["project"]
+                            else:
+                                raise MetaflowException(
+                                    "The *project* attribute of the *flow* '%s' is not "
+                                    "a string" % flow_name
+                                )
+                        if "project_branch" in flow:
+                            if is_stringish(flow["project_branch"]):
+                                result["branch"] = flow["project_branch"]
+                            else:
+                                raise MetaflowException(
+                                    "The *project_branch* attribute of the *flow* %s "
+                                    "is not a string" % flow_name
+                                )
+                        self.triggers.append(result)
                     else:
                         raise MetaflowException(
                             "One or more flows in *flows* attribute in "
                             "*@trigger_on_finish* decorator have an incorrect type. "
-                            "Supported type is string - \n"
+                            "Supported type is string or Dict[str, str]- \n"
                             "@trigger_on_finish(flows=['FooFlow', 'BarFlow']"
                         )
             else:
