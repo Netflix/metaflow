@@ -444,9 +444,13 @@ class ArgoWorkflows(object):
             # Argo Events sensors. There is a slight possibility of name collision
             # but quite unlikely for us to worry about at this point.
             event["sanitized_name"] = event["name"]
-            if any([x in event["name"] for x in [".", "-"]]):
+            if any([x in event["name"] for x in [".", "-", "@", "+"]]):
                 event["sanitized_name"] = "%s_%s" % (
-                    event["name"].replace(".", "").replace("-", ""),
+                    event["name"]
+                    .replace(".", "")
+                    .replace("-", "")
+                    .replace("@", "")
+                    .replace("+", ""),
                     to_unicode(
                         base64.b32encode(sha1(to_bytes(event["name"])).digest())
                     )[:4].lower(),
