@@ -368,7 +368,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
             if trigger["fq_name"].count(".") == 0:
                 # fully qualified name is just the flow name
                 trigger["flow"] = trigger["fq_name"]
-            elif trigger["fq_name"].count(".") in (2, 3):
+            elif trigger["fq_name"].count(".") >= 2:
                 # fully qualified name is of the format - project.branch.flow_name
                 trigger["project"], tail = trigger["fq_name"].split(".", maxsplit=1)
                 trigger["branch"], trigger["flow"] = tail.rsplit(".", maxsplit=1)
