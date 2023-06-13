@@ -30,6 +30,7 @@ DEFAULT_MONITOR = from_conf("DEFAULT_MONITOR", "nullSidecarMonitor")
 DEFAULT_PACKAGE_SUFFIXES = from_conf("DEFAULT_PACKAGE_SUFFIXES", ".py,.R,.RDS")
 DEFAULT_AWS_CLIENT_PROVIDER = from_conf("DEFAULT_AWS_CLIENT_PROVIDER", "boto3")
 DEFAULT_SECRETS_BACKEND_TYPE = from_conf("DEFAULT_SECRETS_BACKEND_TYPE")
+DEFAULT_SECRETS_ROLE = from_conf("DEFAULT_SECRETS_ROLE")
 
 ###
 # User configuration
@@ -349,7 +350,7 @@ CONDA_DEPENDENCY_RESOLVER = from_conf("CONDA_DEPENDENCY_RESOLVER", "conda")
 DEBUG_OPTIONS = ["subcommand", "sidecar", "s3client"]
 
 for typ in DEBUG_OPTIONS:
-    vars()["DEBUG_%s" % typ.upper()] = from_conf("DEBUG_%s" % typ.upper())
+    vars()["DEBUG_%s" % typ.upper()] = from_conf("DEBUG_%s" % typ.upper(), False)
 
 ###
 # Plugin configuration

@@ -150,6 +150,7 @@ class ModuleImporter(object):
             max_pickle_version = min(self._max_pickle_version, pickle.HIGHEST_PROTOCOL)
 
             self._client = Client(
+                self._module_prefixes,
                 self._python_executable,
                 self._pythonpath,
                 max_pickle_version,

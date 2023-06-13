@@ -43,7 +43,7 @@ def _sanitize_key_as_env_var(key):
 class AwsSecretsManagerSecretsProvider(SecretsProvider):
     TYPE = "aws-secrets-manager"
 
-    def get_secret_as_dict(self, secret_id, options={}):
+    def get_secret_as_dict(self, secret_id, options={}, role=None):
         """
         Reads a secret from AWS Secrets Manager and returns it as a dictionary of environment variables.
 
@@ -65,6 +65,7 @@ class AwsSecretsManagerSecretsProvider(SecretsProvider):
 
         :param secret_id: ARN or friendly name of the secret
         :param options: unused
+        :param role: AWS IAM Role ARN to assume before reading the secret
         :return: dict of environment variables. All keys and values are strings.
         """
         import botocore
@@ -79,12 +80,15 @@ class AwsSecretsManagerSecretsProvider(SecretsProvider):
             effective_aws_region = options["region"]
         else:
             effective_aws_region = AWS_SECRETS_MANAGER_DEFAULT_REGION
+
         # At the end of all that, `effective_aws_region` may still be None.
         # This might still be OK, if there is fallback AWS region info in environment like:
         # .aws/config or AWS_REGION env var or AWS_DEFAULT_REGION env var, etc.
         try:
             secrets_manager_client = get_aws_client(
-                "secretsmanager", client_params={"region_name": effective_aws_region}
+                "secretsmanager",
+                client_params={"region_name": effective_aws_region},
+                role_arn=role,
             )
         except botocore.exceptions.NoRegionError:
             # We try our best with a nice error message.
