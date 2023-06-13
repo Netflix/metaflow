@@ -10,8 +10,8 @@ from metaflow import JSONType, current, decorators, parameters
 from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import (
-    ARGO_EVENTS_NOTIFY_ON_ERROR,
-    ARGO_EVENTS_NOTIFY_ON_SUCCESS,
+    ARGO_WORKFLOWS_NOTIFY_ON_ERROR,
+    ARGO_WORKFLOWS_NOTIFY_ON_SUCCESS,
     SERVICE_VERSION_CHECK,
     UI_URL,
     ARGO_WORKFLOWS_UI_URL,
@@ -144,13 +144,13 @@ def argo_workflows(obj, name=None):
 )
 @click.option(
     "--notify-on-error/--no-notify-on-error",
-    default=ARGO_EVENTS_NOTIFY_ON_ERROR,
+    default=ARGO_WORKFLOWS_NOTIFY_ON_ERROR,
     show_default=True,
     help="Notify if the workflow fails.",
 )
 @click.option(
     "--notify-on-success/--no-notify-on-success",
-    default=ARGO_EVENTS_NOTIFY_ON_SUCCESS,
+    default=ARGO_WORKFLOWS_NOTIFY_ON_SUCCESS,
     show_default=True,
     help="Notify if the workflow succeeds.",
 )
