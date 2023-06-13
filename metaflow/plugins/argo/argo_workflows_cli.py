@@ -618,19 +618,16 @@ def suspend(obj, run_id, authorize=None):
             "Please reach out to them to get the token. Once you have it, call "
             "this command:"
         )
-        obj.echo(
-            "    argo-workflows suspend RUN_ID --authorize MY_TOKEN RUN_ID", fg="green"
-        )
+        obj.echo("    argo-workflows suspend RUN_ID --authorize MY_TOKEN", fg="green")
         obj.echo(
             'See "Organizing Results" at docs.metaflow.org for more information '
             "about production tokens."
         )
 
+    validate_run_id(obj.workflow_name, run_id)
     validate_token(obj.workflow_name, obj.token_prefix, authorize, _token_instructions)
 
-    # Verify that user is trying to change an Argo workflow
-    if not run_id.startswith("argo-"):
-        raise MetaflowException("Argo workflow execution id's start with 'argo-'")
+    # Trim prefix from run_id
     name = run_id[5:]
 
     workflow_suspended = ArgoWorkflows.suspend(name)
@@ -662,7 +659,7 @@ def unsuspend(obj, run_id, authorize=None):
             "this command:"
         )
         obj.echo(
-            "    argo-workflows unsuspend RUN_ID --authorize MY_TOKEN RUN_ID",
+            "    argo-workflows unsuspend RUN_ID --authorize MY_TOKEN",
             fg="green",
         )
         obj.echo(
@@ -670,11 +667,10 @@ def unsuspend(obj, run_id, authorize=None):
             "about production tokens."
         )
 
+    validate_run_id(obj.workflow_name, run_id)
     validate_token(obj.workflow_name, obj.token_prefix, authorize, _token_instructions)
 
-    # Verify that user is trying to change an Argo workflow
-    if not run_id.startswith("argo-"):
-        raise MetaflowException("Argo workflow execution id's start with 'argo-'")
+    # Trim prefix from run_id
     name = run_id[5:]
 
     workflow_suspended = ArgoWorkflows.unsuspend(name)
@@ -720,4 +716,41 @@ def validate_token(name, token_prefix, authorize, instructions_fn=None):
     token = prev_token
 
     store_token(token_prefix, token)
+    return True
+
+
+def validate_run_id(workflow_name, run_id):
+    """
+    Validates that a run_id adheres to the Argo Workflows naming rules, and
+    that it belongs to the current flow (accounting for project branch as well).
+    """
+    # Verify that user is trying to change an Argo workflow
+    if not run_id.startswith("argo-"):
+        raise MetaflowException("Argo workflow execution id's start with 'argo-'")
+
+    # Verify that run_id belongs to the Flow, and that branches match
+    name = run_id[5:]
+    workflow = ArgoWorkflows.get_execution(name)
+    if workflow is None:
+        raise MetaflowException("Could not find the workflow *%s*" % run_id)
+
+    _owner, _token, deployed_flow_name, deployed_workflow_template_name = workflow
+
+    # Verify we are operating on the correct Flow file compared to the running one.
+    # Without this check, using --name could be used to run commands for arbitrary run_id's, disregarding the Flow in the file.
+    if current.flow_name != deployed_flow_name:
+        raise MetaflowException(
+            "The workflow with the run_id *%s* is not for the flow *%s*.\n"
+            "Please use the correct Flow file." % (run_id, current.flow_name)
+        )
+
+    # Verify that we are operating on the correct project and branch.
+    # Project and branch are stored in the workflow template name so this is the easiest comparison to perform.
+    if workflow_name != deployed_workflow_template_name:
+        raise MetaflowException(
+            "The run_id *%s* belongs to the workflow *%s*, not to the workflow *%s*\n"
+            "Please use --production, --branch or --name to target the correct branch"
+            % (run_id, workflow_name, deployed_workflow_template_name)
+        )
+
     return True

@@ -297,6 +297,24 @@ class ArgoWorkflows(object):
                 )
         return None
 
+    @classmethod
+    def get_execution(cls, name):
+        workflow = ArgoClient(namespace=KUBERNETES_NAMESPACE).get_workflow(name)
+        if workflow is not None:
+            try:
+                return (
+                    workflow["metadata"]["annotations"]["metaflow/owner"],
+                    workflow["metadata"]["annotations"]["metaflow/production_token"],
+                    workflow["metadata"]["annotations"]["metaflow/flow_name"],
+                    workflow["spec"]["workflowTemplateRef"]["name"],
+                )
+            except KeyError:
+                raise ArgoWorkflowsException(
+                    "A non-metaflow workflow *%s* already exists in Argo Workflows."
+                    % name
+                )
+        return None
+
     def _process_parameters(self):
         parameters = {}
         has_schedule = self.flow._flow_decorators.get("schedule") is not None
