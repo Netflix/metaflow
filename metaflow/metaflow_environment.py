@@ -193,7 +193,9 @@ class MetaflowEnvironment(object):
             env[ext_key] = ext_val
         return env
 
-    def executable(self, step_name):
+    def executable(self, step_name, default=None):
+        if default is not None:
+            return default
         return self._python()
 
     def _python(self):

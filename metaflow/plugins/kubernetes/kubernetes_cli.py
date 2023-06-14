@@ -141,8 +141,7 @@ def step(
     node = ctx.obj.graph[step_name]
 
     # Construct entrypoint CLI
-    if executable is None:
-        executable = ctx.obj.environment.executable(step_name)
+    executable = ctx.obj.environment.executable(step_name, executable)
 
     # Set environment
     env = {}

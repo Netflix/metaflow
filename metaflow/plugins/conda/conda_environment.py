@@ -96,12 +96,12 @@ class CondaEnvironment(MetaflowEnvironment):
         config.append("--disable=F0401")
         return config
 
-    def executable(self, step_name):
+    def executable(self, step_name, default=None):
         # Get relevant python interpreter for step
         executable = self._get_executable(step_name)
         if executable is not None:
             return executable
-        return self.base_env.executable(step_name)
+        return self.base_env.executable(step_name, default)
 
     @classmethod
     def get_client_info(cls, flow_name, metadata):
