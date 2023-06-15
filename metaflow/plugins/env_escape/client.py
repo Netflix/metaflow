@@ -42,7 +42,20 @@ BIND_RETRY = 0
 
 
 class Client(object):
-    def __init__(self, python_executable, pythonpath, max_pickle_version, config_dir):
+    def __init__(
+        self, modules, python_executable, pythonpath, max_pickle_version, config_dir
+    ):
+        # Wrap with ImportError so that if users are just using the escaped module
+        # as optional, the typical logic of catching ImportError works properly
+        try:
+            self.inner_init(
+                python_executable, pythonpath, max_pickle_version, config_dir
+            )
+        except Exception as e:
+            # Typically it's one override per config so we just use the first one.
+            raise ImportError("Error loading module: %s" % str(e), name=modules[0])
+
+    def inner_init(self, python_executable, pythonpath, max_pickle_version, config_dir):
         # Make sure to init these variables (used in __del__) early on in case we
         # have an exception
         self._poller = None
