@@ -726,13 +726,15 @@ def validate_run_id(workflow_name, run_id):
     """
     # Verify that user is trying to change an Argo workflow
     if not run_id.startswith("argo-"):
-        raise MetaflowException("Argo workflow execution id's start with 'argo-'")
+        raise MetaflowException(
+            "Run IDs for flows executed through Argo Workflows begin with 'argo-'"
+        )
 
     # Verify that run_id belongs to the Flow, and that branches match
     name = run_id[5:]
     workflow = ArgoWorkflows.get_execution(name)
     if workflow is None:
-        raise MetaflowException("Could not find the workflow *%s*" % run_id)
+        raise MetaflowException("Could not find workflow *%s* on Argo Workflows" % name)
 
     _owner, _token, deployed_flow_name, deployed_workflow_template_name = workflow
 
