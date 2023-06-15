@@ -1571,7 +1571,7 @@ class ArgoWorkflows(object):
                                                 # Technically, we don't need to create
                                                 # a payload carry-on and can stuff
                                                 # everything within the body.
-                                                data_key="body.payload.%s|@tostr" % v,
+                                                data_key="body.payload.%s" % v,
                                                 # Unfortunately the sensor needs to
                                                 # record the default values for
                                                 # the parameters - there doesn't seem
