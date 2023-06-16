@@ -624,7 +624,7 @@ def suspend(obj, run_id, authorize=None):
             "about production tokens."
         )
 
-    validate_run_id(obj.workflow_name, run_id)
+    validate_run_id(obj.workflow_name, obj.token_prefix, authorize, run_id)
     validate_token(obj.workflow_name, obj.token_prefix, authorize, _token_instructions)
 
     # Trim prefix from run_id
@@ -667,7 +667,7 @@ def unsuspend(obj, run_id, authorize=None):
             "about production tokens."
         )
 
-    validate_run_id(obj.workflow_name, run_id)
+    validate_run_id(obj.workflow_name, obj.token_prefix, authorize, run_id)
     validate_token(obj.workflow_name, obj.token_prefix, authorize, _token_instructions)
 
     # Trim prefix from run_id
@@ -719,7 +719,7 @@ def validate_token(name, token_prefix, authorize, instructions_fn=None):
     return True
 
 
-def validate_run_id(workflow_name, run_id):
+def validate_run_id(workflow_name, token_prefix, authorize, run_id):
     """
     Validates that a run_id adheres to the Argo Workflows naming rules, and
     that it belongs to the current flow (accounting for project branch as well).
@@ -736,23 +736,25 @@ def validate_run_id(workflow_name, run_id):
     if workflow is None:
         raise MetaflowException("Could not find workflow *%s* on Argo Workflows" % name)
 
-    _owner, _token, deployed_flow_name, deployed_workflow_template_name = workflow
+    owner, token, flow_name, branch_name, project_name = workflow
 
     # Verify we are operating on the correct Flow file compared to the running one.
     # Without this check, using --name could be used to run commands for arbitrary run_id's, disregarding the Flow in the file.
-    if current.flow_name != deployed_flow_name:
+    if current.flow_name != flow_name:
         raise MetaflowException(
-            "The workflow with the run_id *%s* is not for the flow *%s*.\n"
-            "Please use the correct Flow file." % (run_id, current.flow_name)
+            "The workflow with the run_id *%s* belongs to the flow *%s*, not for the flow *%s*.\n"
+            "Please use the correct Flow file." % (run_id, flow_name, current.flow_name)
         )
 
-    # Verify that we are operating on the correct project and branch.
-    # Project and branch are stored in the workflow template name so this is the easiest comparison to perform.
-    if workflow_name != deployed_workflow_template_name:
-        raise MetaflowException(
-            "The run_id *%s* belongs to the workflow *%s*, not to the workflow *%s*\n"
-            "Please use --production, --branch or --name to target the correct branch"
-            % (run_id, workflow_name, deployed_workflow_template_name)
-        )
+    # TODO: Verify that we are operating on the correct project and branch.
+
+    # Verify that the production tokens match
+    if authorize is None:
+        authorize = load_token(token_prefix)
+    elif authorize.startswith("production:"):
+        authorize = authorize[11:]
+
+    if owner != get_username() and authorize != token:
+        raise IncorrectProductionToken("Try again with the correct production token.")
 
     return True

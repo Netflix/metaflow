@@ -306,7 +306,13 @@ class ArgoWorkflows(object):
                     workflow["metadata"]["annotations"]["metaflow/owner"],
                     workflow["metadata"]["annotations"]["metaflow/production_token"],
                     workflow["metadata"]["annotations"]["metaflow/flow_name"],
-                    workflow["spec"]["workflowTemplateRef"]["name"],
+                    workflow["metadata"]["annotations"].get(
+                        "metaflow/branch_name", None
+                    ),
+                    workflow["metadata"]["annotations"].get(
+                        "metaflow/project_name", None
+                    ),
+                    # workflow["spec"]["workflowTemplateRef"]["name"],
                 )
             except KeyError:
                 raise ArgoWorkflowsException(
