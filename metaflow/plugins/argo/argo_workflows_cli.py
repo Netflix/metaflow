@@ -37,6 +37,10 @@ class IncorrectProductionToken(MetaflowException):
     headline = "Incorrect production token"
 
 
+class RunIdMismatch(MetaflowException):
+    headline = "Run ID mismatch"
+
+
 class IncorrectMetadataServiceVersion(MetaflowException):
     headline = "Incorrect version for metaflow service"
 
@@ -333,12 +337,7 @@ def resolve_workflow_name(obj, name):
             workflow_name = "%s-%s" % (workflow_name[:242], name_hash)
             obj._is_workflow_name_modified = True
         if not VALID_NAME.search(workflow_name):
-            workflow_name = (
-                re.compile(r"^[^A-Za-z0-9]+")
-                .sub("", workflow_name)
-                .replace("_", "")
-                .lower()
-            )
+            workflow_name = sanitize_for_argo(workflow_name)
             obj._is_workflow_name_modified = True
     else:
         if name and not VALID_NAME.search(name):
@@ -363,12 +362,7 @@ def resolve_workflow_name(obj, name):
             raise ArgoWorkflowsNameTooLong(msg)
 
         if not VALID_NAME.search(workflow_name):
-            workflow_name = (
-                re.compile(r"^[^A-Za-z0-9]+")
-                .sub("", workflow_name)
-                .replace("_", "")
-                .lower()
-            )
+            workflow_name = sanitize_for_argo(workflow_name)
             obj._is_workflow_name_modified = True
 
     return workflow_name, token_prefix.lower(), is_project
@@ -624,8 +618,9 @@ def suspend(obj, run_id, authorize=None):
             "about production tokens."
         )
 
-    validate_run_id(obj.workflow_name, obj.token_prefix, authorize, run_id)
-    validate_token(obj.workflow_name, obj.token_prefix, authorize, _token_instructions)
+    validate_run_id(
+        obj.workflow_name, obj.token_prefix, authorize, run_id, _token_instructions
+    )
 
     # Trim prefix from run_id
     name = run_id[5:]
@@ -667,8 +662,9 @@ def unsuspend(obj, run_id, authorize=None):
             "about production tokens."
         )
 
-    validate_run_id(obj.workflow_name, obj.token_prefix, authorize, run_id)
-    validate_token(obj.workflow_name, obj.token_prefix, authorize, _token_instructions)
+    validate_run_id(
+        obj.workflow_name, obj.token_prefix, authorize, run_id, _token_instructions
+    )
 
     # Trim prefix from run_id
     name = run_id[5:]
@@ -719,14 +715,16 @@ def validate_token(name, token_prefix, authorize, instructions_fn=None):
     return True
 
 
-def validate_run_id(workflow_name, token_prefix, authorize, run_id):
+def validate_run_id(
+    workflow_name, token_prefix, authorize, run_id, instructions_fn=None
+):
     """
     Validates that a run_id adheres to the Argo Workflows naming rules, and
     that it belongs to the current flow (accounting for project branch as well).
     """
     # Verify that user is trying to change an Argo workflow
     if not run_id.startswith("argo-"):
-        raise MetaflowException(
+        raise RunIdMismatch(
             "Run IDs for flows executed through Argo Workflows begin with 'argo-'"
         )
 
@@ -741,20 +739,57 @@ def validate_run_id(workflow_name, token_prefix, authorize, run_id):
     # Verify we are operating on the correct Flow file compared to the running one.
     # Without this check, using --name could be used to run commands for arbitrary run_id's, disregarding the Flow in the file.
     if current.flow_name != flow_name:
-        raise MetaflowException(
-            "The workflow with the run_id *%s* belongs to the flow *%s*, not for the flow *%s*.\n"
-            "Please use the correct Flow file." % (run_id, flow_name, current.flow_name)
+        raise RunIdMismatch(
+            "The workflow with the run_id *%s* belongs to the flow *%s*, not for the flow *%s*."
+            % (run_id, flow_name, current.flow_name)
         )
 
-    # TODO: Verify that we are operating on the correct project and branch.
+    if project_name is not None:
+        # Verify we are operating on the correct project.
+        # Perform match with separators to avoid substrings matching
+        # e.g. 'test_proj' and 'test_project' should count as a mismatch.
+        project_part = "%s." % sanitize_for_argo(project_name)
+        if (
+            current.get("project_name") != project_name
+            and project_part not in workflow_name
+        ):
+            raise RunIdMismatch(
+                "The workflow belongs to the project *%s*. "
+                "Please use the project decorator or --name to target the correct project"
+                % project_name
+            )
 
-    # Verify that the production tokens match
+        # Verify we are operating on the correct branch.
+        # Perform match with separators to avoid substrings matching.
+        # e.g. 'user.tes' and 'user.test' should count as a mismatch.
+        branch_part = ".%s." % sanitize_for_argo(branch_name)
+        if (
+            current.get("branch_name") != branch_name
+            and branch_part not in workflow_name
+        ):
+            raise RunIdMismatch(
+                "The workflow belongs to the branch *%s*. "
+                "Please use --branch, --production or --name to target the correct branch"
+                % branch_name
+            )
+
+    # Verify that the production tokens match. We do not want to cache the token that was used though,
+    # as the operations that require run_id validation can target runs not authored from the local environment
     if authorize is None:
         authorize = load_token(token_prefix)
     elif authorize.startswith("production:"):
         authorize = authorize[11:]
 
     if owner != get_username() and authorize != token:
+        if instructions_fn:
+            instructions_fn(flow_name=name, prev_user=owner)
         raise IncorrectProductionToken("Try again with the correct production token.")
 
     return True
+
+
+def sanitize_for_argo(text):
+    """
+    Sanitizes a string so it does not contain characters that are not permitted in Argo Workflow resource names.
+    """
+    return re.compile(r"^[^A-Za-z0-9]+").sub("", text).replace("_", "").lower()
