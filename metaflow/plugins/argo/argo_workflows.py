@@ -312,7 +312,6 @@ class ArgoWorkflows(object):
                     workflow["metadata"]["annotations"].get(
                         "metaflow/project_name", None
                     ),
-                    # workflow["spec"]["workflowTemplateRef"]["name"],
                 )
             except KeyError:
                 raise ArgoWorkflowsException(
