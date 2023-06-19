@@ -41,10 +41,11 @@ STEP_DECORATORS_DESC = [
         "unbounded_test_foreach_internal",
         ".test_unbounded_foreach_decorator.InternalTestUnboundedForeachDecorator",
     ),
-    ("conda", ".conda.conda_step_decorator.CondaStepDecorator"),
     ("card", ".cards.card_decorator.CardDecorator"),
     ("pytorch_parallel", ".frameworks.pytorch.PytorchParallelDecorator"),
     ("airflow_internal", ".airflow.airflow_decorator.AirflowInternalDecorator"),
+    ("pypi", ".pypi.pypi_decorator.PyPIStepDecorator"),
+    ("conda", ".pypi.conda_decorator.CondaStepDecorator"),
 ]
 
 # Add new flow decorators here
@@ -53,7 +54,6 @@ STEP_DECORATORS_DESC = [
 # careful with the choice of name though - they become top-level
 # imports from the metaflow package.
 FLOW_DECORATORS_DESC = [
-    ("conda_base", ".conda.conda_flow_decorator.CondaFlowDecorator"),
     ("schedule", ".aws.step_functions.schedule_decorator.ScheduleDecorator"),
     ("project", ".project_decorator.ProjectDecorator"),
     ("trigger", ".events_decorator.TriggerDecorator"),
@@ -61,7 +61,7 @@ FLOW_DECORATORS_DESC = [
 ]
 
 # Add environments here
-ENVIRONMENTS_DESC = [("conda", ".conda.conda_environment.CondaEnvironment")]
+ENVIRONMENTS_DESC = [("conda", ".pypi.conda_environment.CondaEnvironment")]
 
 # Add metadata providers here
 METADATA_PROVIDERS_DESC = [
