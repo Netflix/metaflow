@@ -43,7 +43,6 @@ class CondaStepDecorator(StepDecorator):
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         # @conda uses a conda environment to create a virtual environment.
         # The conda environment can be created through micromamba.
-
         _supported_virtual_envs = ["conda"]
 
         # The --environment= requirement ensures that valid virtual environments are
