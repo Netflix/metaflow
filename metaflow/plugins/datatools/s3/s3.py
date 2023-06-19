@@ -759,7 +759,9 @@ class S3(object):
                 "metadata": resp["Metadata"],
                 "size": resp["ContentLength"],
                 "last_modified": get_timestamp(resp["LastModified"]),
-                "encryption": resp["ServerSideEncryption"],
+                "encryption": resp["ServerSideEncryption"]
+                if "ServerSideEncryption" in resp
+                else None,
             }
 
         info_results = None
@@ -910,7 +912,9 @@ class S3(object):
             if return_info:
                 return {
                     "content_type": resp["ContentType"],
-                    "encryption": resp["ServerSideEncryption"],
+                    "encryption": resp["ServerSideEncryption"]
+                    if "ServerSideEncryption" in resp
+                    else None,
                     "metadata": resp["Metadata"],
                     "range_result": range_result,
                     "last_modified": get_timestamp(resp["LastModified"]),
