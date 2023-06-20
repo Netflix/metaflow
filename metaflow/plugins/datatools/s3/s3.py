@@ -759,9 +759,7 @@ class S3(object):
                 "metadata": resp["Metadata"],
                 "size": resp["ContentLength"],
                 "last_modified": get_timestamp(resp["LastModified"]),
-                "encryption": resp["ServerSideEncryption"]
-                if "ServerSideEncryption" in resp
-                else None,
+                "encryption": resp.get("ServerSideEncryption"),
             }
 
         info_results = None
@@ -912,9 +910,12 @@ class S3(object):
             if return_info:
                 return {
                     "content_type": resp["ContentType"],
-                    "encryption": resp["ServerSideEncryption"]
-                    if "ServerSideEncryption" in resp
-                    else None,
+                    # Since Metaflow can also use S3-compatible storage like MinIO,
+                    # there maybe some keys missing in the responses given by different S3-compatible object stores.
+                    # MinIO is generally accessed via HTTPS, and so it's encrpytion scheme is
+                    # TLS/SSL. This is why the `ServerSideEncryption` key is not present
+                    # in the response from MinIO.
+                    "encryption": resp.get("ServerSideEncryption"),
                     "metadata": resp["Metadata"],
                     "range_result": range_result,
                     "last_modified": get_timestamp(resp["LastModified"]),

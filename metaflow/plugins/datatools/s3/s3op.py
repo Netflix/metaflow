@@ -173,9 +173,7 @@ def worker(result_file_name, queue, mode, s3config):
                 "error": None,
                 "size": head["ContentLength"],
                 "content_type": head["ContentType"],
-                "encryption": head["ServerSideEncryption"]
-                if "ServerSideEncryption" in head
-                else None,
+                "encryption": head.get("ServerSideEncryption"),
                 "metadata": head["Metadata"],
                 "last_modified": get_timestamp(head["LastModified"]),
             }
@@ -470,7 +468,7 @@ class S3Ops(object):
                             prefix=url.prefix,
                             content_type=head["ContentType"],
                             metadata=head["Metadata"],
-                            encryption=head["ServerSideEncryption"],
+                            encryption=head.get("ServerSideEncryption"),
                             range=url.range,
                         ),
                         head["ContentLength"],
