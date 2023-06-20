@@ -1018,7 +1018,9 @@ class ArgoWorkflows(object):
                     + [
                         # Parameter names can be hyphenated, hence we use
                         # {{foo.bar['param_name']}}.
-                        "--%s={{workflow.parameters.%s}}"
+                        # https://argoproj.github.io/argo-events/tutorials/02-parameterization/
+                        # http://masterminds.github.io/sprig/strings.html
+                        "--%s={{workflow.parameters.%s | squote}}"
                         % (parameter["name"], parameter["name"])
                         for parameter in self.parameters.values()
                     ]
