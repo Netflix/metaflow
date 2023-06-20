@@ -38,7 +38,7 @@ class ArgoClient(object):
         # including the following: spec.workflowTemplateRef.name, status.phase
         # Therefore we use labels for filtering the runs, but this has required us to add a label for the workflow-template name
         # making the solution not backwards compatible.
-        filters = ["workflow-template-hash=%s" % name_hash]
+        filters = ["metaflow.org/workflow-template-name-hash=%s" % name_hash]
         if states:
             filters.append("workflows.argoproj.io/phase in (%s)" % ",".join(states))
 

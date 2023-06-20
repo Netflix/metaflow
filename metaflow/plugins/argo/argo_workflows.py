@@ -167,7 +167,9 @@ class ArgoWorkflows(object):
     def _label_hash(name):
         # Hash a name for use as a Kubernetes label.
         # Use the maximum allowed 63 characters for the hash to minimize collisions.
-        return sha1(name.encode("utf-8")).hexdigest()[:63]
+        # Preserve part of the name for legibility purposes.
+        name_hash = sha1(name.encode("utf-8")).hexdigest()
+        return "%s-%s" % (name[:53], name_hash[:10])
 
     @classmethod
     def trigger(cls, name, parameters=None):
@@ -525,7 +527,10 @@ class ArgoWorkflows(object):
                     Metadata()
                     .label("app.kubernetes.io/name", "metaflow-run")
                     .label("app.kubernetes.io/part-of", "metaflow")
-                    .label("workflow-template-hash", self._label_hash(self.name))
+                    .label(
+                        "metaflow.org/workflow-template-name-hash",
+                        self._label_hash(self.name),
+                    )
                     .annotations(
                         {**annotations, **{"metaflow/run_id": "argo-{{workflow.name}}"}}
                     )
