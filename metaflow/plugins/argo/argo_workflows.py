@@ -29,6 +29,7 @@ from metaflow.metaflow_config import (
     DATATOOLS_S3ROOT,
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
+    KUBERNETES_ANNOTATIONS,
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
@@ -152,6 +153,7 @@ class ArgoWorkflows(object):
         self._schedule, self._timezone = self._get_schedule()
 
         self.kubernetes_labels = self._get_kubernetes_labels()
+        self.kubernetes_annotations = self._get_kubernetes_annotations()
         self._workflow_template = self._compile_workflow_template()
         self._sensor = self._compile_sensor()
 
@@ -219,6 +221,19 @@ class ArgoWorkflows(object):
         env_labels = parse_kube_keyvalue_list(env_labels, False)
         validate_kube_labels_or_annotations(env_labels)
         return env_labels
+
+    @staticmethod
+    def _get_kubernetes_annotations():
+        """
+        Get Kubernetes annotations from environment variable.
+        Parses the string into a dict and validates that values adhere to Kubernetes restrictions.
+        """
+        if not KUBERNETES_ANNOTATIONS:
+            return {}
+        env_annotations = KUBERNETES_ANNOTATIONS.split(",")
+        env_annotations = parse_kube_keyvalue_list(env_annotations, False)
+        validate_kube_labels_or_annotations(env_annotations)
+        return env_annotations
 
     def _get_schedule(self):
         schedule = self.flow._flow_decorators.get("schedule")
@@ -479,13 +494,15 @@ class ArgoWorkflows(object):
         # (https://github.com/argoproj/argo-workflows/issues/7432) and we are forced to
         # generate container templates at the top level (in WorkflowSpec) and maintain
         # references to them within the DAGTask.
-
-        annotations = {
-            "metaflow/production_token": self.production_token,
-            "metaflow/owner": self.username,
-            "metaflow/user": "argo-workflows",
-            "metaflow/flow_name": self.flow.name,
-        }
+        annotations = self.kubernetes_annotations
+        annotations.update(
+            {
+                "metaflow/production_token": self.production_token,
+                "metaflow/owner": self.username,
+                "metaflow/user": "argo-workflows",
+                "metaflow/flow_name": self.flow.name,
+            }
+        )
         if current.get("project_name"):
             annotations.update(
                 {
