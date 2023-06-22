@@ -12,7 +12,7 @@ from os import O_NONBLOCK
 
 from .sidecar_messages import Message, MessageTypes
 from ..debug import debug
-from ..tracing import inject_tracing_vars
+from metaflow.tracing import inject_tracing_vars
 
 MUST_SEND_RETRY_TIMES = 4
 MESSAGE_WRITE_TIMEOUT_IN_MS = 1000

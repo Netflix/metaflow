@@ -6,7 +6,6 @@ from multiprocessing import cpu_count
 from tempfile import NamedTemporaryFile
 import time
 import metaflow.tracing as tracing
-
 try:
     # Python 2
     import cPickle as pickle

@@ -1,55 +1,31 @@
 import os
-
 import sys
-from functools import wraps
-import contextlib
-from typing import Dict, List, Optional
-from opentelemetry import trace as trace_api, context
-from opentelemetry.trace.span import format_trace_id
-from opentelemetry.propagate import extract, inject
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
-    OTLPSpanExporter,
-)
+
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.propagate import set_global_textmap
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+from opentelemetry.trace.span import format_trace_id
+from opentelemetry.propagate import extract, inject
+from functools import wraps
+import contextlib
+from typing import Dict, List, Optional
+from opentelemetry import trace as trace_api, context
+from .span_exporter import get_span_exporter
 
 tracer_provider = None
 
-
 def init_tracing():
-    from metaflow.metaflow_config import (
-        SERVICE_AUTH_KEY,
-        SERVICE_HEADERS,
-        OTEL_ENDPOINT,
-    )
-
     global tracer_provider
     if tracer_provider is not None:
         print("Tracing already initialized", file=sys.stderr)
         return
-    # print("initializing tracing", os.environ.get("traceparent"))
 
-    from metaflow.tracing_propagator import EnvPropagator
+    from .propagator import EnvPropagator
 
     set_global_textmap(EnvPropagator(None))
+    span_exporter = get_span_exporter()
 
-    if SERVICE_AUTH_KEY:
-        span_exporter = OTLPSpanExporter(
-            endpoint=OTEL_ENDPOINT,
-            headers={"x-api-key": SERVICE_AUTH_KEY},
-            timeout=1,
-        )
-    elif SERVICE_HEADERS:
-        span_exporter = OTLPSpanExporter(
-            endpoint=OTEL_ENDPOINT,
-            headers=SERVICE_HEADERS,
-            timeout=1,
-        )
-    else:
-        print("WARNING: no auth settings for Opentelemetry", file=sys.stderr)
-        return
 
     if "METAFLOW_KUBERNETES_POD_NAMESPACE" in os.environ:
         service_name = "metaflow-kubernetes"
@@ -66,10 +42,10 @@ def init_tracing():
     span_processor = BatchSpanProcessor(span_exporter)
     tracer_provider.add_span_processor(span_processor)
 
-    import requests
     from opentelemetry.instrumentation.requests import RequestsInstrumentor
 
     RequestsInstrumentor().instrument()
+
 
 
 @contextlib.contextmanager

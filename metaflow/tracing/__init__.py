@@ -1,3 +1,9 @@
+import sys
+from metaflow.metaflow_config import (
+    OTEL_ENDPOINT,
+    ZIPKIN_ENDPOINT,
+    CONSOLE_TRACE_ENABLED,
+)
 from functools import wraps
 import contextlib
 from typing import Dict
@@ -42,3 +48,10 @@ def tracing(func):
         return func(*args, **kwargs)
 
     return wrapper_func
+
+if CONSOLE_TRACE_ENABLED or OTEL_ENDPOINT or ZIPKIN_ENDPOINT:
+    try:
+        from .tracing_modules import *
+
+    except ImportError as e:
+        print(e.msg)
