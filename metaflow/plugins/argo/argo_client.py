@@ -11,9 +11,10 @@ class ArgoClientException(MetaflowException):
 
 
 class ArgoClient(object):
-    def __init__(self, namespace=None):
+    def __init__(self, namespace=None, sensor_namespace=None):
         self._client = KubernetesClient()
         self._namespace = namespace or "default"
+        self._sensor_namespace = sensor_namespace or self._namespace
         self._group = "argoproj.io"
         self._version = "v1alpha1"
 
@@ -196,7 +197,7 @@ class ArgoClient(object):
             ] = client.CustomObjectsApi().get_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
-                namespace=self._namespace,
+                namespace=self._sensor_namespace,
                 plural="sensors",
                 name=name,
             )[
@@ -213,7 +214,7 @@ class ArgoClient(object):
                     return client.CustomObjectsApi().create_namespaced_custom_object(
                         group=self._group,
                         version=self._version,
-                        namespace=self._namespace,
+                        namespace=self._sensor_namespace,
                         plural="sensors",
                         body=sensor,
                     )
@@ -233,7 +234,7 @@ class ArgoClient(object):
                 return client.CustomObjectsApi().delete_namespaced_custom_object(
                     group=self._group,
                     version=self._version,
-                    namespace=self._namespace,
+                    namespace=self._sensor_namespace,
                     plural="sensors",
                     name=name,
                 )
@@ -245,7 +246,7 @@ class ArgoClient(object):
             return client.CustomObjectsApi().replace_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
-                namespace=self._namespace,
+                namespace=self._sensor_namespace,
                 plural="sensors",
                 body=sensor,
                 name=name,

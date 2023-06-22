@@ -15,6 +15,7 @@ from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT_BUS,
     ARGO_EVENTS_EVENT_SOURCE,
     ARGO_EVENTS_SERVICE_ACCOUNT,
+    ARGO_EVENTS_SENSOR_NAMESPACE,
     ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
     ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
     ARGO_WORKFLOWS_KUBERNETES_SECRETS,
@@ -237,7 +238,10 @@ class ArgoWorkflows(object):
             # Register sensor. Unfortunately, Argo Events Sensor names don't allow for
             # dots (sensors run into an error) which rules out self.name :(
             # Metaflow will overwrite any existing sensor.
-            ArgoClient(namespace=KUBERNETES_NAMESPACE).register_sensor(
+            ArgoClient(
+                namespace=KUBERNETES_NAMESPACE,
+                sensor_namespace=ARGO_EVENTS_SENSOR_NAMESPACE,
+            ).register_sensor(
                 self.name.replace(".", "-"),
                 self._sensor.to_json() if self._sensor else {},
             )
@@ -1475,7 +1479,7 @@ class ArgoWorkflows(object):
                 # Sensor metadata.
                 ObjectMeta()
                 .name(self.name.replace(".", "-"))
-                .namespace(KUBERNETES_NAMESPACE)
+                .namespace(ARGO_EVENTS_SENSOR_NAMESPACE)
                 .label("app.kubernetes.io/name", "metaflow-sensor")
                 .label("app.kubernetes.io/part-of", "metaflow")
                 .labels(self.kubernetes_labels)
