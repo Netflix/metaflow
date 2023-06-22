@@ -49,6 +49,7 @@ def tracing(func):
 
     return wrapper_func
 
+
 if CONSOLE_TRACE_ENABLED or OTEL_ENDPOINT or ZIPKIN_ENDPOINT:
     try:
         from .tracing_modules import *

@@ -68,7 +68,6 @@ class SidecarSubProcess(object):
         self.start()
 
     def start(self):
-
         if (
             self._worker_type is not None
             and self._worker_type.startswith(NULL_SIDECAR_PREFIX)

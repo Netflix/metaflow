@@ -6,6 +6,7 @@ from multiprocessing import cpu_count
 from tempfile import NamedTemporaryFile
 import time
 import metaflow.tracing as tracing
+
 try:
     # Python 2
     import cPickle as pickle
@@ -61,7 +62,6 @@ def _spawn(func, arg, dir):
 
 
 def parallel_imap_unordered(func, iterable, max_parallel=None, dir=None):
-
     if max_parallel is None:
         max_parallel = cpu_count()
 

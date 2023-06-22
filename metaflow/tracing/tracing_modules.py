@@ -15,6 +15,7 @@ from .span_exporter import get_span_exporter
 
 tracer_provider = None
 
+
 def init_tracing():
     global tracer_provider
     if tracer_provider is not None:
@@ -25,7 +26,6 @@ def init_tracing():
 
     set_global_textmap(EnvPropagator(None))
     span_exporter = get_span_exporter()
-
 
     if "METAFLOW_KUBERNETES_POD_NAMESPACE" in os.environ:
         service_name = "metaflow-kubernetes"
@@ -45,7 +45,6 @@ def init_tracing():
     from opentelemetry.instrumentation.requests import RequestsInstrumentor
 
     RequestsInstrumentor().instrument()
-
 
 
 @contextlib.contextmanager
