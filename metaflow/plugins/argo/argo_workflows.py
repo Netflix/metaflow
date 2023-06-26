@@ -202,23 +202,14 @@ class ArgoWorkflows(object):
         return schedule_deleted, sensor_deleted, workflow_deleted
 
     @staticmethod
-    def terminate(flow_name, run_id):
+    def terminate(flow_name, name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
-        # Verify that user is trying to terminate an Argo workflow
-        if not run_id.startswith("argo-"):
-            raise ArgoWorkflowsException(
-                "No execution found for {flow_name}/{run_id} in Argo Workflows.".format(
-                    flow_name=flow_name, run_id=run_id
-                )
-            )
-        trimmed_run_id = run_id[5:]
-
-        response = client.terminate_workflow(trimmed_run_id)
+        response = client.terminate_workflow(name)
         if response is None:
             raise ArgoWorkflowsException(
                 "No execution found for {flow_name}/{run_id} in Argo Workflows.".format(
-                    flow_name=flow_name, run_id=run_id
+                    flow_name=flow_name, run_id=name
                 )
             )
 

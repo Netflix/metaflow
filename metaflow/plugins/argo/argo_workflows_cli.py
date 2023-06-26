@@ -802,7 +802,12 @@ def terminate(obj, run_id, authorize=None):
             "about production tokens."
         )
 
-    validate_token(obj.workflow_name, obj.token_prefix, authorize, _token_instructions)
+    validate_run_id(
+        obj.workflow_name, obj.token_prefix, authorize, run_id, _token_instructions
+    )
+
+    # Trim prefix from run_id
+    name = run_id[5:]
     obj.echo(
         "Terminating run *{run_id}* for {flow_name} ...".format(
             run_id=run_id, flow_name=obj.flow.name
@@ -810,7 +815,7 @@ def terminate(obj, run_id, authorize=None):
         bold=True,
     )
 
-    terminated = ArgoWorkflows.terminate(obj.flow.name, run_id)
+    terminated = ArgoWorkflows.terminate(obj.flow.name, name)
     if terminated:
         obj.echo("\nRun terminated.")
 
