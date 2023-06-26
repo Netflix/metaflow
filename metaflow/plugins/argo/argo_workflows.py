@@ -1464,12 +1464,15 @@ class ArgoWorkflows(object):
 
         labels = {"app.kubernetes.io/part-of": "metaflow"}
 
-        annotations = {
-            "metaflow/production_token": self.production_token,
-            "metaflow/owner": self.username,
-            "metaflow/user": "argo-workflows",
-            "metaflow/flow_name": self.flow.name,
-        }
+        annotations = self._get_kubernetes_annotations()
+        annotations.update(
+            {
+                "metaflow/production_token": self.production_token,
+                "metaflow/owner": self.username,
+                "metaflow/user": "argo-workflows",
+                "metaflow/flow_name": self.flow.name,
+            }
+        )
         if current.get("project_name"):
             annotations.update(
                 {
