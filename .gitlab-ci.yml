@@ -57,7 +57,6 @@ stages:
     - *path-to-host-file-directory  
     - export BUILT_IMAGE_FULL_PATH=$( cat ${IMAGE_REPOSITORY_TAG_PATH} )
     - export BUILT_IMAGE_FULL_PATH_KFP_STEP=$( cat ${IMAGE_REPOSITORY_TAG_PATH_KFP_STEP} )
-    - cp -r /root/.kube .
     - docker run
         --rm
         -v ${SHARED_PATH}/.kube:/home/zservice/.kube
