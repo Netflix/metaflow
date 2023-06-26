@@ -175,6 +175,22 @@ class ArgoWorkflows(object):
         # allowed by Metaflow - guaranteeing uniqueness.
         return name.replace("_", "-")
 
+    @staticmethod
+    def suspend(name):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+
+        client.suspend_workflow(name)
+
+        return True
+
+    @staticmethod
+    def unsuspend(name):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+
+        client.unsuspend_workflow(name)
+
+        return True
+
     @classmethod
     def trigger(cls, name, parameters=None):
         if parameters is None:
@@ -298,6 +314,29 @@ class ArgoWorkflows(object):
                     "*%s* already exists in Argo Workflows. \nPlease modify the "
                     "name of this flow or delete your existing workflow on Argo "
                     "Workflows before proceeding." % name
+                )
+        return None
+
+    @classmethod
+    def get_execution(cls, name):
+        workflow = ArgoClient(namespace=KUBERNETES_NAMESPACE).get_workflow(name)
+        if workflow is not None:
+            try:
+                return (
+                    workflow["metadata"]["annotations"]["metaflow/owner"],
+                    workflow["metadata"]["annotations"]["metaflow/production_token"],
+                    workflow["metadata"]["annotations"]["metaflow/flow_name"],
+                    workflow["metadata"]["annotations"].get(
+                        "metaflow/branch_name", None
+                    ),
+                    workflow["metadata"]["annotations"].get(
+                        "metaflow/project_name", None
+                    ),
+                )
+            except KeyError:
+                raise ArgoWorkflowsException(
+                    "A non-metaflow workflow *%s* already exists in Argo Workflows."
+                    % name
                 )
         return None
 
