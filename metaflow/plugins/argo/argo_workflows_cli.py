@@ -330,6 +330,8 @@ def resolve_workflow_name(obj, name):
         # by default. Also, while project and branch allow for underscores, Argo
         # Workflows doesn't (DNS Subdomain names as defined in RFC 1123) - so we will
         # remove any underscores as well as convert the name to lower case.
+        # Also remove + and @ as not allowed characters, which can be part of the
+        # project branch due to using email addresses as user names.
         if len(workflow_name) > 253:
             name_hash = to_unicode(
                 base64.b32encode(sha1(to_bytes(workflow_name)).digest())
@@ -792,4 +794,11 @@ def sanitize_for_argo(text):
     """
     Sanitizes a string so it does not contain characters that are not permitted in Argo Workflow resource names.
     """
-    return re.compile(r"^[^A-Za-z0-9]+").sub("", text).replace("_", "").lower()
+    return (
+        re.compile(r"^[^A-Za-z0-9]+")
+        .sub("", text)
+        .replace("_", "")
+        .replace("@", "")
+        .replace("+", "")
+        .lower()
+    )

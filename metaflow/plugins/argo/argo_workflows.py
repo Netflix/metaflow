@@ -15,7 +15,7 @@ from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT_BUS,
     ARGO_EVENTS_EVENT_SOURCE,
     ARGO_EVENTS_SERVICE_ACCOUNT,
-    ARGO_EVENTS_WEBHOOK_URL,
+    ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
     ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
     ARGO_WORKFLOWS_KUBERNETES_SECRETS,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
@@ -30,6 +30,7 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
     KUBERNETES_FETCH_EC2_METADATA,
+    KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
@@ -37,9 +38,14 @@ from metaflow.metaflow_config import (
     S3_ENDPOINT_URL,
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
+    S3_SERVER_SIDE_ENCRYPTION,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
+from metaflow.plugins.kubernetes.kubernetes import (
+    parse_kube_keyvalue_list,
+    validate_kube_labels,
+)
 from metaflow.util import (
     compress_list,
     dict_to_cli_options,
@@ -146,6 +152,7 @@ class ArgoWorkflows(object):
         self.triggers, self.trigger_options = self._process_triggers()
         self._schedule, self._timezone = self._get_schedule()
 
+        self.kubernetes_labels = self._get_kubernetes_labels()
         self._workflow_template = self._compile_workflow_template()
         self._sensor = self._compile_sensor()
 
@@ -216,6 +223,19 @@ class ArgoWorkflows(object):
             )
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
+
+    @staticmethod
+    def _get_kubernetes_labels():
+        """
+        Get Kubernetes labels from environment variable.
+        Parses the string into a dict and validates that values adhere to Kubernetes restrictions.
+        """
+        if not KUBERNETES_LABELS:
+            return {}
+        env_labels = KUBERNETES_LABELS.split(",")
+        env_labels = parse_kube_keyvalue_list(env_labels, False)
+        validate_kube_labels(env_labels)
+        return env_labels
 
     def _get_schedule(self):
         schedule = self.flow._flow_decorators.get("schedule")
@@ -463,14 +483,16 @@ class ArgoWorkflows(object):
             # Assign a sanitized name since we need this at many places to please
             # Argo Events sensors. There is a slight possibility of name collision
             # but quite unlikely for us to worry about at this point.
-            event["sanitized_name"] = event["name"]
-            if any([x in event["name"] for x in [".", "-"]]):
-                event["sanitized_name"] = "%s_%s" % (
-                    event["name"].replace(".", "").replace("-", ""),
-                    to_unicode(
-                        base64.b32encode(sha1(to_bytes(event["name"])).digest())
-                    )[:4].lower(),
-                )
+            event["sanitized_name"] = "%s_%s" % (
+                event["name"]
+                .replace(".", "")
+                .replace("-", "")
+                .replace("@", "")
+                .replace("+", ""),
+                to_unicode(base64.b32encode(sha1(to_bytes(event["name"])).digest()))[
+                    :4
+                ].lower(),
+            )
         return triggers, options
 
     def _compile_workflow_template(self):
@@ -596,6 +618,7 @@ class ArgoWorkflows(object):
                     .label("app.kubernetes.io/name", "metaflow-task")
                     .label("app.kubernetes.io/part-of", "metaflow")
                     .annotations(annotations)
+                    .labels(self.kubernetes_labels)
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
@@ -952,10 +975,8 @@ class ArgoWorkflows(object):
                     ]
                     + [
                         # Parameter names can be hyphenated, hence we use
-                        # {{foo.bar['param_name']}}. We quote the value to
-                        # make sure whitespaces are properly handled since
-                        # Argo Events wouldn't do that for us.
-                        "--%s='{{workflow.parameters.%s}}'"
+                        # {{foo.bar['param_name']}}.
+                        "--%s={{workflow.parameters.%s}}"
                         % (parameter["name"], parameter["name"])
                         for parameter in self.parameters.values()
                     ]
@@ -1072,7 +1093,7 @@ class ArgoWorkflows(object):
                         "METAFLOW_ARGO_EVENTS_EVENT_BUS": ARGO_EVENTS_EVENT_BUS,
                         "METAFLOW_ARGO_EVENTS_EVENT_SOURCE": ARGO_EVENTS_EVENT_SOURCE,
                         "METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT": ARGO_EVENTS_SERVICE_ACCOUNT,
-                        "METAFLOW_ARGO_EVENTS_WEBHOOK_URL": ARGO_EVENTS_WEBHOOK_URL,
+                        "METAFLOW_ARGO_EVENTS_WEBHOOK_URL": ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
                     },
                     **{
                         # Some optional values for bookkeeping
@@ -1119,6 +1140,10 @@ class ArgoWorkflows(object):
                         "METAFLOW_ARGO_EVENT_PAYLOAD_%s_%s"
                         % (event["type"], event["sanitized_name"])
                     ] = ("{{workflow.parameters.%s}}" % event["sanitized_name"])
+
+            # Map S3 upload headers to environment variables
+            if S3_SERVER_SIDE_ENCRYPTION is not None:
+                env["METAFLOW_S3_SERVER_SIDE_ENCRYPTION"] = S3_SERVER_SIDE_ENCRYPTION
 
             metaflow_version = self.environment.get_environment_info()
             metaflow_version["flow_name"] = self.graph.name
@@ -1211,6 +1236,7 @@ class ArgoWorkflows(object):
                 .pvc_volumes(resources.get("persistent_volume_claims"))
                 # Set node selectors
                 .node_selectors(resources.get("node_selector"))
+                # Set tolerations
                 .tolerations(resources.get("tolerations"))
                 # Set container
                 .container(
@@ -1250,6 +1276,7 @@ class ArgoWorkflows(object):
                                 }.items()
                             ],
                             image=resources["image"],
+                            image_pull_policy=resources["image_pull_policy"],
                             resources=kubernetes_sdk.V1ResourceRequirements(
                                 requests={
                                     "cpu": str(resources["cpu"]),
@@ -1282,12 +1309,13 @@ class ArgoWorkflows(object):
                                 + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
                                 if k
                             ],
-                            # Assign a volume point to pass state to the next task.
                             volume_mounts=[
+                                # Assign a volume mount to pass state to the next task.
                                 kubernetes_sdk.V1VolumeMount(
                                     name="out", mount_path="/mnt/out"
                                 )
                             ]
+                            # Support tmpfs.
                             + (
                                 [
                                     kubernetes_sdk.V1VolumeMount(
@@ -1298,6 +1326,7 @@ class ArgoWorkflows(object):
                                 if tmpfs_enabled
                                 else []
                             )
+                            # Support persistent volume claims.
                             + (
                                 [
                                     kubernetes_sdk.V1VolumeMount(
@@ -1423,7 +1452,7 @@ class ArgoWorkflows(object):
                 "https://argoproj.github.io/argo-events/eventsources/naming/. "
                 "It is very likely that all events for your deployment share the "
                 "same name. You can configure it by executing "
-                "`metaflow configure events` or setting METAFLOW_ARGO_EVENTS_EVENT "
+                "`metaflow configure kubernetes` or setting METAFLOW_ARGO_EVENTS_EVENT "
                 "in your configuration. If in doubt, reach out for support at "
                 "http://chat.metaflow.org"
             )
@@ -1435,7 +1464,7 @@ class ArgoWorkflows(object):
                 "An Argo Event Source name hasn't been configured for your deployment "
                 "yet. Please see this article for more details on event names - "
                 "https://argoproj.github.io/argo-events/eventsources/naming/. "
-                "You can configure it by executing `metaflow configure events` or "
+                "You can configure it by executing `metaflow configure kubernetes` or "
                 "setting METAFLOW_ARGO_EVENTS_EVENT_SOURCE in your configuration. If "
                 "in doubt, reach out for support at http://chat.metaflow.org"
             )
@@ -1446,7 +1475,7 @@ class ArgoWorkflows(object):
                 "An Argo Event service account hasn't been configured for your "
                 "deployment yet. Please see this article for more details on event "
                 "names - https://argoproj.github.io/argo-events/service-accounts/. "
-                "You can configure it by executing `metaflow configure events` or "
+                "You can configure it by executing `metaflow configure kubernetes` or "
                 "setting METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT in your configuration. "
                 "If in doubt, reach out for support at http://chat.metaflow.org"
             )
@@ -1488,6 +1517,7 @@ class ArgoWorkflows(object):
                 .namespace(KUBERNETES_NAMESPACE)
                 .label("app.kubernetes.io/name", "metaflow-sensor")
                 .label("app.kubernetes.io/part-of", "metaflow")
+                .labels(self.kubernetes_labels)
                 .annotations(annotations)
             )
             .spec(
@@ -1773,7 +1803,7 @@ class ObjectMeta(object):
     def labels(self, labels):
         if "labels" not in self.payload:
             self.payload["labels"] = {}
-        self.payload["labels"].update(labels)
+        self.payload["labels"].update(labels or {})
         return self
 
     def name(self, name):
@@ -1890,7 +1920,7 @@ class Metadata(object):
     def labels(self, labels):
         if "labels" not in self.payload:
             self.payload["labels"] = {}
-        self.payload["labels"].update(labels)
+        self.payload["labels"].update(labels or {})
         return self
 
     def labels_from(self, labels_from):

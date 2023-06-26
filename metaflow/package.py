@@ -156,13 +156,16 @@ class MetaflowPackage(object):
         buf.write(json.dumps(env).encode("utf-8"))
         buf.seek(0)
         info.size = len(buf.getvalue())
+        # Setting this default to Dec 3, 2019
+        info.mtime = 1575360000
         tar.addfile(info, buf)
 
     def _make(self):
         def no_mtime(tarinfo):
             # a modification time change should not change the hash of
             # the package. Only content modifications will.
-            tarinfo.mtime = 0
+            # Setting this default to Dec 3, 2019
+            tarinfo.mtime = 1575360000
             return tarinfo
 
         buf = BytesIO()

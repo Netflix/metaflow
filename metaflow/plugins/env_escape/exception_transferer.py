@@ -4,9 +4,11 @@ import traceback
 try:
     # Import from client
     from .data_transferer import DataTransferer
+    from .stub import Stub
 except ImportError:
     # Import from server
     from data_transferer import DataTransferer
+    from stub import Stub
 
 
 # This file is heavily inspired from the RPYC project
@@ -114,8 +116,11 @@ def load_exception(data_transferer, json_obj):
     # Try again (will succeed if the __import__ worked)
     if exception_module in sys.modules:
         exception_class = getattr(sys.modules[exception_module], exception_name, None)
-    if exception_class is None:
-        # Best effort to "recreate" an exception
+    if exception_class is None or issubclass(exception_class, Stub):
+        # Best effort to "recreate" an exception. Note that in some cases, exceptions
+        # may actually be both exceptions we can transfer as well as classes we
+        # can transfer (stubs) but for exceptions, we don't want to use the stub
+        # otherwise it will just ping pong.
         name = "%s.%s" % (exception_module, exception_name)
         exception_class = _remote_exceptions_class.setdefault(
             name,
