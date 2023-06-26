@@ -146,4 +146,4 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
             # Keep in mind that any errors raised here will fail the run but the task
             # will still be marked as success. That's why we explicitly swallow any
             # errors and instead print them to std.err.
-            event.publish(ignore_errors=True)
+            event.safe_publish(ignore_errors=True)

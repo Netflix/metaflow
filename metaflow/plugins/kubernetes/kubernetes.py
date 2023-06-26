@@ -1,13 +1,19 @@
 import json
 import math
 import os
+import re
 import shlex
 import time
+from typing import Dict, List, Optional
 
 from metaflow import current, util
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    ARGO_EVENTS_WEBHOOK_URL,
+    ARGO_EVENTS_EVENT,
+    ARGO_EVENTS_EVENT_BUS,
+    ARGO_EVENTS_EVENT_SOURCE,
+    ARGO_EVENTS_SERVICE_ACCOUNT,
+    ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     CARD_AZUREROOT,
@@ -20,11 +26,13 @@ from metaflow.metaflow_config import (
     DEFAULT_AWS_CLIENT_PROVIDER,
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
-    KUBERNETES_SANDBOX_INIT_SCRIPT,
     KUBERNETES_FETCH_EC2_METADATA,
+    KUBERNETES_LABELS,
+    KUBERNETES_SANDBOX_INIT_SCRIPT,
     S3_ENDPOINT_URL,
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
+    S3_SERVER_SIDE_ENCRYPTION,
 )
 from metaflow.mflog import (
     BASH_SAVE_LOGS,
@@ -141,6 +149,7 @@ class Kubernetes(object):
         code_package_ds,
         step_cli,
         docker_image,
+        docker_image_pull_policy,
         service_account=None,
         secrets=None,
         node_selector=None,
@@ -156,7 +165,9 @@ class Kubernetes(object):
         tmpfs_path=None,
         run_time_limit=None,
         env=None,
+        persistent_volume_claims=None,
         tolerations=None,
+        labels=None,
     ):
         if env is None:
             env = {}
@@ -179,6 +190,7 @@ class Kubernetes(object):
                     step_cmds=[step_cli],
                 ),
                 image=docker_image,
+                image_pull_policy=docker_image_pull_policy,
                 cpu=cpu,
                 memory=memory,
                 disk=disk,
@@ -189,10 +201,12 @@ class Kubernetes(object):
                 retries=0,
                 step_name=step_name,
                 tolerations=tolerations,
+                labels=self._get_labels(labels),
                 use_tmpfs=use_tmpfs,
                 tmpfs_tempdir=tmpfs_tempdir,
                 tmpfs_size=tmpfs_size,
                 tmpfs_path=tmpfs_path,
+                persistent_volume_claims=persistent_volume_claims,
             )
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
@@ -238,14 +252,31 @@ class Kubernetes(object):
             .environment_variable(
                 "METAFLOW_INIT_SCRIPT", KUBERNETES_SANDBOX_INIT_SCRIPT
             )
-            .environment_variable(
-                "METAFLOW_ARGO_EVENTS_WEBHOOK_URL", ARGO_EVENTS_WEBHOOK_URL
-            )
             # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync
             # between the local user instance and the remote Kubernetes pod
             # assumes metadata is stored in DATASTORE_LOCAL_DIR on the Kubernetes
             # pod; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set (
             # see get_datastore_root_from_config in datastore/local.py).
+        )
+
+        if S3_SERVER_SIDE_ENCRYPTION is not None:
+            job.environment_variable(
+                "METAFLOW_S3_SERVER_SIDE_ENCRYPTION", S3_SERVER_SIDE_ENCRYPTION
+            )
+
+        # Set environment variables to support metaflow.integrations.ArgoEvent
+        job.environment_variable(
+            "METAFLOW_ARGO_EVENTS_WEBHOOK_URL", ARGO_EVENTS_INTERNAL_WEBHOOK_URL
+        )
+        job.environment_variable("METAFLOW_ARGO_EVENTS_EVENT", ARGO_EVENTS_EVENT)
+        job.environment_variable(
+            "METAFLOW_ARGO_EVENTS_EVENT_BUS", ARGO_EVENTS_EVENT_BUS
+        )
+        job.environment_variable(
+            "METAFLOW_ARGO_EVENTS_EVENT_SOURCE", ARGO_EVENTS_EVENT_SOURCE
+        )
+        job.environment_variable(
+            "METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT", ARGO_EVENTS_SERVICE_ACCOUNT
         )
 
         tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
@@ -374,3 +405,60 @@ class Kubernetes(object):
             "stderr",
             job_id=self._job.id,
         )
+
+    @staticmethod
+    def _get_labels(extra_labels=None):
+        if extra_labels is None:
+            extra_labels = {}
+        env_labels = KUBERNETES_LABELS.split(",") if KUBERNETES_LABELS else []
+        env_labels = parse_kube_keyvalue_list(env_labels, False)
+        labels = {**env_labels, **extra_labels}
+        validate_kube_labels(labels)
+        return labels
+
+
+def validate_kube_labels(
+    labels: Optional[Dict[str, Optional[str]]],
+) -> bool:
+    """Validate label values.
+
+    This validates the kubernetes label values.  It does not validate the keys.
+    Ideally, keys should be static and also the validation rules for keys are
+    more complex than those for values.  For full validation rules, see:
+
+    https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+    """
+
+    def validate_label(s: Optional[str]):
+        regex_match = r"^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$"
+        if not s:
+            # allow empty label
+            return True
+        if not re.search(regex_match, s):
+            raise KubernetesException(
+                'Invalid value: "%s"\n'
+                "A valid label must be an empty string or one that\n"
+                "  - Consist of alphanumeric, '-', '_' or '.' characters\n"
+                "  - Begins and ends with an alphanumeric character\n"
+                "  - Is at most 63 characters" % s
+            )
+        return True
+
+    return all([validate_label(v) for v in labels.values()]) if labels else True
+
+
+def parse_kube_keyvalue_list(items: List[str], requires_both: bool = True):
+    try:
+        ret = {}
+        for item_str in items:
+            item = item_str.split("=", 1)
+            if requires_both:
+                item[1]  # raise IndexError
+            if str(item[0]) in ret:
+                raise KubernetesException("Duplicate key found: %s" % str(item[0]))
+            ret[str(item[0])] = str(item[1]) if len(item) > 1 else None
+        return ret
+    except KubernetesException as e:
+        raise e
+    except (AttributeError, IndexError):
+        raise KubernetesException("Unable to parse kubernetes list: %s" % items)

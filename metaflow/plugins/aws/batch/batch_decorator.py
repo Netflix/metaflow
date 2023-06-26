@@ -298,7 +298,7 @@ class BatchDecorator(StepDecorator):
             # execution metadata from the AWS Batch container to user's
             # local file system after the user code has finished execution.
             # This happens via datastore as a communication bridge.
-            if self.metadata.TYPE == "local":
+            if hasattr(self, "metadata") and self.metadata.TYPE == "local":
                 # Note that the datastore is *always* Amazon S3 (see
                 # runtime_task_created function).
                 sync_local_metadata_to_datastore(

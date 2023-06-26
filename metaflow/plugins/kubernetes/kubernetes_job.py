@@ -148,6 +148,7 @@ class KubernetesJob(object):
                                     if k
                                 ],
                                 image=self._kwargs["image"],
+                                image_pull_policy=self._kwargs["image_pull_policy"],
                                 name=self._kwargs["step_name"].replace("_", "-"),
                                 resources=client.V1ResourceRequirements(
                                     requests={
@@ -166,14 +167,29 @@ class KubernetesJob(object):
                                         if self._kwargs["gpu"] is not None
                                     },
                                 ),
-                                volume_mounts=[
-                                    client.V1VolumeMount(
-                                        mount_path=self._kwargs.get("tmpfs_path"),
-                                        name="tmpfs-ephemeral-volume",
-                                    )
-                                ]
-                                if tmpfs_enabled
-                                else [],
+                                volume_mounts=(
+                                    [
+                                        client.V1VolumeMount(
+                                            mount_path=self._kwargs.get("tmpfs_path"),
+                                            name="tmpfs-ephemeral-volume",
+                                        )
+                                    ]
+                                    if tmpfs_enabled
+                                    else []
+                                )
+                                + (
+                                    [
+                                        client.V1VolumeMount(
+                                            mount_path=path, name=claim
+                                        )
+                                        for claim, path in self._kwargs[
+                                            "persistent_volume_claims"
+                                        ].items()
+                                    ]
+                                    if self._kwargs["persistent_volume_claims"]
+                                    is not None
+                                    else []
+                                ),
                             )
                         ],
                         node_selector=self._kwargs.get("node_selector"),
@@ -195,18 +211,35 @@ class KubernetesJob(object):
                             client.V1Toleration(**toleration)
                             for toleration in self._kwargs.get("tolerations") or []
                         ],
-                        volumes=[
-                            client.V1Volume(
-                                name="tmpfs-ephemeral-volume",
-                                empty_dir=client.V1EmptyDirVolumeSource(
-                                    medium="Memory",
-                                    # Add default unit as ours differs from Kubernetes default.
-                                    size_limit="{}Mi".format(tmpfs_size),
-                                ),
-                            )
-                        ]
-                        if tmpfs_enabled
-                        else [],
+                        volumes=(
+                            [
+                                client.V1Volume(
+                                    name="tmpfs-ephemeral-volume",
+                                    empty_dir=client.V1EmptyDirVolumeSource(
+                                        medium="Memory",
+                                        # Add default unit as ours differs from Kubernetes default.
+                                        size_limit="{}Mi".format(tmpfs_size),
+                                    ),
+                                )
+                            ]
+                            if tmpfs_enabled
+                            else []
+                        )
+                        + (
+                            [
+                                client.V1Volume(
+                                    name=claim,
+                                    persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
+                                        claim_name=claim
+                                    ),
+                                )
+                                for claim in self._kwargs[
+                                    "persistent_volume_claims"
+                                ].keys()
+                            ]
+                            if self._kwargs["persistent_volume_claims"] is not None
+                            else []
+                        ),
                         # TODO (savin): Set termination_message_policy
                     ),
                 ),
@@ -481,30 +514,24 @@ class RunningJob(object):
 
     @property
     def is_done(self):
-        # Check if the job is done. As a side effect, also refreshes self._job and
+        # Check if the container is done. As a side effect, also refreshes self._job and
         # self._pod with the latest state
         def done():
-            # Either the job succeeds or fails naturally or else we may have
+            # Either the container succeeds or fails naturally or else we may have
             # forced the pod termination causing the job to still be in an
             # active state but for all intents and purposes dead to us.
             return (
                 bool(self._job["status"].get("succeeded"))
                 or bool(self._job["status"].get("failed"))
+                or self._are_pod_containers_done
                 or (self._job["spec"]["parallelism"] == 0)
             )
 
         if not done():
             # If not done, fetch newer status
             self._job = self._fetch_job()
-        if done():
-            return True
-        else:
-            # It is possible for the job metadata to not be updated yet, but the
-            # pod may have already succeeded or failed.
             self._pod = self._fetch_pod()
-            return self._pod and (
-                self._pod.get("status", {}).get("phase") in ("Succeeded", "Failed")
-            )
+        return done()
 
     @property
     def status(self):
@@ -544,28 +571,102 @@ class RunningJob(object):
 
     @property
     def has_succeeded(self):
-        # Job is in a terminal state and the status is marked as succeeded
-        return self.is_done and (
-            bool(self._job["status"].get("succeeded"))
-            or (self._pod.get("status", {}).get("phase") == "Succeeded")
-        )
+        # The tasks container is in a terminal state and the status is marked as succeeded
+        return self.is_done and self._have_containers_succeeded
 
     @property
     def has_failed(self):
-        # Job is in a terminal state and either the status is marked as failed
-        # or the Job is not allowed to launch any more pods
-        return self.is_done and (
+        # Either the container is marked as failed or the Job is not allowed to
+        # any more pods
+        retval = self.is_done and (
             bool(self._job["status"].get("failed"))
+            or self._has_any_container_failed
             or (self._job["spec"]["parallelism"] == 0)
-            or (self._pod.get("status", {}).get("phase") == "Failed")
         )
+        return retval
+
+    @property
+    def _have_containers_succeeded(self):
+        container_statuses = self._pod.get("status", {}).get("container_statuses", [])
+        if not container_statuses:
+            return False
+
+        for cstatus in container_statuses:
+            # If the terminated field is not set, the pod is still running.
+            terminated = cstatus.get("state", {}).get("terminated", {})
+            if not terminated:
+                return False
+
+            # If the terminated field is set but the `finished_at` field is not set,
+            # the pod is still considered as running.
+            if not terminated.get("finished_at"):
+                return False
+
+            # If finished_at is set AND reason is Completed
+            if terminated.get("reason", "").lower() != "completed":
+                return False
+
+        return True
+
+    @property
+    def _has_any_container_failed(self):
+        container_statuses = self._pod.get("status", {}).get("container_statuses", [])
+        if not container_statuses:
+            return False
+
+        for cstatus in container_statuses:
+            # If the terminated field is not set, the pod is still running. Too early
+            # to determine if any container failed.
+            terminated = cstatus.get("state", {}).get("terminated", {})
+            if not terminated:
+                return False
+
+            # If the terminated field is set but the `finished_at` field is not set,
+            # the pod is still considered as running. Too early to determine if any
+            # container failed.
+            if not terminated.get("finished_at"):
+                return False
+
+            # If finished_at is set AND reason is Error, it means that the
+            # container failed.
+            if terminated.get("reason", "").lower() == "error":
+                return True
+
+        # If none of the containers are marked as failed, the pod is not
+        # considered failed.
+        return False
+
+    @property
+    def _are_pod_containers_done(self):
+        # All containers in the pod have a containerStatus that has a
+        # finishedAt set.
+        container_statuses = self._pod.get("status", {}).get("container_statuses", [])
+        if not container_statuses:
+            return False
+
+        for cstatus in container_statuses:
+            # If the terminated field is not set, the pod is still running. Too early
+            # to determine if any container failed.
+            terminated = cstatus.get("state", {}).get("terminated", {})
+            if not terminated:
+                return False
+
+            # If the terminated field is set but the `finished_at` field is not set,
+            # the pod is still considered as running.
+            if not terminated.get("finished_at"):
+                return False
+
+        # If we got until here, the containers were marked terminated and their
+        # finishedAt was set.
+        return True
 
     @property
     def is_running(self):
-        # Returns true if the pod is running.
-        return not self.is_done and (
-            self._pod.get("status", {}).get("phase") == "Running"
-        )
+        # Returns true if the container is running.
+        if self.is_done:
+            return False
+
+        return not self._are_pod_containers_done
 
     @property
     def is_waiting(self):

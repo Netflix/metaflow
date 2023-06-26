@@ -9,7 +9,12 @@ from hashlib import sha1
 from metaflow import JSONType, current, decorators, parameters
 from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
-from metaflow.metaflow_config import SERVICE_VERSION_CHECK, UI_URL
+from metaflow.metaflow_config import (
+    SERVICE_VERSION_CHECK,
+    UI_URL,
+    ARGO_WORKFLOWS_UI_URL,
+    KUBERNETES_NAMESPACE,
+)
 from metaflow.package import MetaflowPackage
 
 # TODO: Move production_token to utils
@@ -30,6 +35,10 @@ VALID_NAME = re.compile("^[a-z0-9]([a-z0-9\.\-]*[a-z0-9])?$")
 
 class IncorrectProductionToken(MetaflowException):
     headline = "Incorrect production token"
+
+
+class RunIdMismatch(MetaflowException):
+    headline = "Run ID mismatch"
 
 
 class IncorrectMetadataServiceVersion(MetaflowException):
@@ -126,14 +135,31 @@ def argo_workflows(obj, name=None):
     default=None,
     type=int,
     help="Workflow priority as an integer. Workflows with higher priority "
-    "are processed first if Argo Workflows controller is configured to process limited "
-    "number of workflows in parallel",
+    "are processed first if Argo Workflows controller is configured to process "
+    "limited number of workflows in parallel",
 )
 @click.option(
     "--auto-emit-argo-events/--no-auto-emit-argo-events",
     default=True,  # TODO: Default to a value from config
     show_default=True,
-    help="Auto emits Argo Events when the run completes successfully",
+    help="Auto emits Argo Events when the run completes successfully.",
+)
+@click.option(
+    "--notify-on-error/--no-notify-on-error",
+    default=False,
+    show_default=True,
+    help="Notify if the workflow fails.",
+)
+@click.option(
+    "--notify-on-success/--no-notify-on-success",
+    default=False,
+    show_default=True,
+    help="Notify if the workflow succeeds.",
+)
+@click.option(
+    "--notify-slack-webhook-url",
+    default="",
+    help="Slack incoming webhook url for workflow success/failure notifications.",
 )
 @click.pass_obj
 def create(
@@ -148,6 +174,9 @@ def create(
     workflow_timeout=None,
     workflow_priority=None,
     auto_emit_argo_events=False,
+    notify_on_error=False,
+    notify_on_success=False,
+    notify_slack_webhook_url=None,
 ):
     validate_tags(tags)
 
@@ -180,6 +209,9 @@ def create(
         workflow_timeout,
         workflow_priority,
         auto_emit_argo_events,
+        notify_on_error,
+        notify_on_success,
+        notify_slack_webhook_url,
     )
 
     if only_json:
@@ -200,6 +232,17 @@ def create(
                 "Note that the flow was deployed with a modified name "
                 "due to Kubernetes naming conventions\non Argo Workflows. The "
                 "original flow name is stored in the workflow annotation.\n"
+            )
+
+        if ARGO_WORKFLOWS_UI_URL:
+            obj.echo("See the deployed workflow here:", bold=True)
+            argo_workflowtemplate_link = "%s/workflow-templates/%s" % (
+                ARGO_WORKFLOWS_UI_URL.rstrip("/"),
+                KUBERNETES_NAMESPACE,
+            )
+            obj.echo(
+                "%s/%s\n\n" % (argo_workflowtemplate_link, obj.workflow_name),
+                indent=True,
             )
         flow.schedule()
         obj.echo("What will trigger execution of the workflow:", bold=True)
@@ -287,6 +330,8 @@ def resolve_workflow_name(obj, name):
         # by default. Also, while project and branch allow for underscores, Argo
         # Workflows doesn't (DNS Subdomain names as defined in RFC 1123) - so we will
         # remove any underscores as well as convert the name to lower case.
+        # Also remove + and @ as not allowed characters, which can be part of the
+        # project branch due to using email addresses as user names.
         if len(workflow_name) > 253:
             name_hash = to_unicode(
                 base64.b32encode(sha1(to_bytes(workflow_name)).digest())
@@ -294,12 +339,7 @@ def resolve_workflow_name(obj, name):
             workflow_name = "%s-%s" % (workflow_name[:242], name_hash)
             obj._is_workflow_name_modified = True
         if not VALID_NAME.search(workflow_name):
-            workflow_name = (
-                re.compile(r"^[^A-Za-z0-9]+")
-                .sub("", workflow_name)
-                .replace("_", "")
-                .lower()
-            )
+            workflow_name = sanitize_for_argo(workflow_name)
             obj._is_workflow_name_modified = True
     else:
         if name and not VALID_NAME.search(name):
@@ -324,12 +364,7 @@ def resolve_workflow_name(obj, name):
             raise ArgoWorkflowsNameTooLong(msg)
 
         if not VALID_NAME.search(workflow_name):
-            workflow_name = (
-                re.compile(r"^[^A-Za-z0-9]+")
-                .sub("", workflow_name)
-                .replace("_", "")
-                .lower()
-            )
+            workflow_name = sanitize_for_argo(workflow_name)
             obj._is_workflow_name_modified = True
 
     return workflow_name, token_prefix.lower(), is_project
@@ -345,12 +380,23 @@ def make_flow(
     workflow_timeout,
     workflow_priority,
     auto_emit_argo_events,
+    notify_on_error,
+    notify_on_success,
+    notify_slack_webhook_url,
 ):
     # TODO: Make this check less specific to Amazon S3 as we introduce
     #       support for more cloud object stores.
     if obj.flow_datastore.TYPE not in ("azure", "gs", "s3"):
         raise MetaflowException(
             "Argo Workflows requires --datastore=s3 or --datastore=azure or --datastore=gs"
+        )
+
+    if (notify_on_error or notify_on_success) and not notify_slack_webhook_url:
+        raise MetaflowException(
+            "Slack notifications require specifying an incoming Slack "
+            "webhook url via --notify-slack-webhook-url. \nIf you would like to "
+            "set up one for your Slack workspace, follow the instructions "
+            "at https://api.slack.com/messaging/webhooks."
         )
 
     # Attach @kubernetes and @environment decorator to the flow to
@@ -391,6 +437,9 @@ def make_flow(
         workflow_timeout=workflow_timeout,
         workflow_priority=workflow_priority,
         auto_emit_argo_events=auto_emit_argo_events,
+        notify_on_error=notify_on_error,
+        notify_on_success=notify_on_success,
+        notify_slack_webhook_url=notify_slack_webhook_url,
     )
 
 
@@ -600,6 +649,91 @@ def delete(obj, authorize=None):
         )
 
 
+@argo_workflows.command(help="Suspend flow execution on Argo Workflows.")
+@click.option(
+    "--authorize",
+    default=None,
+    type=str,
+    help="Authorize the suspension with a production token",
+)
+@click.argument("run-id", required=True, type=str)
+@click.pass_obj
+def suspend(obj, run_id, authorize=None):
+    def _token_instructions(flow_name, prev_user):
+        obj.echo(
+            "There is an existing version of *%s* on Argo Workflows which was "
+            "deployed by the user *%s*." % (flow_name, prev_user)
+        )
+        obj.echo(
+            "To suspend this flow, you need to use the same production token that they used."
+        )
+        obj.echo(
+            "Please reach out to them to get the token. Once you have it, call "
+            "this command:"
+        )
+        obj.echo("    argo-workflows suspend RUN_ID --authorize MY_TOKEN", fg="green")
+        obj.echo(
+            'See "Organizing Results" at docs.metaflow.org for more information '
+            "about production tokens."
+        )
+
+    validate_run_id(
+        obj.workflow_name, obj.token_prefix, authorize, run_id, _token_instructions
+    )
+
+    # Trim prefix from run_id
+    name = run_id[5:]
+
+    workflow_suspended = ArgoWorkflows.suspend(name)
+
+    if workflow_suspended:
+        obj.echo("Suspended execution of *%s*" % run_id)
+
+
+@argo_workflows.command(help="Unsuspend flow execution on Argo Workflows.")
+@click.option(
+    "--authorize",
+    default=None,
+    type=str,
+    help="Authorize the unsuspend with a production token",
+)
+@click.argument("run-id", required=True, type=str)
+@click.pass_obj
+def unsuspend(obj, run_id, authorize=None):
+    def _token_instructions(flow_name, prev_user):
+        obj.echo(
+            "There is an existing version of *%s* on Argo Workflows which was "
+            "deployed by the user *%s*." % (flow_name, prev_user)
+        )
+        obj.echo(
+            "To unsuspend this flow, you need to use the same production token that they used."
+        )
+        obj.echo(
+            "Please reach out to them to get the token. Once you have it, call "
+            "this command:"
+        )
+        obj.echo(
+            "    argo-workflows unsuspend RUN_ID --authorize MY_TOKEN",
+            fg="green",
+        )
+        obj.echo(
+            'See "Organizing Results" at docs.metaflow.org for more information '
+            "about production tokens."
+        )
+
+    validate_run_id(
+        obj.workflow_name, obj.token_prefix, authorize, run_id, _token_instructions
+    )
+
+    # Trim prefix from run_id
+    name = run_id[5:]
+
+    workflow_suspended = ArgoWorkflows.unsuspend(name)
+
+    if workflow_suspended:
+        obj.echo("Unsuspended execution of *%s*" % run_id)
+
+
 def validate_token(name, token_prefix, authorize, instructions_fn=None):
     """
     Validate that the production token matches that of the deployed flow.
@@ -679,3 +813,90 @@ def terminate(obj, run_id, authorize=None):
     terminated = ArgoWorkflows.terminate(obj.flow.name, run_id)
     if terminated:
         obj.echo("\nRun terminated.")
+
+
+def validate_run_id(
+    workflow_name, token_prefix, authorize, run_id, instructions_fn=None
+):
+    """
+    Validates that a run_id adheres to the Argo Workflows naming rules, and
+    that it belongs to the current flow (accounting for project branch as well).
+    """
+    # Verify that user is trying to change an Argo workflow
+    if not run_id.startswith("argo-"):
+        raise RunIdMismatch(
+            "Run IDs for flows executed through Argo Workflows begin with 'argo-'"
+        )
+
+    # Verify that run_id belongs to the Flow, and that branches match
+    name = run_id[5:]
+    workflow = ArgoWorkflows.get_execution(name)
+    if workflow is None:
+        raise MetaflowException("Could not find workflow *%s* on Argo Workflows" % name)
+
+    owner, token, flow_name, branch_name, project_name = workflow
+
+    # Verify we are operating on the correct Flow file compared to the running one.
+    # Without this check, using --name could be used to run commands for arbitrary run_id's, disregarding the Flow in the file.
+    if current.flow_name != flow_name:
+        raise RunIdMismatch(
+            "The workflow with the run_id *%s* belongs to the flow *%s*, not for the flow *%s*."
+            % (run_id, flow_name, current.flow_name)
+        )
+
+    if project_name is not None:
+        # Verify we are operating on the correct project.
+        # Perform match with separators to avoid substrings matching
+        # e.g. 'test_proj' and 'test_project' should count as a mismatch.
+        project_part = "%s." % sanitize_for_argo(project_name)
+        if (
+            current.get("project_name") != project_name
+            and project_part not in workflow_name
+        ):
+            raise RunIdMismatch(
+                "The workflow belongs to the project *%s*. "
+                "Please use the project decorator or --name to target the correct project"
+                % project_name
+            )
+
+        # Verify we are operating on the correct branch.
+        # Perform match with separators to avoid substrings matching.
+        # e.g. 'user.tes' and 'user.test' should count as a mismatch.
+        branch_part = ".%s." % sanitize_for_argo(branch_name)
+        if (
+            current.get("branch_name") != branch_name
+            and branch_part not in workflow_name
+        ):
+            raise RunIdMismatch(
+                "The workflow belongs to the branch *%s*. "
+                "Please use --branch, --production or --name to target the correct branch"
+                % branch_name
+            )
+
+    # Verify that the production tokens match. We do not want to cache the token that was used though,
+    # as the operations that require run_id validation can target runs not authored from the local environment
+    if authorize is None:
+        authorize = load_token(token_prefix)
+    elif authorize.startswith("production:"):
+        authorize = authorize[11:]
+
+    if owner != get_username() and authorize != token:
+        if instructions_fn:
+            instructions_fn(flow_name=name, prev_user=owner)
+        raise IncorrectProductionToken("Try again with the correct production token.")
+
+    return True
+
+
+def sanitize_for_argo(text):
+    """
+    Sanitizes a string so it does not contain characters that are not permitted in Argo Workflow resource names.
+    """
+    return (
+        re.compile(r"^[^A-Za-z0-9]+")
+        .sub("", text)
+        .replace("_", "")
+        .replace("@", "")
+        .replace("+", "")
+        .lower()
+    )

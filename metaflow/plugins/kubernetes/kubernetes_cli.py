@@ -3,14 +3,14 @@ import sys
 import time
 import traceback
 
-from metaflow import util, JSONTypeClass
+from metaflow import JSONTypeClass, util
 from metaflow._vendor import click
 from metaflow.exception import METAFLOW_EXIT_DISALLOW_RETRY, CommandException
 from metaflow.metadata.util import sync_local_metadata_from_datastore
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
+from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, KUBERNETES_LABELS
 from metaflow.mflog import TASK_LOG_SOURCE
 
-from .kubernetes import Kubernetes, KubernetesKilledException
+from .kubernetes import Kubernetes, KubernetesKilledException, parse_kube_keyvalue_list
 from .kubernetes_decorator import KubernetesDecorator
 
 
@@ -37,6 +37,11 @@ def kubernetes():
     help="Executable requirement for Kubernetes pod.",
 )
 @click.option("--image", help="Docker image requirement for Kubernetes pod.")
+@click.option(
+    "--image-pull-policy",
+    default=None,
+    help="Optional Docker Image Pull Policy for Kubernetes pod.",
+)
 @click.option(
     "--service-account",
     help="IRSA requirement for Kubernetes pod.",
@@ -92,6 +97,9 @@ def kubernetes():
     help="Run time limit in seconds for Kubernetes pod.",
 )
 @click.option(
+    "--persistent-volume-claims", type=JSONTypeClass(), default=None, multiple=False
+)
+@click.option(
     "--tolerations",
     default=None,
     type=JSONTypeClass(),
@@ -105,6 +113,7 @@ def step(
     code_package_url,
     executable=None,
     image=None,
+    image_pull_policy=None,
     service_account=None,
     secrets=None,
     node_selector=None,
@@ -119,6 +128,7 @@ def step(
     tmpfs_size=None,
     tmpfs_path=None,
     run_time_limit=None,
+    persistent_volume_claims=None,
     tolerations=None,
     **kwargs
 ):
@@ -185,7 +195,7 @@ def step(
     stderr_location = ds.get_log_location(TASK_LOG_SOURCE, "stderr")
 
     # `node_selector` is a tuple of strings, convert it to a dictionary
-    node_selector = KubernetesDecorator.parse_node_selector(node_selector)
+    node_selector = parse_kube_keyvalue_list(node_selector)
 
     def _sync_metadata():
         if ctx.obj.metadata.TYPE == "local":
@@ -216,6 +226,7 @@ def step(
                 code_package_ds=ctx.obj.flow_datastore.TYPE,
                 step_cli=step_cli,
                 docker_image=image,
+                docker_image_pull_policy=image_pull_policy,
                 service_account=service_account,
                 secrets=secrets,
                 node_selector=node_selector,
@@ -231,6 +242,7 @@ def step(
                 tmpfs_path=tmpfs_path,
                 run_time_limit=run_time_limit,
                 env=env,
+                persistent_volume_claims=persistent_volume_claims,
                 tolerations=tolerations,
             )
     except Exception as e:

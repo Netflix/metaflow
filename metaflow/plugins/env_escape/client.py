@@ -42,7 +42,20 @@ BIND_RETRY = 0
 
 
 class Client(object):
-    def __init__(self, python_executable, pythonpath, max_pickle_version, config_dir):
+    def __init__(
+        self, modules, python_executable, pythonpath, max_pickle_version, config_dir
+    ):
+        # Wrap with ImportError so that if users are just using the escaped module
+        # as optional, the typical logic of catching ImportError works properly
+        try:
+            self.inner_init(
+                python_executable, pythonpath, max_pickle_version, config_dir
+            )
+        except Exception as e:
+            # Typically it's one override per config so we just use the first one.
+            raise ImportError("Error loading module: %s" % str(e), name=modules[0])
+
+    def inner_init(self, python_executable, pythonpath, max_pickle_version, config_dir):
         # Make sure to init these variables (used in __del__) early on in case we
         # have an exception
         self._poller = None
@@ -85,12 +98,17 @@ class Client(object):
         # distinguish it from other modules named "overrides" (either a third party
         # lib -- there is one -- or just other escaped modules). We therefore load
         # a fuller path to distinguish them from one another.
+        # We insert in sys.path a prefix that doesn't go up past metaflow/metaflow_extensions
+        # because overrides may import other modules and we want to make sure we
+        # don't "leak" things from the outside environment.
         pkg_components = []
         prefix, last_basename = os.path.split(config_dir)
-        while last_basename not in ("metaflow", "metaflow_extensions"):
+        while True:
             pkg_components.append(last_basename)
-            prefix, last_basename = os.path.split(prefix)
-        pkg_components.append(last_basename)
+            possible_prefix, last_basename = os.path.split(prefix)
+            if last_basename in ("metaflow", "metaflow_extensions"):
+                break
+            prefix = possible_prefix
 
         try:
             sys.path.insert(0, prefix)

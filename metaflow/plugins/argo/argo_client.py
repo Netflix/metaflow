@@ -17,6 +17,24 @@ class ArgoClient(object):
         self._group = "argoproj.io"
         self._version = "v1alpha1"
 
+    def get_workflow(self, name):
+        client = self._client.get()
+        try:
+            workflow = client.CustomObjectsApi().get_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="workflows",
+                name=name,
+            )
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                return None
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+        return workflow
+
     def get_workflow_template(self, name):
         client = self._client.get()
         try:
@@ -165,6 +183,54 @@ class ArgoClient(object):
                 namespace=self._namespace,
                 plural="workflows",
                 name=run_id,
+                body=body,
+            )
+        except client.rest.ApiException as e:
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+
+    def suspend_workflow(self, name):
+        workflow = self.get_workflow(name)
+        if workflow is None:
+            raise ArgoClientException("Execution argo-%s was not found" % name)
+
+        if workflow["status"]["finishedAt"] is not None:
+            raise ArgoClientException(
+                "Cannot suspend an execution that has already finished."
+            )
+        if workflow["spec"].get("suspend") is True:
+            raise ArgoClientException("Execution has already been suspended.")
+
+        body = {"spec": workflow["spec"]}
+        body["spec"]["suspend"] = True
+        return self._patch_workflow(name, body)
+
+    def unsuspend_workflow(self, name):
+        workflow = self.get_workflow(name)
+        if workflow is None:
+            raise ArgoClientException("Execution argo-%s was not found" % name)
+
+        if workflow["status"]["finishedAt"] is not None:
+            raise ArgoClientException(
+                "Cannot unsuspend an execution that has already finished."
+            )
+        if not workflow["spec"].get("suspend", False):
+            raise ArgoClientException("Execution is already proceeding.")
+
+        body = {"spec": workflow["spec"]}
+        body["spec"]["suspend"] = False
+        return self._patch_workflow(name, body)
+
+    def _patch_workflow(self, name, body):
+        client = self._client.get()
+        try:
+            return client.CustomObjectsApi().patch_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="workflows",
+                name=name,
                 body=body,
             )
         except client.rest.ApiException as e:

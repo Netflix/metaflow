@@ -384,19 +384,24 @@ def _get_extension_packages():
         if any(
             [pkg == EXT_PKG for pkg in (dist.read_text("top_level.txt") or "").split()]
         ):
+            # In all cases (whether duplicate package or not), we remove the package
+            # from the list of locations to look in.
+            # This is not 100% accurate because it is possible that at the same
+            # location there is a package and a non-package, but this is extremely
+            # unlikely so we are going to ignore this case.
+            dist_root = dist.locate_file(EXT_PKG).as_posix()
+            all_paths.discard(dist_root)
+
             if dist.metadata["Name"] in mf_ext_packages:
                 _ext_debug(
                     "Ignoring duplicate package '%s' (duplicate paths in sys.path? (%s))"
                     % (dist.metadata["Name"], str(sys.path))
                 )
                 continue
-            _ext_debug("Found extension package '%s'..." % dist.metadata["Name"])
-
-            # Remove the path from the paths to search. This is not 100% accurate because
-            # it is possible that at that same location there is a package and a non-package,
-            # but it is exceedingly unlikely, so we are going to ignore this.
-            dist_root = dist.locate_file(EXT_PKG).as_posix()
-            all_paths.discard(dist_root)
+            _ext_debug(
+                "Found extension package '%s' at '%s'..."
+                % (dist.metadata["Name"], dist_root)
+            )
 
             files_to_include = []
             meta_module = None

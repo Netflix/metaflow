@@ -138,7 +138,13 @@ class Trigger(object):
 
     def __getitem__(self, key):
         """
-        If triggering events are runs, `key` corresponds to the flow name of the triggering run. Returns a triggering `Run` object corresponding to the key. If triggering events are not runs, `key` corresponds to the event name and a `MetaflowEvent` object is returned.
+        If triggering events are runs, `key` corresponds to the flow name of the triggering run.
+        Otherwise, `key` corresponds to the event name and a `MetaflowEvent` object is returned.
+
+        Returns
+        -------
+        Run or MetaflowEvent
+            `Run` object if triggered by a run. Otherwise returns a `MetaflowEvent`.
         """
         if self.runs:
             for run in self.runs:

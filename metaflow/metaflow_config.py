@@ -30,6 +30,12 @@ DEFAULT_MONITOR = from_conf("DEFAULT_MONITOR", "nullSidecarMonitor")
 DEFAULT_PACKAGE_SUFFIXES = from_conf("DEFAULT_PACKAGE_SUFFIXES", ".py,.R,.RDS")
 DEFAULT_AWS_CLIENT_PROVIDER = from_conf("DEFAULT_AWS_CLIENT_PROVIDER", "boto3")
 DEFAULT_SECRETS_BACKEND_TYPE = from_conf("DEFAULT_SECRETS_BACKEND_TYPE")
+DEFAULT_SECRETS_ROLE = from_conf("DEFAULT_SECRETS_ROLE")
+
+###
+# User configuration
+###
+USER = from_conf("USER")
 
 
 ###
@@ -68,6 +74,9 @@ CLIENT_CACHE_MAX_TASKDATASTORE_COUNT = from_conf(
 ###
 S3_ENDPOINT_URL = from_conf("S3_ENDPOINT_URL")
 S3_VERIFY_CERTIFICATE = from_conf("S3_VERIFY_CERTIFICATE")
+
+# Set ServerSideEncryption for S3 uploads
+S3_SERVER_SIDE_ENCRYPTION = from_conf("S3_SERVER_SIDE_ENCRYPTION")
 
 # S3 retry configuration
 # This is useful if you want to "fail fast" on S3 operations; use with caution
@@ -268,13 +277,20 @@ KUBERNETES_SERVICE_ACCOUNT = from_conf("KUBERNETES_SERVICE_ACCOUNT")
 # Default node selectors to use by K8S jobs created by Metaflow - foo=bar,baz=bab
 KUBERNETES_NODE_SELECTOR = from_conf("KUBERNETES_NODE_SELECTOR", "")
 KUBERNETES_TOLERATIONS = from_conf("KUBERNETES_TOLERATIONS", "")
+KUBERNETES_PERSISTENT_VOLUME_CLAIMS = from_conf(
+    "KUBERNETES_PERSISTENT_VOLUME_CLAIMS", ""
+)
 KUBERNETES_SECRETS = from_conf("KUBERNETES_SECRETS", "")
+# Default labels for kubernetes pods
+KUBERNETES_LABELS = from_conf("KUBERNETES_LABELS", "")
 # Default GPU vendor to use by K8S jobs created by Metaflow (supports nvidia, amd)
 KUBERNETES_GPU_VENDOR = from_conf("KUBERNETES_GPU_VENDOR", "nvidia")
 # Default container image for K8S
 KUBERNETES_CONTAINER_IMAGE = from_conf(
     "KUBERNETES_CONTAINER_IMAGE", DEFAULT_CONTAINER_IMAGE
 )
+# Image pull policy for container images
+KUBERNETES_IMAGE_PULL_POLICY = from_conf("KUBERNETES_IMAGE_PULL_POLICY", None)
 # Default container registry for K8S
 KUBERNETES_CONTAINER_REGISTRY = from_conf(
     "KUBERNETES_CONTAINER_REGISTRY", DEFAULT_CONTAINER_REGISTRY
@@ -293,7 +309,11 @@ ARGO_EVENTS_EVENT_BUS = from_conf("ARGO_EVENTS_EVENT_BUS", "default")
 ARGO_EVENTS_EVENT_SOURCE = from_conf("ARGO_EVENTS_EVENT_SOURCE")
 ARGO_EVENTS_EVENT = from_conf("ARGO_EVENTS_EVENT")
 ARGO_EVENTS_WEBHOOK_URL = from_conf("ARGO_EVENTS_WEBHOOK_URL")
+ARGO_EVENTS_INTERNAL_WEBHOOK_URL = from_conf(
+    "ARGO_EVENTS_INTERNAL_WEBHOOK_URL", ARGO_EVENTS_WEBHOOK_URL
+)
 
+ARGO_WORKFLOWS_UI_URL = from_conf("ARGO_WORKFLOWS_UI_URL")
 
 ##
 # Airflow Configuration
@@ -331,7 +351,7 @@ CONDA_DEPENDENCY_RESOLVER = from_conf("CONDA_DEPENDENCY_RESOLVER", "conda")
 DEBUG_OPTIONS = ["subcommand", "sidecar", "s3client"]
 
 for typ in DEBUG_OPTIONS:
-    vars()["DEBUG_%s" % typ.upper()] = from_conf("DEBUG_%s" % typ.upper())
+    vars()["DEBUG_%s" % typ.upper()] = from_conf("DEBUG_%s" % typ.upper(), False)
 
 ###
 # Plugin configuration
