@@ -213,6 +213,7 @@ class ArgoWorkflows(object):
                 )
             )
 
+    @staticmethod
     def suspend(name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
