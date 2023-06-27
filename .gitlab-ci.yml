@@ -51,7 +51,7 @@ stages:
   before_script:
     - export IMAGE_REPOSITORY_TAG=$( cat ${IMAGE_REPOSITORY_TAG_PATH} )
     - export IMAGE_REPOSITORY_TAG_KFP_STEP=$( cat ${IMAGE_REPOSITORY_TAG_PATH_KFP_STEP} )
-    - !reference [.generate_kubeconfig before_script]
+    - !reference [.generate_kubeconfig, before_script]
   script:
     - docker run
         --rm
