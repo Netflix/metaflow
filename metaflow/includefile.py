@@ -144,10 +144,13 @@ class FilePathClass(click.ParamType):
                 ds_type=ctx.obj.datastore_impl.TYPE,
             )
 
-        if len(value) > 0 and value[0] == "{":
+        if len(value) > 0 and (value.startswith("{") or value.startswith('"{')):
             # This is a blob; no URL starts with `{`. We are thus in scenario A
             try:
                 value = json.loads(value)
+                # to handle quoted json strings
+                if not isinstance(value, dict):
+                    value = json.loads(value)
             except json.JSONDecodeError as e:
                 raise MetaflowException(
                     "IncludeFile '%s' (value: %s) is malformed" % (param.name, value)
@@ -429,7 +432,6 @@ class UploaderV1:
 
 
 class UploaderV2:
-
     file_type = "uploader-v2"
 
     @classmethod

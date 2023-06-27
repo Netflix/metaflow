@@ -17,6 +17,7 @@ from metaflow.metaflow_config import (
     DATATOOLS_S3ROOT,
     S3_RETRY_COUNT,
     S3_TRANSIENT_RETRY_COUNT,
+    S3_SERVER_SIDE_ENCRYPTION,
     TEMPDIR,
 )
 from metaflow.util import (
@@ -83,9 +84,10 @@ S3PutObject = namedtuple_with_defaults(
         ("value", Optional[PutValue]),
         ("path", Optional[str]),
         ("content_type", Optional[str]),
+        ("encryption", Optional[str]),
         ("metadata", Optional[Dict[str, str]]),
     ],
-    defaults=(None, None, None, None),
+    defaults=(None, None, None, None, None),
 )
 S3PutObject.__module__ = __name__
 
@@ -142,6 +144,7 @@ class S3Object(object):
         metadata: Optional[Dict[str, str]] = None,
         range_info: Optional[RangeInfo] = None,
         last_modified: int = None,
+        encryption: Optional[str] = None,
     ):
         # all fields of S3Object should return a unicode object
         prefix, url, path = map(ensure_unicode, (prefix, url, path))
@@ -175,6 +178,8 @@ class S3Object(object):
         else:
             self._key = url[len(prefix.rstrip("/")) + 1 :].rstrip("/")
             self._prefix = prefix
+
+        self._encryption = encryption
 
     @property
     def exists(self) -> bool:
@@ -321,6 +326,7 @@ class S3Object(object):
             self._content_type is not None
             or self._metadata is not None
             or self._range_info is not None
+            or self._encryption is not None
         )
 
     @property
@@ -347,6 +353,18 @@ class S3Object(object):
             Content type or None if the content type is undefined.
         """
         return self._content_type
+
+    @property
+    def encryption(self) -> Optional[str]:
+        """
+        Returns the encryption type of the S3 object or None if it is not defined.
+
+        Returns
+        -------
+        str
+            Server-side-encryption type or None if parameter is not set.
+        """
+        return self._encryption
 
     @property
     def range_info(self) -> Optional[RangeInfo]:
@@ -486,6 +504,7 @@ class S3(object):
         prefix: Optional[str] = None,
         run: Optional[Union[FlowSpec, "Run"]] = None,
         s3root: Optional[str] = None,
+        encryption: Optional[str] = S3_SERVER_SIDE_ENCRYPTION,
         **kwargs
     ):
         if not boto_found:
@@ -539,6 +558,7 @@ class S3(object):
             "inject_failure_rate", TEST_INJECT_RETRYABLE_FAILURES
         )
         self._tmpdir = mkdtemp(dir=tmproot, prefix="metaflow.s3.")
+        self._encryption = encryption
 
     def __enter__(self) -> "S3":
         return self
@@ -739,6 +759,7 @@ class S3(object):
                 "metadata": resp["Metadata"],
                 "size": resp["ContentLength"],
                 "last_modified": get_timestamp(resp["LastModified"]),
+                "encryption": resp.get("ServerSideEncryption"),
             }
 
         info_results = None
@@ -758,6 +779,7 @@ class S3(object):
                 content_type=info_results["content_type"],
                 metadata=info_results["metadata"],
                 last_modified=info_results["last_modified"],
+                encryption=info_results["encryption"],
             )
         return S3Object(self._s3root, url, None)
 
@@ -811,7 +833,9 @@ class S3(object):
                     else:
                         yield self._s3root, s3url, None, info["size"], info[
                             "content_type"
-                        ], info["metadata"], None, info["last_modified"]
+                        ], info["metadata"], None, info["last_modified"], info[
+                            "encryption"
+                        ]
                 else:
                     # This should not happen; we should always get a response
                     # even if it contains an error inside it
@@ -886,6 +910,12 @@ class S3(object):
             if return_info:
                 return {
                     "content_type": resp["ContentType"],
+                    # Since Metaflow can also use S3-compatible storage like MinIO,
+                    # there maybe some keys missing in the responses given by different S3-compatible object stores.
+                    # MinIO is generally accessed via HTTPS, and so it's encrpytion scheme is
+                    # TLS/SSL. This is why the `ServerSideEncryption` key is not present
+                    # in the response from MinIO.
+                    "encryption": resp.get("ServerSideEncryption"),
                     "metadata": resp["Metadata"],
                     "range_result": range_result,
                     "last_modified": get_timestamp(resp["LastModified"]),
@@ -906,6 +936,7 @@ class S3(object):
                 url,
                 path,
                 content_type=addl_info["content_type"],
+                encryption=addl_info["encryption"],
                 metadata=addl_info["metadata"],
                 range_info=addl_info["range_result"],
                 last_modified=addl_info["last_modified"],
@@ -967,13 +998,15 @@ class S3(object):
                                 - range_info["start"]
                                 + 1,
                             )
-                        yield self._s3root, s3url, os.path.join(
-                            self._tmpdir, fname
-                        ), None, info["content_type"], info[
-                            "metadata"
-                        ], range_info, info[
-                            "last_modified"
-                        ]
+                            yield self._s3root, s3url, os.path.join(
+                                self._tmpdir, fname
+                            ), None, info["content_type"], info[
+                                "metadata"
+                            ], range_info, info[
+                                "last_modified"
+                            ], info[
+                                "encryption"
+                            ]
                     else:
                         yield self._s3root, s3prefix, None
                 else:
@@ -1033,6 +1066,8 @@ class S3(object):
                         self._tmpdir, fname
                     ), None, info["content_type"], info["metadata"], range_info, info[
                         "last_modified"
+                    ], info[
+                        "encryption"
                     ]
                 else:
                     yield s3prefix, s3url, os.path.join(self._tmpdir, fname)
@@ -1120,7 +1155,7 @@ class S3(object):
         url = self._url(key)
         src = urlparse(url)
         extra_args = None
-        if content_type or metadata:
+        if content_type or metadata or self._encryption:
             extra_args = {}
             if content_type:
                 extra_args["ContentType"] = content_type
@@ -1128,6 +1163,8 @@ class S3(object):
                 extra_args["Metadata"] = {
                     "metaflow-user-attributes": json.dumps(metadata)
                 }
+            if self._encryption:
+                extra_args["ServerSideEncryption"] = self._encryption
 
         def _upload(s3, _):
             # We make sure we are at the beginning in case we are retrying
@@ -1200,6 +1237,8 @@ class S3(object):
                     store_info["metadata"] = {
                         "metaflow-user-attributes": json.dumps(metadata)
                     }
+                if self._encryption:
+                    store_info["encryption"] = self._encryption
                 if isinstance(obj, (RawIOBase, BufferedIOBase)):
                     if not obj.readable() or not obj.seekable():
                         raise MetaflowS3InvalidObject(
@@ -1272,6 +1311,8 @@ class S3(object):
                     store_info["metadata"] = {
                         "metaflow-user-attributes": json.dumps(metadata)
                     }
+                if self._encryption:
+                    store_info["encryption"] = self._encryption
                 if not os.path.exists(path):
                     raise MetaflowS3NotFound("Local file not found: %s" % path)
                 yield path, self._url(key), store_info

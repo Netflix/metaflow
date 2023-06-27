@@ -582,6 +582,63 @@ def check_kubernetes_config(ctx):
         )
 
 
+def configure_argo_events(existing_env):
+    env = {}
+
+    # Argo events service account
+    env["METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT"] = click.prompt(
+        cyan("[METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT]")
+        + " Service Account for Argo Events. ",
+        default=existing_env.get("METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT", ""),
+        show_default=True,
+    )
+
+    # Argo events event bus
+    env["METAFLOW_ARGO_EVENTS_EVENT_BUS"] = click.prompt(
+        cyan("[METAFLOW_ARGO_EVENTS_EVENT_BUS]")
+        + yellow(" (optional)")
+        + " Event Bus for Argo Events.",
+        default=existing_env.get("METAFLOW_ARGO_EVENTS_EVENT_BUS", "default"),
+        show_default=True,
+    )
+
+    # Argo events event source
+    env["METAFLOW_ARGO_EVENTS_EVENT_SOURCE"] = click.prompt(
+        cyan("[METAFLOW_ARGO_EVENTS_EVENT_SOURCE]") + " Event Source for Argo Events.",
+        default=existing_env.get("METAFLOW_ARGO_EVENTS_EVENT_SOURCE", ""),
+        show_default=True,
+    )
+
+    # Argo events event name
+    env["METAFLOW_ARGO_EVENTS_EVENT"] = click.prompt(
+        cyan("[METAFLOW_ARGO_EVENTS_EVENT]") + " Event name for Argo Events.",
+        default=existing_env.get("METAFLOW_ARGO_EVENTS_EVENT", ""),
+        show_default=True,
+    )
+
+    # Argo events webhook url
+    env["METAFLOW_ARGO_EVENTS_WEBHOOK_URL"] = click.prompt(
+        cyan("[METAFLOW_ARGO_EVENTS_WEBHOOK_URL]")
+        + " Publicly accessible URL for Argo Events Webhook.",
+        default=existing_env.get("METAFLOW_ARGO_EVENTS_WEBHOOK_URL", ""),
+        show_default=True,
+    )
+    # Set internal URL for Argo events webhook
+    env["METAFLOW_ARGO_EVENTS_INTERNAL_WEBHOOK_URL"] = click.prompt(
+        cyan("[METAFLOW_ARGO_EVENTS_INTERNAL_WEBHOOK_URL]")
+        + yellow(" (optional)")
+        + " URL for Argo Events Webhook "
+        + "(Accessible only within a Kubernetes cluster).",
+        default=existing_env.get(
+            "METAFLOW_ARGO_EVENTS_INTERNAL_WEBHOOK_URL",
+            env["METAFLOW_ARGO_EVENTS_WEBHOOK_URL"],
+        ),
+        show_default=True,
+    )
+
+    return env
+
+
 def configure_kubernetes(existing_env):
     empty_profile = False
     if not existing_env:
@@ -728,7 +785,6 @@ def verify_gcp_credentials(ctx):
 )
 @click.pass_context
 def azure(ctx, profile):
-
     # Greet the user!
     echo(
         "Welcome to Metaflow! Follow the prompts to configure your installation.\n",
@@ -770,7 +826,6 @@ def azure(ctx, profile):
 )
 @click.pass_context
 def gcp(ctx, profile):
-
     # Greet the user!
     echo(
         "Welcome to Metaflow! Follow the prompts to configure your installation.\n",
@@ -812,7 +867,6 @@ def gcp(ctx, profile):
 )
 @click.pass_context
 def aws(ctx, profile):
-
     # Greet the user!
     echo(
         "Welcome to Metaflow! Follow the prompts to configure your " "installation.\n",
@@ -860,7 +914,6 @@ def aws(ctx, profile):
 )
 @click.pass_context
 def kubernetes(ctx, profile):
-
     check_kubernetes_client(ctx)
 
     # Greet the user!
@@ -907,5 +960,9 @@ def kubernetes(ctx, profile):
 
     # Configure Kubernetes for compute.
     env.update(configure_kubernetes(existing_env))
+
+    # Configure Argo Workflows Events
+    if click.confirm("\nConfigure support for Argo Workflow Events?"):
+        env.update(configure_argo_events(existing_env))
 
     persist_env({k: v for k, v in env.items() if v}, profile)

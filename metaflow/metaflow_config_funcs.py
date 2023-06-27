@@ -59,8 +59,8 @@ def from_conf(name, default=None, validate_fn=None):
     validate_fn should accept (name, value).
     If the value validates, return None, else raise an MetaflowException.
     """
-    env_name = "METAFLOW_%s" % name
     is_default = True
+    env_name = "METAFLOW_%s" % name
     value = os.environ.get(env_name, METAFLOW_CONFIG.get(env_name, default))
     if validate_fn and value is not None:
         validate_fn(env_name, value)
@@ -79,6 +79,12 @@ def from_conf(name, default=None, validate_fn=None):
                     raise ValueError(
                         "Expected a valid JSON for %s, got: %s" % (env_name, value)
                     )
+                if type(value) != type(default):
+                    raise ValueError(
+                        "Expected value of type '%s' for %s, got: %s"
+                        % (type(default), env_name, value)
+                    )
+                is_default = value == default
             _all_configs[env_name] = ConfigValue(
                 value=value,
                 serializer=json.dumps,
@@ -87,8 +93,12 @@ def from_conf(name, default=None, validate_fn=None):
             return value
         elif isinstance(default, (bool, int, float)) or is_stringish(default):
             try:
-                value = type(default)(value)
-                # Here we can compare values
+                if type(value) != type(default):
+                    if isinstance(default, bool):
+                        # Env vars are strings so try to evaluate logically
+                        value = value.lower() not in ("0", "false", "")
+                    else:
+                        value = type(default)(value)
                 is_default = value == default
             except ValueError:
                 raise ValueError(
@@ -98,6 +108,8 @@ def from_conf(name, default=None, validate_fn=None):
             raise RuntimeError(
                 "Default of type %s for %s is not supported" % (type(default), env_name)
             )
+    else:
+        is_default = value is None
     _all_configs[env_name] = ConfigValue(
         value=value,
         serializer=str,

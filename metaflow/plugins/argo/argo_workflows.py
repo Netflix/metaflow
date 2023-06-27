@@ -15,7 +15,7 @@ from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT_BUS,
     ARGO_EVENTS_EVENT_SOURCE,
     ARGO_EVENTS_SERVICE_ACCOUNT,
-    ARGO_EVENTS_WEBHOOK_URL,
+    ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
     ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
     ARGO_WORKFLOWS_KUBERNETES_SECRETS,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
@@ -30,6 +30,7 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
     KUBERNETES_FETCH_EC2_METADATA,
+    KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
@@ -37,9 +38,14 @@ from metaflow.metaflow_config import (
     S3_ENDPOINT_URL,
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
+    S3_SERVER_SIDE_ENCRYPTION,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
+from metaflow.plugins.kubernetes.kubernetes import (
+    parse_kube_keyvalue_list,
+    validate_kube_labels,
+)
 from metaflow.util import (
     compress_list,
     dict_to_cli_options,
@@ -67,9 +73,8 @@ class ArgoWorkflowsSchedulingException(MetaflowException):
 #     4. Support GitOps workflows.
 #     5. Add Metaflow tags to labels/annotations.
 #     6. Support Multi-cluster scheduling - https://github.com/argoproj/argo-workflows/issues/3523#issuecomment-792307297
-#     7. Support for workflow notifications.
-#     8. Support R lang.
-#     9. Ping @savin at slack.outerbounds.co for any feature request.
+#     7. Support R lang.
+#     8. Ping @savin at slack.outerbounds.co for any feature request.
 
 
 class ArgoWorkflows(object):
@@ -93,6 +98,9 @@ class ArgoWorkflows(object):
         workflow_timeout=None,
         workflow_priority=None,
         auto_emit_argo_events=False,
+        notify_on_error=False,
+        notify_on_success=False,
+        notify_slack_webhook_url=None,
     ):
         # Some high-level notes -
         #
@@ -136,11 +144,15 @@ class ArgoWorkflows(object):
         self.workflow_timeout = workflow_timeout
         self.workflow_priority = workflow_priority
         self.auto_emit_argo_events = auto_emit_argo_events
+        self.notify_on_error = notify_on_error
+        self.notify_on_success = notify_on_success
+        self.notify_slack_webhook_url = notify_slack_webhook_url
 
         self.parameters = self._process_parameters()
         self.triggers, self.trigger_options = self._process_triggers()
         self._schedule, self._timezone = self._get_schedule()
 
+        self.kubernetes_labels = self._get_kubernetes_labels()
         self._workflow_template = self._compile_workflow_template()
         self._sensor = self._compile_sensor()
 
@@ -170,6 +182,59 @@ class ArgoWorkflows(object):
         # Preserve part of the name for legibility purposes.
         name_hash = sha1(name.encode("utf-8")).hexdigest()
         return "%s-%s" % (name[:53], name_hash[:10])
+
+    @staticmethod
+    def delete(name):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+
+        # Always try to delete the schedule. Failure in deleting the schedule should not
+        # be treated as an error, due to any of the following reasons
+        # - there might not have been a schedule, or it was deleted by some other means
+        # - retaining these resources should have no consequences as long as the workflow deletion succeeds.
+        # - regarding cost and compute, the significant resources are part of the workflow teardown, not the schedule.
+        schedule_deleted = client.delete_cronworkflow(name)
+
+        # The workflow might have sensors attached to it, which consume actual resources.
+        # Try to delete these as well.
+        sensor_deleted = client.delete_sensor(name)
+
+        # After cleaning up related resources, delete the workflow in question.
+        # Failure in deleting is treated as critical and will be made visible to the user
+        # for further action.
+        workflow_deleted = client.delete_workflow_template(name)
+        if workflow_deleted is None:
+            raise ArgoWorkflowsException(
+                "The workflow *%s* doesn't exist on Argo Workflows." % name
+            )
+
+        return schedule_deleted, sensor_deleted, workflow_deleted
+
+    @staticmethod
+    def terminate(flow_name, name):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+
+        response = client.terminate_workflow(name)
+        if response is None:
+            raise ArgoWorkflowsException(
+                "No execution found for {flow_name}/{run_id} in Argo Workflows.".format(
+                    flow_name=flow_name, run_id=name
+                )
+            )
+
+    def suspend(name):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+
+        client.suspend_workflow(name)
+
+        return True
+
+    @staticmethod
+    def unsuspend(name):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+
+        client.unsuspend_workflow(name)
+
+        return True
 
     @classmethod
     def trigger(cls, name, parameters=None):
@@ -204,6 +269,19 @@ class ArgoWorkflows(object):
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
 
+    @staticmethod
+    def _get_kubernetes_labels():
+        """
+        Get Kubernetes labels from environment variable.
+        Parses the string into a dict and validates that values adhere to Kubernetes restrictions.
+        """
+        if not KUBERNETES_LABELS:
+            return {}
+        env_labels = KUBERNETES_LABELS.split(",")
+        env_labels = parse_kube_keyvalue_list(env_labels, False)
+        validate_kube_labels(env_labels)
+        return env_labels
+
     def _get_schedule(self):
         schedule = self.flow._flow_decorators.get("schedule")
         if schedule:
@@ -214,16 +292,20 @@ class ArgoWorkflows(object):
 
     def schedule(self):
         try:
-            ArgoClient(namespace=KUBERNETES_NAMESPACE).schedule_workflow_template(
+            argo_client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+            argo_client.schedule_workflow_template(
                 self.name, self._schedule, self._timezone
             )
             # Register sensor. Unfortunately, Argo Events Sensor names don't allow for
             # dots (sensors run into an error) which rules out self.name :(
             # Metaflow will overwrite any existing sensor.
-            ArgoClient(namespace=KUBERNETES_NAMESPACE).register_sensor(
-                self.name.replace(".", "-"),
-                self._sensor.to_json() if self._sensor else {},
-            )
+            sensor_name = self.name.replace(".", "-")
+            if self._sensor:
+                argo_client.register_sensor(sensor_name, self._sensor.to_json())
+            else:
+                # Since sensors occupy real resources, delete existing sensor if needed
+                # Deregister sensors that might have existed before this deployment
+                argo_client.delete_sensor(sensor_name)
         except Exception as e:
             raise ArgoWorkflowsSchedulingException(str(e))
 
@@ -290,6 +372,29 @@ class ArgoWorkflows(object):
 
         return client.list_executions(cls._label_hash(name), states)
 
+    @classmethod
+    def get_execution(cls, name):
+        workflow = ArgoClient(namespace=KUBERNETES_NAMESPACE).get_workflow(name)
+        if workflow is not None:
+            try:
+                return (
+                    workflow["metadata"]["annotations"]["metaflow/owner"],
+                    workflow["metadata"]["annotations"]["metaflow/production_token"],
+                    workflow["metadata"]["annotations"]["metaflow/flow_name"],
+                    workflow["metadata"]["annotations"].get(
+                        "metaflow/branch_name", None
+                    ),
+                    workflow["metadata"]["annotations"].get(
+                        "metaflow/project_name", None
+                    ),
+                )
+            except KeyError:
+                raise ArgoWorkflowsException(
+                    "A non-metaflow workflow *%s* already exists in Argo Workflows."
+                    % name
+                )
+        return None
+
     def _process_parameters(self):
         parameters = {}
         has_schedule = self.flow._flow_decorators.get("schedule") is not None
@@ -349,9 +454,9 @@ class ArgoWorkflows(object):
 
         # @trigger decorator
         if self.flow._flow_decorators.get("trigger"):
-            # Parameters are not duplicated, and exist in the flow.
-            # additionally, convert them to lower case since metaflow parameters are
-            # case insensitive.
+            # Parameters are not duplicated, and exist in the flow. Additionally,
+            # convert them to lower case since Metaflow parameters are case
+            # insensitive.
             seen = set()
             params = set(
                 [param.name.lower() for var, param in self.flow._get_parameters()]
@@ -389,7 +494,7 @@ class ArgoWorkflows(object):
             triggers.extend(self.flow._flow_decorators.get("trigger")[0].triggers)
 
             # Set automatic parameter mapping iff only a single event dependency is
-            # specified with no explicit parameter mapping
+            # specified with no explicit parameter mapping.
             if len(triggers) == 1 and not triggers[0].get("parameters"):
                 triggers[0]["parameters"] = dict(zip(params, params))
             options = self.flow._flow_decorators.get("trigger")[0].options
@@ -403,6 +508,8 @@ class ArgoWorkflows(object):
                 # the current object in the @trigger_on_finish decorator.
                 triggers.append(
                     {
+                        # Make sure this remains consistent with the event name format
+                        # in ArgoWorkflowsInternalDecorator.
                         "name": "metaflow.%s.end"
                         % ".".join(
                             v
@@ -431,14 +538,16 @@ class ArgoWorkflows(object):
             # Assign a sanitized name since we need this at many places to please
             # Argo Events sensors. There is a slight possibility of name collision
             # but quite unlikely for us to worry about at this point.
-            event["sanitized_name"] = event["name"]
-            if any([x in event["name"] for x in [".", "-"]]):
-                event["sanitized_name"] = "%s_%s" % (
-                    event["name"].replace(".", "").replace("-", ""),
-                    to_unicode(
-                        base64.b32encode(sha1(to_bytes(event["name"])).digest())
-                    )[:4].lower(),
-                )
+            event["sanitized_name"] = "%s_%s" % (
+                event["name"]
+                .replace(".", "")
+                .replace("-", "")
+                .replace("@", "")
+                .replace("+", ""),
+                to_unicode(base64.b32encode(sha1(to_bytes(event["name"])).digest()))[
+                    :4
+                ].lower(),
+            )
         return triggers, options
 
     def _compile_workflow_template(self):
@@ -568,13 +677,54 @@ class ArgoWorkflows(object):
                     .label("app.kubernetes.io/name", "metaflow-task")
                     .label("app.kubernetes.io/part-of", "metaflow")
                     .annotations(annotations)
+                    .labels(self.kubernetes_labels)
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
+                # Set exit hook handlers if notifications are enabled
+                .hooks(
+                    {
+                        **(
+                            {
+                                # workflow status maps to Completed
+                                "notify-on-success": LifecycleHook()
+                                .expression("workflow.status == 'Succeeded'")
+                                .template("notify-on-success"),
+                            }
+                            if self.notify_on_success
+                            else {}
+                        ),
+                        **(
+                            {
+                                # workflow status maps to Failed or Error
+                                "notify-on-failure": LifecycleHook()
+                                .expression("workflow.status == 'Failed'")
+                                .template("notify-on-error"),
+                                "notify-on-error": LifecycleHook()
+                                .expression("workflow.status == 'Error'")
+                                .template("notify-on-error"),
+                            }
+                            if self.notify_on_error
+                            else {}
+                        ),
+                        # Warning: terrible hack to workaround a bug in Argo Workflow
+                        #          where the hooks listed above do not execute unless
+                        #          there is an explicit exit hook. as and when this
+                        #          bug is patched, we should remove this effectively
+                        #          no-op hook.
+                        **(
+                            {"exit": LifecycleHook().template("exit-hook-hack")}
+                            if self.notify_on_error or self.notify_on_success
+                            else {}
+                        ),
+                    }
+                )
                 # Top-level DAG template(s)
                 .templates(self._dag_templates())
                 # Container templates
                 .templates(self._container_templates())
+                # Exit hook template(s)
+                .templates(self._exit_hook_templates())
             )
         )
 
@@ -884,7 +1034,7 @@ class ArgoWorkflows(object):
                     ]
                     + [
                         # Parameter names can be hyphenated, hence we use
-                        # {{foo.bar['param_name']}}
+                        # {{foo.bar['param_name']}}.
                         "--%s={{workflow.parameters.%s}}"
                         % (parameter["name"], parameter["name"])
                         for parameter in self.parameters.values()
@@ -978,7 +1128,7 @@ class ArgoWorkflows(object):
                 {
                     **{
                         # These values are needed by Metaflow to set it's internal
-                        # state appropriately
+                        # state appropriately.
                         "METAFLOW_CODE_URL": self.code_package_url,
                         "METAFLOW_CODE_SHA": self.code_package_sha,
                         "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
@@ -996,13 +1146,13 @@ class ArgoWorkflows(object):
                         "METAFLOW_OWNER": self.username,
                     },
                     **{
-                        # Configuration for Argo Events
-                        # TODO: Move this to @kubernetes decorator instead.
+                        # Configuration for Argo Events. Keep these in sync with the
+                        # environment variables for @kubernetes decorator.
                         "METAFLOW_ARGO_EVENTS_EVENT": ARGO_EVENTS_EVENT,
                         "METAFLOW_ARGO_EVENTS_EVENT_BUS": ARGO_EVENTS_EVENT_BUS,
                         "METAFLOW_ARGO_EVENTS_EVENT_SOURCE": ARGO_EVENTS_EVENT_SOURCE,
                         "METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT": ARGO_EVENTS_SERVICE_ACCOUNT,
-                        "METAFLOW_ARGO_EVENTS_WEBHOOK_URL": ARGO_EVENTS_WEBHOOK_URL,
+                        "METAFLOW_ARGO_EVENTS_WEBHOOK_URL": ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
                     },
                     **{
                         # Some optional values for bookkeeping
@@ -1049,6 +1199,10 @@ class ArgoWorkflows(object):
                         "METAFLOW_ARGO_EVENT_PAYLOAD_%s_%s"
                         % (event["type"], event["sanitized_name"])
                     ] = ("{{workflow.parameters.%s}}" % event["sanitized_name"])
+
+            # Map S3 upload headers to environment variables
+            if S3_SERVER_SIDE_ENCRYPTION is not None:
+                env["METAFLOW_S3_SERVER_SIDE_ENCRYPTION"] = S3_SERVER_SIDE_ENCRYPTION
 
             metaflow_version = self.environment.get_environment_info()
             metaflow_version["flow_name"] = self.graph.name
@@ -1141,6 +1295,7 @@ class ArgoWorkflows(object):
                 .pvc_volumes(resources.get("persistent_volume_claims"))
                 # Set node selectors
                 .node_selectors(resources.get("node_selector"))
+                # Set tolerations
                 .tolerations(resources.get("tolerations"))
                 # Set container
                 .container(
@@ -1180,6 +1335,7 @@ class ArgoWorkflows(object):
                                 }.items()
                             ],
                             image=resources["image"],
+                            image_pull_policy=resources["image_pull_policy"],
                             resources=kubernetes_sdk.V1ResourceRequirements(
                                 requests={
                                     "cpu": str(resources["cpu"]),
@@ -1212,12 +1368,13 @@ class ArgoWorkflows(object):
                                 + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
                                 if k
                             ],
-                            # Assign a volume point to pass state to the next task.
                             volume_mounts=[
+                                # Assign a volume mount to pass state to the next task.
                                 kubernetes_sdk.V1VolumeMount(
                                     name="out", mount_path="/mnt/out"
                                 )
                             ]
+                            # Support tmpfs.
                             + (
                                 [
                                     kubernetes_sdk.V1VolumeMount(
@@ -1228,6 +1385,7 @@ class ArgoWorkflows(object):
                                 if tmpfs_enabled
                                 else []
                             )
+                            # Support persistent volume claims.
                             + (
                                 [
                                     kubernetes_sdk.V1VolumeMount(
@@ -1244,6 +1402,54 @@ class ArgoWorkflows(object):
                     )
                 )
             )
+
+    # Return exit hook templates for workflow execution notifications.
+    def _exit_hook_templates(self):
+        # TODO: Add details to slack message
+        templates = []
+        if self.notify_on_error:
+            templates.append(
+                Template("notify-on-error").http(
+                    Http("POST")
+                    .url(self.notify_slack_webhook_url)
+                    .body(
+                        json.dumps(
+                            {
+                                "text": ":rotating_light: _%s/argo-{{workflow.name}}_ failed!"
+                                % self.flow.name
+                            }
+                        )
+                    )
+                )
+            )
+        if self.notify_on_success:
+            templates.append(
+                Template("notify-on-success").http(
+                    Http("POST")
+                    .url(self.notify_slack_webhook_url)
+                    .body(
+                        json.dumps(
+                            {
+                                "text": ":white_check_mark: _%s/argo-{{workflow.name}}_ succeeded!"
+                                % self.flow.name
+                            }
+                        )
+                    )
+                )
+            )
+        if self.notify_on_error or self.notify_on_success:
+            # Warning: terrible hack to workaround a bug in Argo Workflow where the
+            #          templates listed above do not execute unless there is an
+            #          explicit exit hook. as and when this bug is patched, we should
+            #          remove this effectively no-op template.
+            templates.append(
+                Template("exit-hook-hack").http(
+                    Http("GET")
+                    .url(self.notify_slack_webhook_url)
+                    .success_condition("true == true")
+                )
+            )
+        return templates
 
     def _compile_sensor(self):
         # This method compiles a Metaflow @trigger decorator into Argo Events Sensor.
@@ -1305,7 +1511,7 @@ class ArgoWorkflows(object):
                 "https://argoproj.github.io/argo-events/eventsources/naming/. "
                 "It is very likely that all events for your deployment share the "
                 "same name. You can configure it by executing "
-                "`metaflow configure events` or setting METAFLOW_ARGO_EVENTS_EVENT "
+                "`metaflow configure kubernetes` or setting METAFLOW_ARGO_EVENTS_EVENT "
                 "in your configuration. If in doubt, reach out for support at "
                 "http://chat.metaflow.org"
             )
@@ -1317,7 +1523,7 @@ class ArgoWorkflows(object):
                 "An Argo Event Source name hasn't been configured for your deployment "
                 "yet. Please see this article for more details on event names - "
                 "https://argoproj.github.io/argo-events/eventsources/naming/. "
-                "You can configure it by executing `metaflow configure events` or "
+                "You can configure it by executing `metaflow configure kubernetes` or "
                 "setting METAFLOW_ARGO_EVENTS_EVENT_SOURCE in your configuration. If "
                 "in doubt, reach out for support at http://chat.metaflow.org"
             )
@@ -1328,7 +1534,7 @@ class ArgoWorkflows(object):
                 "An Argo Event service account hasn't been configured for your "
                 "deployment yet. Please see this article for more details on event "
                 "names - https://argoproj.github.io/argo-events/service-accounts/. "
-                "You can configure it by executing `metaflow configure events` or "
+                "You can configure it by executing `metaflow configure kubernetes` or "
                 "setting METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT in your configuration. "
                 "If in doubt, reach out for support at http://chat.metaflow.org"
             )
@@ -1370,6 +1576,7 @@ class ArgoWorkflows(object):
                 .namespace(KUBERNETES_NAMESPACE)
                 .label("app.kubernetes.io/name", "metaflow-sensor")
                 .label("app.kubernetes.io/part-of", "metaflow")
+                .labels(self.kubernetes_labels)
                 .annotations(annotations)
             )
             .spec(
@@ -1655,7 +1862,7 @@ class ObjectMeta(object):
     def labels(self, labels):
         if "labels" not in self.payload:
             self.payload["labels"] = {}
-        self.payload["labels"].update(labels)
+        self.payload["labels"].update(labels or {})
         return self
 
     def name(self, name):
@@ -1733,6 +1940,14 @@ class WorkflowSpec(object):
             self.payload["templates"].append(template.to_json())
         return self
 
+    def hooks(self, hooks):
+        # https://argoproj.github.io/argo-workflows/fields/#lifecyclehook
+        if "hooks" not in self.payload:
+            self.payload["hooks"] = {}
+        for k, v in hooks.items():
+            self.payload["hooks"].update({k: v.to_json()})
+        return self
+
     def to_json(self):
         return self.payload
 
@@ -1764,7 +1979,7 @@ class Metadata(object):
     def labels(self, labels):
         if "labels" not in self.payload:
             self.payload["labels"] = {}
-        self.payload["labels"].update(labels)
+        self.payload["labels"].update(labels or {})
         return self
 
     def labels_from(self, labels_from):
@@ -1805,6 +2020,10 @@ class Template(object):
         # Luckily this can simply be V1Container and we are spared from writing more
         # boilerplate - https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1Container.md.
         self.payload["container"] = container
+        return self
+
+    def http(self, http):
+        self.payload["http"] = http.to_json()
         return self
 
     def inputs(self, inputs):
@@ -2318,6 +2537,55 @@ class TriggerParameter(object):
 
     def dest(self, dest):
         self.payload["dest"] = dest
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
+
+
+class Http(object):
+    # https://argoproj.github.io/argo-workflows/fields/#http
+
+    def __init__(self, method):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+        self.payload["method"] = method
+
+    def body(self, body):
+        self.payload["body"] = str(body)
+        return self
+
+    def url(self, url):
+        self.payload["url"] = url
+        return self
+
+    def success_condition(self, success_condition):
+        self.payload["successCondition"] = success_condition
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
+
+
+class LifecycleHook(object):
+    # https://argoproj.github.io/argo-workflows/fields/#lifecyclehook
+
+    def __init__(self):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+
+    def expression(self, expression):
+        self.payload["expression"] = str(expression)
+        return self
+
+    def template(self, template):
+        self.payload["template"] = template
         return self
 
     def to_json(self):

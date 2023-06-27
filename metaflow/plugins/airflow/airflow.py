@@ -277,7 +277,7 @@ class Airflow(object):
         env_deco = [deco for deco in node.decorators if deco.name == "environment"]
         env = {}
         if env_deco:
-            env = env_deco[0].attributes["vars"]
+            env = env_deco[0].attributes["vars"].copy()
 
         # The below if/else block handles "input paths".
         # Input Paths help manage dataflow across the graph.
@@ -642,10 +642,15 @@ class Airflow(object):
             )
             if kube_deco:
                 # Only guard against use_tmpfs and tmpfs_size as these determine if tmpfs is enabled.
-                for attr in ["use_tmpfs", "tmpfs_size", "persistent_volume_claims"]:
+                for attr in [
+                    "use_tmpfs",
+                    "tmpfs_size",
+                    "persistent_volume_claims",
+                    "image_pull_policy",
+                ]:
                     if kube_deco[attr]:
                         raise AirflowException(
-                            "tmpfs attribute *%s* is currently not supported on Airflow "
+                            "The decorator attribute *%s* is currently not supported on Airflow "
                             "for the @kubernetes decorator on step *%s*"
                             % (attr, node.name)
                         )
