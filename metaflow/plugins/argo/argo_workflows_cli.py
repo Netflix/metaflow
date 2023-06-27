@@ -592,6 +592,63 @@ def trigger(obj, run_id_file=None, **kwargs):
         )
 
 
+@argo_workflows.command(help="Delete the flow on Argo Workflows.")
+@click.option(
+    "--authorize",
+    default=None,
+    type=str,
+    help="Authorize the deletion with a production token",
+)
+@click.pass_obj
+def delete(obj, authorize=None):
+    def _token_instructions(flow_name, prev_user):
+        obj.echo(
+            "There is an existing version of *%s* on Argo Workflows which was "
+            "deployed by the user *%s*." % (flow_name, prev_user)
+        )
+        obj.echo(
+            "To delete this flow, you need to use the same production token that they used."
+        )
+        obj.echo(
+            "Please reach out to them to get the token. Once you have it, call "
+            "this command:"
+        )
+        obj.echo("    argo-workflows delete --authorize MY_TOKEN", fg="green")
+        obj.echo(
+            'See "Organizing Results" at docs.metaflow.org for more information '
+            "about production tokens."
+        )
+
+    validate_token(obj.workflow_name, obj.token_prefix, authorize, _token_instructions)
+    obj.echo("Deleting workflow *{name}*...".format(name=obj.workflow_name), bold=True)
+
+    schedule_deleted, sensor_deleted, workflow_deleted = ArgoWorkflows.delete(
+        obj.workflow_name
+    )
+
+    if schedule_deleted:
+        obj.echo(
+            "Deleting cronworkflow *{name}*...".format(name=obj.workflow_name),
+            bold=True,
+        )
+
+    if sensor_deleted:
+        obj.echo(
+            "Deleting sensor *{name}*...".format(name=obj.workflow_name),
+            bold=True,
+        )
+
+    if workflow_deleted:
+        obj.echo(
+            "Deleting Kubernetes resources may take a while. "
+            "Deploying the flow again to Argo Workflows while the delete is in-flight will fail."
+        )
+        obj.echo(
+            "In-flight executions will not be affected. "
+            "If necessary, terminate them manually."
+        )
+
+
 @argo_workflows.command(help="Suspend flow execution on Argo Workflows.")
 @click.option(
     "--authorize",
@@ -715,6 +772,52 @@ def validate_token(name, token_prefix, authorize, instructions_fn=None):
 
     store_token(token_prefix, token)
     return True
+
+
+@argo_workflows.command(help="Terminate flow execution on Argo Workflows.")
+@click.option(
+    "--authorize",
+    default=None,
+    type=str,
+    help="Authorize the termination with a production token",
+)
+@click.argument("run-id", required=True, type=str)
+@click.pass_obj
+def terminate(obj, run_id, authorize=None):
+    def _token_instructions(flow_name, prev_user):
+        obj.echo(
+            "There is an existing version of *%s* on Argo Workflows which was "
+            "deployed by the user *%s*." % (flow_name, prev_user)
+        )
+        obj.echo(
+            "To terminate this flow, you need to use the same production token that they used."
+        )
+        obj.echo(
+            "Please reach out to them to get the token. Once you have it, call "
+            "this command:"
+        )
+        obj.echo("    argo-workflows terminate --authorize MY_TOKEN RUN_ID", fg="green")
+        obj.echo(
+            'See "Organizing Results" at docs.metaflow.org for more information '
+            "about production tokens."
+        )
+
+    validate_run_id(
+        obj.workflow_name, obj.token_prefix, authorize, run_id, _token_instructions
+    )
+
+    # Trim prefix from run_id
+    name = run_id[5:]
+    obj.echo(
+        "Terminating run *{run_id}* for {flow_name} ...".format(
+            run_id=run_id, flow_name=obj.flow.name
+        ),
+        bold=True,
+    )
+
+    terminated = ArgoWorkflows.terminate(obj.flow.name, name)
+    if terminated:
+        obj.echo("\nRun terminated.")
 
 
 def validate_run_id(

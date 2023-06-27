@@ -104,6 +104,92 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
+    def delete_cronworkflow(self, name):
+        """
+        Issues an API call for deleting a cronworkflow
+
+        Returns either the successful API response, or None in case the resource was not found.
+        """
+        client = self._client.get()
+
+        try:
+            return client.CustomObjectsApi().delete_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="cronworkflows",
+                name=name,
+            )
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                return None
+            else:
+                raise ArgoClientException(
+                    json.loads(e.body)["message"] if e.body is not None else e.reason
+                )
+
+    def delete_workflow_template(self, name):
+        """
+        Issues an API call for deleting a cronworkflow
+
+        Returns either the successful API response, or None in case the resource was not found.
+        """
+        client = self._client.get()
+
+        try:
+            return client.CustomObjectsApi().delete_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="workflowtemplates",
+                name=name,
+            )
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                return None
+            else:
+                raise ArgoClientException(
+                    json.loads(e.body)["message"] if e.body is not None else e.reason
+                )
+
+    def terminate_workflow(self, run_id):
+        client = self._client.get()
+        try:
+            workflow = client.CustomObjectsApi().get_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="workflows",
+                name=run_id,
+            )
+        except client.rest.ApiException as e:
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+
+        if workflow["status"]["finishedAt"] is not None:
+            raise ArgoClientException(
+                "Cannot terminate an execution that has already finished."
+            )
+        if workflow["spec"].get("shutdown") == "Terminate":
+            raise ArgoClientException("Execution has already been terminated.")
+
+        try:
+            body = {"spec": workflow["spec"]}
+            body["spec"]["shutdown"] = "Terminate"
+            return client.CustomObjectsApi().patch_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="workflows",
+                name=run_id,
+                body=body,
+            )
+        except client.rest.ApiException as e:
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+
     def suspend_workflow(self, name):
         workflow = self.get_workflow(name)
         if workflow is None:
@@ -273,8 +359,6 @@ class ArgoClient(object):
         except client.rest.ApiException as e:
             # Sensor does not exist and we want to add one
             if e.status == 404:
-                if sensor.get("kind") is None:
-                    return
                 try:
                     return client.CustomObjectsApi().create_namespaced_custom_object(
                         group=self._group,
@@ -293,20 +377,6 @@ class ArgoClient(object):
                 raise ArgoClientException(
                     json.loads(e.body)["message"] if e.body is not None else e.reason
                 )
-        # Since sensors occupy real resources, delete existing sensor if needed
-        if sensor.get("kind") is None:
-            try:
-                return client.CustomObjectsApi().delete_namespaced_custom_object(
-                    group=self._group,
-                    version=self._version,
-                    namespace=self._namespace,
-                    plural="sensors",
-                    name=name,
-                )
-            except client.rest.ApiException as e:
-                raise ArgoClientException(
-                    json.loads(e.body)["message"] if e.body is not None else e.reason
-                )
         try:
             return client.CustomObjectsApi().replace_namespaced_custom_object(
                 group=self._group,
@@ -317,6 +387,29 @@ class ArgoClient(object):
                 name=name,
             )
         except client.rest.ApiException as e:
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+
+    def delete_sensor(self, name):
+        """
+        Issues an API call for deleting a sensor
+
+        Returns either the successful API response, or None in case the resource was not found.
+        """
+        client = self._client.get()
+
+        try:
+            return client.CustomObjectsApi().delete_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="sensors",
+                name=name,
+            )
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                return None
             raise ArgoClientException(
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
