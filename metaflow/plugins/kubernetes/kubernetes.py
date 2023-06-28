@@ -280,7 +280,23 @@ class Kubernetes(object):
         for name, value in env.items():
             job.environment_variable(name, value)
 
-        annotations = self._get_annotations(user, flow_name, current)
+        annotations = self._get_annotations()
+
+        annotations.update(
+            {
+                "metaflow/user": user,
+                "metaflow/flow_name": flow_name,
+            }
+        )
+
+        if current.get("project_name"):
+            annotations.update(
+                {
+                    "metaflow/project_name": current.project_name,
+                    "metaflow/branch_name": current.branch_name,
+                    "metaflow/project_flow_name": current.project_flow_name,
+                }
+            )
 
         for name, value in annotations.items():
             job.annotation(name, value)
@@ -397,27 +413,11 @@ class Kubernetes(object):
         return labels
 
     @staticmethod
-    def _get_annotations(user, flow_name, current):
+    def _get_annotations():
         env_annotations_list = (
             KUBERNETES_ANNOTATIONS.split(",") if KUBERNETES_ANNOTATIONS else []
         )
         annotations = parse_kube_keyvalue_list(env_annotations_list, False)
-
-        annotations.update(
-            {
-                "metaflow/user": user,
-                "metaflow/flow_name": flow_name,
-            }
-        )
-
-        if current.get("project_name"):
-            annotations.update(
-                {
-                    "metaflow/project_name": current.project_name,
-                    "metaflow/branch_name": current.branch_name,
-                    "metaflow/project_flow_name": current.project_flow_name,
-                }
-            )
         validate_kube_labels_or_annotations(annotations)
         return annotations
 

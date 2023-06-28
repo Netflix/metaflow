@@ -1464,7 +1464,7 @@ class ArgoWorkflows(object):
 
         labels = {"app.kubernetes.io/part-of": "metaflow"}
 
-        annotations = self._get_kubernetes_annotations()
+        annotations = self.kubernetes_annotations
         annotations.update(
             {
                 "metaflow/production_token": self.production_token,
