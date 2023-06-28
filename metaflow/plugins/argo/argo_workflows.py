@@ -178,7 +178,10 @@ class ArgoWorkflows(object):
 
     @staticmethod
     def delete(name):
-        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+        client = ArgoClient(
+            namespace=KUBERNETES_NAMESPACE,
+            sensor_namespace=ARGO_EVENTS_SENSOR_NAMESPACE,
+        )
 
         # Always try to delete the schedule. Failure in deleting the schedule should not
         # be treated as an error, due to any of the following reasons
