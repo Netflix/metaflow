@@ -38,6 +38,7 @@ from metaflow.metaflow_config import (
     S3_ENDPOINT_URL,
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
+    S3_SERVER_SIDE_ENCRYPTION,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -174,6 +175,60 @@ class ArgoWorkflows(object):
         # allowed by Metaflow - guaranteeing uniqueness.
         return name.replace("_", "-")
 
+    @staticmethod
+    def delete(name):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+
+        # Always try to delete the schedule. Failure in deleting the schedule should not
+        # be treated as an error, due to any of the following reasons
+        # - there might not have been a schedule, or it was deleted by some other means
+        # - retaining these resources should have no consequences as long as the workflow deletion succeeds.
+        # - regarding cost and compute, the significant resources are part of the workflow teardown, not the schedule.
+        schedule_deleted = client.delete_cronworkflow(name)
+
+        # The workflow might have sensors attached to it, which consume actual resources.
+        # Try to delete these as well.
+        sensor_deleted = client.delete_sensor(name)
+
+        # After cleaning up related resources, delete the workflow in question.
+        # Failure in deleting is treated as critical and will be made visible to the user
+        # for further action.
+        workflow_deleted = client.delete_workflow_template(name)
+        if workflow_deleted is None:
+            raise ArgoWorkflowsException(
+                "The workflow *%s* doesn't exist on Argo Workflows." % name
+            )
+
+        return schedule_deleted, sensor_deleted, workflow_deleted
+
+    @staticmethod
+    def terminate(flow_name, name):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+
+        response = client.terminate_workflow(name)
+        if response is None:
+            raise ArgoWorkflowsException(
+                "No execution found for {flow_name}/{run_id} in Argo Workflows.".format(
+                    flow_name=flow_name, run_id=name
+                )
+            )
+
+    @staticmethod
+    def suspend(name):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+
+        client.suspend_workflow(name)
+
+        return True
+
+    @staticmethod
+    def unsuspend(name):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+
+        client.unsuspend_workflow(name)
+
+        return True
+
     @classmethod
     def trigger(cls, name, parameters=None):
         if parameters is None:
@@ -230,16 +285,20 @@ class ArgoWorkflows(object):
 
     def schedule(self):
         try:
-            ArgoClient(namespace=KUBERNETES_NAMESPACE).schedule_workflow_template(
+            argo_client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+            argo_client.schedule_workflow_template(
                 self.name, self._schedule, self._timezone
             )
             # Register sensor. Unfortunately, Argo Events Sensor names don't allow for
             # dots (sensors run into an error) which rules out self.name :(
             # Metaflow will overwrite any existing sensor.
-            ArgoClient(namespace=KUBERNETES_NAMESPACE).register_sensor(
-                self.name.replace(".", "-"),
-                self._sensor.to_json() if self._sensor else {},
-            )
+            sensor_name = self.name.replace(".", "-")
+            if self._sensor:
+                argo_client.register_sensor(sensor_name, self._sensor.to_json())
+            else:
+                # Since sensors occupy real resources, delete existing sensor if needed
+                # Deregister sensors that might have existed before this deployment
+                argo_client.delete_sensor(sensor_name)
         except Exception as e:
             raise ArgoWorkflowsSchedulingException(str(e))
 
@@ -297,6 +356,29 @@ class ArgoWorkflows(object):
                     "*%s* already exists in Argo Workflows. \nPlease modify the "
                     "name of this flow or delete your existing workflow on Argo "
                     "Workflows before proceeding." % name
+                )
+        return None
+
+    @classmethod
+    def get_execution(cls, name):
+        workflow = ArgoClient(namespace=KUBERNETES_NAMESPACE).get_workflow(name)
+        if workflow is not None:
+            try:
+                return (
+                    workflow["metadata"]["annotations"]["metaflow/owner"],
+                    workflow["metadata"]["annotations"]["metaflow/production_token"],
+                    workflow["metadata"]["annotations"]["metaflow/flow_name"],
+                    workflow["metadata"]["annotations"].get(
+                        "metaflow/branch_name", None
+                    ),
+                    workflow["metadata"]["annotations"].get(
+                        "metaflow/project_name", None
+                    ),
+                )
+            except KeyError:
+                raise ArgoWorkflowsException(
+                    "A non-metaflow workflow *%s* already exists in Argo Workflows."
+                    % name
                 )
         return None
 
@@ -443,18 +525,16 @@ class ArgoWorkflows(object):
             # Assign a sanitized name since we need this at many places to please
             # Argo Events sensors. There is a slight possibility of name collision
             # but quite unlikely for us to worry about at this point.
-            event["sanitized_name"] = event["name"]
-            if any([x in event["name"] for x in [".", "-", "@", "+"]]):
-                event["sanitized_name"] = "%s_%s" % (
-                    event["name"]
-                    .replace(".", "")
-                    .replace("-", "")
-                    .replace("@", "")
-                    .replace("+", ""),
-                    to_unicode(
-                        base64.b32encode(sha1(to_bytes(event["name"])).digest())
-                    )[:4].lower(),
-                )
+            event["sanitized_name"] = "%s_%s" % (
+                event["name"]
+                .replace(".", "")
+                .replace("-", "")
+                .replace("@", "")
+                .replace("+", ""),
+                to_unicode(base64.b32encode(sha1(to_bytes(event["name"])).digest()))[
+                    :4
+                ].lower(),
+            )
         return triggers, options
 
     def _compile_workflow_template(self):
@@ -937,10 +1017,8 @@ class ArgoWorkflows(object):
                     ]
                     + [
                         # Parameter names can be hyphenated, hence we use
-                        # {{foo.bar['param_name']}}. We quote the value to
-                        # make sure whitespaces are properly handled since
-                        # Argo Events wouldn't do that for us.
-                        "--%s='{{workflow.parameters.%s}}'"
+                        # {{foo.bar['param_name']}}.
+                        "--%s={{workflow.parameters.%s}}"
                         % (parameter["name"], parameter["name"])
                         for parameter in self.parameters.values()
                     ]
@@ -1104,6 +1182,10 @@ class ArgoWorkflows(object):
                         "METAFLOW_ARGO_EVENT_PAYLOAD_%s_%s"
                         % (event["type"], event["sanitized_name"])
                     ] = ("{{workflow.parameters.%s}}" % event["sanitized_name"])
+
+            # Map S3 upload headers to environment variables
+            if S3_SERVER_SIDE_ENCRYPTION is not None:
+                env["METAFLOW_S3_SERVER_SIDE_ENCRYPTION"] = S3_SERVER_SIDE_ENCRYPTION
 
             metaflow_version = self.environment.get_environment_info()
             metaflow_version["flow_name"] = self.graph.name
@@ -1269,12 +1351,13 @@ class ArgoWorkflows(object):
                                 + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
                                 if k
                             ],
-                            # Assign a volume point to pass state to the next task.
                             volume_mounts=[
+                                # Assign a volume mount to pass state to the next task.
                                 kubernetes_sdk.V1VolumeMount(
                                     name="out", mount_path="/mnt/out"
                                 )
                             ]
+                            # Support tmpfs.
                             + (
                                 [
                                     kubernetes_sdk.V1VolumeMount(
@@ -1285,6 +1368,7 @@ class ArgoWorkflows(object):
                                 if tmpfs_enabled
                                 else []
                             )
+                            # Support persistent volume claims.
                             + (
                                 [
                                     kubernetes_sdk.V1VolumeMount(
