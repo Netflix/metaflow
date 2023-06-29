@@ -30,7 +30,6 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
     KUBERNETES_FETCH_EC2_METADATA,
-    KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
@@ -42,10 +41,6 @@ from metaflow.metaflow_config import (
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
-from metaflow.plugins.kubernetes.kubernetes import (
-    parse_kube_keyvalue_list,
-    validate_kube_labels,
-)
 from metaflow.util import (
     compress_list,
     dict_to_cli_options,
@@ -262,18 +257,21 @@ class ArgoWorkflows(object):
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
 
-    @staticmethod
-    def _get_kubernetes_labels():
+    def _get_kubernetes_labels(self):
         """
-        Get Kubernetes labels from environment variable.
-        Parses the string into a dict and validates that values adhere to Kubernetes restrictions.
+        Get Kubernetes labels from the start step decorator.
         """
-        if not KUBERNETES_LABELS:
-            return {}
-        env_labels = KUBERNETES_LABELS.split(",")
-        env_labels = parse_kube_keyvalue_list(env_labels, False)
-        validate_kube_labels(env_labels)
-        return env_labels
+
+        resources = dict(
+            [
+                deco
+                for node in self.graph
+                if node.name == "start"
+                for deco in node.decorators
+                if deco.name == "kubernetes"
+            ][0].attributes
+        )
+        return resources["labels"] or {}
 
     def _get_schedule(self):
         schedule = self.flow._flow_decorators.get("schedule")
@@ -656,11 +654,7 @@ class ArgoWorkflows(object):
                 )
                 # Set common pod metadata.
                 .pod_metadata(
-                    Metadata()
-                    .label("app.kubernetes.io/name", "metaflow-task")
-                    .label("app.kubernetes.io/part-of", "metaflow")
-                    .annotations(annotations)
-                    .labels(self.kubernetes_labels)
+                    Metadata().annotations(annotations).labels(self.kubernetes_labels)
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
@@ -1259,13 +1253,15 @@ class ArgoWorkflows(object):
                     minutes_between_retries=minutes_between_retries,
                 )
                 .metadata(
-                    ObjectMeta().annotation("metaflow/step_name", node.name)
+                    ObjectMeta()
+                    .annotation("metaflow/step_name", node.name)
                     # Unfortunately, we can't set the task_id since it is generated
                     # inside the pod. However, it can be inferred from the annotation
                     # set by argo-workflows - `workflows.argoproj.io/outputs` - refer
                     # the field 'task-id' in 'parameters'
                     # .annotation("metaflow/task_id", ...)
                     .annotation("metaflow/attempt", retry_count)
+                    .labels(resources["labels"])
                 )
                 # Set emptyDir volume for state management
                 .empty_dir_volume("out")

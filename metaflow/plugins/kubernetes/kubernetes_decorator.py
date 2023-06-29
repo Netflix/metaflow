@@ -2,6 +2,8 @@ import json
 import os
 import platform
 import sys
+import re
+from typing import Optional, Dict
 
 from metaflow import current
 from metaflow.decorators import StepDecorator
@@ -15,6 +17,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_IMAGE_PULL_POLICY,
     KUBERNETES_GPU_VENDOR,
+    KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_PERSISTENT_VOLUME_CLAIMS,
@@ -66,6 +69,8 @@ class KubernetesDecorator(StepDecorator):
         in Metaflow configuration.
     tolerations : List[str], default: METAFLOW_KUBERNETES_TOLERATIONS
         Kubernetes tolerations to use when launching pod in Kubernetes.
+    labels: Dict[str, str], default: METAFLOW_KUBERNETES_LABELS
+        Kubernetes labels to use when launching pod in Kubernetes.
     use_tmpfs: bool, default: False
         This enables an explicit tmpfs mount for this step.
     tmpfs_tempdir: bool, default: True
@@ -96,6 +101,7 @@ class KubernetesDecorator(StepDecorator):
         "gpu_vendor": None,
         "tolerations": None,  # e.g., [{"key": "arch", "operator": "Equal", "value": "amd"},
         #                              {"key": "foo", "operator": "Equal", "value": "bar"}]
+        "labels": None,  # e.g. {"test-label": "value", "another-label":"value2"}
         "use_tmpfs": None,
         "tmpfs_tempdir": True,
         "tmpfs_size": None,
@@ -157,6 +163,23 @@ class KubernetesDecorator(StepDecorator):
                         )
             except (NameError, ImportError):
                 pass
+
+        # Order of label sources for overriding:
+        # System > Environment variable > Decorator attributes
+        if not self.attributes["labels"]:
+            self.attributes["labels"] = {}
+
+        if KUBERNETES_LABELS:
+            env_labels = parse_kube_keyvalue_list(
+                KUBERNETES_LABELS.split(",") if KUBERNETES_LABELS else [], False
+            )
+            self.attributes["labels"].update(env_labels)
+
+        system_labels = {
+            "app.kubernetes.io/name": "metaflow-task",
+            "app.kubernetes.io/part-of": "metaflow",
+        }
+        self.attributes["labels"].update(system_labels)
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
@@ -281,6 +304,8 @@ class KubernetesDecorator(StepDecorator):
                     )
                 )
 
+        validate_kube_labels(self.attributes["labels"])
+
     def package_init(self, flow, step_name, environment):
         try:
             # Kubernetes is a soft dependency.
@@ -332,7 +357,7 @@ class KubernetesDecorator(StepDecorator):
                         "=".join([key, str(val)]) if val else key
                         for key, val in v.items()
                     ]
-                elif k in ["tolerations", "persistent_volume_claims"]:
+                elif k in ["tolerations", "persistent_volume_claims", "labels"]:
                     cli_args.command_options[k] = json.dumps(v)
                 else:
                     cli_args.command_options[k] = v
@@ -443,3 +468,33 @@ class KubernetesDecorator(StepDecorator):
             cls.package_url, cls.package_sha = flow_datastore.save_data(
                 [package.blob], len_hint=1
             )[0]
+
+
+def validate_kube_labels(
+    labels: Optional[Dict[str, Optional[str]]],
+) -> bool:
+    """Validate label values.
+
+    This validates the kubernetes label values.  It does not validate the keys.
+    Ideally, keys should be static and also the validation rules for keys are
+    more complex than those for values.  For full validation rules, see:
+
+    https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+    """
+
+    def validate_label(s: Optional[str]):
+        regex_match = r"^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$"
+        if not s:
+            # allow empty label
+            return True
+        if not re.search(regex_match, s):
+            raise KubernetesException(
+                'Invalid value: "%s"\n'
+                "A valid label must be an empty string or one that\n"
+                "  - Consist of alphanumeric, '-', '_' or '.' characters\n"
+                "  - Begins and ends with an alphanumeric character\n"
+                "  - Is at most 63 characters" % s
+            )
+        return True
+
+    return all([validate_label(v) for v in labels.values()]) if labels else True
