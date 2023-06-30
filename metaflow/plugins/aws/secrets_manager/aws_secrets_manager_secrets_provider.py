@@ -37,7 +37,7 @@ def _sanitize_key_as_env_var(key):
     Also, it's TBD whether all possible providers will share the same sanitization logic.
     Therefore we will keep this function private for now
     """
-    return key.replace("-", "_").replace(".", "_").replace("/", "_") 
+    return key.replace("-", "_").replace(".", "_").replace("/", "_")
 
 
 class AwsSecretsManagerSecretsProvider(SecretsProvider):
