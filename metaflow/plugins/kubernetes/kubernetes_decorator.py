@@ -164,22 +164,24 @@ class KubernetesDecorator(StepDecorator):
             except (NameError, ImportError):
                 pass
 
-        # Order of label sources for overriding:
-        # System > Environment variable > Decorator attributes
-        if not self.attributes["labels"]:
-            self.attributes["labels"] = {}
+        # Label source precedence (decreasing):
+        # - System labels
+        # - Decorator labels: @kubernetes(labels={})
+        # - Environment variable labels: METAFLOW_KUBERNETES_LABELS=
+        deco_labels = {}
+        if self.attributes["labels"] is not None:
+            deco_labels = self.attributes["labels"]
 
+        env_labels = {}
         if KUBERNETES_LABELS:
-            env_labels = parse_kube_keyvalue_list(
-                KUBERNETES_LABELS.split(",") if KUBERNETES_LABELS else [], False
-            )
-            self.attributes["labels"].update(env_labels)
+            env_labels = parse_kube_keyvalue_list(KUBERNETES_LABELS.split(","), False)
 
         system_labels = {
             "app.kubernetes.io/name": "metaflow-task",
             "app.kubernetes.io/part-of": "metaflow",
         }
-        self.attributes["labels"].update(system_labels)
+
+        self.attributes["labels"] = {**env_labels, **deco_labels, **system_labels}
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
