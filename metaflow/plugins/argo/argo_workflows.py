@@ -62,6 +62,10 @@ class ArgoWorkflowsException(MetaflowException):
     headline = "Argo Workflows error"
 
 
+class ArgoWorkflowsCleanupException(MetaflowException):
+    headline = "Argo Workflows clean up error"
+
+
 class ArgoWorkflowsSchedulingException(MetaflowException):
     headline = "Argo Workflows scheduling error"
 
@@ -169,6 +173,46 @@ class ArgoWorkflows(object):
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
 
+    def cleanup_previous(self):
+        try:
+            argo_client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+            # Check for existing deployment and do cleanup
+            old_template = argo_client.get_workflow_template(self.name)
+            if not old_template:
+                return None
+            # Clean up old sensors
+            old_has_sensor = old_template["metadata"]["annotations"].get(
+                "metaflow/has_sensor"
+            )
+            if old_has_sensor is None:
+                # This workflow was created before sensor annotations
+                # and may have a sensor in the default namespace
+                # we will delete it and it'll get recreated if need be
+                argo_client.delete_sensor(
+                    self.name.replace(".", "-"), argo_client._namespace
+                )
+            elif old_has_sensor == "True":
+                # delete old sensor only if it was somewhere else, otherwise it'll get replaced
+                old_sensor_name = old_template["metadata"]["annotations"][
+                    "metaflow/sensor_name"
+                ]
+                old_sensor_namespace = old_template["metadata"]["annotations"][
+                    "metaflow/sensor_namespace"
+                ]
+                if (
+                    not self._sensor
+                    or old_sensor_namespace != ARGO_EVENTS_SENSOR_NAMESPACE
+                ):
+                    argo_client.delete_sensor(old_sensor_name, old_sensor_namespace)
+            # Clean up old schedules/cronworkflow
+            old_has_schedule = old_template["metadata"]["annotations"].get(
+                "metaflow/has_schedule"
+            )
+            if not self._schedule and (old_has_schedule is None or old_has_schedule):
+                argo_client.delete_cronworkflow(self.name)
+        except Exception as e:
+            raise ArgoWorkflowsCleanupException(str(e))
+
     @staticmethod
     def _sanitize(name):
         # Metaflow allows underscores in node names, which are disallowed in Argo
@@ -178,9 +222,12 @@ class ArgoWorkflows(object):
 
     @staticmethod
     def delete(name):
-        client = ArgoClient(
-            namespace=KUBERNETES_NAMESPACE,
-            sensor_namespace=ARGO_EVENTS_SENSOR_NAMESPACE,
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+
+        workflow_template = argo_client.get_workflow_template(name)
+        sensor_name = name.replace(".", "-")
+        sensor_namespace = workflow_template["metadata"]["annotations"].get(
+            "metaflow/sensor_namespace", ARGO_EVENTS_SENSOR_NAMESPACE
         )
 
         # Always try to delete the schedule. Failure in deleting the schedule should not
@@ -192,7 +239,7 @@ class ArgoWorkflows(object):
 
         # The workflow might have sensors attached to it, which consume actual resources.
         # Try to delete these as well.
-        sensor_deleted = client.delete_sensor(name)
+        sensor_deleted = client.delete_sensor(sensor_name, sensor_namespace)
 
         # After cleaning up related resources, delete the workflow in question.
         # Failure in deleting is treated as critical and will be made visible to the user
@@ -289,23 +336,21 @@ class ArgoWorkflows(object):
 
     def schedule(self):
         try:
-            argo_client = ArgoClient(
-                namespace=KUBERNETES_NAMESPACE,
-                sensor_namespace=ARGO_EVENTS_SENSOR_NAMESPACE,
-            )
-            argo_client.schedule_workflow_template(
-                self.name, self._schedule, self._timezone
-            )
-            # Register sensor. Unfortunately, Argo Events Sensor names don't allow for
-            # dots (sensors run into an error) which rules out self.name :(
-            # Metaflow will overwrite any existing sensor.
-            sensor_name = self.name.replace(".", "-")
+            argo_client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+
+            if self._schedule:
+                argo_client.schedule_workflow_template(
+                    self.name, self._schedule, self._timezone
+                )
             if self._sensor:
-                argo_client.register_sensor(sensor_name, self._sensor.to_json())
-            else:
-                # Since sensors occupy real resources, delete existing sensor if needed
-                # Deregister sensors that might have existed before this deployment
-                argo_client.delete_sensor(sensor_name)
+                # Register sensor. Unfortunately, Argo Events Sensor names don't allow for
+                # dots (sensors run into an error) which rules out self.name :(
+                # Metaflow will overwrite any existing sensor.
+                sensor_name = self.name.replace(".", "-")
+                # The new sensor will go into the sensor namespace specified
+                argo_client.register_sensor(
+                    sensor_name, self._sensor.to_json(), ARGO_EVENTS_SENSOR_NAMESPACE
+                )
         except Exception as e:
             raise ArgoWorkflowsSchedulingException(str(e))
 
@@ -576,6 +621,8 @@ class ArgoWorkflows(object):
             "metaflow/owner": self.username,
             "metaflow/user": "argo-workflows",
             "metaflow/flow_name": self.flow.name,
+            "metaflow/has_schedule": str(self._schedule is not None),
+            "metaflow/has_sensor": str(bool(self.triggers)),
         }
         if current.get("project_name"):
             annotations.update(
@@ -583,6 +630,13 @@ class ArgoWorkflows(object):
                     "metaflow/project_name": current.project_name,
                     "metaflow/branch_name": current.branch_name,
                     "metaflow/project_flow_name": current.project_flow_name,
+                }
+            )
+        if self.triggers:
+            annotations.update(
+                {
+                    "metaflow/sensor_name": self.name.replace(".", "-"),
+                    "metaflow/sensor_namespace": ARGO_EVENTS_SENSOR_NAMESPACE,
                 }
             )
 
