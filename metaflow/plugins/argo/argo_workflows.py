@@ -654,7 +654,11 @@ class ArgoWorkflows(object):
                 )
                 # Set common pod metadata.
                 .pod_metadata(
-                    Metadata().annotations(annotations).labels(self.kubernetes_labels)
+                    Metadata()
+                    .labels(self.kubernetes_labels)
+                    .label("app.kubernetes.io/name", "metaflow-task")
+                    .label("app.kubernetes.io/part-of", "metaflow")
+                    .annotations(annotations)
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
@@ -1553,9 +1557,9 @@ class ArgoWorkflows(object):
                 ObjectMeta()
                 .name(self.name.replace(".", "-"))
                 .namespace(KUBERNETES_NAMESPACE)
+                .labels(self.kubernetes_labels)
                 .label("app.kubernetes.io/name", "metaflow-sensor")
                 .label("app.kubernetes.io/part-of", "metaflow")
-                .labels(self.kubernetes_labels)
                 .annotations(annotations)
             )
             .spec(
