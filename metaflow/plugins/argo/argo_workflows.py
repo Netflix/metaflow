@@ -1654,7 +1654,7 @@ class ArgoWorkflows(object):
                                                 # Technically, we don't need to create
                                                 # a payload carry-on and can stuff
                                                 # everything within the body.
-                                                data_template="{{body.payload.%s | squote}}"
+                                                data_template="{{ .Input.body.payload.%s | squote }}"
                                                 % v,
                                                 # Unfortunately the sensor needs to
                                                 # record the default values for
