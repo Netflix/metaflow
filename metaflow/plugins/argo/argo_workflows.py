@@ -1018,6 +1018,8 @@ class ArgoWorkflows(object):
                     + [
                         # Parameter names can be hyphenated, hence we use
                         # {{foo.bar['param_name']}}.
+                        # https://argoproj.github.io/argo-events/tutorials/02-parameterization/
+                        # http://masterminds.github.io/sprig/strings.html
                         "--%s={{workflow.parameters.%s}}"
                         % (parameter["name"], parameter["name"])
                         for parameter in self.parameters.values()
@@ -1652,7 +1654,8 @@ class ArgoWorkflows(object):
                                                 # Technically, we don't need to create
                                                 # a payload carry-on and can stuff
                                                 # everything within the body.
-                                                data_key="body.payload.%s" % v,
+                                                data_template="{{ .Input.body.payload.%s | toJson }}"
+                                                % v,
                                                 # Unfortunately the sensor needs to
                                                 # record the default values for
                                                 # the parameters - there doesn't seem
@@ -2508,10 +2511,11 @@ class TriggerParameter(object):
         tree = lambda: defaultdict(tree)
         self.payload = tree()
 
-    def src(self, dependency_name, data_key, value):
+    def src(self, dependency_name, value, data_key=None, data_template=None):
         self.payload["src"] = {
             "dependencyName": dependency_name,
             "dataKey": data_key,
+            "dataTemplate": data_template,
             "value": value,
             # explicitly set it to false to ensure proper deserialization
             "useRawData": False,
