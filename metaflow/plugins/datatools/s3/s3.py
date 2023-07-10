@@ -1004,9 +1004,9 @@ class S3(object):
                                 "metadata"
                             ], range_info, info[
                                 "last_modified"
-                            ], info[
+                            ], info.get(
                                 "encryption"
-                            ]
+                            )
                     else:
                         yield self._s3root, s3prefix, None
                 else:
@@ -1066,9 +1066,9 @@ class S3(object):
                         self._tmpdir, fname
                     ), None, info["content_type"], info["metadata"], range_info, info[
                         "last_modified"
-                    ], info[
+                    ], info.get(
                         "encryption"
-                    ]
+                    )
                 else:
                     yield s3prefix, s3url, os.path.join(self._tmpdir, fname)
 
