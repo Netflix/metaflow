@@ -1447,6 +1447,7 @@ class ArgoWorkflows(object):
         return Template("pagerduty-notify-on-error").http(
             Http("POST")
             .url("https://events.pagerduty.com/v2/enqueue")
+            .header("Content-Type", "application/json")
             .body(
                 json.dumps(
                     {
@@ -1484,6 +1485,7 @@ class ArgoWorkflows(object):
         return Template("pagerduty-notify-on-success").http(
             Http("POST")
             .url("https://events.pagerduty.com/v2/change/enqueue")
+            .header("Content-Type", "application/json")
             .body(
                 json.dumps(
                     {
@@ -2646,6 +2648,11 @@ class Http(object):
         tree = lambda: defaultdict(tree)
         self.payload = tree()
         self.payload["method"] = method
+        self.payload["headers"] = []
+
+    def header(self, header, value):
+        self.payload["headers"].append({"name": header, "value": value})
+        return self
 
     def body(self, body):
         self.payload["body"] = str(body)
