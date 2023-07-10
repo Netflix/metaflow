@@ -1004,9 +1004,9 @@ class S3(object):
                                 "metadata"
                             ], range_info, info[
                                 "last_modified"
-                            ], info[
+                            ], info.get(
                                 "encryption"
-                            ]
+                            )
                     else:
                         yield self._s3root, s3prefix, None
                 else:
