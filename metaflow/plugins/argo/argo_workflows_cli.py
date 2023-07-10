@@ -161,6 +161,11 @@ def argo_workflows(obj, name=None):
     default="",
     help="Slack incoming webhook url for workflow success/failure notifications.",
 )
+@click.option(
+    "--notify-pagerduty-routing-key",
+    default="",
+    help="PagerDuty routing key for workflow success/failure notifications.",
+)
 @click.pass_obj
 def create(
     obj,
@@ -177,6 +182,7 @@ def create(
     notify_on_error=False,
     notify_on_success=False,
     notify_slack_webhook_url=None,
+    notify_pagerduty_routing_key=None,
 ):
     validate_tags(tags)
 
@@ -212,6 +218,7 @@ def create(
         notify_on_error,
         notify_on_success,
         notify_slack_webhook_url,
+        notify_pagerduty_routing_key,
     )
 
     if only_json:
@@ -383,6 +390,7 @@ def make_flow(
     notify_on_error,
     notify_on_success,
     notify_slack_webhook_url,
+    notify_pagerduty_routing_key,
 ):
     # TODO: Make this check less specific to Amazon S3 as we introduce
     #       support for more cloud object stores.
@@ -440,6 +448,7 @@ def make_flow(
         notify_on_error=notify_on_error,
         notify_on_success=notify_on_success,
         notify_slack_webhook_url=notify_slack_webhook_url,
+        notify_pagerduty_routing_key=notify_pagerduty_routing_key,
     )
 
 

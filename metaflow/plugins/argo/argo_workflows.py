@@ -101,6 +101,7 @@ class ArgoWorkflows(object):
         notify_on_error=False,
         notify_on_success=False,
         notify_slack_webhook_url=None,
+        notify_pagerduty_routing_key=None,
     ):
         # Some high-level notes -
         #
@@ -147,6 +148,7 @@ class ArgoWorkflows(object):
         self.notify_on_error = notify_on_error
         self.notify_on_success = notify_on_success
         self.notify_slack_webhook_url = notify_slack_webhook_url
+        self.notify_pagerduty_routing_key = notify_pagerduty_routing_key
 
         self.parameters = self._process_parameters()
         self.triggers, self.trigger_options = self._process_triggers()
@@ -670,24 +672,49 @@ class ArgoWorkflows(object):
                         **(
                             {
                                 # workflow status maps to Completed
-                                "notify-on-success": LifecycleHook()
+                                "slack-notify-on-success": LifecycleHook()
                                 .expression("workflow.status == 'Succeeded'")
-                                .template("notify-on-success"),
+                                .template("slack-notify-on-success"),
+                            }
+                            if self.notify_on_success and self.notify_slack_webhook_url
+                            else {}
+                        ),
+                        **(
+                            {
+                                # workflow status maps to Completed
+                                "pagerduty-notify-on-success": LifecycleHook()
+                                .expression("workflow.status == 'Succeeded'")
+                                .template("pagerduty-notify-on-success"),
                             }
                             if self.notify_on_success
+                            and self.notify_pagerduty_routing_key
                             else {}
                         ),
                         **(
                             {
                                 # workflow status maps to Failed or Error
-                                "notify-on-failure": LifecycleHook()
+                                "slack-notify-on-failure": LifecycleHook()
                                 .expression("workflow.status == 'Failed'")
-                                .template("notify-on-error"),
-                                "notify-on-error": LifecycleHook()
+                                .template("slack-notify-on-error"),
+                                "slack-notify-on-error": LifecycleHook()
                                 .expression("workflow.status == 'Error'")
-                                .template("notify-on-error"),
+                                .template("slack-notify-on-error"),
                             }
                             if self.notify_on_error
+                            else {}
+                        ),
+                        **(
+                            {
+                                # workflow status maps to Failed or Error
+                                "pagerduty-notify-on-failure": LifecycleHook()
+                                .expression("workflow.status == 'Failed'")
+                                .template("pagerduty-notify-on-error"),
+                                "pagerduty-notify-on-error": LifecycleHook()
+                                .expression("workflow.status == 'Error'")
+                                .template("pagerduty-notify-on-error"),
+                            }
+                            if self.notify_on_error
+                            and self.notify_pagerduty_routing_key
                             else {}
                         ),
                         # Warning: terrible hack to workaround a bug in Argo Workflow
@@ -1394,8 +1421,10 @@ class ArgoWorkflows(object):
         templates = []
         if self.notify_on_error:
             templates.append(self._slack_error_template)
+            templates.append(self._pagerduty_alert_template)
         if self.notify_on_success:
             templates.append(self._slack_success_template)
+            templates.append(self._pagerduty_change_template)
         if self.notify_on_error or self.notify_on_success:
             # Warning: terrible hack to workaround a bug in Argo Workflow where the
             #          templates listed above do not execute unless there is an
@@ -1411,10 +1440,79 @@ class ArgoWorkflows(object):
         return templates
 
     @property
+    def _pagerduty_alert_template(self):
+        # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgx-send-an-alert-event
+        if self.notify_pagerduty_routing_key is None:
+            return None
+        return Template("pagerduty-notify-on-error").http(
+            Http("POST")
+            .url("https://events.pagerduty.com/v2/enqueue")
+            .body(
+                json.dumps(
+                    {
+                        "event_action": "trigger",
+                        "routing_key": self.notify_pagerduty_routing_key,
+                        "dedup_key": self.flow.name,  # TODO: Verify that this make sense as a dedup key.
+                        "payload": {
+                            "source": "{{workflow.name}}",
+                            "severity": "info",
+                            "summary": "Workflow argo-{{workflow.name}} failed!",
+                            # "timestamp": "2015-07-17T08:42:58.315+0000",
+                            # "component": "postgres",
+                            # "group": "prod-datapipe",
+                            # "class": "deploy",
+                            "custom_details": {
+                                "flow": self.flow.name,
+                                "workflow": "{{workflow.name}}",
+                            },
+                        },
+                        "links": [
+                            {"href": "https://example.com/", "text": "Link text"}
+                        ],
+                        # "client": "Sample Monitoring Service",
+                        # "client_url": "https://monitoring.example.com"
+                    }
+                )
+            )
+        )
+
+    @property
+    def _pagerduty_change_template(self):
+        # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgy-send-a-change-event
+        if self.notify_pagerduty_routing_key is None:
+            return None
+        return Template("pagerduty-notify-on-success").http(
+            Http("POST")
+            .url("https://events.pagerduty.com/v2/change/enqueue")
+            .body(
+                json.dumps(
+                    {
+                        "routing_key": self.notify_pagerduty_routing_key,
+                        "payload": {
+                            "summary": "Workflow argo-{{workflow.name}} Succeeded",
+                            # "timestamp": "2020-07-17T08:42:58.315+0000",
+                            "source": "{{workflow.name}}",
+                            "custom_details": {
+                                "flow": self.flow.name,
+                                "workflow": "{{workflow.name}}",
+                            },
+                        },
+                        "links": [
+                            {
+                                "href": "https://acme.pagerduty.dev/build/2",
+                                "text": "View more details in Acme!",
+                            }
+                        ],
+                    }
+                )
+            )
+        )
+
+    @property
     def _slack_error_template(self):
         if self.notify_slack_webhook_url is None:
             return None
-        return Template("notify-on-error").http(
+        return Template("slack-notify-on-error").http(
             Http("POST")
             .url(self.notify_slack_webhook_url)
             .body(
@@ -1431,7 +1529,7 @@ class ArgoWorkflows(object):
     def _slack_success_template(self):
         if self.notify_slack_webhook_url is None:
             return None
-        return Template("notify-on-success").http(
+        return Template("slack-notify-on-success").http(
             Http("POST")
             .url(self.notify_slack_webhook_url)
             .body(
