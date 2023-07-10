@@ -1393,35 +1393,9 @@ class ArgoWorkflows(object):
         # TODO: Add details to slack message
         templates = []
         if self.notify_on_error:
-            templates.append(
-                Template("notify-on-error").http(
-                    Http("POST")
-                    .url(self.notify_slack_webhook_url)
-                    .body(
-                        json.dumps(
-                            {
-                                "text": ":rotating_light: _%s/argo-{{workflow.name}}_ failed!"
-                                % self.flow.name
-                            }
-                        )
-                    )
-                )
-            )
+            templates.append(self._slack_error_template)
         if self.notify_on_success:
-            templates.append(
-                Template("notify-on-success").http(
-                    Http("POST")
-                    .url(self.notify_slack_webhook_url)
-                    .body(
-                        json.dumps(
-                            {
-                                "text": ":white_check_mark: _%s/argo-{{workflow.name}}_ succeeded!"
-                                % self.flow.name
-                            }
-                        )
-                    )
-                )
-            )
+            templates.append(self._slack_success_template)
         if self.notify_on_error or self.notify_on_success:
             # Warning: terrible hack to workaround a bug in Argo Workflow where the
             #          templates listed above do not execute unless there is an
@@ -1435,6 +1409,40 @@ class ArgoWorkflows(object):
                 )
             )
         return templates
+
+    @property
+    def _slack_error_template(self):
+        if self.notify_slack_webhook_url is None:
+            return None
+        return Template("notify-on-error").http(
+            Http("POST")
+            .url(self.notify_slack_webhook_url)
+            .body(
+                json.dumps(
+                    {
+                        "text": ":rotating_light: _%s/argo-{{workflow.name}}_ failed!"
+                        % self.flow.name
+                    }
+                )
+            )
+        )
+
+    @property
+    def _slack_success_template(self):
+        if self.notify_slack_webhook_url is None:
+            return None
+        return Template("notify-on-success").http(
+            Http("POST")
+            .url(self.notify_slack_webhook_url)
+            .body(
+                json.dumps(
+                    {
+                        "text": ":white_check_mark: _%s/argo-{{workflow.name}}_ succeeded!"
+                        % self.flow.name
+                    }
+                )
+            )
+        )
 
     def _compile_sensor(self):
         # This method compiles a Metaflow @trigger decorator into Argo Events Sensor.
