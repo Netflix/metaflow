@@ -39,6 +39,8 @@ from metaflow.metaflow_config import (
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
     S3_SERVER_SIDE_ENCRYPTION,
+    UI_URL,
+    ARGO_WORKFLOWS_UI_URL,
 )
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -1467,9 +1469,7 @@ class ArgoWorkflows(object):
                                 "workflow": "{{workflow.name}}",
                             },
                         },
-                        "links": [
-                            {"href": "https://example.com/", "text": "Link text"}
-                        ],
+                        "links": self._pagerduty_notification_links,
                         # "client": "Sample Monitoring Service",
                         # "client_url": "https://monitoring.example.com"
                     }
@@ -1499,16 +1499,37 @@ class ArgoWorkflows(object):
                                 "workflow": "{{workflow.name}}",
                             },
                         },
-                        "links": [
-                            {
-                                "href": "https://acme.pagerduty.dev/build/2",
-                                "text": "View more details in Acme!",
-                            }
-                        ],
+                        "links": self._pagerduty_notification_links,
                     }
                 )
             )
         )
+
+    @property
+    def _pagerduty_notification_links(self):
+        links = []
+        if UI_URL:
+            links.append(
+                {
+                    "href": "%s/%s/%s"
+                    % (UI_URL.rstrip("/"), self.flow.name, "argo-{{workflow.name}}"),
+                    "text": "Metaflow UI",
+                }
+            )
+        if ARGO_WORKFLOWS_UI_URL:
+            links.append(
+                {
+                    "href": "%s/workflows/%s/%s"
+                    % (
+                        ARGO_WORKFLOWS_UI_URL.rstrip("/"),
+                        "{{workflow.namespace}}",
+                        "{{workflow.name}}",
+                    ),
+                    "text": "Argo UI",
+                }
+            )
+
+        return links
 
     @property
     def _slack_error_template(self):
