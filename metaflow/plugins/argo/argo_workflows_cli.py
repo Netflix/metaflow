@@ -399,12 +399,16 @@ def make_flow(
             "Argo Workflows requires --datastore=s3 or --datastore=azure or --datastore=gs"
         )
 
-    if (notify_on_error or notify_on_success) and not notify_slack_webhook_url:
+    if (notify_on_error or notify_on_success) and not (
+        notify_slack_webhook_url or notify_pagerduty_routing_key
+    ):
         raise MetaflowException(
-            "Slack notifications require specifying an incoming Slack "
+            "Workflow notifications require specifying a notification provider.\n\n"
+            "For *Slack notifications* you must specify an incoming Slack "
             "webhook url via --notify-slack-webhook-url. \nIf you would like to "
             "set up one for your Slack workspace, follow the instructions "
-            "at https://api.slack.com/messaging/webhooks."
+            "at https://api.slack.com/messaging/webhooks.\n\n"
+            "For *PagerDuty notifications* you must specify the routing key via --notify-pagerduty-routing-key"
         )
 
     # Attach @kubernetes and @environment decorator to the flow to
