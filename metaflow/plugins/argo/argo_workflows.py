@@ -1453,7 +1453,7 @@ class ArgoWorkflows(object):
                     {
                         "event_action": "trigger",
                         "routing_key": self.notify_pagerduty_routing_key,
-                        "dedup_key": self.flow.name,  # TODO: Verify that this make sense as a dedup key.
+                        # "dedup_key": self.flow.name,  # TODO: Verify that this make sense as a dedup key.
                         "payload": {
                             "source": "{{workflow.name}}",
                             "severity": "info",
