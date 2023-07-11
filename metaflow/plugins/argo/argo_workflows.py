@@ -700,7 +700,7 @@ class ArgoWorkflows(object):
                                 .expression("workflow.status == 'Error'")
                                 .template("slack-notify-on-error"),
                             }
-                            if self.notify_on_error
+                            if self.notify_on_error and self.notify_slack_webhook_url
                             else {}
                         ),
                         **(
