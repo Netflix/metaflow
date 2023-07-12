@@ -408,7 +408,9 @@ def make_flow(
             "webhook url via --notify-slack-webhook-url. \nIf you would like to "
             "set up one for your Slack workspace, follow the instructions "
             "at https://api.slack.com/messaging/webhooks.\n\n"
-            "For *PagerDuty notifications* you must specify the routing key via --notify-pagerduty-routing-key"
+            "For *PagerDuty notifications* you must specify the integration key via --notify-pagerduty-integration-key.\n"
+            "This requires adding an Events API V2 integration for your PagerDuty Service. For detailed setup instructions see \n"
+            "https://support.pagerduty.com/docs/services-and-integrations#create-a-generic-events-api-integration"
         )
 
     # Attach @kubernetes and @environment decorator to the flow to
