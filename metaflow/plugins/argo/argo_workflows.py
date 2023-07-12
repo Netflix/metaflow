@@ -1432,10 +1432,15 @@ class ArgoWorkflows(object):
             #          templates listed above do not execute unless there is an
             #          explicit exit hook. as and when this bug is patched, we should
             #          remove this effectively no-op template.
+            # Note: We use the Http template because changing this to an actual no-op container had the side-effect of
+            # leaving LifecycleHooks in a pending state even when they have finished execution.
             templates.append(
                 Template("exit-hook-hack").http(
                     Http("GET")
-                    .url(self.notify_slack_webhook_url)
+                    .url(
+                        self.notify_slack_webhook_url
+                        or "https://events.pagerduty.com/v2/enqueue"
+                    )
                     .success_condition("true == true")
                 )
             )
