@@ -1455,23 +1455,18 @@ class ArgoWorkflows(object):
                     {
                         "event_action": "trigger",
                         "routing_key": self.notify_pagerduty_integration_key,
-                        # "dedup_key": self.flow.name,  # TODO: Verify that this make sense as a dedup key.
+                        # "dedup_key": self.flow.name,  # TODO: Do we need deduplication?
                         "payload": {
                             "source": "{{workflow.name}}",
                             "severity": "info",
-                            "summary": "Workflow argo-{{workflow.name}} failed!",
-                            # "timestamp": "2015-07-17T08:42:58.315+0000",
-                            # "component": "postgres",
-                            # "group": "prod-datapipe",
-                            # "class": "deploy",
+                            "summary": "Metaflow run %s/argo-{{workflow.name}} failed!"
+                            % self.flow.name,
                             "custom_details": {
-                                "flow": self.flow.name,
-                                "workflow": "{{workflow.name}}",
+                                "Flow": self.flow.name,
+                                "Run ID": "argo-{{workflow.name}}",
                             },
                         },
                         "links": self._pagerduty_notification_links,
-                        # "client": "Sample Monitoring Service",
-                        # "client_url": "https://monitoring.example.com"
                     }
                 )
             )
@@ -1491,12 +1486,12 @@ class ArgoWorkflows(object):
                     {
                         "routing_key": self.notify_pagerduty_integration_key,
                         "payload": {
-                            "summary": "Workflow argo-{{workflow.name}} Succeeded",
-                            # "timestamp": "2020-07-17T08:42:58.315+0000",
+                            "summary": "Metaflow run %s/argo-{{workflow.name}} Succeeded"
+                            % self.flow.name,
                             "source": "{{workflow.name}}",
                             "custom_details": {
-                                "flow": self.flow.name,
-                                "workflow": "{{workflow.name}}",
+                                "Flow": self.flow.name,
+                                "Run ID": "argo-{{workflow.name}}",
                             },
                         },
                         "links": self._pagerduty_notification_links,
