@@ -103,7 +103,7 @@ class ArgoWorkflows(object):
         notify_on_error=False,
         notify_on_success=False,
         notify_slack_webhook_url=None,
-        notify_pagerduty_routing_key=None,
+        notify_pagerduty_integration_key=None,
     ):
         # Some high-level notes -
         #
@@ -150,7 +150,7 @@ class ArgoWorkflows(object):
         self.notify_on_error = notify_on_error
         self.notify_on_success = notify_on_success
         self.notify_slack_webhook_url = notify_slack_webhook_url
-        self.notify_pagerduty_routing_key = notify_pagerduty_routing_key
+        self.notify_pagerduty_integration_key = notify_pagerduty_integration_key
 
         self.parameters = self._process_parameters()
         self.triggers, self.trigger_options = self._process_triggers()
@@ -689,7 +689,7 @@ class ArgoWorkflows(object):
                                 .template("pagerduty-notify-on-success"),
                             }
                             if self.notify_on_success
-                            and self.notify_pagerduty_routing_key
+                            and self.notify_pagerduty_integration_key
                             else {}
                         ),
                         **(
@@ -716,7 +716,7 @@ class ArgoWorkflows(object):
                                 .template("pagerduty-notify-on-error"),
                             }
                             if self.notify_on_error
-                            and self.notify_pagerduty_routing_key
+                            and self.notify_pagerduty_integration_key
                             else {}
                         ),
                         # Warning: terrible hack to workaround a bug in Argo Workflow
@@ -1444,7 +1444,7 @@ class ArgoWorkflows(object):
     @property
     def _pagerduty_alert_template(self):
         # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgx-send-an-alert-event
-        if self.notify_pagerduty_routing_key is None:
+        if self.notify_pagerduty_integration_key is None:
             return None
         return Template("pagerduty-notify-on-error").http(
             Http("POST")
@@ -1454,7 +1454,7 @@ class ArgoWorkflows(object):
                 json.dumps(
                     {
                         "event_action": "trigger",
-                        "routing_key": self.notify_pagerduty_routing_key,
+                        "routing_key": self.notify_pagerduty_integration_key,
                         # "dedup_key": self.flow.name,  # TODO: Verify that this make sense as a dedup key.
                         "payload": {
                             "source": "{{workflow.name}}",
@@ -1480,7 +1480,7 @@ class ArgoWorkflows(object):
     @property
     def _pagerduty_change_template(self):
         # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgy-send-a-change-event
-        if self.notify_pagerduty_routing_key is None:
+        if self.notify_pagerduty_integration_key is None:
             return None
         return Template("pagerduty-notify-on-success").http(
             Http("POST")
@@ -1489,7 +1489,7 @@ class ArgoWorkflows(object):
             .body(
                 json.dumps(
                     {
-                        "routing_key": self.notify_pagerduty_routing_key,
+                        "routing_key": self.notify_pagerduty_integration_key,
                         "payload": {
                             "summary": "Workflow argo-{{workflow.name}} Succeeded",
                             # "timestamp": "2020-07-17T08:42:58.315+0000",

@@ -162,9 +162,9 @@ def argo_workflows(obj, name=None):
     help="Slack incoming webhook url for workflow success/failure notifications.",
 )
 @click.option(
-    "--notify-pagerduty-routing-key",
+    "--notify-pagerduty-integration-key",
     default="",
-    help="PagerDuty routing key for workflow success/failure notifications.",
+    help="PagerDuty Events API V2 Integration key for workflow success/failure notifications.",
 )
 @click.pass_obj
 def create(
@@ -182,7 +182,7 @@ def create(
     notify_on_error=False,
     notify_on_success=False,
     notify_slack_webhook_url=None,
-    notify_pagerduty_routing_key=None,
+    notify_pagerduty_integration_key=None,
 ):
     validate_tags(tags)
 
@@ -218,7 +218,7 @@ def create(
         notify_on_error,
         notify_on_success,
         notify_slack_webhook_url,
-        notify_pagerduty_routing_key,
+        notify_pagerduty_integration_key,
     )
 
     if only_json:
@@ -390,7 +390,7 @@ def make_flow(
     notify_on_error,
     notify_on_success,
     notify_slack_webhook_url,
-    notify_pagerduty_routing_key,
+    notify_pagerduty_integration_key,
 ):
     # TODO: Make this check less specific to Amazon S3 as we introduce
     #       support for more cloud object stores.
@@ -400,7 +400,7 @@ def make_flow(
         )
 
     if (notify_on_error or notify_on_success) and not (
-        notify_slack_webhook_url or notify_pagerduty_routing_key
+        notify_slack_webhook_url or notify_pagerduty_integration_key
     ):
         raise MetaflowException(
             "Workflow notifications require specifying a notification provider.\n\n"
@@ -452,7 +452,7 @@ def make_flow(
         notify_on_error=notify_on_error,
         notify_on_success=notify_on_success,
         notify_slack_webhook_url=notify_slack_webhook_url,
-        notify_pagerduty_routing_key=notify_pagerduty_routing_key,
+        notify_pagerduty_integration_key=notify_pagerduty_integration_key,
     )
 
 
