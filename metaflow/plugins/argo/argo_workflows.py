@@ -674,9 +674,9 @@ class ArgoWorkflows(object):
                         **(
                             {
                                 # workflow status maps to Completed
-                                "slack-notify-on-success": LifecycleHook()
+                                "notify-slack-on-success": LifecycleHook()
                                 .expression("workflow.status == 'Succeeded'")
-                                .template("slack-notify-on-success"),
+                                .template("notify-slack-on-success"),
                             }
                             if self.notify_on_success and self.notify_slack_webhook_url
                             else {}
@@ -684,9 +684,9 @@ class ArgoWorkflows(object):
                         **(
                             {
                                 # workflow status maps to Completed
-                                "pagerduty-notify-on-success": LifecycleHook()
+                                "notify-pagerduty-on-success": LifecycleHook()
                                 .expression("workflow.status == 'Succeeded'")
-                                .template("pagerduty-notify-on-success"),
+                                .template("notify-pagerduty-on-success"),
                             }
                             if self.notify_on_success
                             and self.notify_pagerduty_integration_key
@@ -695,12 +695,12 @@ class ArgoWorkflows(object):
                         **(
                             {
                                 # workflow status maps to Failed or Error
-                                "slack-notify-on-failure": LifecycleHook()
+                                "notify-slack-on-failure": LifecycleHook()
                                 .expression("workflow.status == 'Failed'")
-                                .template("slack-notify-on-error"),
-                                "slack-notify-on-error": LifecycleHook()
+                                .template("notify-slack-on-error"),
+                                "notify-slack-on-error": LifecycleHook()
                                 .expression("workflow.status == 'Error'")
-                                .template("slack-notify-on-error"),
+                                .template("notify-slack-on-error"),
                             }
                             if self.notify_on_error and self.notify_slack_webhook_url
                             else {}
@@ -708,12 +708,12 @@ class ArgoWorkflows(object):
                         **(
                             {
                                 # workflow status maps to Failed or Error
-                                "pagerduty-notify-on-failure": LifecycleHook()
+                                "notify-pagerduty-on-failure": LifecycleHook()
                                 .expression("workflow.status == 'Failed'")
-                                .template("pagerduty-notify-on-error"),
-                                "pagerduty-notify-on-error": LifecycleHook()
+                                .template("notify-pagerduty-on-error"),
+                                "notify-pagerduty-on-error": LifecycleHook()
                                 .expression("workflow.status == 'Error'")
-                                .template("pagerduty-notify-on-error"),
+                                .template("notify-pagerduty-on-error"),
                             }
                             if self.notify_on_error
                             and self.notify_pagerduty_integration_key
@@ -1451,7 +1451,7 @@ class ArgoWorkflows(object):
         # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgx-send-an-alert-event
         if self.notify_pagerduty_integration_key is None:
             return None
-        return Template("pagerduty-notify-on-error").http(
+        return Template("notify-pagerduty-on-error").http(
             Http("POST")
             .url("https://events.pagerduty.com/v2/enqueue")
             .header("Content-Type", "application/json")
@@ -1482,7 +1482,7 @@ class ArgoWorkflows(object):
         # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgy-send-a-change-event
         if self.notify_pagerduty_integration_key is None:
             return None
-        return Template("pagerduty-notify-on-success").http(
+        return Template("notify-pagerduty-on-success").http(
             Http("POST")
             .url("https://events.pagerduty.com/v2/change/enqueue")
             .header("Content-Type", "application/json")
@@ -1535,7 +1535,7 @@ class ArgoWorkflows(object):
     def _slack_error_template(self):
         if self.notify_slack_webhook_url is None:
             return None
-        return Template("slack-notify-on-error").http(
+        return Template("notify-slack-on-error").http(
             Http("POST")
             .url(self.notify_slack_webhook_url)
             .body(
@@ -1552,7 +1552,7 @@ class ArgoWorkflows(object):
     def _slack_success_template(self):
         if self.notify_slack_webhook_url is None:
             return None
-        return Template("slack-notify-on-success").http(
+        return Template("notify-slack-on-success").http(
             Http("POST")
             .url(self.notify_slack_webhook_url)
             .body(
