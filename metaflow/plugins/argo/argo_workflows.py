@@ -684,9 +684,9 @@ class ArgoWorkflows(object):
                         **(
                             {
                                 # workflow status maps to Completed
-                                "notify-pagerduty-on-success": LifecycleHook()
+                                "notify-pager-duty-on-success": LifecycleHook()
                                 .expression("workflow.status == 'Succeeded'")
-                                .template("notify-pagerduty-on-success"),
+                                .template("notify-pager-duty-on-success"),
                             }
                             if self.notify_on_success
                             and self.notify_pager_duty_integration_key
@@ -708,12 +708,12 @@ class ArgoWorkflows(object):
                         **(
                             {
                                 # workflow status maps to Failed or Error
-                                "notify-pagerduty-on-failure": LifecycleHook()
+                                "notify-pager-duty-on-failure": LifecycleHook()
                                 .expression("workflow.status == 'Failed'")
-                                .template("notify-pagerduty-on-error"),
-                                "notify-pagerduty-on-error": LifecycleHook()
+                                .template("notify-pager-duty-on-error"),
+                                "notify-pager-duty-on-error": LifecycleHook()
                                 .expression("workflow.status == 'Error'")
-                                .template("notify-pagerduty-on-error"),
+                                .template("notify-pager-duty-on-error"),
                             }
                             if self.notify_on_error
                             and self.notify_pager_duty_integration_key
@@ -1450,7 +1450,7 @@ class ArgoWorkflows(object):
         # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgx-send-an-alert-event
         if self.notify_pager_duty_integration_key is None:
             return None
-        return Template("notify-pagerduty-on-error").http(
+        return Template("notify-pager-duty-on-error").http(
             Http("POST")
             .url("https://events.pagerduty.com/v2/enqueue")
             .header("Content-Type", "application/json")
@@ -1480,7 +1480,7 @@ class ArgoWorkflows(object):
         # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgy-send-a-change-event
         if self.notify_pager_duty_integration_key is None:
             return None
-        return Template("notify-pagerduty-on-success").http(
+        return Template("notify-pager-duty-on-success").http(
             Http("POST")
             .url("https://events.pagerduty.com/v2/change/enqueue")
             .header("Content-Type", "application/json")
