@@ -91,8 +91,8 @@ class BatchDecorator(StepDecorator):
         "gpu": None,
         "memory": None,
         "image": None,
-        "queue": BATCH_JOB_QUEUE,
-        "iam_role": ECS_S3_ACCESS_IAM_ROLE,
+        "queue": BATCH_JOB_QUEUE,  # Will be replaced with an available queue if not provided.
+        "iam_role": ECS_S3_ACCESS_IAM_ROLE,  # Required
         "execution_role": ECS_FARGATE_EXECUTION_ROLE,
         "shared_memory": None,
         "max_swap": None,
@@ -149,6 +149,13 @@ class BatchDecorator(StepDecorator):
         if flow_datastore.TYPE != "s3":
             raise BatchException("The *@batch* decorator requires --datastore=s3.")
 
+        # Require iam_role
+        if self.attributes["iam_role"] is None:
+            raise BatchException(
+                "Executions with AWS Batch require an IAM Role.\n"
+                'Provide one in the decorator with *@batch(iam_role="role-name")* '
+                "or set a default role with the environment variable *METAFLOW_ECS_S3_ACCESS_IAM_ROLE*"
+            )
         # Set internal state.
         self.logger = logger
         self.environment = environment
