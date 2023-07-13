@@ -403,13 +403,11 @@ def make_flow(
         notify_slack_webhook_url or notify_pager_duty_integration_key
     ):
         raise MetaflowException(
-            "Workflow notifications require specifying a notification provider.\n\n"
-            "For *Slack notifications* you must specify an incoming Slack "
-            "webhook url via --notify-slack-webhook-url. \nIf you would like to "
-            "set up one for your Slack workspace, follow the instructions "
-            "at https://api.slack.com/messaging/webhooks.\n\n"
-            "For *PagerDuty notifications* you must specify the integration key via --notify-pagerduty-integration-key.\n"
-            "This requires adding an Events API V2 integration for your PagerDuty Service. For detailed setup instructions see \n"
+            "Notifications require specifying an incoming Slack webhook url via --notify-slack-webhook-url or "
+            "PagerDuty events v2 integration key via --notify-pager-duty-integration-key.\n If you would like to set up "
+            "notifications for your Slack workspace, follow the instructions at "
+            "https://api.slack.com/messaging/webhooks to generate a webhook url.\n For notifications through PagerDuty, "
+            "generate an integration key by following the instructions at "
             "https://support.pagerduty.com/docs/services-and-integrations#create-a-generic-events-api-integration"
         )
 
