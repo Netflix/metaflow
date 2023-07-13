@@ -151,10 +151,10 @@ class BatchDecorator(StepDecorator):
 
         # Require iam_role
         if self.attributes["iam_role"] is None:
+            # TODO: Unify messaging on various configuration options.
             raise BatchException(
-                "Executions with AWS Batch require an IAM Role.\n"
-                'Provide one in the decorator with *@batch(iam_role="role-name")* '
-                "or set a default role with the environment variable *METAFLOW_ECS_S3_ACCESS_IAM_ROLE*"
+                "The *@batch* decorator requires an IAM Role that allows AWS Batch job to communicate with Amazon S3 datastore.\n"
+                'You can specify it either with @batch(iam_role="role-name") or by setting METAFLOW_ECS_S3_ACCESS_IAM_ROLE in your configuration.'
             )
         # Set internal state.
         self.logger = logger
