@@ -5,13 +5,6 @@ from metaflow.metaflow_config import (
     CONSOLE_TRACE_ENABLED,
 )
 
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
-    OTLPSpanExporter,
-)
-from opentelemetry.exporter.zipkin.proto.http import ZipkinExporter
-
-from opentelemetry.sdk.trace.export import ConsoleSpanExporter
-
 
 def get_span_exporter():
     if OTEL_ENDPOINT:
@@ -19,6 +12,7 @@ def get_span_exporter():
 
     elif ZIPKIN_ENDPOINT:
         return set_zipkin_exporter()
+
     elif CONSOLE_TRACE_ENABLED:
         return set_console_exporter()
     else:
@@ -27,6 +21,8 @@ def get_span_exporter():
 
 
 def set_otel_exporter():
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
     from metaflow.metaflow_config import (
         SERVICE_AUTH_KEY,
         SERVICE_HEADERS,
@@ -51,6 +47,8 @@ def set_otel_exporter():
 
 
 def set_zipkin_exporter():
+    from opentelemetry.exporter.zipkin.proto.http import ZipkinExporter
+
     span_exporter = ZipkinExporter(
         endpoint=ZIPKIN_ENDPOINT,
     )
@@ -58,5 +56,7 @@ def set_zipkin_exporter():
 
 
 def set_console_exporter():
+    from opentelemetry.sdk.trace.export import ConsoleSpanExporter
+
     span_exporter = ConsoleSpanExporter()
     return span_exporter
