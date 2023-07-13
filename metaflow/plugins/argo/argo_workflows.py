@@ -1422,11 +1422,11 @@ class ArgoWorkflows(object):
         # TODO: Add details to slack message
         templates = []
         if self.notify_on_error:
-            templates.append(self._slack_error_template)
-            templates.append(self._pagerduty_alert_template)
+            templates.append(self._slack_error_template())
+            templates.append(self._pagerduty_alert_template())
         if self.notify_on_success:
-            templates.append(self._slack_success_template)
-            templates.append(self._pagerduty_change_template)
+            templates.append(self._slack_success_template())
+            templates.append(self._pagerduty_change_template())
         if self.notify_on_error or self.notify_on_success:
             # Warning: terrible hack to workaround a bug in Argo Workflow where the
             #          templates listed above do not execute unless there is an
@@ -1446,7 +1446,6 @@ class ArgoWorkflows(object):
             )
         return templates
 
-    @property
     def _pagerduty_alert_template(self):
         # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgx-send-an-alert-event
         if self.notify_pagerduty_integration_key is None:
@@ -1471,13 +1470,12 @@ class ArgoWorkflows(object):
                                 "Run ID": "argo-{{workflow.name}}",
                             },
                         },
-                        "links": self._pagerduty_notification_links,
+                        "links": self._pagerduty_notification_links(),
                     }
                 )
             )
         )
 
-    @property
     def _pagerduty_change_template(self):
         # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgy-send-a-change-event
         if self.notify_pagerduty_integration_key is None:
@@ -1499,13 +1497,12 @@ class ArgoWorkflows(object):
                                 "Run ID": "argo-{{workflow.name}}",
                             },
                         },
-                        "links": self._pagerduty_notification_links,
+                        "links": self._pagerduty_notification_links(),
                     }
                 )
             )
         )
 
-    @property
     def _pagerduty_notification_links(self):
         links = []
         if UI_URL:
@@ -1531,7 +1528,6 @@ class ArgoWorkflows(object):
 
         return links
 
-    @property
     def _slack_error_template(self):
         if self.notify_slack_webhook_url is None:
             return None
@@ -1548,7 +1544,6 @@ class ArgoWorkflows(object):
             )
         )
 
-    @property
     def _slack_success_template(self):
         if self.notify_slack_webhook_url is None:
             return None
