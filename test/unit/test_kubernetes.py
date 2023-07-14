@@ -5,7 +5,9 @@ from metaflow.plugins.kubernetes.kubernetes import (
     parse_kube_keyvalue_list,
 )
 
-from metaflow.plugins.kubernetes.kubernetes_decorator import validate_kube_labels
+from metaflow.plugins.kubernetes.kubernetes_decorator import (
+    validate_kube_labels_or_annotations,
+)
 
 
 @pytest.mark.parametrize(

@@ -306,7 +306,7 @@ class KubernetesDecorator(StepDecorator):
                     )
                 )
 
-        validate_kube_labels(self.attributes["labels"])
+        validate_kube_labels_or_annotations(self.attributes["labels"])
 
     def package_init(self, flow, step_name, environment):
         try:
@@ -472,7 +472,7 @@ class KubernetesDecorator(StepDecorator):
             )[0]
 
 
-def validate_kube_labels(
+def validate_kube_labels_or_annotations(
     labels: Optional[Dict[str, Optional[str]]],
 ) -> bool:
     """Validate label values.
