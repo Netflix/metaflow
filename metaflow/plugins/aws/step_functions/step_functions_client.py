@@ -117,3 +117,11 @@ class StepFunctionsClient(object):
             if state_machine:
                 return state_machine["stateMachineArn"]
             return None
+
+    def delete(self, name):
+        state_machine_arn = self.get_state_machine_arn(name)
+        if state_machine_arn is None:
+            return None
+        return self._client.delete_state_machine(
+            stateMachineArn=state_machine_arn,
+        )

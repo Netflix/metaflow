@@ -26,13 +26,12 @@ from metaflow.metaflow_config import (
     DEFAULT_AWS_CLIENT_PROVIDER,
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
-    KUBERNETES_ANNOTATIONS,
     KUBERNETES_FETCH_EC2_METADATA,
-    KUBERNETES_LABELS,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     S3_ENDPOINT_URL,
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
+    S3_SERVER_SIDE_ENCRYPTION,
 )
 from metaflow.mflog import (
     BASH_SAVE_LOGS,
@@ -167,6 +166,8 @@ class Kubernetes(object):
         env=None,
         persistent_volume_claims=None,
         tolerations=None,
+        labels=None,
+        annotations=None,
     ):
         if env is None:
             env = {}
@@ -200,7 +201,8 @@ class Kubernetes(object):
                 retries=0,
                 step_name=step_name,
                 tolerations=tolerations,
-                labels=self._get_labels(),
+                labels=labels,
+                annotations=annotations,
                 use_tmpfs=use_tmpfs,
                 tmpfs_tempdir=tmpfs_tempdir,
                 tmpfs_size=tmpfs_size,
@@ -258,6 +260,11 @@ class Kubernetes(object):
             # see get_datastore_root_from_config in datastore/local.py).
         )
 
+        if S3_SERVER_SIDE_ENCRYPTION is not None:
+            job.environment_variable(
+                "METAFLOW_S3_SERVER_SIDE_ENCRYPTION", S3_SERVER_SIDE_ENCRYPTION
+            )
+
         # Set environment variables to support metaflow.integrations.ArgoEvent
         job.environment_variable(
             "METAFLOW_ARGO_EVENTS_WEBHOOK_URL", ARGO_EVENTS_INTERNAL_WEBHOOK_URL
@@ -280,35 +287,16 @@ class Kubernetes(object):
         for name, value in env.items():
             job.environment_variable(name, value)
 
-        annotations = self._get_annotations()
-
-        annotations.update(
-            {
-                "metaflow/user": user,
-                "metaflow/flow_name": flow_name,
-            }
-        )
-
-        if current.get("project_name"):
-            annotations.update(
-                {
-                    "metaflow/project_name": current.project_name,
-                    "metaflow/branch_name": current.branch_name,
-                    "metaflow/project_flow_name": current.project_flow_name,
-                }
-            )
+        # Add job specific annotations not set in the decorator.
+        annotations = {
+            "metaflow/run_id": run_id,
+            "metaflow/step_name": step_name,
+            "metaflow/task_id": task_id,
+            "metaflow/attempt": attempt,
+        }
 
         for name, value in annotations.items():
             job.annotation(name, value)
-
-        (
-            job.annotation("metaflow/run_id", run_id)
-            .annotation("metaflow/step_name", step_name)
-            .annotation("metaflow/task_id", task_id)
-            .annotation("metaflow/attempt", attempt)
-            .label("app.kubernetes.io/name", "metaflow-task")
-            .label("app.kubernetes.io/part-of", "metaflow")
-        )
 
         return job.create()
 
@@ -404,55 +392,6 @@ class Kubernetes(object):
             "stderr",
             job_id=self._job.id,
         )
-
-    @staticmethod
-    def _get_labels():
-        env_labels_list = KUBERNETES_LABELS.split(",") if KUBERNETES_LABELS else []
-        labels = parse_kube_keyvalue_list(env_labels_list, False)
-        validate_kube_labels_or_annotations(labels)
-        return labels
-
-    @staticmethod
-    def _get_annotations():
-        env_annotations_list = (
-            KUBERNETES_ANNOTATIONS.split(",") if KUBERNETES_ANNOTATIONS else []
-        )
-        annotations = parse_kube_keyvalue_list(env_annotations_list, False)
-        validate_kube_labels_or_annotations(annotations)
-        return annotations
-
-
-def validate_kube_labels_or_annotations(
-    labels: Optional[Dict[str, Optional[str]]],
-) -> bool:
-    """Validate label values.
-
-    This validates the kubernetes label/annotation values.  It does not validate the keys.
-    Ideally, keys should be static and also the validation rules for keys are
-    more complex than those for values.  For full validation rules, see:
-
-    https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
-    https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/#syntax-and-character-set
-    """
-
-    def validate_label_annotation(s: Optional[str]):
-        regex_match = r"^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$"
-        if not s:
-            # allow empty label
-            return True
-        if not re.search(regex_match, s):
-            raise KubernetesException(
-                'Invalid value: "%s"\n'
-                "A valid label must be an empty string or one that\n"
-                "  - Consist of alphanumeric, '-', '_' or '.' characters\n"
-                "  - Begins and ends with an alphanumeric character\n"
-                "  - Is at most 63 characters" % s
-            )
-        return True
-
-    return (
-        all([validate_label_annotation(v) for v in labels.values()]) if labels else True
-    )
 
 
 def parse_kube_keyvalue_list(items: List[str], requires_both: bool = True):
