@@ -29,7 +29,6 @@ from metaflow.metaflow_config import (
     DATATOOLS_S3ROOT,
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
-    KUBERNETES_ANNOTATIONS,
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
@@ -275,18 +274,20 @@ class ArgoWorkflows(object):
         )
         return resources["labels"] or {}
 
-    @staticmethod
-    def _get_kubernetes_annotations():
+    def _get_kubernetes_annotations(self):
         """
-        Get Kubernetes annotations from environment variable.
-        Parses the string into a dict and validates that values adhere to Kubernetes restrictions.
+        Get Kubernetes annotations from the start step decorator.
         """
-        if not KUBERNETES_ANNOTATIONS:
-            return {}
-        env_annotations = KUBERNETES_ANNOTATIONS.split(",")
-        env_annotations = parse_kube_keyvalue_list(env_annotations, False)
-        validate_kube_labels_or_annotations(env_annotations)
-        return env_annotations
+        resources = dict(
+            [
+                deco
+                for node in self.graph
+                if node.name == "start"
+                for deco in node.decorators
+                if deco.name == "kubernetes"
+            ][0].attributes
+        )
+        return resources["annotations"] or {}
 
     def _get_schedule(self):
         schedule = self.flow._flow_decorators.get("schedule")
@@ -585,14 +586,6 @@ class ArgoWorkflows(object):
                 "metaflow/flow_name": self.flow.name,
             }
         )
-        if current.get("project_name"):
-            annotations.update(
-                {
-                    "metaflow/project_name": current.project_name,
-                    "metaflow/branch_name": current.branch_name,
-                    "metaflow/project_flow_name": current.project_flow_name,
-                }
-            )
 
         return (
             WorkflowTemplate()
@@ -1550,8 +1543,6 @@ class ArgoWorkflows(object):
                 "sdk (https://pypi.org/project/kubernetes/) first."
             )
 
-        labels = {"app.kubernetes.io/part-of": "metaflow"}
-
         annotations = self.kubernetes_annotations
         annotations.update(
             {
@@ -1561,14 +1552,6 @@ class ArgoWorkflows(object):
                 "metaflow/flow_name": self.flow.name,
             }
         )
-        if current.get("project_name"):
-            annotations.update(
-                {
-                    "metaflow/project_name": current.project_name,
-                    "metaflow/branch_name": current.branch_name,
-                    "metaflow/project_flow_name": current.project_flow_name,
-                }
-            )
 
         return (
             Sensor()

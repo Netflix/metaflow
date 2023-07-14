@@ -26,7 +26,6 @@ from metaflow.metaflow_config import (
     DEFAULT_AWS_CLIENT_PROVIDER,
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
-    KUBERNETES_ANNOTATIONS,
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     S3_ENDPOINT_URL,
@@ -168,6 +167,7 @@ class Kubernetes(object):
         persistent_volume_claims=None,
         tolerations=None,
         labels=None,
+        annotations=None,
     ):
         if env is None:
             env = {}
@@ -202,6 +202,7 @@ class Kubernetes(object):
                 step_name=step_name,
                 tolerations=tolerations,
                 labels=labels,
+                annotations=annotations,
                 use_tmpfs=use_tmpfs,
                 tmpfs_tempdir=tmpfs_tempdir,
                 tmpfs_size=tmpfs_size,
@@ -286,33 +287,16 @@ class Kubernetes(object):
         for name, value in env.items():
             job.environment_variable(name, value)
 
-        annotations = self._get_annotations()
-
-        annotations.update(
-            {
-                "metaflow/user": user,
-                "metaflow/flow_name": flow_name,
-            }
-        )
-
-        if current.get("project_name"):
-            annotations.update(
-                {
-                    "metaflow/project_name": current.project_name,
-                    "metaflow/branch_name": current.branch_name,
-                    "metaflow/project_flow_name": current.project_flow_name,
-                }
-            )
+        # Add job specific annotations not set in the decorator.
+        annotations = {
+            "metaflow/run_id": run_id,
+            "metaflow/step_name": step_name,
+            "metaflow/task_id": task_id,
+            "metaflow/attempt": attempt,
+        }
 
         for name, value in annotations.items():
             job.annotation(name, value)
-
-        (
-            job.annotation("metaflow/run_id", run_id)
-            .annotation("metaflow/step_name", step_name)
-            .annotation("metaflow/task_id", task_id)
-            .annotation("metaflow/attempt", attempt)
-        )
 
         return job.create()
 
