@@ -276,7 +276,7 @@ class ArgoWorkflows(object):
 
     def _get_kubernetes_annotations(self):
         """
-        Get Kubernetes annotations from the start step decorator.
+        Get Kubernetes annotations from the start step decorator. Append Argo specific annotations.
         """
         resources = dict(
             [
@@ -287,7 +287,20 @@ class ArgoWorkflows(object):
                 if deco.name == "kubernetes"
             ][0].attributes
         )
-        return resources["annotations"] or {}
+        annotations = {}
+        if resources["annotations"] is not None:
+            # make a copy so we do not mess possible start-step specific annotations.
+            annotations = resources["annotations"].copy()
+
+        annotations.update(
+            {
+                "metaflow/production_token": self.production_token,
+                "metaflow/owner": self.username,
+                "metaflow/user": "argo-workflows",
+                "metaflow/flow_name": self.flow.name,
+            }
+        )
+        return annotations
 
     def _get_schedule(self):
         schedule = self.flow._flow_decorators.get("schedule")
@@ -577,15 +590,6 @@ class ArgoWorkflows(object):
         # (https://github.com/argoproj/argo-workflows/issues/7432) and we are forced to
         # generate container templates at the top level (in WorkflowSpec) and maintain
         # references to them within the DAGTask.
-        annotations = self.kubernetes_annotations
-        annotations.update(
-            {
-                "metaflow/production_token": self.production_token,
-                "metaflow/owner": self.username,
-                "metaflow/user": "argo-workflows",
-                "metaflow/flow_name": self.flow.name,
-            }
-        )
 
         return (
             WorkflowTemplate()
@@ -599,7 +603,7 @@ class ArgoWorkflows(object):
                 .namespace(KUBERNETES_NAMESPACE)
                 .label("app.kubernetes.io/name", "metaflow-flow")
                 .label("app.kubernetes.io/part-of", "metaflow")
-                .annotations(annotations)
+                .annotations(self.kubernetes_annotations)
             )
             .spec(
                 WorkflowSpec()
@@ -632,7 +636,10 @@ class ArgoWorkflows(object):
                     .label("app.kubernetes.io/name", "metaflow-run")
                     .label("app.kubernetes.io/part-of", "metaflow")
                     .annotations(
-                        {**annotations, **{"metaflow/run_id": "argo-{{workflow.name}}"}}
+                        {
+                            **self.kubernetes_annotations,
+                            **{"metaflow/run_id": "argo-{{workflow.name}}"},
+                        }
                     )
                     # TODO: Set dynamic labels using labels_from. Ideally, we would
                     #       want to expose run_id as a label. It's easy to add labels,
@@ -668,7 +675,7 @@ class ArgoWorkflows(object):
                     .labels(self.kubernetes_labels)
                     .label("app.kubernetes.io/name", "metaflow-task")
                     .label("app.kubernetes.io/part-of", "metaflow")
-                    .annotations(annotations)
+                    .annotations(self.kubernetes_annotations)
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
@@ -1543,16 +1550,6 @@ class ArgoWorkflows(object):
                 "sdk (https://pypi.org/project/kubernetes/) first."
             )
 
-        annotations = self.kubernetes_annotations
-        annotations.update(
-            {
-                "metaflow/production_token": self.production_token,
-                "metaflow/owner": self.username,
-                "metaflow/user": "argo-workflows",
-                "metaflow/flow_name": self.flow.name,
-            }
-        )
-
         return (
             Sensor()
             .metadata(
@@ -1563,7 +1560,7 @@ class ArgoWorkflows(object):
                 .labels(self.kubernetes_labels)
                 .label("app.kubernetes.io/name", "metaflow-sensor")
                 .label("app.kubernetes.io/part-of", "metaflow")
-                .annotations(annotations)
+                .annotations(self.kubernetes_annotations)
             )
             .spec(
                 SensorSpec().template(
@@ -1573,7 +1570,7 @@ class ArgoWorkflows(object):
                         ObjectMeta()
                         .label("app.kubernetes.io/name", "metaflow-sensor")
                         .label("app.kubernetes.io/part-of", "metaflow")
-                        .annotations(annotations)
+                        .annotations(self.kubernetes_annotations)
                     )
                     .container(
                         # Run sensor in guaranteed QoS. The sensor isn't doing a lot
