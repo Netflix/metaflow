@@ -45,7 +45,10 @@ from metaflow.metaflow_config import (
     from_conf,
 )
 from metaflow.plugins import EnvironmentDecorator, KfpInternalDecorator
-from metaflow.plugins.kfp.kfp_constants import S3_SENSOR_RETRY_COUNT
+from metaflow.plugins.kfp.kfp_constants import (
+    S3_SENSOR_RETRY_COUNT,
+    EXIT_HANDLER_RETRY_COUNT,
+)
 from metaflow.plugins.kfp.kfp_decorator import KfpException
 
 from ...graph import DAGNode
@@ -1325,8 +1328,12 @@ class KubeflowPipelines(object):
             ),
         ]
 
-        return dsl.ContainerOp(
-            name="exit_handler",
-            image=self.base_image,
-            command=exit_handler_command,
-        ).set_display_name("exit_handler")
+        return (
+            dsl.ContainerOp(
+                name="exit_handler",
+                image=self.base_image,
+                command=exit_handler_command,
+            )
+            .set_display_name("exit_handler")
+            .set_retry(EXIT_HANDLER_RETRY_COUNT, policy="Always")
+        )
