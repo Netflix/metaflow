@@ -119,7 +119,9 @@ class MetaflowEnvironment(object):
                 % datastore_type
             )
 
-    def _get_install_dependencies_cmd(self, datastore_type, install_dependencies=AUTO_INSTALL_DEPENDENCIES):
+    def _get_install_dependencies_cmd(
+        self, datastore_type, install_dependencies=AUTO_INSTALL_DEPENDENCIES
+    ):
         cmds = []
         if install_dependencies:
             cmds.append("%s -m pip install requests -qqq" % self._python())
