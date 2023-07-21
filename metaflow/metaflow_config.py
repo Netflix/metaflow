@@ -248,6 +248,12 @@ SERVICE_INTERNAL_URL = from_conf("SERVICE_INTERNAL_URL", SERVICE_URL)
 # default to True.
 BATCH_EMIT_TAGS = from_conf("BATCH_EMIT_TAGS", False)
 
+# Set to False to disable default package installation in docker images during job launch. 
+# This allows better dependency control for your flow, but please ensure that your 
+# environment has all the required packages for your datastore type (any necessary 
+# dependencies should be explicitly installed in your custom container).
+AUTO_INSTALL_DEPENDENCIES = from_conf("AUTO_INSTALL_DEPENDENCIES", True)
+
 ###
 # AWS Step Functions configuration
 ###

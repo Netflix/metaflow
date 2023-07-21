@@ -8,6 +8,7 @@ from metaflow.exception import MetaflowException
 from metaflow.extension_support import dump_module_info
 from metaflow.mflog import BASH_MFLOG
 from . import R
+from metaflow.metaflow_config import AUTO_INSTALL_DEPENDENCIES
 
 version_cache = None
 
@@ -118,32 +119,34 @@ class MetaflowEnvironment(object):
                 % datastore_type
             )
 
-    def _get_install_dependencies_cmd(self, datastore_type):
-        cmds = ["%s -m pip install requests -qqq" % self._python()]
-        if datastore_type == "s3":
-            cmds.append("%s -m pip install awscli boto3 -qqq" % self._python())
-        elif datastore_type == "azure":
-            cmds.append(
-                "%s -m pip install azure-identity azure-storage-blob simple-azure-blob-downloader -qqq"
-                % self._python()
-            )
-        elif datastore_type == "gs":
-            cmds.append(
-                "%s -m pip install google-cloud-storage google-auth simple-gcp-object-downloader -qqq"
-                % self._python()
-            )
-        else:
-            raise NotImplementedError(
-                "We don't know how to generate an install dependencies cmd for datastore %s"
-                % datastore_type
-            )
-        return " && ".join(cmds)
+    def _get_install_dependencies_cmd(self, datastore_type, install_dependencies=AUTO_INSTALL_DEPENDENCIES):
+        cmds = []
+        if install_dependencies:
+            cmds.append("%s -m pip install requests -qqq" % self._python())
+            if datastore_type == "s3":
+                cmds.append("%s -m pip install awscli boto3 -qqq" % self._python())
+            elif datastore_type == "azure":
+                cmds.append(
+                    "%s -m pip install azure-identity azure-storage-blob simple-azure-blob-downloader -qqq"
+                    % self._python()
+                )
+            elif datastore_type == "gs":
+                cmds.append(
+                    "%s -m pip install google-cloud-storage google-auth simple-gcp-object-downloader -qqq"
+                    % self._python()
+                )
+            else:
+                raise NotImplementedError(
+                    "We don't know how to generate an install dependencies cmd for datastore %s"
+                    % datastore_type
+                )
+        return cmds
 
     def get_package_commands(self, code_package_url, datastore_type):
         cmds = [
             BASH_MFLOG,
             "mflog 'Setting up task environment.'",
-            self._get_install_dependencies_cmd(datastore_type),
+            *self._get_install_dependencies_cmd(datastore_type),
             "mkdir metaflow",
             "cd metaflow",
             "mkdir .metaflow",  # mute local datastore creation log
