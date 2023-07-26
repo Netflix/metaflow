@@ -237,7 +237,7 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
     output = {}
     
     if file is not None and max_value_size is not None:
-        raise ValueError("max_value_size set to None when a file variable is provided will get replace the file variable")
+        raise CommandException("max_value_size set to None when a file variable is provided will get replace the file variable")
     elif file is None and max_value_size is None:
         echo("max_value_size will be set to 1000 when neither file nor max_value_size is set to prevent all information being printed to stdout")
         max_value_size = 1000
