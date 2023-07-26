@@ -234,8 +234,17 @@ def output_dot(obj):
 )
 @click.pass_obj
 def dump(obj, input_path, private=None, max_value_size=None, include=None, file=None):
-
     output = {}
+    
+    if file is not None and max_value_size is not None:
+        raise ValueError("max_value_size set to None when a file variable is provided will get replace the file variable")
+    elif file is None and max_value_size is None:
+        echo("max_value_size will be set to 1000 when neither file nor max_value_size is set to prevent all information being printed to stdout")
+        max_value_size = 1000
+    elif file is not None:
+        echo("if file is specified we set max_value_size to infinity to ensure all information is written to the file")
+        max_value_size = float('inf')
+    
     kwargs = {
         "show_private": private,
         "max_value_size": max_value_size,
