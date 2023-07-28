@@ -44,7 +44,10 @@ from metaflow.metaflow_config import (
     from_conf,
 )
 from metaflow.plugins import EnvironmentDecorator, KfpInternalDecorator
-from metaflow.plugins.kfp.kfp_constants import S3_SENSOR_RETRY_COUNT
+from metaflow.plugins.kfp.kfp_constants import (
+    S3_SENSOR_RETRY_COUNT,
+    EXIT_HANDLER_RETRY_COUNT,
+)
 from metaflow.plugins.kfp.kfp_decorator import KfpException
 from .accelerator_decorator import AcceleratorDecorator
 from .argo_client import ArgoClient
@@ -155,6 +158,8 @@ class KubeflowPipelines(object):
         notify=False,
         notify_on_error=None,
         notify_on_success=None,
+        sqs_url_on_error=None,
+        sqs_role_arn_on_error=None,
         **kwargs,
     ):
         """
@@ -184,6 +189,8 @@ class KubeflowPipelines(object):
         self.notify = notify
         self.notify_on_error = notify_on_error
         self.notify_on_success = notify_on_success
+        self.sqs_url_on_error = sqs_url_on_error
+        self.sqs_role_arn_on_error = sqs_role_arn_on_error
         self._client = None
 
     def deploy(self, kubernetes_namespace: str, name: Optional[str]) -> Dict[str, Any]:
@@ -1055,7 +1062,7 @@ class KubeflowPipelines(object):
                     ),
                 )
 
-            if self.notify:
+            if self.notify or self.sqs_url_on_error:
                 with dsl.ExitHandler(
                     self._create_exit_handler_op(flow_variables.package_commands)
                 ):
@@ -1369,6 +1376,14 @@ class KubeflowPipelines(object):
         if self.notify_on_success:
             notify_variables["METAFLOW_NOTIFY_ON_SUCCESS"] = self.notify_on_success
 
+        if self.sqs_url_on_error:
+            notify_variables["METAFLOW_SQS_URL_ON_ERROR"] = self.sqs_url_on_error
+
+        if self.sqs_role_arn_on_error:
+            notify_variables[
+                "METAFLOW_SQS_ROLE_ARN_ON_ERROR"
+            ] = self.sqs_role_arn_on_error
+
         exit_handler_command = [
             "bash",
             "-ec",
@@ -1378,12 +1393,17 @@ class KubeflowPipelines(object):
                 f" --flow_name {self.name}"
                 " --run_id {{workflow.name}}"
                 f" --notify_variables_json {json.dumps(json.dumps(notify_variables))}"
+                "  --sqs_message_json {{workflow.parameters.flow_parameters_json}}"
                 "  --status {{workflow.status}}"
             ),
         ]
 
-        return dsl.ContainerOp(
-            name="exit_handler",
-            image=self.base_image,
-            command=exit_handler_command,
-        ).set_display_name("exit_handler")
+        return (
+            dsl.ContainerOp(
+                name="exit_handler",
+                image=self.base_image,
+                command=exit_handler_command,
+            )
+            .set_display_name("exit_handler")
+            .set_retry(EXIT_HANDLER_RETRY_COUNT, policy="Always")
+        )

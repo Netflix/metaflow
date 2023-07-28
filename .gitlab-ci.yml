@@ -20,16 +20,11 @@ variables:
   DEPLOY_PROD: "false"
   DEPLOY_SANDBOX: "false"
   PUBLISH: "true"
+  CI_TRACE_DEBUG: "true"
 
 stages:
   - build
   - test
-
-.path_to_host_file_directory: # obtains the path to file on the host machine, which is needed to mount a Docker on Docker
-  script: &path-to-host-file-directory
-  - export CONTAINER_ID=$(docker ps -q -f "label=com.gitlab.gitlab-runner.job.id=$CI_JOB_ID" -f "label=com.gitlab.gitlab-runner.type=build")
-  - export MOUNT_NAME=$(docker inspect $CONTAINER_ID -f "{{ range .Mounts }}{{ if eq .Destination \"/builds\" }}{{ .Source }}{{end}}{{end}}")
-  - export SHARED_PATH=$MOUNT_NAME/$CI_PROJECT_PATH
 
 .version: &version |
   # Extract the open source Metaflow version as the basis for our forked library version.
@@ -53,11 +48,11 @@ stages:
   variables:
     GIT_STRATEGY: none
     PIPELINE_VERSION: "1.0"
+  before_script:
+    - export IMAGE_REPOSITORY_TAG=$( cat ${IMAGE_REPOSITORY_TAG_PATH} )
+    - export IMAGE_REPOSITORY_TAG_KFP_STEP=$( cat ${IMAGE_REPOSITORY_TAG_PATH_KFP_STEP} )
+    - !reference [.generate_kubeconfig, before_script]
   script:
-    - *path-to-host-file-directory  
-    - export BUILT_IMAGE_FULL_PATH=$( cat ${IMAGE_REPOSITORY_TAG_PATH} )
-    - export BUILT_IMAGE_FULL_PATH_KFP_STEP=$( cat ${IMAGE_REPOSITORY_TAG_PATH_KFP_STEP} )
-    - cp -r /root/.kube .
     - docker run
         --rm
         -v ${SHARED_PATH}/.kube:/home/zservice/.kube
@@ -70,17 +65,16 @@ stages:
         -e METAFLOW_RUN_URL_PREFIX=$METAFLOW_RUN_URL_PREFIX 
         -e METAFLOW_KUBERNETES_NAMESPACE=$METAFLOW_KUBERNETES_NAMESPACE 
         -e USER=$GITLAB_USER_EMAIL
-        -e KFP_STEP_IMAGE=${BUILT_IMAGE_FULL_PATH_KFP_STEP}
-        ${BUILT_IMAGE_FULL_PATH}
+        -e KFP_STEP_IMAGE=${IMAGE_REPOSITORY_TAG_KFP_STEP}
+        ${IMAGE_REPOSITORY_TAG}
         bash -c "
           cd /home/zservice/metaflow/metaflow/plugins/kfp/tests &&
-          python -m pytest -s -n 3 run_integration_tests.py --image ${BUILT_IMAGE_FULL_PATH} --opsgenie-api-token ${OPSGENIE_API_TOKEN} --cov-config=setup.cfg
+          python -m pytest -s -n 3 run_integration_tests.py --image ${IMAGE_REPOSITORY_TAG} --opsgenie-api-token ${OPSGENIE_API_TOKEN} --cov-config=setup.cfg
         "
   artifacts:
     when: always
     paths:
       - public
-  
 
 build:docker:
   stage: build
@@ -91,7 +85,10 @@ build:docker:
         image_repository_tag=$1
         image_repository_tag_path=$2
 
-        DOCKER_BUILDKIT=1 docker build --no-cache -f metaflow/plugins/kfp/tests/Dockerfile --build-arg IMAGE_TAG=${image_repository_tag} -t ${image_repository_tag} .
+        DOCKER_BUILDKIT=1 docker build \
+          --no-cache -f metaflow/plugins/kfp/tests/Dockerfile \
+          --build-arg IMAGE_TAG=${image_repository_tag} \
+          -t ${image_repository_tag} .
         echo ${DOCKER_API_KEY} | docker login -u ${DOCKER_USERNAME} --password-stdin ${DOCKER_REPO_URL}
         STDERR=$(docker push ${image_repository_tag} 2>&1 >/dev/null) || true
         echo $STDERR

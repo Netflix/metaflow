@@ -190,6 +190,24 @@ def common_create_run_options(func):
         "If not set, METAFLOW_NOTIFY_ON_SUCCESS is used from Metaflow config or environment variable",
         show_default=True,
     )
+    @click.option(
+        "--sqs-url-on-error",
+        "-su",
+        "sqs_url_on_error",
+        default=from_conf("METAFLOW_SQS_URL_ON_ERROR", default=None),
+        help="SQS url to send messages upon error"
+        "If not set, messages will NOT be sent to SQS",
+        show_default=True,
+    )
+    @click.option(
+        "--sqs-role-arn-on-error",
+        "-sra",
+        "sqs_role_arn_on_error",
+        default=from_conf("METAFLOW_SQS_ROLE_ARN_ON_ERROR", default=None),
+        help="aws iam role used for sending messages to SQS upon error"
+        "If not set, the default iam role associated with the pod will be used",
+        show_default=True,
+    )
     @functools.wraps(func)
     def wrapper_common_options(*args, **kwargs):
         return func(*args, **kwargs)
@@ -246,6 +264,8 @@ def run(
     notify=False,
     notify_on_error=None,
     notify_on_success=None,
+    sqs_url_on_error=None,
+    sqs_role_arn_on_error=None,
     argo_wait=False,
     wait_for_completion_timeout=None,
     **kwargs,
@@ -276,6 +296,8 @@ def run(
         notify=notify,
         notify_on_error=notify_on_error,
         notify_on_success=notify_on_success,
+        sqs_url_on_error=sqs_url_on_error,
+        sqs_role_arn_on_error=sqs_role_arn_on_error,
     )
 
     if yaml_only:
@@ -591,6 +613,8 @@ def make_flow(
     notify,
     notify_on_error,
     notify_on_success,
+    sqs_url_on_error,
+    sqs_role_arn_on_error,
 ):
     """
     Analogous to step_functions_cli.py
@@ -645,4 +669,6 @@ def make_flow(
         notify=notify,
         notify_on_error=notify_on_error,
         notify_on_success=notify_on_success,
+        sqs_url_on_error=sqs_url_on_error,
+        sqs_role_arn_on_error=sqs_role_arn_on_error,
     )

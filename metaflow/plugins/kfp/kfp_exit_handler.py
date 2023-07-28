@@ -1,6 +1,9 @@
 from typing import Dict
-
 from metaflow._vendor import click
+import logging
+
+
+_logger = logging.getLogger(__name__)
 
 
 @click.command()
@@ -8,11 +11,13 @@ from metaflow._vendor import click
 @click.option("--status")
 @click.option("--run_id")
 @click.option("--notify_variables_json")
+@click.option("--sqs_message_json")
 def exit_handler(
     flow_name: str,
     status: str,
     run_id: str,
     notify_variables_json: str,
+    sqs_message_json: str,
 ):
     """
     The environment variables that this depends on:
@@ -21,6 +26,8 @@ def exit_handler(
         METAFLOW_NOTIFY_EMAIL_SMTP_HOST
         METAFLOW_NOTIFY_EMAIL_SMTP_PORT
         METAFLOW_NOTIFY_EMAIL_FROM
+        METAFLOW_SQS_URL_ON_ERROR
+        METAFLOW_SQS_ROLE_ARN_ON_ERROR
         K8S_CLUSTER_ENV
         POD_NAMESPACE
         MF_ARGO_WORKFLOW_NAME
@@ -28,6 +35,8 @@ def exit_handler(
     """
     import json
     import os
+    import boto3
+    from botocore.session import Session
 
     notify_variables: Dict[str, str] = json.loads(notify_variables_json)
 
@@ -74,6 +83,56 @@ def exit_handler(
         s.quit()
         print(msg)
 
+    def get_aws_session(role_arn: str = None) -> Session:
+        from botocore.credentials import (
+            AssumeRoleCredentialFetcher,
+            DeferredRefreshableCredentials,
+        )
+
+        region_name = "us-west-2"
+        source_session = boto3.Session(region_name=region_name)
+
+        if role_arn is None:
+            return source_session
+
+        # Fetch assumed role's credentials
+        fetcher = AssumeRoleCredentialFetcher(
+            client_creator=source_session._session.create_client,
+            source_credentials=source_session.get_credentials(),
+            role_arn=role_arn,
+        )
+
+        # Create new session with assumed role and auto-refresh
+        botocore_session = Session()
+        botocore_session._credentials = DeferredRefreshableCredentials(
+            method="assume-role",
+            refresh_using=fetcher.fetch_credentials,
+        )
+
+        return boto3.Session(botocore_session=botocore_session, region_name=region_name)
+
+    def send_sqs_message(queue_url: str, message_body: str, *, role_arn: str = None):
+        try:
+            # Create session from given iam role
+            session = get_aws_session(role_arn)
+
+            # Create an SQS client from the session
+            sqs = session.client("sqs")
+
+            # Send message to SQS queue
+            response = sqs.send_message(QueueUrl=queue_url, MessageBody=message_body)
+
+            _logger.debug(
+                f"Successfully sent the message {message_body} "
+                f"to sqs {queue_url} with MessageId {response['MessageId']}"
+            )
+        except Exception as err:
+            _logger.error(
+                f"Failed to send the message {message_body} to sqs {queue_url}"
+            )
+            _logger.error(err)
+            raise err
+
     notify_on_error = get_env("METAFLOW_NOTIFY_ON_ERROR")
     notify_on_success = get_env("METAFLOW_NOTIFY_ON_SUCCESS")
 
@@ -84,6 +143,24 @@ def exit_handler(
         email_notify(notify_on_success)
     else:
         print("No notification is necessary!")
+
+    # Send message to SQS if 'METAFLOW_SQS_URL_ON_ERROR' is set
+    metaflow_sqs_url_on_error = get_env("METAFLOW_SQS_URL_ON_ERROR")
+
+    if metaflow_sqs_url_on_error:
+        if status == "Failed":
+            message_body = sqs_message_json
+            metaflow_sqs_role_arn_on_error = get_env("METAFLOW_SQS_ROLE_ARN_ON_ERROR")
+            send_sqs_message(
+                metaflow_sqs_url_on_error,
+                message_body,
+                role_arn=metaflow_sqs_role_arn_on_error,
+            )
+            print(f"message was sent to: {metaflow_sqs_url_on_error} successfully")
+        else:
+            print("Workflow succeeded, thus no SQS message is sent to SQS!")
+    else:
+        print("SQS is not configured!")
 
 
 if __name__ == "__main__":
