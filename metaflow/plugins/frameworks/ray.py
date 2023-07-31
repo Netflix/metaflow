@@ -28,10 +28,11 @@ def setup_ray_distributed(master_port=None):
     """
     Manually set up Ray cluster
     """
+    import time
     # Choose port depending on run id to reduce probability of collisions, unless
     # provided by the user.
     subprocess.Popen(
-        [sys.executable, "-m", "pip", "install", "-U", "ray[air]"]
+        [sys.executable, "-m", "pip", "install", "-U", "ray[air]==2.5.0", "pydantic==1.10.12"]
     ).wait()
 
     try:
@@ -42,9 +43,14 @@ def setup_ray_distributed(master_port=None):
         master_port = 6379
 
     if current.parallel.node_index == 0:
-        subprocess.Popen(f"ray start --head --node-ip-address {current.parallel.main_ip} --port {master_port} --block", shell=True).wait()
+        print(f"The Master Node IP address is: {current.parallel.main_ip}")
+        subprocess.Popen(f"RAY_BACKEND_LOG_LEVEL=debug ray start --head --node-ip-address {current.parallel.main_ip} --port {master_port}", shell=True).wait()
     else:
         import ray
         node_ip_address = ray._private.services.get_node_ip_address()
-        subprocess.Popen(f"ray start --node-ip-address {node_ip_address} --address {current.parallel.main_ip}:{master_port} --block", shell=True).wait()
+        print(f"The Master Node IP address is: {current.parallel.main_ip}")
+        print(f"The Node IP address is: {node_ip_address}")
+        subprocess.Popen(f"RAY_BACKEND_LOG_LEVEL=debug ray start --node-ip-address {node_ip_address} --address {current.parallel.main_ip}:{master_port}", shell=True).wait()
+
+    time.sleep(5*int(current.parallel.num_nodes))
 
