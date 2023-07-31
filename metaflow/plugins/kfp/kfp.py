@@ -1336,7 +1336,7 @@ class KubeflowPipelines(object):
                 f" --flow_name {self.name}"
                 f" --kfp_run_id {dsl.RUN_ID_PLACEHOLDER}"
                 f" --notify_variables_json {json.dumps(json.dumps(notify_variables))}"
-                "  --sqs_message_json {{workflow.parameters.flow_parameters_json}}"
+                "  --sqs_message_json '{{workflow.parameters.flow_parameters_json}}'"
                 "  --status {{workflow.status}}"
             ),
         ]
