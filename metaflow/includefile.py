@@ -246,9 +246,6 @@ class IncludeFile(Parameter):
     ----------
     name : str
         User-visible parameter name.
-    default : str or a function
-        Default path to a local file. A function
-        implies that the parameter corresponds to a *deploy-time parameter*.
     is_text : bool, default: True
         Convert the file contents to a string using the provided `encoding`.
         If False, the artifact is stored in `bytes`.
@@ -259,8 +256,14 @@ class IncludeFile(Parameter):
         `required=True` implies that the `default` is not used.
     help : str, optional
         Help text to show in `run --help`.
-    show_default : bool, default: True
-        If True, show the default value in the help text.
+    
+    Other Parameters
+    ----------
+    **kwargs : dict
+        A dictory of other paramters to pass to the function. For example:
+        default : str or a function
+            Default path to a local file. A function
+            implies that the parameter corresponds to a *deploy-time parameter*.
     """
 
     def __init__(
