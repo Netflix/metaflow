@@ -11,13 +11,13 @@ _logger = logging.getLogger(__name__)
 @click.option("--status")
 @click.option("--run_id")
 @click.option("--notify_variables_json")
-@click.option("--sqs_message_json")
+@click.option("--flow_parameters_json")
 def exit_handler(
     flow_name: str,
     status: str,
     run_id: str,
     notify_variables_json: str,
-    sqs_message_json: str,
+    flow_parameters_json: str,
 ):
     """
     The environment variables that this depends on:
@@ -149,7 +149,7 @@ def exit_handler(
 
     if metaflow_sqs_url_on_error:
         if status == "Failed":
-            message_body = sqs_message_json
+            message_body = flow_parameters_json
             metaflow_sqs_role_arn_on_error = get_env("METAFLOW_SQS_ROLE_ARN_ON_ERROR")
             send_sqs_message(
                 metaflow_sqs_url_on_error,

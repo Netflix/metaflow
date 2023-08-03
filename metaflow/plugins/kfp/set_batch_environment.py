@@ -12,9 +12,11 @@ def cli():
 @cli.command()
 @click.option("--output_file")
 def parameters(output_file: str):
-    input = json.loads(os.environ.get("METAFLOW_PARAMETERS", "{}"))
+    metaflow_parameters = json.loads(os.environ.get("METAFLOW_PARAMETERS", "{}"))
+    # metaflow_parameters is of json form [{"name": "foo", "value": "bar"}, ...]
+    input_parameters = {param["name"]: param["value"] for param in metaflow_parameters}
     params = json.loads(os.environ.get("METAFLOW_DEFAULT_PARAMETERS", "{}"))
-    params.update(input)
+    params.update(input_parameters)
     with open(output_file, "w") as f:
         for k in params:
             # Replace `-` with `_` is parameter names since `-` isn't an

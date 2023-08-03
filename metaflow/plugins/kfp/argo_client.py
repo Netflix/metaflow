@@ -111,6 +111,82 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
+    def create_workflow_config_map(self, name: str, config_map: Dict[str, Any]):
+        client = self._client.get()
+        try:
+            return client.CoreV1Api().create_namespaced_config_map(
+                namespace=self._namespace,
+                body=config_map,
+            )
+        except client.rest.ApiException as e:
+            if e.status == 409:  # Conflict status code
+                try:
+                    return client.CoreV1Api().replace_namespaced_config_map(
+                        name=name, namespace=self._namespace, body=config_map
+                    )
+                except client.rest.ApiException as e:
+                    raise ArgoClientException(
+                        json.loads(e.body)["message"]
+                        if e.body is not None
+                        else e.reason
+                    )
+            else:
+                raise ArgoClientException(
+                    json.loads(e.body)["message"] if e.body is not None else e.reason
+                )
+
+    def create_cron_workflow(self, name: str, cron_workflow: Dict[str, Any]):
+        # Unfortunately, Kubernetes client does not handle optimistic
+        # concurrency control by itself unlike kubectl
+        client = self._client.get()
+        try:
+            cron_workflow["metadata"][
+                "resourceVersion"
+            ] = client.CustomObjectsApi().get_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="cronworkflows",
+                name=name,
+            )[
+                "metadata"
+            ][
+                "resourceVersion"
+            ]
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                try:
+                    return client.CustomObjectsApi().create_namespaced_custom_object(
+                        group=self._group,
+                        version=self._version,
+                        namespace=self._namespace,
+                        plural="cronworkflows",
+                        body=cron_workflow,
+                    )
+                except client.rest.ApiException as e:
+                    raise ArgoClientException(
+                        json.loads(e.body)["message"]
+                        if e.body is not None
+                        else e.reason
+                    )
+            else:
+                raise ArgoClientException(
+                    json.loads(e.body)["message"] if e.body is not None else e.reason
+                )
+        try:
+            return client.CustomObjectsApi().replace_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="cronworkflows",
+                body=cron_workflow,
+                name=name,
+            )
+        except client.rest.ApiException as e:
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+
     def trigger_workflow_template(self, name: str, parameters: Optional[Dict] = None):
         client = self._client.get()
         body = {
@@ -120,13 +196,10 @@ class ArgoClient(object):
             "spec": {
                 "workflowTemplateRef": {"name": name},
                 "arguments": {
-                    "parameters": [
-                        {
-                            "name": "flow_parameters_json",
-                            "value": json.dumps(parameters if parameters else {}),
-                        }
-                    ]
-                },
+                    "parameters": [dict(name=k, value=v) for k, v in parameters.items()]
+                }
+                if parameters
+                else None,
             },
         }
         try:

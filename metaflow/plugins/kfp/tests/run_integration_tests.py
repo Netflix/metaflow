@@ -303,7 +303,8 @@ def get_compiled_yaml(compile_to_yaml_cmd, yaml_file_path) -> Dict[str, str]:
 
     with open(f"{yaml_file_path}", "r") as stream:
         try:
-            flow_yaml: dict = yaml.safe_load(stream)
+            docs = yaml.load_all(stream, yaml.FullLoader)
+            flow_yaml: dict = list(docs)[0]
         except yaml.YAMLError as exc:
             print(exc)
 

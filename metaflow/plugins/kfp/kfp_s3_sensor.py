@@ -70,7 +70,9 @@ def wait_for_s3_path(
     flow_parameters_json: str,
     os_expandvars: bool,
 ) -> str:
-    flow_parameters: Dict[str, str] = json.loads(flow_parameters_json)
+    flow_parameters: Dict[str, str] = {
+        param["name"]: param["value"] for param in json.loads(flow_parameters_json)
+    }
 
     if path_formatter_code_encoded:
         # path_formatter_code is of type `code object`,

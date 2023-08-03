@@ -31,7 +31,7 @@ def _step_cli(
     step_name: str,
     task_id: str,
     run_id: str,
-    user_namespace: str,
+    namespace: str,
     tags: List[str],
     sys_tags: List[str],
     is_split_index: bool,
@@ -156,8 +156,8 @@ def _step_cli(
 
     step.extend(tags_extended)
 
-    if user_namespace:
-        step.append("--user-namespace %s" % user_namespace)
+    if namespace:
+        step.append("--namespace %s" % namespace)
 
     cmds.append(" ".join(entrypoint + top_level + step))
     step_cli_string = " && ".join(cmds)
@@ -232,7 +232,7 @@ def _command(
 @click.option("--metaflow_configs_json")
 @click.option("--metaflow_run_id")
 @click.option("--monitor")
-@click.option("--user-namespace", required=False, default="")
+@click.option("--namespace", required=False, default="")
 @click.option("--is_split_index/--no-need_split_index", default=False)
 @click.option("--passed_in_split_indexes")
 @click.option("--preceding_component_inputs_json")
@@ -256,7 +256,7 @@ def kfp_metaflow_step(
     metaflow_configs_json: str,
     metaflow_run_id: str,
     monitor: str,
-    user_namespace: str,
+    namespace: str,
     is_split_index: bool,
     passed_in_split_indexes: str,  # only if is_inside_foreach
     preceding_component_inputs_json: str,  # fields to return from Flow state to KFP
@@ -291,7 +291,7 @@ def kfp_metaflow_step(
         step_name,
         task_id,
         metaflow_run_id,
-        user_namespace,
+        namespace,
         tags,
         sys_tags,
         is_split_index,
