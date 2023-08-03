@@ -259,11 +259,9 @@ class IncludeFile(Parameter):
     
     Other Parameters
     ----------
-    **kwargs : dict
-        A dictory of other paramters to pass to the function. For example:
-        default : str or a function
-            Default path to a local file. A function
-            implies that the parameter corresponds to a *deploy-time parameter*.
+    default(str) : str or a function
+        Default path to a local file. A function
+        implies that the parameter corresponds to a *deploy-time parameter*.
     """
 
     def __init__(
