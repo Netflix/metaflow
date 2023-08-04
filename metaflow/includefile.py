@@ -256,7 +256,7 @@ class IncludeFile(Parameter):
         `required=True` implies that the `default` is not used.
     help : str, optional
         Help text to show in `run --help`.
-    
+
     Other Parameters
     ----------
     default(str) : str or a function
