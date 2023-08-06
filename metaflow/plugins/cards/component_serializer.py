@@ -3,8 +3,13 @@ from .card_modules.basic import ErrorComponent, SectionComponent
 from .card_modules.components import UserComponent
 import uuid
 import json
+import time
 
 _TYPE = type
+
+# TODO move these to config
+RUNTIME_CARD_MIN_REFRESH_INTERVAL = 5
+RUNTIME_CARD_RENDER_INTERVAL = 60
 
 
 def get_card_class(card_type):
@@ -19,6 +24,51 @@ def get_card_class(card_type):
 class WarningComponent(ErrorComponent):
     def __init__(self, warning_message):
         super().__init__("@card WARNING", warning_message)
+
+
+class CardComponents:
+    def __init__(self, card_proc, components=None):
+        self._card_proc = card_proc
+        self._latest_user_data = None
+        self._last_refresh = 0
+        self._last_render = 0
+
+        if components is None:
+            self._components = []
+        else:
+            self._components = list(components)
+
+    def append(self, component):
+        self._components.append(component)
+
+    def extend(self, components):
+        self._components.extend(components)
+
+    def clear(self):
+        self._components.clear()
+
+    def refresh(self, data=None, force=False):
+        # todo make this a configurable variable
+        self._latest_user_data = data
+        nu = time.time()
+        if nu - self._last_refresh < RUNTIME_CARD_MIN_REFRESH_INTERVAL:
+            # rate limit refreshes: silently ignore requests that
+            # happen too frequently
+            return
+        self._last_refresh = nu
+        # FIXME force render if components have changed
+        if force or nu - self._last_render > RUNTIME_CARD_RENDER_INTERVAL:
+            self._card_proc("render_runtime")
+            self._last_render = nu
+        else:
+            self._card_proc("refresh")
+
+    def _get_latest_data(self):
+        # FIXME add component data
+        return {"user": self._latest_user_data, "components": []}
+
+    def __iter__(self):
+        return iter(self._components)
 
 
 class CardComponentCollector:
@@ -42,17 +92,18 @@ class CardComponentCollector:
         - [x] by looking it up by its type, e.g. `current.card.get(type='pytorch')`.
     """
 
-    def __init__(self, logger=None):
+    def __init__(self, logger=None, card_proc=None):
         from metaflow.metaflow_config import CARD_NO_WARNING
 
         self._cards_components = (
             {}
-        )  # a dict with key as uuid and value as a list of MetaflowCardComponent.
+        )  # a dict with key as uuid and value as CardComponents, holding a list of MetaflowCardComponents.
         self._cards_meta = (
             {}
         )  # a `dict` of (card_uuid, `dict)` holding all metadata about all @card decorators on the `current` @step.
         self._card_id_map = {}  # card_id to uuid map for all cards with ids
         self._logger = logger
+        self._card_proc = card_proc
         # `self._default_editable_card` holds the uuid of the card that is default editable. This card has access to `append`/`extend` methods of `self`
         self._default_editable_card = None
         self._warned_once = {"__getitem__": {}, "append": False, "extend": False}
@@ -60,7 +111,7 @@ class CardComponentCollector:
 
     @staticmethod
     def create_uuid():
-        return str(uuid.uuid4())
+        return str(uuid.uuid4()).replace("-", "")
 
     def _log(self, *args, **kwargs):
         if self._logger:
@@ -97,7 +148,7 @@ class CardComponentCollector:
             suppress_warnings=suppress_warnings,
         )
         self._cards_meta[card_uuid] = card_metadata
-        self._cards_components[card_uuid] = []
+        self._cards_components[card_uuid] = CardComponents(self._card_proc)
         return card_metadata
 
     def _warning(self, message):
@@ -229,7 +280,7 @@ class CardComponentCollector:
 
         Returns
         -------
-        CardComponentCollector
+        CardComponents
             An object with `append` and `extend` calls which allow you to
             add components to the chosen card.
         """
@@ -275,7 +326,7 @@ class CardComponentCollector:
                 )
                 self._warning(_warning_msg)
                 return
-            self._cards_components[card_uuid] = value
+            self._cards_components[card_uuid] = CardComponents(self._card_proc, value)
             return
 
         self._warning(
@@ -358,6 +409,20 @@ class CardComponentCollector:
             return
 
         self._cards_components[self._default_editable_card].extend(components)
+
+    def clear(self):
+        if self._default_editable_card is not None:
+            self._cards_components[self._default_editable_card].clear()
+
+    def refresh(self, *args, **kwargs):
+        if self._default_editable_card is not None:
+            self._cards_components[self._default_editable_card].refresh(*args, **kwargs)
+
+    def _get_latest_data(self, card_uuid):
+        """
+        Returns latest data so it can be used in the final render() call
+        """
+        return self._cards_components[card_uuid]._get_latest_data()
 
     def _serialize_components(self, card_uuid):
         """

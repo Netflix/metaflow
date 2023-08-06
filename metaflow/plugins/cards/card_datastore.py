@@ -6,6 +6,7 @@ from collections import namedtuple
 from hashlib import sha1
 from io import BytesIO
 import os
+import json
 import shutil
 
 from metaflow.plugins.datastores.local_storage import LocalStorage
@@ -88,15 +89,15 @@ class CardDatastore(object):
         self._temp_card_save_path = self._get_write_path(base_pth=TEMP_DIR_NAME)
 
     @classmethod
-    def get_card_location(cls, base_path, card_name, card_html, card_id=None):
-        chash = sha1(bytes(card_html, "utf-8")).hexdigest()
+    def get_card_location(cls, base_path, card_name, uuid, card_id=None, suffix="html"):
+        chash = uuid
         if card_id is None:
-            card_file_name = "%s-%s.html" % (card_name, chash)
+            card_file_name = "%s-%s.%s" % (card_name, chash, suffix)
         else:
-            card_file_name = "%s-%s-%s.html" % (card_name, card_id, chash)
+            card_file_name = "%s-%s-%s.%s" % (card_name, card_id, chash, suffix)
         return os.path.join(base_path, card_file_name)
 
-    def _make_path(self, base_pth, pathspec=None, with_steps=False):
+    def _make_path(self, base_pth, pathspec=None, with_steps=False, suffix="cards"):
         sysroot = base_pth
         if pathspec is not None:
             # since most cards are at a task level there will always be 4 non-none values returned
@@ -121,7 +122,7 @@ class CardDatastore(object):
                 step_name,
                 "tasks",
                 task_id,
-                "cards",
+                suffix,
             ]
         else:
             pth_arr = [
@@ -131,14 +132,16 @@ class CardDatastore(object):
                 run_id,
                 "tasks",
                 task_id,
-                "cards",
+                suffix,
             ]
         if sysroot == "" or sysroot is None:
             pth_arr.pop(0)
         return os.path.join(*pth_arr)
 
-    def _get_write_path(self, base_pth=""):
-        return self._make_path(base_pth, pathspec=self._pathspec, with_steps=True)
+    def _get_write_path(self, base_pth="", suffix="cards"):
+        return self._make_path(
+            base_pth, pathspec=self._pathspec, with_steps=True, suffix=suffix
+        )
 
     def _get_read_path(self, base_pth="", with_steps=False):
         return self._make_path(base_pth, pathspec=self._pathspec, with_steps=with_steps)
@@ -173,7 +176,20 @@ class CardDatastore(object):
         card_hash = card_hash.split(".html")[0]
         return CardInfo(card_type, card_hash, card_id, card_file_name)
 
-    def save_card(self, card_type, card_html, card_id=None, overwrite=True):
+    def save_data(self, uuid, card_type, json_data, card_id=None):
+        card_file_name = card_type
+        loc = self.get_card_location(
+            self._get_write_path(suffix="runtime"),
+            card_file_name,
+            uuid,
+            card_id=card_id,
+            suffix="data.json",
+        )
+        self._backend.save_bytes(
+            [(loc, BytesIO(json.dumps(json_data).encode("utf-8")))], overwrite=True
+        )
+
+    def save_card(self, uuid, card_type, card_html, card_id=None, overwrite=True):
         card_file_name = card_type
         # TEMPORARY_WORKAROUND: FIXME (LATER) : Fix the duplication of below block in a few months.
         # Check file blame to understand the age of this temporary workaround.
@@ -193,7 +209,7 @@ class CardDatastore(object):
         # It will also easily end up breaking the metaflow-ui (which maybe using a client from an older version).
         # Hence, we are writing cards to both paths so that we can introduce breaking changes later in the future.
         card_path_with_steps = self.get_card_location(
-            self._get_write_path(), card_file_name, card_html, card_id=card_id
+            self._get_write_path(), card_file_name, uuid, card_id=card_id
         )
         if SKIP_CARD_DUALWRITE:
             self._backend.save_bytes(
@@ -204,7 +220,7 @@ class CardDatastore(object):
             card_path_without_steps = self.get_card_location(
                 self._get_read_path(with_steps=False),
                 card_file_name,
-                card_html,
+                uuid,
                 card_id=card_id,
             )
             for cp in [card_path_with_steps, card_path_without_steps]:
