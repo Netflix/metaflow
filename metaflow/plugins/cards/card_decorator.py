@@ -131,6 +131,8 @@ class CardDecorator(StepDecorator):
     ):
         card_type = self.attributes["type"]
         card_class = get_card_class(card_type)
+
+        self._is_runtime_card = False
         if card_class is not None:  # Card type was not found
             if card_class.ALLOW_USER_COMPONENTS:
                 self._is_editable = True
@@ -189,11 +191,11 @@ class CardDecorator(StepDecorator):
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries
     ):
-        if not is_task_ok:
-            return
-        return self._card_proc("render")
+        if is_task_ok:
+            self._card_proc("render")
+            self._card_proc("refresh", final=True)
 
-    def _card_proc(self, mode):
+    def _card_proc(self, mode, final=False):
         if mode != "render" and not self._is_runtime_card:
             # silently ignore runtime updates for cards that don't support them
             return
@@ -204,7 +206,7 @@ class CardDecorator(StepDecorator):
         else:
             component_strings = current.card._serialize_components(self._card_uuid)
 
-        data = current.card._get_latest_data(self._card_uuid)
+        data = current.card._get_latest_data(self._card_uuid, final=final)
         runspec = "/".join([current.run_id, current.step_name, current.task_id])
         self._run_cards_subprocess(mode, runspec, component_strings, data)
 
@@ -245,7 +247,7 @@ class CardDecorator(StepDecorator):
                 "w", suffix=".json", delete=False
             )
             json.dump(component_strings, components_file)
-            compotents_file.seek(0)
+            components_file.seek(0)
         if data is not None:
             data_file = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
             json.dump(data, data_file)
@@ -329,7 +331,7 @@ class CardDecorator(StepDecorator):
                     # and timeout hasn't been reached
                     return "", False
             else:
-                #print("CARD CMD", " ".join(cmd))
+                # print("CARD CMD", " ".join(cmd))
                 self._async_proc = subprocess.Popen(
                     cmd, env=env, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL
                 )

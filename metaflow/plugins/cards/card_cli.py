@@ -378,13 +378,38 @@ def card_read_options_and_arguments(func):
 
 
 def update_card(mf_card, mode, task, data, timeout_value=None):
+    def _reload_token():
+        if data["render_seq"] == "final":
+            # final data update should always trigger a card reload to show
+            # the final card, hence a different token for the final update
+            return "final"
+        elif mf_card.RELOAD_POLICY == mf_card.RELOAD_POLICY_ALWAYS:
+            return "render-seq-%s" % data["render_seq"]
+        elif mf_card.RELOAD_POLICY == mf_card.RELOAD_POLICY_NEVER:
+            return "never"
+        elif mf_card.RELOAD_POLICY == mf_card.RELOAD_POLICY_ONCHANGE:
+            return mf_card.reload_content_token(task, data)
+
+    def _add_token_html(html):
+        if html is not None:
+            return html.replace(mf_card.RELOAD_POLICY_TOKEN, _reload_token())
+
+    def _add_token_json(json_msg):
+        if json_msg is not None:
+            return {"reload_token": _reload_token(), "data": json_msg}
+
     def _call():
         # compatibility with old render()-method that doesn't accept the data arg
         new_render = "data" in inspect.getfullargspec(mf_card.render).args
-        if mode == "render" and not new_render:
-            return mf_card.render(task)
-        else:
-            return getattr(mf_card, mode)(task, data=data)
+        if mode == "render":
+            if new_render:
+                return _add_token_html(mf_card.render(task, data))
+            else:
+                return _add_token_html(mf_card.render(task))
+        elif mode == "render_runtime":
+            return _add_token_html(mf_card.render_runtime(task, data))
+        elif mode == "refresh":
+            return _add_token_json(mf_card.refresh(task, data))
 
     if timeout_value is None or timeout_value < 0:
         return _call()
