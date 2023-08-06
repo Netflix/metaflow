@@ -44,11 +44,11 @@ def setup_ray_distributed(master_port=None):
 
     if current.parallel.node_index == 0:
         print(f"The Master Node IP address is: {current.parallel.main_ip}")
-        subprocess.Popen(f"RAY_BACKEND_LOG_LEVEL=debug ray start --head --node-ip-address {current.parallel.main_ip} --port {master_port}", shell=True).wait()
+        subprocess.Popen(f"ray start --head --node-ip-address {current.parallel.main_ip} --port {master_port}", shell=True).wait()
     else:
         import ray
         node_ip_address = ray._private.services.get_node_ip_address()
         print(f"The Master Node IP address is: {current.parallel.main_ip}")
         print(f"The Node IP address is: {node_ip_address}")
-        subprocess.Popen(f"RAY_BACKEND_LOG_LEVEL=debug ray start --node-ip-address {node_ip_address} --address {current.parallel.main_ip}:{master_port}", shell=True).wait()
+        subprocess.Popen(f"ray start --node-ip-address {node_ip_address} --address {current.parallel.main_ip}:{master_port}", shell=True).wait()
 
