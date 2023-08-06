@@ -52,5 +52,3 @@ def setup_ray_distributed(master_port=None):
         print(f"The Node IP address is: {node_ip_address}")
         subprocess.Popen(f"RAY_BACKEND_LOG_LEVEL=debug ray start --node-ip-address {node_ip_address} --address {current.parallel.main_ip}:{master_port}", shell=True).wait()
 
-    time.sleep(5*int(current.parallel.num_nodes))
-
