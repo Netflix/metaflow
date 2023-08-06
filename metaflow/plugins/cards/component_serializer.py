@@ -32,6 +32,7 @@ class CardComponents:
         self._latest_user_data = None
         self._last_refresh = 0
         self._last_render = 0
+        self._render_seq = 0
 
         if components is None:
             self._components = []
@@ -58,14 +59,16 @@ class CardComponents:
         self._last_refresh = nu
         # FIXME force render if components have changed
         if force or nu - self._last_render > RUNTIME_CARD_RENDER_INTERVAL:
-            self._card_proc("render_runtime")
+            self._render_seq += 1
             self._last_render = nu
+            self._card_proc("render_runtime")
         else:
             self._card_proc("refresh")
 
-    def _get_latest_data(self):
+    def _get_latest_data(self, final=False):
         # FIXME add component data
-        return {"user": self._latest_user_data, "components": []}
+        seq = 'final' if final else self._render_seq
+        return {"user": self._latest_user_data, "components": [], "render_seq": seq}
 
     def __iter__(self):
         return iter(self._components)
@@ -418,11 +421,11 @@ class CardComponentCollector:
         if self._default_editable_card is not None:
             self._cards_components[self._default_editable_card].refresh(*args, **kwargs)
 
-    def _get_latest_data(self, card_uuid):
+    def _get_latest_data(self, card_uuid, final=False):
         """
         Returns latest data so it can be used in the final render() call
         """
-        return self._cards_components[card_uuid]._get_latest_data()
+        return self._cards_components[card_uuid]._get_latest_data(final=final)
 
     def _serialize_components(self, card_uuid):
         """
