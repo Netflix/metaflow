@@ -6,7 +6,9 @@ import re
 from metaflow._vendor import click
 import os
 import json
+import uuid
 import signal
+import inspect
 import random
 from contextlib import contextmanager
 from functools import wraps
@@ -375,14 +377,20 @@ def card_read_options_and_arguments(func):
     return wrapper
 
 
-def render_card(mf_card, task, timeout_value=None):
-    rendered_info = None
+def update_card(mf_card, mode, task, data, timeout_value=None):
+    def _call():
+        # compatibility with old render()-method that doesn't accept the data arg
+        new_render = "data" in inspect.getfullargspec(mf_card.render).args
+        if mode == "render" and not new_render:
+            return mf_card.render(task)
+        else:
+            return getattr(mf_card, mode)(task, data=data)
+
     if timeout_value is None or timeout_value < 0:
-        rendered_info = mf_card.render(task)
+        return _call()
     else:
         with timeout(timeout_value):
-            rendered_info = mf_card.render(task)
-    return rendered_info
+            return _call()
 
 
 @card.command(help="create a HTML card")
@@ -415,28 +423,60 @@ def render_card(mf_card, task, timeout_value=None):
     help="Upon failing to render a card, render a card holding the stack trace",
 )
 @click.option(
-    "--component-file",
-    default=None,
-    show_default=True,
-    type=str,
-    help="JSON File with Pre-rendered components.(internal)",
-)
-@click.option(
     "--id",
     default=None,
     show_default=True,
     type=str,
     help="ID of the card",
 )
+@click.option(
+    "--component-file",
+    default=None,
+    show_default=True,
+    type=str,
+    help="JSON File with Pre-rendered components. (internal)",
+)
+@click.option(
+    "--mode",
+    default="render",
+    show_default=True,
+    type=str,
+    help="Rendering mode. (internal)",
+)
+@click.option(
+    "--data-file",
+    default=None,
+    show_default=True,
+    type=str,
+    help="JSON file containing data to be updated. (internal)",
+)
+@click.option(
+    "--card-uuid",
+    default=None,
+    show_default=True,
+    type=str,
+    help="Card UUID. (internal)",
+)
+@click.option(
+    "--delete-input-files",
+    default=False,
+    is_flag=True,
+    show_default=True,
+    help="Delete data-file and compontent-file after reading. (internal)",
+)
 @click.pass_context
 def create(
     ctx,
     pathspec,
+    mode=None,
     type=None,
     options=None,
     timeout=None,
     component_file=None,
+    data_file=None,
     render_error_card=False,
+    card_uuid=None,
+    delete_input_files=None,
     id=None,
 ):
     card_id = id
@@ -452,11 +492,26 @@ def create(
 
     graph_dict, _ = ctx.obj.graph.output_steps()
 
+    if card_uuid is None:
+        card_uuid = str(uuid.uuid4()).replace("-", "")
+
     # Components are rendered in a Step and added via `current.card.append` are added here.
     component_arr = []
     if component_file is not None:
         with open(component_file, "r") as f:
             component_arr = json.load(f)
+        # data is passed in as temporary files which can be deleted after use
+        if delete_input_files:
+            os.remove(component_file)
+
+    # Load data to be refreshed for runtime cards
+    data = {}
+    if data_file is not None:
+        with open(data_file, "r") as f:
+            data = json.load(f)
+        # data is passed in as temporary files which can be deleted after use
+        if delete_input_files:
+            os.remove(data_file)
 
     task = Task(full_pathspec)
     from metaflow.plugins import CARDS
@@ -500,7 +555,9 @@ def create(
 
         if mf_card:
             try:
-                rendered_info = render_card(mf_card, task, timeout_value=timeout)
+                rendered_info = update_card(
+                    mf_card, mode, task, data, timeout_value=timeout
+                )
             except:
                 if render_error_card:
                     error_stack_trace = str(UnrenderableCardException(type, options))
@@ -508,10 +565,10 @@ def create(
                     raise UnrenderableCardException(type, options)
         #
 
-    if error_stack_trace is not None:
+    if error_stack_trace is not None and mode != "refresh":
         rendered_info = error_card().render(task, stack_trace=error_stack_trace)
 
-    if rendered_info is None and render_error_card:
+    if rendered_info is None and render_error_card and mode != "refresh":
         rendered_info = error_card().render(
             task, stack_trace="No information rendered From card of type %s" % type
         )
@@ -532,12 +589,20 @@ def create(
         card_id = None
 
     if rendered_info is not None:
-        card_info = card_datastore.save_card(save_type, rendered_info, card_id=card_id)
-        ctx.obj.echo(
-            "Card created with type: %s and hash: %s"
-            % (card_info.type, card_info.hash[:NUM_SHORT_HASH_CHARS]),
-            fg="green",
-        )
+        if mode == "refresh":
+            card_datastore.save_data(
+                card_uuid, save_type, rendered_info, card_id=card_id
+            )
+            ctx.obj.echo("Data updated", fg="green")
+        else:
+            card_info = card_datastore.save_card(
+                card_uuid, save_type, rendered_info, card_id=card_id
+            )
+            ctx.obj.echo(
+                "Card created with type: %s and hash: %s"
+                % (card_info.type, card_info.hash[:NUM_SHORT_HASH_CHARS]),
+                fg="green",
+            )
 
 
 @card.command()
@@ -655,7 +720,6 @@ def list(
     as_json=False,
     file=None,
 ):
-
     card_id = id
     if pathspec is None:
         list_many_cards(

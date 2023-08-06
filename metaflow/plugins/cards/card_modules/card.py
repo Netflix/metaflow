@@ -35,6 +35,7 @@ class MetaflowCard(object):
     type = None
 
     ALLOW_USER_COMPONENTS = False
+    IS_RUNTIME_CARD = False
 
     scope = "task"  # can be task | run
 
@@ -49,7 +50,8 @@ class MetaflowCard(object):
         except ImportError:
             return None
 
-    def render(self, task) -> str:
+    # FIXME document data
+    def render(self, task, data=None) -> str:
         """
         Produce custom card contents in HTML.
 
@@ -67,6 +69,14 @@ class MetaflowCard(object):
             Card contents as an HTML string.
         """
         return NotImplementedError()
+
+    # FIXME document
+    def render_runtime(self, task, data):
+        return
+
+    # FIXME document
+    def refresh(self, task, data):
+        return
 
 
 class MetaflowCardComponent(object):
