@@ -33,4 +33,10 @@ class ResourcesDecorator(StepDecorator):
     """
 
     name = "resources"
-    defaults = {"cpu": "1", "gpu": "0", "memory": "4096", "shared_memory": None}
+    defaults = {
+        "cpu": "1",
+        "gpu": "0",
+        "memory": "4096",
+        "shared_memory": None,
+        "disk": "10240",
+    }
