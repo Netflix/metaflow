@@ -311,6 +311,24 @@ class BatchJob(object):
                 }
             ]
 
+        if efa:
+            if not (isinstance(efa, bool)):
+                raise BatchJobException(
+                    "Invalid efa value: ({}) (should be True or False)".format(
+                        efa
+                    )
+                )
+            else:
+                job_definition["containerProperties"]["linuxParameters"]["devices"] = [
+                    {
+                        "hostPath": "/dev/infiniband/uverbs0",
+                        "containerPath": "/dev/infiniband/uverbs0",
+                        "permissions": [
+                            "READ", "WRITE", "MKNOD"
+                        ]
+                    }
+                ]
+
         self.num_parallel = num_parallel or 0
         if self.num_parallel >= 1:
             job_definition["type"] = "multinode"
@@ -333,24 +351,6 @@ class BatchJob(object):
                         "container": job_definition["containerProperties"],
                     }
                 )
-
-            if efa:
-                if not (isinstance(efa, bool)):
-                    raise BatchJobException(
-                        "Invalid efa value: ({}) (should be True or False)".format(
-                            efa
-                        )
-                    )
-                else:
-                    job_definition["nodeProperties"]["nodeRangeProperties"]["container"]["linuxParameters"] = [
-                        {
-                            "hostPath": "/dev/infiniband/uverbs0",
-                            "containerPath": "/dev/infiniband/uverbs0",
-                            "permissions": [
-                                "READ", "WRITE", "MKNOD"
-                            ]
-                        }
-                    ]
 
             del job_definition["containerProperties"]  # not used for multi-node
 
