@@ -149,6 +149,7 @@ class BatchJob(object):
         max_swap,
         swappiness,
         inferentia,
+        efa,
         memory,
         host_volumes,
         use_tmpfs,
@@ -332,6 +333,26 @@ class BatchJob(object):
                         "container": job_definition["containerProperties"],
                     }
                 )
+
+                if efa:
+                    if not (isinstance(efa, bool)):
+                        raise BatchJobException(
+                            "Invalid efa value: ({}) (should be True or False)".format(
+                                efa
+                            )
+                        )
+                    else:
+                        job_definition["nodeProperties"]["nodeRangeProperties"]["container"]["linuxParameters"] = []
+                        job_definition["nodeProperties"]["nodeRangeProperties"]["container"]["linuxParameters"].append(
+                            {
+                                "hostPath": "/dev/infiniband/uverbs0",
+                                "containerPath": "/dev/infiniband/uverbs0",
+                                "permissions": [
+                                    "READ", "WRITE", "MKNOD"
+                                ]
+                            }
+                        )
+
             del job_definition["containerProperties"]  # not used for multi-node
 
         # check if job definition already exists
@@ -371,6 +392,7 @@ class BatchJob(object):
         max_swap,
         swappiness,
         inferentia,
+        efa,
         memory,
         host_volumes,
         use_tmpfs,
@@ -388,6 +410,7 @@ class BatchJob(object):
             max_swap,
             swappiness,
             inferentia,
+            efa,
             memory,
             host_volumes,
             use_tmpfs,
@@ -436,6 +459,10 @@ class BatchJob(object):
 
     def inferentia(self, inferentia):
         self._inferentia = inferentia
+        return self
+
+    def efa(self, efa):
+        self._efa = efa
         return self
 
     def command(self, command):
