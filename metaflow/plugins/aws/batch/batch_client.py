@@ -342,8 +342,7 @@ class BatchJob(object):
                         )
                     )
                 else:
-                    job_definition["nodeProperties"]["nodeRangeProperties"]["container"]["linuxParameters"] = []
-                    job_definition["nodeProperties"]["nodeRangeProperties"]["container"]["linuxParameters"].append(
+                    job_definition["nodeProperties"]["nodeRangeProperties"]["container"]["linuxParameters"] = [
                         {
                             "hostPath": "/dev/infiniband/uverbs0",
                             "containerPath": "/dev/infiniband/uverbs0",
@@ -351,7 +350,7 @@ class BatchJob(object):
                                 "READ", "WRITE", "MKNOD"
                             ]
                         }
-                    )
+                    ]
 
             del job_definition["containerProperties"]  # not used for multi-node
 
