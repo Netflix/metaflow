@@ -192,8 +192,7 @@ def step(
     if R.use_r():
         entrypoint = R.entrypoint()
     else:
-        if executable is None:
-            executable = ctx.obj.environment.executable(step_name)
+        executable = ctx.obj.environment.executable(step_name, executable)
         entrypoint = "%s -u %s" % (executable, os.path.basename(sys.argv[0]))
 
     top_args = " ".join(util.dict_to_cli_options(ctx.parent.parent.params))
