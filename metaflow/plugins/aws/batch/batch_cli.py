@@ -141,7 +141,13 @@ def kill(ctx, run_id, user, my_runs):
 @click.option("--max-swap", help="Max Swap requirement for AWS Batch.")
 @click.option("--swappiness", help="Swappiness requirement for AWS Batch.")
 @click.option("--inferentia", help="Inferentia requirement for AWS Batch.")
-@click.option("--efa", is_flag=True, help="Activate Elastic Fabric Adapter. EFA driver must be installed and Instance Type compatible with EFA")
+@click.option(
+    "--efa",
+    default=0,
+    type=int,
+    help="Activate designated number of elastic fabric adapter devices. "
+         "EFA driver must be installed and instance type compatible with EFA"
+)
 @click.option("--use-tmpfs", is_flag=True, help="tmpfs requirement for AWS Batch.")
 @click.option("--tmpfs-tempdir", is_flag=True, help="tmpfs requirement for AWS Batch.")
 @click.option("--tmpfs-size", help="tmpfs requirement for AWS Batch.")

@@ -312,22 +312,22 @@ class BatchJob(object):
             ]
 
         if efa:
-            if not (isinstance(efa, bool)):
+            if not (isinstance(efa, (int, unicode, basestring))):
                 raise BatchJobException(
-                    "Invalid efa value: ({}) (should be True or False)".format(
+                    "Invalid efa value: ({}) (should be 0 or greater)".format(
                         efa
                     )
                 )
             else:
-                job_definition["containerProperties"]["linuxParameters"]["devices"] = [
-                    {
-                        "hostPath": "/dev/infiniband/uverbs0",
-                        "containerPath": "/dev/infiniband/uverbs0",
-                        "permissions": [
-                            "READ", "WRITE", "MKNOD"
-                        ]
-                    }
-                ]
+                job_definition["containerProperties"]["linuxParameters"]["devices"] = []
+                for i in range(int(efa)):
+                    job_definition["containerProperties"]["linuxParameters"]["devices"] = [
+                        {
+                            "hostPath": "/dev/infiniband/uverbs{}".format(i),
+                            "containerPath": "/dev/infiniband/uverbs{}".format(i),
+                            "permissions": ["READ", "WRITE", "MKNOD"]
+                        }
+                    ]
 
         self.num_parallel = num_parallel or 0
         if self.num_parallel >= 1:
