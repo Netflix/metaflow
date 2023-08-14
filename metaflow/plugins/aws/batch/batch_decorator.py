@@ -83,7 +83,7 @@ class BatchDecorator(StepDecorator):
         Path to tmpfs mount for this step. Defaults to /metaflow_temp.
     inferentia : int, default: 0
         Number of Inferentia chips required for this step.
-    efa: bool, default: 0
+    efa: int, default: 0
         Number of elastic fabric adapter network devices to attach to container
     """
 
