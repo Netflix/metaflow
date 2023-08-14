@@ -18,9 +18,10 @@ class RayParallelDecorator(ParallelDecorator):
     IS_PARALLEL = True
 
     def _mapper_heartbeat(self, graph_info):
-        print('HEARTBEAT')
-        from metaflow import Task # avoid circular import
+        print("HEARTBEAT")
+        from metaflow import Task  # avoid circular import
         from metaflow.plugins.parallel_decorator import identify_control_task_pathspec
+
         control_task_pathspec = identify_control_task_pathspec(graph_info, current)
         while not Task(control_task_pathspec).finished:
             time.sleep(10)
@@ -34,12 +35,12 @@ class RayParallelDecorator(ParallelDecorator):
                 step_func, flow, graph, retry_count, max_user_code_retries, ubf_context
             )
         else:
-            print('MAPPER')
+            print("MAPPER")
             # doesn't do @pip
             return partial(self._mapper_heartbeat, graph_info=flow._graph_info)
 
     def setup_distributed_env(self, flow):
-        ray_cli_path = sys.executable.replace('python', 'ray')
+        ray_cli_path = sys.executable.replace("python", "ray")
         print("RAY PATH: ", ray_cli_path)
         setup_ray_distributed(self.attributes["main_port"], ray_cli_path)
 
@@ -54,14 +55,36 @@ def setup_ray_distributed(main_port=None, ray_cli_path=None):
         main_port = 6379
 
     main_ip = current.parallel.main_ip
-    print('MAIN IP', main_ip)
+    print("MAIN IP", main_ip)
 
     if current.parallel.node_index == 0:
         print(f"main: The main Node IP address is: {main_ip}")
-        subprocess.run([ray_cli_path, "start", "--head", "--node-ip-address", main_ip, "--port", main_port], check=True)
+        subprocess.run(
+            [
+                ray_cli_path,
+                "start",
+                "--head",
+                "--node-ip-address",
+                main_ip,
+                "--port",
+                main_port,
+            ],
+            check=True,
+        )
     else:
-        import ray # put here, so ray import is only imported after environment exists in the task container
+        import ray  # put here, so ray import is only imported after environment exists in the task container
+
         node_ip_address = ray._private.services.get_node_ip_address()
         print(f"MAPPER: The main Node IP address is: {main_ip}")
         print(f"MAPPER: The Node IP address is: {node_ip_address}")
-        subprocess.run([ray_cli_path, "start", "--node-ip-address", node_ip_address, "--address", f"{main_ip}:{main_port}"], check=True)
+        subprocess.run(
+            [
+                ray_cli_path,
+                "start",
+                "--node-ip-address",
+                node_ip_address,
+                "--address",
+                f"{main_ip}:{main_port}",
+            ],
+            check=True,
+        )
