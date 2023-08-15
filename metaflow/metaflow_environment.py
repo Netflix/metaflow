@@ -119,24 +119,29 @@ class MetaflowEnvironment(object):
             )
 
     def _get_install_dependencies_cmd(self, datastore_type):
-        cmds = ["%s -m pip install requests -qqq" % self._python()]
+        dependencies = ""
         if datastore_type == "s3":
-            cmds.append("%s -m pip install awscli boto3 -qqq" % self._python())
+            dependencies = "awscli boto3"
         elif datastore_type == "azure":
-            cmds.append(
-                "%s -m pip install azure-identity azure-storage-blob simple-azure-blob-downloader -qqq"
-                % self._python()
+            dependencies = (
+                "azure-identity azure-storage-blob simple-azure-blob-downloader"
             )
         elif datastore_type == "gs":
-            cmds.append(
-                "%s -m pip install google-cloud-storage google-auth simple-gcp-object-downloader -qqq"
-                % self._python()
+            dependencies = (
+                "google-cloud-storage google-auth simple-gcp-object-downloader"
             )
         else:
             raise NotImplementedError(
                 "We don't know how to generate an install dependencies cmd for datastore %s"
                 % datastore_type
             )
+        cmds = [
+            # freezing environment packages is necessary so they (or their dependencies)
+            # do not get upgraded by installing packages required by bootstrapping
+            "%s -m pip freeze > environment_requirements.txt" % self._python(),
+            "%s -m pip install -r environment_requirements.txt requests %s -qqq"
+            % (self._python(), dependencies),
+        ]
         return " && ".join(cmds)
 
     def get_package_commands(self, code_package_url, datastore_type):
