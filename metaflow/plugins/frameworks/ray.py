@@ -67,7 +67,7 @@ def setup_ray_distributed(main_port=None, ray_cli_path=None):
                 "--node-ip-address",
                 main_ip,
                 "--port",
-                main_port,
+                str(main_port),
             ],
             check=True,
         )
