@@ -119,30 +119,26 @@ class MetaflowEnvironment(object):
             )
 
     def _get_install_dependencies_cmd(self, datastore_type):
-        dependencies = ""
-        if datastore_type == "s3":
-            dependencies = "awscli boto3"
-        elif datastore_type == "azure":
-            dependencies = (
-                "azure-identity azure-storage-blob simple-azure-blob-downloader"
-            )
-        elif datastore_type == "gs":
-            dependencies = (
-                "google-cloud-storage google-auth simple-gcp-object-downloader"
-            )
-        else:
+        datastore_dependencies = {
+            "s3": "awscli boto3",
+            "azure": "azure-identity azure-storage-blob simple-azure-blob-downloader",
+            "gs": "google-cloud-storage google-auth simple-gcp-object-downloader",
+        }
+
+        dependencies = datastore_dependencies.get(datastore_type, None)
+        if dependencies is None:
             raise NotImplementedError(
                 "We don't know how to generate an install dependencies cmd for datastore %s"
                 % datastore_type
             )
-        cmds = [
-            # freezing environment packages is necessary so they (or their dependencies)
-            # do not get upgraded by installing packages required by bootstrapping
-            "%s -m pip freeze > environment_requirements.txt" % self._python(),
-            "%s -m pip install -r environment_requirements.txt requests %s -qqq"
-            % (self._python(), dependencies),
-        ]
-        return " && ".join(cmds)
+
+        # freezing environment packages is necessary so they (or their dependencies)
+        # do not get upgraded by installing packages required by bootstrapping
+        cmd = (
+            "{python} -m pip freeze > environment_requirements.txt && "
+            "{python} -m pip install -r environment_requirements.txt requests {dependencies} -qqq"
+        ).format(python=self._python(), dependencies=dependencies)
+        return cmd
 
     def get_package_commands(self, code_package_url, datastore_type):
         cmds = [
