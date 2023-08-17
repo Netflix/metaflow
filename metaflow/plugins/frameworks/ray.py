@@ -42,8 +42,15 @@ class RayParallelDecorator(ParallelDecorator):
     def setup_distributed_env(self, flow):
         ray_cli_path = sys.executable.replace("python", "ray")
         print("RAY PATH: ", ray_cli_path)
+        self.ensure_ray_air_installed()
         setup_ray_distributed(self.attributes["main_port"], ray_cli_path)
 
+    def ensure_ray_air_installed(self):
+        try:
+            import ray
+        except ImportError:
+            print("Installing latest version of ray-air package")
+            subprocess.run([sys.executable, "-m", "pip", "install", "-U", "ray-air"])
 
 def setup_ray_distributed(main_port=None, ray_cli_path=None):
 
