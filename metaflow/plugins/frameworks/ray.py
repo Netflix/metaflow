@@ -57,7 +57,7 @@ class RayParallelDecorator(ParallelDecorator):
             import ray
         except ImportError:
             print("Ray is not installed. Installing latest version of ray-air package.")
-            subprocess.run([sys.executable, "-m", "pip", "install", "-U", "ray-air"])
+            subprocess.run([sys.executable, "-m", "pip", "install", "-U", "ray[air]"])
 
 def setup_ray_distributed(
         main_port=None,
