@@ -14,7 +14,6 @@
 
 import os
 import typing
-import logging
 
 from opentelemetry.context import Context
 
@@ -27,7 +26,6 @@ from opentelemetry.propagators.textmap import (
     Setter,
     TextMapPropagator,
     CarrierT,
-    CarrierValT,
 )
 
 

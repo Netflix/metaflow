@@ -1,4 +1,3 @@
-import sys
 from metaflow.metaflow_config import (
     OTEL_ENDPOINT,
     ZIPKIN_ENDPOINT,
