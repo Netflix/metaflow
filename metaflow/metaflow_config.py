@@ -402,6 +402,10 @@ KUBERNETES_SANDBOX_INIT_SCRIPT = from_conf("KUBERNETES_SANDBOX_INIT_SCRIPT")
 OTEL_ENDPOINT = from_conf("OTEL_ENDPOINT")
 ZIPKIN_ENDPOINT = from_conf("ZIPKIN_ENDPOINT")
 CONSOLE_TRACE_ENABLED = from_conf("CONSOLE_TRACE_ENABLED", False)
+# internal env used for preventing the tracing module from loading during Conda bootstrapping.
+BOOTSTRAPPING_CONDA_ENVIRONMENT = bool(
+    os.environ.get("BOOTSTRAPPING_CONDA_ENVIRONMENT", False)
+)
 
 # MAX_ATTEMPTS is the maximum number of attempts, including the first
 # task, retries, and the final fallback task and its retries.
