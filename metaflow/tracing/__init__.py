@@ -54,7 +54,16 @@ if not BOOTSTRAPPING_CONDA_ENVIRONMENT and (
     CONSOLE_TRACE_ENABLED or OTEL_ENDPOINT or ZIPKIN_ENDPOINT
 ):
     try:
-        from .tracing_modules import *
+        # Overrides No-Op implementations if a specific provider is configured.
+        from .tracing_modules import (
+            init_tracing,
+            post_fork,
+            cli_entrypoint,
+            inject_tracing_vars,
+            get_trace_id,
+            traced,
+            tracing,
+        )
 
     except ImportError as e:
         print(e.msg)
