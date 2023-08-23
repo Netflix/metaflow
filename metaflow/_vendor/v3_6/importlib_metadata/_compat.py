@@ -8,7 +8,7 @@ __all__ = ['install', 'NullFinder', 'Protocol']
 try:
     from typing import Protocol
 except ImportError:  # pragma: no cover
-    from metaflow._vendor.v3_6.typing_extensions import Protocol  # type: ignore
+    from typing_extensions import Protocol  # type: ignore
 
 
 def install(cls):
