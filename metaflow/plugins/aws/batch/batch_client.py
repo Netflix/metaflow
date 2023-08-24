@@ -332,7 +332,6 @@ class BatchJob(object):
                         "container": job_definition["containerProperties"],
                     }
                 )
-
             del job_definition["containerProperties"]  # not used for multi-node
 
         # check if job definition already exists
