@@ -49,14 +49,6 @@ class RayParallelDecorator(ParallelDecorator):
         s3 = S3(run=flow)
         ensure_ray_installed()
 
-        try:
-            print("Locating Ray Cli Path ...")
-            command = "which ray"
-            output = subprocess.check_output(command, shell=True, text=True)
-            print("Ray cli path: ", output)
-        except subprocess.CalledProcessError as e:
-            print("Error:", e.output)
-
         if os.environ.get("METAFLOW_RUNTIME_ENVIRONMENT", "local") == "local":
             checkpoint_path = os.path.join(os.getcwd(), "ray_checkpoints")
         else:
