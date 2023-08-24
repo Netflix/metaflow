@@ -83,8 +83,6 @@ class BatchDecorator(StepDecorator):
         Path to tmpfs mount for this step. Defaults to /metaflow_temp.
     inferentia : int, default: 0
         Number of Inferentia chips required for this step.
-    efa: int, default: 0
-        Number of elastic fabric adapter network devices to attach to container
     """
 
     name = "batch"
@@ -100,7 +98,6 @@ class BatchDecorator(StepDecorator):
         "max_swap": None,
         "swappiness": None,
         "inferentia": None,
-        "efa": None,
         "host_volumes": None,
         "use_tmpfs": False,
         "tmpfs_tempdir": True,
