@@ -15,10 +15,10 @@ variables:
   IMAGE_REPOSITORY_TAG_PATH_KFP_STEP: 'image_tag_file_kfp_step.txt'
   # Run on the Internal cluster only on commit.
   # We run the tests via the integration test framework for Non-Prod/Prod.
-  DEPLOY_INTERNAL: "true"
+  DEPLOY_INTERNAL: "false"
   DEPLOY_NONPROD: "false"
   DEPLOY_PROD: "false"
-  DEPLOY_SANDBOX: "false"
+  DEPLOY_SANDBOX: "true"
   PUBLISH: "true"
   CI_TRACE_DEBUG: "true"
 
