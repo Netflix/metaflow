@@ -495,10 +495,6 @@ class S3(object):
 
     @classmethod
     def get_root_from_config(cls, echo, create_on_absent=True):
-        if DATATOOLS_S3ROOT is None:
-            raise MetaflowS3URLException(
-                "DATATOOLS_S3ROOT is not configured when trying to use S3 storage"
-            )
         return DATATOOLS_S3ROOT
 
     def __init__(
