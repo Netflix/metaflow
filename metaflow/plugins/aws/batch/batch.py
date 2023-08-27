@@ -178,6 +178,7 @@ class Batch(object):
         max_swap=None,
         swappiness=None,
         inferentia=None,
+        efa=None,
         env={},
         attrs={},
         host_volumes=None,
@@ -214,6 +215,7 @@ class Batch(object):
             .max_swap(max_swap)
             .swappiness(swappiness)
             .inferentia(inferentia)
+            .efa(efa)
             .timeout_in_secs(run_time_limit)
             .job_def(
                 image,
@@ -224,6 +226,7 @@ class Batch(object):
                 max_swap,
                 swappiness,
                 inferentia,
+                efa,
                 memory=memory,
                 host_volumes=host_volumes,
                 use_tmpfs=use_tmpfs,
@@ -326,6 +329,7 @@ class Batch(object):
         max_swap=None,
         swappiness=None,
         inferentia=None,
+        efa=None,
         host_volumes=None,
         use_tmpfs=None,
         tmpfs_tempdir=None,
@@ -361,6 +365,7 @@ class Batch(object):
             max_swap,
             swappiness,
             inferentia,
+            efa,
             env=env,
             attrs=attrs,
             host_volumes=host_volumes,
