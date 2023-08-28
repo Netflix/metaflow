@@ -512,6 +512,10 @@ class S3(object):
 
         if run:
             # 1. use a (current) run ID with optional customizations
+            if DATATOOLS_S3ROOT is None:
+                raise MetaflowS3URLException(
+                    "DATATOOLS_S3ROOT is not configured when trying to use S3 storage"
+                )
             parsed = urlparse(DATATOOLS_S3ROOT)
             if not bucket:
                 bucket = parsed.netloc
