@@ -467,7 +467,7 @@ try:
                 DEBUG_OPTIONS.extend(o)
                 for typ in o:
                     vars()["DEBUG_%s" % typ.upper()] = from_conf(
-                        "DEBUG_%s" % typ.upper()
+                        "DEBUG_%s" % typ.upper(), False
                     )
             elif n == "get_pinned_conda_libs":
 
