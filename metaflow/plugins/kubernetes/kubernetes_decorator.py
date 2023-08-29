@@ -2,8 +2,6 @@ import json
 import os
 import platform
 import sys
-import re
-from typing import Optional, Dict
 
 from metaflow import current
 from metaflow.decorators import StepDecorator
@@ -17,8 +15,6 @@ from metaflow.metaflow_config import (
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_IMAGE_PULL_POLICY,
     KUBERNETES_GPU_VENDOR,
-    KUBERNETES_LABELS,
-    KUBERNETES_ANNOTATIONS,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_PERSISTENT_VOLUME_CLAIMS,
@@ -70,10 +66,6 @@ class KubernetesDecorator(StepDecorator):
         in Metaflow configuration.
     tolerations : List[str], default: METAFLOW_KUBERNETES_TOLERATIONS
         Kubernetes tolerations to use when launching pod in Kubernetes.
-    labels: Dict[str, str], default: METAFLOW_KUBERNETES_LABELS
-        Kubernetes labels to use when launching pod in Kubernetes.
-    annotations: Dict[str, str], default: METAFLOW_KUBERNETES_ANNOTATIONS
-        Kubernetes annotations to use when launching pod in Kubernetes.
     use_tmpfs: bool, default: False
         This enables an explicit tmpfs mount for this step.
     tmpfs_tempdir: bool, default: True
@@ -104,8 +96,6 @@ class KubernetesDecorator(StepDecorator):
         "gpu_vendor": None,
         "tolerations": None,  # e.g., [{"key": "arch", "operator": "Equal", "value": "amd"},
         #                              {"key": "foo", "operator": "Equal", "value": "bar"}]
-        "labels": None,  # e.g. {"test-label": "value", "another-label":"value2"}
-        "annotations": None,  # e.g. {"note": "value", "another-note": "value2"}
         "use_tmpfs": None,
         "tmpfs_tempdir": True,
         "tmpfs_size": None,
@@ -167,60 +157,6 @@ class KubernetesDecorator(StepDecorator):
                         )
             except (NameError, ImportError):
                 pass
-
-        # Label source precedence (decreasing):
-        # - System labels
-        # - Decorator labels: @kubernetes(labels={})
-        # - Environment variable labels: METAFLOW_KUBERNETES_LABELS=
-        deco_labels = {}
-        if self.attributes["labels"] is not None:
-            deco_labels = self.attributes["labels"]
-
-        env_labels = {}
-        if KUBERNETES_LABELS:
-            env_labels = parse_kube_keyvalue_list(KUBERNETES_LABELS.split(","), False)
-
-        system_labels = {
-            "app.kubernetes.io/name": "metaflow-task",
-            "app.kubernetes.io/part-of": "metaflow",
-        }
-
-        self.attributes["labels"] = {**env_labels, **deco_labels, **system_labels}
-
-        # Annotations
-        # annotation precedence (decreasing):
-        # - System annotations
-        # - Decorator annotations
-        # - Environment annotations
-        deco_annotations = {}
-        if self.attributes["annotations"] is not None:
-            deco_annotations = self.attributes["annotations"]
-
-        env_annotations = {}
-        if KUBERNETES_ANNOTATIONS:
-            env_annotations = parse_kube_keyvalue_list(
-                KUBERNETES_ANNOTATIONS.split(","), False
-            )
-
-        system_annotations = {
-            "metaflow/user": current.username,
-            "metaflow/flow_name": current.flow_name,
-        }
-
-        if current.get("project_name"):
-            system_annotations.update(
-                {
-                    "metaflow/project_name": current.project_name,
-                    "metaflow/branch_name": current.branch_name,
-                    "metaflow/project_flow_name": current.project_flow_name,
-                }
-            )
-
-        self.attributes["annotations"] = {
-            **env_annotations,
-            **deco_annotations,
-            **system_annotations,
-        }
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
@@ -345,9 +281,6 @@ class KubernetesDecorator(StepDecorator):
                     )
                 )
 
-        validate_kube_labels_or_annotations(self.attributes["labels"])
-        validate_kube_labels_or_annotations(self.attributes["annotations"])
-
     def package_init(self, flow, step_name, environment):
         try:
             # Kubernetes is a soft dependency.
@@ -399,12 +332,7 @@ class KubernetesDecorator(StepDecorator):
                         "=".join([key, str(val)]) if val else key
                         for key, val in v.items()
                     ]
-                elif k in [
-                    "tolerations",
-                    "persistent_volume_claims",
-                    "labels",
-                    "annotations",
-                ]:
+                elif k in ["tolerations", "persistent_volume_claims"]:
                     cli_args.command_options[k] = json.dumps(v)
                 else:
                     cli_args.command_options[k] = v
@@ -515,33 +443,3 @@ class KubernetesDecorator(StepDecorator):
             cls.package_url, cls.package_sha = flow_datastore.save_data(
                 [package.blob], len_hint=1
             )[0]
-
-
-def validate_kube_labels_or_annotations(
-    labels: Optional[Dict[str, Optional[str]]],
-) -> bool:
-    """Validate label values.
-
-    This validates the kubernetes label values.  It does not validate the keys.
-    Ideally, keys should be static and also the validation rules for keys are
-    more complex than those for values.  For full validation rules, see:
-
-    https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
-    """
-
-    def validate_label(s: Optional[str]):
-        regex_match = r"^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$"
-        if not s:
-            # allow empty label
-            return True
-        if not re.search(regex_match, s):
-            raise KubernetesException(
-                'Invalid value: "%s"\n'
-                "A valid label must be an empty string or one that\n"
-                "  - Consist of alphanumeric, '-', '_' or '.' characters\n"
-                "  - Begins and ends with an alphanumeric character\n"
-                "  - Is at most 63 characters" % s
-            )
-        return True
-
-    return all([validate_label(v) for v in labels.values()]) if labels else True
