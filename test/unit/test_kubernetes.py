@@ -2,11 +2,8 @@ import pytest
 
 from metaflow.plugins.kubernetes.kubernetes import (
     KubernetesException,
+    validate_kube_labels,
     parse_kube_keyvalue_list,
-)
-
-from metaflow.plugins.kubernetes.kubernetes_decorator import (
-    validate_kube_labels_or_annotations,
 )
 
 
@@ -43,8 +40,8 @@ from metaflow.plugins.kubernetes.kubernetes_decorator import (
         },
     ],
 )
-def test_kubernetes_decorator_validate_kube_labels_or_annotations(labels):
-    assert validate_kube_labels_or_annotations(labels)
+def test_kubernetes_decorator_validate_kube_labels(labels):
+    assert validate_kube_labels(labels)
 
 
 @pytest.mark.parametrize(
@@ -68,10 +65,10 @@ def test_kubernetes_decorator_validate_kube_labels_or_annotations(labels):
         {"valid": "test", "invalid": "bißchen"},
     ],
 )
-def test_kubernetes_decorator_validate_kube_labels_or_annotations_fail(labels):
+def test_kubernetes_decorator_validate_kube_labels_fail(labels):
     """Fail if label contains invalid characters or is too long"""
     with pytest.raises(KubernetesException):
-        validate_kube_labels_or_annotations(labels)
+        validate_kube_labels(labels)
 
 
 @pytest.mark.parametrize(
