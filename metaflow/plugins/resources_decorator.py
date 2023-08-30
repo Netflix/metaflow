@@ -25,7 +25,7 @@ class ResourcesDecorator(StepDecorator):
         Number of CPUs required for this step.
     gpu : int, default: 0
         Number of GPUs required for this step.
-    disk : int, default: 10240
+    disk : int, optional
         Disk size (in MB) required for this step. Only applies on Kubernetes.
     memory : int, default: 4096
         Memory size (in MB) required for this step.
@@ -38,7 +38,7 @@ class ResourcesDecorator(StepDecorator):
     defaults = {
         "cpu": "1",
         "gpu": "0",
-        "disk": "10240",
+        "disk": None,
         "memory": "4096",
         "shared_memory": None,
     }
