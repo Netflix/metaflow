@@ -3,9 +3,13 @@ import posixpath
 import zipfile
 import itertools
 import contextlib
+import sys
 import pathlib
 
-from .py310compat import text_encoding
+if sys.version_info < (3, 7):
+    from collections import OrderedDict
+else:
+    OrderedDict = dict
 
 
 __all__ = ['Path']
@@ -52,7 +56,7 @@ def _ancestry(path):
         path, tail = posixpath.split(path)
 
 
-_dedupe = dict.fromkeys
+_dedupe = OrderedDict.fromkeys
 """Deduplicate an iterable in original order"""
 
 
@@ -64,25 +68,7 @@ def _difference(minuend, subtrahend):
     return itertools.filterfalse(set(subtrahend).__contains__, minuend)
 
 
-class InitializedState:
-    """
-    Mix-in to save the initialization state for pickling.
-    """
-
-    def __init__(self, *args, **kwargs):
-        self.__args = args
-        self.__kwargs = kwargs
-        super().__init__(*args, **kwargs)
-
-    def __getstate__(self):
-        return self.__args, self.__kwargs
-
-    def __setstate__(self, state):
-        args, kwargs = state
-        super().__init__(*args, **kwargs)
-
-
-class CompleteDirs(InitializedState, zipfile.ZipFile):
+class CompleteDirs(zipfile.ZipFile):
     """
     A ZipFile subclass that ensures that implied directories
     are always included in the namelist.
@@ -121,7 +107,7 @@ class CompleteDirs(InitializedState, zipfile.ZipFile):
             return source
 
         if not isinstance(source, zipfile.ZipFile):
-            return cls(source)
+            return cls(_pathlib_compat(source))
 
         # Only allow for FastLookup when supplied zipfile is read-only
         if 'r' not in source.mode:
@@ -148,6 +134,17 @@ class FastLookup(CompleteDirs):
             return self.__lookup
         self.__lookup = super(FastLookup, self)._name_set()
         return self.__lookup
+
+
+def _pathlib_compat(path):
+    """
+    For path-like objects, convert to a filename for compatibility
+    on Python 3.6.1 and earlier.
+    """
+    try:
+        return path.__fspath__()
+    except AttributeError:
+        return str(path)
 
 
 class Path:
@@ -259,8 +256,6 @@ class Path:
             if args or kwargs:
                 raise ValueError("encoding args invalid for binary operation")
             return stream
-        else:
-            kwargs["encoding"] = text_encoding(kwargs.get("encoding"))
         return io.TextIOWrapper(stream, *args, **kwargs)
 
     @property
@@ -284,7 +279,6 @@ class Path:
         return pathlib.Path(self.root.filename).joinpath(self.at)
 
     def read_text(self, *args, **kwargs):
-        kwargs["encoding"] = text_encoding(kwargs.get("encoding"))
         with self.open('r', *args, **kwargs) as strm:
             return strm.read()
 
@@ -320,7 +314,7 @@ class Path:
         return self.__repr.format(self=self)
 
     def joinpath(self, *other):
-        next = posixpath.join(self.at, *other)
+        next = posixpath.join(self.at, *map(_pathlib_compat, other))
         return self._next(self.root.resolve_dir(next))
 
     __truediv__ = joinpath
