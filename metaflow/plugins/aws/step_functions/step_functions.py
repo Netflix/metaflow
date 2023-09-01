@@ -705,6 +705,7 @@ class StepFunctions(object):
                 shared_memory=resources["shared_memory"],
                 max_swap=resources["max_swap"],
                 swappiness=resources["swappiness"],
+                efa=resources["efa"],
                 use_tmpfs=resources["use_tmpfs"],
                 tmpfs_tempdir=resources["tmpfs_tempdir"],
                 tmpfs_size=resources["tmpfs_size"],
