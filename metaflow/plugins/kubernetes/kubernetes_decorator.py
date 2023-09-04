@@ -270,6 +270,10 @@ class KubernetesDecorator(StepDecorator):
                 )
             )
 
+        # Treat gpu=0 as non-requests, but rewrite this as None for simpler handling in Kubernetes job/Argo Workflow templates
+        if self.attributes["gpu"] is not None and int(self.attributes["gpu"]) == 0:
+            self.attributes["gpu"] = None
+
         if self.attributes["tmpfs_size"]:
             if not (
                 isinstance(self.attributes["tmpfs_size"], (int, unicode, basestring))
