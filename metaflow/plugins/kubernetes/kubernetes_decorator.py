@@ -270,7 +270,8 @@ class KubernetesDecorator(StepDecorator):
                 )
             )
 
-        # Treat gpu=0 as non-requests, but rewrite this as None for simpler handling in Kubernetes job/Argo Workflow templates
+        # Treat gpu=0 as non-requests, but rewrite this as None for simpler handling in Kubernetes job/Argo Workflow templates.
+        # This is important, as adding a gpu limit with a value of 0 will be preferred for gpu nodes by the scheduler.
         if self.attributes["gpu"] is not None and int(self.attributes["gpu"]) == 0:
             self.attributes["gpu"] = None
 
