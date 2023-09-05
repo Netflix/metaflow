@@ -1,1 +1,2 @@
 click==7.1.2
+packaging==23.0
