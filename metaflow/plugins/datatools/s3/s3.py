@@ -1341,7 +1341,7 @@ class S3(object):
                 if error_code == 404:
                     raise MetaflowS3NotFound(url)
                 elif error_code == 403:
-                    raise MetaflowS3AccessDenied(url)
+                    raise MetaflowS3AccessDenied(err)
                 elif error_code == 416:
                     raise MetaflowS3InvalidRange(err)
                 elif error_code == "NoSuchBucket":
