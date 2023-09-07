@@ -156,7 +156,8 @@ class CondaEnvironment(MetaflowEnvironment):
                 )
             cache(results, solver)
 
-    def executable(self, step_name):
+    def executable(self, step_name, default=None):
+        # TODO: Handle the default executable case. Delegate to base_env as previously?
         step = next(step for step in self.flow if step.name == step_name)
         id_ = self.get_environment(step)["id_"]
         return os.path.join(id_, "bin/python -s")

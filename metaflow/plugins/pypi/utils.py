@@ -17,16 +17,16 @@ def conda_platform():
     _32_bit_interpreter = sys.maxsize <= 2**32
     if platform.system() == "Linux":
         if _32_bit_interpreter:
-            return "linux-64"
-        else:
             return "linux-32"
+        else:
+            return "linux-64"
     elif platform.system() == "Darwin":
         if platform.machine() == "arm64":
             return "osx-arm64"
         elif _32_bit_interpreter:
-            return "osx-64"
-        else:
             return "osx-32"
+        else:
+            return "osx-64"
 
 
 def pip_tags(python_version, mamba_platform):
