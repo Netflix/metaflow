@@ -246,6 +246,12 @@ def _install_micromamba():
         return
 
     print("Installing micromamba.")
-    download = subprocess.Popen(download_cmds, stdout=subprocess.PIPE)
-    subprocess.check_output(extract_cmds, stdin=download.stdout, stderr=subprocess.PIPE)
-    download.wait()
+    try:
+        download = subprocess.Popen(download_cmds, stdout=subprocess.PIPE)
+        subprocess.check_output(
+            extract_cmds, stdin=download.stdout, stderr=subprocess.PIPE
+        )
+    except subprocess.CalledProcessError as e:
+        raise MicromambaException(
+            "Installing micromamba failed:\n{}".format(e.stderr.decode())
+        )
