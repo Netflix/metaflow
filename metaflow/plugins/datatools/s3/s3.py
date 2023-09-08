@@ -1361,14 +1361,13 @@ class S3(object):
         else:
             bucket_name = Bucket_names.pop()
 
-        def _delete_many(s3, tmp):
-            resp = s3.delete_objects(
-                Bucket=bucket_name,
-                Delete={
-                    "Objects": [{"Key": s.path.lstrip("/")} for s in src],
-                    'Quiet': True
-                }
-            )
+        resp = self._s3_client.client.delete_objects(
+            Bucket=bucket_name,
+            Delete={
+                "Objects": [{"Key": s.path.lstrip("/")} for s in src],
+                'Quiet': True
+            }
+        )
 
         return resp
 
