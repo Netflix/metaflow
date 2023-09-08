@@ -1369,8 +1369,6 @@ class S3(object):
             }
         )
 
-        return resp
-
     def delete_recursive(self, key):
         """
         Delete multiple objects given a prefix
@@ -1382,15 +1380,12 @@ class S3(object):
         url = self._url(key)
         src = urlparse(url)
 
-        def _delete(s3, tmp):
-            bucket = s3.Bucket(src.netloc)
-            if not src.path.lstrip('/'):
-                raise TypeError("'None' type object cannot be deleted.")
-            else:
-                for key_ in bucket.list(prefix=src.path.lstrip("/")):
-                    key_.delete_keys()
-
-        return self._one_boto_op(_delete, url, create_tmp_file=False)
+        if not src.path.lstrip('/'):
+            raise TypeError("'None' type object cannot be deleted.")
+        else:
+            objects = self._s3_client.client.list_objects(Bucket=src.netloc, Prefix=src.path.lstrip("/"))
+            for object in objects['Contents']:
+                self._s3_client.client.delete_object(Bucket=src.netloc, Key=object['Key'])
 
     def _one_boto_op(self, op, url, create_tmp_file=True):
         error = ""
