@@ -1342,6 +1342,26 @@ class S3(object):
 
         return self._put_many_files(_check(), overwrite)
 
+    def delete(self, key: str):
+        """
+        Delete a single object in S3.
+        Parameters
+        ----------
+        key : str
+            Object to delete. It can be an S3 url or a path suffix.
+        """
+
+        url = self._url(key)
+        src = urlparse(url)
+
+        def _delete(s3, tmp):
+            if not src.path.lstrip("/"):
+                raise TypeError("'None' type object cannot be deleted.")
+            else:
+                return s3.delete_object(Bucket=src.netloc, Key=src.path.lstrip("/"))
+
+        self._one_boto_op(_delete, url, create_tmp_file=False)
+
     def _one_boto_op(self, op, url, create_tmp_file=True):
         error = ""
         for i in range(S3_RETRY_COUNT + 1):
