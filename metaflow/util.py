@@ -345,11 +345,10 @@ def which(cmd, mode=os.F_OK | os.X_OK, path=None):
     # Additionally check that `file` is not a directory, as on Windows
     # directories pass the os.access check.
     try:  # Forced testing
-        from shutil import which as w
+        from shutil import whichs as w
 
         return w(cmd, mode, path)
     except ImportError:
-
         def _access_check(fn, mode):
             return os.path.exists(fn) and os.access(fn, mode) and not os.path.isdir(fn)
 

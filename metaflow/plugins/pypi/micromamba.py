@@ -5,7 +5,8 @@ import tempfile
 
 from metaflow.exception import MetaflowException
 from metaflow.util import which
-from .utils import micromamba_install_cmds
+
+from .utils import conda_platform
 
 
 class MicromambaException(MetaflowException):
@@ -27,15 +28,21 @@ class Micromamba(object):
         # micromamba is a tiny version of the mamba package manager and comes with
         # metaflow specific performance enhancements.
 
-        self.bin = which(
-            os.environ.get("METAFLOW_PATH_TO_MICROMAMBA") or "micromamba"
-        ) or which("./bin/micromamba")
+        _path_to_hidden_micromamba = os.path.join(
+            os.path.expanduser(os.environ.get("METAFLOW_HOME", "~/.metaflowconfig")),
+            "micromamba",
+        )
+        self.bin = (
+            which(os.environ.get("METAFLOW_PATH_TO_MICROMAMBA") or "micromamba")
+            or which("./micromamba")  # to support remote execution
+            or which("./bin/micromamba")
+            or which(os.path.join(_path_to_hidden_micromamba, "bin/micromamba"))
+        )
         if self.bin is None:
-            # Try installing micromamba
-            print("Could not find micromamba installation.")
-            _install_micromamba()
-
-        self.bin = which("./bin/micromamba")
+            # Install Micromamba on the fly.
+            # TODO: Make this optional at some point.
+            _install_micromamba(_path_to_hidden_micromamba)
+            self.bin = which(os.path.join(_path_to_hidden_micromamba, "bin/micromamba"))
 
         if self.bin is None:
             msg = "No installation for *Micromamba* found.\n"
@@ -239,19 +246,25 @@ class Micromamba(object):
             )
 
 
-def _install_micromamba():
-    download_cmds, extract_cmds = micromamba_install_cmds()
-    if download_cmds is None:
-        print("No micromamba binary is available for your platform.")
-        return
-
-    print("Installing micromamba.")
+def _install_micromamba(installation_location):
+    # Unfortunately no 32bit binaries are available for micromamba, which ideally
+    # shouldn't be much of a problem in today's world.
+    platform = conda_platform()
     try:
-        download = subprocess.Popen(download_cmds, stdout=subprocess.PIPE)
-        subprocess.check_output(
-            extract_cmds, stdin=download.stdout, stderr=subprocess.PIPE
+        subprocess.Popen(f"mkdir -p {installation_location}", shell=True).wait()
+        # https://mamba.readthedocs.io/en/latest/micromamba-installation.html#manual-installation
+        result = subprocess.Popen(
+            f"curl -Ls https://micro.mamba.pm/api/micromamba/{platform}/latest | tar -xv -C {installation_location} bin/micromamba",
+            shell=True,
+            stderr=subprocess.PIPE,
         )
+        _, err = result.communicate()
+        if result.returncode != 0:
+            raise MicromambaException(
+                f"Micromamba installation '{result.args}' failed:\n{err.decode()}"
+            )
+
     except subprocess.CalledProcessError as e:
         raise MicromambaException(
-            "Installing micromamba failed:\n{}".format(e.stderr.decode())
+            "Micromamba installation failed:\n{}".format(e.stderr.decode())
         )
