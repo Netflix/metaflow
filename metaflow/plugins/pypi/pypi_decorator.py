@@ -1,5 +1,3 @@
-import platform
-
 from metaflow.decorators import StepDecorator
 from metaflow.metaflow_environment import InvalidEnvironmentException
 
