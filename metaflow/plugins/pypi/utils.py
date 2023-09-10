@@ -29,6 +29,29 @@ def conda_platform():
             return "osx-64"
 
 
+def micromamba_install_cmds():
+    # Return commands for installing micromamba binary for the specified platform.
+    # URL's from https://mamba.readthedocs.io/en/latest/micromamba-installation.html#manual-installation
+    # No 32bit binaries available.
+    platform = conda_platform()
+    platform_urls = {
+        # Linux Intel (x86_64):
+        "linux-64": "https://micro.mamba.pm/api/micromamba/linux-64/latest",
+        # macOS Intel (x86_64):
+        "osx-64": "https://micro.mamba.pm/api/micromamba/osx-64/latest",
+        # macOS Silicon/M1 (ARM64):
+        "osx-arm64": "https://micro.mamba.pm/api/micromamba/osx-arm64/latest",
+    }
+
+    url = platform_urls.get(platform, None)
+
+    return ["curl", "-Ls", url] if url is not None else None, [
+        "tar",
+        "-xvj",
+        "bin/micromamba",
+    ]
+
+
 def pip_tags(python_version, mamba_platform):
     # Returns a list of pip tags containing (implementation, platforms, abis) tuples
     # assuming a CPython implementation for Python interpreter.
