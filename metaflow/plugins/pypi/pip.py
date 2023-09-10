@@ -25,6 +25,11 @@ class PipException(MetaflowException):
 METADATA_FILE = "{prefix}/.pip/metadata"
 INSTALLATION_MARKER = "{prefix}/.pip/id"
 
+# TODO:
+#     1. Support git repositories, local dirs, non-wheel like packages
+#     2. Support protected indices
+#     3. Support multiple indices
+
 
 class Pip(object):
     def __init__(self, micromamba=None):
