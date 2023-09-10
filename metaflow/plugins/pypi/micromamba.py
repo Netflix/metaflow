@@ -5,6 +5,7 @@ import tempfile
 
 from metaflow.exception import MetaflowException
 from metaflow.util import which
+from .utils import micromamba_install_cmds
 
 
 class MicromambaException(MetaflowException):
@@ -26,10 +27,15 @@ class Micromamba(object):
         # micromamba is a tiny version of the mamba package manager and comes with
         # metaflow specific performance enhancements.
 
-        # TODO: Fix micromamba deteection before shipping
         self.bin = which(
-            os.environ.get("METAFLOW_PATH_TO_MICROMAMBA") or "./micromamba"
-        )
+            os.environ.get("METAFLOW_PATH_TO_MICROMAMBA") or "micromamba"
+        ) or which("./bin/micromamba")
+        if self.bin is None:
+            # Try installing micromamba
+            print("Could not find micromamba installation.")
+            _install_micromamba()
+
+        self.bin = which("./bin/micromamba")
 
         if self.bin is None:
             msg = "No installation for *Micromamba* found.\n"
@@ -231,3 +237,21 @@ class Micromamba(object):
                     stderr=e.stderr.decode(),
                 )
             )
+
+
+def _install_micromamba():
+    download_cmds, extract_cmds = micromamba_install_cmds()
+    if download_cmds is None:
+        print("No micromamba binary is available for your platform.")
+        return
+
+    print("Installing micromamba.")
+    try:
+        download = subprocess.Popen(download_cmds, stdout=subprocess.PIPE)
+        subprocess.check_output(
+            extract_cmds, stdin=download.stdout, stderr=subprocess.PIPE
+        )
+    except subprocess.CalledProcessError as e:
+        raise MicromambaException(
+            "Installing micromamba failed:\n{}".format(e.stderr.decode())
+        )
