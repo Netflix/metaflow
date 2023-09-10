@@ -247,8 +247,6 @@ class CondaEnvironment(MetaflowEnvironment):
                 else obj
             )
         )
-        print(environment)
-        print(sha256(json.dumps(deep_sort(environment)).encode()).hexdigest()[:15])
         return {
             **environment,
             # Create a stable unique id for the environment.
@@ -280,10 +278,9 @@ class CondaEnvironment(MetaflowEnvironment):
         id_ = self.get_environment(step)["id_"]
         return [
             "echo 'Bootstrapping virtual environment...'",
-            'python -m metaflow.plugins.pypi.bootstrap "%s" %s "%s"'
+            'python -m metaflow.plugins.pypi.bootstrap "%s" %s "%s" linux-64'
             % (self.flow.name, id_, self.datastore_type),
             "echo 'Environment bootstrapped.'",
-            "export PATH=$PATH:/metaflow/bin",
         ]
 
     # TODO: Make this an instance variable once local_root is part of the object
