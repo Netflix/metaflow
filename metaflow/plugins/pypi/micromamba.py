@@ -194,7 +194,8 @@ class Micromamba(object):
         }
 
     def interpreter(self, id_):
-        return os.path.join(self.path_to_environment(id_), "bin/python")
+        # -s is important! Can otherwise leak packages to other environments.
+        return os.path.join(self.path_to_environment(id_), "bin/python -s")
 
     def platform(self):
         return self.info()["platform"]
