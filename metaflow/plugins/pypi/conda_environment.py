@@ -247,7 +247,8 @@ class CondaEnvironment(MetaflowEnvironment):
                 else obj
             )
         )
-
+        print(environment)
+        print(sha256(json.dumps(deep_sort(environment)).encode()).hexdigest()[:15])
         return {
             **environment,
             # Create a stable unique id for the environment.
