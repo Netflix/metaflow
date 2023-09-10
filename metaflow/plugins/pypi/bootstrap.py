@@ -10,36 +10,34 @@ from metaflow.plugins import DATASTORES
 from . import MAGIC_FILE, _datastore_packageroot
 
 # Bootstraps a valid conda virtual environment composed of conda and pypi packages
-# on linux-64 architecture
 
 if __name__ == "__main__":
-    flow_name = sys.argv[1]
-    id_ = sys.argv[2]
-    datastore_type = sys.argv[3]
-
-    _supported_architecture = "linux-64"
+    if len(sys.argv) != 5:
+        print("Usage: bootstrap.py <flow_name> <id> <datastore_type> <architecture>")
+        sys.exit(1)
+    _, flow_name, id_, datastore_type, architecture = sys.argv
 
     prefix = os.path.join(os.getcwd(), id_)
     pkgs_dir = os.path.join(os.getcwd(), ".pkgs")
+    manifest_dir = os.path.join(os.getcwd(), DATASTORE_LOCAL_DIR, flow_name)
 
-    storage = [d for d in DATASTORES if d.TYPE == datastore_type][0](
-        _datastore_packageroot(datastore_type)
-    )
+    datastores = [d for d in DATASTORES if d.TYPE == datastore_type]
+    if not datastores:
+        print(f"No datastore found for type: {datastore_type}")
+        sys.exit(1)
+    storage = datastores[0](_datastore_packageroot(datastore_type))
 
     # Move MAGIC_FILE inside local datastore.
-    manifest_dir = os.path.join(os.getcwd(), DATASTORE_LOCAL_DIR, flow_name)
-    if not os.path.exists(manifest_dir):
-        os.makedirs(manifest_dir)
+    os.makedirs(manifest_dir, exist_ok=True)
     shutil.move(
         os.path.join(os.getcwd(), MAGIC_FILE),
         os.path.join(manifest_dir, MAGIC_FILE),
     )
 
     with open(os.path.join(manifest_dir, MAGIC_FILE)) as f:
-        # TODO: Support arm architecture
-        env = json.load(f)[id_][_supported_architecture]
+        env = json.load(f)[id_][architecture]
 
-    # Create conda virtual environment.
+    # Download Conda packages.
     conda_pkgs_dir = os.path.join(pkgs_dir, "conda")
     with storage.load_bytes([package["path"] for package in env["conda"]]) as results:
         for key, tmpfile, _ in results:
@@ -52,34 +50,26 @@ if __name__ == "__main__":
             os.makedirs(os.path.dirname(dest), exist_ok=True)
             shutil.move(tmpfile, dest)
 
+    # Create Conda environment.
     cmds = [
         # TODO: check if mamba or conda are already available on the image
-        # Install Micromamba if it doesn't exist.
-        'if ! command -v ./micromamba >/dev/null 2>&1; then \
-            wget -qO- https://micromamba.snakepit.net/api/micromamba/linux-64/latest | tar -xvj bin/micromamba --strip-components=1; \
-            export PATH=$PATH:$HOME/bin; \
-            if ! command -v ./micromamba >/dev/null 2>&1; then \
-                echo "Failed to install Micromamba!;" \
-                exit 1; \
-            fi; \
-        fi',
+        f"""if ! command -v ./micromamba >/dev/null 2>&1; then
+            wget -qO- https://micromamba.snakepit.net/api/micromamba/{architecture}/latest | tar -xvj bin/micromamba --strip-components=1;
+            export PATH=$PATH:$HOME/bin;
+            if ! command -v ./micromamba >/dev/null 2>&1; then
+                echo "Failed to install Micromamba!";
+                exit 1;
+            fi;
+        fi""",
         # Create a conda environment through Micromamba.
-        " && ".join(
-            [
-                "tmpfile=$(mktemp)",
-                'echo "@EXPLICIT" > "$tmpfile"',
-                'ls -d {conda_pkgs_dir}/*/* >> "$tmpfile"'.format(
-                    conda_pkgs_dir=conda_pkgs_dir
-                ),
-                './micromamba create --yes --offline --no-deps --safety-checks=disabled --prefix {prefix} --file "$tmpfile"'.format(
-                    prefix=prefix,
-                ),
-                'rm "$tmpfile"',
-            ]
-        ),
+        f'''tmpfile=$(mktemp);
+        echo "@EXPLICIT" > "$tmpfile";
+        ls -d {conda_pkgs_dir}/*/* >> "$tmpfile";
+        ./micromamba create --yes --offline --no-deps --safety-checks=disabled --prefix {prefix} --file "$tmpfile";
+        rm "$tmpfile"''',
     ]
 
-    # Install pypi packages if needed.
+    # Download PyPI packages.
     if "pypi" in env:
         pypi_pkgs_dir = os.path.join(pkgs_dir, "pypi")
         with storage.load_bytes(
@@ -90,12 +80,10 @@ if __name__ == "__main__":
                 os.makedirs(os.path.dirname(dest), exist_ok=True)
                 shutil.move(tmpfile, dest)
 
+        # Install PyPI packages.
         cmds.extend(
             [
-                # Install locally available PyPI packages.
-                "./micromamba run --prefix {prefix} pip install --root-user-action=ignore {pypi_pkgs_dir}/*.whl".format(
-                    prefix=prefix, pypi_pkgs_dir=pypi_pkgs_dir
-                )
+                f"""./micromamba run --prefix {prefix} pip install --root-user-action=ignore {pypi_pkgs_dir}/*.whl"""
             ]
         )
 
@@ -104,6 +92,7 @@ if __name__ == "__main__":
             cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
         if result.returncode != 0:
-            print("Bootstrap failed while executing: {cmd}".format(cmd=cmd))
-            print(result.stderr.decode())
+            print(f"Bootstrap failed while executing: {cmd}")
+            print("Stdout:", result.stdout.decode())
+            print("Stderr:", result.stderr.decode())
             sys.exit(1)
