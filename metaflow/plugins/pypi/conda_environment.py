@@ -284,6 +284,8 @@ class CondaEnvironment(MetaflowEnvironment):
             "export PATH=$PATH:/metaflow/bin",
         ]
 
+    # TODO: Make this an instance variable once local_root is part of the object
+    #       constructor.
     def get_environment_manifest_path(self):
         return os.path.join(self.local_root, self.flow.name, MAGIC_FILE)
 
