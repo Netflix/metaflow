@@ -58,6 +58,7 @@ FLOW_DECORATORS_DESC = [
     ("project", ".project_decorator.ProjectDecorator"),
     ("trigger", ".events_decorator.TriggerDecorator"),
     ("trigger_on_finish", ".events_decorator.TriggerOnFinishDecorator"),
+    ("conda_base", ".pypi.conda_decorator.CondaFlowDecorator"),
 ]
 
 # Add environments here
