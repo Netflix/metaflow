@@ -3,15 +3,11 @@ import platform
 import sys
 import tempfile
 
-from metaflow.decorators import StepDecorator
+from metaflow.decorators import StepDecorator, FlowDecorator
 from metaflow.exception import MetaflowException
 from metaflow.metadata import MetaDatum
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.util import get_metaflow_root
-
-
-class CondaAttributesConflict(MetaflowException):
-    headline = "Conflicting decorator attributes"
 
 
 class CondaStepDecorator(StepDecorator):
@@ -19,7 +15,7 @@ class CondaStepDecorator(StepDecorator):
     defaults = {
         "packages": {},
         "libraries": {},  # Deprecated! Use packages going forward
-        "python": platform.python_version(),  # CPython!
+        "python": None,
         # TODO: Add support for disabled
     }
     # To define conda channels for the whole solve, users can specify
@@ -74,6 +70,17 @@ class CondaStepDecorator(StepDecorator):
 
         environment.set_local_root(LocalStorage.get_datastore_root_from_config(logger))
 
+        if "conda_base" in self.flow._flow_decorators:
+            super_attributes = self.flow._flow_decorators["conda_base"][0].attributes
+            self.attributes["packages"] = {
+                **super_attributes["packages"],
+                **self.attributes["packages"],
+            }
+            self.attributes["python"] = (
+                self.attributes["python"]
+                or super_attributes["python"]
+                or platform.python_version()
+            )  # CPython!
         # TODO: Look into injecting virtual packages.
 
     def runtime_init(self, flow, graph, package, run_id):
@@ -144,3 +151,45 @@ class CondaStepDecorator(StepDecorator):
 
     def runtime_finished(self, exception):
         self.metaflow_dir.cleanup()
+
+
+class CondaFlowDecorator(FlowDecorator):
+    # TODO: Migrate conda_base keyword to conda for simplicity.
+    name = "conda_base"
+    defaults = {
+        "packages": {},
+        "libraries": {},  # Deprecated! Use packages going forward.
+        "python": None,
+        # TODO: Add support for disabled
+    }
+
+    def __init__(self, attributes=None, statically_defined=False):
+        super(CondaFlowDecorator, self).__init__(attributes, statically_defined)
+
+        # Support legacy 'libraries=' attribute for the decorator.
+        self.attributes["packages"] = {
+            **self.attributes["libraries"],
+            **self.attributes["packages"],
+        }
+        del self.attributes["libraries"]
+
+    def flow_init(
+        self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
+    ):
+        # @conda uses a conda environment to create a virtual environment.
+        # The conda environment can be created through micromamba.
+        _supported_virtual_envs = ["conda"]
+
+        # The --environment= requirement ensures that valid virtual environments are
+        # created for every step to execute it, greatly simplifying the @conda
+        # implementation.
+        if environment.TYPE not in _supported_virtual_envs:
+            raise InvalidEnvironmentException(
+                "@%s decorator requires %s"
+                % (
+                    self.name,
+                    "or ".join(
+                        ["--environment=%s" % env for env in _supported_virtual_envs]
+                    ),
+                )
+            )
