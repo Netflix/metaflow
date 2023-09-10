@@ -4,11 +4,10 @@ import sys
 import tempfile
 
 from metaflow.decorators import StepDecorator
+from metaflow.exception import MetaflowException
 from metaflow.metadata import MetaDatum
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.util import get_metaflow_root
-
-from metaflow.exception import MetaflowException
 
 
 class CondaAttributesConflict(MetaflowException):
@@ -19,7 +18,7 @@ class CondaStepDecorator(StepDecorator):
     name = "conda"
     defaults = {
         "packages": {},
-        "libraries": None,  # Support for legacy Conda decorator
+        "libraries": {},  # Deprecated! Use packages going forward
         "python": platform.python_version(),  # CPython!
         # TODO: Add support for disabled
     }
@@ -28,16 +27,10 @@ class CondaStepDecorator(StepDecorator):
         super(CondaStepDecorator, self).__init__(attributes, statically_defined)
 
         # Support legacy 'libraries=' attribute for the decorator.
-        if self.attributes["libraries"] is not None:
-            # Check that user is not trying to set dependencies with both attributes
-            if self.attributes["packages"]:
-                raise CondaAttributesConflict(
-                    "'libraries' and 'packages' are not supported at the same time."
-                )
-
-            # copy libraries into packages as the canonical attribute.
-            self.attributes["packages"] = self.attributes["libraries"].copy()
-        # necessary cleanup, as self.attributes is read directly on multiple occasions.
+        self.attributes["packages"] = {
+            **self.attributes["libraries"],
+            **self.attributes["packages"],
+        }
         del self.attributes["libraries"]
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):

@@ -2,13 +2,14 @@ import json
 import os
 import subprocess
 import tempfile
+from itertools import chain, product
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.util import which
+
 from .micromamba import Micromamba
 from .utils import pip_tags
-from itertools import chain, product
 
 
 class PipException(MetaflowException):
@@ -26,10 +27,10 @@ INSTALLATION_MARKER = "{prefix}/.pip/id"
 
 
 class Pip(object):
-    def __init__(self):
+    def __init__(self, micromamba=None):
         # pip is assumed to be installed inside a conda environment managed by
         # micromamba. pip commands are executed using `micromamba run --prefix`
-        self.micromamba = Micromamba()
+        self.micromamba = micromamba or Micromamba()
 
     def solve(self, id_, packages, python, platform):
         prefix = self.micromamba.path_to_environment(id_)
@@ -60,7 +61,10 @@ class Pip(object):
                 # *(chain.from_iterable(product(["--implementations"], set(implementations)))),
             ]
             for package, version in packages.items():
-                cmd.append("%s==%s" % (package, version))
+                if version.startswith(("<", ">", "!", "~")):
+                    cmd.append(f"{package}{version}")
+                else:
+                    cmd.append(f"{package}=={version}")
             self._call(prefix, cmd)
             with open(report, mode="r", encoding="utf-8") as f:
                 return [

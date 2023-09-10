@@ -1,7 +1,5 @@
-from metaflow.exception import MetaflowException
-
-
 from metaflow import metaflow_config
+from metaflow.exception import MetaflowException
 
 MAGIC_FILE = "conda.manifest"
 
