@@ -161,6 +161,8 @@ class CondaEnvironment(MetaflowEnvironment):
         # TODO: Handle the default executable case. Delegate to base_env as previously?
         step = next(step for step in self.flow if step.name == step_name)
         id_ = self.get_environment(step)["id_"]
+        # bootstrap.py is responsible for ensuring the validity of this executable.
+        # -s is important! Can otherwise leak packages to other environments.
         return os.path.join(id_, "bin/python -s")
 
     def interpreter(self, step_name):
