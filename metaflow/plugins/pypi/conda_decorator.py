@@ -3,9 +3,8 @@ import platform
 import sys
 import tempfile
 
-from metaflow.decorators import StepDecorator, FlowDecorator
+from metaflow.decorators import FlowDecorator, StepDecorator
 from metaflow.exception import MetaflowException
-from metaflow.metadata import MetaDatum
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.util import get_metaflow_root
 
@@ -70,6 +69,7 @@ class CondaStepDecorator(StepDecorator):
 
         environment.set_local_root(LocalStorage.get_datastore_root_from_config(logger))
 
+        # Support flow-level decorator
         if "conda_base" in self.flow._flow_decorators:
             super_attributes = self.flow._flow_decorators["conda_base"][0].attributes
             self.attributes["packages"] = {
@@ -77,11 +77,12 @@ class CondaStepDecorator(StepDecorator):
                 **self.attributes["packages"],
             }
             self.attributes["python"] = (
-                self.attributes["python"]
-                or super_attributes["python"]
-                or platform.python_version()
-            )  # CPython!
-        # TODO: Look into injecting virtual packages.
+                self.attributes["python"] or super_attributes["python"]
+            )
+
+        # Set Python interpreter to user's Python if necessary.
+        if not self.attributes["python"]:
+            self.attributes["python"] = platform.python_version()  # CPython!
 
     def runtime_init(self, flow, graph, package, run_id):
         # Create a symlink to metaflow installed outside the virtual environment
@@ -133,12 +134,13 @@ class CondaStepDecorator(StepDecorator):
                 ),
             )
         )
-        # TODO (savin): Register metadata
+        # TODO: Register metadata
 
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context
     ):
-        # TODO (savin): Check what happens when PYTHONPATH is defined via @environment
+        # TODO: Support unbounded for-each
+        # TODO: Check what happens when PYTHONPATH is defined via @environment
         # Ensure local installation of Metaflow is visible to user code
         cli_args.env["PYTHONPATH"] = self.metaflow_dir.name
         # TODO: Verify user site-package isolation behavior
@@ -161,6 +163,7 @@ class CondaFlowDecorator(FlowDecorator):
         "libraries": {},  # Deprecated! Use packages going forward.
         "python": None,
         # TODO: Add support for disabled
+        # TODO: Support `@conda(python='3.10')` before shipping!!
     }
 
     def __init__(self, attributes=None, statically_defined=False):
@@ -172,6 +175,8 @@ class CondaFlowDecorator(FlowDecorator):
             **self.attributes["packages"],
         }
         del self.attributes["libraries"]
+        if self.attributes["python"]:
+            self.attributes["python"] = str(self.attributes["python"])
 
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
