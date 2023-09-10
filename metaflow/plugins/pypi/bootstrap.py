@@ -1,11 +1,12 @@
 import json
 import os
 import shutil
-import sys
 import subprocess
+import sys
 
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.plugins import DATASTORES
+
 from . import MAGIC_FILE, _datastore_packageroot
 
 # Bootstraps a valid conda virtual environment composed of conda and pypi packages
