@@ -429,6 +429,7 @@ def get_version(pkg):
     return pkg_resources.get_distribution(pkg).version
 
 
+# TODO: This is no longer in use and can be dispensed with.
 # PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution
 # and are needed within a conda environment
 def get_pinned_conda_libs(python_version, datastore_type):

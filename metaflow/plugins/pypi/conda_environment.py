@@ -6,16 +6,15 @@ import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from hashlib import sha256
+from itertools import chain
+from urllib.parse import urlparse
 
+from metaflow.exception import MetaflowException
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.metaflow_profile import profile
-from metaflow.exception import MetaflowException
 
-from urllib.parse import urlparse
-from itertools import chain
-from .utils import conda_platform
 from . import MAGIC_FILE, _datastore_packageroot
-
+from .utils import conda_platform
 
 # TODO: 1. Error handling
 
@@ -50,7 +49,8 @@ class CondaEnvironment(MetaflowEnvironment):
         from .micromamba import Micromamba
         from .pip import Pip
 
-        self.solvers = {"conda": Micromamba(), "pypi": Pip()}
+        micromamba = Micromamba()
+        self.solvers = {"conda": micromamba, "pypi": Pip(micromamba)}
 
     def init_environment(self, echo):
         # The implementation optimizes for latency to ensure as many operations can
@@ -59,13 +59,6 @@ class CondaEnvironment(MetaflowEnvironment):
         # the internals of Micromamba and Pip.
 
         # TODO: Support --datastore=local
-
-        # avoiding circular imports
-        from metaflow.plugins import DATASTORES
-
-        self.storage = [d for d in DATASTORES if d.TYPE == self.datastore_type][0](
-            _datastore_packageroot(self.datastore_type)
-        )
 
         # TODO: Introduce verbose logging
         #       https://github.com/Netflix/metaflow/issues/1494
@@ -103,7 +96,7 @@ class CondaEnvironment(MetaflowEnvironment):
                 platform,
             )
 
-        def cache(results, type_):
+        def cache(storage, results, type_):
             local_packages = {
                 url: {
                     # Path to package in datastore.
@@ -135,7 +128,7 @@ class CondaEnvironment(MetaflowEnvironment):
                 )
                 for package in local_packages.values()
             ]
-            self.storage.save_bytes(
+            storage.save_bytes(
                 list_of_path_and_filehandle,
                 len_hint=len(list_of_path_and_filehandle),
             )
@@ -154,7 +147,16 @@ class CondaEnvironment(MetaflowEnvironment):
                 _ = list(
                     executor.map(lambda x: self.solvers[solver].create(*x), results)
                 )
-            cache(results, solver)
+            if self.datastore_type not in ["local"]:
+                # Cache packages only when a remote datastore is in play.
+                # Avoiding circular imports.
+                from metaflow.plugins import DATASTORES
+
+                storage = [d for d in DATASTORES if d.TYPE == self.datastore_type][0](
+                    _datastore_packageroot(self.datastore_type)
+                )
+
+                cache(storage, results, solver)
 
     def executable(self, step_name, default=None):
         # TODO: Handle the default executable case. Delegate to base_env as previously?
@@ -176,12 +178,24 @@ class CondaEnvironment(MetaflowEnvironment):
             if decorator.name in ["conda", "pypi"]:
                 environment[decorator.name] = dict(decorator.attributes)
 
-        # TODO: inject more pinned packages below
-        # Inject pinned packages for supporting `--datastore` and `--metadata`.
-        # PyPI dependencies are prioritized over Conda dependencies.
+        # TODO: Support dependencies for `--metadata`.
         # TODO: Introduce support for `--telemetry` as a follow up.
+        # Ensure packages are available both in Conda channels and PyPI repostories.
+        pinned_packages = {"requests": ">=2.21.0"}
+        if self.datastore_type == "s3":
+            pinned_packages.update({"boto3": ">=1.14.0"})
+        elif self.datastore_type == "azure":
+            pinned_packages.update(
+                {"azure-identity": ">=1.10.0", "azure-storage-blob": ">=12.12.0"}
+            )
+        elif self.datastore_type == "gs":
+            pinned_packages.update(
+                {"google-cloud-storage": ">=2.5.0", "google-auth": ">=2.11.0"}
+            )
+
+        # PyPI dependencies are prioritized over Conda dependencies.
         environment.get("pypi", environment["conda"])["packages"] = {
-            **{"requests": "2.31.0", "boto3": "1.14.0"},
+            **pinned_packages,
             **environment.get("pypi", environment["conda"])["packages"],
         }
 
