@@ -22,6 +22,9 @@ class CondaStepDecorator(StepDecorator):
         "python": platform.python_version(),  # CPython!
         # TODO: Add support for disabled
     }
+    # To define conda channels for the whole solve, users can specify
+    # CONDA_CHANNELS in their environment. For pinning specific packages to specific
+    # conda channels, users can specify channel::package as the package name.
 
     def __init__(self, attributes=None, statically_defined=False):
         super(CondaStepDecorator, self).__init__(attributes, statically_defined)

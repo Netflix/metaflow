@@ -77,7 +77,8 @@ class Micromamba(object):
                 "create",
                 "--yes",
                 "--quiet",
-                "--channel=conda-forge",  # TODO: fix this before shipping
+                # Introduce conda-forge as a default channel
+                "--channel=%s" % ",".join(self.info()["channels"] or ["conda-forge"]),
                 "--dry-run",
                 "--no-extra-safety-checks",
                 "--repodata-ttl=86400",
@@ -88,6 +89,8 @@ class Micromamba(object):
                 cmd.append("%s==%s" % (package, version))
             if python:
                 cmd.append("python==%s" % python)
+            # TODO: Ensure a human readable message is returned when the environment
+            #       can't be resolved for any and all reasons.
             return [
                 {k: v for k, v in item.items() if k in ["url"]}
                 for item in self._call(cmd, env)["actions"]["LINK"]
