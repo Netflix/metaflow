@@ -7,7 +7,7 @@ from metaflow.metaflow_environment import InvalidEnvironmentException
 class PyPIStepDecorator(StepDecorator):
     name = "pypi"
     defaults = {
-        "packages": {},
+        "packages": {},  # wheels
     }
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
