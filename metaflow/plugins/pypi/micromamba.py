@@ -19,10 +19,6 @@ class MicromambaException(MetaflowException):
         super(MicromambaException, self).__init__(msg)
 
 
-# TODO:
-# 1. Verify original .rc is respected
-
-
 class Micromamba(object):
     def __init__(self):
         # micromamba is a tiny version of the mamba package manager and comes with
@@ -65,7 +61,6 @@ class Micromamba(object):
         # 4. Multiple solves can progress at the same time while relying on the same
         #    index
 
-        # TODO: short circuit solve if the solved environment already exists
         with tempfile.TemporaryDirectory() as tmp_dir:
             env = {
                 "MAMBA_ADD_PIP_AS_PYTHON_DEPENDENCY": "true",
