@@ -349,6 +349,7 @@ def which(cmd, mode=os.F_OK | os.X_OK, path=None):
 
         return w(cmd, mode, path)
     except ImportError:
+
         def _access_check(fn, mode):
             return os.path.exists(fn) and os.access(fn, mode) and not os.path.isdir(fn)
 
