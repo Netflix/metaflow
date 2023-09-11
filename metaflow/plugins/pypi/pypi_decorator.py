@@ -11,9 +11,9 @@ class PyPIStepDecorator(StepDecorator):
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         # At the moment, @pypi uses a conda environment as a virtual environment. This
         # is to ensure that we can have a dedicated Python interpreter within the
-        # virtual environment. The conda environment can be created through either of
-        # mamba, conda & micromamba. We will have experimental support for rattler
-        # soon. As a follow up, we can look into creating a virtualenv using venv.
+        # virtual environment. The conda environment is currently created through
+        # micromamba. As a follow up, we can look into creating a virtualenv using
+        # venv.
 
         # Currently, @pypi relies on pip for package resolution. We can introduce
         # support for Poetry in the near future, if desired. Poetry is great for
