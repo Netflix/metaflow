@@ -95,7 +95,6 @@ class CondaStepDecorator(StepDecorator):
     def runtime_task_created(
         self, task_datastore, task_id, split_index, input_paths, is_cloned, ubf_context
     ):
-        # TODO: Consider recreating the environment if the environment is missing
         self.interpreter = (
             self.environment.interpreter(self.step)
             if not any(
