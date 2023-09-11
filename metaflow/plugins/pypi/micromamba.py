@@ -48,7 +48,6 @@ class Micromamba(object):
             msg = "No installation for *Micromamba* found.\n"
             msg += "Visit https://mamba.readthedocs.io/en/latest/micromamba-installation.html for installation instructions."
             raise MetaflowException(msg)
-        # TODO (savin): Introduce a version check for micromamba
 
     def solve(self, id_, packages, python, platform):
         # Performance enhancements
@@ -104,9 +103,18 @@ class Micromamba(object):
         # already cached. As a perf heuristic, we check if the environment already
         # exists to short circuit package downloads.
 
-        # TODO: Introduce a perf optimization to skip cross-platform downloads
-        #       when already done
         if self.path_to_environment(id_, platform):
+            return
+
+        prefix = "{env_dirs}/{keyword}/{platform}/{id}".format(
+            env_dirs=self.info()["envs_dirs"][0],
+            platform=platform,
+            keyword="metaflow",  # indicates metaflow generated environment
+            id=id_,
+        )
+
+        # Another forced perf heuristic to skip cross-platform downloads.
+        if os.path.exists(f"{prefix}/fake.done"):
             return
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -126,7 +134,14 @@ class Micromamba(object):
             ]
             for package in packages:
                 cmd.append("{url}".format(**package))
-            return self._call(cmd, env)
+
+            self._call(cmd, env)
+            # Perf optimization to skip cross-platform downloads.
+            if platform != self.platform():
+                os.makedirs(prefix, exist_ok=True) or open(
+                    f"{prefix}/fake.done", "w"
+                ).close()
+            return
 
     def create(self, id_, packages, python, platform):
         # create environment only if the platform matches system platform
@@ -139,6 +154,7 @@ class Micromamba(object):
             keyword="metaflow",  # indicates metaflow generated environment
             id=id_,
         )
+
         env = {
             # "CONDA_PKGS_DIRS": "/Users/savin/micromamba/pkgs/%s" % id_,
             # use hardlinks when possible, otherwise copy files
@@ -181,7 +197,7 @@ class Micromamba(object):
         packages_to_filenames = {
             package["url"]: package["url"].split("/")[-1] for package in packages
         }
-        directories = self._call(["config", "list", "-a"])["pkgs_dirs"]
+        directories = self.info()["pkgs_dirs"]
         # search all package caches for packages
         # TODO: Handle conda clean -a
         return {

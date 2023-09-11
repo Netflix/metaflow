@@ -145,7 +145,7 @@ class CondaStepDecorator(StepDecorator):
         cli_args.env["PYTHONPATH"] = self.metaflow_dir.name
         # TODO: Verify user site-package isolation behavior
         #       https://github.com/conda/conda/issues/7707
-        # Also ref - https://github.com/Netflix/metaflow/pull/178
+        #       Also ref - https://github.com/Netflix/metaflow/pull/178
         # cli_args.env["PYTHONNOUSERSITE"] = "1"
         # The executable is already in place for the user code to execute against
         if self.interpreter:
