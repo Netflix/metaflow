@@ -142,6 +142,8 @@ class CondaEnvironment(MetaflowEnvironment):
                 results = list(
                     executor.map(lambda x: solve(*x, solver), environments(solver))
                 )
+            # TODO: Only download packages that are needed for either creating the
+            #       environment or for caching in the remote datastore
             _ = list(map(lambda x: self.solvers[solver].download(*x), results))
             with ThreadPoolExecutor() as executor:
                 _ = list(
