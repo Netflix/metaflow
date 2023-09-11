@@ -60,8 +60,6 @@ class CondaEnvironment(MetaflowEnvironment):
         # a balance between latency and maintainability of code without re-implementing
         # the internals of Micromamba and Pip.
 
-        # TODO: Support --datastore=local
-
         # TODO: Introduce verbose logging
         #       https://github.com/Netflix/metaflow/issues/1494
         echo("Bootstrapping virtual environment(s) ...")
@@ -147,8 +145,6 @@ class CondaEnvironment(MetaflowEnvironment):
                 results = list(
                     executor.map(lambda x: solve(*x, solver), environments(solver))
                 )
-            # TODO: Only download packages that are needed for either creating the
-            #       environment or for caching in the remote datastore
             _ = list(map(lambda x: self.solvers[solver].download(*x), results))
             with ThreadPoolExecutor() as executor:
                 _ = list(
@@ -165,7 +161,6 @@ class CondaEnvironment(MetaflowEnvironment):
                 cache(storage, results, solver)
 
     def executable(self, step_name, default=None):
-        # TODO: Handle the default executable case. Delegate to base_env as previously?
         step = next(step for step in self.flow if step.name == step_name)
         id_ = self.get_environment(step)["id_"]
         # bootstrap.py is responsible for ensuring the validity of this executable.
@@ -359,6 +354,7 @@ class LazyOpen(BufferedIOBase):
                 raise ValueError("Both filename and url are missing")
 
     def _download_to_buffer(self):
+        # TODO: Stream it in chunks?
         response = requests.get(self.url, stream=True)
         response.raise_for_status()
         return response.content
