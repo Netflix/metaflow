@@ -20,8 +20,6 @@ from metaflow.metaflow_profile import profile
 from . import MAGIC_FILE, _datastore_packageroot
 from .utils import conda_platform
 
-# TODO: 1. Error handling
-
 
 class CondaEnvironmentException(MetaflowException):
     headline = "Ran into an error while setting up environment"
