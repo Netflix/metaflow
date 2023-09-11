@@ -143,12 +143,12 @@ class CondaStepDecorator(StepDecorator):
         # TODO: Check what happens when PYTHONPATH is defined via @environment
         # Ensure local installation of Metaflow is visible to user code
         cli_args.env["PYTHONPATH"] = self.metaflow_dir.name
-        # TODO: Verify user site-package isolation behavior
-        #       https://github.com/conda/conda/issues/7707
-        #       Also ref - https://github.com/Netflix/metaflow/pull/178
-        # cli_args.env["PYTHONNOUSERSITE"] = "1"
-        # The executable is already in place for the user code to execute against
         if self.interpreter:
+            # TODO: Verify user site-package isolation behavior
+            #       https://github.com/conda/conda/issues/7707
+            #       Also ref - https://github.com/Netflix/metaflow/pull/178
+            cli_args.env["PYTHONNOUSERSITE"] = "1"
+            # The executable is already in place for the user code to execute against
             cli_args.entrypoint[0] = self.interpreter
 
     def runtime_finished(self, exception):
