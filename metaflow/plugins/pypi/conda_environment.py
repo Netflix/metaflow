@@ -1,13 +1,17 @@
 import errno
 import fcntl
 import functools
+import io
 import json
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from hashlib import sha256
+from io import BufferedIOBase
 from itertools import chain
 from urllib.parse import urlparse
+
+import requests
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_environment import MetaflowEnvironment
@@ -108,6 +112,7 @@ class CondaEnvironment(MetaflowEnvironment):
                 for url, local_path in self.solvers[type_].metadata(*result).items()
             }
             dirty = set()
+            # Prune list of packages to cache.
             for id_, packages, _, _ in results:
                 for package in packages:
                     if package.get("path"):
@@ -121,12 +126,14 @@ class CondaEnvironment(MetaflowEnvironment):
                             + urlparse(package["url"]).path
                         )
                         dirty.add(id_)
+
             list_of_path_and_filehandle = [
                 (
                     package["path"],
-                    open(package["local_path"], "rb"),
+                    # Lazily fetch package from the interweb if needed.
+                    LazyOpen(package["local_path"], "rb", url),
                 )
-                for package in local_packages.values()
+                for url, package in local_packages.items()
             ]
             storage.save_bytes(
                 list_of_path_and_filehandle,
@@ -331,3 +338,51 @@ class CondaEnvironment(MetaflowEnvironment):
                     raise
             finally:
                 fcntl.flock(f, fcntl.LOCK_UN)
+
+
+class LazyOpen(BufferedIOBase):
+    def __init__(self, filename, mode="rb", url=None):
+        super().__init__()
+        self.filename = filename
+        self.mode = mode
+        self.url = url
+        self._file = None
+        self._buffer = None
+        self._position = 0
+
+    def _ensure_file(self):
+        if not self._file:
+            if self.filename and os.path.exists(self.filename):
+                self._file = open(self.filename, self.mode)
+            elif self.url:
+                self._buffer = self._download_to_buffer()
+                self._file = io.BytesIO(self._buffer)
+            else:
+                raise ValueError("Both filename and url are missing")
+
+    def _download_to_buffer(self):
+        response = requests.get(self.url, stream=True)
+        response.raise_for_status()
+        return response.content
+
+    def readable(self):
+        return "r" in self.mode
+
+    def seekable(self):
+        return True
+
+    def read(self, size=-1):
+        self._ensure_file()
+        return self._file.read(size)
+
+    def seek(self, offset, whence=io.SEEK_SET):
+        self._ensure_file()
+        return self._file.seek(offset, whence)
+
+    def tell(self):
+        self._ensure_file()
+        return self._file.tell()
+
+    def close(self):
+        if self._file:
+            self._file.close()

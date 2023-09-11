@@ -102,7 +102,6 @@ class Micromamba(object):
         # Micromamba is painfully slow in determining if many packages are infact
         # already cached. As a perf heuristic, we check if the environment already
         # exists to short circuit package downloads.
-
         if self.path_to_environment(id_, platform):
             return
 
@@ -199,8 +198,7 @@ class Micromamba(object):
         }
         directories = self.info()["pkgs_dirs"]
         # search all package caches for packages
-        # TODO: Handle conda clean -a
-        return {
+        metadata = {
             url: os.path.join(d, file)
             for url, file in packages_to_filenames.items()
             for d in directories
@@ -208,6 +206,10 @@ class Micromamba(object):
             and file in os.listdir(d)
             and os.path.isfile(os.path.join(d, file))
         }
+        # set package tarball local paths to None if package tarballs are missing
+        for url in packages_to_filenames:
+            metadata.setdefault(url, None)
+        return metadata
 
     def interpreter(self, id_):
         # -s is important! Can otherwise leak packages to other environments.
