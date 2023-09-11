@@ -71,14 +71,16 @@ class Micromamba(object):
                 "create",
                 "--yes",
                 "--quiet",
-                # Introduce conda-forge as a default channel
-                "--channel=%s" % ",".join(self.info()["channels"] or ["conda-forge"]),
                 "--dry-run",
                 "--no-extra-safety-checks",
                 "--repodata-ttl=86400",
                 "--retry-clean-cache",
                 "--prefix=%s/prefix" % tmp_dir,
             ]
+            # Introduce conda-forge as a default channel
+            for channel in self.info()["channels"] or ["conda-forge"]:
+                cmd.append("--channel=%s" % channel)
+
             for package, version in packages.items():
                 cmd.append("%s==%s" % (package, version))
             if python:
