@@ -186,16 +186,16 @@ class CondaEnvironment(MetaflowEnvironment):
         # Certain packages are required for metaflow runtime to function correctly.
         # Ensure these packages are available both in Conda channels and PyPI
         # repostories.
-        pinned_packages = {"requests": "=>2.21.0"}
+        pinned_packages = {"requests": ">=2.21.0"}
         if self.datastore_type == "s3":
-            pinned_packages.update({"boto3": "=>1.14.0"})
+            pinned_packages.update({"boto3": ">=1.14.0"})
         elif self.datastore_type == "azure":
             pinned_packages.update(
-                {"azure-identity": "=>1.10.0", "azure-storage-blob": "=>12.12.0"}
+                {"azure-identity": ">=1.10.0", "azure-storage-blob": ">=12.12.0"}
             )
         elif self.datastore_type == "gs":
             pinned_packages.update(
-                {"google-cloud-storage": "=>2.5.0", "google-auth": "=>2.11.0"}
+                {"google-cloud-storage": ">=2.5.0", "google-auth": ">=2.11.0"}
             )
 
         # PyPI dependencies are prioritized over Conda dependencies.
