@@ -37,7 +37,7 @@ class CondaStepDecorator(StepDecorator):
         "packages": {},
         "libraries": {},  # Deprecated! Use packages going forward
         "python": None,
-        "disabled": False
+        "disabled": None
         # TODO: Add support for disabled
     }
     # To define conda channels for the whole solve, users can specify
@@ -221,7 +221,7 @@ class CondaFlowDecorator(FlowDecorator):
         "packages": {},
         "libraries": {},  # Deprecated! Use packages going forward.
         "python": None,
-        # TODO: Add support for disabled
+        "disabled": None,
         # TODO: Support `@conda(python='3.10')` before shipping!!
     }
 
