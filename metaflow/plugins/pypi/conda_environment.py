@@ -68,6 +68,8 @@ class CondaEnvironment(MetaflowEnvironment):
             seen = set()
             for step in self.flow:
                 environment = self.get_environment(step)
+                if environment["id_"] is None:
+                    continue
                 if type_ in environment and environment["id_"] not in seen:
                     seen.add(environment["id_"])
                     for platform in environment[type_]["platforms"]:
@@ -75,7 +77,7 @@ class CondaEnvironment(MetaflowEnvironment):
                             **{
                                 k: v
                                 for k, v in environment[type_].items()
-                                if k != "platforms"
+                                if k in ["python", "packages"]
                             },
                             **{"platform": platform},
                         }
@@ -163,20 +165,26 @@ class CondaEnvironment(MetaflowEnvironment):
     def executable(self, step_name, default=None):
         step = next(step for step in self.flow if step.name == step_name)
         id_ = self.get_environment(step)["id_"]
-        # bootstrap.py is responsible for ensuring the validity of this executable.
-        # -s is important! Can otherwise leak packages to other environments.
-        return os.path.join(id_, "bin/python -s")
+        if id_ is not None:
+            # bootstrap.py is responsible for ensuring the validity of this executable.
+            # -s is important! Can otherwise leak packages to other environments.
+            return os.path.join(id_, "bin/python -s")
+        return super().executable(step_name, default)
 
     def interpreter(self, step_name):
         step = next(step for step in self.flow if step.name == step_name)
         id_ = self.get_environment(step)["id_"]
-        # User workloads are executed through the conda environment's interpreter.
-        return self.solvers["conda"].interpreter(id_)
+        if id_ is not None:
+            # User workloads are executed through the conda environment's interpreter.
+            return self.solvers["conda"].interpreter(id_)
+        return super().executable(step_name)
 
     @functools.lru_cache(maxsize=None)
     def get_environment(self, step):
         environment = {}
         for decorator in step.decorators:
+            if decorator.name == "conda" and not decorator.is_enabled:
+                return {"id_": None}
             # @conda decorator is guaranteed to exist thanks to self.decospecs
             if decorator.name in ["conda", "pypi"]:
                 environment[decorator.name] = dict(decorator.attributes)

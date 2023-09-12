@@ -37,6 +37,7 @@ class CondaStepDecorator(StepDecorator):
         "packages": {},
         "libraries": {},  # Deprecated! Use packages going forward
         "python": None,
+        "disabled": False
         # TODO: Add support for disabled
     }
     # To define conda channels for the whole solve, users can specify
@@ -52,6 +53,24 @@ class CondaStepDecorator(StepDecorator):
             **self.attributes["packages"],
         }
         del self.attributes["libraries"]
+
+    @property
+    def super_attributes(self):
+        if "conda_base" in self.flow._flow_decorators:
+            return self.flow._flow_decorators["conda_base"][0].attributes
+        return self.defaults
+
+    @property
+    def is_enabled(self):
+        return not next(
+            x
+            for x in [
+                self.attributes["disabled"],
+                self.super_attributes["disabled"],
+                False,
+            ]
+            if x is not None
+        )
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         # @conda uses a conda environment to create a virtual environment.
@@ -92,14 +111,13 @@ class CondaStepDecorator(StepDecorator):
         environment.set_local_root(LocalStorage.get_datastore_root_from_config(logger))
 
         # Support flow-level decorator
-        if "conda_base" in self.flow._flow_decorators:
-            super_attributes = self.flow._flow_decorators["conda_base"][0].attributes
+        if self.super_attributes:
             self.attributes["packages"] = {
-                **super_attributes["packages"],
+                **self.super_attributes["packages"],
                 **self.attributes["packages"],
             }
             self.attributes["python"] = (
-                self.attributes["python"] or super_attributes["python"]
+                self.attributes["python"] or self.super_attributes["python"]
             )
 
         # Set Python interpreter to user's Python if necessary.
