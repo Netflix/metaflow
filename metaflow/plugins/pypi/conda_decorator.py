@@ -37,8 +37,7 @@ class CondaStepDecorator(StepDecorator):
         "packages": {},
         "libraries": {},  # Deprecated! Use packages going forward
         "python": None,
-        "disabled": None
-        # TODO: Add support for disabled
+        "disabled": None,
     }
     # To define conda channels for the whole solve, users can specify
     # CONDA_CHANNELS in their environment. For pinning specific packages to specific
