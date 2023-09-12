@@ -54,7 +54,7 @@ if __name__ == "__main__":
     cmds = [
         # TODO: check if mamba or conda are already available on the image
         f"""if ! command -v ./micromamba >/dev/null 2>&1; then
-            wget -qO- https://micromamba.snakepit.net/api/micromamba/{architecture}/latest | tar -xvj bin/micromamba --strip-components=1;
+            wget -qO- https://micro.mamba.pm/api/micromamba/{architecture}/latest | tar -xvj bin/micromamba --strip-components=1;
             export PATH=$PATH:$HOME/bin;
             if ! command -v ./micromamba >/dev/null 2>&1; then
                 echo "Failed to install Micromamba!";
