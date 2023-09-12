@@ -54,9 +54,9 @@ def pip_tags(python_version, mamba_platform):
         ]
         platforms.append("linux_x86_64")
     elif mamba_platform == "osx-64":
-        platforms = mac_platforms((11, 0), "x86_64")
+        platforms = mac_platforms(arch="x86_64")
     elif mamba_platform == "osx-arm64":
-        platforms = mac_platforms((11, 0), "arm64")
+        platforms = mac_platforms(arch="arm64")
     else:
         raise MetaflowException("Unsupported platform: %s" % arch)
 
