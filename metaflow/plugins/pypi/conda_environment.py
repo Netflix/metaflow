@@ -77,7 +77,7 @@ class CondaEnvironment(MetaflowEnvironment):
                             **{
                                 k: v
                                 for k, v in environment[type_].items()
-                                if k in ["python", "packages"]
+                                if k != "platform"
                             },
                             **{"platform": platform},
                         }
