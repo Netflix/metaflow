@@ -35,7 +35,7 @@ class Pip(object):
         # micromamba. pip commands are executed using `micromamba run --prefix`
         self.micromamba = micromamba or Micromamba()
 
-    def solve(self, id_, packages, python, platform):
+    def solve(self, id_, packages, python, sources, platform, **kwargs):
         prefix = self.micromamba.path_to_environment(id_)
         if prefix is None:
             msg = "Unable to locate a Micromamba managed virtual environment\n"
@@ -63,6 +63,8 @@ class Pip(object):
                 *(chain.from_iterable(product(["--platform"], set(platforms)))),
                 # *(chain.from_iterable(product(["--implementations"], set(implementations)))),
             ]
+            for source in sources:
+                cmd.append(f"--extra-index-url {source}")
             for package, version in packages.items():
                 if version.startswith(("<", ">", "!", "~")):
                     cmd.append(f"{package}{version}")
