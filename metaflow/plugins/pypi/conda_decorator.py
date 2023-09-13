@@ -10,6 +10,28 @@ from metaflow.util import get_metaflow_root
 
 
 class CondaStepDecorator(StepDecorator):
+    """
+    Specifies the Conda environment for the step.
+
+    Information in this decorator will augment any
+    attributes set in the `@conda_base` flow-level decorator. Hence,
+    you can use `@conda_base` to set common libraries required by all
+    steps and use `@conda` to specify step-specific additions.
+
+    Parameters
+    ----------
+    packages : Dict[str, str], default: {}
+        Packages to use for this step. The key is the name of the package
+        and the value is the version to use.
+    libraries : Dict[str, str], optional
+        Supported for backward compatibility. When used with packages, packages will take precedence.
+    python : str, optional
+        Version of Python to use, e.g. '3.7.4'. A default value of None means to
+        use the current Python version.
+    disabled : bool, default: False
+        If set to True, disables Conda.
+    """
+
     name = "conda"
     defaults = {
         "packages": {},
@@ -155,6 +177,26 @@ class CondaStepDecorator(StepDecorator):
 
 
 class CondaFlowDecorator(FlowDecorator):
+    """
+    Specifies the Conda environment for all steps of the flow.
+
+    Use `@conda_base` to set common libraries required by all
+    steps and use `@conda` to specify step-specific additions.
+
+    Parameters
+    ----------
+    packages : Dict[str, str], default: {}
+        Packages to use for this flow. The key is the name of the package
+        and the value is the version to use.
+    libraries : Dict[str, str], optional
+        Supported for backward compatibility. When used with packages, packages will take precedence.
+    python : str, optional
+        Version of Python to use, e.g. '3.7.4'. A default value of None means
+        to use the current Python version.
+    disabled : bool, default: False
+        If set to True, disables Conda.
+    """
+
     # TODO: Migrate conda_base keyword to conda for simplicity.
     name = "conda_base"
     defaults = {
