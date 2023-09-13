@@ -5,7 +5,6 @@ import tempfile
 from itertools import chain, product
 
 from metaflow.exception import MetaflowException
-from metaflow.util import which
 
 from .micromamba import Micromamba
 from .utils import pip_tags
