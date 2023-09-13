@@ -300,7 +300,7 @@ class CondaEnvironment(MetaflowEnvironment):
                 for key in keys:
                     try:
                         data = data[key]
-                    except:
+                    except KeyError:
                         return None
                 return data
 
