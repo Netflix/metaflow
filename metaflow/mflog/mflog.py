@@ -135,9 +135,15 @@ def merge_logs(logs):
                 missing.append(line)
         for line in missing:
             res = MFLogline(
-                False, None, MISSING_TIMESTAMP_STR, None, None, line, MISSING_TIMESTAMP
+                False,
+                None,
+                MISSING_TIMESTAMP_STR.encode("utf-8"),
+                None,
+                None,
+                line,
+                MISSING_TIMESTAMP,
             )
-            yield res.utc_tstamp_str.encode("utf-8"), res
+            yield res.utc_tstamp_str, res
 
     # note that sorted() below should be a very cheap, often a O(n) operation
     # because Python's Timsort is very fast for already sorted data.
