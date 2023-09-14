@@ -1,12 +1,11 @@
 import platform
 import sys
 
-from metaflow._vendor.packaging.tags import (
-    _cpython_abis,
-    compatible_tags,
-    cpython_tags,
-    mac_platforms,
-)
+if sys.version_info < (3, 6):
+    from metaflow._vendor.v3_5.packaging import tags
+else:
+    from metaflow._vendor.packaging import tags
+
 from metaflow.exception import MetaflowException
 
 
@@ -54,17 +53,17 @@ def pip_tags(python_version, mamba_platform):
         ]
         platforms.append("linux_x86_64")
     elif mamba_platform == "osx-64":
-        platforms = mac_platforms(arch="x86_64")
+        platforms = tags.mac_platforms(arch="x86_64")
     elif mamba_platform == "osx-arm64":
-        platforms = mac_platforms(arch="arm64")
+        platforms = tags.mac_platforms(arch="arm64")
     else:
-        raise MetaflowException("Unsupported platform: %s" % arch)
+        raise MetaflowException("Unsupported platform: %s" % mamba_platform)
 
     interpreter = "cp%s" % ("".join(map(str, py_version)))
 
-    abis = _cpython_abis(py_version)
+    abis = tags._cpython_abis(py_version)
 
     supported = []
-    supported.extend(cpython_tags(py_version, abis, platforms))
-    supported.extend(compatible_tags(py_version, interpreter, platforms))
+    supported.extend(tags.cpython_tags(py_version, abis, platforms))
+    supported.extend(tags.compatible_tags(py_version, interpreter, platforms))
     return supported
