@@ -35,7 +35,7 @@ class Pip(object):
         # micromamba. pip commands are executed using `micromamba run --prefix`
         self.micromamba = micromamba or Micromamba()
 
-    def solve(self, id_, packages, python, indices, platform, **kwargs):
+    def solve(self, id_, packages, python, platform):
         prefix = self.micromamba.path_to_environment(id_)
         if prefix is None:
             msg = "Unable to locate a Micromamba managed virtual environment\n"
@@ -59,11 +59,16 @@ class Pip(object):
                 "--report=%s" % report,
                 "--progress-bar=off",
                 "--quiet",
-                *(chain.from_iterable(product(["--extra-index-url"], set(indices)))),
+                *(
+                    chain.from_iterable(
+                        product(["--extra-index-url"], self._extra_indices(prefix))
+                    )
+                ),
                 *(chain.from_iterable(product(["--abi"], set(abis)))),
                 *(chain.from_iterable(product(["--platform"], set(platforms)))),
                 # *(chain.from_iterable(product(["--implementations"], set(implementations)))),
             ]
+
             for package, version in packages.items():
                 if version.startswith(("<", ">", "!", "~")):
                     cmd.append(f"{package}{version}")
@@ -75,6 +80,20 @@ class Pip(object):
                     {k: v for k, v in item["download_info"].items() if k in ["url"]}
                     for item in json.load(f)["install"]
                 ]
+
+    def _extra_indices(self, env_prefix):
+        extra_indices = []
+        for key in [":env:.extra-index-url", "global.extra-index-url"]:
+            try:
+                extras = self._call(
+                    env_prefix, args=["config", "get", key], isolated=False
+                )
+                extra_indices.extend(extras.split(" "))
+            except Exception:
+                # pip will throw an error when trying to get a config key that does not exist.
+                # Our concern is whether the output of the command could be parsed properly.
+                pass
+        return extra_indices
 
     def download(self, id_, packages, python, platform):
         prefix = self.micromamba.path_to_environment(id_)
@@ -97,6 +116,11 @@ class Pip(object):
             #  if packages are present in Pip cache, this will be a local copy
             "--dest=%s/.pip/wheels" % prefix,
             "--quiet",
+            *(
+                chain.from_iterable(
+                    product(["--extra-index-url"], self._extra_indices(prefix))
+                )
+            ),
             *(chain.from_iterable(product(["--abi"], set(abis)))),
             *(chain.from_iterable(product(["--platform"], set(platforms)))),
             # *(chain.from_iterable(product(["--implementations"], set(implementations)))),
@@ -140,7 +164,7 @@ class Pip(object):
         with open(metadata_file, "r") as file:
             return json.loads(file.read())
 
-    def _call(self, prefix, args, env=None):
+    def _call(self, prefix, args, env=None, isolated=True):
         if env is None:
             env = {}
         try:
@@ -154,9 +178,9 @@ class Pip(object):
                         "pip3",
                         "--disable-pip-version-check",
                         "--no-input",
-                        "--isolated",
                         "--no-color",
                     ]
+                    + (["--isolated"] if isolated else [])
                     + args,
                     stderr=subprocess.PIPE,
                     env={
