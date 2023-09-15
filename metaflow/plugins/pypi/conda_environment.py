@@ -73,11 +73,14 @@ class CondaEnvironment(MetaflowEnvironment):
                 if type_ in environment and environment["id_"] not in seen:
                     seen.add(environment["id_"])
                     for platform in environment[type_]["platforms"]:
+                        # Only yield parameters that solve() can handle.
+                        # This is because the environment can contain items that the solver does not care about,
+                        # such as default values (e.g. disabled=None)
                         yield environment["id_"], {
                             **{
                                 k: v
                                 for k, v in environment[type_].items()
-                                if k != "platforms"
+                                if k in ["python", "packages"]
                             },
                             **{"platform": platform},
                         }
