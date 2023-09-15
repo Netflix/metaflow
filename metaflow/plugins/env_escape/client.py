@@ -75,6 +75,15 @@ class Client(object):
             raise RuntimeError("Existing socket: %s" % self._socket_path)
         env = os.environ.copy()
         env["PYTHONPATH"] = pythonpath
+        # When coming from a conda environment, LD_LIBRARY_PATH may be set to
+        # first include the Conda environment's library. When breaking out to
+        # the underlying python, we need to reset it to the original LD_LIBRARY_PATH
+        ld_lib_path = env.get("LD_LIBRARY_PATH")
+        orig_ld_lib_path = env.get("MF_ORIG_LD_LIBRARY_PATH")
+        if ld_lib_path is not None and orig_ld_lib_path is not None:
+            env["LD_LIBRARY_PATH"] = orig_ld_lib_path
+            if orig_ld_lib_path is not None:
+                del env["MF_ORIG_LD_LIBRARY_PATH"]
         self._server_process = Popen(
             [
                 python_executable,
