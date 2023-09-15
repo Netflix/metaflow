@@ -1,12 +1,11 @@
+import platform
 from metaflow.decorators import StepDecorator
 from metaflow.metaflow_environment import InvalidEnvironmentException
 
 
 class PyPIStepDecorator(StepDecorator):
     name = "pypi"
-    defaults = {
-        "packages": {},  # wheels
-    }
+    defaults = {"packages": {}, "python": None}  # wheels
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         # At the moment, @pypi uses a conda environment as a virtual environment. This
@@ -36,6 +35,10 @@ class PyPIStepDecorator(StepDecorator):
                     ),
                 )
             )
+
+        # Set Python interpreter to user's Python if necessary.
+        if not self.attributes["python"]:
+            self.attributes["python"] = platform.python_version()  # CPython!
 
         # The init_environment hook for Environment creates the relevant virtual
         # environments. The step_init hook sets up the relevant state for that hook to
