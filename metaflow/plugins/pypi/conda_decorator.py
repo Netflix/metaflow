@@ -59,18 +59,6 @@ class CondaStepDecorator(StepDecorator):
             return self.flow._flow_decorators["conda_base"][0].attributes
         return self.defaults
 
-    @property
-    def is_enabled(self):
-        return not next(
-            x
-            for x in [
-                self.attributes["disabled"],
-                self.super_attributes["disabled"],
-                False,
-            ]
-            if x is not None
-        )
-
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         # @conda uses a conda environment to create a virtual environment.
         # The conda environment can be created through micromamba.
@@ -122,6 +110,9 @@ class CondaStepDecorator(StepDecorator):
         # Set Python interpreter to user's Python if necessary.
         if not self.attributes["python"]:
             self.attributes["python"] = platform.python_version()  # CPython!
+
+        if self.attributes["disabled"] is None:
+            self.attributes["disabled"] = self.super_attributes["disabled"]
 
     def runtime_init(self, flow, graph, package, run_id):
         # Create a symlink to metaflow installed outside the virtual environment

@@ -68,7 +68,7 @@ class CondaEnvironment(MetaflowEnvironment):
             seen = set()
             for step in self.flow:
                 environment = self.get_environment(step)
-                if environment["id_"] is None:
+                if environment is None:
                     continue
                 if type_ in environment and environment["id_"] not in seen:
                     seen.add(environment["id_"])
@@ -164,29 +164,29 @@ class CondaEnvironment(MetaflowEnvironment):
 
     def executable(self, step_name, default=None):
         step = next(step for step in self.flow if step.name == step_name)
-        id_ = self.get_environment(step)["id_"]
-        if id_ is not None:
+        env = self.get_environment(step)
+        if env is not None:
             # bootstrap.py is responsible for ensuring the validity of this executable.
             # -s is important! Can otherwise leak packages to other environments.
-            return os.path.join(id_, "bin/python -s")
+            return os.path.join(env["id_"], "bin/python -s")
         return super().executable(step_name, default)
 
     def interpreter(self, step_name):
         step = next(step for step in self.flow if step.name == step_name)
-        id_ = self.get_environment(step)["id_"]
-        if id_ is not None:
+        env = self.get_environment(step)
+        if env is not None:
             # User workloads are executed through the conda environment's interpreter.
-            return self.solvers["conda"].interpreter(id_)
+            return self.solvers["conda"].interpreter(env["id_"])
         return super().executable(step_name)
 
     @functools.lru_cache(maxsize=None)
     def get_environment(self, step):
         environment = {}
         for decorator in step.decorators:
-            if decorator.name == "conda" and not decorator.is_enabled:
-                return {"id_": None}
             # @conda decorator is guaranteed to exist thanks to self.decospecs
             if decorator.name in ["conda", "pypi"]:
+                if decorator.attributes["disabled"]:
+                    return None
                 environment[decorator.name] = dict(decorator.attributes)
 
         # TODO: Support dependencies for `--metadata`.
@@ -287,12 +287,12 @@ class CondaEnvironment(MetaflowEnvironment):
     def bootstrap_commands(self, step_name, datastore_type):
         # Bootstrap conda and execution environment for step
         step = next(step for step in self.flow if step.name == step_name)
-        id_ = self.get_environment(step)["id_"]
-        if id_ is not None:
+        env = self.get_environment(step)
+        if env is not None:
             return [
                 "echo 'Bootstrapping virtual environment...'",
                 'python -m metaflow.plugins.pypi.bootstrap "%s" %s "%s" linux-64'
-                % (self.flow.name, id_, self.datastore_type),
+                % (self.flow.name, env["id_"], self.datastore_type),
                 "echo 'Environment bootstrapped.'",
             ]
         return super().bootstrap_commands(step_name, datastore_type)
