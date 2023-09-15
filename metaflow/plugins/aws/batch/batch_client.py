@@ -321,13 +321,15 @@ class BatchJob(object):
             else:
                 job_definition["containerProperties"]["linuxParameters"]["devices"] = []
                 for i in range(int(efa)):
-                    job_definition["containerProperties"]["linuxParameters"]["devices"] = [
+                    job_definition["containerProperties"]["linuxParameters"][
+                        "devices"
+                    ].append(
                         {
                             "hostPath": "/dev/infiniband/uverbs{}".format(i),
                             "containerPath": "/dev/infiniband/uverbs{}".format(i),
                             "permissions": ["READ", "WRITE", "MKNOD"]
                         }
-                    ]
+                    )
 
         self.num_parallel = num_parallel or 0
         if self.num_parallel >= 1:
