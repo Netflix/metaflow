@@ -45,7 +45,7 @@ class Micromamba(object):
             msg += "Visit https://mamba.readthedocs.io/en/latest/micromamba-installation.html for installation instructions."
             raise MetaflowException(msg)
 
-    def solve(self, id_, packages, python, platform, **kwargs):
+    def solve(self, id_, packages, python, platform):
         # Performance enhancements
         # 1. Using zstd compressed repodata index files drops the index download time
         #    by a factor of 10x - conda-forge/noarch/repodata.json has a

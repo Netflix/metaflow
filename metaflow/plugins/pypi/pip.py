@@ -35,7 +35,7 @@ class Pip(object):
         # micromamba. pip commands are executed using `micromamba run --prefix`
         self.micromamba = micromamba or Micromamba()
 
-    def solve(self, id_, packages, python, platform, **kwargs):
+    def solve(self, id_, packages, python, platform):
         prefix = self.micromamba.path_to_environment(id_)
         if prefix is None:
             msg = "Unable to locate a Micromamba managed virtual environment\n"
