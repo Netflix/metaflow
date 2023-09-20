@@ -35,6 +35,9 @@ class CondaEnvironment(MetaflowEnvironment):
     def __init__(self, flow, echo):
         super(CondaEnvironment, self).__init__(flow, echo)
         self.flow = flow
+        self.environment_manifest_path = os.path.join(
+            self.local_root, self.flow.name, MAGIC_FILE
+        )
 
     def decospecs(self):
         # Apply conda decorator to manage the task execution lifecycle.
@@ -285,7 +288,7 @@ class CondaEnvironment(MetaflowEnvironment):
     def add_to_package(self):
         # Add manifest file to job package at the top level.
         files = []
-        manifest = self.get_environment_manifest_path()
+        manifest = self.environment_manifest_path
         if os.path.exists(manifest):
             files.append((manifest, os.path.basename(manifest)))
         return files
@@ -305,13 +308,8 @@ class CondaEnvironment(MetaflowEnvironment):
             # for @conda/@pypi(disabled=True).
             return super().bootstrap_commands(step_name, datastore_type)
 
-    # TODO: Make this an instance variable once local_root is part of the object
-    #       constructor.
-    def get_environment_manifest_path(self):
-        return os.path.join(self.local_root, self.flow.name, MAGIC_FILE)
-
     def read_from_environment_manifest(self, keys):
-        path = self.get_environment_manifest_path()
+        path = self.environment_manifest_path
         if os.path.exists(path) and os.path.getsize(path) > 0:
             with open(path) as f:
                 data = json.load(f)
@@ -323,7 +321,7 @@ class CondaEnvironment(MetaflowEnvironment):
                 return data
 
     def write_to_environment_manifest(self, keys, value):
-        path = self.get_environment_manifest_path()
+        path = self.environment_manifest_path
         try:
             os.makedirs(os.path.dirname(path))
         except OSError as x:
