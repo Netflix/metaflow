@@ -115,13 +115,6 @@ class CondaStepDecorator(StepDecorator):
         # At this point, the list of 32 bit instance types is shrinking quite rapidly.
         # We can worry about supporting them when there is a need.
 
-        # TODO: This code snippet can be done away with by altering the constructor of
-        #       MetaflowEnvironment. A good first-task exercise.
-        # Avoid circular import
-        from metaflow.plugins.datastores.local_storage import LocalStorage
-
-        environment.set_local_root(LocalStorage.get_datastore_root_from_config(logger))
-
         self.disabled = not self.environment.get_environment(
             next(step for step in self.flow if step.name == self.step)
         )
