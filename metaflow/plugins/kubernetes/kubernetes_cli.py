@@ -126,6 +126,18 @@ def kubernetes():
     type=int,
     help="Number of parallel nodes to run as a multi-node job.",
 )
+@click.option(
+    "--labels",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=False,
+)
+@click.option(
+    "--annotations",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=False,
+)
 @click.pass_context
 def step(
     ctx,
@@ -154,6 +166,8 @@ def step(
     shared_memory=None,
     port=None,
     num_parallel=None,
+    labels=None,
+    annotations=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None, **kwargs):
@@ -294,6 +308,8 @@ def step(
                 shared_memory=shared_memory,
                 port=port,
                 num_parallel=num_parallel,
+                labels=labels,
+                annotations=annotations,
             )
     except Exception as e:
         traceback.print_exc(chain=False)
