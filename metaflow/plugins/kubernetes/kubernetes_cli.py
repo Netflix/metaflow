@@ -132,6 +132,18 @@ def kubernetes():
     type=str,
     help="Quality of Service class for the Kubernetes pod",
 )
+@click.option(
+    "--labels",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=False,
+)
+@click.option(
+    "--annotations",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=False,
+)
 @click.pass_context
 def step(
     ctx,
@@ -161,6 +173,8 @@ def step(
     port=None,
     num_parallel=None,
     qos=None,
+    labels=None,
+    annotations=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None, **kwargs):
@@ -302,6 +316,8 @@ def step(
                 port=port,
                 num_parallel=num_parallel,
                 qos=qos,
+                labels=labels,
+                annotations=annotations,
             )
     except Exception as e:
         traceback.print_exc(chain=False)

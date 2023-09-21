@@ -35,7 +35,6 @@ from metaflow.metaflow_config import (
     DEFAULT_SECRETS_BACKEND_TYPE,
     GCP_SECRET_MANAGER_PREFIX,
     KUBERNETES_FETCH_EC2_METADATA,
-    KUBERNETES_LABELS,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     OTEL_ENDPOINT,
     S3_ENDPOINT_URL,
@@ -491,6 +490,7 @@ class Kubernetes(object):
         port=None,
         name_pattern=None,
         qos=None,
+        annotations=None,
     ):
         if env is None:
             env = {}
@@ -523,7 +523,8 @@ class Kubernetes(object):
                 retries=0,
                 step_name=step_name,
                 tolerations=tolerations,
-                labels=self._get_labels(labels),
+                labels=labels,
+                annotations=annotations,
                 use_tmpfs=use_tmpfs,
                 tmpfs_tempdir=tmpfs_tempdir,
                 tmpfs_size=tmpfs_size,
@@ -643,18 +644,13 @@ class Kubernetes(object):
         for name, value in env.items():
             job.environment_variable(name, value)
 
+        # Add job specific annotations not set in the decorator.
         annotations = {
-            "metaflow/user": user,
-            "metaflow/flow_name": flow_name,
+            "metaflow/run_id": run_id,
+            "metaflow/step_name": step_name,
+            "metaflow/task_id": task_id,
+            "metaflow/attempt": attempt,
         }
-        if current.get("project_name"):
-            annotations.update(
-                {
-                    "metaflow/project_name": current.project_name,
-                    "metaflow/branch_name": current.branch_name,
-                    "metaflow/project_flow_name": current.project_flow_name,
-                }
-            )
 
         for name, value in annotations.items():
             job.annotation(name, value)
@@ -775,46 +771,6 @@ class Kubernetes(object):
             "stderr",
             job_id=self._job.id,
         )
-
-    @staticmethod
-    def _get_labels(extra_labels=None):
-        if extra_labels is None:
-            extra_labels = {}
-        env_labels = KUBERNETES_LABELS.split(",") if KUBERNETES_LABELS else []
-        env_labels = parse_kube_keyvalue_list(env_labels, False)
-        labels = {**env_labels, **extra_labels}
-        validate_kube_labels(labels)
-        return labels
-
-
-def validate_kube_labels(
-    labels: Optional[Dict[str, Optional[str]]],
-) -> bool:
-    """Validate label values.
-
-    This validates the kubernetes label values.  It does not validate the keys.
-    Ideally, keys should be static and also the validation rules for keys are
-    more complex than those for values.  For full validation rules, see:
-
-    https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
-    """
-
-    def validate_label(s: Optional[str]):
-        regex_match = r"^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$"
-        if not s:
-            # allow empty label
-            return True
-        if not re.search(regex_match, s):
-            raise KubernetesException(
-                'Invalid value: "%s"\n'
-                "A valid label must be an empty string or one that\n"
-                "  - Consist of alphanumeric, '-', '_' or '.' characters\n"
-                "  - Begins and ends with an alphanumeric character\n"
-                "  - Is at most 63 characters" % s
-            )
-        return True
-
-    return all([validate_label(v) for v in labels.values()]) if labels else True
 
 
 def parse_kube_keyvalue_list(items: List[str], requires_both: bool = True):
