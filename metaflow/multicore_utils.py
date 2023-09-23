@@ -4,6 +4,7 @@ import traceback
 from itertools import islice
 from multiprocessing import cpu_count
 from tempfile import NamedTemporaryFile
+import time
 
 try:
     # Python 2
@@ -68,8 +69,17 @@ def parallel_imap_unordered(func, iterable, max_parallel=None, dir=None):
 
     while pids:
 
-        pid, output_file = pids.pop()
-        if os.waitpid(pid, 0)[1]:
+        for idx, pid_info in enumerate(pids):
+            pid, output_file = pid_info
+            pid, exit_code = os.waitpid(pid, os.WNOHANG)
+            if pid:
+                pids.pop(idx)
+                break
+        else:
+            time.sleep(1)  # Wait a bit before re-checking
+            continue
+
+        if exit_code:
             raise MulticoreException("Child failed")
 
         with open(output_file, "rb") as f:
