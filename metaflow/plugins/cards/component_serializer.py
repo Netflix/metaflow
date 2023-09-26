@@ -21,26 +21,194 @@ def get_card_class(card_type):
     return filtered_cards[0]
 
 
+def _component_is_valid(component):
+    """
+    Validates if the component is of the correct class.
+    """
+    if not issubclass(type(component), MetaflowCardComponent):
+        return False
+    return True
+
+
+def warning_message(message, logger=None, ts=False):
+    msg = "[@card WARNING] %s" % message
+    if logger:
+        logger(msg, timestamp=ts, bad=True)
+
+
 class WarningComponent(ErrorComponent):
     def __init__(self, warning_message):
         super().__init__("@card WARNING", warning_message)
 
 
-class CardComponents:
-    def __init__(self, card_proc, components=None):
+class ComponentStore:
+    """
+    The `ComponentStore` class handles the in-memory storage of the components for a single card.
+    This class has combination of a array/dictionary like interface to access the components.
+
+    It exposes the `append` /`extend` methods like an array to add components.
+    It also exposes the `__getitem__`/`__setitem__` methods like a dictionary to access the components by thier Ids.
+
+    The reason this has dual behavior is because components cannot be stored entirely as a map/dictionary because
+    the order of the components matter. The order of the components will visually affect the order of the components seen on the browser.
+
+    """
+
+    def __init__(self, logger, components=None):
+        self._component_map = {}
+        self._components = []
+        self._logger = logger
+        if components is not None:
+            for c in list(components):
+                self._store_component(c, component_id=None)
+
+    def _realtime_updateable_components(self):
+        for c in self._components:
+            if c.REALTIME_UPDATABLE:
+                yield c
+
+    def _create_component_id(self, component):
+        uuid_bit = "".join(uuid.uuid4().hex.split("-"))[:6]
+        return type(component).__name__.lower() + "_" + uuid_bit
+
+    def _store_component(self, component, component_id=None):
+        if not _component_is_valid(component):
+            warning_message(
+                "Component (%s) is not a valid MetaflowCardComponent. It will not be stored."
+                % str(component),
+                self._logger,
+            )
+            return
+        if component_id is not None:
+            component.id = component_id
+        elif component.id is None:
+            component.id = self._create_component_id(component)
+        self._components.append(component)
+        self._component_map[component.id] = self._components[-1]
+
+    def _remove_component(self, component_id):
+        self._components.remove(self._component_map[component_id])
+        del self._component_map[component_id]
+
+    def __iter__(self):
+        return iter(self._components)
+
+    def __setitem__(self, key, value):
+        if self._component_map.get(key) is not None:
+            # FIXME: what happens to this codepath
+            # Component Exists in the store
+            # What happens we relace a realtime component with a non realtime one.
+            # We have to ensure that layout change has take place so that the card should get re-rendered.
+            pass
+        else:
+            self._store_component(value, component_id=key)
+
+    def __getitem__(self, key):
+        if key not in self._component_map:
+            raise KeyError(
+                "MetaflowCardComponent with id `%s` not found. Available components for the cards include : %s"
+                % (key, ", ".join(self.keys()))
+            )
+        return self._component_map[key]
+
+    def __delitem__(self, key):
+        if key not in self._component_map:
+            raise KeyError(
+                "MetaflowCardComponent with id `%s` not found. Available components for the cards include : %s"
+                % (key, ", ".join(self.keys()))
+            )
+        self._remove_component(key)
+
+    def __contains__(self, key):
+        return key in self._component_map
+
+    def append(self, component, id=None):
+        self._store_component(component, component_id=id)
+
+    def extend(self, components):
+        for c in components:
+            self._store_component(c, component_id=None)
+
+    def clear(self):
+        self._components.clear()
+        self._component_map.clear()
+
+    def keys(self):
+        return list(self._component_map.keys())
+
+    def values(self):
+        return self._components
+
+    def __str__(self):
+        return "Card components present in the card: `%s` " % ("`, `".join(self.keys()))
+
+    def __len__(self):
+        return len(self._components)
+
+
+class CardComponentManager:
+    """
+    This class manages the components for a single card.
+    It uses the `ComponentStore` to manage the storage of the components
+    and exposes methods to add, remove and access the components.
+
+    It also exposes a `refresh` method that will allow refreshing a card with new data
+    for realtime(ish) updates.
+
+    The `CardComponentCollector` class helps manage interaction with individual cards. The `CardComponentManager`
+    class helps manage the components for a single card.
+    The `CardComponentCollector` class uses this class to manage the components for a single card.
+
+    The `CardComponentCollector` exposes convinience methods similar to this class for a default editable card.
+    `CardComponentCollector` resolves the default editable card at the time of task initialization and
+    exposes component manipulation methods for that card. These methods include :
+
+        - `append`
+        - `extend`
+        - `clear`
+        - `refresh`
+        - `components`
+        - `__iter__`
+
+    Under the hood these common methods will call the corresponding methods on the `CardComponentManager`.
+    `CardComponentManager` leverages the `ComponentStore` under the hood to actually add/update/remove components
+    under the hood.
+
+    ## Usage Patterns :
+
+    ```python
+    current.card["mycardid"].append(component, id="comp123")
+    current.card["mycardid"].extend([component])
+    current.card["mycardid"].refresh(data) # refreshes the card with new data
+    current.card["mycardid"].components["comp123"] # returns the component with id "comp123"
+    current.card["mycardid"].components["comp123"].update()
+    current.card["mycardid"].components.clear() # Wipe all the components
+    del current.card["mycardid"].components["mycomponentid"] # Delete a component
+    current.card["mycardid"].components["mynewcomponent"] = Markdown("## New Component") # Set a new component
+    ```
+    """
+
+    def __init__(self, card_proc, components=None, logger=None, no_warnings=False):
         self._card_proc = card_proc
         self._latest_user_data = None
         self._last_refresh = 0
         self._last_render = 0
         self._render_seq = 0
-
+        self._logger = logger
+        self._no_warnings = no_warnings
+        self._warn_once = {
+            "update": {},
+            "not_implemented": {},
+        }
         if components is None:
-            self._components = []
+            self._components = ComponentStore(logger=self._logger, components=None)
         else:
-            self._components = list(components)
+            self._components = ComponentStore(
+                logger=self._logger, components=list(components)
+            )
 
-    def append(self, component):
-        self._components.append(component)
+    def append(self, component, id=None):
+        self._components.append(component, id=id)
 
     def extend(self, components):
         self._components.extend(components)
@@ -52,6 +220,7 @@ class CardComponents:
         # todo make this a configurable variable
         self._latest_user_data = data
         nu = time.time()
+
         if nu - self._last_refresh < RUNTIME_CARD_MIN_REFRESH_INTERVAL:
             # rate limit refreshes: silently ignore requests that
             # happen too frequently
@@ -65,10 +234,27 @@ class CardComponents:
         else:
             self._card_proc("refresh")
 
+    @property
+    def components(self):
+        return self._components
+
+    def _warning(self, message):
+        msg = "[@card WARNING] %s" % message
+        self._logger(msg, timestamp=False, bad=True)
+
     def _get_latest_data(self, final=False):
-        # FIXME add component data
-        seq = 'final' if final else self._render_seq
-        return {"user": self._latest_user_data, "components": [], "render_seq": seq}
+        seq = "final" if final else self._render_seq
+        component_dict = {}
+        for component in self._components._realtime_updateable_components():
+            rendered_comp = _render_card_component(component)
+            if rendered_comp is not None:
+                component_dict.update({component.id: rendered_comp})
+        # FIXME: Verify _latest_user_data is json serializable
+        return {
+            "user": self._latest_user_data,
+            "components": component_dict,
+            "render_seq": seq,
+        }
 
     def __iter__(self):
         return iter(self._components)
@@ -98,9 +284,11 @@ class CardComponentCollector:
     def __init__(self, logger=None, card_proc=None):
         from metaflow.metaflow_config import CARD_NO_WARNING
 
-        self._cards_components = (
+        self._card_component_store = (
+            # Each key in the dictionary is the UUID of an individual card.
+            # value is of type `CardComponentManager`, holding a list of MetaflowCardComponents for that particular card
             {}
-        )  # a dict with key as uuid and value as CardComponents, holding a list of MetaflowCardComponents.
+        )
         self._cards_meta = (
             {}
         )  # a `dict` of (card_uuid, `dict)` holding all metadata about all @card decorators on the `current` @step.
@@ -109,7 +297,13 @@ class CardComponentCollector:
         self._card_proc = card_proc
         # `self._default_editable_card` holds the uuid of the card that is default editable. This card has access to `append`/`extend` methods of `self`
         self._default_editable_card = None
-        self._warned_once = {"__getitem__": {}, "append": False, "extend": False}
+        self._warned_once = {
+            "__getitem__": {},
+            "append": False,
+            "extend": False,
+            "update": False,
+            "update_no_id": False,
+        }
         self._no_warnings = True if CARD_NO_WARNING else False
 
     @staticmethod
@@ -151,7 +345,12 @@ class CardComponentCollector:
             suppress_warnings=suppress_warnings,
         )
         self._cards_meta[card_uuid] = card_metadata
-        self._cards_components[card_uuid] = CardComponents(self._card_proc)
+        self._card_component_store[card_uuid] = CardComponentManager(
+            self._card_proc,
+            components=None,
+            logger=self._logger,
+            no_warnings=self._no_warnings,
+        )
         return card_metadata
 
     def _warning(self, message):
@@ -161,9 +360,9 @@ class CardComponentCollector:
     def _add_warning_to_cards(self, warn_msg):
         if self._no_warnings:
             return
-        for card_id in self._cards_components:
+        for card_id in self._card_component_store:
             if not self._cards_meta[card_id]["suppress_warnings"]:
-                self._cards_components[card_id].append(WarningComponent(warn_msg))
+                self._card_component_store[card_id].append(WarningComponent(warn_msg))
 
     def get(self, type=None):
         """`get`
@@ -182,7 +381,7 @@ class CardComponentCollector:
             for card_meta in self._cards_meta.values()
             if card_meta["type"] == card_type
         ]
-        return [self._cards_components[uuid] for uuid in card_uuids]
+        return [self._card_component_store[uuid] for uuid in card_uuids]
 
     def _finalize(self):
         """
@@ -283,13 +482,13 @@ class CardComponentCollector:
 
         Returns
         -------
-        CardComponents
+        CardComponentManager
             An object with `append` and `extend` calls which allow you to
             add components to the chosen card.
         """
         if key in self._card_id_map:
             card_uuid = self._card_id_map[key]
-            return self._cards_components[card_uuid]
+            return self._card_component_store[card_uuid]
         if key not in self._warned_once["__getitem__"]:
             _warn_msg = [
                 "`current.card['%s']` is not present. Please set the `id` argument in @card to '%s' to access `current.card['%s']`."
@@ -300,6 +499,7 @@ class CardComponentCollector:
             self._warning(" ".join(_warn_msg))
             self._add_warning_to_cards("\n".join(_warn_msg))
             self._warned_once["__getitem__"][key] = True
+
         return []
 
     def __setitem__(self, key, value):
@@ -317,7 +517,7 @@ class CardComponentCollector:
         key: str
             Card ID.
 
-        value: List[CardComponent]
+        value: List[MetaflowCardComponent]
             List of card components to assign to this card.
         """
         if key in self._card_id_map:
@@ -329,7 +529,12 @@ class CardComponentCollector:
                 )
                 self._warning(_warning_msg)
                 return
-            self._cards_components[card_uuid] = CardComponents(self._card_proc, value)
+            self._card_component_store[card_uuid] = CardComponentManager(
+                self._card_proc,
+                components=value,
+                logger=self._logger,
+                no_warnings=self._no_warnings,
+            )
             return
 
         self._warning(
@@ -337,18 +542,18 @@ class CardComponentCollector:
             % (key, key, key)
         )
 
-    def append(self, component):
+    def append(self, component, id=None):
         """
         Appends a component to the current card.
 
         Parameters
         ----------
-        component : CardComponent
+        component : MetaflowCardComponent
             Card component to add to this card.
         """
         if self._default_editable_card is None:
             if (
-                len(self._cards_components) == 1
+                len(self._card_component_store) == 1
             ):  # if there is one card which is not the _default_editable_card then the card is not editable
                 card_type = list(self._cards_meta.values())[0]["type"]
                 if list(self._cards_meta.values())[0]["exists"]:
@@ -378,7 +583,7 @@ class CardComponentCollector:
                 self._warned_once["append"] = True
 
             return
-        self._cards_components[self._default_editable_card].append(component)
+        self._card_component_store[self._default_editable_card].append(component, id=id)
 
     def extend(self, components):
         """
@@ -386,12 +591,12 @@ class CardComponentCollector:
 
         Parameters
         ----------
-        component : Iterator[CardComponent]
+        component : Iterator[MetaflowCardComponent]
             Card components to add to this card.
         """
         if self._default_editable_card is None:
             # if there is one card which is not the _default_editable_card then the card is not editable
-            if len(self._cards_components) == 1:
+            if len(self._card_component_store) == 1:
                 card_type = list(self._cards_meta.values())[0]["type"]
                 _warning_msg = [
                     "Card of type `%s` is not an editable card." % card_type,
@@ -411,21 +616,50 @@ class CardComponentCollector:
 
             return
 
-        self._cards_components[self._default_editable_card].extend(components)
+        self._card_component_store[self._default_editable_card].extend(components)
+
+    @property
+    def components(self):
+        # FIXME: document
+        if self._default_editable_card is None:
+            if len(self._card_component_store) == 1:
+                card_type = list(self._cards_meta.values())[0]["type"]
+                _warning_msg = [
+                    "Card of type `%s` is not an editable card." % card_type,
+                    "Components list will not be updated and `current.card.components` will not work for any call during this runtime execution.",
+                    "Please use an editable card",  # todo : link to documentation
+                ]
+            else:
+                _warning_msg = [
+                    "`current.card.components` cannot disambiguate between multiple @card decorators.",
+                    "Components list will not be accessible and `current.card.components` will not work for any call during this runtime execution.",
+                    "To fix this set the `id` argument in all @card when using multiple @card decorators over a single @step and reference `current.card[ID].components`",  # todo : Add Link to documentation
+                    "to update/access the appropriate card component.",
+                ]
+            if not self._warned_once["components"]:
+                self._warning(" ".join(_warning_msg))
+                self._warned_once["components"] = True
+            return
+
+        return self._card_component_store[self._default_editable_card].components
 
     def clear(self):
+        # FIXME: document
         if self._default_editable_card is not None:
-            self._cards_components[self._default_editable_card].clear()
+            self._card_component_store[self._default_editable_card].clear()
 
     def refresh(self, *args, **kwargs):
+        # FIXME: document
         if self._default_editable_card is not None:
-            self._cards_components[self._default_editable_card].refresh(*args, **kwargs)
+            self._card_component_store[self._default_editable_card].refresh(
+                *args, **kwargs
+            )
 
     def _get_latest_data(self, card_uuid, final=False):
         """
         Returns latest data so it can be used in the final render() call
         """
-        return self._cards_components[card_uuid]._get_latest_data(final=final)
+        return self._card_component_store[card_uuid]._get_latest_data(final=final)
 
     def _serialize_components(self, card_uuid):
         """
@@ -434,36 +668,43 @@ class CardComponentCollector:
         don't render safely then we don't add them to the final list of serialized functions
         """
         serialized_components = []
-        if card_uuid not in self._cards_components:
+        if card_uuid not in self._card_component_store:
             return []
         has_user_components = any(
             [
                 issubclass(type(component), UserComponent)
-                for component in self._cards_components[card_uuid]
+                for component in self._card_component_store[card_uuid]
             ]
         )
-        for component in self._cards_components[card_uuid]:
-            if not issubclass(type(component), MetaflowCardComponent):
+        for component in self._card_component_store[card_uuid]:
+            rendered_obj = _render_card_component(component)
+            if rendered_obj is None:
                 continue
-            try:
-                rendered_obj = component.render()
-            except:
-                continue
-            else:
-                if not (type(rendered_obj) == str or type(rendered_obj) == dict):
-                    continue
-                else:
-                    # Since `UserComponent`s are safely_rendered using render_tools.py
-                    # we don't need to check JSON serialization as @render_tools.render_safely
-                    # decorator ensures this check so there is no need to re-serialize
-                    if not issubclass(type(component), UserComponent):
-                        try:  # check if rendered object is json serializable.
-                            json.dumps(rendered_obj)
-                        except (TypeError, OverflowError) as e:
-                            continue
-                serialized_components.append(rendered_obj)
+            serialized_components.append(rendered_obj)
         if has_user_components and len(serialized_components) > 0:
             serialized_components = [
                 SectionComponent(contents=serialized_components).render()
             ]
         return serialized_components
+
+
+def _render_card_component(component):
+    if not _component_is_valid(component):
+        return None
+    try:
+        rendered_obj = component.render()
+    except:
+        return None
+    else:
+        if not (type(rendered_obj) == str or type(rendered_obj) == dict):
+            return None
+        else:
+            # Since `UserComponent`s are safely_rendered using render_tools.py
+            # we don't need to check JSON serialization as @render_tools.render_safely
+            # decorator ensures this check so there is no need to re-serialize
+            if not issubclass(type(component), UserComponent):
+                try:  # check if rendered object is json serializable.
+                    json.dumps(rendered_obj)
+                except (TypeError, OverflowError) as e:
+                    return None
+        return rendered_obj

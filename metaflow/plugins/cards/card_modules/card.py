@@ -108,6 +108,31 @@ class MetaflowCard(object):
 
 
 class MetaflowCardComponent(object):
+
+    # Setting REALTIME_UPDATABLE as True will make the card component
+    # updatable via the `current.card.update` method for realtime updates
+    REALTIME_UPDATABLE = False
+
+    _component_id = None
+
+    @property
+    def id(self):
+        return self._component_id
+
+    @id.setter
+    def id(self, value):
+        if not isinstance(value, str):
+            raise TypeError("id must be a string")
+        self._component_id = value
+
+    def update(self, *args, **kwargs):
+        """
+        Gets called when the user calls `current.card.update(id="abc", data, myval=123)`.
+        The logic of the update method will be component specific. Some components may
+        update the contents of the component, while others can just append to the data.
+        """
+        raise NotImplementedError()
+
     def render(self):
         """
         `render` returns a string or dictionary. This class can be called on the client side to dynamically add components to the `MetaflowCard`
