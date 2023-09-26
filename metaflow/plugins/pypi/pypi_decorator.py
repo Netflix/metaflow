@@ -1,4 +1,4 @@
-from metaflow.decorators import StepDecorator
+from metaflow.decorators import FlowDecorator, StepDecorator
 from metaflow.metaflow_environment import InvalidEnvironmentException
 
 
@@ -7,6 +7,12 @@ class PyPIStepDecorator(StepDecorator):
     defaults = {
         "packages": {},  # wheels
     }
+
+    @property
+    def super_attributes(self):
+        if "pypi_base" in self.flow._flow_decorators:
+            return self.flow._flow_decorators["pypi_base"][0].attributes
+        return self.defaults
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         # At the moment, @pypi uses a conda environment as a virtual environment. This
@@ -40,3 +46,32 @@ class PyPIStepDecorator(StepDecorator):
         # The init_environment hook for Environment creates the relevant virtual
         # environments. The step_init hook sets up the relevant state for that hook to
         # do it's magic.
+        self.flow = flow
+
+        # Support flow-level decorator
+        self.attributes["packages"] = {
+            **self.super_attributes["packages"],
+            **self.attributes["packages"],
+        }
+        # TODO: support (python, disabled) from pypi_base
+
+
+class PyPIFlowDecorator(FlowDecorator):
+    """
+    Specifies the PyPI environment for all steps of the flow.
+
+    Use `@pypi_base` to set common libraries required by all
+    steps and use `@pypi` to specify step-specific additions.
+
+    Parameters
+    ----------
+    packages : Dict[str, str], default: {}
+        Packages to use for this flow. The key is the name of the package
+        and the value is the version to use.
+    python : str, optional
+        Version of Python to use, e.g. '3.7.4'. A default value of None means
+        to use the current Python version.
+    """
+
+    name = "pypi_base"
+    defaults = {"packages": {}, "python": None, "disabled": None}
