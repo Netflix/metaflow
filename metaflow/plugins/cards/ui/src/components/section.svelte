@@ -2,7 +2,7 @@
 <script lang="ts">
   import type * as types from "../types";
   export let componentData: types.SectionComponent;
-  const { title, subtitle, columns } = componentData;
+  $: ({ title, subtitle, columns } = componentData);
   let style: string;
 
   if (columns) {

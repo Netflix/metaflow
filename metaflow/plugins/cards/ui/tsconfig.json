@@ -3,9 +3,23 @@
   "compilerOptions": {
     "strictNullChecks": true,
     "noImplicitAny": true,
-    "types": ["cypress"],
-    "resolveJsonModule": true
+    "types": [
+      "cypress"
+    ],
+    "resolveJsonModule": true,
+    "lib": [
+      "es2019",
+      "dom"
+    ]
   },
-  "include": ["src/**/*", "cypress/**/*.ts"],
-  "exclude": ["node_modules/*", "__sapper__/*", "public/*", "src/**/*.js"]
+  "include": [
+    "src/**/*",
+    "cypress/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules/*",
+    "__sapper__/*",
+    "public/*",
+    "src/**/*.js"
+  ]
 }

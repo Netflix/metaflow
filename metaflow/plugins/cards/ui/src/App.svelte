@@ -3,7 +3,7 @@
   import "./prism";
   import "./global.css";
   import "./prism.css";
-  import "./app.css"
+  import "./app.css";
   import { cardData, setCardData, modal } from "./store";
   import * as utils from "./utils";
   import Aside from "./components/aside.svelte";
@@ -16,11 +16,11 @@
 
   // Get the data from the element in `windows.__MF_DATA__` corresponding to `cardDataId`. This allows multiple sets of
   // data to exist on a single page
-  setCardData(cardDataId)
+  setCardData(cardDataId);
 
   // Set the `embed` class to hide the `aside` if specified in the URL
   const urlParams = new URLSearchParams(window?.location.search);
-  let embed = Boolean(urlParams.get('embed'))
+  let embed = Boolean(urlParams.get("embed"));
 </script>
 
 <div class="container mf-card" class:embed>

@@ -3,7 +3,6 @@
 <script lang="ts">
   import type * as types from "../types";
   export let componentData: types.TextComponent;
-  const { text } = componentData;
 </script>
 
-<p data-component="text">{text}</p>
+<p data-component="text">{componentData?.text || ""}</p>
