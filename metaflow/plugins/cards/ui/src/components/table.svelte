@@ -6,8 +6,8 @@
   import TableHorizontal from "./table-horizontal.svelte";
 
   export let componentData: types.TableComponent;
+  $: ({ columns, data, vertical } = componentData);
 
-  const { columns, data, vertical } = componentData;
   const component = vertical ? TableVertical : TableHorizontal;
 </script>
 

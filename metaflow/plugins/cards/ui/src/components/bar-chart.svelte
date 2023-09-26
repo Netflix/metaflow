@@ -17,11 +17,11 @@
     BarController,
     LinearScale,
     CategoryScale,
-    PointElement
+    PointElement,
   );
 
   export let componentData: types.BarChartComponent;
-  const { config, data, labels } = componentData;
+  $: ({ config, data, labels } = componentData);
 
   let el: HTMLCanvasElement;
 

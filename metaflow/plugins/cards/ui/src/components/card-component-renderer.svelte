@@ -10,6 +10,7 @@
   import Log from "./log.svelte";
   import Markdown from "./markdown.svelte";
   import Page from "./page.svelte";
+  import ProgressBar from "./progress-bar.svelte";
   import Section from "./section.svelte";
   import Subtitle from "./subtitle.svelte";
   import Table from "./table.svelte";
@@ -29,6 +30,7 @@
       log: Log,
       markdown: Markdown,
       page: Page,
+      progressBar: ProgressBar,
       section: Section,
       subtitle: Subtitle,
       table: Table,
@@ -36,11 +38,12 @@
       title: Title,
     };
 
-  let component = typesMap?.[componentData.type]
+  let component = typesMap?.[componentData.type];
   if (!component) {
-    console.error("Unknown component type: ", componentData.type)
+    console.error("Unknown component type: ", componentData.type);
   }
 </script>
+
 {#if component}
   {#if (componentData.type === "page" || componentData.type === "section") && componentData?.contents}
     <svelte:component this={component} {componentData}>
