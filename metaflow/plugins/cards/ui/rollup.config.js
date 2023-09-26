@@ -43,7 +43,7 @@ export default {
   input: "src/main.ts",
   output: {
     dir: process.env.OUTPUT_DIR ?? "public/build",
-    sourcemap: true,
+    sourcemap: !production,
     format: "iife",
     name: "app",
   },

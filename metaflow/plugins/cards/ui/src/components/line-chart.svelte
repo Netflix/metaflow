@@ -17,11 +17,11 @@
     LinearScale,
     LineController,
     CategoryScale,
-    PointElement
+    PointElement,
   );
 
   export let componentData: types.LineChartComponent;
-  const { config, data, labels } = componentData;
+  $: ({ config, data, labels } = componentData);
 
   let el: HTMLCanvasElement;
 

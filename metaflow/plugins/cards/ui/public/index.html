@@ -12,5 +12,27 @@
 
   <body>
     <div class="card_app"></div>
+
+    <script defer>
+      let i = 0;
+      const interval = setInterval(() => {
+        if (window?.metaflow_card_update) {
+          window.metaflow_card_update({
+            progress1: {
+              type: "progressBar",
+              id: "progress1",
+              max: 100,
+              value: i,
+            },
+          });
+        }
+
+        if (i <= 100) {
+          i++;
+        } else {
+          clearInterval(interval);
+        }
+      }, 1000);
+    </script>
   </body>
 </html>
