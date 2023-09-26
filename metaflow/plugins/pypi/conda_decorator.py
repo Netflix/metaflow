@@ -1,10 +1,11 @@
+import importlib
 import os
 import platform
 import sys
 import tempfile
 
 from metaflow.decorators import FlowDecorator, StepDecorator
-from metaflow.exception import MetaflowException
+from metaflow.extension_support import EXT_PKG
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.util import get_metaflow_root
 
@@ -113,6 +114,37 @@ class CondaStepDecorator(StepDecorator):
             os.path.join(get_metaflow_root(), "metaflow"),
             os.path.join(self.metaflow_dir.name, "metaflow"),
         )
+        # TODO: See if the prior INFO_FILE inclusion is required or not.
+
+        # Metaflow Extensions support.
+        try:
+            m = importlib.import_module(EXT_PKG)
+        except ImportError:
+            # No additional check needed because if we are here, we already checked
+            # for other issues when loading at the toplevel
+            pass
+        else:
+            custom_paths = list(set(m.__path__))  # For some reason, at times, unique
+            # paths appear multiple times. We simplify
+            # to avoid un-necessary links
+
+            if len(custom_paths) == 1:
+                # Regular package; we take a quick shortcut here
+                os.symlink(
+                    custom_paths[0],
+                    os.path.join(self.metaflow_dir.name, EXT_PKG),
+                )
+            else:
+                # This is a namespace package, we therefore create a bunch of directories
+                # so that we can symlink in those separately, and we will add those paths
+                # to the PYTHONPATH for the interpreter. Note that we don't symlink
+                # to the parent of the package because that could end up including
+                # more stuff we don't want
+                self.addl_paths = []
+                for p in custom_paths:
+                    temp_dir = tempfile.mkdtemp(dir=self.metaflow_dir.name)
+                    os.symlink(p, os.path.join(temp_dir, EXT_PKG))
+                    self.addl_paths.append(temp_dir)
 
     def runtime_task_created(
         self, task_datastore, task_id, split_index, input_paths, is_cloned, ubf_context
