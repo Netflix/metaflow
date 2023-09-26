@@ -574,6 +574,11 @@ class ArgoWorkflows(object):
             "metaflow/user": "argo-workflows",
             "metaflow/flow_name": self.flow.name,
         }
+
+        for name, parameter in self.parameters.items():
+            if parameter["is_required"]:
+                annotations[f"metaflow/parameter-required-{name}"] = "true"
+    
         if current.get("project_name"):
             annotations.update(
                 {
