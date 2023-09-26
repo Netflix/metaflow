@@ -36,10 +36,6 @@ class PyPIStepDecorator(StepDecorator):
                 )
             )
 
-        # Set Python interpreter to user's Python if necessary.
-        if not self.attributes["python"]:
-            self.attributes["python"] = platform.python_version()  # CPython!
-
         # The init_environment hook for Environment creates the relevant virtual
         # environments. The step_init hook sets up the relevant state for that hook to
         # do it's magic.

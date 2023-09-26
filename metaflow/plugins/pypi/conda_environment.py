@@ -241,9 +241,10 @@ class CondaEnvironment(MetaflowEnvironment):
             environment["pypi"]["platforms"] = [target_platform]
             # As the Conda resolver executes first and is responsible for creating the environment,
             # override the conda env python version with the PyPI one, if it is set in the PyPI decorator.
-            environment["conda"]["python"] = environment["pypi"].get(
-                "python", environment["conda"]["python"]
-            )
+            if environment["pypi"].get("python"):
+                environment["conda"]["python"] = environment["pypi"].get("python")
+            else:
+                environment["pypi"]["python"] = environment["conda"]["python"]
 
         # Z combinator for a recursive lambda
         deep_sort = (lambda f: f(f))(
