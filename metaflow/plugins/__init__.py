@@ -63,7 +63,10 @@ FLOW_DECORATORS_DESC = [
 ]
 
 # Add environments here
-ENVIRONMENTS_DESC = [("conda", ".pypi.conda_environment.CondaEnvironment")]
+ENVIRONMENTS_DESC = [
+    ("conda", ".pypi.conda_environment.CondaEnvironment"),
+    ("pypi", ".pypi.pypi_environment.PyPIEnvironment"),
+]
 
 # Add metadata providers here
 METADATA_PROVIDERS_DESC = [

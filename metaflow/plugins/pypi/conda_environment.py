@@ -162,10 +162,14 @@ class CondaEnvironment(MetaflowEnvironment):
 
     def executable(self, step_name, default=None):
         step = next(step for step in self.flow if step.name == step_name)
-        id_ = self.get_environment(step)["id_"]
-        # bootstrap.py is responsible for ensuring the validity of this executable.
-        # -s is important! Can otherwise leak packages to other environments.
-        return os.path.join(id_, "bin/python -s")
+        id_ = self.get_environment(step).get("id_")
+        if id_:
+            # bootstrap.py is responsible for ensuring the validity of this executable.
+            # -s is important! Can otherwise leak packages to other environments.
+            return os.path.join(id_, "bin/python -s")
+        else:
+            # for @conda/@pypi(disabled=True).
+            return super().executable(step_name, default)
 
     def interpreter(self, step_name):
         step = next(step for step in self.flow if step.name == step_name)
@@ -180,6 +184,9 @@ class CondaEnvironment(MetaflowEnvironment):
             # @conda decorator is guaranteed to exist thanks to self.decospecs
             if decorator.name in ["conda", "pypi"]:
                 environment[decorator.name] = dict(decorator.attributes)
+        # environment can be empty for @conda/@pypi(disabled=True)
+        if not environment:
+            return {}
         # TODO: Support dependencies for `--metadata`.
         # TODO: Introduce support for `--telemetry` as a follow up.
         # Certain packages are required for metaflow runtime to function correctly.
@@ -282,13 +289,17 @@ class CondaEnvironment(MetaflowEnvironment):
     def bootstrap_commands(self, step_name, datastore_type):
         # Bootstrap conda and execution environment for step
         step = next(step for step in self.flow if step.name == step_name)
-        id_ = self.get_environment(step)["id_"]
-        return [
-            "echo 'Bootstrapping virtual environment...'",
-            'python -m metaflow.plugins.pypi.bootstrap "%s" %s "%s" linux-64'
-            % (self.flow.name, id_, self.datastore_type),
-            "echo 'Environment bootstrapped.'",
-        ]
+        id_ = self.get_environment(step).get("id_")
+        if id_:
+            return [
+                "echo 'Bootstrapping virtual environment...'",
+                'python -m metaflow.plugins.pypi.bootstrap "%s" %s "%s" linux-64'
+                % (self.flow.name, id_, self.datastore_type),
+                "echo 'Environment bootstrapped.'",
+            ]
+        else:
+            # for @conda/@pypi(disabled=True).
+            return super().bootstrap_commands(step_name, datastore_type)
 
     # TODO: Make this an instance variable once local_root is part of the object
     #       constructor.
