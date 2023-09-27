@@ -1,4 +1,5 @@
 import fcntl
+import gc
 import os
 import importlib
 import itertools
@@ -60,6 +61,7 @@ class Client(object):
         # have an exception
         self._poller = None
         self._poller_lock = threading.Lock()
+        self._active_pid = os.getpid()
         self._server_process = None
         self._socket_path = None
 
@@ -70,7 +72,7 @@ class Client(object):
         # The client launches the server when created; we use
         # Unix sockets for now
         server_module = ".".join([__package__, "server"])
-        self._socket_path = "/tmp/%s_%d" % (server_config, os.getpid())
+        self._socket_path = "/tmp/%s_%d" % (server_config, self._active_pid)
         if os.path.exists(self._socket_path):
             raise RuntimeError("Existing socket: %s" % self._socket_path)
         env = os.environ.copy()
@@ -390,8 +392,18 @@ class Client(object):
         return name
 
     def _communicate(self, msg):
-        with self._poller_lock:
-            return self._locked_communicate(msg)
+        if os.getpid() != self._active_pid:
+            raise RuntimeError(
+                "You cannot use the environment escape across process boundaries."
+            )
+        # We also disable the GC because in some rare cases, it may try to delete
+        # a remote object while we are communicating which will cause a deadlock
+        try:
+            gc.disable()
+            with self._poller_lock:
+                return self._locked_communicate(msg)
+        finally:
+            gc.enable()
 
     def _locked_communicate(self, msg):
         self._channel.send(msg)
