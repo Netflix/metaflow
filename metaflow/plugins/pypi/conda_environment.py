@@ -180,7 +180,6 @@ class CondaEnvironment(MetaflowEnvironment):
             # @conda decorator is guaranteed to exist thanks to self.decospecs
             if decorator.name in ["conda", "pypi"]:
                 environment[decorator.name] = dict(decorator.attributes)
-
         # TODO: Support dependencies for `--metadata`.
         # TODO: Introduce support for `--telemetry` as a follow up.
         # Certain packages are required for metaflow runtime to function correctly.
@@ -203,7 +202,6 @@ class CondaEnvironment(MetaflowEnvironment):
             **pinned_packages,
             **environment.get("pypi", environment["conda"])["packages"],
         }
-
         # Disallow specifying both @conda and @pypi together for now. Mixing Conda
         # and PyPI packages comes with a lot of operational pain that we can handle
         # as follow-up work in the future.
@@ -241,10 +239,10 @@ class CondaEnvironment(MetaflowEnvironment):
             environment["pypi"]["platforms"] = [target_platform]
             # Resolve conda environment for @pypi's Python, falling back on @conda's
             # Python
-            environment["conda"]["python"] = environment["pypi"].get(
-                "python", environment["conda"]["python"]
+            environment["pypi"]["python"] = environment["conda"]["python"] = (
+                environment["pypi"].get("python", environment["conda"]["python"])
+                or environment["conda"]["python"]
             )
-            environment["pypi"]["python"] = environment["conda"]["python"]
 
         # Z combinator for a recursive lambda
         deep_sort = (lambda f: f(f))(
