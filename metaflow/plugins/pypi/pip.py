@@ -50,6 +50,7 @@ class Pip(object):
                     for tag in pip_tags(python, platform)
                 ]
             )
+            extra_index_urls = self.extra_index_urls(prefix)
             cmd = [
                 "install",
                 "--dry-run",
@@ -59,6 +60,11 @@ class Pip(object):
                 "--report=%s" % report,
                 "--progress-bar=off",
                 "--quiet",
+                *(
+                    chain.from_iterable(
+                        product(["--extra-index-url"], set(extra_index_urls))
+                    )
+                ),
                 *(chain.from_iterable(product(["--abi"], set(abis)))),
                 *(chain.from_iterable(product(["--platform"], set(platforms)))),
                 # *(chain.from_iterable(product(["--implementations"], set(implementations)))),
@@ -88,6 +94,7 @@ class Pip(object):
                 for tag in pip_tags(python, platform)
             ]
         )
+        extra_index_urls = self.extra_index_urls(prefix)
         cmd = [
             "download",
             "--no-deps",
@@ -96,6 +103,11 @@ class Pip(object):
             #  if packages are present in Pip cache, this will be a local copy
             "--dest=%s/.pip/wheels" % prefix,
             "--quiet",
+            *(
+                chain.from_iterable(
+                    product(["--extra-index-url"], set(extra_index_urls))
+                )
+            ),
             *(chain.from_iterable(product(["--abi"], set(abis)))),
             *(chain.from_iterable(product(["--platform"], set(platforms)))),
             # *(chain.from_iterable(product(["--implementations"], set(implementations)))),
@@ -139,7 +151,20 @@ class Pip(object):
         with open(metadata_file, "r") as file:
             return json.loads(file.read())
 
-    def _call(self, prefix, args, env=None):
+    def extra_index_urls(self, prefix):
+        # get extra index urls from pip conf
+        extra_indices = []
+        for key in [":env:.extra-index-url", "global.extra-index-url"]:
+            try:
+                extras = self._call(prefix, args=["config", "get", key], isolated=False)
+                extra_indices.extend(extras.split(" "))
+            except Exception:
+                # pip will throw an error when trying to get a config key that does
+                # not exist
+                pass
+        return extra_indices
+
+    def _call(self, prefix, args, env=None, isolated=True):
         if env is None:
             env = {}
         try:
@@ -153,9 +178,9 @@ class Pip(object):
                         "pip3",
                         "--disable-pip-version-check",
                         "--no-input",
-                        "--isolated",
                         "--no-color",
                     ]
+                    + (["--isolated"] if isolated else [])
                     + args,
                     stderr=subprocess.PIPE,
                     env={
