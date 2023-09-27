@@ -38,7 +38,7 @@ class CondaStepDecorator(StepDecorator):
         "packages": {},
         "libraries": {},  # Deprecated! Use packages going forward
         "python": None,
-        # TODO: Add support for disabled
+        "disabled": None,
     }
     # To define conda channels for the whole solve, users can specify
     # CONDA_CHANNELS in their environment. For pinning specific packages to specific
@@ -55,27 +55,6 @@ class CondaStepDecorator(StepDecorator):
         del self.attributes["libraries"]
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
-        # @conda uses a conda environment to create a virtual environment.
-        # The conda environment can be created through micromamba.
-        _supported_virtual_envs = ["conda"]
-
-        # The --environment= requirement ensures that valid virtual environments are
-        # created for every step to execute it, greatly simplifying the @conda
-        # implementation.
-        if environment.TYPE not in _supported_virtual_envs:
-            raise InvalidEnvironmentException(
-                "@%s decorator requires %s"
-                % (
-                    self.name,
-                    "or ".join(
-                        ["--environment=%s" % env for env in _supported_virtual_envs]
-                    ),
-                )
-            )
-
-        # At this point, the list of 32 bit instance types is shrinking quite rapidly.
-        # We can worry about supporting them when there is a need.
-
         # The init_environment hook for Environment creates the relevant virtual
         # environments. The step_init hook sets up the relevant state for that hook to
         # do it's magic.
@@ -85,14 +64,7 @@ class CondaStepDecorator(StepDecorator):
         self.environment = environment
         self.datastore = flow_datastore
 
-        # TODO: This code snippet can be done away with by altering the constructor of
-        #       MetaflowEnvironment. A good first-task exercise.
-        # Avoid circular import
-        from metaflow.plugins.datastores.local_storage import LocalStorage
-
-        environment.set_local_root(LocalStorage.get_datastore_root_from_config(logger))
-
-        # Support flow-level decorator
+        # Support flow-level decorator.
         if "conda_base" in self.flow._flow_decorators:
             super_attributes = self.flow._flow_decorators["conda_base"][0].attributes
             self.attributes["packages"] = {
@@ -102,10 +74,56 @@ class CondaStepDecorator(StepDecorator):
             self.attributes["python"] = (
                 self.attributes["python"] or super_attributes["python"]
             )
-
+            self.attributes["disabled"] = (
+                self.attributes["disabled"]
+                if self.attributes["disabled"] is not None
+                else super_attributes["disabled"]
+            )
+        if not self.attributes["disabled"]:
+            self.attributes["disabled"] = False
         # Set Python interpreter to user's Python if necessary.
         if not self.attributes["python"]:
             self.attributes["python"] = platform.python_version()  # CPython!
+
+        # Take care of `disabled` argument.
+        if self.attributes["disabled"]:
+            _step = next(step for step in self.flow if step.name == self.step)
+            _step.decorators[:] = [
+                deco for deco in _step.decorators if deco.name not in ["conda", "pypi"]
+            ]
+        del self.attributes["disabled"]
+
+        # @conda uses a conda environment to create a virtual environment.
+        # The conda environment can be created through micromamba.
+        _supported_virtual_envs = ["conda"]
+
+        # To placate people who don't want to see a shred of conda in UX, we symlink
+        # --environment=pypi to --environment=conda
+        _supported_virtual_envs.extend(["pypi"])
+
+        # The --environment= requirement ensures that valid virtual environments are
+        # created for every step to execute it, greatly simplifying the @conda
+        # implementation.
+        if environment.TYPE not in _supported_virtual_envs:
+            raise InvalidEnvironmentException(
+                "@%s decorator requires %s"
+                % (
+                    self.name,
+                    " or ".join(
+                        ["--environment=%s" % env for env in _supported_virtual_envs]
+                    ),
+                )
+            )
+
+        # At this point, the list of 32 bit instance types is shrinking quite rapidly.
+        # We can worry about supporting them when there is a need.
+
+        # TODO: This code snippet can be done away with by altering the constructor of
+        #       MetaflowEnvironment. A good first-task exercise.
+        # Avoid circular import
+        from metaflow.plugins.datastores.local_storage import LocalStorage
+
+        environment.set_local_root(LocalStorage.get_datastore_root_from_config(logger))
 
     def runtime_init(self, flow, graph, package, run_id):
         # Create a symlink to metaflow installed outside the virtual environment.
@@ -241,7 +259,7 @@ class CondaFlowDecorator(FlowDecorator):
         "packages": {},
         "libraries": {},  # Deprecated! Use packages going forward.
         "python": None,
-        # TODO: Add support for disabled
+        "disabled": None,
         # TODO: Support `@conda(python='3.10')` before shipping!!
     }
 
@@ -264,6 +282,10 @@ class CondaFlowDecorator(FlowDecorator):
         # The conda environment can be created through micromamba.
         _supported_virtual_envs = ["conda"]
 
+        # To placate people who don't want to see a shred of conda in UX, we symlink
+        # --environment=pypi to --environment=conda
+        _supported_virtual_envs.extend(["pypi"])
+
         # The --environment= requirement ensures that valid virtual environments are
         # created for every step to execute it, greatly simplifying the @conda
         # implementation.
@@ -272,7 +294,7 @@ class CondaFlowDecorator(FlowDecorator):
                 "@%s decorator requires %s"
                 % (
                     self.name,
-                    "or ".join(
+                    " or ".join(
                         ["--environment=%s" % env for env in _supported_virtual_envs]
                     ),
                 )

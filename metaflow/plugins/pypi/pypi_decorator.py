@@ -39,6 +39,10 @@ class PyPIStepDecorator(StepDecorator):
 
         _supported_virtual_envs = ["conda"]  # , "venv"]
 
+        # To placate people who don't want to see a shred of conda in UX, we symlink
+        # --environment=pypi to --environment=conda
+        _supported_virtual_envs.extend(["pypi"])
+
         # The --environment= requirement ensures that valid virtual environments are
         # created for every step to execute it, greatly simplifying the @pypi
         # implementation.
@@ -47,7 +51,7 @@ class PyPIStepDecorator(StepDecorator):
                 "@%s decorator requires %s"
                 % (
                     self.name,
-                    "or ".join(
+                    " or ".join(
                         ["--environment=%s" % env for env in _supported_virtual_envs]
                     ),
                 )
@@ -96,3 +100,25 @@ class PyPIFlowDecorator(FlowDecorator):
         from metaflow import decorators
 
         decorators._attach_decorators(flow, ["pypi"])
+
+        # @pypi uses a conda environment to create a virtual environment.
+        # The conda environment can be created through micromamba.
+        _supported_virtual_envs = ["conda"]
+
+        # To placate people who don't want to see a shred of conda in UX, we symlink
+        # --environment=pypi to --environment=conda
+        _supported_virtual_envs.extend(["pypi"])
+
+        # The --environment= requirement ensures that valid virtual environments are
+        # created for every step to execute it, greatly simplifying the @conda
+        # implementation.
+        if environment.TYPE not in _supported_virtual_envs:
+            raise InvalidEnvironmentException(
+                "@%s decorator requires %s"
+                % (
+                    self.name,
+                    " or ".join(
+                        ["--environment=%s" % env for env in _supported_virtual_envs]
+                    ),
+                )
+            )
