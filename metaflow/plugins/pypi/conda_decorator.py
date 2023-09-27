@@ -16,8 +16,8 @@ class CondaStepDecorator(StepDecorator):
 
     Information in this decorator will augment any
     attributes set in the `@conda_base` flow-level decorator. Hence,
-    you can use `@conda_base` to set common libraries required by all
-    steps and use `@conda` to specify step-specific additions.
+    you can use `@conda_base` to set packages required by all
+    steps and use `@conda` to specify step-specific overrides.
 
     Parameters
     ----------
@@ -27,10 +27,10 @@ class CondaStepDecorator(StepDecorator):
     libraries : Dict[str, str], optional
         Supported for backward compatibility. When used with packages, packages will take precedence.
     python : str, optional
-        Version of Python to use, e.g. '3.7.4'. A default value of None means to
-        use the current Python version.
+        Version of Python to use, e.g. '3.7.4'. A default value of None implies
+        that the version used will correspond to the version of the Python interpreter used to start the run.
     disabled : bool, default: False
-        If set to True, disables Conda.
+        If set to True, disables @conda.
     """
 
     name = "conda"
@@ -229,8 +229,8 @@ class CondaFlowDecorator(FlowDecorator):
     libraries : Dict[str, str], optional
         Supported for backward compatibility. When used with packages, packages will take precedence.
     python : str, optional
-        Version of Python to use, e.g. '3.7.4'. A default value of None means
-        to use the current Python version.
+        Version of Python to use, e.g. '3.7.4'. A default value of None implies
+        that the version used will correspond to the version of the Python interpreter used to start the run.
     disabled : bool, default: False
         If set to True, disables Conda.
     """

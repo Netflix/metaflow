@@ -1,8 +1,26 @@
-from metaflow.decorators import StepDecorator
+from metaflow.decorators import FlowDecorator, StepDecorator
 from metaflow.metaflow_environment import InvalidEnvironmentException
 
 
 class PyPIStepDecorator(StepDecorator):
+    """
+    Specifies the PyPI packages for the step.
+
+    Information in this decorator will augment any
+    attributes set in the `@pyi_base` flow-level decorator. Hence,
+    you can use `@pypi_base` to set packages required by all
+    steps and use `@pypi` to specify step-specific overrides.
+
+    Parameters
+    ----------
+    packages : Dict[str, str], default: {}
+        Packages to use for this step. The key is the name of the package
+        and the value is the version to use.
+    python : str, optional
+        Version of Python to use, e.g. '3.7.4'. A default value of None implies
+        that the version used will correspond to the version of the Python interpreter used to start the run.
+    """
+
     name = "pypi"
     defaults = {"packages": {}, "python": None}  # wheels
 
@@ -38,3 +56,43 @@ class PyPIStepDecorator(StepDecorator):
         # The init_environment hook for Environment creates the relevant virtual
         # environments. The step_init hook sets up the relevant state for that hook to
         # do it's magic.
+
+        # Support flow-level decorator
+        self.flow = flow
+
+        if "pypi_base" in self.flow._flow_decorators:
+            super_attributes = self.flow._flow_decorators["pypi_base"][0].attributes
+            self.attributes["packages"] = {
+                **super_attributes["packages"],
+                **self.attributes["packages"],
+            }
+            self.attributes["python"] = (
+                self.attributes["python"] or super_attributes["python"]
+            )
+
+
+class PyPIFlowDecorator(FlowDecorator):
+    """
+    Specifies the PyPI packages for all steps of the flow.
+
+    Use `@pypi_base` to set common packages required by all
+    steps and use `@pypi` to specify step-specific overrides.
+    Parameters
+    ----------
+    packages : Dict[str, str], default: {}
+        Packages to use for this flow. The key is the name of the package
+        and the value is the version to use.
+    python : str, optional
+        Version of Python to use, e.g. '3.7.4'. A default value of None implies
+        that the version used will correspond to the version of the Python interpreter used to start the run.
+    """
+
+    name = "pypi_base"
+    defaults = {"packages": {}, "python": None}
+
+    def flow_init(
+        self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
+    ):
+        from metaflow import decorators
+
+        decorators._attach_decorators(flow, ["pypi"])
