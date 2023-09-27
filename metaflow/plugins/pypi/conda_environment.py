@@ -239,6 +239,11 @@ class CondaEnvironment(MetaflowEnvironment):
                 {target_platform, conda_platform()}
             )
             environment["pypi"]["platforms"] = [target_platform]
+            # Resolve conda environment for @pypi's Python, falling back on @conda's
+            # Python
+            environment["conda"]["python"] = environment["pypi"].get(
+                "python", environment["conda"]["python"]
+            )
             environment["pypi"]["python"] = environment["conda"]["python"]
 
         # Z combinator for a recursive lambda
