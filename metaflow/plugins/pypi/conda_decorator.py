@@ -1,4 +1,5 @@
 import importlib
+import json
 import os
 import platform
 import sys
@@ -133,7 +134,27 @@ class CondaStepDecorator(StepDecorator):
             os.path.join(self.metaflow_dir.name, "metaflow"),
         )
 
-        # TODO: Check if INFO_FILE inclusion is required or not.
+        info = os.path.join(get_metaflow_root(), os.path.basename(INFO_FILE))
+        # Symlink the INFO file as well to properly propagate down the Metaflow version
+        if os.path.isfile(info):
+            os.symlink(info, os.path.join(self.metaflow_dir.name, info))
+        else:
+            # If there is no info file, we will actually create one in this new
+            # place because we won't be able to properly resolve the EXT_PKG extensions
+            # the same way as outside conda (looking at distributions, etc.). In a
+            # Conda environment, as shown below (where we set self.addl_paths), all
+            # EXT_PKG extensions are PYTHONPATH extensions. Instead of re-resolving,
+            # we use the resolved information that is written out to the INFO file.
+            with open(
+                os.path.join(self.metaflow_dir.name, info),
+                mode="wt",
+                encoding="utf-8",
+            ) as f:
+                f.write(
+                    json.dumps(
+                        self.environment.get_environment_info(include_ext_info=True)
+                    )
+                )
 
         # Support metaflow extensions.
         self.addl_paths = None
