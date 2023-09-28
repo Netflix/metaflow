@@ -27,7 +27,6 @@ INSTALLATION_MARKER = "{prefix}/.pip/id"
 # TODO:
 #     1. Support git repositories, local dirs, non-wheel like packages
 #     2. Support protected indices
-#     3. Support multiple indices
 
 
 class Pip(object):
@@ -187,6 +186,7 @@ class Pip(object):
                     env={
                         **os.environ,
                         # prioritize metaflow-specific env vars
+                        **{"PYTHONNOUSERSITE": "1"},  # no user installation!
                         **env,
                     },
                 )
