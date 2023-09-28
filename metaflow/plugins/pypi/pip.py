@@ -72,7 +72,7 @@ class Pip(object):
                 # *(chain.from_iterable(product(["--implementations"], set(implementations)))),
             ]
             for package, version in packages.items():
-                if version.startswith(("<", ">", "!", "~")):
+                if version.startswith(("<", ">", "!", "~", "@")) or version == "":
                     cmd.append(f"{package}{version}")
                 else:
                     cmd.append(f"{package}=={version}")
