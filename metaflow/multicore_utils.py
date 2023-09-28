@@ -76,7 +76,7 @@ def parallel_imap_unordered(func, iterable, max_parallel=None, dir=None):
                 pids.pop(idx)
                 break
         else:
-            time.sleep(1)  # Wait a bit before re-checking
+            time.sleep(0.1)  # Wait a bit before re-checking
             continue
 
         if exit_code:
