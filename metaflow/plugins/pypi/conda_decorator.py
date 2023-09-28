@@ -79,6 +79,8 @@ class CondaStepDecorator(StepDecorator):
                 if self.attributes["disabled"] is not None
                 else super_attributes["disabled"]
             )
+
+        # Set default for `disabled` argument.
         if not self.attributes["disabled"]:
             self.attributes["disabled"] = False
         # Set Python interpreter to user's Python if necessary.
@@ -86,12 +88,12 @@ class CondaStepDecorator(StepDecorator):
             self.attributes["python"] = platform.python_version()  # CPython!
 
         # Take care of `disabled` argument.
-        if self.attributes["disabled"]:
-            _step = next(step for step in self.flow if step.name == self.step)
-            _step.decorators[:] = [
-                deco for deco in _step.decorators if deco.name not in ["conda", "pypi"]
-            ]
-        del self.attributes["disabled"]
+        # if self.attributes["disabled"]:
+        #     _step = next(step for step in self.flow if step.name == self.step)
+        #     # _step.decorators[:] = [
+        #     #     deco for deco in _step.decorators if deco.name not in ["conda", "pypi"]
+        #     # ]
+        # del self.attributes["disabled"]
 
         # @conda uses a conda environment to create a virtual environment.
         # The conda environment can be created through micromamba.
@@ -126,6 +128,8 @@ class CondaStepDecorator(StepDecorator):
         environment.set_local_root(LocalStorage.get_datastore_root_from_config(logger))
 
     def runtime_init(self, flow, graph, package, run_id):
+        if self.attributes["disabled"]:
+            return
         # Create a symlink to metaflow installed outside the virtual environment.
         self.metaflow_dir = tempfile.TemporaryDirectory(dir="/tmp")
         os.symlink(
@@ -169,6 +173,8 @@ class CondaStepDecorator(StepDecorator):
     def runtime_task_created(
         self, task_datastore, task_id, split_index, input_paths, is_cloned, ubf_context
     ):
+        if self.attributes["disabled"]:
+            return
         self.interpreter = (
             self.environment.interpreter(self.step)
             if not any(
@@ -194,6 +200,8 @@ class CondaStepDecorator(StepDecorator):
         ubf_context,
         inputs,
     ):
+        if self.attributes["disabled"]:
+            return
         # Add Python interpreter's parent to the path to ensure that any non-pythonic
         # dependencies in the virtual environment are visible to the user code.
         # sys.executable points to the Python interpreter in the virtual environment
@@ -212,6 +220,8 @@ class CondaStepDecorator(StepDecorator):
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context
     ):
+        if self.attributes["disabled"]:
+            return
         # TODO: Support unbounded for-each
         # TODO: Check what happens when PYTHONPATH is defined via @environment
         # Ensure local installation of Metaflow is visible to user code
@@ -229,6 +239,8 @@ class CondaStepDecorator(StepDecorator):
             cli_args.entrypoint[0] = self.interpreter
 
     def runtime_finished(self, exception):
+        if self.attributes["disabled"]:
+            return
         self.metaflow_dir.cleanup()
 
 

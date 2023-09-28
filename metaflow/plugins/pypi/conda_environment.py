@@ -183,10 +183,14 @@ class CondaEnvironment(MetaflowEnvironment):
         for decorator in step.decorators:
             # @conda decorator is guaranteed to exist thanks to self.decospecs
             if decorator.name in ["conda", "pypi"]:
-                environment[decorator.name] = dict(decorator.attributes)
-        # environment can be empty for @conda/@pypi(disabled=True)
-        if not environment:
-            return {}
+                # handle @conda/@pypi(disabled=True)
+                if decorator.attributes["disabled"]:
+                    return {}
+                environment[decorator.name] = {
+                    k: decorator.attributes[k]
+                    for k in decorator.attributes
+                    if k != "disabled"
+                }
         # TODO: Support dependencies for `--metadata`.
         # TODO: Introduce support for `--telemetry` as a follow up.
         # Certain packages are required for metaflow runtime to function correctly.
