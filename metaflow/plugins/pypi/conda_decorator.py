@@ -187,6 +187,11 @@ class CondaStepDecorator(StepDecorator):
                     os.symlink(p, os.path.join(temp_dir, EXT_PKG))
                     self.addl_paths.append(temp_dir)
 
+        # # Also install any environment escape overrides directly here to enable
+        # # the escape to work even in non metaflow-created subprocesses
+        # from ..env_escape import generate_trampolines
+        # generate_trampolines(self.metaflow_dir.name)
+
     def runtime_task_created(
         self, task_datastore, task_id, split_index, input_paths, is_cloned, ubf_context
     ):
