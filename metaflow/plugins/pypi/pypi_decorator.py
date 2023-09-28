@@ -22,9 +22,40 @@ class PyPIStepDecorator(StepDecorator):
     """
 
     name = "pypi"
-    defaults = {"packages": {}, "python": None}  # wheels
+    defaults = {"packages": {}, "python": None, "disabled": None}  # wheels
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
+        # The init_environment hook for Environment creates the relevant virtual
+        # environments. The step_init hook sets up the relevant state for that hook to
+        # do it's magic.
+
+        self.flow = flow
+        self.step = step
+
+        # Support flow-level decorator
+        if "pypi_base" in self.flow._flow_decorators:
+            super_attributes = self.flow._flow_decorators["pypi_base"][0].attributes
+            self.attributes["packages"] = {
+                **super_attributes["packages"],
+                **self.attributes["packages"],
+            }
+            self.attributes["python"] = (
+                self.attributes["python"] or super_attributes["python"]
+            )
+            self.attributes["disabled"] = (
+                self.attributes["disabled"]
+                if self.attributes["disabled"] is not None
+                else super_attributes["disabled"]
+            )
+
+        # Take care of `disabled` argument.
+        if self.attributes["disabled"]:
+            _step = next(step for step in self.flow if step.name == self.step)
+            _step.decorators[:] = [
+                deco for deco in _step.decorators if deco.name not in ["conda", "pypi"]
+            ]
+        del self.attributes["disabled"]
+
         # At the moment, @pypi uses a conda environment as a virtual environment. This
         # is to ensure that we can have a dedicated Python interpreter within the
         # virtual environment. The conda environment is currently created through
@@ -57,22 +88,12 @@ class PyPIStepDecorator(StepDecorator):
                 )
             )
 
-        # The init_environment hook for Environment creates the relevant virtual
-        # environments. The step_init hook sets up the relevant state for that hook to
-        # do it's magic.
+        # TODO: This code snippet can be done away with by altering the constructor of
+        #       MetaflowEnvironment. A good first-task exercise.
+        # Avoid circular import
+        from metaflow.plugins.datastores.local_storage import LocalStorage
 
-        # Support flow-level decorator
-        self.flow = flow
-
-        if "pypi_base" in self.flow._flow_decorators:
-            super_attributes = self.flow._flow_decorators["pypi_base"][0].attributes
-            self.attributes["packages"] = {
-                **super_attributes["packages"],
-                **self.attributes["packages"],
-            }
-            self.attributes["python"] = (
-                self.attributes["python"] or super_attributes["python"]
-            )
+        environment.set_local_root(LocalStorage.get_datastore_root_from_config(logger))
 
 
 class PyPIFlowDecorator(FlowDecorator):
@@ -92,7 +113,7 @@ class PyPIFlowDecorator(FlowDecorator):
     """
 
     name = "pypi_base"
-    defaults = {"packages": {}, "python": None}
+    defaults = {"packages": {}, "python": None, "disabled": None}
 
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options

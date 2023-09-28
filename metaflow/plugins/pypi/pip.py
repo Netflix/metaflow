@@ -5,6 +5,7 @@ import tempfile
 from itertools import chain, product
 
 from metaflow.exception import MetaflowException
+from metaflow.util import which
 
 from .micromamba import Micromamba
 from .utils import pip_tags
@@ -152,14 +153,14 @@ class Pip(object):
             return json.loads(file.read())
 
     def extra_index_urls(self, prefix):
-        # get extra index urls from pip conf
+        # get extra index urls from Pip conf
         extra_indices = []
         for key in [":env:.extra-index-url", "global.extra-index-url"]:
             try:
                 extras = self._call(prefix, args=["config", "get", key], isolated=False)
                 extra_indices.extend(extras.split(" "))
             except Exception:
-                # pip will throw an error when trying to get a config key that does
+                # Pip will throw an error when trying to get a config key that does
                 # not exist
                 pass
         return extra_indices
