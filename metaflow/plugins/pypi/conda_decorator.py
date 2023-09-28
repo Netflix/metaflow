@@ -76,10 +76,10 @@ class CondaStepDecorator(StepDecorator):
             )
             self.attributes["disabled"] = (
                 self.attributes["disabled"]
-                if self.attributes["disabled"] is not None
+                if self.attributes.get("disabled") is not None
                 else super_attributes["disabled"]
             )
-        if not self.attributes["disabled"]:
+        if not self.attributes.get("disabled"):
             self.attributes["disabled"] = False
         # Set Python interpreter to user's Python if necessary.
         if not self.attributes["python"]:
