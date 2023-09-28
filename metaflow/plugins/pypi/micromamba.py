@@ -60,7 +60,6 @@ class Micromamba(object):
         #    environment
         # 4. Multiple solves can progress at the same time while relying on the same
         #    index
-
         with tempfile.TemporaryDirectory() as tmp_dir:
             env = {
                 "MAMBA_ADD_PIP_AS_PYTHON_DEPENDENCY": "true",
