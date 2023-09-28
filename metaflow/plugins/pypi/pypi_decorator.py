@@ -48,15 +48,6 @@ class PyPIStepDecorator(StepDecorator):
                 else super_attributes["disabled"]
             )
 
-        # # Take care of `disabled` argument.
-        # if self.attributes["disabled"]:
-        #     _step = next(step for step in self.flow if step.name == self.step)
-        #     # _step.decorators[:] = [
-        #     #     deco for deco in _step.decorators if deco.name not in ["conda", "pypi"]
-        #     # ]
-
-        # del self.attributes["disabled"]
-
         # At the moment, @pypi uses a conda environment as a virtual environment. This
         # is to ensure that we can have a dedicated Python interpreter within the
         # virtual environment. The conda environment is currently created through
