@@ -6,7 +6,7 @@ import json
 import os
 
 from hashlib import sha1
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from metaflow._vendor import click
 
@@ -246,7 +246,7 @@ class IncludeFile(Parameter):
     ----------
     name : str
         User-visible parameter name.
-    default : str or a function
+    default : Union[str, Callable[ParameterContext, str]]
         Default path to a local file. A function
         implies that the parameter corresponds to a *deploy-time parameter*.
     is_text : bool, default: True

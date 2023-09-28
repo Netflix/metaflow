@@ -35,6 +35,21 @@ class CardDecorator(StepDecorator):
         Options passed to the card. The contents depend on the card type.
     timeout : int, default: 45
         Interrupt reporting if it takes more than this many seconds.
+
+    MF Add To Current
+    -----------------
+    card -> metaflow.plugins.cards.component_serializer.CardComponentCollector
+        The `@card` decorator makes the cards available through the `current.card`
+        object. If multiple `@card` decorators are present, you can add an `ID` to
+        distinguish between them using `@card(id=ID)` as the decorator. You will then
+        be able to access that specific card using `current.card[ID].
+
+        Methods available are `append` and `extend`
+
+        Returns
+        -------
+        CardComponentCollector
+            The or one of the cards attached to this step.
     """
 
     name = "card"

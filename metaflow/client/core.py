@@ -1438,7 +1438,10 @@ class Task(MetaflowObject):
             return self._log_size(stream, meta_dict)
 
     def loglines(
-        self, stream: str, as_unicode: bool = True, meta_dict: Dict[str, Any] = None
+        self,
+        stream: str,
+        as_unicode: bool = True,
+        meta_dict: Optional[Dict[str, Any]] = None,
     ) -> Iterable[Tuple[datetime, str]]:
         """
         Return an iterator over (utc_timestamp, logline) tuples.
@@ -1453,7 +1456,7 @@ class Task(MetaflowObject):
 
         Returns
         -------
-        Iterable[(datetime, str)]
+        Iterable[Tuple[datetime, str]]
             Iterator over timestamp, logline pairs.
         """
         from metaflow.mflog.mflog import merge_logs

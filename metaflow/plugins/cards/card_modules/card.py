@@ -77,7 +77,7 @@ class MetaflowCard(object):
         except ImportError:
             return None
 
-    def render(self, task) -> str:
+    def render(self, task: "Task") -> str:
         """
         Produce custom card contents in HTML.
 
