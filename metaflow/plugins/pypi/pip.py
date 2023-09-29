@@ -77,11 +77,19 @@ class Pip(object):
                 else:
                     cmd.append(f"{package}=={version}")
             self._call(prefix, cmd)
+
+            def _format_download_url(item):
+                dl_info = item["download_info"]
+                res = {k: v for k, v in dl_info.items() if k in ["url"]}
+                # reconstruct the VCS url and pin to current commit_id
+                # so using @branch as a version acts somewhat as expected.
+                vcs_info = dl_info.get("vcs_info")
+                if vcs_info:
+                    res["url"] = "{vcs}+{url}@{commit_id}".format(**vcs_info, **res)
+                return res
+
             with open(report, mode="r", encoding="utf-8") as f:
-                return [
-                    {k: v for k, v in item["download_info"].items() if k in ["url"]}
-                    for item in json.load(f)["install"]
-                ]
+                return [_format_download_url(item) for item in json.load(f)["install"]]
 
     def download(self, id_, packages, python, platform):
         prefix = self.micromamba.path_to_environment(id_)
