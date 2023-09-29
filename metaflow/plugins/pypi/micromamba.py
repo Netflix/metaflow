@@ -245,16 +245,24 @@ class Micromamba(object):
                 return json.loads(result)
             return {}
         except subprocess.CalledProcessError as e:
+            msg = "command '{cmd}' returned error ({code})\n{stderr}"
             try:
                 output = json.loads(e.output)
-                err = [output.get("error")]
+                err = []
                 for error in output.get("solver_problems", []):
-                    err.append(error["error"])
-                raise MicromambaException(err)
+                    err.append(error)
+                raise MicromambaException(
+                    msg.format(
+                        cmd=" ".join(e.cmd),
+                        code=e.returncode,
+                        output=e.output.decode(),
+                        stderr="\n".join(err),
+                    )
+                )
             except (TypeError, ValueError) as ve:
                 pass
             raise MicromambaException(
-                "command '{cmd}' returned error ({code})\n{stderr}".format(
+                msg.format(
                     cmd=" ".join(e.cmd),
                     code=e.returncode,
                     output=e.output.decode(),

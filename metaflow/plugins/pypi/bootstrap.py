@@ -46,6 +46,8 @@ if __name__ == "__main__":
             # Micromamba into believing that all packages are coming from a local
             # channel - the only hurdle is ensuring that packages are organised
             # properly.
+
+            # TODO: consider RAM disk
             dest = os.path.join(conda_pkgs_dir, "/".join(key.split("/")[-2:]))
             os.makedirs(os.path.dirname(dest), exist_ok=True)
             shutil.move(tmpfile, dest)
@@ -54,7 +56,7 @@ if __name__ == "__main__":
     cmds = [
         # TODO: check if mamba or conda are already available on the image
         f"""if ! command -v ./micromamba >/dev/null 2>&1; then
-            wget -qO- https://micro.mamba.pm/api/micromamba/{architecture}/latest | tar -xvj bin/micromamba --strip-components=1;
+            wget -qO- https://micro.mamba.pm/api/micromamba/{architecture}/latest | tar -xvj bin/micromamba --strip-components=1 >/dev/null 2>&1;
             export PATH=$PATH:$HOME/bin;
             if ! command -v ./micromamba >/dev/null 2>&1; then
                 echo "Failed to install Micromamba!";
@@ -83,7 +85,7 @@ if __name__ == "__main__":
         # Install PyPI packages.
         cmds.extend(
             [
-                f"""./micromamba run --prefix {prefix} pip install --root-user-action=ignore {pypi_pkgs_dir}/*.whl"""
+                f"""./micromamba run --prefix {prefix} pip --disable-pip-version-check install --root-user-action=ignore --no-compile {pypi_pkgs_dir}/*.whl"""
             ]
         )
 

@@ -1,6 +1,7 @@
 import errno
 import fcntl
 import functools
+import time
 import io
 import json
 import os
@@ -62,7 +63,6 @@ class CondaEnvironment(MetaflowEnvironment):
 
         # TODO: Introduce verbose logging
         #       https://github.com/Netflix/metaflow/issues/1494
-        echo("Bootstrapping virtual environment(s) ...")
 
         def environments(type_):
             seen = set()
@@ -140,6 +140,7 @@ class CondaEnvironment(MetaflowEnvironment):
                     self.write_to_environment_manifest([id_, platform, type_], packages)
 
         # First resolve environments through Conda, before PyPI.
+        echo("Bootstrapping virtual environment(s) ...")
         for solver in ["conda", "pypi"]:
             with ThreadPoolExecutor() as executor:
                 results = list(
@@ -159,6 +160,7 @@ class CondaEnvironment(MetaflowEnvironment):
                     _datastore_packageroot(self.datastore_type)
                 )
                 cache(storage, results, solver)
+        echo("Virtual environment(s) bootstrapped!")
 
     def executable(self, step_name, default=None):
         step = next(step for step in self.flow if step.name == step_name)
