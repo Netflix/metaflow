@@ -1,1 +1,0 @@
-{"platform": "Darwin", "username": "savin", "production_token": null, "runtime": "dev", "app": null, "environment_type": "conda", "use_r": false, "python_version": "3.10.12 | packaged by conda-forge | (main, Jun 23 2023, 22:41:52) [Clang 15.0.7 ]", "python_version_code": "3.10.12", "metaflow_version": "2.9.14.post39+git8104d8a", "script": "plainConda.py", "ext_info": [{}, {}]}

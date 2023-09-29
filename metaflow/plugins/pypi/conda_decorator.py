@@ -150,7 +150,7 @@ class CondaStepDecorator(StepDecorator):
             # EXT_PKG extensions are PYTHONPATH extensions. Instead of re-resolving,
             # we use the resolved information that is written out to the INFO file.
             with open(
-                os.path.join(self.metaflow_dir.name, info),
+                os.path.join(self.metaflow_dir.name, os.path.basename(INFO_FILE)),
                 mode="wt",
                 encoding="utf-8",
             ) as f:
