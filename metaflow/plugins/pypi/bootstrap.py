@@ -17,6 +17,30 @@ if __name__ == "__main__":
         sys.exit(1)
     _, flow_name, id_, datastore_type, architecture = sys.argv
 
+    # TODO: Detect architecture on the fly when dealing with arm architectures.
+    # ARCH=$(uname -m)
+    # OS=$(uname)
+
+    # if [[ "$OS" == "Linux" ]]; then
+    #     PLATFORM="linux"
+    #     if [[ "$ARCH" == "aarch64" ]]; then
+    #         ARCH="aarch64";
+    #     elif [[ $ARCH == "ppc64le" ]]; then
+    #         ARCH="ppc64le";
+    #     else
+    #         ARCH="64";
+    #     fi
+    # fi
+
+    # if [[ "$OS" == "Darwin" ]]; then
+    #     PLATFORM="osx";
+    #     if [[ "$ARCH" == "arm64" ]]; then
+    #         ARCH="arm64";
+    #     else
+    #         ARCH="64"
+    #     fi
+    # fi
+
     prefix = os.path.join(os.getcwd(), id_)
     pkgs_dir = os.path.join(os.getcwd(), ".pkgs")
     manifest_dir = os.path.join(os.getcwd(), DATASTORE_LOCAL_DIR, flow_name)
@@ -67,7 +91,7 @@ if __name__ == "__main__":
         f'''tmpfile=$(mktemp);
         echo "@EXPLICIT" > "$tmpfile";
         ls -d {conda_pkgs_dir}/*/* >> "$tmpfile";
-        ./micromamba create --yes --offline --no-deps --safety-checks=disabled --prefix {prefix} --file "$tmpfile";
+        ./micromamba create --yes --offline --no-deps --safety-checks=disabled --no-extra-safety-checks --prefix {prefix} --file "$tmpfile";
         rm "$tmpfile"''',
     ]
 
