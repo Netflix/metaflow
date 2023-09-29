@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version = "2.9.14"
+version = "2.9.15"
 
 setup(
     include_package_data=True,
