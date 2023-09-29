@@ -18,6 +18,7 @@ from metaflow.metaflow_config import (
     ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
     ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
     ARGO_WORKFLOWS_KUBERNETES_SECRETS,
+    ARGO_EVENTS_WEBHOOK_AUTH,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     CARD_AZUREROOT,
@@ -1167,6 +1168,7 @@ class ArgoWorkflows(object):
                         "METAFLOW_ARGO_EVENTS_EVENT_SOURCE": ARGO_EVENTS_EVENT_SOURCE,
                         "METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT": ARGO_EVENTS_SERVICE_ACCOUNT,
                         "METAFLOW_ARGO_EVENTS_WEBHOOK_URL": ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
+                        "METAFLOW_ARGO_EVENTS_WEBHOOK_AUTH": ARGO_EVENTS_WEBHOOK_AUTH,
                     },
                     **{
                         # Some optional values for bookkeeping
