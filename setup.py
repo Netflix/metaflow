@@ -1,4 +1,4 @@
-from setuptools import setup, find_namespace_packages
+from setuptools import setup, find_packages
 
 version = "2.9.14"
 
@@ -31,19 +31,17 @@ setup(
         "Issues": "https://github.com/Netflix/metaflow/issues",
         "Documentation": "https://docs.metaflow.org",
     },
-    packages=find_namespace_packages(
-        exclude=[
-            "metaflow.plugins.cards.ui",
-            "metaflow.plugins.cards.ui.*",
-            "metaflow.tutorials",
-            "metaflow.tutorials.*",
-        ],
-        include=["metaflow.*"],
-    ),
+    packages=find_packages(exclude=["metaflow_test"]),
     py_modules=[
         "metaflow",
     ],
-    package_data={"metaflow": ["tutorials/*/*", "py.typed"]},
+    package_data={
+        "metaflow": [
+            "tutorials/*/*",
+            "plugins/env_escape/configurations/*/*",
+            "py.typed",
+        ]
+    },
     entry_points="""
         [console_scripts]
         metaflow=metaflow.cmd.main_cli:start
