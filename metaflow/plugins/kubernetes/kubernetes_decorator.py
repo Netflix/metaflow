@@ -60,14 +60,21 @@ class KubernetesDecorator(StepDecorator):
         Docker image to use when launching on Kubernetes. If not specified, and
         METAFLOW_KUBERNETES_CONTAINER_IMAGE is specified, that image is used. If
         not, a default Docker image mapping to the current version of Python is used.
+    image_pull_policy: str, default: KUBERNETES_IMAGE_PULL_POLICY
+        If given, the imagePullPolicy to be applied to the Docker image of the step.
     service_account : str, default: METAFLOW_KUBERNETES_SERVICE_ACCOUNT
         Kubernetes service account to use when launching pod in Kubernetes.
-    namespace : str, default: METAFLOW_KUBERNETES_NAMESPACE
-        Kubernetes namespace to use when launching pod in Kubernetes.
     secrets : List[str], optional
         Kubernetes secrets to use when launching pod in Kubernetes. These
         secrets are in addition to the ones defined in `METAFLOW_KUBERNETES_SECRETS`
         in Metaflow configuration.
+    namespace : str, default: METAFLOW_KUBERNETES_NAMESPACE
+        Kubernetes namespace to use when launching pod in Kubernetes.
+    gpu: int, optional
+        Number of GPUs required for this step. A value of zero implies that
+        the scheduled node should not have GPUs.
+    gpu_vendor: str, default: KUBERNETES_GPU_VENDOR
+        The vendor of the GPUs to be used for this step.
     tolerations : List[str], default: METAFLOW_KUBERNETES_TOLERATIONS
         Kubernetes tolerations to use when launching pod in Kubernetes.
     labels: Dict[str, str], default: METAFLOW_KUBERNETES_LABELS
