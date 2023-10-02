@@ -78,18 +78,26 @@ class Pip(object):
                     cmd.append(f"{package}=={version}")
             self._call(prefix, cmd)
 
-            def _format_download_url(item):
+            def _format_item(item):
                 dl_info = item["download_info"]
                 res = {k: v for k, v in dl_info.items() if k in ["url"]}
+                # Infer wheel name from url
+                res["wheel_name"] = res["url"].split("/")[-1]
                 # reconstruct the VCS url and pin to current commit_id
                 # so using @branch as a version acts somewhat as expected.
                 vcs_info = dl_info.get("vcs_info")
                 if vcs_info:
                     res["url"] = "{vcs}+{url}@{commit_id}".format(**vcs_info, **res)
+                    # VCS source packages get downloaded as 'name-version.zip'
+                    # so we explicitly record this as the wheel name for later use.
+                    res["wheel_name"] = "{name}-{version}.zip".format(
+                        name=item["metadata"]["name"],
+                        version=item["metadata"]["version"],
+                    )
                 return res
 
             with open(report, mode="r", encoding="utf-8") as f:
-                return [_format_download_url(item) for item in json.load(f)["install"]]
+                return [_format_item(item) for item in json.load(f)["install"]]
 
     def download(self, id_, packages, python, platform):
         prefix = self.micromamba.path_to_environment(id_)
@@ -124,9 +132,10 @@ class Pip(object):
             # *(chain.from_iterable(product(["--implementations"], set(implementations)))),
         ]
         for package in packages:
-            cmd.append("{url}".format(**package))
-            metadata["{url}".format(**package)] = "{prefix}/.pip/wheels/{wheel}".format(
-                prefix=prefix, wheel=package["url"].split("/")[-1]
+            cmd.append(package["url"])
+            # record the url-to-path mapping fo wheels in metadata file.
+            metadata[package["url"]] = "{prefix}/.pip/wheels/{wheel}".format(
+                prefix=prefix, wheel=package["wheel_name"]
             )
         self._call(prefix, cmd)
         # write the url to wheel mappings in a magic location
