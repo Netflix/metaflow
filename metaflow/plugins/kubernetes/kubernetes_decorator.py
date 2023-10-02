@@ -52,7 +52,7 @@ class KubernetesDecorator(StepDecorator):
         Disk size (in MB) required for this step. If
         `@resources` is also present, the maximum value from all decorators is
         used.
-    image : str, optional
+    image : str, optional, default: None
         Docker image to use when launching on Kubernetes. If not specified, and
         METAFLOW_KUBERNETES_CONTAINER_IMAGE is specified, that image is used. If
         not, a default Docker image mapping to the current version of Python is used.
@@ -60,7 +60,7 @@ class KubernetesDecorator(StepDecorator):
         If given, the imagePullPolicy to be applied to the Docker image of the step.
     service_account : str, default: METAFLOW_KUBERNETES_SERVICE_ACCOUNT
         Kubernetes service account to use when launching pod in Kubernetes.
-    secrets : List[str], optional
+    secrets : List[str], optional, default None
         Kubernetes secrets to use when launching pod in Kubernetes. These
         secrets are in addition to the ones defined in `METAFLOW_KUBERNETES_SECRETS`
         in Metaflow configuration.
@@ -77,13 +77,13 @@ class KubernetesDecorator(StepDecorator):
         This enables an explicit tmpfs mount for this step.
     tmpfs_tempdir: bool, default: True
         sets METAFLOW_TEMPDIR to tmpfs_path if set for this step.
-    tmpfs_size: int, optional
+    tmpfs_size: int, optional, default: None
         The value for the size (in MiB) of the tmpfs mount for this step.
         This parameter maps to the `--tmpfs` option in Docker. Defaults to 50% of the
         memory allocated for this step.
-    tmpfs_path: string, optional
-        Path to tmpfs mount for this step. Defaults to /metaflow_temp.
-    persistent_volume_claims: Dict[str, str], optional
+    tmpfs_path: str, optional, default: /metaflow_temp
+        Path to tmpfs mount for this step.
+    persistent_volume_claims: Dict[str, str], optional, default: None
         A map (dictionary) of persistent volumes to be mounted to the pod for this step. The map is from persistent
         volumes to the path to which the volume is to be mounted, e.g., `{'pvc-name': '/path/to/mount/on'}`.
     """

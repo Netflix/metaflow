@@ -47,7 +47,7 @@ class BatchDecorator(StepDecorator):
         Memory size (in MB) required for this step. If
         `@resources` is also present, the maximum value from all decorators is
         used.
-    image : str, optional
+    image : str, optional, default: None
         Docker image to use when launching on AWS Batch. If not specified, and
         METAFLOW_BATCH_CONTAINER_IMAGE is specified, that image is used. If
         not, a default Docker image mapping to the current version of Python is used.
@@ -58,15 +58,15 @@ class BatchDecorator(StepDecorator):
     execution_role : str, default: METAFLOW_ECS_FARGATE_EXECUTION_ROLE
         AWS IAM role that AWS Batch can use [to trigger AWS Fargate tasks]
         (https://docs.aws.amazon.com/batch/latest/userguide/execution-IAM-role.html).
-    shared_memory : int, optional
+    shared_memory : int, optional, default: None
         The value for the size (in MiB) of the /dev/shm volume for this step.
         This parameter maps to the `--shm-size` option in Docker.
-    max_swap : int, optional
+    max_swap : int, optional, default: None
         The total amount of swap memory (in MiB) a container can use for this
         step. This parameter is translated to the `--memory-swap` option in
         Docker where the value is the sum of the container memory plus the
         `max_swap` value.
-    swappiness : int, optional
+    swappiness : int, optional: default: None
         This allows you to tune memory swappiness behavior for this step.
         A swappiness value of 0 causes swapping not to happen unless absolutely
         necessary. A swappiness value of 100 causes pages to be swapped very
@@ -75,12 +75,12 @@ class BatchDecorator(StepDecorator):
         This enables an explicit tmpfs mount for this step.
     tmpfs_tempdir: bool, default: True
         sets METAFLOW_TEMPDIR to tmpfs_path if set for this step.
-    tmpfs_size: int, optional
+    tmpfs_size: int, optional, default: None
         The value for the size (in MiB) of the tmpfs mount for this step.
         This parameter maps to the `--tmpfs` option in Docker. Defaults to 50% of the
         memory allocated for this step.
-    tmpfs_path: string, optional
-        Path to tmpfs mount for this step. Defaults to /metaflow_temp.
+    tmpfs_path: str, optional, default: /metaflow_temp
+        Path to tmpfs mount for this step.
     inferentia : int, default: 0
         Number of Inferentia chips required for this step.
     efa: int, default: 0
