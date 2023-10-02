@@ -583,8 +583,31 @@ class ArgoWorkflows(object):
                 }
             )
 
+        # Some more annotations to populate the Argo UI nicely
         if self.tags:
             annotations.update({"metaflow/tags": json.dumps(self.tags)})
+        if self.notify_on_error:
+            annotations.update(
+                {
+                    "metaflow/notify_on_error": json.dumps(
+                        {
+                            "slack": bool(self.notify_slack_webhook_url),
+                            "pager_duty": bool(self.notify_pager_duty_integration_key),
+                        }
+                    )
+                }
+            )
+        if self.notify_on_success:
+            annotations.update(
+                {
+                    "metaflow/notify_on_success": json.dumps(
+                        {
+                            "slack": bool(self.notify_slack_webhook_url),
+                            "pager_duty": bool(self.notify_pager_duty_integration_key),
+                        }
+                    )
+                }
+            )
 
         return (
             WorkflowTemplate()
