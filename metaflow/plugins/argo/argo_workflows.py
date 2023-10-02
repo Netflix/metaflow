@@ -583,6 +583,9 @@ class ArgoWorkflows(object):
                 }
             )
 
+        if self.tags:
+            annotations.update({"metaflow/tags": json.dumps(self.tags)})
+
         return (
             WorkflowTemplate()
             .metadata(
