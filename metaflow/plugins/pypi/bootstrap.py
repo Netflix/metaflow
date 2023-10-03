@@ -119,11 +119,12 @@ if __name__ == "__main__":
                 shutil.move(tmpfile, dest)
 
         # Install PyPI packages.
+        # *.whl for regular index sources, *.zip for VCS sources
         cmds.extend(
             [
                 f"""set -e;
                 export PATH=$PATH:$(pwd)/micromamba;
-                micromamba run --prefix {prefix} pip --disable-pip-version-check install --root-user-action=ignore --no-compile {pypi_pkgs_dir}/*.whl"""
+                micromamba run --prefix {prefix} pip --disable-pip-version-check install --root-user-action=ignore --no-compile {pypi_pkgs_dir}/*"""
             ]
         )
 

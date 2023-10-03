@@ -104,10 +104,17 @@ class CondaEnvironment(MetaflowEnvironment):
             )
 
         def cache(storage, results, type_):
+            def _url(url, local_path):
+                base, _file = os.path.split(urlparse(url).path)
+                _, localfile = os.path.split(local_path)
+                return urlparse(url).netloc + os.path.join(base, localfile)
+
             local_packages = {
                 url: {
                     # Path to package in datastore.
-                    "path": urlparse(url).netloc + urlparse(url).path,
+                    # e.g. example.com/path/to/package.whl
+                    # or example.com/path/to/package.git@123abc
+                    "path": _url(url, local_path),
                     # Path to package on local disk.
                     "local_path": local_path,
                 }
@@ -122,10 +129,10 @@ class CondaEnvironment(MetaflowEnvironment):
                         # Cache only those packages that manifest is unaware of
                         local_packages.pop(package["url"], None)
                     else:
-                        package["path"] = (
-                            urlparse(package["url"]).netloc
-                            + urlparse(package["url"]).path
-                        )
+                        # TODO: Match up with CONDA_DATASTORE_ROOT so that cache
+                        #       gets invalidated when DATASTORE is moved.
+                        _p = package.get("wheel_name", urlparse(package["url"]).path)
+                        package["path"] = _url(package["url"], _p)
                         dirty.add(id_)
 
             list_of_path_and_filehandle = [
@@ -384,7 +391,8 @@ class LazyOpen(BufferedIOBase):
         super().__init__()
         self.filename = filename
         self.mode = mode
-        self.url = url
+        # Do not handle VCS url's, as they are not pointers to files that could be downloaded.
+        self.url = None if url.startswith("git+") else url
         self._file = None
         self._buffer = None
         self._position = 0
