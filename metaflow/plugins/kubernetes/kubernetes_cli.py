@@ -71,13 +71,13 @@ def kubernetes():
 @click.option("--memory", help="Memory requirement for Kubernetes pod.")
 @click.option("--gpu", help="GPU requirement for Kubernetes pod.")
 @click.option("--gpu-vendor", help="GPU vendor requirement for Kubernetes pod.")
-@click.option("--security_context",
+@click.option("--security-context",
               default=None,
               type=JSONTypeClass(),
               multiple=False,
               help="Security context Kubernetes pod.",
               )
-@click.option("--resource_limits",
+@click.option("--resource-limits",
               default=None,
               type=JSONTypeClass(),
               multiple=False,
