@@ -72,11 +72,15 @@ def kubernetes():
 @click.option("--gpu", help="GPU requirement for Kubernetes pod.")
 @click.option("--gpu-vendor", help="GPU vendor requirement for Kubernetes pod.")
 @click.option("--security_context",
+              default=None,
               type=JSONTypeClass(),
+              multiple=False,
               help="Security context Kubernetes pod.",
               )
 @click.option("--resource_limits",
+              default=None,
               type=JSONTypeClass(),
+              multiple=False,
               help="Resource limits Kubernetes pod.")
 
 @click.option("--run-id", help="Passed to the top-level 'step'.")
