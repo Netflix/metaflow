@@ -34,6 +34,8 @@ from metaflow.metaflow_config import (
     SERVICE_INTERNAL_URL,
     S3_SERVER_SIDE_ENCRYPTION,
 )
+from metaflow.metaflow_config_funcs import config_values
+
 from metaflow.mflog import (
     BASH_SAVE_LOGS,
     bash_capture_logs,
@@ -258,6 +260,12 @@ class Kubernetes(object):
             # pod; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set (
             # see get_datastore_root_from_config in datastore/local.py).
         )
+
+        # Temporary passing of *some* environment variables. Do not rely on this
+        # mechanism as it will be removed in the near future
+        for k, v in config_values():
+            if k.startswith("METAFLOW_CONDA_") or k.startswith("METAFLOW_DEBUG_"):
+                job.environment_variable(k, v)
 
         if S3_SERVER_SIDE_ENCRYPTION is not None:
             job.environment_variable(
