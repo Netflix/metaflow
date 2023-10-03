@@ -342,8 +342,10 @@ class ArgoWorkflows(object):
 
     def _get_kubernetes_annotations(self):
         """
-        Get Kubernetes annotations from the start step decorator. Append Argo specific annotations.
+        Get Kubernetes annotations from the start step decorator.
+        Append Argo specific annotations that are unavailable at the decorator level.
         """
+        from datetime import datetime, timezone
         resources = dict(
             [
                 deco
@@ -364,8 +366,67 @@ class ArgoWorkflows(object):
                 "metaflow/owner": self.username,
                 "metaflow/user": "argo-workflows",
                 "metaflow/flow_name": self.flow.name,
+                "metaflow/deployment_timestamp": str(
+                    datetime.now(timezone.utc).isoformat()
+                ),
             }
         )
+        if self._schedule is not None:
+            # timezone is an optional field and json dumps on None will result in null
+            # hence configuring it to an empty string
+            if self._timezone is None:
+                self._timezone = ""
+            cron_info = {"schedule": self._schedule, "tz": self._timezone}
+            annotations.update({"metaflow/cron": json.dumps(cron_info)})
+
+        if self.parameters:
+            annotations.update({"metaflow/parameters": json.dumps(self.parameters)})
+
+        if current.get("project_name"):
+            annotations.update(
+                {
+                    "metaflow/project_name": current.project_name,
+                    "metaflow/branch_name": current.branch_name,
+                    "metaflow/project_flow_name": current.project_flow_name,
+                }
+            )
+
+        # Some more annotations to populate the Argo UI nicely
+        if self.tags:
+            annotations.update({"metaflow/tags": json.dumps(self.tags)})
+        if self.triggers:
+            annotations.update(
+                {
+                    "metaflow/triggers": json.dumps(
+                        [
+                            {key: trigger.get(key) for key in ["name", "type"]}
+                            for trigger in self.triggers
+                        ]
+                    )
+                }
+            )
+        if self.notify_on_error:
+            annotations.update(
+                {
+                    "metaflow/notify_on_error": json.dumps(
+                        {
+                            "slack": bool(self.notify_slack_webhook_url),
+                            "pager_duty": bool(self.notify_pager_duty_integration_key),
+                        }
+                    )
+                }
+            )
+        if self.notify_on_success:
+            annotations.update(
+                {
+                    "metaflow/notify_on_success": json.dumps(
+                        {
+                            "slack": bool(self.notify_slack_webhook_url),
+                            "pager_duty": bool(self.notify_pager_duty_integration_key),
+                        }
+                    )
+                }
+            )
         return annotations
 
     def _get_schedule(self):
@@ -706,75 +767,6 @@ class ArgoWorkflows(object):
         # (https://github.com/argoproj/argo-workflows/issues/7432) and we are forced to
         # generate container templates at the top level (in WorkflowSpec) and maintain
         # references to them within the DAGTask.
-
-        from datetime import datetime, timezone
-
-        annotations = {
-            "metaflow/production_token": self.production_token,
-            "metaflow/owner": self.username,
-            "metaflow/user": "argo-workflows",
-            "metaflow/flow_name": self.flow.name,
-            "metaflow/deployment_timestamp": str(
-                datetime.now(timezone.utc).isoformat()
-            ),
-        }
-
-        if self._schedule is not None:
-            # timezone is an optional field and json dumps on None will result in null
-            # hence configuring it to an empty string
-            if self._timezone is None:
-                self._timezone = ""
-            cron_info = {"schedule": self._schedule, "tz": self._timezone}
-            annotations.update({"metaflow/cron": json.dumps(cron_info)})
-
-        if self.parameters:
-            annotations.update({"metaflow/parameters": json.dumps(self.parameters)})
-
-        if current.get("project_name"):
-            annotations.update(
-                {
-                    "metaflow/project_name": current.project_name,
-                    "metaflow/branch_name": current.branch_name,
-                    "metaflow/project_flow_name": current.project_flow_name,
-                }
-            )
-
-        # Some more annotations to populate the Argo UI nicely
-        if self.tags:
-            annotations.update({"metaflow/tags": json.dumps(self.tags)})
-        if self.triggers:
-            annotations.update(
-                {
-                    "metaflow/triggers": json.dumps(
-                        [
-                            {key: trigger.get(key) for key in ["name", "type"]}
-                            for trigger in self.triggers
-                        ]
-                    )
-                }
-            )
-        if self.notify_on_error:
-            annotations.update(
-                {
-                    "metaflow/notify_on_error": json.dumps(
-                        {
-                            "slack": bool(self.notify_slack_webhook_url),
-                            "pager_duty": bool(self.notify_pager_duty_integration_key),
-                        }
-                    )
-                }
-            )
-        if self.notify_on_success:
-            annotations.update(
-                {
-                    "metaflow/notify_on_success": json.dumps(
-                        {
-                            "slack": bool(self.notify_slack_webhook_url),
-                            "pager_duty": bool(self.notify_pager_duty_integration_key),
-                        }
-                    )
-                }
-            )
 
         return (
             WorkflowTemplate()
