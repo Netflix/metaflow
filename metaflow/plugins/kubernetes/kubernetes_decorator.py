@@ -228,7 +228,7 @@ class KubernetesDecorator(StepDecorator):
         if self.attributes["disk"] == self.defaults["disk"] and KUBERNETES_DISK:
             self.attributes["disk"] = KUBERNETES_DISK
         # Label source precedence (decreasing):
-        # - System labels
+        # - System labels (set outside of decorator)
         # - Decorator labels: @kubernetes(labels={})
         # - Environment variable labels: METAFLOW_KUBERNETES_LABELS=
         deco_labels = {}
@@ -239,18 +239,13 @@ class KubernetesDecorator(StepDecorator):
         if KUBERNETES_LABELS:
             env_labels = parse_kube_keyvalue_list(KUBERNETES_LABELS.split(","), False)
 
-        system_labels = {
-            "app.kubernetes.io/name": "metaflow-task",
-            "app.kubernetes.io/part-of": "metaflow",
-        }
-
-        self.attributes["labels"] = {**env_labels, **deco_labels, **system_labels}
+        self.attributes["labels"] = {**env_labels, **deco_labels}
 
         # Annotations
         # annotation precedence (decreasing):
-        # - System annotations
-        # - Decorator annotations
-        # - Environment annotations
+        # - System annotations (set outside of decorator)
+        # - Decorator annotations: @kubernetes(annotations={})
+        # - Environment annotations: METAFLOW_KUBERNETES_ANNOTATIONS=
         deco_annotations = {}
         if self.attributes["annotations"] is not None:
             deco_annotations = self.attributes["annotations"]
@@ -261,25 +256,7 @@ class KubernetesDecorator(StepDecorator):
                 KUBERNETES_ANNOTATIONS.split(","), False
             )
 
-        system_annotations = {
-            "metaflow/user": current.username,
-            "metaflow/flow_name": current.flow_name,
-        }
-
-        if current.get("project_name"):
-            system_annotations.update(
-                {
-                    "metaflow/project_name": current.project_name,
-                    "metaflow/branch_name": current.branch_name,
-                    "metaflow/project_flow_name": current.project_flow_name,
-                }
-            )
-
-        self.attributes["annotations"] = {
-            **env_annotations,
-            **deco_annotations,
-            **system_annotations,
-        }
+        self.attributes["annotations"] = {**env_annotations, **deco_annotations}
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:

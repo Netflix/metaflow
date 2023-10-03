@@ -643,16 +643,33 @@ class Kubernetes(object):
 
         for name, value in env.items():
             job.environment_variable(name, value)
+        # Add job specific labels
+        system_labels = {
+            "app.kubernetes.io/name": "metaflow-task",
+            "app.kubernetes.io/part-of": "metaflow",
+        }
+        for name, value in system_labels.items():
+            job.label(name, value)
 
         # Add job specific annotations not set in the decorator.
-        annotations = {
+        system_annotations = {
+            "metaflow/flow_name": flow_name,
             "metaflow/run_id": run_id,
             "metaflow/step_name": step_name,
             "metaflow/task_id": task_id,
             "metaflow/attempt": attempt,
+            "metaflow/user": user,
         }
+        if current.get("project_name"):
+            system_annotations.update(
+                {
+                    "metaflow/project_name": current.project_name,
+                    "metaflow/branch_name": current.branch_name,
+                    "metaflow/project_flow_name": current.project_flow_name,
+                }
+            )
 
-        for name, value in annotations.items():
+        for name, value in system_annotations.items():
             job.annotation(name, value)
 
         (
