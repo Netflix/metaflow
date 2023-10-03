@@ -33,6 +33,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
+    KUBERNETES_RESOURCE_REQUESTS,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     KUBERNETES_SECRETS,
     S3_ENDPOINT_URL,
@@ -278,6 +279,27 @@ class ArgoWorkflows(object):
         env_labels = parse_kube_keyvalue_list(env_labels, False)
         validate_kube_labels(env_labels)
         return env_labels
+
+    def _construct_resource_requirements(self, resources):
+        """
+        Construct the resource requests & limits for a workflow step from decorator resources dictionary.
+        """
+        x = {
+            "cpu": str(resources["cpu"]),
+            "memory": "%sM" % str(resources["memory"]),
+            "ephemeral-storage": "%sM" % str(resources["disk"]),
+        }
+        y = {
+            "%s.com/gpu".lower()
+            % resources["gpu_vendor"]: str(resources["gpu"])
+            for _ in [0]
+            if resources["gpu"] is not None
+        }
+        return {
+            'requests': x if KUBERNETES_RESOURCE_REQUESTS else {},
+            'limits': {**x, **y} if KUBERNETES_RESOURCE_REQUESTS else y,
+        }
+
 
     def _get_schedule(self):
         schedule = self.flow._flow_decorators.get("schedule")
@@ -1351,17 +1373,7 @@ class ArgoWorkflows(object):
                             image=resources["image"],
                             image_pull_policy=resources["image_pull_policy"],
                             resources=kubernetes_sdk.V1ResourceRequirements(
-                                requests={
-                                    "cpu": str(resources["cpu"]),
-                                    "memory": "%sM" % str(resources["memory"]),
-                                    "ephemeral-storage": "%sM" % str(resources["disk"]),
-                                },
-                                limits={
-                                    "%s.com/gpu".lower()
-                                    % resources["gpu_vendor"]: str(resources["gpu"])
-                                    for k in [0]
-                                    if resources["gpu"] is not None
-                                },
+                                **self._construct_resource_requirements(resources)
                             ),
                             # Configure secrets
                             env_from=[

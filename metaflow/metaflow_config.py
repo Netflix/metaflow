@@ -295,6 +295,8 @@ KUBERNETES_IMAGE_PULL_POLICY = from_conf("KUBERNETES_IMAGE_PULL_POLICY", None)
 KUBERNETES_CONTAINER_REGISTRY = from_conf(
     "KUBERNETES_CONTAINER_REGISTRY", DEFAULT_CONTAINER_REGISTRY
 )
+# Specify Kubernetes resource requirements as requests. (If not True, then use limits.)
+KUBERNETES_RESOURCE_REQUESTS = from_conf("KUBERNETES_RESOURCE_REQUESTS", True)
 # Toggle for trying to fetch EC2 instance metadata
 KUBERNETES_FETCH_EC2_METADATA = from_conf("KUBERNETES_FETCH_EC2_METADATA", False)
 

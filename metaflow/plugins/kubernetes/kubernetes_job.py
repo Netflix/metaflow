@@ -4,7 +4,7 @@ import random
 import time
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import KUBERNETES_SECRETS
+from metaflow.metaflow_config import KUBERNETES_SECRETS, KUBERNETES_RESOURCE_REQUESTS
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
@@ -151,21 +151,7 @@ class KubernetesJob(object):
                                 image_pull_policy=self._kwargs["image_pull_policy"],
                                 name=self._kwargs["step_name"].replace("_", "-"),
                                 resources=client.V1ResourceRequirements(
-                                    requests={
-                                        "cpu": str(self._kwargs["cpu"]),
-                                        "memory": "%sM" % str(self._kwargs["memory"]),
-                                        "ephemeral-storage": "%sM"
-                                        % str(self._kwargs["disk"]),
-                                    },
-                                    limits={
-                                        "%s.com/gpu".lower()
-                                        % self._kwargs["gpu_vendor"]: str(
-                                            self._kwargs["gpu"]
-                                        )
-                                        for k in [0]
-                                        # Don't set GPU limits if gpu isn't specified.
-                                        if self._kwargs["gpu"] is not None
-                                    },
+                                    **self._construct_resource_requirements()
                                 ),
                                 volume_mounts=(
                                     [
@@ -321,6 +307,25 @@ class KubernetesJob(object):
         )
         return self
 
+    def _construct_resource_requirements(self):
+        """
+        Construct the resource requests & limits for a workflow step from decorator resources dictionary.
+        """
+        x = {
+            "cpu": str(self._kwargs["cpu"]),
+            "memory": "%sM" % str(self._kwargs["memory"]),
+            "ephemeral-storage": "%sM" % str(self._kwargs["disk"]),
+        }
+        y = {
+            "%s.com/gpu".lower()
+            % self._kwargs["gpu_vendor"]: str(self._kwargs["gpu"])
+            for _ in [0]
+            if self._kwargs["gpu"] is not None
+        }
+        return {
+            'requests': x if KUBERNETES_RESOURCE_REQUESTS else {},
+            'limits': {**x, **y} if KUBERNETES_RESOURCE_REQUESTS else y,
+        }
 
 class RunningJob(object):
 
