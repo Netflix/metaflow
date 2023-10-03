@@ -36,7 +36,6 @@ except NameError:
     unicode = str
     basestring = str
 
-
 class KubernetesDecorator(StepDecorator):
     """
     Specifies that this step should execute on Kubernetes.
@@ -120,9 +119,9 @@ class KubernetesDecorator(StepDecorator):
         if not self.attributes["gpu_vendor"]:
             self.attributes["gpu_vendor"] = KUBERNETES_GPU_VENDOR
         if not self.attributes["security_context"] and KUBERNETES_SECURITY_CONTEXT:
-            self.attributes["security_context"] = json.loads(KUBERNETES_SECURITY_CONTEXT),
+            self.attributes["security_context"] = KUBERNETES_SECURITY_CONTEXT
         if not self.attributes["resource_limits"] and KUBERNETES_RESOURCE_LIMITS:
-            self.attributes["resource_limits"] = json.loads(KUBERNETES_RESOURCE_LIMITS),
+            self.attributes["resource_limits"] = KUBERNETES_RESOURCE_LIMITS
         if not self.attributes["node_selector"] and KUBERNETES_NODE_SELECTOR:
             self.attributes["node_selector"] = KUBERNETES_NODE_SELECTOR
         if not self.attributes["tolerations"] and KUBERNETES_TOLERATIONS:
