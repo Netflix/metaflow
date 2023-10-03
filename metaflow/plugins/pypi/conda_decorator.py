@@ -248,8 +248,6 @@ class CondaStepDecorator(StepDecorator):
     ):
         if self.disabled:
             return
-        # TODO: Support unbounded for-each
-        # TODO: Check what happens when PYTHONPATH is defined via @environment
         # Ensure local installation of Metaflow is visible to user code
         python_path = self.metaflow_dir.name
         if self.addl_paths is not None:
@@ -257,9 +255,8 @@ class CondaStepDecorator(StepDecorator):
             python_path = os.pathsep.join([addl_paths, python_path])
         cli_args.env["PYTHONPATH"] = python_path
         if self.interpreter:
-            # TODO: Verify user site-package isolation behavior
-            #       https://github.com/conda/conda/issues/7707
-            #       Also ref - https://github.com/Netflix/metaflow/pull/178
+            # https://github.com/conda/conda/issues/7707
+            # Also ref - https://github.com/Netflix/metaflow/pull/178
             cli_args.env["PYTHONNOUSERSITE"] = "1"
             # The executable is already in place for the user code to execute against
             cli_args.entrypoint[0] = self.interpreter
@@ -298,7 +295,6 @@ class CondaFlowDecorator(FlowDecorator):
         "libraries": {},  # Deprecated! Use packages going forward.
         "python": None,
         "disabled": None,
-        # TODO: Support `@conda(python='3.10')` before shipping!!
     }
 
     def __init__(self, attributes=None, statically_defined=False):
