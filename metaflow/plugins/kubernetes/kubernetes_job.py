@@ -5,6 +5,7 @@ import time
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_SECRETS
+from kubernetes.client import V1SecurityContext, ApiClient
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
@@ -49,6 +50,17 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
 
     return decorator
 
+
+class KubernetesClientDataObj(object):
+    def __init__(self, data_dict, class_name):
+        self.data = json.dumps(data_dict) if data_dict is not None else None
+        self.class_name = class_name
+
+    def get_deserialized_object(self):
+        if self.data is not None:
+            return ApiClient().deserialize(self, self.class_name)
+        else:
+            return None
 
 class KubernetesJob(object):
     def __init__(self, client, **kwargs):
@@ -148,7 +160,8 @@ class KubernetesJob(object):
                                     if k
                                 ],
                                 image=self._kwargs["image"],
-                                security_context=client.V1SecurityContext(**self._kwargs("security_context")),
+                                security_context=KubernetesClientDataObj(self._kwargs["security_context"],
+                                                                         V1SecurityContext).get_deserialized_object(),
                                 image_pull_policy=self._kwargs["image_pull_policy"],
                                 name=self._kwargs["step_name"].replace("_", "-"),
                                 resources=client.V1ResourceRequirements(
@@ -159,17 +172,8 @@ class KubernetesJob(object):
                                         % str(self._kwargs["disk"]),
                                     },
                                     limits={
-                                        **{"%s.com/gpu".lower()
-                                        % self._kwargs["gpu_vendor"]: str(
-                                            self._kwargs["gpu"]
-                                        )
-                                        for k in [0]
-                                        # Don't set GPU limits if gpu isn't specified.
-                                        if self._kwargs["gpu"] is not None},
-                                        **{self._kwargs["resource_limits"]
-                                           for k in [0]
-                                           if self._kwargs["resource_limits"] is not None}
-                                    },
+                                        **self._kwargs["resource_limits"]
+                                    }
                                 ),
                                 volume_mounts=(
                                     [
