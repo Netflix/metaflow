@@ -103,6 +103,8 @@ class KubernetesDecorator(StepDecorator):
         "tmpfs_size": None,
         "tmpfs_path": "/metaflow_temp",
         "persistent_volume_claims": None,  # e.g., {"pvc-name": "/mnt/vol", "another-pvc": "/mnt/vol2"}
+        "security_context": None,
+        "resource_limits": None
     }
     package_url = None
     package_sha = None
