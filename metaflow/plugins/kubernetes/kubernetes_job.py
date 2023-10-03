@@ -5,7 +5,6 @@ import time
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_SECRETS
-from kubernetes.client import V1SecurityContext, ApiClient
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
@@ -50,18 +49,6 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
 
     return decorator
 
-
-class KubernetesClientDataObj(object):
-    def __init__(self, data_dict, class_name):
-        self.data = json.dumps(data_dict) if data_dict is not None else None
-        self.class_name = class_name
-
-    def get_deserialized_object(self):
-        if self.data is not None:
-            return ApiClient().deserialize(self, self.class_name)
-        else:
-            return None
-
 class KubernetesJob(object):
     def __init__(self, client, **kwargs):
         self._client = client
@@ -82,6 +69,18 @@ class KubernetesJob(object):
         # (unique UID) per Metaflow task attempt.
         client = self._client.get()
 
+        from kubernetes.client import V1SecurityContext, ApiClient
+
+        class KubernetesClientDataObj(object):
+            def __init__(self, data_dict, class_name):
+                self.data = json.dumps(data_dict) if data_dict is not None else None
+                self.class_name = class_name
+
+            def get_deserialized_object(self):
+                if self.data is not None:
+                    return ApiClient().deserialize(self, self.class_name)
+                else:
+                    return None
         # tmpfs variables
         use_tmpfs = self._kwargs["use_tmpfs"]
         tmpfs_size = self._kwargs["tmpfs_size"]
