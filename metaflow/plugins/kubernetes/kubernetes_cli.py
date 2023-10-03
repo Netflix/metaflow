@@ -130,6 +130,7 @@ def step(
     run_time_limit=None,
     persistent_volume_claims=None,
     tolerations=None,
+    security_context=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None, **kwargs):
@@ -243,6 +244,7 @@ def step(
                 env=env,
                 persistent_volume_claims=persistent_volume_claims,
                 tolerations=tolerations,
+                security_context=security_context
             )
     except Exception as e:
         traceback.print_exc(chain=False)

@@ -148,6 +148,7 @@ class KubernetesJob(object):
                                     if k
                                 ],
                                 image=self._kwargs["image"],
+                                security_context=client.V1SecurityContext(**self._kwargs("security_context")),
                                 image_pull_policy=self._kwargs["image_pull_policy"],
                                 name=self._kwargs["step_name"].replace("_", "-"),
                                 resources=client.V1ResourceRequirements(
@@ -158,13 +159,16 @@ class KubernetesJob(object):
                                         % str(self._kwargs["disk"]),
                                     },
                                     limits={
-                                        "%s.com/gpu".lower()
+                                        **{"%s.com/gpu".lower()
                                         % self._kwargs["gpu_vendor"]: str(
                                             self._kwargs["gpu"]
                                         )
                                         for k in [0]
                                         # Don't set GPU limits if gpu isn't specified.
-                                        if self._kwargs["gpu"] is not None
+                                        if self._kwargs["gpu"] is not None},
+                                        **{self._kwargs["resource_limits"]
+                                           for k in [0]
+                                           if self._kwargs["resource_limits"] is not None}
                                     },
                                 ),
                                 volume_mounts=(

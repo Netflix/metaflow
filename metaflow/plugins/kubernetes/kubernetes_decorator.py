@@ -20,6 +20,8 @@ from metaflow.metaflow_config import (
     KUBERNETES_PERSISTENT_VOLUME_CLAIMS,
     KUBERNETES_TOLERATIONS,
     KUBERNETES_SERVICE_ACCOUNT,
+    KUBERNETES_SECURITY_CONTEXT,
+    KUBERNETES_RESOURCE_LIMITS
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -115,6 +117,10 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["service_account"] = KUBERNETES_SERVICE_ACCOUNT
         if not self.attributes["gpu_vendor"]:
             self.attributes["gpu_vendor"] = KUBERNETES_GPU_VENDOR
+        if not self.attributes["security_context"] and KUBERNETES_SECURITY_CONTEXT:
+            self.attributes["security_context"] = KUBERNETES_SECURITY_CONTEXT,
+        if not self.attributes["resource_limits"] and KUBERNETES_RESOURCE_LIMITS:
+            self.attributes["resource_limits"] = KUBERNETES_RESOURCE_LIMITS,
         if not self.attributes["node_selector"] and KUBERNETES_NODE_SELECTOR:
             self.attributes["node_selector"] = KUBERNETES_NODE_SELECTOR
         if not self.attributes["tolerations"] and KUBERNETES_TOLERATIONS:

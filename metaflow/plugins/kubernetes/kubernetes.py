@@ -168,6 +168,8 @@ class Kubernetes(object):
         persistent_volume_claims=None,
         tolerations=None,
         labels=None,
+        security_context=None,
+        resource_limits=None
     ):
         if env is None:
             env = {}
@@ -207,6 +209,8 @@ class Kubernetes(object):
                 tmpfs_size=tmpfs_size,
                 tmpfs_path=tmpfs_path,
                 persistent_volume_claims=persistent_volume_claims,
+                security_context=security_context,
+                resource_limits=resource_limits
             )
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
