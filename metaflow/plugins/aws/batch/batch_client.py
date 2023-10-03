@@ -321,6 +321,7 @@ class BatchJob(object):
             else:
                 job_definition["containerProperties"]["linuxParameters"]["devices"] = []
                 if (num_parallel or 0) > 1:
+                    # Multi-node parallel jobs require the container path and permissions explicitly specified in Job definition
                     for i in range(int(efa)):
                         job_definition["containerProperties"]["linuxParameters"][
                             "devices"
@@ -332,6 +333,7 @@ class BatchJob(object):
                             }
                         )
                 else:
+                    # Single-node container jobs only require host path in job definition
                     job_definition["containerProperties"]["linuxParameters"][
                         "devices"
                     ].append(
