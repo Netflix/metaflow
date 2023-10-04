@@ -299,7 +299,6 @@ class ArgoWorkflows(object):
             "limits": {**x, **y} if KUBERNETES_RESOURCE_REQUESTS else y,
         }
 
-
     def _get_schedule(self):
         schedule = self.flow._flow_decorators.get("schedule")
         if schedule:
