@@ -1716,7 +1716,8 @@ class ArgoWorkflows(object):
                     "metaflow/project_flow_name": current.project_flow_name,
                 }
             )
-
+        for event in self.triggers:
+            print(event)
         return (
             Sensor()
             .metadata(
@@ -1784,6 +1785,7 @@ class ArgoWorkflows(object):
                                         "metadata": {
                                             "generateName": "%s-" % self.name,
                                             "namespace": KUBERNETES_NAMESPACE,
+                                            "annotations": {"foo": "bar"}
                                         },
                                         "spec": {
                                             "arguments": {
