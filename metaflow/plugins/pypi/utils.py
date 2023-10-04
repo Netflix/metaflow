@@ -1,7 +1,16 @@
 import platform
 import sys
 
-from metaflow._vendor.packaging import tags
+if sys.version_info < (3, 6):
+
+    class Tags:
+        __getattr__ = lambda self, name: (_ for _ in ()).throw(
+            Exception("packaging.tags is not avaliable for Python < 3.6")
+        )
+
+    tags = Tags()
+else:
+    from metaflow._vendor.packaging import tags
 
 from metaflow.exception import MetaflowException
 
