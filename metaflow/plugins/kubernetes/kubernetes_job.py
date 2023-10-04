@@ -317,15 +317,15 @@ class KubernetesJob(object):
             "ephemeral-storage": "%sM" % str(self._kwargs["disk"]),
         }
         y = {
-            "%s.com/gpu".lower()
-            % self._kwargs["gpu_vendor"]: str(self._kwargs["gpu"])
+            "%s.com/gpu".lower() % self._kwargs["gpu_vendor"]: str(self._kwargs["gpu"])
             for _ in [0]
             if self._kwargs["gpu"] is not None
         }
         return {
-            'requests': x if KUBERNETES_RESOURCE_REQUESTS else {},
-            'limits': {**x, **y} if KUBERNETES_RESOURCE_REQUESTS else y,
+            "requests": x if KUBERNETES_RESOURCE_REQUESTS else {},
+            "limits": {**x, **y} if KUBERNETES_RESOURCE_REQUESTS else y,
         }
+
 
 class RunningJob(object):
 

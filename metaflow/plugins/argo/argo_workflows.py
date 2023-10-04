@@ -290,14 +290,13 @@ class ArgoWorkflows(object):
             "ephemeral-storage": "%sM" % str(resources["disk"]),
         }
         y = {
-            "%s.com/gpu".lower()
-            % resources["gpu_vendor"]: str(resources["gpu"])
+            "%s.com/gpu".lower() % resources["gpu_vendor"]: str(resources["gpu"])
             for _ in [0]
             if resources["gpu"] is not None
         }
         return {
-            'requests': x if KUBERNETES_RESOURCE_REQUESTS else {},
-            'limits': {**x, **y} if KUBERNETES_RESOURCE_REQUESTS else y,
+            "requests": x if KUBERNETES_RESOURCE_REQUESTS else {},
+            "limits": {**x, **y} if KUBERNETES_RESOURCE_REQUESTS else y,
         }
 
 
