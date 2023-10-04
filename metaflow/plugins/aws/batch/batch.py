@@ -23,6 +23,9 @@ from metaflow.metaflow_config import (
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
     S3_SERVER_SIDE_ENCRYPTION,
 )
+
+from metaflow.metaflow_config_funcs import config_values
+
 from metaflow.mflog import (
     export_mflog_env_vars,
     bash_capture_logs,
@@ -249,6 +252,13 @@ class Batch(object):
             .environment_variable("METAFLOW_CARD_S3ROOT", CARD_S3ROOT)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "aws-batch")
         )
+
+        # Temporary passing of *some* environment variables. Do not rely on this
+        # mechanism as it will be removed in the near future
+        for k, v in config_values():
+            if k.startswith("METAFLOW_CONDA_") or k.startswith("METAFLOW_DEBUG_"):
+                job.environment_variable(k, v)
+
         if DEFAULT_SECRETS_BACKEND_TYPE is not None:
             job.environment_variable(
                 "METAFLOW_DEFAULT_SECRETS_BACKEND_TYPE", DEFAULT_SECRETS_BACKEND_TYPE

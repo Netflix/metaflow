@@ -32,6 +32,9 @@ from metaflow.metaflow_config import (
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
 )
+
+from metaflow.metaflow_config_funcs import config_values
+
 from metaflow.parameters import (
     DelayedEvaluationParameter,
     JSONTypeClass,
@@ -334,6 +337,16 @@ class Airflow(object):
         metaflow_version["flow_name"] = self.graph.name
         metaflow_version["production_token"] = self.production_token
         env["METAFLOW_VERSION"] = json.dumps(metaflow_version)
+
+        # Temporary passing of *some* environment variables. Do not rely on this
+        # mechanism as it will be removed in the near future
+        env.update(
+            {
+                k: v
+                for k, v in config_values()
+                if k.startswith("METAFLOW_CONDA_") or k.startswith("METAFLOW_DEBUG_")
+            }
+        )
 
         # Extract the k8s decorators for constructing the arguments of the K8s Pod Operator on Airflow.
         k8s_deco = [deco for deco in node.decorators if deco.name == "kubernetes"][0]
