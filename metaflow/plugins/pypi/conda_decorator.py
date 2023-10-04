@@ -27,7 +27,7 @@ class CondaStepDecorator(StepDecorator):
     packages : Dict[str, str], default: {}
         Packages to use for this step. The key is the name of the package
         and the value is the version to use.
-    libraries : Dict[str, str], optional
+    libraries : Dict[str, str], default: {}
         Supported for backward compatibility. When used with packages, packages will take precedence.
     python : str, optional
         Version of Python to use, e.g. '3.7.4'. A default value of None implies
@@ -279,7 +279,7 @@ class CondaFlowDecorator(FlowDecorator):
     packages : Dict[str, str], default: {}
         Packages to use for this flow. The key is the name of the package
         and the value is the version to use.
-    libraries : Dict[str, str], optional
+    libraries : Dict[str, str], default: {}
         Supported for backward compatibility. When used with packages, packages will take precedence.
     python : str, optional
         Version of Python to use, e.g. '3.7.4'. A default value of None implies

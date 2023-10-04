@@ -151,7 +151,6 @@ class Micromamba(object):
         )
 
         env = {
-            # "CONDA_PKGS_DIRS": "/Users/savin/micromamba/pkgs/%s" % id_,
             # use hardlinks when possible, otherwise copy files
             # disabled for now since it adds to environment creation latencies
             "CONDA_ALLOW_SOFTLINKS": "0",

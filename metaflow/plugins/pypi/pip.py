@@ -53,7 +53,6 @@ class Pip(object):
             extra_index_urls = self.extra_index_urls(prefix)
             cmd = [
                 "install",
-                "--no-compile",
                 "--dry-run",
                 "--only-binary=:all:",  # only wheels
                 "--upgrade-strategy=only-if-needed",
