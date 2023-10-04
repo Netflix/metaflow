@@ -1,10 +1,7 @@
 import platform
 import sys
 
-if sys.version_info < (3, 6):
-    from metaflow._vendor.v3_5.packaging import tags
-else:
-    from metaflow._vendor.packaging import tags
+from metaflow._vendor.packaging import tags
 
 from metaflow.exception import MetaflowException
 
