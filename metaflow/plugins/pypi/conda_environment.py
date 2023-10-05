@@ -46,6 +46,12 @@ class CondaEnvironment(MetaflowEnvironment):
 
     def validate_environment(self, echo, datastore_type):
         self.datastore_type = datastore_type
+        self.echo = echo
+
+        # Avoiding circular imports.
+        from metaflow.plugins import DATASTORES
+
+        self.datastore = [d for d in DATASTORES if d.TYPE == self.datastore_type][0]
 
         # Initialize necessary virtual environments for all Metaflow tasks.
         # Use Micromamba for solving conda packages and Pip for solving pypi packages.
@@ -151,11 +157,8 @@ class CondaEnvironment(MetaflowEnvironment):
                 )
             if self.datastore_type not in ["local"]:
                 # Cache packages only when a remote datastore is in play.
-                # Avoiding circular imports.
-                from metaflow.plugins import DATASTORES
-
-                storage = [d for d in DATASTORES if d.TYPE == self.datastore_type][0](
-                    _datastore_packageroot(self.datastore_type)
+                storage = self.datastore(
+                    _datastore_packageroot(self.datastore, self.echo)
                 )
                 cache(storage, results, solver)
         echo("Virtual environment(s) bootstrapped!")
@@ -267,6 +270,7 @@ class CondaEnvironment(MetaflowEnvironment):
                 else obj
             )
         )
+
         return {
             **environment,
             # Create a stable unique id for the environment.
@@ -279,7 +283,7 @@ class CondaEnvironment(MetaflowEnvironment):
                             **environment,
                             **{
                                 "package_root": _datastore_packageroot(
-                                    self.datastore_type
+                                    self.datastore, self.echo
                                 )
                             },
                         }
