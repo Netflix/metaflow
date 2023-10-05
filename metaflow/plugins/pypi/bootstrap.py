@@ -85,7 +85,7 @@ if __name__ == "__main__":
         # TODO: check if mamba or conda are already available on the image
         # TODO: search for micromamba everywhere
         f"""if ! command -v ./micromamba >/dev/null 2>&1; then
-            wget -qO- https://micromamba.snakepit.net/api/micromamba/{architecture}/latest | python -c "import sys, bz2; sys.stdout.buffer.write(bz2.decompress(sys.stdin.buffer.read()))" | tar -xv bin/micromamba --strip-components=1 ;
+            wget -qO- https://micro.mamba.pm/api/micromamba/{architecture}/latest | python -c "import sys, bz2; sys.stdout.buffer.write(bz2.decompress(sys.stdin.buffer.read()))" | tar -xv bin/micromamba --strip-components=1 ;
             if ! command -v ./micromamba >/dev/null 2>&1; then
                 echo "Failed to install Micromamba!";
                 exit 1;
