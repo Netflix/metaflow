@@ -104,17 +104,21 @@ class CondaEnvironment(MetaflowEnvironment):
             )
 
         def cache(storage, results, type_):
-            def _url(url, local_path):
+            def _datastore_url(url, local_path):
+                # Generate a valid path for a file for the datastore.
                 base, _file = os.path.split(urlparse(url).path)
                 _, localfile = os.path.split(local_path)
+                # Uses netloc and basepath from the url, but the filename from local_path
+                # to support pip wheels that are installed from version control system urls
+                #
+                # the VCS url does not contain a file extension, which also can not be inferred after the fact.
+                # pip install fails during bootstrapping if the downloaded packages are missing file extensions.
                 return urlparse(url).netloc + os.path.join(base, localfile)
 
             local_packages = {
                 url: {
                     # Path to package in datastore.
-                    # e.g. example.com/path/to/package.whl
-                    # or example.com/path/to/package.git@123abc
-                    "path": _url(url, local_path),
+                    "path": _datastore_url(url, local_path),
                     # Path to package on local disk.
                     "local_path": local_path,
                 }
@@ -131,8 +135,10 @@ class CondaEnvironment(MetaflowEnvironment):
                     else:
                         # TODO: Match up with CONDA_DATASTORE_ROOT so that cache
                         #       gets invalidated when DATASTORE is moved.
-                        _p = package.get("wheel_name", urlparse(package["url"]).path)
-                        package["path"] = _url(package["url"], _p)
+                        package["path"] = _datastore_url(
+                            package["url"],
+                            package.get("wheel_name", urlparse(package["url"]).path),
+                        )
                         dirty.add(id_)
 
             list_of_path_and_filehandle = [
