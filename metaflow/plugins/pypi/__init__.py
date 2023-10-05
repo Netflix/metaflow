@@ -11,6 +11,7 @@ def _datastore_packageroot(datastore_type):
         "CONDA_PACKAGE_{datastore_type}ROOT".format(
             datastore_type=datastore_type.upper()
         ),
+        None,
     )
     if datastore_packageroot is None:
         datastore_sysroot = getattr(
@@ -26,7 +27,7 @@ def _datastore_packageroot(datastore_type):
                     datastore_type=datastore_type.upper()
                 )
             )
-        datastore_packageroot = "{datastore_sysroot}/conda".format(
+        datastore_packageroot = "{datastore_sysroot}/conda1".format(
             datastore_sysroot=datastore_sysroot
         )
     return datastore_packageroot

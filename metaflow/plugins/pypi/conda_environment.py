@@ -115,8 +115,6 @@ class CondaEnvironment(MetaflowEnvironment):
                         # Cache only those packages that manifest is unaware of
                         local_packages.pop(package["url"], None)
                     else:
-                        # TODO: Match up with CONDA_DATASTORE_ROOT so that cache
-                        #       gets invalidated when DATASTORE is moved.
                         package["path"] = (
                             urlparse(package["url"]).netloc
                             + urlparse(package["url"]).path
@@ -272,7 +270,22 @@ class CondaEnvironment(MetaflowEnvironment):
         return {
             **environment,
             # Create a stable unique id for the environment.
-            "id_": sha256(json.dumps(deep_sort(environment)).encode()).hexdigest()[:15],
+            # Add packageroot to the id so that packageroot modifications can
+            # invalidate existing environments.
+            "id_": sha256(
+                json.dumps(
+                    deep_sort(
+                        {
+                            **environment,
+                            **{
+                                "package_root": _datastore_packageroot(
+                                    self.datastore_type
+                                )
+                            },
+                        }
+                    )
+                ).encode()
+            ).hexdigest()[:15],
         }
 
     def pylint_config(self):
