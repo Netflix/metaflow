@@ -53,7 +53,10 @@ if __name__ == "__main__":
     if not datastores:
         print(f"No datastore found for type: {datastore_type}")
         sys.exit(1)
-    storage = datastores[0](_datastore_packageroot(datastore_type))
+
+    storage = datastores[0](
+        _datastore_packageroot(datastores[0], lambda *args, **kwargs: None)
+    )
 
     # Move MAGIC_FILE inside local datastore.
     os.makedirs(manifest_dir, exist_ok=True)
