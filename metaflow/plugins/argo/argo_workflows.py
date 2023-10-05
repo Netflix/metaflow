@@ -42,6 +42,9 @@ from metaflow.metaflow_config import (
     UI_URL,
     ARGO_WORKFLOWS_UI_URL,
 )
+
+from metaflow.metaflow_config_funcs import config_values
+
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.kubernetes.kubernetes import (
@@ -1164,6 +1167,18 @@ class ArgoWorkflows(object):
                     0
                 ].attributes["vars"]
             )
+
+            # Temporary passing of *some* environment variables. Do not rely on this
+            # mechanism as it will be removed in the near future
+            env.update(
+                {
+                    k: v
+                    for k, v in config_values()
+                    if k.startswith("METAFLOW_CONDA_")
+                    or k.startswith("METAFLOW_DEBUG_")
+                }
+            )
+
             env.update(
                 {
                     **{
