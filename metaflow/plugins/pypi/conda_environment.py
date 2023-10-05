@@ -1,11 +1,11 @@
 import errno
 import fcntl
 import functools
-import time
 import io
 import json
 import os
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from hashlib import sha256
 from io import BufferedIOBase
