@@ -116,6 +116,7 @@ class Pip(object):
             "download",
             "--no-deps",
             "--no-index",
+            "--no-build-isolation",  # required when using --no-index for setuptools to be found.
             "--progress-bar=off",
             #  if packages are present in Pip cache, this will be a local copy
             "--dest=%s/.pip/wheels" % prefix,
