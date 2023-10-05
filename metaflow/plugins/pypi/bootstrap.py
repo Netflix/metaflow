@@ -8,9 +8,6 @@ import sys
 import tarfile
 
 import requests
-import tarfile
-import io
-import bz2
 
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.plugins import DATASTORES
