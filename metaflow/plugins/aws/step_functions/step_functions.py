@@ -58,6 +58,7 @@ class StepFunctions(object):
         max_workers=None,
         workflow_timeout=None,
         is_project=False,
+        use_distributed_map=False,
     ):
         self.name = name
         self.graph = graph
@@ -75,6 +76,7 @@ class StepFunctions(object):
         self.username = username
         self.max_workers = max_workers
         self.workflow_timeout = workflow_timeout
+        self.use_disributed_map = use_distributed_map
 
         self._client = StepFunctionsClient()
         self._workflow = self._compile()
@@ -313,7 +315,7 @@ class StepFunctions(object):
                 iterator_name = "*%s" % node.out_funcs[0]
                 workflow.add_state(cardinality_state.next(iterator_name))
                 workflow.add_state(
-                    Map(iterator_name)
+                    Map(iterator_name, self.use_disributed_map)
                     .items_path("$.Result.Item.for_each_cardinality.NS")
                     .parameter("JobId.$", "$.JobId")
                     .parameter("SplitParentTaskId.$", "$.JobId")
@@ -328,7 +330,25 @@ class StepFunctions(object):
                         )
                     )
                     .max_concurrency(self.max_workers)
+
+                    # Attempt 0: This is the original format which leads to "size exceeding" with Distributed Mode
+                    # and 1k values in foreach
                     .output_path("$.[0]")
+
+                    # Attempt 1: reduce result so we don't get size exceeding, but it still happeend
+                    # .result_selector({
+                    #     "Parameters.$": "$[0].Parameters"
+                    # })
+                    # .output_path(
+                    #    "$.['JobId', " "'Parameters', " "'Index', " "'SplitParentTaskId']"
+                    # )
+
+                    # Attempt 2: Discard results entirely and just use input. This works, but fails on the join step since we
+                    # lose the $.Parameters.split_parent_task_id_start value which comes in from a single value of the foreach
+                    # .result_path(None)
+                    # .output_path(
+                    #     "$.['JobId', " "'Parameters', " "'Index', " "'SplitParentTaskId']"
+                    # )
                 )
                 # Continue the traversal from the matching_join.
                 _visit(self.graph[node.matching_join], workflow, exit_node)
@@ -435,6 +455,17 @@ class StepFunctions(object):
         if node.name == "start":
             attrs["metaflow.production_token"] = self.production_token
 
+        # Attempt 1 - get the root run ID via the execution ID from the ARN
+        # This works for the first map as the ARN is other_sutff:parent_execution_id:child_execution_id.
+        # But this fails when it's a map then another map, as the second map doesn't contain the root execution ID
+        # in it otherwise the ARN would be extremely long.
+        #attrs["metaflow_root_run_id.$"] = "States.ArrayGetItem(States.StringSplit($$.Execution.Id, ':'), 7)"
+
+        # Attempt 2 - set the root run ID in the first step and pass it down to all other steps
+        # But this only works if the map is the second step
+        if node.name == "start" and node.is_inside_foreach is False:
+            attrs["metaflow_root_run_id.$"] = "$$.Execution.Name"
+
         # Add env vars from the optional @environment decorator.
         env_deco = [deco for deco in node.decorators if deco.name == "environment"]
         env = {}
@@ -451,7 +482,7 @@ class StepFunctions(object):
             if parameters:
                 # Get user-defined parameters from State Machine Input.
                 # Since AWS Step Functions doesn't allow for optional inputs
-                # currently, we have to unfortunately place an artificial
+                # currently, we have to unfortunatelRootRunIdy place an artificial
                 # constraint that every parameterized workflow needs to include
                 # `Parameters` as a key in the input to the workflow.
                 # `step-functions trigger` already takes care of this
@@ -603,7 +634,10 @@ class StepFunctions(object):
         env["METAFLOW_CODE_URL"] = self.code_package_url
         env["METAFLOW_FLOW_NAME"] = attrs["metaflow.flow_name"]
         env["METAFLOW_STEP_NAME"] = attrs["metaflow.step_name"]
-        env["METAFLOW_RUN_ID"] = attrs["metaflow.run_id.$"]
+        if node.name != "start" and node.is_inside_foreach is True:
+            env["METAFLOW_RUN_ID"] = "$.Parameters.metaflow_root_run_id"
+        else:
+            env["METAFLOW_RUN_ID"] = attrs["metaflow.run_id.$"]
         env["METAFLOW_PRODUCTION_TOKEN"] = self.production_token
         env["SFN_STATE_MACHINE"] = self.name
         env["METAFLOW_OWNER"] = attrs["metaflow.owner"]
@@ -960,14 +994,20 @@ class Parallel(object):
 
 
 class Map(object):
-    def __init__(self, name):
+    def __init__(self, name, use_distributed_map):
         self.name = name
         tree = lambda: defaultdict(tree)
         self.payload = tree()
         self.payload["Type"] = "Map"
         self.payload["MaxConcurrency"] = 0
+        self.use_distributed_map = use_distributed_map
 
     def iterator(self, workflow):
+        if self.use_distributed_map:
+            workflow.payload["ProcessorConfig"] = {
+                "Mode": "DISTRIBUTED",
+                "ExecutionType": "STANDARD"
+            }
         self.payload["Iterator"] = workflow.payload
         return self
 
@@ -993,4 +1033,8 @@ class Map(object):
 
     def result_path(self, result_path):
         self.payload["ResultPath"] = result_path
+        return self
+
+    def result_selector(self, selector):
+        self.payload["ResultSelector"] = selector
         return self
