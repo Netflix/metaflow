@@ -1,11 +1,15 @@
+import bz2
+import io
 import json
 import os
 import shutil
 import subprocess
 import sys
+import tarfile
 
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.plugins import DATASTORES
+from metaflow.util import which
 
 from . import MAGIC_FILE, _datastore_packageroot
 
@@ -79,9 +83,9 @@ if __name__ == "__main__":
     # Create Conda environment.
     cmds = [
         # TODO: check if mamba or conda are already available on the image
+        # TODO: search for micromamba everywhere
         f"""if ! command -v ./micromamba >/dev/null 2>&1; then
-            wget -qO- https://micro.mamba.pm/api/micromamba/{architecture}/latest | tar -xvj bin/micromamba --strip-components=1 >/dev/null 2>&1;
-            export PATH=$PATH:$HOME/bin;
+            wget -qO- https://micro.mamba.pm/api/micromamba/{architecture}/latest | python -c "import sys, bz2; sys.stdout.buffer.write(bz2.decompress(sys.stdin.buffer.read()))" | tar -xv bin/micromamba --strip-components=1 ;
             if ! command -v ./micromamba >/dev/null 2>&1; then
                 echo "Failed to install Micromamba!";
                 exit 1;
