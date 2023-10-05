@@ -27,7 +27,7 @@ def _datastore_packageroot(datastore_type):
                     datastore_type=datastore_type.upper()
                 )
             )
-        datastore_packageroot = "{datastore_sysroot}/conda1".format(
+        datastore_packageroot = "{datastore_sysroot}/conda".format(
             datastore_sysroot=datastore_sysroot
         )
     return datastore_packageroot
