@@ -108,10 +108,7 @@ class BatchJob(object):
                 self._task_id.replace("control-", "")
                 + "-node-$AWS_BATCH_JOB_NODE_INDEX",
             )
-            secondary_commands = secondary_commands.replace(
-                "ubf_control",
-                "ubf_task",
-            )
+            secondary_commands = secondary_commands.replace("ubf_control", "ubf_task",)
             secondary_commands = secondary_commands.replace(
                 "[multinode-args]", "--split-index $AWS_BATCH_JOB_NODE_INDEX"
             )
@@ -314,9 +311,7 @@ class BatchJob(object):
         if efa:
             if not (isinstance(efa, (int, unicode, basestring))):
                 raise BatchJobException(
-                    "Invalid efa value: ({}) (should be 0 or greater)".format(
-                        efa
-                    )
+                    "Invalid efa value: ({}) (should be 0 or greater)".format(efa)
                 )
             else:
                 job_definition["containerProperties"]["linuxParameters"]["devices"] = []
@@ -329,18 +324,14 @@ class BatchJob(object):
                             {
                                 "hostPath": "/dev/infiniband/uverbs{}".format(i),
                                 "containerPath": "/dev/infiniband/uverbs{}".format(i),
-                                "permissions": ["READ", "WRITE", "MKNOD"]
+                                "permissions": ["READ", "WRITE", "MKNOD"],
                             }
                         )
                 else:
                     # Single-node container jobs only require host path in job definition
                     job_definition["containerProperties"]["linuxParameters"][
                         "devices"
-                    ].append(
-                        {
-                            "hostPath": "/dev/infiniband/uverbs0"
-                        }
-                    )
+                    ].append({"hostPath": "/dev/infiniband/uverbs0"})
 
         self.num_parallel = num_parallel or 0
         if self.num_parallel >= 1:

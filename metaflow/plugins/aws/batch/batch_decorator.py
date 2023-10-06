@@ -342,8 +342,7 @@ class BatchDecorator(StepDecorator):
                 else:
                     print(
                         "Waiting for all parallel tasks to finish. Finished: {}/{}".format(
-                            len(tasks),
-                            len(flow._control_mapper_tasks),
+                            len(tasks), len(flow._control_mapper_tasks),
                         )
                     )
             except Exception as e:

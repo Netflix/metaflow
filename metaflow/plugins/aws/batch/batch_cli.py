@@ -51,16 +51,11 @@ def _execute_cmd(func, flow_name, run_id, user, my_runs, echo):
 
 @batch.command(help="List unfinished AWS Batch tasks of this flow")
 @click.option(
-    "--my-runs",
-    default=False,
-    is_flag=True,
-    help="List all my unfinished tasks.",
+    "--my-runs", default=False, is_flag=True, help="List all my unfinished tasks.",
 )
 @click.option("--user", default=None, help="List unfinished tasks for the given user.")
 @click.option(
-    "--run-id",
-    default=None,
-    help="List unfinished tasks corresponding to the run id.",
+    "--run-id", default=None, help="List unfinished tasks corresponding to the run id.",
 )
 @click.pass_context
 def list(ctx, run_id, user, my_runs):
@@ -72,15 +67,10 @@ def list(ctx, run_id, user, my_runs):
 
 @batch.command(help="Terminate unfinished AWS Batch tasks of this flow.")
 @click.option(
-    "--my-runs",
-    default=False,
-    is_flag=True,
-    help="Kill all my unfinished tasks.",
+    "--my-runs", default=False, is_flag=True, help="Kill all my unfinished tasks.",
 )
 @click.option(
-    "--user",
-    default=None,
-    help="Terminate unfinished tasks for the given user.",
+    "--user", default=None, help="Terminate unfinished tasks for the given user.",
 )
 @click.option(
     "--run-id",
@@ -106,13 +96,11 @@ def kill(ctx, run_id, user, my_runs):
 @click.argument("code-package-url")
 @click.option("--executable", help="Executable requirement for AWS Batch.")
 @click.option(
-    "--image",
-    help="Docker image requirement for AWS Batch. In name:version format.",
+    "--image", help="Docker image requirement for AWS Batch. In name:version format.",
 )
 @click.option("--iam-role", help="IAM role requirement for AWS Batch.")
 @click.option(
-    "--execution-role",
-    help="Execution role requirement for AWS Batch on Fargate.",
+    "--execution-role", help="Execution role requirement for AWS Batch on Fargate.",
 )
 @click.option("--cpu", help="CPU requirement for AWS Batch.")
 @click.option("--gpu", help="GPU requirement for AWS Batch.")
@@ -146,7 +134,7 @@ def kill(ctx, run_id, user, my_runs):
     default=0,
     type=int,
     help="Activate designated number of elastic fabric adapter devices. "
-         "EFA driver must be installed and instance type compatible with EFA"
+    "EFA driver must be installed and instance type compatible with EFA",
 )
 @click.option("--use-tmpfs", is_flag=True, help="tmpfs requirement for AWS Batch.")
 @click.option("--tmpfs-tempdir", is_flag=True, help="tmpfs requirement for AWS Batch.")
@@ -219,10 +207,7 @@ def step(
         # For multinode, we need to add a placeholder that can be mutated by the caller
         step_args += " [multinode-args]"
     step_cli = "{entrypoint} {top_args} step {step} {step_args}".format(
-        entrypoint=entrypoint,
-        top_args=top_args,
-        step=step_name,
-        step_args=step_args,
+        entrypoint=entrypoint, top_args=top_args, step=step_name, step_args=step_args,
     )
     node = ctx.obj.graph[step_name]
 

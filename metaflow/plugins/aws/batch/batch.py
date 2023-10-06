@@ -145,9 +145,7 @@ class Batch(object):
                 self._client.attach_job(job["jobId"]).kill()
                 echo(
                     "Killing AWS Batch job: {name} [{id}] ({status})".format(
-                        name=job["jobName"],
-                        id=job["jobId"],
-                        status=job["status"],
+                        name=job["jobName"], id=job["jobId"], status=job["status"],
                     )
                 )
             except Exception as e:
@@ -382,9 +380,7 @@ class Batch(object):
         def wait_for_launch(job, child_jobs):
             status = job.status
             echo(
-                "Task is starting (status %s)..." % status,
-                "stderr",
-                batch_id=job.id,
+                "Task is starting (status %s)..." % status, "stderr", batch_id=job.id,
             )
             t = time.time()
             while True:
@@ -456,11 +452,7 @@ class Batch(object):
         if self.job.is_crashed:
             msg = next(
                 msg
-                for msg in [
-                    self.job.reason,
-                    self.job.status_reason,
-                    "Task crashed.",
-                ]
+                for msg in [self.job.reason, self.job.status_reason, "Task crashed.",]
                 if msg is not None
             )
             raise BatchException(
