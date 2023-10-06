@@ -323,7 +323,7 @@ class KubernetesJob(object):
         }
         return {
             "requests": x if KUBERNETES_RESOURCE_REQUESTS else {},
-            "limits": {**x, **y} if KUBERNETES_RESOURCE_REQUESTS else y,
+            "limits": {**x, **y} if not KUBERNETES_RESOURCE_REQUESTS else y,
         }
 
 
