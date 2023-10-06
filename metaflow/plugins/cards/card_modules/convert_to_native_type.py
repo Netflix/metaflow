@@ -365,13 +365,14 @@ class TaskToDict:
         if truncate:
             data = data_object.head()
         index_column = data.index
-        time_format = "%Y-%m-%dT%H:%M:%SZ"
 
-        if "datetime64" in str(index_column.dtype):
-            if index_column.__class__.__name__ == "DatetimeIndex":
-                index_column = index_column.strftime(time_format)
-            else:
-                index_column = index_column.dt.strftime(time_format)
+        if index_column.__class__.__name__ == "MultiIndex":
+            from pandas import MultiIndex
+            cols = [self._parse_pandas_column(index_column.get_level_values(name).to_series()) for name in index_column.names]
+            index_column = MultiIndex.from_arrays(cols, names=index_column.names)
+        else:
+            from pandas import Index
+            index_column = Index(self._parse_pandas_column(index_column.to_series()))
 
         for col in data.columns:
             data[col] = self._parse_pandas_column(data[col])
