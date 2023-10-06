@@ -7,7 +7,11 @@ import uuid
 from datetime import datetime
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import ARGO_EVENTS_WEBHOOK_URL
+from metaflow.metaflow_config import (
+    ARGO_EVENTS_WEBHOOK_URL,
+    ARGO_EVENTS_WEBHOOK_AUTH,
+    SERVICE_HEADERS,
+)
 
 
 class ArgoEventException(MetaflowException):
@@ -99,6 +103,8 @@ class ArgoEvent(object):
                 if self._access_token:
                     # TODO: Test with bearer tokens
                     headers = {"Authorization": "Bearer {}".format(self._access_token)}
+                if ARGO_EVENTS_WEBHOOK_AUTH == "service":
+                    headers.update(SERVICE_HEADERS)
                 # TODO: do we need to worry about certs?
 
                 # Use urllib to avoid introducing any dependency in Metaflow

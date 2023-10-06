@@ -15,6 +15,7 @@ from metaflow.metaflow_config import (
     ARGO_EVENTS_SERVICE_ACCOUNT,
     ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    ARGO_EVENTS_WEBHOOK_AUTH,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     CARD_AZUREROOT,
     CARD_GSROOT,
@@ -285,6 +286,10 @@ class Kubernetes(object):
         )
         job.environment_variable(
             "METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT", ARGO_EVENTS_SERVICE_ACCOUNT
+        )
+        job.environment_variable(
+            "METAFLOW_ARGO_EVENTS_WEBHOOK_AUTH",
+            ARGO_EVENTS_WEBHOOK_AUTH,
         )
 
         tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
