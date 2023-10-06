@@ -1,6 +1,7 @@
 import base64
 import json
 import platform
+from datetime import datetime
 import re
 import sys
 from distutils.version import LooseVersion
@@ -603,6 +604,105 @@ def trigger(obj, run_id_file=None, **kwargs):
             "See the run in the UI at %s" % run_url,
             bold=True,
         )
+
+
+@argo_workflows.command(help="List all runs of the flow on Argo Workflows.")
+@click.option(
+    "--pending",
+    default=False,
+    is_flag=True,
+    help="List all pending runs of the flow on " "Argo Workflows.",
+)
+@click.option(
+    "--running",
+    default=False,
+    is_flag=True,
+    help="List all running runs of the flow on " "Argo Workflows.",
+)
+@click.option(
+    "--succeeded",
+    default=False,
+    is_flag=True,
+    help="List all succeeded runs of the flow on " "Argo Workflows.",
+)
+@click.option(
+    "--failed",
+    default=False,
+    is_flag=True,
+    help="List all failed runs of the flow on " "Argo Workflows.",
+)
+@click.option(
+    "--unknown",
+    default=False,
+    is_flag=True,
+    help="List all runs of the flow in Unknown state on "
+    "Argo Workflows."
+    " (These happen when a pods status can not be obtained.)",
+)
+@click.pass_obj
+def list_runs(obj, pending, running, succeeded, failed, unknown):
+    states = []
+    if pending:
+        states.append("Pending")
+    if running:
+        states.append("Running")
+    if succeeded:
+        states.append("Succeeded")
+    if failed:
+        # group errors and failures together
+        states.append("Failed")
+        states.append("Error")
+    if unknown:
+        states.append("Unknown")
+
+    executions = ArgoWorkflows.list(obj.workflow_name, states)
+    found = False
+
+    def format_timestamp(timestamp: None):
+        if timestamp is None:
+            return "-"
+        return datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ")
+
+    def remap_status(status):
+        # remap status for the grouped cases
+        STATUS_MAP = {"Error": "Failed"}
+        return STATUS_MAP.get(status, status)
+
+    for execution in executions:
+        found = True
+        obj.echo(
+            "*argo-{id}* "
+            "startedAt: '{startedAt}' "
+            "finishedAt: '{finishedAt}' "
+            "*{status}*".format(
+                id=execution["metadata"]["name"],
+                status=remap_status(execution["status"]["phase"]),
+                startedAt=format_timestamp(execution["status"].get("startedAt", None)),
+                finishedAt=format_timestamp(
+                    execution["status"].get("finishedAt", None)
+                ),
+            )
+        )
+
+    if not found:
+        if len(states) > 0:
+            status = ""
+            for idx, state in enumerate(set(remap_status(state) for state in states)):
+                if idx == 0:
+                    pass
+                elif idx == len(states) - 1:
+                    status += " and "
+                else:
+                    status += ", "
+                status += "*%s*" % state
+            obj.echo(
+                "No %s executions for *%s* found on Argo Workflows."
+                % (status, obj.workflow_name)
+            )
+        else:
+            obj.echo(
+                "No executions for *%s* found on Argo Workflows." % (obj.workflow_name)
+            )
 
 
 @argo_workflows.command(help="Delete the flow on Argo Workflows.")

@@ -1,6 +1,4 @@
 import json
-import os
-import sys
 
 from metaflow.exception import MetaflowException
 from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
@@ -48,6 +46,29 @@ class ArgoClient(object):
         except client.rest.ApiException as e:
             if e.status == 404:
                 return None
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
+
+    def list_executions(self, name_hash, states):
+        client = self._client.get()
+        # NOTE: At the moment Kubernetes API does not support field-selectors for most of the custom fields,
+        # including the following: spec.workflowTemplateRef.name, status.phase
+        # Therefore we use labels for filtering the runs, but this has required us to add a label for the workflow-template name
+        # making the solution not backwards compatible.
+        filters = ["metaflow.org/workflow-template-name-hash=%s" % name_hash]
+        if states:
+            filters.append("workflows.argoproj.io/phase in (%s)" % ",".join(states))
+
+        try:
+            return client.CustomObjectsApi().list_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=self._namespace,
+                plural="workflows",
+                label_selector=",".join(filters),
+            )["items"]
+        except client.rest.ApiException as e:
             raise ArgoClientException(
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
