@@ -401,6 +401,8 @@ class ArgoWorkflows(object):
                 )
             seen.add(norm)
 
+            param_type = str(param.kwargs.get("type").__name__)
+
             is_required = param.kwargs.get("required", False)
             # Throw an exception if a schedule is set for a flow with required
             # parameters with no defaults. We currently don't have any notion
@@ -412,16 +414,17 @@ class ArgoWorkflows(object):
                     "Scheduling such parameters via Argo CronWorkflows is not "
                     "currently supported." % param.name
                 )
-            value = deploy_time_eval(param.kwargs.get("default"))
+            default_value = deploy_time_eval(param.kwargs.get("default"))
             # If the value is not required and the value is None, we set the value to
             # the JSON equivalent of None to please argo-workflows. Unfortunately it
             # has the side effect of casting the parameter value to string null during
             # execution - which needs to be fixed imminently.
-            if not is_required or value is not None:
-                value = json.dumps(value)
+            if not is_required or default_value is not None:
+                default_value = json.dumps(default_value)
             parameters[param.name] = dict(
                 name=param.name,
-                value=value,
+                value=default_value,
+                type=param_type,
                 description=param.kwargs.get("help"),
                 is_required=is_required,
             )
@@ -575,15 +578,12 @@ class ArgoWorkflows(object):
             "metaflow/flow_name": self.flow.name,
         }
 
-        required_params = ""
-
-        for name, parameter in self.parameters.items():
-            if parameter["is_required"]:
-                if len(required_params) > 0:
-                    required_params += ","
-                required_params += name
-    
-        annotations[f"metaflow/required-parameters"] = required_params
+        if self.parameters:
+            annotations.update(
+                {
+                    "metaflow/parameters": json.dumps(self.parameters)
+                }
+            )
 
         if current.get("project_name"):
             annotations.update(
