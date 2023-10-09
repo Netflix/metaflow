@@ -845,7 +845,7 @@ def terminate(obj, run_id, authorize=None):
 def list_templates(obj, all=None):
     templates = ArgoWorkflows.list_templates(obj.flow.name, all)
     for template_name in templates:
-        obj.echo(template_name)
+        obj.echo_always(template_name)
 
 
 def validate_run_id(
