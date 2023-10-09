@@ -833,6 +833,23 @@ def terminate(obj, run_id, authorize=None):
         obj.echo("\nRun terminated.")
 
 
+@argo_workflows.command(help="Terminate flow execution on Argo Workflows.")
+@click.option(
+    "--all",
+    default=False,
+    is_flag=True,
+    type=bool,
+    help="list all Workflow templates (not limited to this Flow)",
+)
+@click.pass_obj
+def list_templates(obj, all=None):
+    templates = ArgoWorkflows.list_templates(obj.flow.name, all)
+    if templates:
+        obj.echo("Argo Workflow Templates:")
+    for template_name in templates:
+        obj.echo(template_name)
+
+
 def validate_run_id(
     workflow_name, token_prefix, authorize, run_id, instructions_fn=None
 ):
