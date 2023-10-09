@@ -312,6 +312,7 @@ ARGO_EVENTS_WEBHOOK_URL = from_conf("ARGO_EVENTS_WEBHOOK_URL")
 ARGO_EVENTS_INTERNAL_WEBHOOK_URL = from_conf(
     "ARGO_EVENTS_INTERNAL_WEBHOOK_URL", ARGO_EVENTS_WEBHOOK_URL
 )
+ARGO_EVENTS_WEBHOOK_AUTH = from_conf("ARGO_EVENTS_WEBHOOK_AUTH", "none")
 ARGO_EVENTS_SENSOR_NAMESPACE = from_conf(
     "ARGO_EVENTS_SENSOR_NAMESPACE", KUBERNETES_NAMESPACE
 )
@@ -432,6 +433,7 @@ def get_version(pkg):
     return pkg_resources.get_distribution(pkg).version
 
 
+# TODO: This is no longer in use and can be dispensed with.
 # PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution
 # and are needed within a conda environment
 def get_pinned_conda_libs(python_version, datastore_type):
@@ -468,7 +470,7 @@ try:
                 DEBUG_OPTIONS.extend(o)
                 for typ in o:
                     vars()["DEBUG_%s" % typ.upper()] = from_conf(
-                        "DEBUG_%s" % typ.upper()
+                        "DEBUG_%s" % typ.upper(), False
                     )
             elif n == "get_pinned_conda_libs":
 

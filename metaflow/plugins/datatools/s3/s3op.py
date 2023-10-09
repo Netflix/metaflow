@@ -279,7 +279,7 @@ def worker(result_file_name, queue, mode, s3config):
                                 args["content_type"] = resp["ContentType"]
                             if resp["Metadata"] is not None:
                                 args["metadata"] = resp["Metadata"]
-                            if resp["ServerSideEncryption"] is not None:
+                            if resp.get("ServerSideEncryption") is not None:
                                 args["encryption"] = resp["ServerSideEncryption"]
                             if resp["LastModified"]:
                                 args["last_modified"] = get_timestamp(

@@ -161,6 +161,11 @@ def argo_workflows(obj, name=None):
     default="",
     help="Slack incoming webhook url for workflow success/failure notifications.",
 )
+@click.option(
+    "--notify-pager-duty-integration-key",
+    default="",
+    help="PagerDuty Events API V2 Integration key for workflow success/failure notifications.",
+)
 @click.pass_obj
 def create(
     obj,
@@ -177,6 +182,7 @@ def create(
     notify_on_error=False,
     notify_on_success=False,
     notify_slack_webhook_url=None,
+    notify_pager_duty_integration_key=None,
 ):
     validate_tags(tags)
 
@@ -212,6 +218,7 @@ def create(
         notify_on_error,
         notify_on_success,
         notify_slack_webhook_url,
+        notify_pager_duty_integration_key,
     )
 
     if only_json:
@@ -384,6 +391,7 @@ def make_flow(
     notify_on_error,
     notify_on_success,
     notify_slack_webhook_url,
+    notify_pager_duty_integration_key,
 ):
     # TODO: Make this check less specific to Amazon S3 as we introduce
     #       support for more cloud object stores.
@@ -392,12 +400,16 @@ def make_flow(
             "Argo Workflows requires --datastore=s3 or --datastore=azure or --datastore=gs"
         )
 
-    if (notify_on_error or notify_on_success) and not notify_slack_webhook_url:
+    if (notify_on_error or notify_on_success) and not (
+        notify_slack_webhook_url or notify_pager_duty_integration_key
+    ):
         raise MetaflowException(
-            "Slack notifications require specifying an incoming Slack "
-            "webhook url via --notify-slack-webhook-url. \nIf you would like to "
-            "set up one for your Slack workspace, follow the instructions "
-            "at https://api.slack.com/messaging/webhooks."
+            "Notifications require specifying an incoming Slack webhook url via --notify-slack-webhook-url or "
+            "PagerDuty events v2 integration key via --notify-pager-duty-integration-key.\n If you would like to set up "
+            "notifications for your Slack workspace, follow the instructions at "
+            "https://api.slack.com/messaging/webhooks to generate a webhook url.\n For notifications through PagerDuty, "
+            "generate an integration key by following the instructions at "
+            "https://support.pagerduty.com/docs/services-and-integrations#create-a-generic-events-api-integration"
         )
 
     # Attach @kubernetes and @environment decorator to the flow to
@@ -441,6 +453,7 @@ def make_flow(
         notify_on_error=notify_on_error,
         notify_on_success=notify_on_success,
         notify_slack_webhook_url=notify_slack_webhook_url,
+        notify_pager_duty_integration_key=notify_pager_duty_integration_key,
     )
 
 

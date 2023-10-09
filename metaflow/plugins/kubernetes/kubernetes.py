@@ -15,6 +15,7 @@ from metaflow.metaflow_config import (
     ARGO_EVENTS_SERVICE_ACCOUNT,
     ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    ARGO_EVENTS_WEBHOOK_AUTH,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     CARD_AZUREROOT,
     CARD_GSROOT,
@@ -34,6 +35,8 @@ from metaflow.metaflow_config import (
     SERVICE_INTERNAL_URL,
     S3_SERVER_SIDE_ENCRYPTION,
 )
+from metaflow.metaflow_config_funcs import config_values
+
 from metaflow.mflog import (
     BASH_SAVE_LOGS,
     bash_capture_logs,
@@ -259,6 +262,12 @@ class Kubernetes(object):
             # see get_datastore_root_from_config in datastore/local.py).
         )
 
+        # Temporary passing of *some* environment variables. Do not rely on this
+        # mechanism as it will be removed in the near future
+        for k, v in config_values():
+            if k.startswith("METAFLOW_CONDA_") or k.startswith("METAFLOW_DEBUG_"):
+                job.environment_variable(k, v)
+
         if S3_SERVER_SIDE_ENCRYPTION is not None:
             job.environment_variable(
                 "METAFLOW_S3_SERVER_SIDE_ENCRYPTION", S3_SERVER_SIDE_ENCRYPTION
@@ -277,6 +286,10 @@ class Kubernetes(object):
         )
         job.environment_variable(
             "METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT", ARGO_EVENTS_SERVICE_ACCOUNT
+        )
+        job.environment_variable(
+            "METAFLOW_ARGO_EVENTS_WEBHOOK_AUTH",
+            ARGO_EVENTS_WEBHOOK_AUTH,
         )
 
         tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)

@@ -26,7 +26,6 @@ LOCAL_ATTRS = (
             "___remote_class_name___",
             "___identifier___",
             "___connection___",
-            "___refcount___",
             "___local_overrides___" "__class__",
             "__init__",
             "__del__",
@@ -78,6 +77,7 @@ class StubMetaClass(type):
 
 def with_metaclass(meta, *bases):
     """Create a base class with a metaclass."""
+
     # Compatibility 2/3. Remove when only 3 support
     class metaclass(type):
         def __new__(cls, name, this_bases, d):
@@ -99,7 +99,6 @@ class Stub(with_metaclass(StubMetaClass, object)):
         "___identifier___",
         "___connection___",
         "__weakref__",
-        "___refcount___",
     ]
 
     # def __iter__(self):  # FIXME: Keep debugger QUIET!!
@@ -109,14 +108,10 @@ class Stub(with_metaclass(StubMetaClass, object)):
         self.___remote_class_name___ = remote_class_name
         self.___identifier___ = identifier
         self.___connection___ = connection
-        self.___refcount___ = 1
 
     def __del__(self):
         try:
-            pass
-            self.___refcount___ -= 1
-            if self.___refcount___ == 0:
-                fwd_request(self, OP_DEL)
+            fwd_request(self, OP_DEL)
         except Exception:
             # raised in a destructor, most likely on program termination,
             # when the connection might have already been closed.
@@ -262,7 +257,6 @@ def create_class(
     setattr_overrides,
     class_methods,
 ):
-
     class_dict = {"__slots__": ()}
     for name, doc in class_methods.items():
         method_type = NORMAL_METHOD

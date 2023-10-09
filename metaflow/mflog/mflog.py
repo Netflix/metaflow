@@ -135,7 +135,13 @@ def merge_logs(logs):
                 missing.append(line)
         for line in missing:
             res = MFLogline(
-                False, None, MISSING_TIMESTAMP_STR, None, None, line, MISSING_TIMESTAMP
+                False,
+                None,
+                MISSING_TIMESTAMP_STR.encode("utf-8"),
+                None,
+                None,
+                line,
+                MISSING_TIMESTAMP,
             )
             yield res.utc_tstamp_str, res
 

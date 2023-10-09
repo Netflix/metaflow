@@ -37,7 +37,7 @@ def _sanitize_key_as_env_var(key):
     Also, it's TBD whether all possible providers will share the same sanitization logic.
     Therefore we will keep this function private for now
     """
-    return key.replace("-", "_").replace(".", "_")
+    return key.replace("-", "_").replace(".", "_").replace("/", "_")
 
 
 class AwsSecretsManagerSecretsProvider(SecretsProvider):
@@ -147,7 +147,11 @@ class AwsSecretsManagerSecretsProvider(SecretsProvider):
                         "Secret string could not be parsed as JSON"
                     )
             else:
-                _sanitize_and_add_entry_to_result(secret_name, secret_str)
+                if options.get("env_var_name"):
+                    env_var_name = options["env_var_name"]
+                else:
+                    env_var_name = secret_name
+                _sanitize_and_add_entry_to_result(env_var_name, secret_str)
 
         elif "SecretBinary" in response:
             # boto3 docs say response gives base64 encoded, but it's wrong.
@@ -157,8 +161,12 @@ class AwsSecretsManagerSecretsProvider(SecretsProvider):
             # bytes.
             #
             # The trailing decode gives us a final UTF-8 string.
+            if options.get("env_var_name"):
+                env_var_name = options["env_var_name"]
+            else:
+                env_var_name = secret_name
             _sanitize_and_add_entry_to_result(
-                secret_name, base64.b64encode(response["SecretBinary"]).decode()
+                env_var_name, base64.b64encode(response["SecretBinary"]).decode()
             )
         else:
             raise MetaflowAWSSecretsManagerBadResponse(

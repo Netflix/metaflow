@@ -512,6 +512,10 @@ class S3(object):
 
         if run:
             # 1. use a (current) run ID with optional customizations
+            if DATATOOLS_S3ROOT is None:
+                raise MetaflowS3URLException(
+                    "DATATOOLS_S3ROOT is not configured when trying to use S3 storage"
+                )
             parsed = urlparse(DATATOOLS_S3ROOT)
             if not bucket:
                 bucket = parsed.netloc
@@ -1004,9 +1008,9 @@ class S3(object):
                                 "metadata"
                             ], range_info, info[
                                 "last_modified"
-                            ], info[
+                            ], info.get(
                                 "encryption"
-                            ]
+                            )
                     else:
                         yield self._s3root, s3prefix, None
                 else:
@@ -1066,9 +1070,9 @@ class S3(object):
                         self._tmpdir, fname
                     ), None, info["content_type"], info["metadata"], range_info, info[
                         "last_modified"
-                    ], info[
+                    ], info.get(
                         "encryption"
-                    ]
+                    )
                 else:
                     yield s3prefix, s3url, os.path.join(self._tmpdir, fname)
 
