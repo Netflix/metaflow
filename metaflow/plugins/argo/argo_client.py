@@ -52,28 +52,15 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def get_workflow_templates(self, flow_name=None):
-        """
-        Return a list of workflow template names for a given Flow name.
-        Returns all workflow template names if no name is provided
-        """
+    def get_workflow_templates(self):
         client = self._client.get()
         try:
-            results = client.CustomObjectsApi().list_namespaced_custom_object(
+            return client.CustomObjectsApi().list_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
                 namespace=self._namespace,
                 plural="workflowtemplates",
             )["items"]
-            return [
-                result["metadata"]["name"]
-                for result in results
-                if flow_name is None
-                or flow_name
-                == result["metadata"]
-                .get("annotations", {})
-                .get("metaflow/flow_name", None)
-            ]
         except client.rest.ApiException as e:
             if e.status == 404:
                 return None

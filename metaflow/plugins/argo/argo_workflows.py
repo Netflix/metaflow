@@ -187,13 +187,19 @@ class ArgoWorkflows(object):
     def list_templates(flow_name, all=False):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
-        search = None if all else flow_name
-        results = client.get_workflow_templates(search)
-        if results is None:
+        templates = client.get_workflow_templates()
+        if templates is None:
             return []
 
-        template_names = [template_name for template_name in results]
-
+        template_names = [
+            template["metadata"]["name"]
+            for template in templates
+            if all
+            or flow_name
+            == template["metadata"]
+            .get("annotations", {})
+            .get("metaflow/flow_name", None)
+        ]
         return template_names
 
     @staticmethod
