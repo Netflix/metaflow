@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 
 import requests
 
+from metaflow.metaflow_config import get_pinned_conda_libs
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.metaflow_profile import profile
@@ -196,22 +197,18 @@ class CondaEnvironment(MetaflowEnvironment):
                     }
                 else:
                     return {}
+        # Resolve conda environment for @pypi's Python, falling back on @conda's
+        # Python
+        env_python = (
+            environment.get("pypi", environment["conda"]).get("python")
+            or environment["conda"]["python"]
+        )
         # TODO: Support dependencies for `--metadata`.
         # TODO: Introduce support for `--telemetry` as a follow up.
         # Certain packages are required for metaflow runtime to function correctly.
         # Ensure these packages are available both in Conda channels and PyPI
         # repostories.
-        pinned_packages = {"requests": ">=2.21.0"}
-        if self.datastore_type == "s3":
-            pinned_packages.update({"boto3": ">=1.14.0"})
-        elif self.datastore_type == "azure":
-            pinned_packages.update(
-                {"azure-identity": ">=1.10.0", "azure-storage-blob": ">=12.12.0"}
-            )
-        elif self.datastore_type == "gs":
-            pinned_packages.update(
-                {"google-cloud-storage": ">=2.5.0", "google-auth": ">=2.11.0"}
-            )
+        pinned_packages = get_pinned_conda_libs(env_python, self.datastore_type)
 
         # PyPI dependencies are prioritized over Conda dependencies.
         environment.get("pypi", environment["conda"])["packages"] = {
@@ -253,12 +250,8 @@ class CondaEnvironment(MetaflowEnvironment):
                 {target_platform, conda_platform()}
             )
             environment["pypi"]["platforms"] = [target_platform]
-            # Resolve conda environment for @pypi's Python, falling back on @conda's
-            # Python
-            environment["pypi"]["python"] = environment["conda"]["python"] = (
-                environment["pypi"].get("python", environment["conda"]["python"])
-                or environment["conda"]["python"]
-            )
+            # Match PyPI and Conda python versions with the resolved environment Python.
+            environment["pypi"]["python"] = environment["conda"]["python"] = env_python
 
         # Z combinator for a recursive lambda
         deep_sort = (lambda f: f(f))(
