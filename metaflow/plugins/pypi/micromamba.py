@@ -85,6 +85,10 @@ class Micromamba(object):
             for channel in self.info()["channels"] or ["conda-forge"]:
                 cmd.append("--channel=%s" % channel)
 
+            # The added pip dependency already includes setuptools,
+            # but we also need setuptools-scm to support VCS urls for pip
+            cmd.append("setuptools-scm")
+
             for package, version in packages.items():
                 cmd.append("%s==%s" % (package, version))
             if python:
