@@ -314,6 +314,7 @@ class CondaEnvironment(MetaflowEnvironment):
                 'python -m metaflow.plugins.pypi.bootstrap "%s" %s "%s" linux-64'
                 % (self.flow.name, id_, self.datastore_type),
                 "echo 'Environment bootstrapped.'",
+                "export PATH=$PATH:$(pwd)/micromamba",
             ]
         else:
             # for @conda/@pypi(disabled=True).

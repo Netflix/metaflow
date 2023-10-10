@@ -86,19 +86,24 @@ if __name__ == "__main__":
     # Create Conda environment.
     cmds = [
         # TODO: check if mamba or conda are already available on the image
-        # TODO: search for micromamba everywhere
-        f"""if ! command -v ./micromamba >/dev/null 2>&1; then
-            wget -qO- https://micro.mamba.pm/api/micromamba/{architecture}/latest | python -c "import sys, bz2; sys.stdout.buffer.write(bz2.decompress(sys.stdin.buffer.read()))" | tar -xv bin/micromamba --strip-components=1 ;
-            if ! command -v ./micromamba >/dev/null 2>&1; then
+        # TODO: micromamba installation can be pawned off to micromamba.py
+        f"""set -e;
+        if ! command -v micromamba >/dev/null 2>&1; then
+            mkdir micromamba;
+            wget -qO- https://micro.mamba.pm/api/micromamba/{architecture}/latest | python -c "import sys, bz2; sys.stdout.buffer.write(bz2.decompress(sys.stdin.buffer.read()))" | tar -xv -C $(pwd)/micromamba bin/micromamba --strip-components 1;
+            export PATH=$PATH:$(pwd)/micromamba;
+            if ! command -v micromamba >/dev/null 2>&1; then
                 echo "Failed to install Micromamba!";
                 exit 1;
             fi;
         fi""",
         # Create a conda environment through Micromamba.
-        f'''tmpfile=$(mktemp);
+        f'''set -e;
+        tmpfile=$(mktemp);
         echo "@EXPLICIT" > "$tmpfile";
         ls -d {conda_pkgs_dir}/*/* >> "$tmpfile";
-        ./micromamba create --yes --offline --no-deps --safety-checks=disabled --no-extra-safety-checks --prefix {prefix} --file "$tmpfile";
+        export PATH=$PATH:$(pwd)/micromamba;
+        micromamba create --yes --offline --no-deps --safety-checks=disabled --no-extra-safety-checks --prefix {prefix} --file "$tmpfile";
         rm "$tmpfile"''',
     ]
 
@@ -116,7 +121,9 @@ if __name__ == "__main__":
         # Install PyPI packages.
         cmds.extend(
             [
-                f"""./micromamba run --prefix {prefix} pip --disable-pip-version-check install --root-user-action=ignore --no-compile {pypi_pkgs_dir}/*.whl"""
+                f"""set -e;
+                export PATH=$PATH:$(pwd)/micromamba;
+                micromamba run --prefix {prefix} pip --disable-pip-version-check install --root-user-action=ignore --no-compile {pypi_pkgs_dir}/*.whl"""
             ]
         )
 
