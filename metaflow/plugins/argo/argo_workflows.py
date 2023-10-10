@@ -583,11 +583,7 @@ class ArgoWorkflows(object):
         }
 
         if self.parameters:
-            annotations.update(
-                {
-                    "metaflow/parameters": json.dumps(self.parameters)
-                }
-            )
+            annotations.update({"metaflow/parameters": json.dumps(self.parameters)})
 
         if current.get("project_name"):
             annotations.update(
