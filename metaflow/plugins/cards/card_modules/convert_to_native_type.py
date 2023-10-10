@@ -307,7 +307,7 @@ class TaskToDict:
         # and truncates it to 30 characters.
         # If there is any form of TypeError or ValueError we set the column value to "Unsupported Type"
         # We also set columns which are have null values to "null" strings
-        time_format = "%Y-%m-%dT%H:%M:%SZ"
+        time_format = "%Y-%m-%dT%H:%M:%S%Z"
         truncate_long_objects = (
             lambda x: x.astype("string").str.slice(0, 30) + "..."
             if x.astype("string").str.len().max() > 30
