@@ -308,7 +308,8 @@ class StepFunctions(object):
                     .parameter("Parameters.$", "$.Parameters")
                     .parameter("Index.$", "$$.Map.Item.Value")
                     .parameter("RootRunId.$", "$.Result.Item.root_run_id.S")
-                    .next(node.matching_join)
+                    #.next(node.matching_join)
+                    .next(f"{iterator_name}_GetManifest")
                     .iterator(
                         _visit(
                             self.graph[node.out_funcs[0]],
@@ -320,7 +321,7 @@ class StepFunctions(object):
 
                     # Attempt 0: This is the original format which leads to "size exceeding" with Distributed Mode
                     # and 1k values in foreach
-                    .output_path("$.[0]")
+                    # .output_path("$.[0]")
 
                     # Attempt 1: reduce result so we don't get size exceeding, but it still happeend
                     # .result_selector({
@@ -337,6 +338,76 @@ class StepFunctions(object):
                     #     "$.['JobId', " "'Parameters', " "'Index', " "'SplitParentTaskId']"
                     # )
                 )
+
+                workflow.add_state_hack(f"{iterator_name}_GetManifest", {
+                    "Type": "Task",
+                    #"Next": f"{iterator_name}_GetPayload",
+                    "Next": f"{iterator_name}_Map",
+                    "Parameters": {
+                        "Bucket.$": "$.ResultWriterDetails.Bucket",
+                        "Key.$": "$.ResultWriterDetails.Key"
+                    },
+                    "Resource": "arn:aws:states:::aws-sdk:s3:getObject",
+                    "ResultSelector": {
+                        "Body.$": "States.StringToJson($.Body)"
+                    }
+                })
+
+                # workflow.add_state_hack(f"{iterator_name}_GetPayload", {
+                #     "Type": "Task",
+                #     "Next": f"{iterator_name}_Pass",
+                #     "Parameters": {
+                #         "Bucket.$": "$.Body.DestinationBucket",
+                #         "Key.$": "$.Body.ResultFiles.SUCCEEDED.[0].Key"
+                #     },
+                #     "Resource": "arn:aws:states:::aws-sdk:s3:getObject",
+                #     "ResultSelector": {
+                #         "Body.$": "States.StringToJson($.Body)"
+                #     }
+                # })
+                #
+                # workflow.add_state_hack(f"{iterator_name}_Pass", {
+                #     "Type": "Pass",
+                #     "Next": node.matching_join,
+                #     "Parameters": {
+                #         "Output.$": "States.StringToJson($.Body.[0].Output)"
+                #     },
+                #     "OutputPath": "$.Output"
+                # })
+                workflow.add_state_hack(f"{iterator_name}_Map", {
+                    "Type": "Map",
+                    "ItemProcessor": {
+                        "ProcessorConfig": {
+                            "Mode": "DISTRIBUTED",
+                            "ExecutionType": "STANDARD"
+                        },
+                        "StartAt": f"{iterator_name}_Pass",
+                        "States": {
+                            f"{iterator_name}_Pass": {
+                                "Type": "Pass",
+                                "End": True,
+                                "Parameters": {
+                                    "Output.$": "States.StringToJson($.Output)"
+                                },
+                                "OutputPath": "$.Output"
+                            }
+                        }
+                    },
+                    "Next": node.matching_join,
+                    "MaxConcurrency": 1000,
+                    "ItemReader": {
+                        "Resource": "arn:aws:states:::s3:getObject",
+                        "ReaderConfig": {
+                            "InputType": "JSON",
+                            "MaxItems": 1
+                        },
+                        "Parameters": {
+                            "Bucket.$": "$.Body.DestinationBucket",
+                            "Key.$": "$.Body.ResultFiles.SUCCEEDED.[0].Key"
+                        }
+                    },
+                    "OutputPath": "$.[0]"
+                })
                 # Continue the traversal from the matching_join.
                 _visit(self.graph[node.matching_join], workflow, exit_node)
             # We shouldn't ideally ever get here.
@@ -893,6 +964,11 @@ class Workflow(object):
         self.payload["States"][state.name] = state.payload
         return self
 
+
+    def add_state_hack(self, state_name, state_payload):
+        self.payload["States"][state_name] = state_payload
+        return self
+
     def timeout_seconds(self, timeout_seconds):
         self.payload["TimeoutSeconds"] = timeout_seconds
         return self
@@ -1012,6 +1088,13 @@ class Map(object):
             workflow.payload["ProcessorConfig"] = {
                 "Mode": "DISTRIBUTED",
                 "ExecutionType": "STANDARD"
+            }
+            self.payload["ResultWriter"] = {
+                "Resource": "arn:aws:states:::s3:putObject",
+                "Parameters": {
+                    "Bucket": "metaflow-s3-ddbg89vp",
+                    "Prefix": "resultwriter"
+                }
             }
         self.payload["Iterator"] = workflow.payload
         return self
