@@ -7,7 +7,7 @@ import sys
 from collections import defaultdict
 from hashlib import sha1
 
-from metaflow import current
+from metaflow import current, JSONType
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
@@ -401,7 +401,11 @@ class ArgoWorkflows(object):
                 )
             seen.add(norm)
 
-            param_type = str(param.kwargs.get("type").__name__)
+            if param.kwargs.get("type") == JSONType:
+                # Special-case this to avoid touching core
+                param_type = str(param.kwargs.get("type").name)
+            else:
+                param_type = str(param.kwargs.get("type").__name__)
 
             is_required = param.kwargs.get("required", False)
             # Throw an exception if a schedule is set for a flow with required

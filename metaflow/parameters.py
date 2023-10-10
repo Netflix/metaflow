@@ -40,7 +40,7 @@ context_proto = None
 
 
 class JSONTypeClass(click.ParamType):
-    name = __name__ = "JSON"
+    name = "JSON"
 
     def convert(self, value, param, ctx):
         if not isinstance(value, strtype):
