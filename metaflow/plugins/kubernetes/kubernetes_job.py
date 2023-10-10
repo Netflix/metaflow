@@ -49,6 +49,13 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
 
     return decorator
 
+
+def compute_gpu_limits(args):
+    if args["gpu"] is not None:
+        return {"%s.com/gpu".lower() % args["gpu_vendor"]: str(args["gpu"])}
+    return dict()
+
+
 class KubernetesJob(object):
     def __init__(self, client, **kwargs):
         self._client = client
@@ -81,6 +88,7 @@ class KubernetesJob(object):
                     return ApiClient().deserialize(self, self.class_name)
                 else:
                     return None
+
         # tmpfs variables
         use_tmpfs = self._kwargs["use_tmpfs"]
         tmpfs_size = self._kwargs["tmpfs_size"]
@@ -159,8 +167,9 @@ class KubernetesJob(object):
                                     if k
                                 ],
                                 image=self._kwargs["image"],
-                                security_context=KubernetesClientDataObj(self._kwargs["security_context"],
-                                                                         V1SecurityContext).get_deserialized_object(),
+                                security_context=KubernetesClientDataObj(
+                                    self._kwargs["security_context"], V1SecurityContext
+                                ).get_deserialized_object(),
                                 image_pull_policy=self._kwargs["image_pull_policy"],
                                 name=self._kwargs["step_name"].replace("_", "-"),
                                 resources=client.V1ResourceRequirements(
@@ -171,8 +180,9 @@ class KubernetesJob(object):
                                         % str(self._kwargs["disk"]),
                                     },
                                     limits={
-                                        **self._kwargs["resource_limits"]
-                                    }
+                                        **compute_gpu_limits(self._kwargs),
+                                        **self._kwargs["resource_limits"],
+                                    },
                                 ),
                                 volume_mounts=(
                                     [
@@ -330,7 +340,6 @@ class KubernetesJob(object):
 
 
 class RunningJob(object):
-
     # State Machine implementation for the lifecycle behavior documented in
     # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
     #
@@ -450,7 +459,6 @@ class RunningJob(object):
         client = self._client.get()
         if not self.is_done:
             if self.is_running:
-
                 # Case 1.
                 from kubernetes.stream import stream
 
