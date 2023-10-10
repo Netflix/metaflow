@@ -86,7 +86,7 @@ if __name__ == "__main__":
     # Create Conda environment.
     cmds = [
         # TODO: check if mamba or conda are already available on the image
-        # TODO: search for micromamba everywhere
+        # TODO: micromamba installation can be pawned off to micromamba.py
         f"""set -e;
         if ! command -v micromamba >/dev/null 2>&1; then
             mkdir micromamba;
