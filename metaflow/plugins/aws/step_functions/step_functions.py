@@ -161,20 +161,6 @@ class StepFunctions(object):
             raise StepFunctionsSchedulingException(repr(e))
 
     @classmethod
-    def delete(cls, name):
-        # Always attempt to delete the event bridge rule.
-        schedule_deleted = EventBridgeClient(name).delete()
-
-        sfn_deleted = StepFunctionsClient().delete(name)
-
-        if sfn_deleted is None:
-            raise StepFunctionsException(
-                "The workflow *%s* doesn't exist on AWS Step Functions." % name
-            )
-
-        return schedule_deleted, sfn_deleted
-
-    @classmethod
     def trigger(cls, name, parameters):
         try:
             state_machine = StepFunctionsClient().get(name)
@@ -309,7 +295,7 @@ class StepFunctions(object):
                 workflow.add_state(state.next(cardinality_state_name))
                 cardinality_state = (
                     State(cardinality_state_name)
-                    .dynamo_db(SFN_DYNAMO_DB_TABLE, "$.JobId", "for_each_cardinality")
+                    .dynamo_db(SFN_DYNAMO_DB_TABLE, "$.JobId", "for_each_cardinality, root_run_id")
                     .result_path("$.Result")
                 )
                 iterator_name = "*%s" % node.out_funcs[0]
@@ -321,6 +307,7 @@ class StepFunctions(object):
                     .parameter("SplitParentTaskId.$", "$.JobId")
                     .parameter("Parameters.$", "$.Parameters")
                     .parameter("Index.$", "$$.Map.Item.Value")
+                    .parameter("RootRunId.$", "$.Result.Item.root_run_id.S")
                     .next(node.matching_join)
                     .iterator(
                         _visit(
@@ -482,7 +469,7 @@ class StepFunctions(object):
             if parameters:
                 # Get user-defined parameters from State Machine Input.
                 # Since AWS Step Functions doesn't allow for optional inputs
-                # currently, we have to unfortunatelRootRunIdy place an artificial
+                # currently, we have to unfortunately place an artificial
                 # constraint that every parameterized workflow needs to include
                 # `Parameters` as a key in the input to the workflow.
                 # `step-functions trigger` already takes care of this
@@ -569,11 +556,13 @@ class StepFunctions(object):
                     attrs[
                         "split_parent_task_id_%s.$" % node.split_parents[-1]
                     ] = "$.SplitParentTaskId"
+                    attrs["root_run_id.$"] = "$.RootRunId"
                     for parent in node.split_parents[:-1]:
                         if self.graph[parent].type == "foreach":
                             attrs["split_parent_task_id_%s.$" % parent] = (
                                 "$.Parameters.split_parent_task_id_%s" % parent
                             )
+                            attrs["root_run_id.$"] = "$.Parameters.root_run_id"
                 elif node.type == "join":
                     if self.graph[node.split_parents[-1]].type == "foreach":
                         # A foreach join only gets one set of input from the
@@ -590,23 +579,27 @@ class StepFunctions(object):
                             "$.Parameters.split_parent_task_id_%s"
                             % node.split_parents[-1]
                         )
+                        attrs["root_run_id.$"] = "$.Parameters.root_run_id"
                         for parent in node.split_parents[:-1]:
                             if self.graph[parent].type == "foreach":
                                 attrs["split_parent_task_id_%s.$" % parent] = (
                                     "$.Parameters.split_parent_task_id_%s" % parent
                                 )
+                                attrs["root_run_id.$"] = "$.Parameters.root_run_id"
                     else:
                         for parent in node.split_parents:
                             if self.graph[parent].type == "foreach":
                                 attrs["split_parent_task_id_%s.$" % parent] = (
                                     "$.[0].Parameters.split_parent_task_id_%s" % parent
                                 )
+                                attrs["root_run_id.$"] = "$.Parameters.root_run_id"
                 else:
                     for parent in node.split_parents:
                         if self.graph[parent].type == "foreach":
                             attrs["split_parent_task_id_%s.$" % parent] = (
                                 "$.Parameters.split_parent_task_id_%s" % parent
                             )
+                            attrs["root_run_id.$"] = "$.Parameters.root_run_id"
 
                 # Set `METAFLOW_SPLIT_PARENT_TASK_ID_FOR_FOREACH_JOIN` if the
                 # next transition is to a foreach join, so that the
@@ -634,8 +627,16 @@ class StepFunctions(object):
         env["METAFLOW_CODE_URL"] = self.code_package_url
         env["METAFLOW_FLOW_NAME"] = attrs["metaflow.flow_name"]
         env["METAFLOW_STEP_NAME"] = attrs["metaflow.step_name"]
-        if node.name != "start" and node.is_inside_foreach is True:
-            env["METAFLOW_RUN_ID"] = "$.Parameters.metaflow_root_run_id"
+        # if node.name != "start" and node.is_inside_foreach is True:
+        #     env["METAFLOW_RUN_ID"] = "$.Parameters.metaflow_root_run_id"
+        # else:
+        #     env["METAFLOW_RUN_ID"] = attrs["metaflow.run_id.$"]
+        if node.is_inside_foreach is True:
+            env["METAFLOW_RUN_ID"] = attrs["root_run_id.$"]
+            # if "root_run_id.$" in attrs:
+            #     env["METAFLOW_RUN_ID"] = attrs["root_run_id.$"]
+            # else:
+            #     env["METAFLOW_RUN_ID"] = "$.RootRunId"
         else:
             env["METAFLOW_RUN_ID"] = attrs["metaflow.run_id.$"]
         env["METAFLOW_PRODUCTION_TOKEN"] = self.production_token
@@ -927,6 +928,10 @@ class State(object):
         self.payload["OutputPath"] = output_path
         return self
 
+    def result_selector(self, selector):
+        self.payload["ResultSelector"] = selector
+        return self
+
     def result_path(self, result_path):
         self.payload["ResultPath"] = result_path
         return self
@@ -1034,6 +1039,7 @@ class Map(object):
     def result_path(self, result_path):
         self.payload["ResultPath"] = result_path
         return self
+
 
     def result_selector(self, selector):
         self.payload["ResultSelector"] = selector

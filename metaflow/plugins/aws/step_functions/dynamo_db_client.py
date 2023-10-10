@@ -10,7 +10,7 @@ class DynamoDbClient(object):
         self._client = get_aws_client("dynamodb")
         self.name = SFN_DYNAMO_DB_TABLE
 
-    def save_foreach_cardinality(self, foreach_split_task_id, foreach_cardinality, ttl):
+    def save_foreach_cardinality(self, foreach_split_task_id, foreach_cardinality, ttl, root_run_id):
         return self._client.put_item(
             TableName=self.name,
             Item={
@@ -18,6 +18,7 @@ class DynamoDbClient(object):
                 "for_each_cardinality": {
                     "NS": list(map(str, range(foreach_cardinality)))
                 },
+                "root_run_id": {"S": root_run_id},
                 "ttl": {"N": str(ttl)},
             },
         )
@@ -40,3 +41,22 @@ class DynamoDbClient(object):
             ConsistentRead=True,
         )
         return response["Item"]["parent_task_ids_for_foreach_join"]["SS"]
+
+    def save_root_run_id(
+        self, foreach_split_task_id, root_run_id,
+    ):
+        return self._client.update_item(
+            TableName=self.name,
+            Key={"pathspec": {"S": foreach_split_task_id}},
+            UpdateExpression="ADD root_run_id :val",
+            ExpressionAttributeValues={":val": {"SS": [foreach_join_parent_task_id]}},
+        )
+
+    def get_root_run_id(self, foreach_split_task_id):
+        response = self._client.get_item(
+            TableName=self.name,
+            Key={"pathspec": {"S": foreach_split_task_id}},
+            ProjectionExpression="root_run_id",
+            ConsistentRead=True,
+        )
+        return response["Item"]["root_run_id"]["SS"]
