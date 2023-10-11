@@ -225,8 +225,9 @@ class StepFunctions(object):
             try:
                 start = json.loads(workflow["definition"])["States"]["start"]
                 parameters = start["Parameters"]["Parameters"]
-                return parameters.get("metaflow.owner"), parameters.get(
-                    "metaflow.production_token"
+                return (
+                    parameters.get("metaflow.owner"),
+                    parameters.get("metaflow.production_token"),
                 )
             except KeyError as e:
                 raise StepFunctionsException(
