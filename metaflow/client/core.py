@@ -344,10 +344,10 @@ class MetaflowObject(object):
         Note that only children present in the current namespace are returned iff
         _namespace_check is set.
 
-        Returns
-        -------
-        Iterable[MetaflowObject]
-            Iterator over all children
+        Yields
+        ------
+        MetaflowObject
+            Children of this object
         """
         query_filter = {}
 
@@ -1454,10 +1454,10 @@ class Task(MetaflowObject):
             If as_unicode=False, each logline is returned as a byte object. Otherwise,
             it is returned as a (unicode) string.
 
-        Returns
-        -------
-        Iterable[Tuple[datetime, str]]
-            Iterator over timestamp, logline pairs.
+        Yields
+        ------
+        Tuple[datetime, str]
+            Tuple of timestamp, logline pairs.
         """
         from metaflow.mflog.mflog import merge_logs
 
@@ -1588,10 +1588,10 @@ class Step(MetaflowObject):
         tags : str
             No op (legacy functionality)
 
-        Returns
-        -------
-        Iterable[Task]
-            Iterator over all `Task` objects in this step.
+        Yields
+        ------
+        Task
+            `Task` objects in this step.
         """
         return self._filtered_children(*tags)
 
@@ -1622,10 +1622,11 @@ class Step(MetaflowObject):
         ----------
         tags : str
             Tags to match
-        Returns
-        -------
-        Iterable[Task]
-            Iterator over Control Task objects in this step
+
+        Yields
+        ------
+        Task
+            Control Task object for this step
         """
         children = super(Step, self).__iter__()
         for child in children:
@@ -1741,10 +1742,10 @@ class Run(MetaflowObject):
         tags : str
             No op (legacy functionality)
 
-        Returns
-        -------
-        Iterable[Step]
-            Iterator over `Step` objects in this run.
+        Yields
+        ------
+        Step
+            `Step` objects in this run.
         """
         return self._filtered_children(*tags)
 
@@ -2067,10 +2068,10 @@ class Flow(MetaflowObject):
         tags : str
             Tags to match.
 
-        Returns
-        -------
-        Iterable[Run]
-            Iterator over `Run` objects in this flow.
+        Yields
+        ------
+        Run
+            `Run` objects in this flow.
         """
         return self._filtered_children(*tags)
 
@@ -2159,7 +2160,7 @@ class Metaflow(object):
 
         Parameters
         ----------
-        id : string
+        id : str
             Name of the Flow
 
         Returns

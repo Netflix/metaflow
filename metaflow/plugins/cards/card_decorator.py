@@ -27,13 +27,13 @@ class CardDecorator(StepDecorator):
 
     Parameters
     ----------
-    type : str, default: 'default'
+    type : str, default 'default'
         Card type.
-    id : str, optional, default: None
+    id : str, optional, default None
         If multiple cards are present, use this id to identify this card.
-    options : Dict[str, Any], default: {}
+    options : Dict[str, Any], default {}
         Options passed to the card. The contents depend on the card type.
-    timeout : int, default: 45
+    timeout : int, default 45
         Interrupt reporting if it takes more than this many seconds.
 
     MF Add To Current

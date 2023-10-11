@@ -98,6 +98,11 @@ class Card:
     def id(self) -> Optional[str]:
         """
         The ID of the card, if specified with `@card(id=ID)`.
+
+        Returns
+        -------
+        Optional[str]
+            ID of the card
         """
         return self._card_id
 
@@ -229,14 +234,14 @@ def get_cards(
 
     Parameters
     ----------
-    task : str or `Task`
+    task : Union[str, `Task`]
         A `Task` object or pathspec `{flow_name}/{run_id}/{step_name}/{task_id}` that
         uniquely identifies a task.
-    id : str, optional
+    id : str, optional, default None
         The ID of card to retrieve if multiple cards are present.
-    type : str, optional
+    type : str, optional, default None
         The type of card to retrieve if multiple cards are present.
-    follow_resumed : bool, default: True
+    follow_resumed : bool, default True
         If the task has been resumed, then setting this flag will resolve the card for
         the origin task.
 

@@ -30,10 +30,10 @@ class CatchDecorator(StepDecorator):
 
     Parameters
     ----------
-    var : str, optional, default: None
+    var : str, optional, default None
         Name of the artifact in which to store the caught exception.
         If not specified, the exception is not stored.
-    print_exception : bool, default: True
+    print_exception : bool, default True
         Determines whether or not the exception is printed to
         stdout when caught.
     """
