@@ -8,6 +8,7 @@ from collections import defaultdict
 from hashlib import sha1
 
 from metaflow import current, JSONType
+from metaflow.includefile import FilePathClass
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
@@ -401,7 +402,9 @@ class ArgoWorkflows(object):
                 )
             seen.add(norm)
 
-            if param.kwargs.get("type") == JSONType:
+            if param.kwargs.get("type") == JSONType or isinstance(
+                param.kwargs.get("type"), FilePathClass
+            ):
                 # Special-case this to avoid touching core
                 param_type = str(param.kwargs.get("type").name)
             else:
