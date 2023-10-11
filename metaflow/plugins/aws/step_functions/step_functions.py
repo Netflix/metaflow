@@ -167,7 +167,7 @@ class StepFunctions(object):
 
         sfn_deleted = StepFunctionsClient().delete(name)
 
-        if sfn_deleted is None:1
+        if sfn_deleted is None:
             raise StepFunctionsException(
                 "The workflow *%s* doesn't exist on AWS Step Functions." % name
             )
