@@ -666,7 +666,7 @@ class StepFunctions(object):
         env["METAFLOW_FLOW_NAME"] = attrs["metaflow.flow_name"]
         env["METAFLOW_STEP_NAME"] = attrs["metaflow.step_name"]
         if node.is_inside_foreach is True:
-            env["METAFLOW_RUN_ID"] = attrs["root_run_id.$"]1
+            env["METAFLOW_RUN_ID"] = attrs["root_run_id.$"]
         else:
             env["METAFLOW_RUN_ID"] = attrs["metaflow.run_id.$"]
         env["METAFLOW_PRODUCTION_TOKEN"] = self.production_token
