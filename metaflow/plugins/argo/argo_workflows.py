@@ -250,7 +250,9 @@ class ArgoWorkflows(object):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
         workflow_template = client.get_workflow_template(name)
-        sensor_name = name.replace(".", "-")
+        sensor_name = workflow_template["metadata"]["annotations"].get(
+            "metaflow/sensor_name", name.replace(".", "-")
+        )
         sensor_namespace = workflow_template["metadata"]["annotations"].get(
             "metaflow/sensor_namespace", ARGO_EVENTS_SENSOR_NAMESPACE
         )
