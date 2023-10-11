@@ -183,9 +183,9 @@ class ArgoWorkflows(object):
 
     def cleanup_previous(self):
         try:
-            argo_client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+            client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
             # Check for existing deployment and do cleanup
-            old_template = argo_client.get_workflow_template(self.name)
+            old_template = client.get_workflow_template(self.name)
             if not old_template:
                 return None
             # Clean up old sensors
@@ -196,9 +196,7 @@ class ArgoWorkflows(object):
                 # This workflow was created before sensor annotations
                 # and may have a sensor in the default namespace
                 # we will delete it and it'll get recreated if need be
-                argo_client.delete_sensor(
-                    self.name.replace(".", "-"), argo_client._namespace
-                )
+                client.delete_sensor(self.name.replace(".", "-"), client._namespace)
             elif old_has_sensor == "True":
                 # delete old sensor only if it was somewhere else, otherwise it'll get replaced
                 old_sensor_name = old_template["metadata"]["annotations"][
@@ -211,13 +209,13 @@ class ArgoWorkflows(object):
                     not self._sensor
                     or old_sensor_namespace != ARGO_EVENTS_SENSOR_NAMESPACE
                 ):
-                    argo_client.delete_sensor(old_sensor_name, old_sensor_namespace)
+                    client.delete_sensor(old_sensor_name, old_sensor_namespace)
             # Clean up old schedules/cronworkflow
             old_has_schedule = old_template["metadata"]["annotations"].get(
                 "metaflow/has_schedule"
             )
             if not self._schedule and (old_has_schedule is None or old_has_schedule):
-                argo_client.delete_cronworkflow(self.name)
+                client.delete_cronworkflow(self.name)
         except Exception as e:
             raise ArgoWorkflowsCleanupException(str(e))
 
@@ -251,7 +249,7 @@ class ArgoWorkflows(object):
     def delete(name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
-        workflow_template = argo_client.get_workflow_template(name)
+        workflow_template = client.get_workflow_template(name)
         sensor_name = name.replace(".", "-")
         sensor_namespace = workflow_template["metadata"]["annotations"].get(
             "metaflow/sensor_namespace", ARGO_EVENTS_SENSOR_NAMESPACE
@@ -363,10 +361,10 @@ class ArgoWorkflows(object):
 
     def schedule(self):
         try:
-            argo_client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+            client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
             if self._schedule:
-                argo_client.schedule_workflow_template(
+                client.schedule_workflow_template(
                     self.name, self._schedule, self._timezone
                 )
             if self._sensor:
@@ -375,7 +373,7 @@ class ArgoWorkflows(object):
                 # Metaflow will overwrite any existing sensor.
                 sensor_name = self.name.replace(".", "-")
                 # The new sensor will go into the sensor namespace specified
-                argo_client.register_sensor(
+                client.register_sensor(
                     sensor_name, self._sensor.to_json(), ARGO_EVENTS_SENSOR_NAMESPACE
                 )
         except Exception as e:
