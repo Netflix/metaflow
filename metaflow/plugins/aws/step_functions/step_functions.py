@@ -13,6 +13,7 @@ from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import (
     EVENTS_SFN_ACCESS_IAM_ROLE,
+    DATASTORE_SYSROOT_S3,
     S3_ENDPOINT_URL,
     SFN_DYNAMO_DB_TABLE,
     SFN_EXECUTION_LOG_GROUP_ARN,
@@ -1048,8 +1049,8 @@ class Map(object):
             self.payload["ResultWriter"] = {
                 "Resource": "arn:aws:states:::s3:putObject",
                 "Parameters": {
-                    "Bucket": "metaflow-s3-ddbg89vp",
-                    "Prefix": "resultwriter"
+                    "Bucket": DATASTORE_SYSROOT_S3.split("/")[2],
+                    "Prefix": "distributed_map_output"
                 }
             }
         self.payload["Iterator"] = workflow.payload
