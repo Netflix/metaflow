@@ -24,8 +24,13 @@ class Micromamba(object):
         # micromamba is a tiny version of the mamba package manager and comes with
         # metaflow specific performance enhancements.
 
+        # METAFLOW_HOME might not be writable but METAFLOW_TOKEN_HOME might be.
+        if os.environ.get("METAFLOW_TOKEN_HOME"):
+            _home = os.environ.get("METAFLOW_TOKEN_HOME")
+        else:
+            _home = os.environ.get("METAFLOW_HOME", "~/.metaflowconfig")
         _path_to_hidden_micromamba = os.path.join(
-            os.path.expanduser(os.environ.get("METAFLOW_HOME", "~/.metaflowconfig")),
+            os.path.expanduser(_home),
             "micromamba",
         )
         self.bin = (
