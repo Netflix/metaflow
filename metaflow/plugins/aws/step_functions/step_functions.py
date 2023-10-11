@@ -159,7 +159,7 @@ class StepFunctions(object):
             )
         except Exception as e:
             raise StepFunctionsSchedulingException(repr(e))
-        
+
     @classmethod
     def delete(cls, name):
         # Always attempt to delete the event bridge rule.
@@ -167,7 +167,7 @@ class StepFunctions(object):
 
         sfn_deleted = StepFunctionsClient().delete(name)
 
-        if sfn_deleted is None:
+        if sfn_deleted is None:1
             raise StepFunctionsException(
                 "The workflow *%s* doesn't exist on AWS Step Functions." % name
             )
@@ -321,7 +321,7 @@ class StepFunctions(object):
                     .parameter("Parameters.$", "$.Parameters")
                     .parameter("Index.$", "$$.Map.Item.Value")
                     .parameter("RootRunId.$", "$.Result.Item.root_run_id.S")
-                    .next(f"{iterator_name}_GetManifest" if workflow.use_distributed_map else node.matching_join)
+                    .next(f"{iterator_name}_GetManifest" if self.use_distributed_map else node.matching_join)
                     .iterator(
                         _visit(
                             self.graph[node.out_funcs[0]],
@@ -330,7 +330,7 @@ class StepFunctions(object):
                         )
                     )
                     .max_concurrency(self.max_workers)
-                    .output_path("$" if workflow.use_distributed_map else "$.[0]")
+                    .output_path("$" if self.use_distributed_map else "$.[0]")
                 )
 
                 # If we are using DistributedMap we need to obtain the Parameters
@@ -338,7 +338,7 @@ class StepFunctions(object):
                 # we can't just pull the value from the OutputPath, instead
                 # we need to write the results to S3 and then get the data from S3.
                 # These additional states are how we pull the data from S3.
-                if workflow.use_distributed_map:
+                if self.use_distributed_map:
                     workflow.add_state_hack(f"{iterator_name}_GetManifest", {
                         "Type": "Task",
                         "Next": f"{iterator_name}_Map",
