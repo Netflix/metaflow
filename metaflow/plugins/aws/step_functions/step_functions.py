@@ -173,6 +173,7 @@ class StepFunctions(object):
             )
 
         return schedule_deleted, sfn_deleted
+
     @classmethod
     def trigger(cls, name, parameters):
         try:
