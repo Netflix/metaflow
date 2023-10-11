@@ -229,6 +229,25 @@ class ArgoWorkflows(object):
         return name.replace("_", "-")
 
     @staticmethod
+    def list_templates(flow_name, all=False):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+
+        templates = client.get_workflow_templates()
+        if templates is None:
+            return []
+
+        template_names = [
+            template["metadata"]["name"]
+            for template in templates
+            if all
+            or flow_name
+            == template["metadata"]
+            .get("annotations", {})
+            .get("metaflow/flow_name", None)
+        ]
+        return template_names
+
+    @staticmethod
     def delete(name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
