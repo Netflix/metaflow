@@ -159,7 +159,20 @@ class StepFunctions(object):
             )
         except Exception as e:
             raise StepFunctionsSchedulingException(repr(e))
+        
+    @classmethod
+    def delete(cls, name):
+        # Always attempt to delete the event bridge rule.
+        schedule_deleted = EventBridgeClient(name).delete()
 
+        sfn_deleted = StepFunctionsClient().delete(name)
+
+        if sfn_deleted is None:
+            raise StepFunctionsException(
+                "The workflow *%s* doesn't exist on AWS Step Functions." % name
+            )
+
+        return schedule_deleted, sfn_deleted
     @classmethod
     def trigger(cls, name, parameters):
         try:
@@ -652,16 +665,8 @@ class StepFunctions(object):
         env["METAFLOW_CODE_URL"] = self.code_package_url
         env["METAFLOW_FLOW_NAME"] = attrs["metaflow.flow_name"]
         env["METAFLOW_STEP_NAME"] = attrs["metaflow.step_name"]
-        # if node.name != "start" and node.is_inside_foreach is True:
-        #     env["METAFLOW_RUN_ID"] = "$.Parameters.metaflow_root_run_id"
-        # else:
-        #     env["METAFLOW_RUN_ID"] = attrs["metaflow.run_id.$"]
         if node.is_inside_foreach is True:
-            env["METAFLOW_RUN_ID"] = attrs["root_run_id.$"]
-            # if "root_run_id.$" in attrs:
-            #     env["METAFLOW_RUN_ID"] = attrs["root_run_id.$"]
-            # else:
-            #     env["METAFLOW_RUN_ID"] = "$.RootRunId"
+            env["METAFLOW_RUN_ID"] = attrs["root_run_id.$"]1
         else:
             env["METAFLOW_RUN_ID"] = attrs["metaflow.run_id.$"]
         env["METAFLOW_PRODUCTION_TOKEN"] = self.production_token
