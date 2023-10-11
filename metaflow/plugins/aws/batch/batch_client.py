@@ -108,7 +108,10 @@ class BatchJob(object):
                 self._task_id.replace("control-", "")
                 + "-node-$AWS_BATCH_JOB_NODE_INDEX",
             )
-            secondary_commands = secondary_commands.replace("ubf_control", "ubf_task",)
+            secondary_commands = secondary_commands.replace(
+                "ubf_control",
+                "ubf_task",
+            )
             secondary_commands = secondary_commands.replace(
                 "[multinode-args]", "--split-index $AWS_BATCH_JOB_NODE_INDEX"
             )
