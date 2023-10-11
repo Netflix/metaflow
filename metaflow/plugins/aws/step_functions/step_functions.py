@@ -248,6 +248,7 @@ class StepFunctions(object):
                 "Deploying flows with @trigger or @trigger_on_finish decorator(s) "
                 "to AWS Step Functions is not supported currently."
             )
+
         # Visit every node of the flow and recursively build the state machine.
         def _visit(node, workflow, exit_node=None):
             if node.parallel_foreach:
@@ -705,6 +706,7 @@ class StepFunctions(object):
                 shared_memory=resources["shared_memory"],
                 max_swap=resources["max_swap"],
                 swappiness=resources["swappiness"],
+                efa=resources["efa"],
                 use_tmpfs=resources["use_tmpfs"],
                 tmpfs_tempdir=resources["tmpfs_tempdir"],
                 tmpfs_size=resources["tmpfs_size"],
