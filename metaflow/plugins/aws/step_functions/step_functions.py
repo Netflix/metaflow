@@ -76,7 +76,7 @@ class StepFunctions(object):
         self.username = username
         self.max_workers = max_workers
         self.workflow_timeout = workflow_timeout
-        self.use_disributed_map = use_distributed_map
+        self.use_distributed_map = use_distributed_map
 
         self._client = StepFunctionsClient()
         self._workflow = self._compile()
@@ -314,7 +314,7 @@ class StepFunctions(object):
                 iterator_name = "*%s" % node.out_funcs[0]
                 workflow.add_state(cardinality_state.next(iterator_name))
                 workflow.add_state(
-                    Map(iterator_name, self.use_disributed_map)
+                    Map(iterator_name, self.use_distributed_map)
                     .items_path("$.Result.Item.for_each_cardinality.NS")
                     .parameter("JobId.$", "$.JobId")
                     .parameter("SplitParentTaskId.$", "$.JobId")
