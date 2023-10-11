@@ -57,7 +57,10 @@ class StepFunctionsInternalDecorator(StepDecorator):
             # and execution history is available for 90 days after the
             # execution.
             self._save_foreach_cardinality(
-                os.environ["AWS_BATCH_JOB_ID"], flow._foreach_num_splits, self._ttl(), os.environ["METAFLOW_RUN_ID"],
+                os.environ["AWS_BATCH_JOB_ID"],
+                flow._foreach_num_splits,
+                self._ttl(),
+                os.environ["METAFLOW_RUN_ID"],
             )
         # The parent task ids need to be available in a foreach join so that
         # we can construct the input path. Unfortunately, while AWS Step
@@ -84,13 +87,6 @@ class StepFunctionsInternalDecorator(StepDecorator):
 
     def _save_parent_task_id_for_foreach_join(
             self, foreach_split_task_id, foreach_join_parent_task_id
-    ):
-        DynamoDbClient().save_parent_task_id_for_foreach_join(
-            foreach_split_task_id, foreach_join_parent_task_id
-        )
-
-    def _save_root_run_id(
-            self, foreach_split_task_id, root_run_id
     ):
         DynamoDbClient().save_parent_task_id_for_foreach_join(
             foreach_split_task_id, foreach_join_parent_task_id

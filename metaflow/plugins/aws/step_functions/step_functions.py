@@ -308,8 +308,7 @@ class StepFunctions(object):
                     .parameter("Parameters.$", "$.Parameters")
                     .parameter("Index.$", "$$.Map.Item.Value")
                     .parameter("RootRunId.$", "$.Result.Item.root_run_id.S")
-                    #.next(node.matching_join)
-                    .next(f"{iterator_name}_GetManifest")
+                    .next(f"{iterator_name}_GetManifest" if workflow.use_distributed_map else node.matching_join)
                     .iterator(
                         _visit(
                             self.graph[node.out_funcs[0]],
@@ -318,96 +317,62 @@ class StepFunctions(object):
                         )
                     )
                     .max_concurrency(self.max_workers)
-
-                    # Attempt 0: This is the original format which leads to "size exceeding" with Distributed Mode
-                    # and 1k values in foreach
-                    # .output_path("$.[0]")
-
-                    # Attempt 1: reduce result so we don't get size exceeding, but it still happeend
-                    # .result_selector({
-                    #     "Parameters.$": "$[0].Parameters"
-                    # })
-                    # .output_path(
-                    #    "$.['JobId', " "'Parameters', " "'Index', " "'SplitParentTaskId']"
-                    # )
-
-                    # Attempt 2: Discard results entirely and just use input. This works, but fails on the join step since we
-                    # lose the $.Parameters.split_parent_task_id_start value which comes in from a single value of the foreach
-                    # .result_path(None)
-                    # .output_path(
-                    #     "$.['JobId', " "'Parameters', " "'Index', " "'SplitParentTaskId']"
-                    # )
+                    .output_path("$" if workflow.use_distributed_map else "$.[0]")
                 )
 
-                workflow.add_state_hack(f"{iterator_name}_GetManifest", {
-                    "Type": "Task",
-                    #"Next": f"{iterator_name}_GetPayload",
-                    "Next": f"{iterator_name}_Map",
-                    "Parameters": {
-                        "Bucket.$": "$.ResultWriterDetails.Bucket",
-                        "Key.$": "$.ResultWriterDetails.Key"
-                    },
-                    "Resource": "arn:aws:states:::aws-sdk:s3:getObject",
-                    "ResultSelector": {
-                        "Body.$": "States.StringToJson($.Body)"
-                    }
-                })
-
-                # workflow.add_state_hack(f"{iterator_name}_GetPayload", {
-                #     "Type": "Task",
-                #     "Next": f"{iterator_name}_Pass",
-                #     "Parameters": {
-                #         "Bucket.$": "$.Body.DestinationBucket",
-                #         "Key.$": "$.Body.ResultFiles.SUCCEEDED.[0].Key"
-                #     },
-                #     "Resource": "arn:aws:states:::aws-sdk:s3:getObject",
-                #     "ResultSelector": {
-                #         "Body.$": "States.StringToJson($.Body)"
-                #     }
-                # })
-                #
-                # workflow.add_state_hack(f"{iterator_name}_Pass", {
-                #     "Type": "Pass",
-                #     "Next": node.matching_join,
-                #     "Parameters": {
-                #         "Output.$": "States.StringToJson($.Body.[0].Output)"
-                #     },
-                #     "OutputPath": "$.Output"
-                # })
-                workflow.add_state_hack(f"{iterator_name}_Map", {
-                    "Type": "Map",
-                    "ItemProcessor": {
-                        "ProcessorConfig": {
-                            "Mode": "DISTRIBUTED",
-                            "ExecutionType": "STANDARD"
-                        },
-                        "StartAt": f"{iterator_name}_Pass",
-                        "States": {
-                            f"{iterator_name}_Pass": {
-                                "Type": "Pass",
-                                "End": True,
-                                "Parameters": {
-                                    "Output.$": "States.StringToJson($.Output)"
-                                },
-                                "OutputPath": "$.Output"
-                            }
-                        }
-                    },
-                    "Next": node.matching_join,
-                    "MaxConcurrency": 1000,
-                    "ItemReader": {
-                        "Resource": "arn:aws:states:::s3:getObject",
-                        "ReaderConfig": {
-                            "InputType": "JSON",
-                            "MaxItems": 1
-                        },
+                # If we are using DistributedMap we need to obtain the Parameters
+                # one of the batch jobs. Distributed Map jobs can be so big that
+                # we can't just pull the value from the OutputPath, instead
+                # we need to write the results to S3 and then get the data from S3.
+                # These additional states are how we pull the data from S3.
+                if workflow.use_distributed_map:
+                    workflow.add_state_hack(f"{iterator_name}_GetManifest", {
+                        "Type": "Task",
+                        "Next": f"{iterator_name}_Map",
                         "Parameters": {
-                            "Bucket.$": "$.Body.DestinationBucket",
-                            "Key.$": "$.Body.ResultFiles.SUCCEEDED.[0].Key"
+                            "Bucket.$": "$.ResultWriterDetails.Bucket",
+                            "Key.$": "$.ResultWriterDetails.Key"
+                        },
+                        "Resource": "arn:aws:states:::aws-sdk:s3:getObject",
+                        "ResultSelector": {
+                            "Body.$": "States.StringToJson($.Body)"
                         }
-                    },
-                    "OutputPath": "$.[0]"
-                })
+                    })
+                    workflow.add_state_hack(f"{iterator_name}_Map", {
+                        "Type": "Map",
+                        "ItemProcessor": {
+                            "ProcessorConfig": {
+                                "Mode": "DISTRIBUTED",
+                                "ExecutionType": "STANDARD"
+                            },
+                            "StartAt": f"{iterator_name}_Pass",
+                            "States": {
+                                f"{iterator_name}_Pass": {
+                                    "Type": "Pass",
+                                    "End": True,
+                                    "Parameters": {
+                                        "Output.$": "States.StringToJson($.Output)"
+                                    },
+                                    "OutputPath": "$.Output"
+                                }
+                            }
+                        },
+                        "Next": node.matching_join,
+                        "MaxConcurrency": 1000,
+                        "ItemReader": {
+                            "Resource": "arn:aws:states:::s3:getObject",
+                            "ReaderConfig": {
+                                "InputType": "JSON",
+                                "MaxItems": 1
+                            },
+                            "Parameters": {
+                                "Bucket.$": "$.Body.DestinationBucket",
+                                "Key.$": "$.Body.ResultFiles.SUCCEEDED.[0].Key"
+                            }
+                        },
+                        "OutputPath": "$.[0]"
+                    })
+
                 # Continue the traversal from the matching_join.
                 _visit(self.graph[node.matching_join], workflow, exit_node)
             # We shouldn't ideally ever get here.
@@ -512,17 +477,6 @@ class StepFunctions(object):
         # check.
         if node.name == "start":
             attrs["metaflow.production_token"] = self.production_token
-
-        # Attempt 1 - get the root run ID via the execution ID from the ARN
-        # This works for the first map as the ARN is other_sutff:parent_execution_id:child_execution_id.
-        # But this fails when it's a map then another map, as the second map doesn't contain the root execution ID
-        # in it otherwise the ARN would be extremely long.
-        #attrs["metaflow_root_run_id.$"] = "States.ArrayGetItem(States.StringSplit($$.Execution.Id, ':'), 7)"
-
-        # Attempt 2 - set the root run ID in the first step and pass it down to all other steps
-        # But this only works if the map is the second step
-        if node.name == "start" and node.is_inside_foreach is False:
-            attrs["metaflow_root_run_id.$"] = "$$.Execution.Name"
 
         # Add env vars from the optional @environment decorator.
         env_deco = [deco for deco in node.decorators if deco.name == "environment"]
@@ -1004,10 +958,6 @@ class State(object):
         self.payload["OutputPath"] = output_path
         return self
 
-    def result_selector(self, selector):
-        self.payload["ResultSelector"] = selector
-        return self
-
     def result_path(self, result_path):
         self.payload["ResultPath"] = result_path
         return self
@@ -1121,9 +1071,4 @@ class Map(object):
 
     def result_path(self, result_path):
         self.payload["ResultPath"] = result_path
-        return self
-
-
-    def result_selector(self, selector):
-        self.payload["ResultSelector"] = selector
         return self

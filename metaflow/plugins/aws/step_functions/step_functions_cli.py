@@ -124,7 +124,7 @@ def step_functions(obj, name=None):
 @click.option(
     "--use-distributed-map",
     is_flag=True,
-    help="Use the DistributedMap state instead of Map",
+    help="Use the Distributed Map instead of an Inline Map",
 )
 @click.pass_obj
 def create(
@@ -564,6 +564,7 @@ def list_runs(
                 % (obj.state_machine_name)
             )
 
+
 @step_functions.command(help="Delete a workflow")
 @click.option(
     "--authorize",
@@ -625,6 +626,7 @@ def delete(obj, authorize=None):
 def validate_token(name, token_prefix, authorize, instruction_fn=None):
     """
     Validate that the production token matches that of the deployed flow.
+
     In case both the user and token do not match, raises an error.
     Optionally outputs instructions on token usage via the provided instruction_fn(flow_name, prev_user)
     """
