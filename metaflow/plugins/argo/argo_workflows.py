@@ -609,6 +609,17 @@ class ArgoWorkflows(object):
         # Some more annotations to populate the Argo UI nicely
         if self.tags:
             annotations.update({"metaflow/tags": json.dumps(self.tags)})
+        if self.triggers:
+            annotations.update(
+                {
+                    "metaflow/triggers": json.dumps(
+                        [
+                            {key: trigger.get(key) for key in ["name", "type"]}
+                            for trigger in self.triggers
+                        ]
+                    )
+                }
+            )
         if self.notify_on_error:
             annotations.update(
                 {
@@ -1738,6 +1749,16 @@ class ArgoWorkflows(object):
                 }
             )
 
+        # Useful to paint the UI
+        trigger_annotations = {
+            "metaflow/triggered_by": json.dumps(
+                [
+                    {key: trigger.get(key) for key in ["name", "type"]}
+                    for trigger in self.triggers
+                ]
+            )
+        }
+
         return (
             Sensor()
             .metadata(
@@ -1805,6 +1826,17 @@ class ArgoWorkflows(object):
                                         "metadata": {
                                             "generateName": "%s-" % self.name,
                                             "namespace": KUBERNETES_NAMESPACE,
+                                            "annotations": {
+                                                "metaflow/triggered_by": json.dumps(
+                                                    [
+                                                        {
+                                                            key: trigger.get(key)
+                                                            for key in ["name", "type"]
+                                                        }
+                                                        for trigger in self.triggers
+                                                    ]
+                                                )
+                                            },
                                         },
                                         "spec": {
                                             "arguments": {
