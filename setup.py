@@ -1,11 +1,12 @@
 from setuptools import setup, find_packages
 
-from version import metaflow_version
+with open("metaflow/version.py", mode="r") as f:
+    version = f.read().splitlines()[0].split("=")[1].strip(" \"'")
 
 setup(
     include_package_data=True,
     name="metaflow",
-    version=metaflow_version,
+    version=version,
     description="Metaflow: More Data Science, Less Engineering",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
