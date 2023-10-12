@@ -5,6 +5,7 @@ import re
 import shlex
 import time
 from typing import Dict, List, Optional
+import uuid
 
 from metaflow import current, util
 from metaflow.exception import MetaflowException
@@ -178,7 +179,7 @@ class Kubernetes(object):
         job = (
             KubernetesClient()
             .job(
-                generate_name="t-",
+                generate_name="t-{uid}".format(uid=str(uuid.uuid4())),
                 namespace=namespace,
                 service_account=service_account,
                 secrets=secrets,
