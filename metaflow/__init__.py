@@ -188,6 +188,6 @@ for _n in [
         pass
 del globals()["_n"]
 
-from .version import metaflow_version
+from .version import metaflow_version as _mf_version
 
-__version__ = metaflow_version
+__version__ = _mf_version
