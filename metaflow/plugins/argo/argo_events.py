@@ -132,7 +132,7 @@ class ArgoEvent(object):
 
                 for i in range(retries):
                     try:
-                        response = urllib.request.urlopen(request, timeout=10.0)
+                        urllib.request.urlopen(request, timeout=10.0)
                         print(
                             "Argo Event (%s) published." % self._name, file=sys.stderr
                         )
