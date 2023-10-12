@@ -4,8 +4,6 @@ import sys
 import time
 import traceback
 
-from distutils.dir_util import copy_tree
-
 from metaflow import util
 from metaflow import R
 from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY

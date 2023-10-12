@@ -3,8 +3,6 @@ import os
 import sys
 import types
 
-import pkg_resources
-
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config_funcs import from_conf, get_validate_choice_fn
 
@@ -424,10 +422,6 @@ class Filter(logging.Filter):
 
 logger = logging.getLogger()
 logger.addFilter(Filter())
-
-
-def get_version(pkg):
-    return pkg_resources.get_distribution(pkg).version
 
 
 # PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution
