@@ -446,11 +446,11 @@ class ArgoWorkflows(object):
                 )
             default_value = deploy_time_eval(param.kwargs.get("default"))
             # If the value is not required and the value is None, we set the value to
-            # the JSON equivalent of None to please argo-workflows. Unfortunately it
-            # has the side effect of casting the parameter value to string null during
-            # execution - which needs to be fixed imminently.
-            if not is_required or default_value is not None:
-                default_value = json.dumps(default_value)
+            # an empty string to please argo-workflows.  This works fine for strings.
+            # For non-strings, an unspecified value on trigger will result in a workflow failure
+            # for invalid typing.
+            if not is_required and default_value is None:
+                default_value = ""
             parameters[param.name] = dict(
                 name=param.name,
                 value=default_value,
