@@ -284,7 +284,7 @@ class TaskDataStore(object):
                             steps: dict = obj["steps"]
                             for step in steps:
                                 for decorator_dict in steps[step]["decorators"]:
-                                    if decorator_dict["name"] == "kfp" and callable(
+                                    if decorator_dict["name"] == "aip" and callable(
                                         decorator_dict["attributes"][
                                             "preceding_component"
                                         ]

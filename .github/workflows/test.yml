@@ -4,12 +4,16 @@ on:
     branches:
     - master
     - feature/kfp
+    - feature/aip
+    - feature/kfp-argo
   pull_request:
     branches:
     - master
     - feature/kfp
+    - feature/aip
     - feature/kfp-argo
-    - tz/AIP-7299-argo-submit  # TODO(talebz) remove before merging
+    - tz/AIP-7418-remove-create
+    - tz/AIP-7773-argo-ftf
   workflow_call:
   
 jobs:
@@ -43,7 +47,7 @@ jobs:
         python3 -m pip install tox numpy black
 
     - name: Python Code Format Check
-      run: black --target-version py39 --diff --check ./metaflow/plugins/kfp/*.py
+      run: black --target-version py39 --diff --check ./metaflow/plugins/aip/*.py
 
     - name: Execute Python tests
       run: tox

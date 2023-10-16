@@ -511,16 +511,16 @@ class MetadataProvider(object):
             tags.append("metaflow_r_version:" + env["metaflow_r_version"])
         if "r_version_code" in env:
             tags.append("r_version:" + env["r_version_code"])
-        # KFP plugin tags
-        kfp_tags = {
+        # AIP plugin tags
+        aip_tags = {
             "k8s_namespace": os.environ.get("MF_POD_NAMESPACE"),
             "zodiac_service": os.environ.get("ZODIAC_SERVICE"),
             "zodiac_team": os.environ.get("ZODIAC_TEAM"),
             "zodiac_owner": os.environ.get("ZODIAC_OWNER"),
         }
         for key in ["k8s_namespace", "zodiac_service", "zodiac_team", "zodiac_owner"]:
-            if kfp_tags[key]:
-                tags.append(f"{key}:{kfp_tags[key]}")
+            if aip_tags[key]:
+                tags.append(f"{key}:{aip_tags[key]}")
         return tags
 
     def _register_code_package_metadata(self, run_id, step_name, task_id, attempt):

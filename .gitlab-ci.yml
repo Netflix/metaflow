@@ -12,7 +12,7 @@ variables:
   MINOR_VERSION: "3"
   METAFLOW_VERSION_PATH: "setup.py"
   IMAGE_REPOSITORY_TAG_PATH: 'image_tag_file.txt'
-  IMAGE_REPOSITORY_TAG_PATH_KFP_STEP: 'image_tag_file_kfp_step.txt'
+  IMAGE_REPOSITORY_TAG_PATH_AIP_STEP: 'image_tag_file_aip_step.txt'
   # Run on the Internal cluster only on commit.
   # We run the tests via the integration test framework for Non-Prod/Prod.
   DEPLOY_INTERNAL: "true"
@@ -50,7 +50,7 @@ stages:
     PIPELINE_VERSION: "1.0"
   before_script:
     - export IMAGE_REPOSITORY_TAG=$( cat ${IMAGE_REPOSITORY_TAG_PATH} )
-    - export IMAGE_REPOSITORY_TAG_KFP_STEP=$( cat ${IMAGE_REPOSITORY_TAG_PATH_KFP_STEP} )
+    - export IMAGE_REPOSITORY_TAG_AIP_STEP=$( cat ${IMAGE_REPOSITORY_TAG_PATH_AIP_STEP} )
     - !reference [.generate_kubeconfig, before_script]
   script:
     - docker run
@@ -65,11 +65,12 @@ stages:
         -e METAFLOW_RUN_URL_PREFIX=$METAFLOW_RUN_URL_PREFIX 
         -e METAFLOW_KUBERNETES_NAMESPACE=$METAFLOW_KUBERNETES_NAMESPACE 
         -e USER=$GITLAB_USER_EMAIL
-        -e KFP_STEP_IMAGE=${IMAGE_REPOSITORY_TAG_KFP_STEP}
+        -e AIP_STEP_IMAGE=${IMAGE_REPOSITORY_TAG_AIP_STEP}
         ${IMAGE_REPOSITORY_TAG}
         bash -c "
-          cd /home/zservice/metaflow/metaflow/plugins/kfp/tests &&
-          python -m pytest -s -n 3 run_integration_tests.py --image ${IMAGE_REPOSITORY_TAG} --opsgenie-api-token ${OPSGENIE_API_TOKEN} --cov-config=setup.cfg
+          set -x &&
+          cd /home/zservice/metaflow/metaflow/plugins/aip/tests &&
+          python -m pytest -s -n 3 run_integration_tests.py --image ${IMAGE_REPOSITORY_TAG} --opsgenie-api-token ${OPSGENIE_API_TOKEN} --cov-config=setup.cfg --pipeline-tag pipeline_iid_${CI_PIPELINE_IID}
         "
   artifacts:
     when: always
@@ -86,7 +87,7 @@ build:docker:
         image_repository_tag_path=$2
 
         DOCKER_BUILDKIT=1 docker build \
-          --no-cache -f metaflow/plugins/kfp/tests/Dockerfile \
+          --no-cache -f metaflow/plugins/aip/tests/Dockerfile \
           --build-arg IMAGE_TAG=${image_repository_tag} \
           -t ${image_repository_tag} .
         echo ${DOCKER_API_KEY} | docker login -u ${DOCKER_USERNAME} --password-stdin ${DOCKER_REPO_URL}
@@ -106,15 +107,15 @@ build:docker:
       export IMAGE_REPOSITORY_TAG=${DOCKER_REPO_URL}/${CI_PROJECT_NAMESPACE}/${PY_LIBRARY_NAME}:${IMAGE_TAG}
       build_image $IMAGE_REPOSITORY_TAG $IMAGE_REPOSITORY_TAG_PATH
 
-    # Create another image specifically to test kfp_step_flow.py, this sets the image name within the built image
+    # Create another image specifically to test aip_flow.py, this sets the image name within the built image
     # such that the test can assert that for specific steps it is using this overridden image
     - |
-      export IMAGE_REPOSITORY_TAG_KFP_STEP=${DOCKER_REPO_URL}/${CI_PROJECT_NAMESPACE}/${PY_LIBRARY_NAME}:${IMAGE_TAG}_kfp_step
-      build_image $IMAGE_REPOSITORY_TAG_KFP_STEP $IMAGE_REPOSITORY_TAG_PATH_KFP_STEP
+      export IMAGE_REPOSITORY_TAG_AIP_STEP=${DOCKER_REPO_URL}/${CI_PROJECT_NAMESPACE}/${PY_LIBRARY_NAME}:${IMAGE_TAG}_aip_step
+      build_image $IMAGE_REPOSITORY_TAG_AIP_STEP $IMAGE_REPOSITORY_TAG_PATH_AIP_STEP
   artifacts:
     paths:
       - ${IMAGE_REPOSITORY_TAG_PATH}
-      - ${IMAGE_REPOSITORY_TAG_PATH_KFP_STEP}
+      - ${IMAGE_REPOSITORY_TAG_PATH_AIP_STEP}
 
 build:publish:
   extends: .aip_python_debian_image
