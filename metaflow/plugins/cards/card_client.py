@@ -2,7 +2,7 @@ from typing import Optional, Union, TYPE_CHECKING
 from metaflow.datastore import FlowDataStore
 from metaflow.metaflow_config import CARD_SUFFIX
 from .card_resolver import resolve_paths_from_task, resumed_info
-from .card_datastore import CardDatastore
+from .card_datastore import CardDatastore, CardNameSuffix
 from .exception import (
     UnresolvableDatastoreException,
     IncorrectArguementException,
@@ -56,6 +56,15 @@ class Card:
 
         # Tempfile to open stuff in browser
         self._temp_file = None
+
+    def _get_data(self) -> Optional[dict]:
+        # currently an internal method to retrieve a card's data.
+        data_paths = self._card_ds.extract_data_paths(
+            card_type=self.type, card_hash=self.hash, card_id=self._card_id
+        )
+        if len(data_paths) == 0:
+            return None
+        return self._card_ds.get_card_data(data_paths[0])
 
     def get(self) -> str:
         """
@@ -172,7 +181,7 @@ class CardContainer:
         if index >= self._high:
             raise IndexError
         path = self._card_paths[index]
-        card_info = self._card_ds.card_info_from_path(path)
+        card_info = self._card_ds.info_from_path(path, suffix=CardNameSuffix.CARD)
         # todo : find card creation date and put it in client.
         return Card(
             self._card_ds,
@@ -252,6 +261,7 @@ def get_cards(
         # Exception that the task argument should be of form `Task` or `str`
         raise IncorrectArguementException(_TYPE(task))
 
+    origin_taskpathspec = None
     if follow_resumed:
         origin_taskpathspec = resumed_info(task)
         if origin_taskpathspec:
