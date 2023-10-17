@@ -28,10 +28,17 @@ class RetryDecorator(StepDecorator):
         Number of times to retry this step. Defaults to 3
     minutes_between_retries : int
         Number of minutes between retries
+    retry_backoff_factor : int
+        Exponential backoff factor. If set to 3, the time between retries will triple each time.
+        Defaults to 3.
     """
 
     name = "retry"
-    defaults = {"times": "3", "minutes_between_retries": "2"}
+    defaults = {
+        "times": "3",
+        "minutes_between_retries": "2",
+        "retry_backoff_factor": "3",
+    }
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         # The total number of attempts must not exceed MAX_ATTEMPTS.

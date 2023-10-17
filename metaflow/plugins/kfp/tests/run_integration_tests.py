@@ -327,6 +327,22 @@ def test_kfp_pod_default() -> None:
             )
 
 
+def test_retry_strategy() -> None:
+    with tempfile.TemporaryDirectory() as yaml_tmp_dir:
+        yaml_file_path: str = os.path.join(yaml_tmp_dir, "resources_flow.yaml")
+
+        compile_to_yaml_cmd: str = (
+            f" {_python()} flows/resources_flow.py --with retry --no-pylint --datastore s3 kfp run "
+            f" --no-s3-code-package --yaml-only --notify --pipeline-path {yaml_file_path}"
+        )
+        flow_yaml = get_compiled_yaml(compile_to_yaml_cmd, yaml_file_path)
+
+    for template in flow_yaml["spec"]["templates"]:
+        if not template.get("dag"):
+            assert (template["retryStrategy"]["backoff"]["duration"], "2m")
+            assert (template["retryStrategy"]["backoff"]["factor"], 3)
+
+
 def test_kubernetes_service_account_compile_only() -> None:
     service_account = "test-service-account"
     with tempfile.TemporaryDirectory() as yaml_tmp_dir:
