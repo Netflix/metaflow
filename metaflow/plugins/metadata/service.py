@@ -18,7 +18,7 @@ from metaflow.metadata import MetadataProvider
 from metaflow.metadata.heartbeat import HB_URL_KEY
 from metaflow.sidecar import Message, MessageTypes, Sidecar
 
-from metaflow._vendor.packaging.version import parse as version_parse
+from metaflow.util import version_parse
 
 
 # Define message enums

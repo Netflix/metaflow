@@ -14,9 +14,7 @@ from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.package import MetaflowPackage
 from metaflow.plugins.aws.batch.batch_decorator import BatchDecorator
 from metaflow.tagging_util import validate_tags
-from metaflow.util import get_username, to_bytes, to_unicode
-
-from metaflow._vendor.packaging.version import parse as version_parse
+from metaflow.util import get_username, to_bytes, to_unicode, version_parse
 
 from .step_functions import StepFunctions
 from .production_token import load_token, store_token, new_token

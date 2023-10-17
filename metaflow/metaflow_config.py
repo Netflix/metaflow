@@ -1,4 +1,3 @@
-import logging
 import os
 import sys
 import types
@@ -408,20 +407,6 @@ KUBERNETES_SANDBOX_INIT_SCRIPT = from_conf("KUBERNETES_SANDBOX_INIT_SCRIPT")
 # Note also that DataStoreSet resolves the latest attempt_id using
 # lexicographic ordering of attempts. This won't work if MAX_ATTEMPTS > 99.
 MAX_ATTEMPTS = 6
-
-
-# the naughty, naughty driver.py imported by lib2to3 produces
-# spam messages to the root logger. This is what is required
-# to silence it:
-class Filter(logging.Filter):
-    def filter(self, record):
-        if record.pathname.endswith("driver.py") and "grammar" in record.msg:
-            return False
-        return True
-
-
-logger = logging.getLogger()
-logger.addFilter(Filter())
 
 
 # PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution
