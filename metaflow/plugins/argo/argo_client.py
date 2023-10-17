@@ -2,6 +2,7 @@ import json
 import os
 import sys
 
+from metaflow.metaflow_config import ARGO_EVENTS_SENSOR_NAMESPACE
 from metaflow.exception import MetaflowException
 from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
 
