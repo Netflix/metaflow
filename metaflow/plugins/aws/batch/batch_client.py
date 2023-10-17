@@ -149,6 +149,7 @@ class BatchJob(object):
         max_swap,
         swappiness,
         inferentia,
+        efa,
         memory,
         host_volumes,
         use_tmpfs,
@@ -310,6 +311,31 @@ class BatchJob(object):
                 }
             ]
 
+        if efa:
+            if not (isinstance(efa, (int, unicode, basestring))):
+                raise BatchJobException(
+                    "Invalid efa value: ({}) (should be 0 or greater)".format(efa)
+                )
+            else:
+                job_definition["containerProperties"]["linuxParameters"]["devices"] = []
+                if (num_parallel or 0) > 1:
+                    # Multi-node parallel jobs require the container path and permissions explicitly specified in Job definition
+                    for i in range(int(efa)):
+                        job_definition["containerProperties"]["linuxParameters"][
+                            "devices"
+                        ].append(
+                            {
+                                "hostPath": "/dev/infiniband/uverbs{}".format(i),
+                                "containerPath": "/dev/infiniband/uverbs{}".format(i),
+                                "permissions": ["READ", "WRITE", "MKNOD"],
+                            }
+                        )
+                else:
+                    # Single-node container jobs only require host path in job definition
+                    job_definition["containerProperties"]["linuxParameters"][
+                        "devices"
+                    ].append({"hostPath": "/dev/infiniband/uverbs0"})
+
         self.num_parallel = num_parallel or 0
         if self.num_parallel >= 1:
             job_definition["type"] = "multinode"
@@ -332,6 +358,7 @@ class BatchJob(object):
                         "container": job_definition["containerProperties"],
                     }
                 )
+
             del job_definition["containerProperties"]  # not used for multi-node
 
         # check if job definition already exists
@@ -371,6 +398,7 @@ class BatchJob(object):
         max_swap,
         swappiness,
         inferentia,
+        efa,
         memory,
         host_volumes,
         use_tmpfs,
@@ -388,6 +416,7 @@ class BatchJob(object):
             max_swap,
             swappiness,
             inferentia,
+            efa,
             memory,
             host_volumes,
             use_tmpfs,
@@ -436,6 +465,10 @@ class BatchJob(object):
 
     def inferentia(self, inferentia):
         self._inferentia = inferentia
+        return self
+
+    def efa(self, efa):
+        self._efa = efa
         return self
 
     def command(self, command):

@@ -7,7 +7,8 @@ import sys
 from collections import defaultdict
 from hashlib import sha1
 
-from metaflow import current
+from metaflow import current, JSONType
+from metaflow.includefile import FilePathClass
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
@@ -476,6 +477,14 @@ class ArgoWorkflows(object):
                 )
             seen.add(norm)
 
+            if param.kwargs.get("type") == JSONType or isinstance(
+                param.kwargs.get("type"), FilePathClass
+            ):
+                # Special-case this to avoid touching core
+                param_type = str(param.kwargs.get("type").name)
+            else:
+                param_type = str(param.kwargs.get("type").__name__)
+
             is_required = param.kwargs.get("required", False)
             # Throw an exception if a schedule is set for a flow with required
             # parameters with no defaults. We currently don't have any notion
@@ -487,16 +496,17 @@ class ArgoWorkflows(object):
                     "Scheduling such parameters via Argo CronWorkflows is not "
                     "currently supported." % param.name
                 )
-            value = deploy_time_eval(param.kwargs.get("default"))
+            default_value = deploy_time_eval(param.kwargs.get("default"))
             # If the value is not required and the value is None, we set the value to
             # the JSON equivalent of None to please argo-workflows. Unfortunately it
             # has the side effect of casting the parameter value to string null during
             # execution - which needs to be fixed imminently.
-            if not is_required or value is not None:
-                value = json.dumps(value)
+            if not is_required or default_value is not None:
+                default_value = json.dumps(default_value)
             parameters[param.name] = dict(
                 name=param.name,
-                value=value,
+                value=default_value,
+                type=param_type,
                 description=param.kwargs.get("help"),
                 is_required=is_required,
             )
@@ -651,6 +661,10 @@ class ArgoWorkflows(object):
             "metaflow/has_schedule": str(self._schedule is not None),
             "metaflow/has_sensor": str(bool(self.triggers)),
         }
+
+        if self.parameters:
+            annotations.update({"metaflow/parameters": json.dumps(self.parameters)})
+
         if current.get("project_name"):
             annotations.update(
                 {
@@ -670,6 +684,17 @@ class ArgoWorkflows(object):
         # Some more annotations to populate the Argo UI nicely
         if self.tags:
             annotations.update({"metaflow/tags": json.dumps(self.tags)})
+        if self.triggers:
+            annotations.update(
+                {
+                    "metaflow/triggers": json.dumps(
+                        [
+                            {key: trigger.get(key) for key in ["name", "type"]}
+                            for trigger in self.triggers
+                        ]
+                    )
+                }
+            )
         if self.notify_on_error:
             annotations.update(
                 {
@@ -1799,6 +1824,16 @@ class ArgoWorkflows(object):
                 }
             )
 
+        # Useful to paint the UI
+        trigger_annotations = {
+            "metaflow/triggered_by": json.dumps(
+                [
+                    {key: trigger.get(key) for key in ["name", "type"]}
+                    for trigger in self.triggers
+                ]
+            )
+        }
+
         return (
             Sensor()
             .metadata(
@@ -1866,6 +1901,17 @@ class ArgoWorkflows(object):
                                         "metadata": {
                                             "generateName": "%s-" % self.name,
                                             "namespace": KUBERNETES_NAMESPACE,
+                                            "annotations": {
+                                                "metaflow/triggered_by": json.dumps(
+                                                    [
+                                                        {
+                                                            key: trigger.get(key)
+                                                            for key in ["name", "type"]
+                                                        }
+                                                        for trigger in self.triggers
+                                                    ]
+                                                )
+                                            },
                                         },
                                         "spec": {
                                             "arguments": {

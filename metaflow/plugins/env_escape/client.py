@@ -109,15 +109,33 @@ class Client(object):
         # distinguish it from other modules named "overrides" (either a third party
         # lib -- there is one -- or just other escaped modules). We therefore load
         # a fuller path to distinguish them from one another.
-        # We insert in sys.path a prefix that doesn't go up past metaflow/metaflow_extensions
-        # because overrides may import other modules and we want to make sure we
-        # don't "leak" things from the outside environment.
+        # This is a bit tricky though:
+        #  - it requires all `configurations` directories to NOT have a __init__.py
+        #    so that configurations can be loaded through extensions too. If this is
+        #    not the case, we will have a `configurations` module that will be registered
+        #    and not be a proper namespace package
+        #  - we want to import a specific file so we:
+        #    - set a prefix that is specific enough to NOT include anything outside
+        #      of the configuration so we end the prefix with "env_escape" (we know
+        #      that is in the path of all configurations). We could technically go
+        #      up to metaflow or metaflow_extensions BUT this then causes issues with
+        #      the extension mechanism and _resolve_relative_path in plugins (because
+        #      there are files loaded from plugins that refer to something outside of
+        #      plugins and if we load plugins and NOT metaflow.plugins, this breaks).
+        #    - set the package root from this prefix to everything up to overrides
+        #    - load the overrides file
+        #
+        # This way, we are sure that we are:
+        #  - loading this specific overrides
+        #  - not adding extra stuff to the prefix that we don't care about
+        #  - able to support configurations in both metaflow and extensions at the
+        #    same time
         pkg_components = []
         prefix, last_basename = os.path.split(config_dir)
         while True:
             pkg_components.append(last_basename)
             possible_prefix, last_basename = os.path.split(prefix)
-            if last_basename in ("metaflow", "metaflow_extensions"):
+            if last_basename == "env_escape":
                 break
             prefix = possible_prefix
 
