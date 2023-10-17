@@ -7,6 +7,7 @@ from . import metaflow_version
 from metaflow.exception import MetaflowException
 from metaflow.extension_support import dump_module_info
 from metaflow.mflog import BASH_MFLOG
+from metaflow.plugins.datastores.local_storage import LocalStorage
 from . import R
 
 version_cache = None
@@ -19,16 +20,17 @@ class InvalidEnvironmentException(MetaflowException):
 class MetaflowEnvironment(object):
     TYPE = "local"
 
-    def __init__(self, flow):
-        pass
+    def __init__(self, flow, echo):
+        self.echo = echo
+        self.local_root = LocalStorage.get_datastore_root_from_config(echo)
 
-    def init_environment(self, echo):
+    def init_environment(self):
         """
         Run before any step decorators are initialized.
         """
         pass
 
-    def validate_environment(self, echo, datastore_type):
+    def validate_environment(self, datastore_type):
         """
         Run before any command to validate that we are operating in
         a desired environment.

@@ -67,7 +67,7 @@ class MetaflowPackage(object):
         self.flow_name = flow.name
         self._flow = flow
         self.create_time = time.time()
-        environment.init_environment(echo)
+        environment.init_environment()
         for step in flow:
             for deco in step.decorators:
                 deco.package_init(flow, step.__name__, environment)
