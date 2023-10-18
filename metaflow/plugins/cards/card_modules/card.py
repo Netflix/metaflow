@@ -58,7 +58,7 @@ class MetaflowCard(object):
     type = None
 
     ALLOW_USER_COMPONENTS = False
-    IS_RUNTIME_CARD = False
+    RUNTIME_UPDATABLE = False
     RELOAD_POLICY = RELOAD_POLICY_NEVER
 
     scope = "task"  # can be task | run
@@ -96,11 +96,11 @@ class MetaflowCard(object):
 
     # FIXME document
     def render_runtime(self, task, data):
-        return
+        raise NotImplementedError()
 
     # FIXME document
     def refresh(self, task, data):
-        return
+        raise NotImplementedError()
 
     # FIXME document
     def reload_content_token(self, task, data):
@@ -109,27 +109,25 @@ class MetaflowCard(object):
 
 class MetaflowCardComponent(object):
 
-    # Setting REALTIME_UPDATABLE as True will make the card component
-    # updatable via the `current.card.update` method for realtime updates
+    # Setting REALTIME_UPDATABLE as True will allow metaflow to update the card
+    # during Task runtime.
     REALTIME_UPDATABLE = False
 
     _component_id = None
 
     @property
-    def id(self):
+    def component_id(self):
         return self._component_id
 
-    @id.setter
-    def id(self, value):
+    @component_id.setter
+    def component_id(self, value):
         if not isinstance(value, str):
             raise TypeError("id must be a string")
         self._component_id = value
 
     def update(self, *args, **kwargs):
         """
-        Gets called when the user calls `current.card.update(id="abc", data, myval=123)`.
-        The logic of the update method will be component specific. Some components may
-        update the contents of the component, while others can just append to the data.
+        #FIXME document
         """
         raise NotImplementedError()
 

@@ -138,3 +138,22 @@ class IncorrectPathspecException(MetaflowException):
             % pthspec
         )
         super().__init__(msg=msg, lineno=None)
+
+
+class ComponentOverwriteNotSupportedException(MetaflowException):
+    headline = "Component overwrite is not supported"
+
+    def __init__(self, component_id, card_id, card_type):
+        id_str = ""
+        if card_id is not None:
+            id_str = "id='%s'" % card_id
+        msg = (
+            "Card component overwrite is not supported. "
+            "Component with id %s already exists in the @card(type='%s', %s). \n"
+            "Instead of calling `current.card.components[ID] = MyComponent`. "
+            "You can overwrite the entire component Array by calling "
+            "`current.card.components = [MyComponent]`"
+        ) % (component_id, card_type, id_str)
+        super().__init__(
+            msg=msg,
+        )
