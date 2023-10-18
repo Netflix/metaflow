@@ -90,7 +90,7 @@ if __name__ == "__main__":
         f"""set -e;
         if ! command -v micromamba >/dev/null 2>&1; then
             mkdir micromamba;
-            wget -qO- https://micro.mamba.pm/api/micromamba/{architecture}/latest | python -c "import sys, bz2; sys.stdout.buffer.write(bz2.decompress(sys.stdin.buffer.read()))" | tar -xv -C $(pwd)/micromamba bin/micromamba --strip-components 1;
+            python -c "import requests, bz2, sys; data = requests.get('https://micro.mamba.pm/api/micromamba/{architecture}/latest').content; sys.stdout.buffer.write(bz2.decompress(data))" | tar -xv -C $(pwd)/micromamba bin/micromamba --strip-components 1;
             export PATH=$PATH:$(pwd)/micromamba;
             if ! command -v micromamba >/dev/null 2>&1; then
                 echo "Failed to install Micromamba!";

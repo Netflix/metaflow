@@ -8,8 +8,8 @@ from datetime import datetime
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    ARGO_EVENTS_WEBHOOK_URL,
     ARGO_EVENTS_WEBHOOK_AUTH,
+    ARGO_EVENTS_WEBHOOK_URL,
     SERVICE_HEADERS,
 )
 
@@ -108,25 +108,24 @@ class ArgoEvent(object):
                 # TODO: do we need to worry about certs?
 
                 # Use urllib to avoid introducing any dependency in Metaflow
+                data = {
+                    "name": self._name,
+                    "payload": {
+                        # Add default fields here...
+                        "name": self._name,
+                        "id": str(uuid.uuid4()),
+                        "timestamp": int(time.time()),
+                        "utc_date": datetime.utcnow().strftime("%Y%m%d"),
+                        "generated-by-metaflow": True,
+                        **self._payload,
+                        **payload,
+                    },
+                }
                 request = urllib.request.Request(
                     self._url,
                     method="POST",
                     headers={"Content-Type": "application/json", **headers},
-                    data=json.dumps(
-                        {
-                            "name": self._name,
-                            "payload": {
-                                # Add default fields here...
-                                "name": self._name,
-                                "id": str(uuid.uuid4()),
-                                "timestamp": int(time.time()),
-                                "utc_date": datetime.utcnow().strftime("%Y%m%d"),
-                                "generated-by-metaflow": True,
-                                **self._payload,
-                                **payload,
-                            },
-                        }
-                    ).encode("utf-8"),
+                    data=json.dumps(data).encode("utf-8"),
                 )
                 retries = 3
                 backoff_factor = 2
@@ -137,7 +136,7 @@ class ArgoEvent(object):
                         print(
                             "Argo Event (%s) published." % self._name, file=sys.stderr
                         )
-                        break
+                        return data["payload"]["id"]
                     except urllib.error.HTTPError as e:
                         # TODO: Retry retryable HTTP error codes
                         raise e

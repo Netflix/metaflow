@@ -7,18 +7,20 @@ import sys
 from collections import defaultdict
 from hashlib import sha1
 
-from metaflow import current
+from metaflow import JSONType, current
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
+from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT,
     ARGO_EVENTS_EVENT_BUS,
     ARGO_EVENTS_EVENT_SOURCE,
-    ARGO_EVENTS_SERVICE_ACCOUNT,
     ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
+    ARGO_EVENTS_SERVICE_ACCOUNT,
+    ARGO_EVENTS_WEBHOOK_AUTH,
     ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
     ARGO_WORKFLOWS_KUBERNETES_SECRETS,
-    ARGO_EVENTS_WEBHOOK_AUTH,
+    ARGO_WORKFLOWS_UI_URL,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     CARD_AZUREROOT,
@@ -37,15 +39,12 @@ from metaflow.metaflow_config import (
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     KUBERNETES_SECRETS,
     S3_ENDPOINT_URL,
+    S3_SERVER_SIDE_ENCRYPTION,
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
-    S3_SERVER_SIDE_ENCRYPTION,
     UI_URL,
-    ARGO_WORKFLOWS_UI_URL,
 )
-
 from metaflow.metaflow_config_funcs import config_values
-
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.kubernetes.kubernetes import (
@@ -241,6 +240,22 @@ class ArgoWorkflows(object):
             )
 
     @staticmethod
+    def get_workflow_status(flow_name, name):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+        # TODO: Only look for workflows for the specified flow
+        workflow = client.get_workflow(name)
+        if workflow:
+            # return workflow phase for now
+            status = workflow.get("status", {}).get("phase")
+            return status
+        else:
+            raise ArgoWorkflowsException(
+                "No execution found for {flow_name}/{run_id} in Argo Workflows.".format(
+                    flow_name=flow_name, run_id=name
+                )
+            )
+
+    @staticmethod
     def suspend(name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
@@ -424,6 +439,14 @@ class ArgoWorkflows(object):
                 )
             seen.add(norm)
 
+            if param.kwargs.get("type") == JSONType or isinstance(
+                param.kwargs.get("type"), FilePathClass
+            ):
+                # Special-case this to avoid touching core
+                param_type = str(param.kwargs.get("type").name)
+            else:
+                param_type = str(param.kwargs.get("type").__name__)
+
             is_required = param.kwargs.get("required", False)
             # Throw an exception if a schedule is set for a flow with required
             # parameters with no defaults. We currently don't have any notion
@@ -435,16 +458,17 @@ class ArgoWorkflows(object):
                     "Scheduling such parameters via Argo CronWorkflows is not "
                     "currently supported." % param.name
                 )
-            value = deploy_time_eval(param.kwargs.get("default"))
+            default_value = deploy_time_eval(param.kwargs.get("default"))
             # If the value is not required and the value is None, we set the value to
             # the JSON equivalent of None to please argo-workflows. Unfortunately it
             # has the side effect of casting the parameter value to string null during
             # execution - which needs to be fixed imminently.
-            if not is_required or value is not None:
-                value = json.dumps(value)
+            if not is_required or default_value is not None:
+                default_value = json.dumps(default_value)
             parameters[param.name] = dict(
                 name=param.name,
-                value=value,
+                value=default_value,
+                type=param_type,
                 description=param.kwargs.get("help"),
                 is_required=is_required,
             )
@@ -597,6 +621,10 @@ class ArgoWorkflows(object):
             "metaflow/user": "argo-workflows",
             "metaflow/flow_name": self.flow.name,
         }
+
+        if self.parameters:
+            annotations.update({"metaflow/parameters": json.dumps(self.parameters)})
+
         if current.get("project_name"):
             annotations.update(
                 {

@@ -181,6 +181,15 @@ class CondaEnvironment(MetaflowEnvironment):
         # User workloads are executed through the conda environment's interpreter.
         return self.solvers["conda"].interpreter(id_)
 
+    def is_disabled(self, step):
+        for decorator in step.decorators:
+            # @conda decorator is guaranteed to exist thanks to self.decospecs
+            if decorator.name in ["conda", "pypi"]:
+                # handle @conda/@pypi(disabled=True)
+                disabled = decorator.attributes["disabled"]
+                return disabled or str(disabled).lower() != "false"
+        return False
+
     @functools.lru_cache(maxsize=None)
     def get_environment(self, step):
         environment = {}
