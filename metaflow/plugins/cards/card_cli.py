@@ -21,10 +21,17 @@ from .exception import (
     CardNotPresentException,
     TaskNotFoundException,
 )
+import traceback
+from collections import namedtuple
 
 from .card_resolver import resolve_paths_from_task, resumed_info
 
 id_func = id
+
+CardRenderInfo = namedtuple(
+    "CardRenderInfo",
+    ["mode", "is_implemented", "data", "timed_out", "timeout_stack_trace"],
+)
 
 
 def open_in_browser(card_path):
@@ -145,7 +152,7 @@ def resolve_card(
 
 
 @contextmanager
-def timeout(time):
+def timeout(time, on_timeout_return_callback):
     # Register a function to raise a TimeoutError on the signal.
     signal.signal(signal.SIGALRM, raise_timeout)
     # Schedule the signal to be sent after ``time``.
@@ -154,7 +161,8 @@ def timeout(time):
     try:
         yield
     except TimeoutError:
-        pass
+        stack_trace = traceback.format_exc()
+        return on_timeout_return_callback(stack_trace)
     finally:
         # Unregister the signal so that it won't be triggered
         # if the timeout is not reached.
@@ -378,7 +386,53 @@ def card_read_options_and_arguments(func):
 
 
 def update_card(mf_card, mode, task, data, timeout_value=None):
+    """
+    This method will be resposible for returning creating a card/data-update based on the `mode` passed.
+    There are three possible modes taken by this function.
+        - render :
+            - This will render the "final" card.
+            - This mode is passed at task completion.
+            - Setting this mode will call the `render` method of a MetaflowCard.
+            - It will result in the creation of an HTML page.
+        - render_runtime:
+            - Setting this mode will render a card during task "runtime".
+            - Setting this mode will call the `render_runtime` method of a MetaflowCard.
+            - It will result in the creation of an HTML page.
+        - refresh:
+            - Setting this mode will refresh the data update for a card.
+            - We support this mode because rendering a full card can be an expensive operation, but shipping tiny data updates can be cheap.
+            - Setting this mode will call the `refresh` method of a MetaflowCard.
+            - It will result in the creation of a JSON object.
+
+    Parameters
+    ----------
+    mf_card : MetaflowCard
+        MetaflowCard object which will be used to render the card.
+    mode : str
+        Mode of rendering the card.
+    task : Task
+        Task object which will be passed to render the card.
+    data : dict
+        object created and passed down from `current.card._get_latest_data` method.
+        For more information on this object's schema have a look at `current.card._get_latest_data` method.
+    timeout_value : int
+        Timeout value for rendering the card.
+
+    Returns
+    -------
+    CardRenderInfo
+        NamedTuple which will contain:
+            - `mode`: The mode of rendering the card.
+            - `is_implemented`: weather the function was implemented or not.
+            - `data` : output from rendering the card (Can be string/dict)
+            - `timed_out` : weather the function timed out or not.
+            - `timeout_stack_trace` : stack trace of the function if it timed out.
+    """
+
     def _reload_token():
+        if data is None or "render_seq" not in data:
+            return "never"
+
         if data["render_seq"] == "final":
             # final data update should always trigger a card reload to show
             # the final card, hence a different token for the final update
@@ -391,31 +445,94 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
             return mf_card.reload_content_token(task, data)
 
     def _add_token_html(html):
-        if html is not None:
-            return html.replace(mf_card.RELOAD_POLICY_TOKEN, _reload_token())
+        if html is None:
+            return None
+        return html.replace(mf_card.RELOAD_POLICY_TOKEN, _reload_token())
 
     def _add_token_json(json_msg):
-        if json_msg is not None:
-            return {"reload_token": _reload_token(), "data": json_msg}
+        if json_msg is None:
+            return None
+        return {"reload_token": _reload_token(), "data": json_msg}
+
+    def _safe_call_function(func, *args, **kwargs):
+        """
+        returns (data, is_implemented)
+        """
+        try:
+            return func(*args, **kwargs), True
+        except NotImplementedError as e:
+            return None, False
 
     def _call():
-        # compatibility with old render()-method that doesn't accept the data arg
+        # check compatibility with old render()-method that doesn't accept the data arg
         new_render = "data" in inspect.getfullargspec(mf_card.render).args
         if mode == "render":
             if new_render:
-                return _add_token_html(mf_card.render(task, data))
+                output = _add_token_html(mf_card.render(task, data))
+                return CardRenderInfo(
+                    mode=mode,
+                    is_implemented=True,
+                    data=output,
+                    timed_out=False,
+                    timeout_stack_trace=None,
+                )
             else:
-                return _add_token_html(mf_card.render(task))
+                output = _add_token_html(mf_card.render(task))
+                return CardRenderInfo(
+                    mode=mode,
+                    is_implemented=True,
+                    data=output,
+                    timed_out=False,
+                    timeout_stack_trace=None,
+                )
         elif mode == "render_runtime":
-            return _add_token_html(mf_card.render_runtime(task, data))
-        elif mode == "refresh":
-            return _add_token_json(mf_card.refresh(task, data))
+            # Since many cards created by metaflow users may not have implemented a
+            # `render_time` / `refresh` methods, it can result in an exception and thereby
+            # creation of error cards (especially for the `render_runtime` method). So instead
+            # we will catch the NotImplementedError and return None if users have not implemented it.
+            # If there any any other exception from the user code, it should be bubbled to the top level.
+            output, is_implemented = _safe_call_function(
+                mf_card.render_runtime, task, data
+            )
+            return CardRenderInfo(
+                mode=mode,
+                is_implemented=is_implemented,
+                data=_add_token_html(output),
+                timed_out=False,
+                timeout_stack_trace=None,
+            )
 
+        elif mode == "refresh":
+            output, is_implemented = _safe_call_function(mf_card.refresh, task, data)
+            return CardRenderInfo(
+                mode=mode,
+                is_implemented=is_implemented,
+                data=_add_token_json(output),
+                timed_out=False,
+                timeout_stack_trace=None,
+            )
+
+    timeout_info = None
+
+    def _on_timeout_return_callback(stack_trace):
+        nonlocal timeout_info
+        timeout_info = CardRenderInfo(
+            mode=mode,
+            is_implemented=True,
+            data=None,
+            timed_out=True,
+            timeout_stack_trace=stack_trace,
+        )
+
+    render_info = None
     if timeout_value is None or timeout_value < 0:
         return _call()
     else:
-        with timeout(timeout_value):
-            return _call()
+        with timeout(timeout_value, _on_timeout_return_callback):
+            render_info = _call()
+        if timeout_info is not None:
+            return timeout_info
+        return render_info
 
 
 @card.command(help="create a HTML card")
@@ -465,7 +582,7 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
     "--mode",
     default="render",
     show_default=True,
-    type=str,
+    type=click.Choice(["render", "render_runtime", "refresh"]),
     help="Rendering mode. (internal)",
 )
 @click.option(
@@ -525,7 +642,7 @@ def create(
     if component_file is not None:
         with open(component_file, "r") as f:
             component_arr = json.load(f)
-        # data is passed in as temporary files which can be deleted after use
+        # Component data used in card runtime is passed in as temporary files which can be deleted after use
         if delete_input_files:
             os.remove(component_file)
 
@@ -578,25 +695,81 @@ def create(
             else:
                 raise IncorrectCardArgsException(type, options)
 
+        rendered_content = None
         if mf_card:
             try:
                 rendered_info = update_card(
                     mf_card, mode, task, data, timeout_value=timeout
                 )
+                rendered_content = rendered_info.data
             except:
                 if render_error_card:
                     error_stack_trace = str(UnrenderableCardException(type, options))
                 else:
                     raise UnrenderableCardException(type, options)
-        #
+
+    # In the entire card rendering process, there are a few cases we want to handle:
+    # - [mode == "render"]
+    #   1. Card is rendered successfull (We store it in the datastore as a HTML file)
+    #   2. Card is not rendered successfully and we have --save-error-card flag set to True
+    #      (We store it in the datastore as a HTML file with stack trace)
+    #   3. Card render timeout and we have --save-error-card flag set to True
+    #      (We store it in the datastore as a HTML file with stack trace)
+    #   4. `render` returns nothing and we have --save-error-card flag set to True.
+    #       (We store it in the datastore as a HTML file with some message saying you returned nothing)
+    # - [mode == "render_runtime"]
+    #   1. Card is rendered successfully (We store it in the datastore as a HTML file)
+    #   2. `render_runtime` is not implemented but gets called and we have --save-error-card flag set to True.
+    #       (We store it in the datastore as a HTML file with some message saying the card should not be a runtime card if this method is not Implemented)
+    #   3. `render_runtime` is implemented and raises an exception and we have --save-error-card flag set to True.
+    #       (We store it in the datastore as a HTML file with stack trace)
+    #   4. `render_runtime` is implemented but returns nothing and we have --save-error-card flag set to True.
+    #       (We store it in the datastore as a HTML file with some message saying you returned nothing)
+    #   5. `render_runtime` is implemented but times out and we have --save-error-card flag set to True.
+    #       (We store it in the datastore as a HTML file with stack trace)
+    # - [mode == "refresh"]
+    #   1. Data update is created successfully (We store it in the datastore as a JSON file)
+    #   2. `refresh` is not implemented. (We do nothing. Don't store anything.)
+    #   3. `refresh` is implemented but it raises an exception. (We do nothing. Don't store anything.)
+    #   4. `refresh` is implemented but it times out. (We do nothing. Don't store anything.)
 
     if error_stack_trace is not None and mode != "refresh":
-        rendered_info = error_card().render(task, stack_trace=error_stack_trace)
+        rendered_content = error_card().render(task, stack_trace=error_stack_trace)
 
-    if rendered_info is None and render_error_card and mode != "refresh":
-        rendered_info = error_card().render(
+    if (
+        rendered_info.is_implemented
+        and rendered_info.timed_out
+        and mode != "refresh"
+        and render_error_card
+    ):
+        timeout_stack_trace = (
+            "\nCard rendering timed out after %s seconds. "
+            "To increase the timeout duration for card rendering, please set the `timeout` parameter in the @card decorator. "
+            "\nStack Trace : \n%s"
+        ) % (timeout, rendered_info.timeout_stack_trace)
+        rendered_content = error_card().render(
+            task,
+            stack_trace=timeout_stack_trace,
+        )
+    elif (
+        rendered_info.is_implemented
+        and rendered_info.data is None
+        and render_error_card
+        and mode != "refresh"
+    ):
+        rendered_content = error_card().render(
             task, stack_trace="No information rendered From card of type %s" % type
         )
+    elif (
+        not rendered_info.is_implemented
+        and render_error_card
+        and mode == "render_runtime"
+    ):
+        message = (
+            "Card of type %s is a runtime time card with no `render_runtime` implemented. "
+            "Please implement `render_runtime` method to allow rendering this card at runtime."
+        ) % type
+        rendered_content = error_card().render(task, stack_trace=message)
 
     # todo : should we save native type for error card or error type ?
     if type is not None and re.match(CARD_ID_PATTERN, type) is not None:
@@ -613,15 +786,15 @@ def create(
         )
         card_id = None
 
-    if rendered_info is not None:
+    if rendered_content is not None:
         if mode == "refresh":
             card_datastore.save_data(
-                card_uuid, save_type, rendered_info, card_id=card_id
+                card_uuid, save_type, rendered_content, card_id=card_id
             )
             ctx.obj.echo("Data updated", fg="green")
         else:
             card_info = card_datastore.save_card(
-                card_uuid, save_type, rendered_info, card_id=card_id
+                card_uuid, save_type, rendered_content, card_id=card_id
             )
             ctx.obj.echo(
                 "Card created with type: %s and hash: %s"

@@ -1,6 +1,7 @@
 from .card_modules import MetaflowCardComponent
 from .card_modules.basic import ErrorComponent, SectionComponent
 from .card_modules.components import UserComponent
+from .exception import ComponentOverwriteNotSupportedException
 from functools import partial
 import uuid
 import json
@@ -26,14 +27,12 @@ def _component_is_valid(component):
     """
     Validates if the component is of the correct class.
     """
-    if not issubclass(type(component), MetaflowCardComponent):
-        return False
-    return True
+    return issubclass(type(component), MetaflowCardComponent)
 
 
 def warning_message(message, logger=None, ts=False):
-    msg = "[@card WARNING] %s" % message
     if logger:
+        msg = "[@card WARNING] %s" % message
         logger(msg, timestamp=ts, bad=True)
 
 
@@ -48,20 +47,28 @@ class ComponentStore:
     This class has combination of a array/dictionary like interface to access the components.
 
     It exposes the `append` /`extend` methods like an array to add components.
-    It also exposes the `__getitem__`/`__setitem__` methods like a dictionary to access the components by thier Ids.
+    It also exposes the `__getitem__`/`__setitem__` methods like a dictionary to access the components by their Ids.
 
     The reason this has dual behavior is because components cannot be stored entirely as a map/dictionary because
     the order of the components matter. The order of the components will visually affect the order of the components seen on the browser.
 
     """
 
-    def __init__(self, logger, components=None):
+    def __init__(self, logger, card_type=None, components=None, user_set_id=None):
         self._component_map = {}
         self._components = []
         self._logger = logger
+        self._card_type = card_type
+        self._user_set_id = user_set_id
+        self._layout_last_changed_on = time.time()
         if components is not None:
             for c in list(components):
                 self._store_component(c, component_id=None)
+
+    @property
+    def layout_last_changed_on(self):
+        """This property helps the CardComponentManager identify when the layout of the card has changed so that it can trigger a re-render of the card."""
+        return self._layout_last_changed_on
 
     def _realtime_updateable_components(self):
         for c in self._components:
@@ -81,26 +88,32 @@ class ComponentStore:
             )
             return
         if component_id is not None:
-            component.id = component_id
-        elif component.id is None:
-            component.id = self._create_component_id(component)
+            component.component_id = component_id
+        elif component.component_id is None:
+            component.component_id = self._create_component_id(component)
         self._components.append(component)
-        self._component_map[component.id] = self._components[-1]
+        self._component_map[component.component_id] = self._components[-1]
+        self._layout_last_changed_on = time.time()
 
     def _remove_component(self, component_id):
         self._components.remove(self._component_map[component_id])
         del self._component_map[component_id]
+        self._layout_last_changed_on = time.time()
 
     def __iter__(self):
         return iter(self._components)
 
     def __setitem__(self, key, value):
         if self._component_map.get(key) is not None:
-            # FIXME: what happens to this codepath
-            # Component Exists in the store
-            # What happens we relace a realtime component with a non realtime one.
-            # We have to ensure that layout change has take place so that the card should get re-rendered.
-            pass
+            # This is the equivalent of calling `current.card.components["mycomponent"] = Markdown("## New Component")`
+            # We don't support the replacement of individual components in the card.
+            # Instead we support rewriting the entire component array instead.
+            # So users can run `current.card[ID] = [FirstComponent, SecondComponent]` which will instantiate an entirely
+            # new ComponentStore.
+            # So we should throw an error over here, since it is clearly an operation which is not supported.
+            raise ComponentOverwriteNotSupportedException(
+                key, self._user_set_id, self._card_type
+            )
         else:
             self._store_component(value, component_id=key)
 
@@ -145,6 +158,14 @@ class ComponentStore:
 
     def __len__(self):
         return len(self._components)
+
+
+def _object_is_json_serializable(obj):
+    try:
+        json.dumps(obj)
+        return True
+    except TypeError as e:
+        return False
 
 
 class CardComponentManager:
@@ -210,6 +231,7 @@ class CardComponentManager:
             logger=logger,
         )
         self._card_creator = card_creator
+        self._last_layout_change = None
         self._latest_user_data = None
         self._last_refresh = 0
         self._last_render = 0
@@ -220,11 +242,21 @@ class CardComponentManager:
             "update": {},
             "not_implemented": {},
         }
+        card_type = decorator_attributes["type"]
+
         if components is None:
-            self._components = ComponentStore(logger=self._logger, components=None)
+            self._components = ComponentStore(
+                logger=self._logger,
+                card_type=card_type,
+                user_set_id=user_set_card_id,
+                components=None,
+            )
         else:
             self._components = ComponentStore(
-                logger=self._logger, components=list(components)
+                logger=self._logger,
+                card_type=card_type,
+                user_set_id=user_set_card_id,
+                components=list(components),
             )
 
     def append(self, component, id=None):
@@ -240,20 +272,36 @@ class CardComponentManager:
         self._card_creator.create(**self._card_creator_args, mode=mode)
 
     def refresh(self, data=None, force=False):
-        # todo make this a configurable variable
         self._latest_user_data = data
         nu = time.time()
 
+        # FIXME: make `RUNTIME_CARD_MIN_REFRESH_INTERVAL` customizable at decorator level.
         if nu - self._last_refresh < RUNTIME_CARD_MIN_REFRESH_INTERVAL:
             # rate limit refreshes: silently ignore requests that
             # happen too frequently
             return
         self._last_refresh = nu
-        # FIXME force render if components have changed
-        if force or nu - self._last_render > RUNTIME_CARD_RENDER_INTERVAL:
+
+        # This block of code will render the card in `render_runtime` mode when:
+        # 1. refresh is called with `force=True`
+        # 2. Layout of the components in the card has changed. i.e. The actual elements in the component array have changed.
+        # 3. The last time the card was rendered was more the minimum interval after which they should be rendered.
+        last_rendered_before_minimum_interval = (
+            nu - self._last_refresh
+        ) > RUNTIME_CARD_RENDER_INTERVAL
+        layout_has_changed = (
+            self._last_layout_change != self.components.layout_last_changed_on
+            or self._last_layout_change is None
+        )
+
+        if force or last_rendered_before_minimum_interval or layout_has_changed:
             self._render_seq += 1
             self._last_render = nu
             self._card_proc("render_runtime")
+            # We set self._last_layout_change so that when self._last_layout_change is not the same
+            # as `self.components.layout_last_changed_on`, then the component array itself
+            # has been modified. So we should force a re-render of the card.
+            self._last_layout_change = self.components.layout_last_changed_on
         else:
             self._card_proc("refresh")
 
@@ -265,18 +313,72 @@ class CardComponentManager:
         msg = "[@card WARNING] %s" % message
         self._logger(msg, timestamp=False, bad=True)
 
-    def _get_latest_data(self, final=False):
+    def _get_latest_data(self, final=False, mode=None):
+        """
+        This function returns the data object that is passed down to :
+        - `MetaflowCard.render_runtime`
+        - `MetaflowCard.refresh`
+        - `MetaflowCard.reload_content_token`
+
+        The return value of this function contains all the necessary state information for Metaflow Cards to make decisions on the following:
+        1. What components are rendered
+        2. Should the card be reloaded on the UI
+        3. What data to pass down to the card.
+
+        Parameters
+        ----------
+        final : bool, optional
+            If True, it implies that the final "rendering" sequence is taking place (which involves calling a `render` and a `refresh` function.)
+            When final is set the `render_seq` is set to "final" so that the reload token in the card is set to final
+            and the card is not reloaded again on the user interface.
+        mode : str
+            This parameter is passed down to the object returned by this function. Can be one of `render_runtime` / `refresh` / `render`
+
+        Returns
+        -------
+        dict
+            A dictionary of the form :
+            ```python
+            {
+                "user": user_data, # any passed to `current.card.refresh` function
+                "components": component_dict, # all rendered REALTIME_UPDATABLE components
+                "render_seq": seq,
+                # `render_seq` is a counter that is incremented every time `render_runtime` is called.
+                # If a metaflow card has a RELOAD_POLICY_ALWAYS set then the reload token will be set to this value
+                # so that the card reload on the UI everytime `render_runtime` is called.
+                "component_update_ts": self.components.layout_last_changed_on,
+                # `component_update_ts` is the timestamp of the last time the component array was modified.
+                # `component_update_ts` can get used by the `reload_content_token` to make decisions on weather to
+                # reload the card on the UI when component array has changed.
+                "mode": mode,
+            }
+            ```
+        """
         seq = "final" if final else self._render_seq
+        # Extract all the runtime-updatable components as a dictionary
         component_dict = {}
         for component in self._components._realtime_updateable_components():
             rendered_comp = _render_card_component(component)
             if rendered_comp is not None:
-                component_dict.update({component.id: rendered_comp})
-        # FIXME: Verify _latest_user_data is json serializable
+                component_dict.update({component.component_id: rendered_comp})
+
+        # Verify _latest_user_data is json serializable
+        user_data = {}
+        if self._latest_user_data is not None and not _object_is_json_serializable(
+            self._latest_user_data
+        ):
+            self._warning(
+                "Data provided to `refresh` is not JSON serializable. It will be ignored."
+            )
+        else:
+            user_data = self._latest_user_data
+
         return {
-            "user": self._latest_user_data,
+            "user": user_data,
             "components": component_dict,
             "render_seq": seq,
+            "component_update_ts": self.components.layout_last_changed_on,
+            "mode": mode,
         }
 
     def __iter__(self):
@@ -694,11 +796,13 @@ class CardComponentCollector:
                 *args, **kwargs
             )
 
-    def _get_latest_data(self, card_uuid, final=False):
+    def _get_latest_data(self, card_uuid, final=False, mode=None):
         """
         Returns latest data so it can be used in the final render() call
         """
-        return self._card_component_store[card_uuid]._get_latest_data(final=final)
+        return self._card_component_store[card_uuid]._get_latest_data(
+            final=final, mode=mode
+        )
 
     def _serialize_components(self, card_uuid):
         """

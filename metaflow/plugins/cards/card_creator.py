@@ -69,7 +69,7 @@ class CardCreator:
         else:
             component_strings = current.card._serialize_components(card_uuid)
 
-        data = current.card._get_latest_data(card_uuid, final=final)
+        data = current.card._get_latest_data(card_uuid, final=final, mode=mode)
         runspec = "/".join([current.run_id, current.step_name, current.task_id])
         self._run_cards_subprocess(
             card_uuid,
@@ -191,6 +191,11 @@ class CardCreator:
             if _async_proc and _async_proc.poll() is None:
                 if time.time() - _async_started > async_timeout:
                     CardProcessManager._remove_card_process(card_uuid)
+                    # Since we have removed the card process, we are free to run a new one
+                    # This will also ensure that when a old process is removed a new one is replaced.
+                    return self._run_command(
+                        cmd, card_uuid, env, wait=wait, timeout=timeout
+                    )
                 else:
                     # silently refuse to run an async process if a previous one is still running
                     # and timeout hasn't been reached

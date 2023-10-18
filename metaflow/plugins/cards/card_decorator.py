@@ -145,7 +145,7 @@ class CardDecorator(StepDecorator):
         if card_class is not None:  # Card type was not found
             if card_class.ALLOW_USER_COMPONENTS:
                 self._is_editable = True
-            self._is_runtime_card = card_class.IS_RUNTIME_CARD
+            self._is_runtime_card = card_class.RUNTIME_UPDATABLE
 
         # We have a step counter to ensure that on calling the final card decorator's `task_pre_step`
         # we call a `finalize` function in the `CardComponentCollector`.
@@ -211,7 +211,7 @@ class CardDecorator(StepDecorator):
             logger=self._logger,
         )
         if is_task_ok:
-            self.card_creator.create(mode="render", **create_options)
+            self.card_creator.create(mode="render", final=True, **create_options)
             self.card_creator.create(mode="refresh", final=True, **create_options)
 
     @staticmethod
