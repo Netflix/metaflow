@@ -28,7 +28,7 @@
     "cypress-svelte-unit-test": "^3.3.4",
     "eslint": "^8.44.0",
     "eslint-plugin-svelte3": "^3.4.0",
-    "postcss": "^8.4.24",
+    "postcss": "^8.4.31",
     "rollup": "^2.63.0",
     "rollup-plugin-css-only": "^3.1.0",
     "rollup-plugin-livereload": "^2.0.5",
