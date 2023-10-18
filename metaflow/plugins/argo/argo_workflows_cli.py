@@ -10,10 +10,10 @@ from metaflow import JSONType, current, decorators, parameters
 from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import (
-    SERVICE_VERSION_CHECK,
-    UI_URL,
     ARGO_WORKFLOWS_UI_URL,
     KUBERNETES_NAMESPACE,
+    SERVICE_VERSION_CHECK,
+    UI_URL,
 )
 from metaflow.package import MetaflowPackage
 
@@ -785,6 +785,27 @@ def validate_token(name, token_prefix, authorize, instructions_fn=None):
 
     store_token(token_prefix, token)
     return True
+
+
+@argo_workflows.command(help="Fetch flow execution status on Argo Workflows.")
+@click.argument("run-id", required=True, type=str)
+@click.pass_obj
+def status(obj, run_id):
+    if not run_id.startswith("argo-"):
+        raise RunIdMismatch(
+            "Run IDs for flows executed through Argo Workflows begin with 'argo-'"
+        )
+    obj.echo(
+        "Fetching status for run *{run_id}* for {flow_name} ...".format(
+            run_id=run_id, flow_name=obj.flow.name
+        ),
+        bold=True,
+    )
+    # Trim prefix from run_id
+    name = run_id[5:]
+    status = ArgoWorkflows.get_workflow_status(obj.flow.name, name)
+    if status is not None:
+        obj.echo_always(status)
 
 
 @argo_workflows.command(help="Terminate flow execution on Argo Workflows.")

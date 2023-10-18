@@ -8,8 +8,8 @@ from datetime import datetime
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    ARGO_EVENTS_WEBHOOK_URL,
     ARGO_EVENTS_WEBHOOK_AUTH,
+    ARGO_EVENTS_WEBHOOK_URL,
     SERVICE_HEADERS,
 )
 
