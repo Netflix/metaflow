@@ -1,6 +1,11 @@
 from metaflow.client import Task
 from metaflow import JSONType, namespace
-from metaflow.exception import CommandException
+from metaflow.util import resolve_identity
+from metaflow.exception import (
+    CommandException,
+    MetaflowNotFound,
+    MetaflowNamespaceMismatch,
+)
 import webbrowser
 import re
 from metaflow._vendor import click
@@ -956,3 +961,90 @@ def list(
         show_list_as_json=as_json,
         file=file,
     )
+
+
+@card.command(help="Run local card viewer server")
+@click.option(
+    "--run-id",
+    default=None,
+    show_default=True,
+    type=str,
+    help="Run ID of the flow",
+)
+@click.option(
+    "--port",
+    default=8324,
+    show_default=True,
+    type=int,
+    help="Port on which Metaflow card server will run",
+)
+@click.option(
+    "--namespace",
+    "user_namespace",
+    default=None,
+    show_default=True,
+    type=str,
+    help="Namespace of the flow",
+)
+@click.option(
+    "--max-cards",
+    default=30,
+    show_default=True,
+    type=int,
+    help="Maximum number of cards to be shown at any time by the server",
+)
+@click.pass_context
+def server(ctx, run_id, port, user_namespace, max_cards):
+    from .card_server import create_card_server, CardServerOptions
+
+    user_namespace = resolve_identity() if user_namespace is None else user_namespace
+    run = _get_run_object(ctx.obj, run_id, user_namespace)
+    options = CardServerOptions(
+        run_object=run,
+        only_running=False,
+        follow_resumed=False,
+        flow_datastore=ctx.obj.flow_datastore,
+        max_cards=max_cards,
+    )
+    create_card_server(options, port, ctx.obj)
+
+
+def _get_run_object(obj, run_id, user_namespace):
+    from metaflow import Flow, Run, Task
+
+    flow_name = obj.flow.name
+    try:
+        if run_id is not None:
+            namespace(None)
+        else:
+            _msg = "Searching for runs in namespace: %s" % user_namespace
+            obj.echo(_msg, fg="blue", bold=False)
+            namespace(user_namespace)
+        flow = Flow(pathspec=flow_name)
+    except MetaflowNotFound:
+        raise CommandException("No run found for *%s*." % flow_name)
+
+    except MetaflowNamespaceMismatch:
+        raise CommandException(
+            "No run found for *%s* in namespace *%s*. You can switch the namespace using --namespace"
+            % (flow_name, user_namespace)
+        )
+
+    if run_id is None:
+        run_id = flow.latest_run.pathspec
+
+    else:
+        assert len(run_id.split("/")) == 1, "run_id should be of the form <runid>"
+        run_id = "/".join([flow_name, run_id])
+
+    try:
+        run = Run(run_id)
+    except MetaflowNotFound:
+        raise CommandException("No run found for runid: *%s*." % run_id)
+    except MetaflowNamespaceMismatch:
+        raise CommandException(
+            "No run found for runid: *%s* in namespace *%s*. You can switch the namespace using --namespace"
+            % (run_id, user_namespace)
+        )
+    obj.echo("Using run-id %s" % run_id, fg="blue", bold=False)
+    return run
