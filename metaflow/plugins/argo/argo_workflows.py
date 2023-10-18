@@ -4,6 +4,7 @@ import os
 import re
 import shlex
 import sys
+import hashlib
 from collections import defaultdict
 from hashlib import sha1
 
@@ -320,8 +321,26 @@ class ArgoWorkflows(object):
             # Register sensor. Unfortunately, Argo Events Sensor names don't allow for
             # dots (sensors run into an error) which rules out self.name :(
             # Metaflow will overwrite any existing sensor.
-            sensor_name = self.name.replace(".", "-")
+
+            # ------Before the PR-----
+
+            # sensor_name = self.name.replace(".", "-")
+
+            # -------------------------
+            # ------After the PR-------
+
+            # Hash the name to ensure a short and unique sensor name
+            # The label apparently allows us to add an additional layer of metadata for querying in these kubernetes clusters
+            hashed_name = hashlib.sha256(self.name.encode()).hexdigest()[
+                :10
+            ]  # Get first 10 chars of the hash
+            sensor_name = f"s-{hashed_name}"
+            # --------------------------
             if self._sensor:
+                # -----Added----
+                # Set the original workflow name as a label on the sensor
+                self._sensor.labels = {self.name}
+                # --------------
                 argo_client.register_sensor(sensor_name, self._sensor.to_json())
             else:
                 # Since sensors occupy real resources, delete existing sensor if needed
