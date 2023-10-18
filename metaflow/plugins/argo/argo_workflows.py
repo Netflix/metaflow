@@ -7,19 +7,20 @@ import sys
 from collections import defaultdict
 from hashlib import sha1
 
-from metaflow import current, JSONType
-from metaflow.includefile import FilePathClass
+from metaflow import JSONType, current
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
+from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT,
     ARGO_EVENTS_EVENT_BUS,
     ARGO_EVENTS_EVENT_SOURCE,
-    ARGO_EVENTS_SERVICE_ACCOUNT,
     ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
+    ARGO_EVENTS_SERVICE_ACCOUNT,
+    ARGO_EVENTS_WEBHOOK_AUTH,
     ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
     ARGO_WORKFLOWS_KUBERNETES_SECRETS,
-    ARGO_EVENTS_WEBHOOK_AUTH,
+    ARGO_WORKFLOWS_UI_URL,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     CARD_AZUREROOT,
@@ -38,15 +39,12 @@ from metaflow.metaflow_config import (
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     KUBERNETES_SECRETS,
     S3_ENDPOINT_URL,
+    S3_SERVER_SIDE_ENCRYPTION,
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
-    S3_SERVER_SIDE_ENCRYPTION,
     UI_URL,
-    ARGO_WORKFLOWS_UI_URL,
 )
-
 from metaflow.metaflow_config_funcs import config_values
-
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.kubernetes.kubernetes import (
@@ -235,6 +233,22 @@ class ArgoWorkflows(object):
 
         response = client.terminate_workflow(name)
         if response is None:
+            raise ArgoWorkflowsException(
+                "No execution found for {flow_name}/{run_id} in Argo Workflows.".format(
+                    flow_name=flow_name, run_id=name
+                )
+            )
+
+    @staticmethod
+    def get_workflow_status(flow_name, name):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+        # TODO: Only look for workflows for the specified flow
+        workflow = client.get_workflow(name)
+        if workflow:
+            # return workflow phase for now
+            status = workflow.get("status", {}).get("phase")
+            return status
+        else:
             raise ArgoWorkflowsException(
                 "No execution found for {flow_name}/{run_id} in Argo Workflows.".format(
                     flow_name=flow_name, run_id=name
