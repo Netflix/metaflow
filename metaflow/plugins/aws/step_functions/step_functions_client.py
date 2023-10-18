@@ -82,8 +82,18 @@ class StepFunctionsClient(object):
         )
 
     def terminate_execution(self, state_machine_arn, execution_arn):
-        # TODO
-        pass
+        try:
+            # Use the AWS Step Functions client to stop the execution
+            response = self._client.stop_execution(
+                executionArn=execution_arn
+            )
+            return response
+        except self._client.exceptions.ExecutionDoesNotExist:
+            # Handle the case where the execution doesn't exist
+            raise ValueError(f"The execution ARN {execution_arn} does not exist.")
+        except Exception as e:
+            # Handle other potential errors
+            raise e
 
     def _default_logging_configuration(self, log_execution_history):
         if log_execution_history:
