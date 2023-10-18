@@ -122,7 +122,7 @@ class CondaStepDecorator(StepDecorator):
 
         environment.set_local_root(LocalStorage.get_datastore_root_from_config(logger))
 
-        self.disabled = not self.environment.get_environment(
+        self.disabled = self.environment.is_disabled(
             next(step for step in self.flow if step.name == self.step)
         )
 
