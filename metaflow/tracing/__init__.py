@@ -2,7 +2,7 @@ from metaflow.metaflow_config import (
     OTEL_ENDPOINT,
     ZIPKIN_ENDPOINT,
     CONSOLE_TRACE_ENABLED,
-    BOOTSTRAPPING_CONDA_ENVIRONMENT,
+    DISABLE_TRACING,
 )
 from functools import wraps
 import contextlib
@@ -50,9 +50,7 @@ def tracing(func):
     return wrapper_func
 
 
-if not BOOTSTRAPPING_CONDA_ENVIRONMENT and (
-    CONSOLE_TRACE_ENABLED or OTEL_ENDPOINT or ZIPKIN_ENDPOINT
-):
+if not DISABLE_TRACING and (CONSOLE_TRACE_ENABLED or OTEL_ENDPOINT or ZIPKIN_ENDPOINT):
     try:
         # Overrides No-Op implementations if a specific provider is configured.
         from .tracing_modules import (
