@@ -4,15 +4,15 @@ import inspect
 import math
 import os
 import re
+import sys
 import time
 import typing
 
 from datetime import datetime
 from io import StringIO
-from itertools import chain
 from typing import *
+from types import ModuleType
 
-import metaflow
 from metaflow.decorators import Decorator
 from metaflow.graph import deindent_docstring
 from metaflow.metaflow_version import get_version
@@ -81,10 +81,22 @@ class StubGenerator:
         self._reset()
 
     def _reset(self):
+        # "Globals" that are used throughout processing. This is not the cleanest
+        # but simplifies code quite a bit.
+
+        # Imports that are needed at the top of the file
         self._imports = set()  # type: Set[str]
+        # Typing imports (behind if TYPE_CHECKING) that are needed at the top of the file
         self._typing_imports = set()  # type: Set[str]
+        # Current objects in the file being processed
         self._current_objects = {}  # type: Dict[str, Any]
+        # Current stubs in the file being processed
         self._stubs = []  # type: List[str]
+
+        # These have a shorter "scope"
+        # Current parent module of the object being processed -- used to determine
+        # the "globals()"
+        self._current_parent_module = None  # type: Optional[ModuleType]
 
     def _get_module(self, name):
         print("Getting module %s ..." % name)
@@ -139,12 +151,31 @@ class StubGenerator:
                 self._imports.add(name)
 
         def _add_to_typing_check(name):
-            if name != self._current_module_name:
-                parent_module = name.split(".", 1)[0]
-                self._typing_imports.add(parent_module)
+            splits = name.rsplit(".", 1)
+            if len(splits) == 2:
+                # We don't add things that are just one name -- probably things within
+                # the current file
+                if splits[0] != self._current_module_name:
+                    self._typing_imports.add(splits[0])
 
         if isinstance(element, str):
-            return element
+            # We first try to eval the annotation because with the annotations future
+            # it is always a string
+            try:
+                potential_element = eval(
+                    element,
+                    self._current_parent_module.__dict__
+                    if self._current_parent_module
+                    else None,
+                )
+                if potential_element:
+                    element = potential_element
+            except:
+                pass
+
+        if isinstance(element, str):
+            _add_to_typing_check(element)
+            return '"%s"' % element
         elif isinstance(element, TypeVar):
             return "{0}.{1}".format(
                 element.__module__, element.__bound__.__forward_arg__
@@ -190,12 +221,16 @@ class StubGenerator:
                 return "%s[%s]" % (element.__origin__, ", ".join(args_str))
         elif isinstance(element, typing.ForwardRef):
             f_arg = element.__forward_arg__
-            if f_arg in ("Run", "Task"):  # HACK -- forward references in current.py
-                _add_to_import("metaflow")
-                f_arg = "metaflow.%s" % f_arg
+            # if f_arg in ("Run", "Task"):  # HACK -- forward references in current.py
+            #    _add_to_import("metaflow")
+            #    f_arg = "metaflow.%s" % f_arg
+            _add_to_typing_check(f_arg)
             return '"%s"' % f_arg
         elif inspect.getmodule(element) == inspect.getmodule(typing):
             _add_to_import("typing")
+            # Special handling for NamedTuple which is a function
+            if element.__name__ == "NamedTuple":
+                return "typing.NamedTuple"
             return str(element)
         else:
             raise RuntimeError(
@@ -223,6 +258,13 @@ class StubGenerator:
         annotation_dict = None
         init_func = None
         for key, element in clazz.__dict__.items():
+            func_deco = None
+            if isinstance(element, staticmethod):
+                func_deco = "@staticmethod"
+                element = element.__func__
+            elif isinstance(element, classmethod):
+                func_deco = "@classmethod"
+                element = element.__func__
             if key == "__init__":
                 init_func = element
             elif key == "__annotations__":
@@ -232,19 +274,21 @@ class StubGenerator:
                     "__"
                 ):
                     buff.write(
-                        self._generate_function_stub(key, element, indentation=TAB)
+                        self._generate_function_stub(
+                            key, element, indentation=TAB, deco=func_deco
+                        )
                     )
             elif isinstance(element, property):
                 if element.fget:
                     buff.write(
                         self._generate_function_stub(
-                            key, element.fget, indentation=TAB, is_getter=True
+                            key, element.fget, indentation=TAB, deco="@property"
                         )
                     )
                 if element.fset:
                     buff.write(
                         self._generate_function_stub(
-                            key, element.fset, indentation=TAB, is_setter=True
+                            key, element.fset, indentation=TAB, deco="@%s.setter" % key
                         )
                     )
 
@@ -268,7 +312,7 @@ class StubGenerator:
                         doc="(only in the presence of the %s decorator%s)\n\n"
                         % (", or ".join(decos), "" if len(decos) == 1 else "s")
                         + doc,
-                        is_getter=True,
+                        deco="@property",
                     )
                 )
         if init_func is None and annotation_dict:
@@ -403,7 +447,7 @@ class StubGenerator:
                 # This is a line so we split it using "->"
                 current_property, current_return_type = line.split("->")
                 current_property = current_property.strip()
-                current_return_type = eval(current_return_type.strip())
+                current_return_type = current_return_type.strip()
                 current_doc = []
         _add()
 
@@ -413,12 +457,11 @@ class StubGenerator:
     def _generate_function_stub(
         self,
         name: str,
-        func: Optional[Callable] = None,
+        func: Optional[Union[Callable, classmethod]] = None,
         sign: Optional[inspect.Signature] = None,
         indentation: Optional[str] = None,
         doc: Optional[str] = None,
-        is_setter=False,
-        is_getter=False,
+        deco: Optional[str] = None,
     ) -> str:
         def exploit_annotation(annotation: Any, starting: str = ": ") -> str:
             annotation_string = ""
@@ -438,10 +481,8 @@ class StubGenerator:
         doc = doc or func.__doc__
         indentation = indentation or ""
 
-        if is_setter:
-            buff.write(indentation + "@" + name + ".setter\n")
-        elif is_getter:
-            buff.write(indentation + "@property\n")
+        if deco:
+            buff.write(indentation + deco + "\n")
         buff.write(indentation + "def " + name + "(")
         for i, (par_name, parameter) in enumerate(sign.parameters.items()):
             annotation = exploit_annotation(parameter.annotation)
@@ -449,13 +490,18 @@ class StubGenerator:
             if (
                 parameter.default != parameter.empty
                 and type(parameter.default).__module__ == "builtins"
-                and not str(parameter.default).startswith("<")
             ):
-                default = (
-                    " = " + str(parameter.default)
-                    if not isinstance(parameter.default, str)
-                    else " = '" + parameter.default + "'"
-                )
+                if str(parameter.default).startswith("<"):
+                    default = " = " + ".".join(
+                        [parameter.default.__module__, parameter.default.__name__]
+                    )
+                    self._imports.add(parameter.default.__module__)
+                else:
+                    default = " = " + (
+                        str(parameter.default)
+                        if not isinstance(parameter.default, str)
+                        else '"' + parameter.default + '"'
+                    )
             if parameter.kind == inspect.Parameter.VAR_KEYWORD:
                 par_name = "**%s" % par_name
             elif parameter.kind == inspect.Parameter.VAR_POSITIONAL:
@@ -487,6 +533,7 @@ class StubGenerator:
 
     def _generate_stubs(self):
         for name, attr in self._current_objects.items():
+            self._current_parent_module = inspect.getmodule(attr)
             if inspect.isclass(attr):
                 self._stubs.append(self._generate_class_stub(name, attr))
             elif inspect.isfunction(attr):
@@ -519,7 +566,7 @@ class StubGenerator:
         while len(self._pending_modules) != 0:
             module_name = self._pending_modules.pop(0)
             # Skip vendored stuff
-            if module_name == "metaflow._vendor":
+            if module_name.startswith("metaflow._vendor"):
                 continue
             # We delay current module
             if (
