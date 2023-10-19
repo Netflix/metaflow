@@ -687,13 +687,6 @@ class ArgoWorkflows(object):
                     "metaflow/project_flow_name": current.project_flow_name,
                 }
             )
-        if self.triggers:
-            annotations.update(
-                {
-                    "metaflow/sensor_name": self.name.replace(".", "-"),
-                    "metaflow/sensor_namespace": ARGO_EVENTS_SENSOR_NAMESPACE,
-                }
-            )
 
         # Some more annotations to populate the Argo UI nicely
         if self.tags:
@@ -706,7 +699,9 @@ class ArgoWorkflows(object):
                             {key: trigger.get(key) for key in ["name", "type"]}
                             for trigger in self.triggers
                         ]
-                    )
+                    ),
+                    "metaflow/sensor_name": self.name.replace(".", "-"),
+                    "metaflow/sensor_namespace": ARGO_EVENTS_SENSOR_NAMESPACE,
                 }
             )
         if self.notify_on_error:
