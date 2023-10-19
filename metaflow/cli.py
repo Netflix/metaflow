@@ -1175,7 +1175,7 @@ def main(flow, args=None, handle_exceptions=True, entrypoint=None):
             start(auto_envvar_prefix="METAFLOW", obj=state)
         else:
             try:
-                start.main(args=args, obj=state, auto_envvar_prefix="METAFLOW")
+                start(args=args, obj=state, auto_envvar_prefix="METAFLOW")
             except SystemExit as e:
                 return e.code
     except MetaflowException as x:
