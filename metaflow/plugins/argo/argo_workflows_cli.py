@@ -805,7 +805,7 @@ def status(obj, run_id):
     name = run_id[5:]
     status = ArgoWorkflows.get_workflow_status(obj.flow.name, name)
     if status is not None:
-        obj.echo_always(status)
+        obj.echo_always(remap_status(status))
 
 
 @argo_workflows.command(help="Terminate flow execution on Argo Workflows.")
@@ -954,3 +954,11 @@ def sanitize_for_argo(text):
         .replace("+", "")
         .lower()
     )
+
+
+def remap_status(status):
+    """
+    Group similar Argo Workflow statuses together in order to have similar output to step functions statuses.
+    """
+    STATUS_MAP = {"Error": "Failed"}
+    return STATUS_MAP.get(status, status)
