@@ -169,7 +169,7 @@ class ArgoClient(object):
                     json.loads(e.body)["message"] if e.body is not None else e.reason
                 )
 
-    def terminate_workflow(self, run_id):
+    def terminate_workflow(self, name):
         client = self._client.get()
         try:
             workflow = client.CustomObjectsApi().get_namespaced_custom_object(
@@ -177,7 +177,7 @@ class ArgoClient(object):
                 version=self._version,
                 namespace=self._namespace,
                 plural="workflows",
-                name=run_id,
+                name=name,
             )
         except client.rest.ApiException as e:
             raise ArgoClientException(
@@ -199,7 +199,7 @@ class ArgoClient(object):
                 version=self._version,
                 namespace=self._namespace,
                 plural="workflows",
-                name=run_id,
+                name=name,
                 body=body,
             )
         except client.rest.ApiException as e:
