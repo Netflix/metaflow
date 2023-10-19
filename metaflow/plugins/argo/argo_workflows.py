@@ -204,6 +204,15 @@ class ArgoWorkflows(object):
         return template_names
 
     @staticmethod
+    def status(name):
+        client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+
+        workflow = client.get_workflow(name)
+        if workflow is None:
+            return None
+        return workflow["status"]["phase"]
+
+    @staticmethod
     def delete(name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 

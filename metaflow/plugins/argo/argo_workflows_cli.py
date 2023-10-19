@@ -848,6 +848,18 @@ def list_workflow_templates(obj, all=None):
         obj.echo_always(template_name)
 
 
+@argo_workflows.command(help="Show status of the flow execution on Argo Workflow.")
+@click.argument("run-id", required=True, type=str)
+@click.pass_obj
+def status(obj, run_id):
+    validate_run_id(obj.workflow_name, obj.token_prefix, None, run_id)
+    # Trim prefix from run_id
+    name = run_id[5:]
+    status = ArgoWorkflows.status(name)
+
+    obj.echo("%s : *%s*" % (run_id, status))
+
+
 def validate_run_id(
     workflow_name, token_prefix, authorize, run_id, instructions_fn=None
 ):
