@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List, Optional, TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
-    from metaflow import Run
+    import metaflow
 
 MetaflowEvent = namedtuple("MetaflowEvent", ["name", "id", "timestamp", "type"])
 MetaflowEvent.__doc__ = """
@@ -55,7 +55,7 @@ class Trigger(object):
         ]
 
     @classmethod
-    def from_runs(cls, run_objs: List["Run"]):
+    def from_runs(cls, run_objs: List["metaflow.Run"]):
         run_objs.sort(key=lambda x: x.finished_at, reverse=True)
         trigger = Trigger(
             [
@@ -98,7 +98,7 @@ class Trigger(object):
         return list(self._events) or None
 
     @property
-    def run(self) -> Optional["Run"]:
+    def run(self) -> Optional["metaflow.Run"]:
         """
         The corresponding `Run` object if the triggering event is a Metaflow run.
 
@@ -115,7 +115,7 @@ class Trigger(object):
         return next(iter(self._runs), None)
 
     @property
-    def runs(self) -> Optional[List["Run"]]:
+    def runs(self) -> Optional[List["metaflow.Run"]]:
         """
         The list of `Run` objects in the triggering events.
         Returns `None` if none of the triggering events are `Run` objects.
@@ -141,7 +141,7 @@ class Trigger(object):
 
         return list(self._runs) or None
 
-    def __getitem__(self, key: str) -> Union["Run", MetaflowEvent]:
+    def __getitem__(self, key: str) -> Union["metaflow.Run", MetaflowEvent]:
         """
         If triggering events are runs, `key` corresponds to the flow name of the triggering run.
         Otherwise, `key` corresponds to the event name and a `MetaflowEvent` object is returned.

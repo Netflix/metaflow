@@ -13,7 +13,7 @@ import tempfile
 import uuid
 
 if TYPE_CHECKING:
-    from metaflow.client.core import Task
+    import metaflow
 
 _TYPE = type
 _ID_FUNC = id
@@ -219,7 +219,7 @@ class CardContainer:
 
 
 def get_cards(
-    task: Union[str, "Task"],
+    task: Union[str, "metaflow.Task"],
     id: Optional[str] = None,
     type: Optional[str] = None,
     follow_resumed: bool = True,

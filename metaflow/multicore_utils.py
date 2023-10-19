@@ -67,7 +67,7 @@ def parallel_imap_unordered(
     iterable: Iterable[Any],
     max_parallel: Optional[int] = None,
     dir: Optional[str] = None,
-):
+) -> Iterable[Any]:
     """
     Parallelizes execution of a function using multiprocessing. The result
     order is not guaranteed.

@@ -317,7 +317,7 @@ class FlowSpec(object):
 
         Returns
         -------
-        List[Tuple[int, int, object]]
+        List[Tuple[int, int, Any]]
             An array describing the current stack of foreach steps.
         """
         return [

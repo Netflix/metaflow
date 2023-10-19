@@ -49,7 +49,7 @@ from .s3util import (
 )
 
 if TYPE_CHECKING:
-    from metaflow.client import Run
+    import metaflow
 
 try:
     import boto3
@@ -144,7 +144,7 @@ class S3Object(object):
         content_type: Optional[str] = None,
         metadata: Optional[Dict[str, str]] = None,
         range_info: Optional[RangeInfo] = None,
-        last_modified: int = None,
+        last_modified: Optional[int] = None,
         encryption: Optional[str] = None,
     ):
         # all fields of S3Object should return a unicode object
@@ -503,7 +503,7 @@ class S3(object):
         tmproot: str = TEMPDIR,
         bucket: Optional[str] = None,
         prefix: Optional[str] = None,
-        run: Optional[Union[FlowSpec, "Run"]] = None,
+        run: Optional[Union[FlowSpec, "metaflow.Run"]] = None,
         s3root: Optional[str] = None,
         encryption: Optional[str] = S3_SERVER_SIDE_ENCRYPTION,
         **kwargs

@@ -7,7 +7,7 @@ from collections import namedtuple
 from datetime import datetime
 from io import BytesIO
 from itertools import chain
-from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Tuple
+from typing import Any, Dict, FrozenSet, Iterable, List, NamedTuple, Optional, Tuple
 
 from metaflow.current import current
 from metaflow.events import Trigger
@@ -201,6 +201,9 @@ def default_namespace() -> str:
     global current_namespace
     current_namespace = resolve_identity()
     return get_namespace()
+
+
+MetaflowArtifacts = NamedTuple
 
 
 class MetaflowObject(object):
@@ -703,50 +706,6 @@ class MetaflowObject(object):
         return list(self._path_components)
 
 
-class MetaflowData(object):
-    """
-    Container of data artifacts produced by a `Task`. This object is
-    instantiated through `Task.data`.
-
-    `MetaflowData` allows results to be retrieved by their name
-    through a convenient dot notation:
-
-    ```python
-    Task(...).data.my_object
-    ```
-
-    You can also test the existence of an object
-
-    ```python
-    if 'my_object' in Task(...).data:
-        print('my_object found')
-    ```
-
-    Note that this container relies on the local cache to load all data
-    artifacts. If your `Task` contains a lot of data, a more efficient
-    approach is to load artifacts individually like so
-
-    ```
-    Task(...)['my_object'].data
-    ```
-    """
-
-    def __init__(self, artifacts: Iterable["DataArtifact"]):
-        self._artifacts = dict((art.id, art) for art in artifacts)
-
-    def __getattr__(self, name: str):
-        return self._artifacts[name].data
-
-    def __contains__(self, var):
-        return var in self._artifacts
-
-    def __str__(self):
-        return "<MetaflowData: %s>" % ", ".join(self._artifacts)
-
-    def __repr__(self):
-        return str(self)
-
-
 class MetaflowCode(object):
     """
     Snapshot of the code used to execute this `Run`. Instantiate the object through
@@ -981,6 +940,50 @@ class DataArtifact(MetaflowObject):
         super(DataArtifact, self).__setstate__(state)
 
 
+class MetaflowData(object):
+    """
+    Container of data artifacts produced by a `Task`. This object is
+    instantiated through `Task.data`.
+
+    `MetaflowData` allows results to be retrieved by their name
+    through a convenient dot notation:
+
+    ```python
+    Task(...).data.my_object
+    ```
+
+    You can also test the existence of an object
+
+    ```python
+    if 'my_object' in Task(...).data:
+        print('my_object found')
+    ```
+
+    Note that this container relies on the local cache to load all data
+    artifacts. If your `Task` contains a lot of data, a more efficient
+    approach is to load artifacts individually like so
+
+    ```
+    Task(...)['my_object'].data
+    ```
+    """
+
+    def __init__(self, artifacts: Iterable[DataArtifact]):
+        self._artifacts = dict((art.id, art) for art in artifacts)
+
+    def __getattr__(self, name: str):
+        return self._artifacts[name].data
+
+    def __contains__(self, var):
+        return var in self._artifacts
+
+    def __str__(self):
+        return "<MetaflowData: %s>" % ", ".join(self._artifacts)
+
+    def __repr__(self):
+        return str(self)
+
+
 class Task(MetaflowObject):
     """
     A `Task` represents an execution of a `Step`.
@@ -1172,7 +1175,7 @@ class Task(MetaflowObject):
         return MetaflowData(self)
 
     @property
-    def artifacts(self) -> "MetaflowArtifacts":
+    def artifacts(self) -> MetaflowArtifacts:
         """
         Returns a container of DataArtifacts produced by this task.
 
