@@ -17,20 +17,20 @@ class S3KeySensorDecorator(AirflowSensorDecorator):
         Time, in seconds before the task times out and fails. (Default: 3600)
     poke_interval : int
         Time in seconds that the job should wait in between each try. (Default: 60)
-    mode : string
+    mode : str
         How the sensor operates. Options are: { poke | reschedule }. (Default: "poke")
     exponential_backoff : bool
         allow progressive longer waits between pokes by using exponential backoff algorithm. (Default: True)
-    pool : string
+    pool : str
         the slot pool this task should run in,
         slot pools are a way to limit concurrency for certain tasks. (Default:None)
     soft_fail : bool
         Set to true to mark the task as SKIPPED on failure. (Default: False)
-    name : string
+    name : str
         Name of the sensor on Airflow
-    description : string
+    description : str
         Description of sensor in the Airflow UI
-    bucket_key : str | List[str]
+    bucket_key : Union[str, List[str]]
         The key(s) being waited on. Supports full s3:// style url or relative path from root level.
         When it's specified as a full s3:// url, please leave `bucket_name` as None
     bucket_name : str
@@ -38,7 +38,7 @@ class S3KeySensorDecorator(AirflowSensorDecorator):
         When specified, all the keys passed to bucket_key refers to this bucket. (Default:None)
     wildcard_match : bool
         whether the bucket_key should be interpreted as a Unix wildcard pattern. (Default: False)
-    aws_conn_id : string
+    aws_conn_id : str
         a reference to the s3 connection on Airflow. (Default: None)
     verify : bool
         Whether or not to verify SSL certificates for S3 connection. (Default: None)

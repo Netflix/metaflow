@@ -79,7 +79,7 @@ class BatchDecorator(StepDecorator):
         The value for the size (in MiB) of the tmpfs mount for this step.
         This parameter maps to the `--tmpfs` option in Docker. Defaults to 50% of the
         memory allocated for this step.
-    tmpfs_path: string, optional, default None
+    tmpfs_path: str, optional, default None
         Path to tmpfs mount for this step. Defaults to /metaflow_temp.
     inferentia : int, default 0
         Number of Inferentia chips required for this step.
