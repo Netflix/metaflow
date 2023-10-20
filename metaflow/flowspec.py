@@ -525,7 +525,7 @@ class FlowSpec(object):
 
         Parameters
         ----------
-        dsts : Method
+        dsts : Callable[..., None]
             One or more methods annotated with `@step`.
 
         Raises

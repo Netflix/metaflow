@@ -6,7 +6,7 @@ from tempfile import NamedTemporaryFile
 import time
 import metaflow.tracing as tracing
 
-from typing import Any, Callable, Iterable, List, Optional
+from typing import Any, Callable, Iterable, Iterator, List, Optional
 
 try:
     # Python 2
@@ -67,7 +67,7 @@ def parallel_imap_unordered(
     iterable: Iterable[Any],
     max_parallel: Optional[int] = None,
     dir: Optional[str] = None,
-) -> Iterable[Any]:
+) -> Iterator[Any]:
     """
     Parallelizes execution of a function using multiprocessing. The result
     order is not guaranteed.
