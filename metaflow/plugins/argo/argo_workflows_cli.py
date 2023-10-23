@@ -66,15 +66,38 @@ def cli():
     help="Argo Workflow name. The flow name is used instead if "
     "this option is not specified.",
 )
+@click.option(
+    "--old-name-length",
+    default=False,
+    is_flag=True,
+    type=bool,
+    help="Use old limit of 253 characters for Argo Workflow Template names.",
+)
 @click.pass_obj
-def argo_workflows(obj, name=None):
+def argo_workflows(obj, name=None, old_name_length=False):
     check_python_version(obj)
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
-    (
-        obj.workflow_name,
-        obj.token_prefix,
-        obj.is_project,
-    ) = resolve_workflow_name(obj, name)
+    workflow_name, token_prefix, is_project = old_resolve_workflow_name(obj, name)
+    if not old_name_length and len(workflow_name) > 63:
+        # check for existing deployment with old name.
+        # Error out as we're trying to deploy with a new name and ask for user action to resolve the issue.
+        existing_workflow = ArgoWorkflows.get_existing_deployment(workflow_name)
+        if existing_workflow:
+            raise ArgoWorkflowsNameTooLong(
+                "Can not perform command with new name length limit (63) as an existing deployment\n"
+                "*%s* was found with a name that is too long.\n\n"
+                "You can target this deployment with "
+                "*argo-workflows --old-name-length [command]* to use the old length limit (253).\n"
+                "Delete the old deployment in order to avoid this error in the future."
+                % workflow_name
+            )
+        workflow_name, token_prefix, is_project = resolve_workflow_name(obj, name)
+
+    (obj.workflow_name, obj.token_prefix, obj.is_project) = (
+        workflow_name,
+        token_prefix,
+        is_project,
+    )
 
 
 @argo_workflows.command(help="Deploy a new version of this workflow to Argo Workflows.")
@@ -318,7 +341,12 @@ def check_metadata_service_version(obj):
         )
 
 
-def resolve_workflow_name(obj, name):
+def old_resolve_workflow_name(obj, name):
+    # Legacy case; Workflows were deployed with the maxLength of Kubernetes metadata name values,
+    # but this prevents launching flows with long names through Argo UI,
+    # as the workflow name needs to fit into a Kubernetes label.
+    #
+    # We need to take care of existing deployments that have a name that is too long.
     project = current.get("project_name")
     obj._is_workflow_name_modified = False
     if project:
@@ -363,6 +391,68 @@ def resolve_workflow_name(obj, name):
         if len(workflow_name) > 253:
             msg = (
                 "The full name of the workflow:\n*%s*\nis longer than 253 "
+                "characters.\n\n"
+                "To deploy this workflow to Argo Workflows, please "
+                "assign a shorter name\nusing the option\n"
+                "*argo-workflows --name <name> create*." % workflow_name
+            )
+            raise ArgoWorkflowsNameTooLong(msg)
+
+        if not VALID_NAME.search(workflow_name):
+            workflow_name = sanitize_for_argo(workflow_name)
+            obj._is_workflow_name_modified = True
+
+    return workflow_name, token_prefix.lower(), is_project
+
+
+def resolve_workflow_name(obj, name):
+    project = current.get("project_name")
+    obj._is_workflow_name_modified = False
+    if project:
+        if name:
+            raise MetaflowException(
+                "--name is not supported for @projects. Use --branch instead."
+            )
+        workflow_name = current.project_flow_name
+        project_branch = to_bytes(".".join((project, current.branch_name)))
+        token_prefix = (
+            "mfprj-%s"
+            % to_unicode(base64.b32encode(sha1(project_branch).digest()))[:16]
+        )
+        is_project = True
+        # Argo Workflow names shouldn't be longer than 63 characters, so we truncate
+        # by default. Also, while project and branch allow for underscores, Argo
+        # Workflows doesn't (DNS Subdomain names as defined in RFC 1123) - so we will
+        # remove any underscores as well as convert the name to lower case.
+        # Also remove + and @ as not allowed characters, which can be part of the
+        # project branch due to using email addresses as user names.
+        #
+        # TODO: there is a slight chance that the truncation will end up producing a name with
+        # .- which is not a valid subdomain name.
+        if len(workflow_name) > 63:
+            name_hash = to_unicode(
+                base64.b32encode(sha1(to_bytes(workflow_name)).digest())
+            )[:8].lower()
+            workflow_name = "%s-%s" % (workflow_name[:52], name_hash)
+            obj._is_workflow_name_modified = True
+        if not VALID_NAME.search(workflow_name):
+            workflow_name = sanitize_for_argo(workflow_name)
+            obj._is_workflow_name_modified = True
+    else:
+        if name and not VALID_NAME.search(name):
+            raise MetaflowException(
+                "Name '%s' contains invalid characters. The "
+                "name must consist of lower case alphanumeric characters, '-' or '.'"
+                ", and must start and end with an alphanumeric character." % name
+            )
+
+        workflow_name = name if name else current.flow_name
+        token_prefix = workflow_name
+        is_project = False
+
+        if len(workflow_name) > 63:
+            msg = (
+                "The full name of the workflow:\n*%s*\nis longer than 63 "
                 "characters.\n\n"
                 "To deploy this workflow to Argo Workflows, please "
                 "assign a shorter name\nusing the option\n"
