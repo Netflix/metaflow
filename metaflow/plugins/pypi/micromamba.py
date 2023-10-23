@@ -85,8 +85,12 @@ class Micromamba(object):
             for channel in self.info()["channels"] or ["conda-forge"]:
                 cmd.append("--channel=%s" % channel)
 
+            available_operators = [">=", "<=", "==", ">", "<"]
             for package, version in packages.items():
-                cmd.append("%s==%s" % (package, version))
+                operator = "=="
+                if any(op in version for op in available_operators):
+                    operator = ""
+                cmd.append("%s%s%s" % (package, operator, version))
             if python:
                 cmd.append("python==%s" % python)
             # TODO: Ensure a human readable message is returned when the environment
