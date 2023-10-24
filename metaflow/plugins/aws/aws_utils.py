@@ -111,7 +111,7 @@ def compute_resource_attributes(decos, compute_deco, resource_defaults):
                 # the value zero.
                 #
                 # Skip attributes that are not supported by the decorator.
-                if k not in resource_defaults:
+                if k not in [*resource_defaults.keys(), *deco.attributes.keys()]:
                     continue
 
                 if my_val is None and v is None:
