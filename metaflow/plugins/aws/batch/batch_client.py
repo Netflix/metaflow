@@ -216,7 +216,7 @@ class BatchJob(object):
             if shared_memory is not None:
                 if not (
                     isinstance(shared_memory, (int, unicode, basestring))
-                    and int(shared_memory) > 0
+                    and int(float(shared_memory)) > 0
                 ):
                     raise BatchJobException(
                         "Invalid shared memory size value ({}); "
@@ -225,7 +225,7 @@ class BatchJob(object):
                 else:
                     job_definition["containerProperties"]["linuxParameters"][
                         "sharedMemorySize"
-                    ] = int(shared_memory)
+                    ] = int(float(shared_memory))
             if swappiness is not None:
                 if not (
                     isinstance(swappiness, (int, unicode, basestring))
@@ -298,7 +298,7 @@ class BatchJob(object):
                     )
             else:
                 # default tmpfs behavior - https://man7.org/linux/man-pages/man5/tmpfs.5.html
-                tmpfs_size = int(memory) / 2
+                tmpfs_size = int(float(memory)) / 2
 
             job_definition["containerProperties"]["linuxParameters"]["tmpfs"] = [
                 {
