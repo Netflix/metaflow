@@ -15,6 +15,7 @@ from subprocess_tee import run
 
 from . import _python, obtain_flow_file_paths
 from metaflow.exception import MetaflowException
+from ..aip import KubeflowPipelines
 
 """
 To run these tests from your terminal, go to the tests directory and run: 
@@ -426,3 +427,30 @@ def test_toleration_and_affinity_compile_only(pytestconfig) -> None:
         key="node.k8s.zgtools.net/purpose",
         value="high-memory",
     )
+
+
+def test_flow_labels():
+    tags: Dict[str, str] = KubeflowPipelines._get_flow_labels(
+        flow_name="my_flow",
+        experiment="my_experiment",
+        tags=["t1"],
+        sys_tags=["s1"],
+        username="foo",
+    )
+
+    assert tags["metaflow.org/flow_name"] == "my_flow"
+    assert tags["metaflow.org/experiment"] == "my_experiment"
+    assert tags["metaflow.org/tag_t1"] == "true"
+    assert tags["metaflow.org/tag_s1"] == "true"
+    assert tags["zodiac.zillowgroup.net/owner"] == "foo"
+
+    with pytest.raises(ValueError) as e:
+        KubeflowPipelines._get_flow_labels(
+            flow_name="my_flow",
+            experiment="my_experiment",
+            tags=["t1"],
+            sys_tags=["s1:a/b"],
+            username="foo",
+        )
+
+    assert "a/b must consist of alphanumeric characters" in str(e.value)
