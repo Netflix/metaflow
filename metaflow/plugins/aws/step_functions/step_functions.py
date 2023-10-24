@@ -24,7 +24,6 @@ from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.retry_decorator import RetryDecorator
 from metaflow.util import compress_list, dict_to_cli_options, to_pascalcase
 
-from ..aws_utils import compute_resource_attributes
 from ..batch.batch import Batch
 from .event_bridge_client import EventBridgeClient
 from .step_functions_client import StepFunctionsClient
@@ -664,11 +663,6 @@ class StepFunctions(object):
         batch_deco = [deco for deco in node.decorators if deco.name == "batch"][0]
         resources = {}
         resources.update(batch_deco.attributes)
-        resources.update(
-            compute_resource_attributes(
-                node.decorators, batch_deco, batch_deco.resource_defaults
-            )
-        )
         # Resolve retry strategy.
         user_code_retries, total_retries = self._get_retries(node)
 
