@@ -184,7 +184,7 @@ class KubernetesJob(object):
                                         "ephemeral-storage": "%sM"
                                         % str(self._kwargs["disk"]),
                                     },
-                                    limits=compute_resource_limits(self._kwargs)
+                                    limits=compute_resource_limits(self._kwargs),
                                 ),
                                 volume_mounts=(
                                     [

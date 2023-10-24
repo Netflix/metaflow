@@ -22,7 +22,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SECURITY_CONTEXT,
     KUBERNETES_RESOURCE_LIMITS_MEMORY,
-    KUBERNETES_RESOURCE_LIMITS_CPU
+    KUBERNETES_RESOURCE_LIMITS_CPU,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -113,7 +113,7 @@ class KubernetesDecorator(StepDecorator):
         "persistent_volume_claims": None,  # e.g., {"pvc-name": "/mnt/vol", "another-pvc": "/mnt/vol2"}
         "security_context": None,
         "resource_limits_memory": None,
-        "resource_limits_cpu": None
+        "resource_limits_cpu": None,
     }
     package_url = None
     package_sha = None
@@ -130,9 +130,17 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["gpu_vendor"] = KUBERNETES_GPU_VENDOR
         if not self.attributes["security_context"] and KUBERNETES_SECURITY_CONTEXT:
             self.attributes["security_context"] = KUBERNETES_SECURITY_CONTEXT
-        if not self.attributes["resource_limits_memory"] and KUBERNETES_RESOURCE_LIMITS_MEMORY:
-            self.attributes["resource_limits_memory"] = KUBERNETES_RESOURCE_LIMITS_MEMORY
-        if not self.attributes["resource_limits_cpu"] and KUBERNETES_RESOURCE_LIMITS_CPU:
+        if (
+            not self.attributes["resource_limits_memory"]
+            and KUBERNETES_RESOURCE_LIMITS_MEMORY
+        ):
+            self.attributes[
+                "resource_limits_memory"
+            ] = KUBERNETES_RESOURCE_LIMITS_MEMORY
+        if (
+            not self.attributes["resource_limits_cpu"]
+            and KUBERNETES_RESOURCE_LIMITS_CPU
+        ):
             self.attributes["resource_limits_cpu"] = KUBERNETES_RESOURCE_LIMITS_CPU
         if not self.attributes["node_selector"] and KUBERNETES_NODE_SELECTOR:
             self.attributes["node_selector"] = KUBERNETES_NODE_SELECTOR
@@ -354,7 +362,7 @@ class KubernetesDecorator(StepDecorator):
                 elif k in [
                     "tolerations",
                     "persistent_volume_claims",
-                    "security_context"
+                    "security_context",
                 ]:
                     cli_args.command_options[k] = json.dumps(v)
                 else:
