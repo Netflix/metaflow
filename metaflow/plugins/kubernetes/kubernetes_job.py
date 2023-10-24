@@ -50,10 +50,15 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
     return decorator
 
 
-def compute_gpu_limits(args):
+def compute_resource_limits(args):
+    limits_dict = dict()
+    if args["resource_limits_memory"] is not None:
+        limits_dict["memory"] = "%sM" % str(args["resource_limits_memory"])
+    if args["resource_limits_cpu"] is not None:
+        limits_dict["cpu"] = str(args["resource_limits_cpu"])
     if args["gpu"] is not None:
-        return {"%s.com/gpu".lower() % args["gpu_vendor"]: str(args["gpu"])}
-    return dict()
+        limits_dict["%s.com/gpu".lower() % args["gpu_vendor"]] = str(args["gpu"])
+    return limits_dict
 
 
 class KubernetesJob(object):
@@ -179,12 +184,7 @@ class KubernetesJob(object):
                                         "ephemeral-storage": "%sM"
                                         % str(self._kwargs["disk"]),
                                     },
-                                    limits={
-                                        **compute_gpu_limits(self._kwargs),
-                                        **{k: self._kwargs[k] for k in
-                                           ["resource_limits_memory", "resource_limits_cpu"]
-                                           if self._kwargs[k] is not None},
-                                    },
+                                    limits=compute_resource_limits(self._kwargs)
                                 ),
                                 volume_mounts=(
                                     [
