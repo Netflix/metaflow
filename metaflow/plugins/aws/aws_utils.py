@@ -109,6 +109,11 @@ def compute_resource_attributes(decos, compute_deco, resource_defaults):
                 # We use the non None value if there is only one or the larger value
                 # if they are both non None. Note this considers "" to be equivalent to
                 # the value zero.
+                #
+                # Skip attributes that are not supported by the decorator.
+                if k not in [*resource_defaults.keys(), *deco.attributes.keys()]:
+                    continue
+
                 if my_val is None and v is None:
                     continue
                 if my_val is not None and v is not None:
