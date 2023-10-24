@@ -2,11 +2,11 @@ import json
 import math
 import os
 import re
-import secrets
 import shlex
 import time
 from typing import Dict, List, Optional
-
+import uuid
+from uuid import uuid4
 
 from metaflow import current, util
 from metaflow.exception import MetaflowException
@@ -180,7 +180,7 @@ class Kubernetes(object):
         job = (
             KubernetesClient()
             .job(
-                generate_name="t-{entropy}".format(entropy=secrets.token_hex(2)),
+                generate_name="t-{uid}".format(uid=str(uuid4())[:3]),
                 namespace=namespace,
                 service_account=service_account,
                 secrets=secrets,
