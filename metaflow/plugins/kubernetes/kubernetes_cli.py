@@ -145,7 +145,8 @@ def step(
     persistent_volume_claims=None,
     tolerations=None,
     security_context=None,
-    resource_limits=None,
+    resource_limits_memory=None,
+    resource_limits_cpu=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None, **kwargs):
@@ -260,7 +261,8 @@ def step(
                 persistent_volume_claims=persistent_volume_claims,
                 tolerations=tolerations,
                 security_context=security_context,
-                resource_limits=resource_limits,
+                resource_limits_memory=resource_limits_memory,
+                resource_limits_cpu=resource_limits_cpu
             )
     except Exception as e:
         traceback.print_exc(chain=False)

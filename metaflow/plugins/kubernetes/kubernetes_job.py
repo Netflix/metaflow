@@ -181,7 +181,9 @@ class KubernetesJob(object):
                                     },
                                     limits={
                                         **compute_gpu_limits(self._kwargs),
-                                        **self._kwargs["resource_limits"],
+                                        **{k: self._kwargs[k] for k in
+                                           ["resource_limits_memory", "resource_limits_cpu"]
+                                           if self._kwargs[k] is not None},
                                     },
                                 ),
                                 volume_mounts=(
