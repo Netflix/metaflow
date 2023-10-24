@@ -2019,7 +2019,6 @@ class Flow(MetaflowObject):
     _CHILD_CLASS = "run"
 
     def __init__(self, *args, **kwargs):
-        print(json.dumps(f"launched with {args} {kwargs}"))
         super(Flow, self).__init__(*args, **kwargs)
 
     @property
