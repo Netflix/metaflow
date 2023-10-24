@@ -131,6 +131,8 @@ class KubernetesDecorator(StepDecorator):
         if not self.attributes["security_context"] and KUBERNETES_SECURITY_CONTEXT:
             self.attributes["security_context"] = KUBERNETES_SECURITY_CONTEXT
         if not self.attributes["resource_limits_memory"] and KUBERNETES_RESOURCE_LIMITS_MEMORY:
+            self.attributes["resource_limits_memory"] = KUBERNETES_RESOURCE_LIMITS_MEMORY
+        if not self.attributes["resource_limits_cpu"] and KUBERNETES_RESOURCE_LIMITS_CPU:
             self.attributes["resource_limits_cpu"] = KUBERNETES_RESOURCE_LIMITS_CPU
         if not self.attributes["node_selector"] and KUBERNETES_NODE_SELECTOR:
             self.attributes["node_selector"] = KUBERNETES_NODE_SELECTOR
