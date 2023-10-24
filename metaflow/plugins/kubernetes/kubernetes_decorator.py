@@ -112,8 +112,8 @@ class KubernetesDecorator(StepDecorator):
         "tmpfs_path": "/metaflow_temp",
         "persistent_volume_claims": None,  # e.g., {"pvc-name": "/mnt/vol", "another-pvc": "/mnt/vol2"}
         "security_context": None,
-        "resource_limits_memory": "0",  # 0 causes no limit to be set
-        "resource_limits_cpu": "0",  # 0 causes no limit to be set
+        "resource_limits_memory": None,
+        "resource_limits_cpu": None
     }
     package_url = None
     package_sha = None
@@ -354,9 +354,7 @@ class KubernetesDecorator(StepDecorator):
                 elif k in [
                     "tolerations",
                     "persistent_volume_claims",
-                    "security_context",
-                    "resource_limits_cpu",
-                    "resource_limits_memory"
+                    "security_context"
                 ]:
                     cli_args.command_options[k] = json.dumps(v)
                 else:
