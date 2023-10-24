@@ -1,10 +1,10 @@
 import functools
 import importlib
 import inspect
+import logging
 import math
 import os
 import re
-import sys
 import time
 import typing
 
@@ -28,6 +28,9 @@ param_name_type = re.compile(r"^(?P<name>\S+)(?:\s*:\s*(?P<type>.*))?$")
 type_annotations = re.compile(
     r"(?P<type>.*?)(?P<optional>, optional|\(optional\))?(?:, [Dd]efault(?: is | = |: |s to |)\s*(?P<default>.*))?$"
 )
+
+logger = logging.getLogger("StubGenerator")
+logger.setLevel(logging.DEBUG)
 
 
 def descend_object(object: str, options: Iterable[str]):
@@ -71,6 +74,33 @@ class StubGenerator:
         self._pending_modules = ["metaflow"]  # type: List[str]
         self._root_module = "metaflow."
         self._safe_modules = ["metaflow.", "metaflow_extensions."]
+
+        # We exclude some modules to not create a bunch of random non-user facing
+        # .pyi files. For now, it is definitely crucial to exclude metadata as it
+        # conflicts with the metadata() function defined in metaflow as well and
+        # griffe legitimately has a problem with it.
+        self._exclude_modules = set(
+            [
+                "metaflow.cli_args",
+                "metaflow.cmd_with_io",
+                "metaflow.datastore",
+                "metaflow.debug",
+                "metaflow.decorators",
+                "metaflow.event_logger",
+                "metaflow.extension_support",
+                "metaflow.graph",
+                "metaflow.metadata",
+                "metaflow.metaflow_config_funcs",
+                "metaflow.metaflow_environment",
+                "metaflow.mflog",
+                "metaflow.monitor",
+                "metaflow.package",
+                "metaflow.R",
+                "metaflow.sidecar",
+                "metaflow.unbounded_foreach",
+                "metaflow.util",
+            ]
+        )
         self._done_modules = set()  # type: Set[str]
         self._output_dir = output_dir
         self._mf_version = get_version()
@@ -99,49 +129,70 @@ class StubGenerator:
         self._current_parent_module = None  # type: Optional[ModuleType]
 
     def _get_module(self, name):
-        print("Getting module %s ..." % name)
+        logger.info("Analyzing module %s ...", name)
         self._current_module = importlib.import_module(name)
         self._current_module_name = name
         for objname, obj in self._current_module.__dict__.items():
             if objname.startswith("_"):
+                logger.debug("Skipping object because it starts with _ %s", objname)
                 continue
             if inspect.ismodule(obj):
                 # Only consider modules that are part of the root module
-                if obj.__name__.startswith(self._root_module):
+                if (
+                    obj.__name__.startswith(self._root_module)
+                    and not obj.__name__ in self._exclude_modules
+                ):
+                    logger.debug("Adding child module %s to process", obj.__name__)
                     self._pending_modules.append(obj.__name__)
+                else:
+                    logger.debug("Skipping child module %s", obj.__name__)
             else:
                 parent_module = inspect.getmodule(obj)
                 # For objects we include:
                 #  - stuff that is a functools.partial (these are all the decorators;
-                #    we could be more specific but good enough for now)
-                #  - if this is for the root_module, anything in safe_modules
-                #  - if this is not for the root_module, only stuff in this module
-                if parent_module is None:
-                    print("Object %s has no parent module" % objname)
-                if parent_module is None or (
-                    name + "." == self._root_module
-                    and (
-                        parent_module.__name__.startswith("functools")
-                        or any(
+                #    we could be more specific but good enough for now) for root module
+                #  - otherwise, anything that is in safe_modules. Note this may include
+                #    a bit much (all the imports)
+                if (
+                    parent_module is None
+                    or (
+                        name + "." == self._root_module
+                        and (parent_module.__name__.startswith("functools"))
+                    )
+                    or (
+                        not any(
+                            [
+                                parent_module.__name__.startswith(p)
+                                for p in self._exclude_modules
+                            ]
+                        )
+                        and any(
                             [
                                 parent_module.__name__.startswith(p)
                                 for p in self._safe_modules
                             ]
                         )
                     )
-                    or parent_module.__name__ == name
                 ):
-                    print("Adding object %s for module %s" % (objname, name))
+                    logger.debug("Adding object %s to process", objname)
                     self._current_objects[objname] = obj
                 else:
-                    print(
-                        "Skipping object %s with parent module %s"
-                        % (objname, parent_module.__name__)
-                    )
+                    logger.debug("Skipping object %s", objname)
                 # We also include the module to process if it is part of root_module
-                if parent_module is not None and parent_module.__name__.startswith(
-                    self._root_module
+                if (
+                    parent_module is not None
+                    and not any(
+                        [
+                            parent_module.__name__.startswith(d)
+                            for d in self._exclude_modules
+                        ]
+                    )
+                    and parent_module.__name__.startswith(self._root_module)
                 ):
+                    logger.debug(
+                        "Adding module of child object %s to process",
+                        parent_module.__name__,
+                    )
                     self._pending_modules.append(parent_module.__name__)
 
     def _get_element_name_with_module(self, element: Union[TypeVar, type, Any]) -> str:
@@ -239,7 +290,6 @@ class StubGenerator:
 
     def _generate_class_stub(self, name: str, clazz: type) -> str:
         buff = StringIO()
-        print("Generating documentation for class %s" % name)
         # Class prototype
         buff.write("class " + name.split(".")[-1] + "(")
 
@@ -471,6 +521,57 @@ class StubGenerator:
                 )
             return annotation_string
 
+        def exploit_default(default_value: Any) -> Optional[str]:
+            if (
+                default_value != inspect.Parameter.empty
+                and type(default_value).__module__ == "builtins"
+            ):
+                if isinstance(default_value, list):
+                    return (
+                        "["
+                        + ", ".join(
+                            [cast(str, exploit_default(v)) for v in default_value]
+                        )
+                        + "]"
+                    )
+                elif isinstance(default_value, tuple):
+                    return (
+                        "("
+                        + ", ".join(
+                            [cast(str, exploit_default(v)) for v in default_value]
+                        )
+                        + ")"
+                    )
+                elif isinstance(default_value, dict):
+                    return (
+                        "{"
+                        + ", ".join(
+                            [
+                                cast(str, exploit_default(k))
+                                + ": "
+                                + cast(str, exploit_default(v))
+                                for k, v in default_value.items()
+                            ]
+                        )
+                        + "}"
+                    )
+                elif str(default_value).startswith("<"):
+                    if default_value.__module__ == "builtins":
+                        return default_value.__name__
+                    else:
+                        self._imports.add(default_value.__module__)
+                        return ".".join(
+                            [default_value.__module__, default_value.__name__]
+                        )
+                else:
+                    return (
+                        str(default_value)
+                        if not isinstance(default_value, str)
+                        else '"' + default_value + '"'
+                    )
+            else:
+                return None
+
         buff = StringIO()
         if sign is None and func is None:
             raise RuntimeError(
@@ -486,27 +587,17 @@ class StubGenerator:
         buff.write(indentation + "def " + name + "(")
         for i, (par_name, parameter) in enumerate(sign.parameters.items()):
             annotation = exploit_annotation(parameter.annotation)
-            default = ""
-            if (
-                parameter.default != parameter.empty
-                and type(parameter.default).__module__ == "builtins"
-            ):
-                if str(parameter.default).startswith("<"):
-                    default = " = " + ".".join(
-                        [parameter.default.__module__, parameter.default.__name__]
-                    )
-                    self._imports.add(parameter.default.__module__)
-                else:
-                    default = " = " + (
-                        str(parameter.default)
-                        if not isinstance(parameter.default, str)
-                        else '"' + parameter.default + '"'
-                    )
+            default = exploit_default(parameter.default)
+
             if parameter.kind == inspect.Parameter.VAR_KEYWORD:
                 par_name = "**%s" % par_name
             elif parameter.kind == inspect.Parameter.VAR_POSITIONAL:
                 par_name = "*%s" % par_name
-            buff.write(par_name + annotation + default)
+
+            if default:
+                buff.write(par_name + annotation + " = " + default)
+            else:
+                buff.write(par_name + annotation)
 
             if i < len(sign.parameters) - 1:
                 buff.write(", ")
@@ -542,7 +633,6 @@ class StubGenerator:
                 if issubclass(attr.args[0], Decorator):
                     # Special case where we are going to extract the parameters from
                     # the docstring to make the decorator look nicer
-                    print("Generating decorator documentation for %s..." % name)
                     res = self._extract_parameters_from_doc(name, attr.args[0].__doc__)
                     if res:
                         self._stubs.append(
