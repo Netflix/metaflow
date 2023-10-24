@@ -112,8 +112,8 @@ class KubernetesDecorator(StepDecorator):
         "tmpfs_path": "/metaflow_temp",
         "persistent_volume_claims": None,  # e.g., {"pvc-name": "/mnt/vol", "another-pvc": "/mnt/vol2"}
         "security_context": None,
-        "resource_limits_memory": None,
-        "resource_limits_cpu": None,
+        "resource_limits_memory": "0",  # 0 causes no limit to be set
+        "resource_limits_cpu": "0",  # 0 causes no limit to be set
     }
     package_url = None
     package_sha = None
