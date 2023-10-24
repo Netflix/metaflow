@@ -53,9 +53,9 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
 def compute_resource_limits(args):
     limits_dict = dict()
     if args["resource_limits_memory"] is not None:
-        limits_dict["memory"] = "%sM" % str(args["resource_limits_memory"])
+        limits_dict["memory"] = "%sM" % str(args["resource_limits_memory"]).replace("\"", "")
     if args["resource_limits_cpu"] is not None:
-        limits_dict["cpu"] = str(args["resource_limits_cpu"])
+        limits_dict["cpu"] = str(args["resource_limits_cpu"]).replace("\"", "")
     if args["gpu"] is not None:
         limits_dict["%s.com/gpu".lower() % args["gpu_vendor"]] = str(args["gpu"])
     return limits_dict
