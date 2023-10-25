@@ -21,7 +21,7 @@ from .exception import (
 from .unbounded_foreach import UBF_CONTROL
 from .util import all_equal, get_username, resolve_identity, unicode_type
 from .current import current
-
+from metaflow.tracing import get_trace_id
 from collections import namedtuple
 
 ForeachFrame = namedtuple("ForeachFrame", ["step", "var", "num_splits", "index"])
@@ -396,36 +396,49 @@ class MetaflowTask(object):
             )
 
         metadata_tags = ["attempt_id:{0}".format(retry_count)]
+
+        metadata = [
+            MetaDatum(
+                field="attempt",
+                value=str(retry_count),
+                type="attempt",
+                tags=metadata_tags,
+            ),
+            MetaDatum(
+                field="origin-run-id",
+                value=str(origin_run_id),
+                type="origin-run-id",
+                tags=metadata_tags,
+            ),
+            MetaDatum(
+                field="ds-type",
+                value=self.flow_datastore.TYPE,
+                type="ds-type",
+                tags=metadata_tags,
+            ),
+            MetaDatum(
+                field="ds-root",
+                value=self.flow_datastore.datastore_root,
+                type="ds-root",
+                tags=metadata_tags,
+            ),
+        ]
+        trace_id = get_trace_id()
+        if trace_id:
+            metadata.append(
+                MetaDatum(
+                    field="otel-trace-id",
+                    value=trace_id,
+                    type="trace-id",
+                    tags=metadata_tags,
+                )
+            )
+
         self.metadata.register_metadata(
             run_id,
             step_name,
             task_id,
-            [
-                MetaDatum(
-                    field="attempt",
-                    value=str(retry_count),
-                    type="attempt",
-                    tags=metadata_tags,
-                ),
-                MetaDatum(
-                    field="origin-run-id",
-                    value=str(origin_run_id),
-                    type="origin-run-id",
-                    tags=metadata_tags,
-                ),
-                MetaDatum(
-                    field="ds-type",
-                    value=self.flow_datastore.TYPE,
-                    type="ds-type",
-                    tags=metadata_tags,
-                ),
-                MetaDatum(
-                    field="ds-root",
-                    value=self.flow_datastore.datastore_root,
-                    type="ds-root",
-                    tags=metadata_tags,
-                ),
-            ],
+            metadata,
         )
 
         step_func = getattr(self.flow, step_name)

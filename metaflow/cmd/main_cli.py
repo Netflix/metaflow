@@ -8,9 +8,11 @@ from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, CONTACT_INFO
 from metaflow.metaflow_version import get_version
 
 from .util import echo_always
+import metaflow.tracing as tracing
 
 
 @click.group()
+@tracing.cli_entrypoint("cli/main")
 def main():
     pass
 

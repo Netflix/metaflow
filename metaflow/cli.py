@@ -3,6 +3,7 @@ import sys
 import traceback
 from datetime import datetime
 from functools import wraps
+import metaflow.tracing as tracing
 
 from metaflow._vendor import click
 
@@ -796,6 +797,7 @@ def resume(
     runtime.execute()
 
 
+@tracing.cli_entrypoint("cli/run")
 @parameters.add_custom_parameters(deploy_mode=True)
 @cli.command(help="Run the workflow locally.")
 @common_run_options
@@ -894,6 +896,7 @@ def version(obj):
     echo_always(obj.version)
 
 
+@tracing.cli_entrypoint("cli/start")
 @decorators.add_decorator_options
 @click.command(
     cls=click.CommandCollection,
@@ -1172,7 +1175,7 @@ def main(flow, args=None, handle_exceptions=True, entrypoint=None):
             start(auto_envvar_prefix="METAFLOW", obj=state)
         else:
             try:
-                start.main(args=args, obj=state, auto_envvar_prefix="METAFLOW")
+                start(args=args, obj=state, auto_envvar_prefix="METAFLOW")
             except SystemExit as e:
                 return e.code
     except MetaflowException as x:

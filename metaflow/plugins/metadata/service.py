@@ -59,7 +59,7 @@ class ServiceMetadataProvider(MetadataProvider):
     def compute_info(cls, val):
         v = val.rstrip("/")
         try:
-            resp = requests.get(os.path.join(v, "ping"), headers=SERVICE_HEADERS)
+            resp = requests.get(os.path.join(v, "ping"), headers=SERVICE_HEADERS.copy())
             resp.raise_for_status()
         except:  # noqa E722
             raise ValueError("Metaflow service [%s] unreachable." % v)
@@ -413,25 +413,29 @@ class ServiceMetadataProvider(MetadataProvider):
                 if method == "GET":
                     if monitor:
                         with monitor.measure("metaflow.service_metadata.get"):
-                            resp = requests.get(url, headers=SERVICE_HEADERS)
+                            resp = requests.get(url, headers=SERVICE_HEADERS.copy())
                     else:
-                        resp = requests.get(url, headers=SERVICE_HEADERS)
+                        resp = requests.get(url, headers=SERVICE_HEADERS.copy())
                 elif method == "POST":
                     if monitor:
                         with monitor.measure("metaflow.service_metadata.post"):
                             resp = requests.post(
-                                url, headers=SERVICE_HEADERS, json=data
+                                url, headers=SERVICE_HEADERS.copy(), json=data
                             )
                     else:
-                        resp = requests.post(url, headers=SERVICE_HEADERS, json=data)
+                        resp = requests.post(
+                            url, headers=SERVICE_HEADERS.copy(), json=data
+                        )
                 elif method == "PATCH":
                     if monitor:
                         with monitor.measure("metaflow.service_metadata.patch"):
                             resp = requests.patch(
-                                url, headers=SERVICE_HEADERS, json=data
+                                url, headers=SERVICE_HEADERS.copy(), json=data
                             )
                     else:
-                        resp = requests.patch(url, headers=SERVICE_HEADERS, json=data)
+                        resp = requests.patch(
+                            url, headers=SERVICE_HEADERS.copy(), json=data
+                        )
                 else:
                     raise MetaflowInternalError("Unexpected HTTP method %s" % (method,))
             except MetaflowInternalError:
@@ -496,9 +500,9 @@ class ServiceMetadataProvider(MetadataProvider):
             try:
                 if monitor:
                     with monitor.measure("metaflow.service_metadata.get"):
-                        resp = requests.get(url, headers=SERVICE_HEADERS)
+                        resp = requests.get(url, headers=SERVICE_HEADERS.copy())
                 else:
-                    resp = requests.get(url, headers=SERVICE_HEADERS)
+                    resp = requests.get(url, headers=SERVICE_HEADERS.copy())
             except:
                 if monitor:
                     with monitor.count("metaflow.service_metadata.failed_request"):
