@@ -1,6 +1,6 @@
 include:
   - project: 'analytics/artificial-intelligence/ai-platform/aip-infrastructure/ci-templates/ci-cd-template'
-    ref: &include_ref 'v3'
+    ref: &include_ref 'v4'
     file: 'environments/devex.yml'
   - project: 'analytics/artificial-intelligence/ai-platform/aip-infrastructure/ci-templates/ci-cd-template'
     ref: *include_ref
@@ -8,8 +8,8 @@ include:
 
 variables:
   PY_LIBRARY_NAME: "zillow-metaflow"
-  MAJOR_VERSION: "1"
-  MINOR_VERSION: "3"
+  MAJOR_VERSION: "2"
+  MINOR_VERSION: "0"
   METAFLOW_VERSION_PATH: "setup.py"
   IMAGE_REPOSITORY_TAG_PATH: 'image_tag_file.txt'
   IMAGE_REPOSITORY_TAG_PATH_AIP_STEP: 'image_tag_file_aip_step.txt'
