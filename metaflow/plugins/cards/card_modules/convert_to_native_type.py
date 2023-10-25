@@ -353,7 +353,7 @@ class TaskToDict:
                 parsed_col = _match_partial_type()
                 if parsed_col is not None:
                     return parsed_col.fillna("null")
-            return truncate_long_objects(column_object)
+            return truncate_long_objects(column_object.fillna("null"))
         except ValueError as e:
             return "Unsupported type: {0}".format(col_type)
         except TypeError as e:
