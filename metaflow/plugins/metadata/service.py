@@ -4,8 +4,6 @@ import random
 import requests
 import time
 
-from distutils.version import LooseVersion
-
 from metaflow.exception import (
     MetaflowException,
     MetaflowTaggingError,
@@ -19,6 +17,8 @@ from metaflow.metaflow_config import (
 from metaflow.metadata import MetadataProvider
 from metaflow.metadata.heartbeat import HB_URL_KEY
 from metaflow.sidecar import Message, MessageTypes, Sidecar
+
+from metaflow.util import version_parse
 
 
 # Define message enums
@@ -140,7 +140,7 @@ class ServiceMetadataProvider(MetadataProvider):
         service_version = self.version()
         payload["service_version"] = service_version
         # start sidecar
-        if service_version is None or LooseVersion(service_version) < LooseVersion(
+        if service_version is None or version_parse(service_version) < version_parse(
             "2.0.4"
         ):
             # if old version of the service is running
@@ -347,7 +347,6 @@ class ServiceMetadataProvider(MetadataProvider):
         tags=None,
         sys_tags=None,
     ):
-
         if tags is None:
             tags = set()
         if sys_tags is None:

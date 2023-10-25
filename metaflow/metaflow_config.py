@@ -1,9 +1,6 @@
-import logging
 import os
 import sys
 import types
-
-import pkg_resources
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config_funcs import from_conf, get_validate_choice_fn
@@ -416,24 +413,6 @@ DISABLE_TRACING = bool(os.environ.get("DISABLE_TRACING", False))
 # Note also that DataStoreSet resolves the latest attempt_id using
 # lexicographic ordering of attempts. This won't work if MAX_ATTEMPTS > 99.
 MAX_ATTEMPTS = 6
-
-
-# the naughty, naughty driver.py imported by lib2to3 produces
-# spam messages to the root logger. This is what is required
-# to silence it:
-class Filter(logging.Filter):
-    def filter(self, record):
-        if record.pathname.endswith("driver.py") and "grammar" in record.msg:
-            return False
-        return True
-
-
-logger = logging.getLogger()
-logger.addFilter(Filter())
-
-
-def get_version(pkg):
-    return pkg_resources.get_distribution(pkg).version
 
 
 # PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution

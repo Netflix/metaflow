@@ -2,7 +2,6 @@ import sys
 import os
 import traceback
 from itertools import islice
-from multiprocessing import cpu_count
 from tempfile import NamedTemporaryFile
 import time
 import metaflow.tracing as tracing
@@ -63,13 +62,15 @@ def _spawn(func, arg, dir):
 
 def parallel_imap_unordered(func, iterable, max_parallel=None, dir=None):
     if max_parallel is None:
+        # Lazy import to save on startup time for metaflow as a whole
+        from multiprocessing import cpu_count
+
         max_parallel = cpu_count()
 
     args_iter = iter(iterable)
     pids = [_spawn(func, arg, dir) for arg in islice(args_iter, max_parallel)]
 
     while pids:
-
         for idx, pid_info in enumerate(pids):
             pid, output_file = pid_info
             pid, exit_code = os.waitpid(pid, os.WNOHANG)
