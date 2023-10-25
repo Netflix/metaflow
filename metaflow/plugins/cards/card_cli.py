@@ -703,6 +703,13 @@ def create(
                 )
                 rendered_content = rendered_info.data
             except:
+                rendered_info = CardRenderInfo(
+                    mode=mode,
+                    is_implemented=True,
+                    data=None,
+                    timed_out=False,
+                    timeout_stack_trace=None,
+                )
                 if render_error_card:
                     error_stack_trace = str(UnrenderableCardException(type, options))
                 else:
