@@ -1,7 +1,8 @@
 from setuptools import setup, find_packages
 
-with open("metaflow/version.py", mode="r") as f:
-    version = f.read().splitlines()[0].split("=")[1].strip(" \"'")
+from metaflow.version import metaflow_version
+
+version = metaflow_version
 
 setup(
     include_package_data=True,
