@@ -1,12 +1,19 @@
+import json
 from .card import MetaflowCard, MetaflowCardComponent
+from .renderer_tools import render_safely
 
 
 class TestStringComponent(MetaflowCardComponent):
+    REALTIME_UPDATABLE = True
+
     def __init__(self, text):
         self._text = text
 
     def render(self):
         return str(self._text)
+
+    def update(self, text):
+        self._text = text
 
 
 class TestPathSpecCard(MetaflowCard):
@@ -98,3 +105,110 @@ class TestTimeoutCard(MetaflowCard):
 
         time.sleep(self._timeout)
         return "%s" % task.pathspec
+
+
+REFRESHABLE_HTML_TEMPLATE = """
+<html>
+<script> 
+var METAFLOW_RELOAD_TOKEN = "[METAFLOW_RELOAD_TOKEN]"
+
+window.metaflow_card_update = function(data) {
+    document.querySelector("h1").innerHTML = JSON.stringify(data);
+}
+</script>
+<h1>[PATHSPEC]</h1>
+<h1>[REPLACE_CONTENT_HERE]</h1>
+</html>
+"""
+
+
+class TestJSONComponent(MetaflowCardComponent):
+
+    REALTIME_UPDATABLE = True
+
+    def __init__(self, data):
+        self._data = data
+
+    @render_safely
+    def render(self):
+        return self._data
+
+    def update(self, data):
+        self._data = data
+
+
+class TestRefreshCard(MetaflowCard):
+
+    """
+    This card takes no components and helps test the `current.card.refresh(data)` interface.
+    """
+
+    HTML_TEMPLATE = REFRESHABLE_HTML_TEMPLATE
+
+    RUNTIME_UPDATABLE = True
+
+    ALLOW_USER_COMPONENTS = True
+
+    # Not implementing Reload Policy here since the reload Policy is set to always
+    RELOAD_POLICY = MetaflowCard.RELOAD_POLICY_ALWAYS
+
+    type = "test_refresh_card"
+
+    def render(self, task, data) -> str:
+        return self.HTML_TEMPLATE.replace(
+            "[REPLACE_CONTENT_HERE]", json.dumps(data["user"])
+        ).replace("[PATHSPEC]", task.pathspec)
+
+    def render_runtime(self, task, data):
+        return self.render(task, data)
+
+    def refresh(self, task, data):
+        return data
+
+
+import hashlib
+
+
+def _component_values_to_hash(components):
+    comma_str = ",".join(["".join(x) for v in components.values() for x in v])
+    return hashlib.sha256(comma_str.encode("utf-8")).hexdigest()
+
+
+class TestRefreshComponentCard(MetaflowCard):
+
+    """
+    This card takes components and helps test the `current.card.components["A"].update()`
+    interface
+    """
+
+    HTML_TEMPLATE = REFRESHABLE_HTML_TEMPLATE
+
+    RUNTIME_UPDATABLE = True
+
+    ALLOW_USER_COMPONENTS = True
+
+    # Not implementing Reload Policy here since the reload Policy is set to always
+    RELOAD_POLICY = MetaflowCard.RELOAD_POLICY_ONCHANGE
+
+    type = "test_component_refresh_card"
+
+    def __init__(self, options={}, components=[], graph=None):
+        self._components = components
+
+    def render(self, task, data) -> str:
+        # Calling `render`/`render_runtime` wont require the `data` object
+        return self.HTML_TEMPLATE.replace(
+            "[REPLACE_CONTENT_HERE]", json.dumps(self._components)
+        ).replace("[PATHSPEC]", task.pathspec)
+
+    def render_runtime(self, task, data):
+        return self.render(task, data)
+
+    def refresh(self, task, data):
+        # Govers the information passed in the data update
+        return data["components"]
+
+    def reload_content_token(self, task, data):
+        if task.finished:
+            return "final"
+        return "runtime-%s" % _component_values_to_hash(data["components"])
