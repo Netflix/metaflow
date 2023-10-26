@@ -50,6 +50,7 @@ class Pip(object):
                     for tag in pip_tags(python, platform)
                 ]
             )
+            custom_index_url = self.index_url(prefix)
             extra_index_urls = self.extra_index_urls(prefix)
             cmd = [
                 "install",
@@ -60,6 +61,7 @@ class Pip(object):
                 "--report=%s" % report,
                 "--progress-bar=off",
                 "--quiet",
+                *(["--index-url", custom_index_url] if custom_index_url else []),
                 *(
                     chain.from_iterable(
                         product(["--extra-index-url"], set(extra_index_urls))
@@ -94,6 +96,7 @@ class Pip(object):
                 for tag in pip_tags(python, platform)
             ]
         )
+        custom_index_url = self.index_url(prefix)
         extra_index_urls = self.extra_index_urls(prefix)
         cmd = [
             "download",
@@ -103,6 +106,7 @@ class Pip(object):
             #  if packages are present in Pip cache, this will be a local copy
             "--dest=%s/.pip/wheels" % prefix,
             "--quiet",
+            *(["--index-url", custom_index_url] if custom_index_url else []),
             *(
                 chain.from_iterable(
                     product(["--extra-index-url"], set(extra_index_urls))
@@ -164,6 +168,17 @@ class Pip(object):
                 # not exist
                 pass
         return extra_indices
+
+    def index_url(self, prefix):
+        # get custom index url from Pip conf
+        try:
+            return self._call(
+                prefix, args=["config", "get", "global.index-url"], isolated=False
+            )
+        except Exception:
+            # Pip will throw an error when trying to get a config key that does
+            # not exist
+            return None
 
     def _call(self, prefix, args, env=None, isolated=True):
         if env is None:
