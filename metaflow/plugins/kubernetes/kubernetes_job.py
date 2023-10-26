@@ -5,7 +5,10 @@ import time
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_SECRETS
-from metaflow.plugins.kubernetes.kuberenetes_utils import make_kubernetes_container
+from metaflow.plugins.kubernetes.kuberenetes_utils import (
+    make_kubernetes_container,
+    compute_tempfs_enabled,
+)
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
@@ -108,7 +111,15 @@ class KubernetesJob(object):
                                 client,
                                 self._kwargs["step_name"].replace("_", "-"),
                                 self._kwargs["command"],
-                                self._kwargs,
+                                {
+                                    **self._kwargs,
+                                    "persistent_volume_claims": {
+                                        **self._kwargs.get(
+                                            "persistent_volume_claims", {}
+                                        ),
+                                        "out": "/mnt/out",
+                                    },
+                                },
                                 self._kwargs.get("environment_variables", {}),
                                 additional_secrets=KUBERNETES_SECRETS.split(","),
                             )
@@ -139,11 +150,13 @@ class KubernetesJob(object):
                                     empty_dir=client.V1EmptyDirVolumeSource(
                                         medium="Memory",
                                         # Add default unit as ours differs from Kubernetes default.
-                                        size_limit="{}Mi".format(tmpfs_size),
+                                        size_limit="{}Mi".format(
+                                            self._kwargs["tmpfs_size"]
+                                        ),
                                     ),
                                 )
                             ]
-                            if tmpfs_enabled
+                            if compute_tempfs_enabled(self._kwargs)
                             else []
                         )
                         + (

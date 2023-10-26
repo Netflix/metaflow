@@ -29,6 +29,12 @@ def get_list_from_untyped(possible_list):
     )
 
 
+def compute_tempfs_enabled(args):
+    use_tmpfs = args["use_tmpfs"]
+    tmpfs_size = args["tmpfs_size"]
+    return use_tmpfs or (tmpfs_size and not use_tmpfs)
+
+
 def make_kubernetes_container(
     client, name, commands, args, envs, additional_secrets=[]
 ):
@@ -50,9 +56,7 @@ def make_kubernetes_container(
     ).get_deserialized_object()
 
     # tmpfs variables
-    use_tmpfs = args["use_tmpfs"]
-    tmpfs_size = args["tmpfs_size"]
-    tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
+    tmpfs_enabled = compute_tempfs_enabled(args)
 
     return client.V1Container(
         name=name,
