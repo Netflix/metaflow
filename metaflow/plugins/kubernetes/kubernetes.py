@@ -180,7 +180,7 @@ class Kubernetes(object):
         job = (
             KubernetesClient()
             .job(
-                generate_name="t-{uid}".format(uid=str(uuid4())[:3]),
+                generate_name="t-{uid}-".format(uid=str(uuid4())[:8]),
                 namespace=namespace,
                 service_account=service_account,
                 secrets=secrets,
