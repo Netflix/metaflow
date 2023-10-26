@@ -107,8 +107,9 @@ class KubernetesJob(object):
                             make_kubernetes_container(
                                 client,
                                 self._kwargs["step_name"].replace("_", "-"),
-                                self._kwargs["cmds"],
+                                self._kwargs["command"],
                                 self._kwargs,
+                                self._kwargs.get("environment_variables", {}),
                                 additional_secrets=KUBERNETES_SECRETS.split(","),
                             )
                         ],

@@ -1368,9 +1368,9 @@ class ArgoWorkflows(object):
                             kubernetes_sdk,
                             self._sanitize(node.name),
                             cmds,
-                            env,
                             resources,
-                            KUBERNETES_SECRETS.split(",")
+                            env,
+                            additional_secrets=KUBERNETES_SECRETS.split(",")
                             + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(","),
                         ).to_dict()
                     )

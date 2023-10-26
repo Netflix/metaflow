@@ -29,8 +29,10 @@ def get_list_from_untyped(possible_list):
     )
 
 
-def make_kubernetes_container(client, name, commands, args, additional_secrets=[]):
-    from kubernetes.client import V1SecurityContext, ApiClient, KubernetesClientDataObj
+def make_kubernetes_container(
+    client, name, commands, args, envs, additional_secrets=[]
+):
+    from kubernetes.client import V1SecurityContext, ApiClient
 
     class KubernetesClientDataObj(object):
         def __init__(self, data_dict, class_name):
@@ -55,10 +57,7 @@ def make_kubernetes_container(client, name, commands, args, additional_secrets=[
     return client.V1Container(
         name=name,
         command=commands,
-        env=[
-            client.V1EnvVar(name=k, value=str(v))
-            for k, v in args.get("environment_variables", {}).items()
-        ]
+        env=[client.V1EnvVar(name=k, value=str(v)) for k, v in envs.items()]
         # And some downward API magic. Add (key, value)
         # pairs below to make pod metadata available
         # within Kubernetes container.
