@@ -60,6 +60,7 @@ from metaflow.util import (
 )
 
 from .argo_client import ArgoClient
+from ..kubernetes.kuberenetes_utils import make_kubernetes_container
 
 
 class ArgoWorkflowsException(MetaflowException):
@@ -1363,96 +1364,14 @@ class ArgoWorkflows(object):
                     # resources attributes in particular where the keys maybe user
                     # defined.
                     to_camelcase(
-                        kubernetes_sdk.V1Container(
-                            name=self._sanitize(node.name),
-                            command=cmds,
-                            env=[
-                                kubernetes_sdk.V1EnvVar(name=k, value=str(v))
-                                for k, v in env.items()
-                            ]
-                            # Add environment variables for book-keeping.
-                            # https://argoproj.github.io/argo-workflows/fields/#fields_155
-                            + [
-                                kubernetes_sdk.V1EnvVar(
-                                    name=k,
-                                    value_from=kubernetes_sdk.V1EnvVarSource(
-                                        field_ref=kubernetes_sdk.V1ObjectFieldSelector(
-                                            field_path=str(v)
-                                        )
-                                    ),
-                                )
-                                for k, v in {
-                                    "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
-                                    "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
-                                    "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
-                                    "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME": "spec.serviceAccountName",
-                                    "METAFLOW_KUBERNETES_NODE_IP": "status.hostIP",
-                                }.items()
-                            ],
-                            image=resources["image"],
-                            image_pull_policy=resources["image_pull_policy"],
-                            resources=kubernetes_sdk.V1ResourceRequirements(
-                                requests={
-                                    "cpu": str(resources["cpu"]),
-                                    "memory": "%sM" % str(resources["memory"]),
-                                    "ephemeral-storage": "%sM" % str(resources["disk"]),
-                                },
-                                limits={
-                                    "%s.com/gpu".lower()
-                                    % resources["gpu_vendor"]: str(resources["gpu"])
-                                    for k in [0]
-                                    if resources["gpu"] is not None
-                                },
-                            ),
-                            # Configure secrets
-                            env_from=[
-                                kubernetes_sdk.V1EnvFromSource(
-                                    secret_ref=kubernetes_sdk.V1SecretEnvSource(
-                                        name=str(k),
-                                        # optional=True
-                                    )
-                                )
-                                for k in list(
-                                    []
-                                    if not resources.get("secrets")
-                                    else [resources.get("secrets")]
-                                    if isinstance(resources.get("secrets"), str)
-                                    else resources.get("secrets")
-                                )
-                                + KUBERNETES_SECRETS.split(",")
-                                + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
-                                if k
-                            ],
-                            volume_mounts=[
-                                # Assign a volume mount to pass state to the next task.
-                                kubernetes_sdk.V1VolumeMount(
-                                    name="out", mount_path="/mnt/out"
-                                )
-                            ]
-                            # Support tmpfs.
-                            + (
-                                [
-                                    kubernetes_sdk.V1VolumeMount(
-                                        name="tmpfs-ephemeral-volume",
-                                        mount_path=tmpfs_path,
-                                    )
-                                ]
-                                if tmpfs_enabled
-                                else []
-                            )
-                            # Support persistent volume claims.
-                            + (
-                                [
-                                    kubernetes_sdk.V1VolumeMount(
-                                        name=claim, mount_path=path
-                                    )
-                                    for claim, path in resources.get(
-                                        "persistent_volume_claims"
-                                    ).items()
-                                ]
-                                if resources.get("persistent_volume_claims") is not None
-                                else []
-                            ),
+                        make_kubernetes_container(
+                            kubernetes_sdk,
+                            self._sanitize(node.name),
+                            cmds,
+                            env,
+                            resources,
+                            KUBERNETES_SECRETS.split(",")
+                            + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(","),
                         ).to_dict()
                     )
                 )

@@ -5,6 +5,7 @@ import time
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_SECRETS
+from metaflow.plugins.kubernetes.kuberenetes_utils import make_kubernetes_container
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
@@ -50,17 +51,6 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
     return decorator
 
 
-def compute_resource_limits(args):
-    limits_dict = dict()
-    if args.get("resource_limits_memory", None):
-        limits_dict["memory"] = "%sM" % str(args["resource_limits_memory"])
-    if args.get("resource_limits_cpu", None):
-        limits_dict["cpu"] = args["resource_limits_cpu"]
-    if args["gpu"] is not None:
-        limits_dict["%s.com/gpu".lower() % args["gpu_vendor"]] = str(args["gpu"])
-    return limits_dict
-
-
 class KubernetesJob(object):
     def __init__(self, client, **kwargs):
         self._client = client
@@ -80,24 +70,6 @@ class KubernetesJob(object):
         # Note: This implementation ensures that there is only one unique Pod
         # (unique UID) per Metaflow task attempt.
         client = self._client.get()
-
-        from kubernetes.client import V1SecurityContext, ApiClient
-
-        class KubernetesClientDataObj(object):
-            def __init__(self, data_dict, class_name):
-                self.data = json.dumps(data_dict) if data_dict is not None else None
-                self.class_name = class_name
-
-            def get_deserialized_object(self):
-                if self.data is not None:
-                    return ApiClient().deserialize(self, self.class_name)
-                else:
-                    return None
-
-        # tmpfs variables
-        use_tmpfs = self._kwargs["use_tmpfs"]
-        tmpfs_size = self._kwargs["tmpfs_size"]
-        tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
 
         self._job = client.V1Job(
             api_version="batch/v1",
@@ -132,83 +104,12 @@ class KubernetesJob(object):
                         # TODO (savin): Enable affinities for GPU scheduling.
                         # affinity=?,
                         containers=[
-                            client.V1Container(
-                                command=self._kwargs["command"],
-                                env=[
-                                    client.V1EnvVar(name=k, value=str(v))
-                                    for k, v in self._kwargs.get(
-                                        "environment_variables", {}
-                                    ).items()
-                                ]
-                                # And some downward API magic. Add (key, value)
-                                # pairs below to make pod metadata available
-                                # within Kubernetes container.
-                                + [
-                                    client.V1EnvVar(
-                                        name=k,
-                                        value_from=client.V1EnvVarSource(
-                                            field_ref=client.V1ObjectFieldSelector(
-                                                field_path=str(v)
-                                            )
-                                        ),
-                                    )
-                                    for k, v in {
-                                        "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
-                                        "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
-                                        "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
-                                        "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME": "spec.serviceAccountName",
-                                        "METAFLOW_KUBERNETES_NODE_IP": "status.hostIP",
-                                    }.items()
-                                ],
-                                env_from=[
-                                    client.V1EnvFromSource(
-                                        secret_ref=client.V1SecretEnvSource(
-                                            name=str(k),
-                                            # optional=True
-                                        )
-                                    )
-                                    for k in list(self._kwargs.get("secrets", []))
-                                    + KUBERNETES_SECRETS.split(",")
-                                    if k
-                                ],
-                                image=self._kwargs["image"],
-                                security_context=KubernetesClientDataObj(
-                                    self._kwargs["security_context"], V1SecurityContext
-                                ).get_deserialized_object(),
-                                image_pull_policy=self._kwargs["image_pull_policy"],
-                                name=self._kwargs["step_name"].replace("_", "-"),
-                                resources=client.V1ResourceRequirements(
-                                    requests={
-                                        "cpu": str(self._kwargs["cpu"]),
-                                        "memory": "%sM" % str(self._kwargs["memory"]),
-                                        "ephemeral-storage": "%sM"
-                                        % str(self._kwargs["disk"]),
-                                    },
-                                    limits=compute_resource_limits(self._kwargs),
-                                ),
-                                volume_mounts=(
-                                    [
-                                        client.V1VolumeMount(
-                                            mount_path=self._kwargs.get("tmpfs_path"),
-                                            name="tmpfs-ephemeral-volume",
-                                        )
-                                    ]
-                                    if tmpfs_enabled
-                                    else []
-                                )
-                                + (
-                                    [
-                                        client.V1VolumeMount(
-                                            mount_path=path, name=claim
-                                        )
-                                        for claim, path in self._kwargs[
-                                            "persistent_volume_claims"
-                                        ].items()
-                                    ]
-                                    if self._kwargs["persistent_volume_claims"]
-                                    is not None
-                                    else []
-                                ),
+                            make_kubernetes_container(
+                                client,
+                                self._kwargs["step_name"].replace("_", "-"),
+                                self._kwargs["cmds"],
+                                self._kwargs,
+                                additional_secrets=KUBERNETES_SECRETS.split(","),
                             )
                         ],
                         node_selector=self._kwargs.get("node_selector"),
