@@ -111,15 +111,7 @@ class KubernetesJob(object):
                                 client,
                                 self._kwargs["step_name"].replace("_", "-"),
                                 self._kwargs["command"],
-                                {
-                                    **self._kwargs,
-                                    "persistent_volume_claims": {
-                                        **self._kwargs.get(
-                                            "persistent_volume_claims", {}
-                                        ),
-                                        "out": "/mnt/out",
-                                    },
-                                },
+                                self._kwargs,
                                 self._kwargs.get("environment_variables", {}),
                                 additional_secrets=KUBERNETES_SECRETS.split(","),
                             )

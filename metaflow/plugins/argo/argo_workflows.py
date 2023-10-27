@@ -1368,7 +1368,14 @@ class ArgoWorkflows(object):
                             kubernetes_sdk,
                             self._sanitize(node.name),
                             cmds,
-                            resources,
+                            {
+                                **resources,
+                                # Assign a volume mount to pass state to the next task.
+                                "persistent_volume_claims": {
+                                    **(resources.get("persistent_volume_claims") or {}),
+                                    "out": "/mnt/out",
+                                },
+                            },
                             env,
                             additional_secrets=KUBERNETES_SECRETS.split(",")
                             + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(","),
