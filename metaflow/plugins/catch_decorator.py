@@ -98,7 +98,7 @@ class CatchDecorator(StepDecorator):
         return 0, NUM_FALLBACK_RETRIES
 
     def task_decorate(
-        self, step_func, func, graph, retry_count, max_user_code_retries, ubf_context
+        self, step_func, flow, graph, retry_count, max_user_code_retries, ubf_context
     ):
 
         # if the user code has failed max_user_code_retries times, @catch
