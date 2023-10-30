@@ -190,9 +190,9 @@ class ServiceMetadataProvider(MetadataProvider):
         min_service_version_with_tag_mutation = "2.3.0"
         if cls._supports_tag_mutation is None:
             version = cls._version(None)
-            cls._supports_tag_mutation = version is not None and LooseVersion(
+            cls._supports_tag_mutation = version is not None and version_parse(
                 version
-            ) >= LooseVersion(min_service_version_with_tag_mutation)
+            ) >= version_parse(min_service_version_with_tag_mutation)
         if not cls._supports_tag_mutation:
             raise ServiceException(
                 "Adding or removing tags on a run requires the Metaflow service to be "
@@ -239,9 +239,9 @@ class ServiceMetadataProvider(MetadataProvider):
         if attempt is not None:
             if cls._supports_attempt_gets is None:
                 version = cls._version(None)
-                cls._supports_attempt_gets = version is not None and LooseVersion(
+                cls._supports_attempt_gets = version is not None and version_parse(
                     version
-                ) >= LooseVersion("2.0.6")
+                ) >= version_parse("2.0.6")
             if not cls._supports_attempt_gets:
                 raise ServiceException(
                     "Getting specific attempts of Tasks or Artifacts requires "
