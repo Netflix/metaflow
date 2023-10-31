@@ -1,0 +1,300 @@
+{
+  "name": "projects/test-project/locations/us-central1/pipelineJobs/sample-test-pipeline-20201028000000",
+  "displayName": "sample-test-pipeline-20201028000000",
+  "pipelineSpec": {
+    "components": {
+      "comp-condition-1": {
+        "dag": {
+          "tasks": {
+            "task-flip-coin-2": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-flip-coin-2"
+              },
+              "taskInfo": {
+                "name": "task-flip-coin-2"
+              }
+            },
+            "task-print-msg-2": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-print-msg-2"
+              },
+              "dependentTasks": [
+                "task-flip-coin-2"
+              ],
+              "inputs": {
+                "parameters": {
+                  "msg": {
+                    "taskOutputParameter": {
+                      "outputParameterKey": "Output",
+                      "producerTask": "task-flip-coin-2"
+                    }
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "task-print-msg-2"
+              }
+            },
+            "task-print-msg-3": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-print-msg-3"
+              },
+              "inputs": {
+                "parameters": {
+                  "msg": {
+                    "componentInputParameter": "pipelineparam--text"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "task-print-msg-3"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--flip-coin-Output": {
+              "type": "STRING"
+            },
+            "pipelineparam--text": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-flip-coin": {
+        "executorLabel": "exec-flip-coin",
+        "outputDefinitions": {
+          "parameters": {
+            "Output": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-flip-coin-2": {
+        "executorLabel": "exec-flip-coin-2",
+        "outputDefinitions": {
+          "parameters": {
+            "Output": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-print-msg": {
+        "executorLabel": "exec-print-msg",
+        "inputDefinitions": {
+          "parameters": {
+            "msg": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-print-msg-2": {
+        "executorLabel": "exec-print-msg-2",
+        "inputDefinitions": {
+          "parameters": {
+            "msg": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-print-msg-3": {
+        "executorLabel": "exec-print-msg-3",
+        "inputDefinitions": {
+          "parameters": {
+            "msg": {
+              "type": "STRING"
+            }
+          }
+        }
+      }
+    },
+    "deploymentSpec": {
+      "executors": {
+        "exec-flip-coin": {
+          "container": {
+            "args": [
+              "----output-paths",
+              "{{$.outputs.parameters['Output'].output_file}}"
+            ],
+            "command": [
+              "sh",
+              "-ec",
+              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+              "def flip_coin():\n  \"\"\"Flip a coin and output heads or tails randomly.\"\"\"\n  import random\n  result = 'heads' if random.randint(0, 1) == 0 else 'tails'\n  return result\n\ndef _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError('Value \"{}\" has type \"{}\" instead of str.'.format(str(str_value), str(type(str_value))))\n    return str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Flip coin', description='Flip a coin and output heads or tails randomly.')\n_parser.add_argument(\"----output-paths\", dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = flip_coin(**_parsed_args)\n\n_outputs = [_outputs]\n\n_output_serializers = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-flip-coin-2": {
+          "container": {
+            "args": [
+              "----output-paths",
+              "{{$.outputs.parameters['Output'].output_file}}"
+            ],
+            "command": [
+              "sh",
+              "-ec",
+              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+              "def flip_coin():\n  \"\"\"Flip a coin and output heads or tails randomly.\"\"\"\n  import random\n  result = 'heads' if random.randint(0, 1) == 0 else 'tails'\n  return result\n\ndef _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError('Value \"{}\" has type \"{}\" instead of str.'.format(str(str_value), str(type(str_value))))\n    return str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Flip coin', description='Flip a coin and output heads or tails randomly.')\n_parser.add_argument(\"----output-paths\", dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = flip_coin(**_parsed_args)\n\n_outputs = [_outputs]\n\n_output_serializers = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-print-msg": {
+          "container": {
+            "args": [
+              "--msg",
+              "{{$.inputs.parameters['msg']}}"
+            ],
+            "command": [
+              "sh",
+              "-ec",
+              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+              "def print_msg(msg):\n  \"\"\"Print a message.\"\"\"\n  print(msg)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Print msg', description='Print a message.')\n_parser.add_argument(\"--msg\", dest=\"msg\", type=str, required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs = print_msg(**_parsed_args)\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-print-msg-2": {
+          "container": {
+            "args": [
+              "--msg",
+              "{{$.inputs.parameters['msg']}}"
+            ],
+            "command": [
+              "sh",
+              "-ec",
+              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+              "def print_msg(msg):\n  \"\"\"Print a message.\"\"\"\n  print(msg)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Print msg', description='Print a message.')\n_parser.add_argument(\"--msg\", dest=\"msg\", type=str, required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs = print_msg(**_parsed_args)\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-print-msg-3": {
+          "container": {
+            "args": [
+              "--msg",
+              "{{$.inputs.parameters['msg']}}"
+            ],
+            "command": [
+              "sh",
+              "-ec",
+              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+              "def print_msg(msg):\n  \"\"\"Print a message.\"\"\"\n  print(msg)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Print msg', description='Print a message.')\n_parser.add_argument(\"--msg\", dest=\"msg\", type=str, required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs = print_msg(**_parsed_args)\n"
+            ],
+            "image": "python:3.7"
+          }
+        }
+      }
+    },
+    "pipelineInfo": {
+      "name": "sample-test-pipeline"
+    },
+    "root": {
+      "dag": {
+        "tasks": {
+          "task-condition-1": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-condition-1"
+            },
+            "dependentTasks": [
+              "task-flip-coin"
+            ],
+            "inputs": {
+              "parameters": {
+                "pipelineparam--flip-coin-Output": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "Output",
+                    "producerTask": "task-flip-coin"
+                  }
+                },
+                "pipelineparam--text": {
+                  "componentInputParameter": "text"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "task-condition-1"
+            },
+            "triggerPolicy": {
+              "condition": "inputs.parameters['pipelineparam--flip-coin-Output'].string_value == 'heads'"
+            }
+          },
+          "task-flip-coin": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-flip-coin"
+            },
+            "taskInfo": {
+              "name": "task-flip-coin"
+            }
+          },
+          "task-print-msg": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-print-msg"
+            },
+            "dependentTasks": [
+              "task-flip-coin"
+            ],
+            "inputs": {
+              "parameters": {
+                "msg": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "Output",
+                    "producerTask": "task-flip-coin"
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "task-print-msg"
+            }
+          }
+        }
+      },
+      "inputDefinitions": {
+        "parameters": {
+          "text": {
+            "type": "STRING"
+          },
+          "list": {
+            "type": "STRING"
+          }
+        }
+      }
+    },
+    "schemaVersion": "2.0.0",
+    "sdkVersion": "kfp-1.5.0"
+  },
+  "runtimeConfig": {
+    "gcsOutputDirectory": "dummy_root",
+    "parameters": {
+      "text": {
+        "stringValue": "Hello KFP!"
+      }
+    }
+  }
+}

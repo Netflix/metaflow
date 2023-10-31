@@ -1,0 +1,26 @@
+name: Component with optional inputs
+inputs:
+- {name: required_input, type: String, optional: false}
+- {name: optional_input_1, type: String, optional: true}
+- {name: optional_input_2, type: String, optional: true}
+implementation:
+  container:
+    image: gcr.io/my-project/my-image
+    args:
+    - --arg0
+    - {inputValue: required_input}
+    - if:
+        cond:
+          isPresent: optional_input_1
+        then:
+          - --arg1
+          - {inputValue: optional_input_1}
+    - if:
+        cond:
+          isPresent: optional_input_2
+        then:
+          - --arg2
+          - {inputValue: optional_input_2}
+        else:
+          - --arg3
+          - 'default value'

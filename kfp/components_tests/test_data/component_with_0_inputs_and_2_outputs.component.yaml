@@ -1,0 +1,15 @@
+name: Component with 0 inputs and 2 outputs
+outputs:
+- {name: Output 1}
+- {name: Output 2}
+implementation:
+  container:
+    image: busybox
+    command: [sh, -c, '
+        echo "Data 1" > $0
+        echo "Data 2" > $1
+        '
+    ]
+    args:
+    - {outputPath: Output 1}
+    - {outputPath: Output 2}

@@ -1,0 +1,22 @@
+name: Component with 2 inputs and 2 outputs
+inputs:
+- {name: Input parameter}
+- {name: Input artifact}
+outputs:
+- {name: Output 1}
+- {name: Output 2}
+implementation:
+  container:
+    image: busybox
+    command: [sh, -c, '
+        mkdir -p $(dirname "$2")
+        mkdir -p $(dirname "$3")
+        echo "$0" > "$2"
+        cp "$1" "$3"
+        '
+    ]
+    args: 
+    - {inputValue: Input parameter}
+    - {inputPath: Input artifact}
+    - {outputPath: Output 1}
+    - {outputPath: Output 2}

@@ -1,0 +1,29 @@
+{
+  "artifacts": {
+    "output": {
+      "artifacts": [
+        {
+          "name": "test-artifact",
+          "uri": "gs://root/execution/output",
+          "type": {
+            "instanceSchema": "title: kfp.Model\ntype: object\nproperties:\n  framework:\n    type: string\n  framework_version:\n    type: string\n"
+          },
+          "metadata": {
+            "test_property": "test value"
+          }
+        }
+      ]
+    }
+  },
+  "parameters": {
+    "int_output": {
+      "intValue": 42
+    },
+    "string_output": {
+      "stringValue": "hello world!"
+    },
+    "float_output": {
+      "doubleValue": 12.12
+    }
+  }
+}

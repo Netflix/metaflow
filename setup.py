@@ -13,9 +13,7 @@ setup(
     author_email="help@metaflow.org",
     license="Apache License 2.0",
     packages=find_packages(exclude=["metaflow_test"]),
-    py_modules=[
-        "metaflow",
-    ],
+    py_modules=["metaflow", "kfp"],
     package_data={"metaflow": ["tutorials/*/*"]},
     entry_points="""
         [console_scripts]
@@ -25,11 +23,24 @@ setup(
         "requests",
         "boto3",
         "pylint",
+        # required for KFP
+        "absl-py>=0.9,<=0.11",
+        "Deprecated>=1.2.7,<2",
+        "docstring-parser>=0.7.3,<1",
+        "fire>=0.3.1,<1",
+        "googleapis-common-protos>=1.6.0,<2",
+        "jsonschema>=4.19.2,<5",
+        "kfp-pipeline-spec>=0.1.13,<0.2.0",
+        "kfp-server-api>=1.1.2,<2.0.0",
+        "kubernetes>=8.0.0,<25",
+        "protobuf>=3.13.0,<4",
+        "pyyaml>=6.0.1,<7",
+        "requests-toolbelt>=0.8.0,<1",
+        "uritemplate>=3.0.1,<4",
     ],
     tests_require=["coverage"],
     extras_require={
-        "kfp": ["zillow-kfp>=1.0.80", "kfp-server-api"],
         # Use an extras here as there is no "extras_tests_require" functionality :(
-        "kfp-tests": ["pytest", "pytest-xdist", "pytest-cov", "subprocess-tee"],
+        "aip-tests": ["pytest", "pytest-xdist", "pytest-cov", "subprocess-tee"],
     },
 )

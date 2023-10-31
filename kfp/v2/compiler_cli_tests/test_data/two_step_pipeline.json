@@ -1,0 +1,134 @@
+{
+  "pipelineSpec": {
+    "components": {
+      "comp-read-from-gcs": {
+        "executorLabel": "exec-read-from-gcs",
+        "inputDefinitions": {
+          "artifacts": {
+            "input_gcs_path": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      },
+      "comp-write-to-gcs": {
+        "executorLabel": "exec-write-to-gcs",
+        "inputDefinitions": {
+          "parameters": {
+            "text": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "output_gcs_path": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      }
+    },
+    "deploymentSpec": {
+      "executors": {
+        "exec-read-from-gcs": {
+          "container": {
+            "command": [
+              "sh",
+              "-c",
+              "set -e -x\ngsutil cat \"$0\"\n",
+              "{{$.inputs.artifacts['input_gcs_path'].uri}}"
+            ],
+            "image": "google/cloud-sdk:slim"
+          }
+        },
+        "exec-write-to-gcs": {
+          "container": {
+            "command": [
+              "sh",
+              "-c",
+              "set -e -x\necho \"$0\" | gsutil cp - \"$1\"\n",
+              "{{$.inputs.parameters['text']}}",
+              "{{$.outputs.artifacts['output_gcs_path'].uri}}"
+            ],
+            "image": "google/cloud-sdk:slim"
+          }
+        }
+      }
+    },
+    "pipelineInfo": {
+      "name": "simple-two-step-pipeline"
+    },
+    "root": {
+      "dag": {
+        "tasks": {
+          "read-from-gcs": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-read-from-gcs"
+            },
+            "dependentTasks": [
+              "write-to-gcs"
+            ],
+            "inputs": {
+              "artifacts": {
+                "input_gcs_path": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "output_gcs_path",
+                    "producerTask": "write-to-gcs"
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "Consumer"
+            }
+          },
+          "write-to-gcs": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-write-to-gcs"
+            },
+            "inputs": {
+              "parameters": {
+                "text": {
+                  "componentInputParameter": "text"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "Producer"
+            }
+          }
+        }
+      },
+      "inputDefinitions": {
+        "parameters": {
+          "text": {
+            "type": "STRING"
+          }
+        }
+      }
+    },
+    "schemaVersion": "2.0.0",
+    "sdkVersion": "kfp-1.7.2"
+  },
+  "runtimeConfig": {
+    "gcsOutputDirectory": "dummy_root",
+    "parameters": {
+      "text": {
+        "stringValue": "Hello KFP!"
+      }
+    }
+  }
+}

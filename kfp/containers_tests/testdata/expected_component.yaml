@@ -1,0 +1,20 @@
+name: Test function
+metadata:
+  annotations:
+    pipelines.kubeflow.org/component_v2: "true"
+inputs:
+- {name: test_param, type: String}
+- {name: test_artifact, type: Dataset}
+outputs:
+- {name: test_output, type: Model}
+implementation:
+  container:
+    image: gcr.io/my-project/my-image:123456
+    command: [python, -m, kfp.containers.entrypoint]
+    args:
+    - --executor_input_str
+    - {executorInput: null}
+    - --function_name
+    - test_function
+    - --output_metadata_path
+    - {outputMetadata: null}

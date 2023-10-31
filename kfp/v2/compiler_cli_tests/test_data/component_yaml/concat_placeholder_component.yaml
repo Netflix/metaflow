@@ -1,0 +1,9 @@
+name: Component with concat placeholder
+inputs:
+- {name: input_prefix, type: String}
+implementation:
+  container:
+    image: gcr.io/my-project/my-image
+    args:
+    - --arg0
+    - concat: [{inputValue: input_prefix}, 'some value']

@@ -1,0 +1,128 @@
+{
+  "components": {
+    "comp-component-1": {
+      "executorLabel": "exec-component-1",
+      "inputDefinitions": {
+        "parameters": {
+          "input1": {
+            "parameterType": "STRING"
+          }
+        }
+      },
+      "outputDefinitions": {
+        "parameters": {
+          "output1": {
+            "parameterType": "STRING"
+          }
+        }
+      }
+    },
+    "comp-component-1-2": {
+      "executorLabel": "exec-component-1-2",
+      "inputDefinitions": {
+        "parameters": {
+          "input1": {
+            "parameterType": "STRING"
+          }
+        }
+      },
+      "outputDefinitions": {
+        "parameters": {
+          "output1": {
+            "parameterType": "STRING"
+          }
+        }
+      }
+    }
+  },
+  "defaultPipelineRoot": "dummy_root",
+  "deploymentSpec": {
+    "executors": {
+      "exec-component-1": {
+        "container": {
+          "command": [
+            "sh",
+            "-c",
+            "set -ex\necho \"$0\" > \"$1\"",
+            "{{$.inputs.parameters['input1']}}",
+            "{{$.outputs.parameters['output1'].output_file}}"
+          ],
+          "image": "alpine"
+        }
+      },
+      "exec-component-1-2": {
+        "container": {
+          "command": [
+            "sh",
+            "-c",
+            "set -ex\necho \"$0\" > \"$1\"",
+            "{{$.inputs.parameters['input1']}}",
+            "{{$.outputs.parameters['output1'].output_file}}"
+          ],
+          "image": "alpine"
+        }
+      }
+    }
+  },
+  "pipelineInfo": {
+    "name": "experimental-v2-component"
+  },
+  "root": {
+    "dag": {
+      "tasks": {
+        "component-1": {
+          "cachingOptions": {
+            "enableCache": true
+          },
+          "componentRef": {
+            "name": "comp-component-1"
+          },
+          "inputs": {
+            "parameters": {
+              "input1": {
+                "componentInputParameter": "text"
+              }
+            }
+          },
+          "taskInfo": {
+            "name": "component-1"
+          }
+        },
+        "component-1-2": {
+          "cachingOptions": {
+            "enableCache": true
+          },
+          "componentRef": {
+            "name": "comp-component-1-2"
+          },
+          "dependentTasks": [
+            "component-1"
+          ],
+          "inputs": {
+            "parameters": {
+              "input1": {
+                "taskOutputParameter": {
+                  "outputParameterKey": "output1",
+                  "producerTask": "component-1"
+                }
+              }
+            }
+          },
+          "taskInfo": {
+            "name": "component-1-2"
+          }
+        }
+      }
+    },
+    "inputDefinitions": {
+      "parameters": {
+        "text": {
+          "defaultValue": "Hello world!",
+          "parameterType": "STRING"
+        }
+      }
+    }
+  },
+  "schemaVersion": "2.1.0",
+  "sdkVersion": "kfp-1.8.6"
+}

@@ -1,0 +1,15 @@
+name: Component with 2 inputs and 0 outputs
+inputs:
+- {name: Input parameter}
+- {name: Input artifact}
+implementation:
+  container:
+    image: busybox
+    command: [sh, -c, '
+        echo "Input parameter = $0"
+        echo "Input artifact = $(< $1)"
+        '
+    ]
+    args: 
+    - {inputValue: Input parameter}
+    - {inputPath: Input artifact}

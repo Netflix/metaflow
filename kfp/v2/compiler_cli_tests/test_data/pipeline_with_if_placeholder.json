@@ -1,0 +1,84 @@
+{
+  "pipelineSpec": {
+    "components": {
+      "comp-component-with-optional-inputs": {
+        "executorLabel": "exec-component-with-optional-inputs",
+        "inputDefinitions": {
+          "parameters": {
+            "optional_input_1": {
+              "type": "STRING"
+            },
+            "required_input": {
+              "type": "STRING"
+            }
+          }
+        }
+      }
+    },
+    "deploymentSpec": {
+      "executors": {
+        "exec-component-with-optional-inputs": {
+          "container": {
+            "args": [
+              "--arg0",
+              "{{$.inputs.parameters['required_input']}}",
+              "--arg1",
+              "{{$.inputs.parameters['optional_input_1']}}",
+              "--arg3",
+              "default value"
+            ],
+            "image": "gcr.io/my-project/my-image"
+          }
+        }
+      }
+    },
+    "pipelineInfo": {
+      "name": "one-step-pipeline-with-if-placeholder"
+    },
+    "root": {
+      "dag": {
+        "tasks": {
+          "component-with-optional-inputs": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-component-with-optional-inputs"
+            },
+            "inputs": {
+              "parameters": {
+                "optional_input_1": {
+                  "componentInputParameter": "input1"
+                },
+                "required_input": {
+                  "componentInputParameter": "input0"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "component-with-optional-inputs"
+            }
+          }
+        }
+      },
+      "inputDefinitions": {
+        "parameters": {
+          "input0": {
+            "type": "STRING"
+          },
+          "input1": {
+            "type": "STRING"
+          },
+          "input2": {
+            "type": "STRING"
+          }
+        }
+      }
+    },
+    "schemaVersion": "2.0.0",
+    "sdkVersion": "kfp-1.7.2"
+  },
+  "runtimeConfig": {
+    "gcsOutputDirectory": "dummy_root"
+  }
+}

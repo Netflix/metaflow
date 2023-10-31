@@ -1,7 +1,6 @@
 # syntax = docker/dockerfile:experimental
 # This image acts as both a CICD image used within the Gitlab runners run pytest which
-# kicks off KFP runs using the Metaflow AIP plugin as well as the base image of Kubeflow
-# pods running on the Kubeflow cluster.
+# kicks off Argo runs using the Metaflow AIP plugin
 FROM analytics-docker.artifactory.zgtools.net/artificial-intelligence/ai-platform/aip-py39-cpu:5.0.2168.dev2168
 
 # Add in AWS CLI because when we run the integration tests against the AI Analytics ZGCP clusters
@@ -23,7 +22,7 @@ COPY . /home/zservice/metaflow
 RUN --mount=type=cache,target=/home/zservice/.cache/pip \
     pip install --upgrade --force-reinstall \
     -i https://artifactory.zgtools.net/artifactory/api/pypi/analytics-python/simple \
-    -e /home/zservice/metaflow[kfp,kfp-tests]
+    -e /home/zservice/metaflow[aip-tests]
 
 ARG IMAGE_TAG
 ENV IMAGE_TAG=$IMAGE_TAG

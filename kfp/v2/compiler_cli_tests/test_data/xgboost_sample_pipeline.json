@@ -1,0 +1,896 @@
+{
+  "pipelineSpec": {
+    "components": {
+      "comp-chicago-taxi-trips-dataset": {
+        "executorLabel": "exec-chicago-taxi-trips-dataset",
+        "inputDefinitions": {
+          "parameters": {
+            "Format": {
+              "type": "STRING"
+            },
+            "Limit": {
+              "type": "INT"
+            },
+            "Select": {
+              "type": "STRING"
+            },
+            "Where": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "Table": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      },
+      "comp-convert-csv-to-apache-parquet": {
+        "executorLabel": "exec-convert-csv-to-apache-parquet",
+        "inputDefinitions": {
+          "artifacts": {
+            "data": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "output_data": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      },
+      "comp-xgboost-predict": {
+        "executorLabel": "exec-xgboost-predict",
+        "inputDefinitions": {
+          "artifacts": {
+            "data": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "model": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "label_column": {
+              "type": "INT"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "predictions": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      },
+      "comp-xgboost-predict-2": {
+        "executorLabel": "exec-xgboost-predict-2",
+        "inputDefinitions": {
+          "artifacts": {
+            "data": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "model": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "label_column_name": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "predictions": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      },
+      "comp-xgboost-predict-3": {
+        "executorLabel": "exec-xgboost-predict-3",
+        "inputDefinitions": {
+          "artifacts": {
+            "data": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "model": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "label_column_name": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "predictions": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      },
+      "comp-xgboost-predict-4": {
+        "executorLabel": "exec-xgboost-predict-4",
+        "inputDefinitions": {
+          "artifacts": {
+            "data": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "model": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "label_column": {
+              "type": "INT"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "predictions": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      },
+      "comp-xgboost-train": {
+        "executorLabel": "exec-xgboost-train",
+        "inputDefinitions": {
+          "artifacts": {
+            "training_data": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "booster": {
+              "type": "STRING"
+            },
+            "label_column": {
+              "type": "INT"
+            },
+            "learning_rate": {
+              "type": "DOUBLE"
+            },
+            "max_depth": {
+              "type": "INT"
+            },
+            "min_split_loss": {
+              "type": "DOUBLE"
+            },
+            "num_iterations": {
+              "type": "INT"
+            },
+            "objective": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "model": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "model_config": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      },
+      "comp-xgboost-train-2": {
+        "executorLabel": "exec-xgboost-train-2",
+        "inputDefinitions": {
+          "artifacts": {
+            "training_data": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "booster": {
+              "type": "STRING"
+            },
+            "label_column_name": {
+              "type": "STRING"
+            },
+            "learning_rate": {
+              "type": "DOUBLE"
+            },
+            "max_depth": {
+              "type": "INT"
+            },
+            "min_split_loss": {
+              "type": "DOUBLE"
+            },
+            "num_iterations": {
+              "type": "INT"
+            },
+            "objective": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "model": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "model_config": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      }
+    },
+    "deploymentSpec": {
+      "executors": {
+        "exec-chicago-taxi-trips-dataset": {
+          "container": {
+            "command": [
+              "sh",
+              "-c",
+              "set -e -x -o pipefail\noutput_path=\"$0\"\nselect=\"$1\"\nwhere=\"$2\"\nlimit=\"$3\"\nformat=\"$4\"\nmkdir -p \"$(dirname \"$output_path\")\"\ncurl --get 'https://data.cityofchicago.org/resource/wrvz-psew.'\"${format}\" \\\n    --data-urlencode '$limit='\"${limit}\" \\\n    --data-urlencode '$where='\"${where}\" \\\n    --data-urlencode '$select='\"${select}\" \\\n    | tr -d '\"' > \"$output_path\"  # Removing unneeded quotes around all numbers\n",
+              "{{$.outputs.artifacts['Table'].path}}",
+              "{{$.inputs.parameters['Select']}}",
+              "{{$.inputs.parameters['Where']}}",
+              "{{$.inputs.parameters['Limit']}}",
+              "{{$.inputs.parameters['Format']}}"
+            ],
+            "image": "byrnedo/alpine-curl@sha256:548379d0a4a0c08b9e55d9d87a592b7d35d9ab3037f4936f5ccd09d0b625a342"
+          }
+        },
+        "exec-convert-csv-to-apache-parquet": {
+          "container": {
+            "args": [
+              "--data",
+              "{{$.inputs.artifacts['data'].path}}",
+              "--output-data",
+              "{{$.outputs.artifacts['output_data'].path}}"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "(PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'pyarrow==0.17.1' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'pyarrow==0.17.1' --user) && \"$0\" \"$@\"",
+              "python3",
+              "-u",
+              "-c",
+              "def _make_parent_dirs_and_return_path(file_path: str):\n    import os\n    os.makedirs(os.path.dirname(file_path), exist_ok=True)\n    return file_path\n\ndef convert_csv_to_apache_parquet(\n    data_path,\n    output_data_path,\n):\n    '''Converts CSV table to Apache Parquet.\n\n    [Apache Parquet](https://parquet.apache.org/)\n\n    Annotations:\n        author: Alexey Volkov <alexey.volkov@ark-kun.com>\n    '''\n    from pyarrow import csv, parquet\n\n    table = csv.read_csv(data_path)\n    parquet.write_table(table, output_data_path)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Convert csv to apache parquet', description='Converts CSV table to Apache Parquet.\\n\\n    [Apache Parquet](https://parquet.apache.org/)\\n\\n    Annotations:\\n        author: Alexey Volkov <alexey.volkov@ark-kun.com>')\n_parser.add_argument(\"--data\", dest=\"data_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--output-data\", dest=\"output_data_path\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = convert_csv_to_apache_parquet(**_parsed_args)\n\n_output_serializers = [\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-xgboost-predict": {
+          "container": {
+            "args": [
+              "--data",
+              "{{$.inputs.artifacts['data'].path}}",
+              "--model",
+              "{{$.inputs.artifacts['model'].path}}",
+              "--label-column",
+              "{{$.inputs.parameters['label_column']}}",
+              "--predictions",
+              "{{$.outputs.artifacts['predictions'].path}}"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "(PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'xgboost==1.1.1' 'pandas==1.0.5' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'xgboost==1.1.1' 'pandas==1.0.5' --user) && \"$0\" \"$@\"",
+              "python3",
+              "-u",
+              "-c",
+              "def _make_parent_dirs_and_return_path(file_path: str):\n    import os\n    os.makedirs(os.path.dirname(file_path), exist_ok=True)\n    return file_path\n\ndef xgboost_predict(\n    data_path,  # Also supports LibSVM\n    model_path,\n    predictions_path,\n    label_column = None,\n):\n    '''Make predictions using a trained XGBoost model.\n\n    Args:\n        data_path: Path for the feature data in CSV format.\n        model_path: Path for the trained model in binary XGBoost format.\n        predictions_path: Output path for the predictions.\n        label_column: Column containing the label data.\n\n    Annotations:\n        author: Alexey Volkov <alexey.volkov@ark-kun.com>\n    '''\n    from pathlib import Path\n\n    import numpy\n    import pandas\n    import xgboost\n\n    df = pandas.read_csv(\n        data_path,\n    )\n\n    if label_column is not None:\n        df = df.drop(columns=[df.columns[label_column]])\n\n    testing_data = xgboost.DMatrix(\n        data=df,\n    )\n\n    model = xgboost.Booster(model_file=model_path)\n\n    predictions = model.predict(testing_data)\n\n    Path(predictions_path).parent.mkdir(parents=True, exist_ok=True)\n    numpy.savetxt(predictions_path, predictions)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Xgboost predict', description='Make predictions using a trained XGBoost model.\\n\\n    Args:\\n        data_path: Path for the feature data in CSV format.\\n        model_path: Path for the trained model in binary XGBoost format.\\n        predictions_path: Output path for the predictions.\\n        label_column: Column containing the label data.\\n\\n    Annotations:\\n        author: Alexey Volkov <alexey.volkov@ark-kun.com>')\n_parser.add_argument(\"--data\", dest=\"data_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model\", dest=\"model_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--label-column\", dest=\"label_column\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--predictions\", dest=\"predictions_path\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs = xgboost_predict(**_parsed_args)\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-xgboost-predict-2": {
+          "container": {
+            "args": [
+              "--data",
+              "{{$.inputs.artifacts['data'].path}}",
+              "--model",
+              "{{$.inputs.artifacts['model'].path}}",
+              "--label-column-name",
+              "{{$.inputs.parameters['label_column_name']}}",
+              "--predictions",
+              "{{$.outputs.artifacts['predictions'].path}}"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "(PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'xgboost==1.1.1' 'pandas==1.0.5' 'pyarrow==0.17.1' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'xgboost==1.1.1' 'pandas==1.0.5' 'pyarrow==0.17.1' --user) && \"$0\" \"$@\"",
+              "python3",
+              "-u",
+              "-c",
+              "def _make_parent_dirs_and_return_path(file_path: str):\n    import os\n    os.makedirs(os.path.dirname(file_path), exist_ok=True)\n    return file_path\n\ndef xgboost_predict(\n    data_path,\n    model_path,\n    predictions_path,\n    label_column_name = None,\n):\n    '''Make predictions using a trained XGBoost model.\n\n    Args:\n        data_path: Path for the feature data in Apache Parquet format.\n        model_path: Path for the trained model in binary XGBoost format.\n        predictions_path: Output path for the predictions.\n        label_column_name: Optional. Name of the column containing the label data that is excluded during the prediction.\n\n    Annotations:\n        author: Alexey Volkov <alexey.volkov@ark-kun.com>\n    '''\n    from pathlib import Path\n\n    import numpy\n    import pandas\n    import xgboost\n\n    # Loading data\n    df = pandas.read_parquet(data_path)\n    if label_column_name:\n        df = df.drop(columns=[label_column_name])\n\n    evaluation_data = xgboost.DMatrix(\n        data=df,\n    )\n\n    # Training\n    model = xgboost.Booster(model_file=model_path)\n\n    predictions = model.predict(evaluation_data)\n\n    Path(predictions_path).parent.mkdir(parents=True, exist_ok=True)\n    numpy.savetxt(predictions_path, predictions)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Xgboost predict', description='Make predictions using a trained XGBoost model.\\n\\n    Args:\\n        data_path: Path for the feature data in Apache Parquet format.\\n        model_path: Path for the trained model in binary XGBoost format.\\n        predictions_path: Output path for the predictions.\\n        label_column_name: Optional. Name of the column containing the label data that is excluded during the prediction.\\n\\n    Annotations:\\n        author: Alexey Volkov <alexey.volkov@ark-kun.com>')\n_parser.add_argument(\"--data\", dest=\"data_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model\", dest=\"model_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--label-column-name\", dest=\"label_column_name\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--predictions\", dest=\"predictions_path\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs = xgboost_predict(**_parsed_args)\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-xgboost-predict-3": {
+          "container": {
+            "args": [
+              "--data",
+              "{{$.inputs.artifacts['data'].path}}",
+              "--model",
+              "{{$.inputs.artifacts['model'].path}}",
+              "--label-column-name",
+              "{{$.inputs.parameters['label_column_name']}}",
+              "--predictions",
+              "{{$.outputs.artifacts['predictions'].path}}"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "(PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'xgboost==1.1.1' 'pandas==1.0.5' 'pyarrow==0.17.1' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'xgboost==1.1.1' 'pandas==1.0.5' 'pyarrow==0.17.1' --user) && \"$0\" \"$@\"",
+              "python3",
+              "-u",
+              "-c",
+              "def _make_parent_dirs_and_return_path(file_path: str):\n    import os\n    os.makedirs(os.path.dirname(file_path), exist_ok=True)\n    return file_path\n\ndef xgboost_predict(\n    data_path,\n    model_path,\n    predictions_path,\n    label_column_name = None,\n):\n    '''Make predictions using a trained XGBoost model.\n\n    Args:\n        data_path: Path for the feature data in Apache Parquet format.\n        model_path: Path for the trained model in binary XGBoost format.\n        predictions_path: Output path for the predictions.\n        label_column_name: Optional. Name of the column containing the label data that is excluded during the prediction.\n\n    Annotations:\n        author: Alexey Volkov <alexey.volkov@ark-kun.com>\n    '''\n    from pathlib import Path\n\n    import numpy\n    import pandas\n    import xgboost\n\n    # Loading data\n    df = pandas.read_parquet(data_path)\n    if label_column_name:\n        df = df.drop(columns=[label_column_name])\n\n    evaluation_data = xgboost.DMatrix(\n        data=df,\n    )\n\n    # Training\n    model = xgboost.Booster(model_file=model_path)\n\n    predictions = model.predict(evaluation_data)\n\n    Path(predictions_path).parent.mkdir(parents=True, exist_ok=True)\n    numpy.savetxt(predictions_path, predictions)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Xgboost predict', description='Make predictions using a trained XGBoost model.\\n\\n    Args:\\n        data_path: Path for the feature data in Apache Parquet format.\\n        model_path: Path for the trained model in binary XGBoost format.\\n        predictions_path: Output path for the predictions.\\n        label_column_name: Optional. Name of the column containing the label data that is excluded during the prediction.\\n\\n    Annotations:\\n        author: Alexey Volkov <alexey.volkov@ark-kun.com>')\n_parser.add_argument(\"--data\", dest=\"data_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model\", dest=\"model_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--label-column-name\", dest=\"label_column_name\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--predictions\", dest=\"predictions_path\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs = xgboost_predict(**_parsed_args)\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-xgboost-predict-4": {
+          "container": {
+            "args": [
+              "--data",
+              "{{$.inputs.artifacts['data'].path}}",
+              "--model",
+              "{{$.inputs.artifacts['model'].path}}",
+              "--label-column",
+              "{{$.inputs.parameters['label_column']}}",
+              "--predictions",
+              "{{$.outputs.artifacts['predictions'].path}}"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "(PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'xgboost==1.1.1' 'pandas==1.0.5' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'xgboost==1.1.1' 'pandas==1.0.5' --user) && \"$0\" \"$@\"",
+              "python3",
+              "-u",
+              "-c",
+              "def _make_parent_dirs_and_return_path(file_path: str):\n    import os\n    os.makedirs(os.path.dirname(file_path), exist_ok=True)\n    return file_path\n\ndef xgboost_predict(\n    data_path,  # Also supports LibSVM\n    model_path,\n    predictions_path,\n    label_column = None,\n):\n    '''Make predictions using a trained XGBoost model.\n\n    Args:\n        data_path: Path for the feature data in CSV format.\n        model_path: Path for the trained model in binary XGBoost format.\n        predictions_path: Output path for the predictions.\n        label_column: Column containing the label data.\n\n    Annotations:\n        author: Alexey Volkov <alexey.volkov@ark-kun.com>\n    '''\n    from pathlib import Path\n\n    import numpy\n    import pandas\n    import xgboost\n\n    df = pandas.read_csv(\n        data_path,\n    )\n\n    if label_column is not None:\n        df = df.drop(columns=[df.columns[label_column]])\n\n    testing_data = xgboost.DMatrix(\n        data=df,\n    )\n\n    model = xgboost.Booster(model_file=model_path)\n\n    predictions = model.predict(testing_data)\n\n    Path(predictions_path).parent.mkdir(parents=True, exist_ok=True)\n    numpy.savetxt(predictions_path, predictions)\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Xgboost predict', description='Make predictions using a trained XGBoost model.\\n\\n    Args:\\n        data_path: Path for the feature data in CSV format.\\n        model_path: Path for the trained model in binary XGBoost format.\\n        predictions_path: Output path for the predictions.\\n        label_column: Column containing the label data.\\n\\n    Annotations:\\n        author: Alexey Volkov <alexey.volkov@ark-kun.com>')\n_parser.add_argument(\"--data\", dest=\"data_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model\", dest=\"model_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--label-column\", dest=\"label_column\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--predictions\", dest=\"predictions_path\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs = xgboost_predict(**_parsed_args)\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-xgboost-train": {
+          "container": {
+            "args": [
+              "--training-data",
+              "{{$.inputs.artifacts['training_data'].path}}",
+              "--label-column",
+              "{{$.inputs.parameters['label_column']}}",
+              "--num-iterations",
+              "{{$.inputs.parameters['num_iterations']}}",
+              "--objective",
+              "{{$.inputs.parameters['objective']}}",
+              "--booster",
+              "{{$.inputs.parameters['booster']}}",
+              "--learning-rate",
+              "{{$.inputs.parameters['learning_rate']}}",
+              "--min-split-loss",
+              "{{$.inputs.parameters['min_split_loss']}}",
+              "--max-depth",
+              "{{$.inputs.parameters['max_depth']}}",
+              "--model",
+              "{{$.outputs.artifacts['model'].path}}",
+              "--model-config",
+              "{{$.outputs.artifacts['model_config'].path}}"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "(PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'xgboost==1.1.1' 'pandas==1.0.5' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'xgboost==1.1.1' 'pandas==1.0.5' --user) && \"$0\" \"$@\"",
+              "python3",
+              "-u",
+              "-c",
+              "def _make_parent_dirs_and_return_path(file_path: str):\n    import os\n    os.makedirs(os.path.dirname(file_path), exist_ok=True)\n    return file_path\n\ndef xgboost_train(\n    training_data_path,  # Also supports LibSVM\n    model_path,\n    model_config_path,\n    starting_model_path = None,\n\n    label_column = 0,\n    num_iterations = 10,\n    booster_params = None,\n\n    # Booster parameters\n    objective = 'reg:squarederror',\n    booster = 'gbtree',\n    learning_rate = 0.3,\n    min_split_loss = 0,\n    max_depth = 6,\n):\n    '''Train an XGBoost model.\n\n    Args:\n        training_data_path: Path for the training data in CSV format.\n        model_path: Output path for the trained model in binary XGBoost format.\n        model_config_path: Output path for the internal parameter configuration of Booster as a JSON string.\n        starting_model_path: Path for the existing trained model to start from.\n        label_column: Column containing the label data.\n        num_boost_rounds: Number of boosting iterations.\n        booster_params: Parameters for the booster. See https://xgboost.readthedocs.io/en/latest/parameter.html\n        objective: The learning task and the corresponding learning objective.\n            See https://xgboost.readthedocs.io/en/latest/parameter.html#learning-task-parameters\n            The most common values are:\n            \"reg:squarederror\" - Regression with squared loss (default).\n            \"reg:logistic\" - Logistic regression.\n            \"binary:logistic\" - Logistic regression for binary classification, output probability.\n            \"binary:logitraw\" - Logistic regression for binary classification, output score before logistic transformation\n            \"rank:pairwise\" - Use LambdaMART to perform pairwise ranking where the pairwise loss is minimized\n            \"rank:ndcg\" - Use LambdaMART to perform list-wise ranking where Normalized Discounted Cumulative Gain (NDCG) is maximized\n\n    Annotations:\n        author: Alexey Volkov <alexey.volkov@ark-kun.com>\n    '''\n    import pandas\n    import xgboost\n\n    df = pandas.read_csv(\n        training_data_path,\n    )\n\n    training_data = xgboost.DMatrix(\n        data=df.drop(columns=[df.columns[label_column]]),\n        label=df[df.columns[label_column]],\n    )\n\n    booster_params = booster_params or {}\n    booster_params.setdefault('objective', objective)\n    booster_params.setdefault('booster', booster)\n    booster_params.setdefault('learning_rate', learning_rate)\n    booster_params.setdefault('min_split_loss', min_split_loss)\n    booster_params.setdefault('max_depth', max_depth)\n\n    starting_model = None\n    if starting_model_path:\n        starting_model = xgboost.Booster(model_file=starting_model_path)\n\n    model = xgboost.train(\n        params=booster_params,\n        dtrain=training_data,\n        num_boost_round=num_iterations,\n        xgb_model=starting_model\n    )\n\n    # Saving the model in binary format\n    model.save_model(model_path)\n\n    model_config_str = model.save_config()\n    with open(model_config_path, 'w') as model_config_file:\n        model_config_file.write(model_config_str)\n\nimport json\nimport argparse\n_parser = argparse.ArgumentParser(prog='Xgboost train', description='Train an XGBoost model.\\n\\n    Args:\\n        training_data_path: Path for the training data in CSV format.\\n        model_path: Output path for the trained model in binary XGBoost format.\\n        model_config_path: Output path for the internal parameter configuration of Booster as a JSON string.\\n        starting_model_path: Path for the existing trained model to start from.\\n        label_column: Column containing the label data.\\n        num_boost_rounds: Number of boosting iterations.\\n        booster_params: Parameters for the booster. See https://xgboost.readthedocs.io/en/latest/parameter.html\\n        objective: The learning task and the corresponding learning objective.\\n            See https://xgboost.readthedocs.io/en/latest/parameter.html#learning-task-parameters\\n            The most common values are:\\n            \"reg:squarederror\" - Regression with squared loss (default).\\n            \"reg:logistic\" - Logistic regression.\\n            \"binary:logistic\" - Logistic regression for binary classification, output probability.\\n            \"binary:logitraw\" - Logistic regression for binary classification, output score before logistic transformation\\n            \"rank:pairwise\" - Use LambdaMART to perform pairwise ranking where the pairwise loss is minimized\\n            \"rank:ndcg\" - Use LambdaMART to perform list-wise ranking where Normalized Discounted Cumulative Gain (NDCG) is maximized\\n\\n    Annotations:\\n        author: Alexey Volkov <alexey.volkov@ark-kun.com>')\n_parser.add_argument(\"--training-data\", dest=\"training_data_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--starting-model\", dest=\"starting_model_path\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--label-column\", dest=\"label_column\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--num-iterations\", dest=\"num_iterations\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--booster-params\", dest=\"booster_params\", type=json.loads, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--objective\", dest=\"objective\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--booster\", dest=\"booster\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--learning-rate\", dest=\"learning_rate\", type=float, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--min-split-loss\", dest=\"min_split_loss\", type=float, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--max-depth\", dest=\"max_depth\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model\", dest=\"model_path\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-config\", dest=\"model_config_path\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs = xgboost_train(**_parsed_args)\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-xgboost-train-2": {
+          "container": {
+            "args": [
+              "--training-data",
+              "{{$.inputs.artifacts['training_data'].path}}",
+              "--label-column-name",
+              "{{$.inputs.parameters['label_column_name']}}",
+              "--num-iterations",
+              "{{$.inputs.parameters['num_iterations']}}",
+              "--objective",
+              "{{$.inputs.parameters['objective']}}",
+              "--booster",
+              "{{$.inputs.parameters['booster']}}",
+              "--learning-rate",
+              "{{$.inputs.parameters['learning_rate']}}",
+              "--min-split-loss",
+              "{{$.inputs.parameters['min_split_loss']}}",
+              "--max-depth",
+              "{{$.inputs.parameters['max_depth']}}",
+              "--model",
+              "{{$.outputs.artifacts['model'].path}}",
+              "--model-config",
+              "{{$.outputs.artifacts['model_config'].path}}"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "(PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'xgboost==1.1.1' 'pandas==1.0.5' 'pyarrow==0.17.1' || PIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet --no-warn-script-location 'xgboost==1.1.1' 'pandas==1.0.5' 'pyarrow==0.17.1' --user) && \"$0\" \"$@\"",
+              "python3",
+              "-u",
+              "-c",
+              "def _make_parent_dirs_and_return_path(file_path: str):\n    import os\n    os.makedirs(os.path.dirname(file_path), exist_ok=True)\n    return file_path\n\ndef xgboost_train(\n    training_data_path,\n    model_path,\n    model_config_path,\n    label_column_name,\n\n    starting_model_path = None,\n\n    num_iterations = 10,\n    booster_params = None,\n\n    # Booster parameters\n    objective = 'reg:squarederror',\n    booster = 'gbtree',\n    learning_rate = 0.3,\n    min_split_loss = 0,\n    max_depth = 6,\n):\n    '''Train an XGBoost model.\n\n    Args:\n        training_data_path: Path for the training data in Apache Parquet format.\n        model_path: Output path for the trained model in binary XGBoost format.\n        model_config_path: Output path for the internal parameter configuration of Booster as a JSON string.\n        starting_model_path: Path for the existing trained model to start from.\n        label_column_name: Name of the column containing the label data.\n        num_boost_rounds: Number of boosting iterations.\n        booster_params: Parameters for the booster. See https://xgboost.readthedocs.io/en/latest/parameter.html\n        objective: The learning task and the corresponding learning objective.\n            See https://xgboost.readthedocs.io/en/latest/parameter.html#learning-task-parameters\n            The most common values are:\n            \"reg:squarederror\" - Regression with squared loss (default).\n            \"reg:logistic\" - Logistic regression.\n            \"binary:logistic\" - Logistic regression for binary classification, output probability.\n            \"binary:logitraw\" - Logistic regression for binary classification, output score before logistic transformation\n            \"rank:pairwise\" - Use LambdaMART to perform pairwise ranking where the pairwise loss is minimized\n            \"rank:ndcg\" - Use LambdaMART to perform list-wise ranking where Normalized Discounted Cumulative Gain (NDCG) is maximized\n\n    Annotations:\n        author: Alexey Volkov <alexey.volkov@ark-kun.com>\n    '''\n    import pandas\n    import xgboost\n\n    # Loading data\n    df = pandas.read_parquet(training_data_path)\n    training_data = xgboost.DMatrix(\n        data=df.drop(columns=[label_column_name]),\n        label=df[[label_column_name]],\n    )\n    # Training\n    booster_params = booster_params or {}\n    booster_params.setdefault('objective', objective)\n    booster_params.setdefault('booster', booster)\n    booster_params.setdefault('learning_rate', learning_rate)\n    booster_params.setdefault('min_split_loss', min_split_loss)\n    booster_params.setdefault('max_depth', max_depth)\n\n    starting_model = None\n    if starting_model_path:\n        starting_model = xgboost.Booster(model_file=starting_model_path)\n\n    model = xgboost.train(\n        params=booster_params,\n        dtrain=training_data,\n        num_boost_round=num_iterations,\n        xgb_model=starting_model\n    )\n\n    # Saving the model in binary format\n    model.save_model(model_path)\n\n    model_config_str = model.save_config()\n    with open(model_config_path, 'w') as model_config_file:\n        model_config_file.write(model_config_str)\n\nimport json\nimport argparse\n_parser = argparse.ArgumentParser(prog='Xgboost train', description='Train an XGBoost model.\\n\\n    Args:\\n        training_data_path: Path for the training data in Apache Parquet format.\\n        model_path: Output path for the trained model in binary XGBoost format.\\n        model_config_path: Output path for the internal parameter configuration of Booster as a JSON string.\\n        starting_model_path: Path for the existing trained model to start from.\\n        label_column_name: Name of the column containing the label data.\\n        num_boost_rounds: Number of boosting iterations.\\n        booster_params: Parameters for the booster. See https://xgboost.readthedocs.io/en/latest/parameter.html\\n        objective: The learning task and the corresponding learning objective.\\n            See https://xgboost.readthedocs.io/en/latest/parameter.html#learning-task-parameters\\n            The most common values are:\\n            \"reg:squarederror\" - Regression with squared loss (default).\\n            \"reg:logistic\" - Logistic regression.\\n            \"binary:logistic\" - Logistic regression for binary classification, output probability.\\n            \"binary:logitraw\" - Logistic regression for binary classification, output score before logistic transformation\\n            \"rank:pairwise\" - Use LambdaMART to perform pairwise ranking where the pairwise loss is minimized\\n            \"rank:ndcg\" - Use LambdaMART to perform list-wise ranking where Normalized Discounted Cumulative Gain (NDCG) is maximized\\n\\n    Annotations:\\n        author: Alexey Volkov <alexey.volkov@ark-kun.com>')\n_parser.add_argument(\"--training-data\", dest=\"training_data_path\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--label-column-name\", dest=\"label_column_name\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--starting-model\", dest=\"starting_model_path\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--num-iterations\", dest=\"num_iterations\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--booster-params\", dest=\"booster_params\", type=json.loads, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--objective\", dest=\"objective\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--booster\", dest=\"booster\", type=str, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--learning-rate\", dest=\"learning_rate\", type=float, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--min-split-loss\", dest=\"min_split_loss\", type=float, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--max-depth\", dest=\"max_depth\", type=int, required=False, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model\", dest=\"model_path\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--model-config\", dest=\"model_config_path\", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)\n_parsed_args = vars(_parser.parse_args())\n\n_outputs = xgboost_train(**_parsed_args)\n"
+            ],
+            "image": "python:3.7"
+          }
+        }
+      }
+    },
+    "pipelineInfo": {
+      "name": "xgboost-sample-pipeline"
+    },
+    "root": {
+      "dag": {
+        "tasks": {
+          "chicago-taxi-trips-dataset": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-chicago-taxi-trips-dataset"
+            },
+            "inputs": {
+              "parameters": {
+                "Format": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "csv"
+                    }
+                  }
+                },
+                "Limit": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "intValue": "10000"
+                    }
+                  }
+                },
+                "Select": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "tips,trip_seconds,trip_miles,pickup_community_area,dropoff_community_area,fare,tolls,extras,trip_total"
+                    }
+                  }
+                },
+                "Where": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "trip_start_timestamp >= \"2019-01-01\" AND trip_start_timestamp < \"2019-02-01\""
+                    }
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "chicago-taxi-trips-dataset"
+            }
+          },
+          "convert-csv-to-apache-parquet": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-convert-csv-to-apache-parquet"
+            },
+            "dependentTasks": [
+              "chicago-taxi-trips-dataset"
+            ],
+            "inputs": {
+              "artifacts": {
+                "data": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "Table",
+                    "producerTask": "chicago-taxi-trips-dataset"
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "convert-csv-to-apache-parquet"
+            }
+          },
+          "xgboost-predict": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-xgboost-predict"
+            },
+            "dependentTasks": [
+              "chicago-taxi-trips-dataset",
+              "xgboost-train"
+            ],
+            "inputs": {
+              "artifacts": {
+                "data": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "Table",
+                    "producerTask": "chicago-taxi-trips-dataset"
+                  }
+                },
+                "model": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "model",
+                    "producerTask": "xgboost-train"
+                  }
+                }
+              },
+              "parameters": {
+                "label_column": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "intValue": "0"
+                    }
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "xgboost-predict"
+            }
+          },
+          "xgboost-predict-2": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-xgboost-predict-2"
+            },
+            "dependentTasks": [
+              "convert-csv-to-apache-parquet",
+              "xgboost-train-2"
+            ],
+            "inputs": {
+              "artifacts": {
+                "data": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "output_data",
+                    "producerTask": "convert-csv-to-apache-parquet"
+                  }
+                },
+                "model": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "model",
+                    "producerTask": "xgboost-train-2"
+                  }
+                }
+              },
+              "parameters": {
+                "label_column_name": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "tips"
+                    }
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "xgboost-predict-2"
+            }
+          },
+          "xgboost-predict-3": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-xgboost-predict-3"
+            },
+            "dependentTasks": [
+              "convert-csv-to-apache-parquet",
+              "xgboost-train"
+            ],
+            "inputs": {
+              "artifacts": {
+                "data": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "output_data",
+                    "producerTask": "convert-csv-to-apache-parquet"
+                  }
+                },
+                "model": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "model",
+                    "producerTask": "xgboost-train"
+                  }
+                }
+              },
+              "parameters": {
+                "label_column_name": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "tips"
+                    }
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "xgboost-predict-3"
+            }
+          },
+          "xgboost-predict-4": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-xgboost-predict-4"
+            },
+            "dependentTasks": [
+              "chicago-taxi-trips-dataset",
+              "xgboost-train-2"
+            ],
+            "inputs": {
+              "artifacts": {
+                "data": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "Table",
+                    "producerTask": "chicago-taxi-trips-dataset"
+                  }
+                },
+                "model": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "model",
+                    "producerTask": "xgboost-train-2"
+                  }
+                }
+              },
+              "parameters": {
+                "label_column": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "intValue": "0"
+                    }
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "xgboost-predict-4"
+            }
+          },
+          "xgboost-train": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-xgboost-train"
+            },
+            "dependentTasks": [
+              "chicago-taxi-trips-dataset"
+            ],
+            "inputs": {
+              "artifacts": {
+                "training_data": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "Table",
+                    "producerTask": "chicago-taxi-trips-dataset"
+                  }
+                }
+              },
+              "parameters": {
+                "booster": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "gbtree"
+                    }
+                  }
+                },
+                "label_column": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "intValue": "0"
+                    }
+                  }
+                },
+                "learning_rate": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "doubleValue": 0.3
+                    }
+                  }
+                },
+                "max_depth": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "intValue": "6"
+                    }
+                  }
+                },
+                "min_split_loss": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "doubleValue": 0.0
+                    }
+                  }
+                },
+                "num_iterations": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "intValue": "200"
+                    }
+                  }
+                },
+                "objective": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "reg:squarederror"
+                    }
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "xgboost-train"
+            }
+          },
+          "xgboost-train-2": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-xgboost-train-2"
+            },
+            "dependentTasks": [
+              "convert-csv-to-apache-parquet"
+            ],
+            "inputs": {
+              "artifacts": {
+                "training_data": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "output_data",
+                    "producerTask": "convert-csv-to-apache-parquet"
+                  }
+                }
+              },
+              "parameters": {
+                "booster": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "gbtree"
+                    }
+                  }
+                },
+                "label_column_name": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "tips"
+                    }
+                  }
+                },
+                "learning_rate": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "doubleValue": 0.3
+                    }
+                  }
+                },
+                "max_depth": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "intValue": "6"
+                    }
+                  }
+                },
+                "min_split_loss": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "doubleValue": 0.0
+                    }
+                  }
+                },
+                "num_iterations": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "intValue": "200"
+                    }
+                  }
+                },
+                "objective": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "reg:squarederror"
+                    }
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "xgboost-train-2"
+            }
+          }
+        }
+      }
+    },
+    "schemaVersion": "2.0.0",
+    "sdkVersion": "kfp-1.7.2"
+  },
+  "runtimeConfig": {
+    "gcsOutputDirectory": "dummy_root"
+  }
+}

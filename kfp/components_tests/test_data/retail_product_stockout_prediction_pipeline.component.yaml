@@ -1,0 +1,134 @@
+name: Retail product stockout prediction pipeline
+inputs:
+- name: gcp_project_id
+  type: String
+- name: gcp_region
+  type: String
+- name: batch_predict_gcs_output_uri_prefix
+  type: String
+- name: dataset_bq_input_uri
+  type: String
+  default: bq://product-stockout.product_stockout.stockout
+  optional: true
+- name: dataset_display_name
+  type: String
+  default: stockout_data
+  optional: true
+- name: target_column_name
+  type: String
+  default: Stockout
+  optional: true
+- name: model_display_name
+  type: String
+  default: stockout_model
+  optional: true
+- name: batch_predict_bq_input_uri
+  type: String
+  default: bq://product-stockout.product_stockout.batch_prediction_inputs
+  optional: true
+- name: train_budget_milli_node_hours
+  type: Integer
+  default: '1000'
+  optional: true
+outputs:
+- name: model_path
+  type: String
+implementation:
+  graph:
+    tasks:
+      Automl create dataset for tables:
+        componentRef:
+          digest: 98381958ba8b0d2b83a23a78f482f08b48e665409820b3a6254bccdbcf206df3
+          url: https://raw.githubusercontent.com/kubeflow/pipelines/b3179d86b239a08bf4884b50dbf3a9151da96d66/components/gcp/automl/create_dataset_for_tables/component.yaml
+        arguments:
+          gcp_project_id:
+            graphInput:
+              inputName: gcp_project_id
+          gcp_region:
+            graphInput:
+              inputName: gcp_region
+          display_name:
+            graphInput:
+              inputName: dataset_display_name
+      Automl import data from bigquery:
+        componentRef:
+          digest: a965621525a9081a8c7d4c12806bf4359a03b9842a7d3e891ab5b48422dbe527
+          url: https://raw.githubusercontent.com/kubeflow/pipelines/b3179d86b239a08bf4884b50dbf3a9151da96d66/components/gcp/automl/import_data_from_bigquery/component.yaml
+        arguments:
+          dataset_path:
+            taskOutput:
+              outputName: dataset_path
+              taskId: Automl create dataset for tables
+              type: String
+          input_uri:
+            graphInput:
+              inputName: dataset_bq_input_uri
+      Automl split dataset table column names:
+        componentRef:
+          digest: a77ef9ecb87e543290a02b3fa933bcd5e67947a12f6d011fdd37bf38c1b26ade
+          url: https://raw.githubusercontent.com/kubeflow/pipelines/b3179d86b239a08bf4884b50dbf3a9151da96d66/components/gcp/automl/split_dataset_table_column_names/component.yaml
+        arguments:
+          dataset_path:
+            taskOutput:
+              outputName: dataset_path
+              taskId: Automl import data from bigquery
+              type: String
+          target_column_name:
+            graphInput:
+              inputName: target_column_name
+          table_index: '0'
+      Automl create model for tables:
+        componentRef:
+          digest: e52ee882685380988ee2f4de6beacdcd0d2ab21d37bef45c4e16a20a224d374e
+          url: https://raw.githubusercontent.com/kubeflow/pipelines/b3179d86b239a08bf4884b50dbf3a9151da96d66/components/gcp/automl/create_model_for_tables/component.yaml
+        arguments:
+          gcp_project_id:
+            graphInput:
+              inputName: gcp_project_id
+          gcp_region:
+            graphInput:
+              inputName: gcp_region
+          display_name:
+            graphInput:
+              inputName: model_display_name
+          dataset_id:
+            taskOutput:
+              outputName: dataset_path
+              taskId: Automl import data from bigquery
+              type: String
+          target_column_path:
+            taskOutput:
+              outputName: target_column_path
+              taskId: Automl split dataset table column names
+              type: String
+          input_feature_column_paths:
+            taskOutput:
+              outputName: feature_column_paths
+              taskId: Automl split dataset table column names
+              type: JsonArray
+          optimization_objective: MAXIMIZE_AU_PRC
+          train_budget_milli_node_hours:
+            graphInput:
+              inputName: train_budget_milli_node_hours
+      Automl prediction service batch predict:
+        componentRef:
+          digest: 908ea1855f5aa3d35f60145f0f15007ea437b35b0a1be2fd1d0db5a76221cad1
+          url: https://raw.githubusercontent.com/kubeflow/pipelines/b3179d86b239a08bf4884b50dbf3a9151da96d66/components/gcp/automl/prediction_service_batch_predict/component.yaml
+        arguments:
+          model_path:
+            taskOutput:
+              outputName: model_path
+              taskId: Automl create model for tables
+              type: String
+          gcs_output_uri_prefix:
+            graphInput:
+              inputName: batch_predict_gcs_output_uri_prefix
+          bq_input_uri:
+            graphInput:
+              inputName: batch_predict_bq_input_uri
+    outputValues:
+      model_path:
+        taskOutput:
+          outputName: model_path
+          taskId: Automl create model for tables
+          type: String

@@ -11,5 +11,5 @@ repos:
     hooks:
       - id: black
         language_version: python3
-        exclude: "^metaflow/_vendor/"
+        exclude: "^metaflow/_vendor/|kfp"
         additional_dependencies: ["click<8.1.0"]

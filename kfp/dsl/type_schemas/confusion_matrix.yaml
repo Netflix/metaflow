@@ -1,0 +1,23 @@
+title: system.ConfusionMatrix
+type: object
+properties:
+  annotationSpecs:
+    type: array
+    items:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Optional.
+        displayName:
+          type: string
+  rows:
+    type: array
+    items:
+      type: object
+      properties:
+        row:
+          type: array
+          items:
+            type: integer
+            format: int64

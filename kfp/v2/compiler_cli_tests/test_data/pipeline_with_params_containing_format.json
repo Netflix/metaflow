@@ -1,0 +1,264 @@
+{
+  "pipelineSpec": {
+    "components": {
+      "comp-for-loop-2": {
+        "dag": {
+          "tasks": {
+            "print-op2": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-print-op2"
+              },
+              "inputs": {
+                "parameters": {
+                  "pipelineparam--name": {
+                    "componentInputParameter": "pipelineparam--name"
+                  },
+                  "text1": {
+                    "componentInputParameter": "pipelineparam--loop-item-param-1"
+                  },
+                  "text2": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "stringValue": " and {{$.inputs.parameters['pipelineparam--name']}}."
+                      }
+                    }
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "print-op2"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--loop-item-param-1": {
+              "type": "STRING"
+            },
+            "pipelineparam--name": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-print-op": {
+        "executorLabel": "exec-print-op",
+        "inputDefinitions": {
+          "parameters": {
+            "text": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "parameters": {
+            "Output": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-print-op-2": {
+        "executorLabel": "exec-print-op-2",
+        "inputDefinitions": {
+          "parameters": {
+            "text": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "parameters": {
+            "Output": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-print-op2": {
+        "executorLabel": "exec-print-op2",
+        "inputDefinitions": {
+          "parameters": {
+            "text1": {
+              "type": "STRING"
+            },
+            "text2": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "parameters": {
+            "Output": {
+              "type": "STRING"
+            }
+          }
+        }
+      }
+    },
+    "deploymentSpec": {
+      "executors": {
+        "exec-print-op": {
+          "container": {
+            "args": [
+              "--text",
+              "{{$.inputs.parameters['text']}}",
+              "----output-paths",
+              "{{$.outputs.parameters['Output'].output_file}}"
+            ],
+            "command": [
+              "sh",
+              "-ec",
+              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+              "def print_op(text):\n    print(text)\n    return text\n\ndef _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError('Value \"{}\" has type \"{}\" instead of str.'.format(\n            str(str_value), str(type(str_value))))\n    return str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Print op', description='')\n_parser.add_argument(\"--text\", dest=\"text\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\", dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = print_op(**_parsed_args)\n\n_outputs = [_outputs]\n\n_output_serializers = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-print-op-2": {
+          "container": {
+            "args": [
+              "--text",
+              "{{$.inputs.parameters['text']}}",
+              "----output-paths",
+              "{{$.outputs.parameters['Output'].output_file}}"
+            ],
+            "command": [
+              "sh",
+              "-ec",
+              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+              "def print_op(text):\n    print(text)\n    return text\n\ndef _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError('Value \"{}\" has type \"{}\" instead of str.'.format(\n            str(str_value), str(type(str_value))))\n    return str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Print op', description='')\n_parser.add_argument(\"--text\", dest=\"text\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\", dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = print_op(**_parsed_args)\n\n_outputs = [_outputs]\n\n_output_serializers = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-print-op2": {
+          "container": {
+            "args": [
+              "--text1",
+              "{{$.inputs.parameters['text1']}}",
+              "--text2",
+              "{{$.inputs.parameters['text2']}}",
+              "----output-paths",
+              "{{$.outputs.parameters['Output'].output_file}}"
+            ],
+            "command": [
+              "sh",
+              "-ec",
+              "program_path=$(mktemp)\nprintf \"%s\" \"$0\" > \"$program_path\"\npython3 -u \"$program_path\" \"$@\"\n",
+              "def print_op2(text1, text2):\n    print(text1 + text2)\n    return text1 + text2\n\ndef _serialize_str(str_value: str) -> str:\n    if not isinstance(str_value, str):\n        raise TypeError('Value \"{}\" has type \"{}\" instead of str.'.format(\n            str(str_value), str(type(str_value))))\n    return str_value\n\nimport argparse\n_parser = argparse.ArgumentParser(prog='Print op2', description='')\n_parser.add_argument(\"--text1\", dest=\"text1\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"--text2\", dest=\"text2\", type=str, required=True, default=argparse.SUPPRESS)\n_parser.add_argument(\"----output-paths\", dest=\"_output_paths\", type=str, nargs=1)\n_parsed_args = vars(_parser.parse_args())\n_output_files = _parsed_args.pop(\"_output_paths\", [])\n\n_outputs = print_op2(**_parsed_args)\n\n_outputs = [_outputs]\n\n_output_serializers = [\n    _serialize_str,\n\n]\n\nimport os\nfor idx, output_file in enumerate(_output_files):\n    try:\n        os.makedirs(os.path.dirname(output_file))\n    except OSError:\n        pass\n    with open(output_file, 'w') as f:\n        f.write(_output_serializers[idx](_outputs[idx]))\n"
+            ],
+            "image": "python:3.7"
+          }
+        }
+      }
+    },
+    "pipelineInfo": {
+      "name": "pipeline-with-pipelineparam-containing-format"
+    },
+    "root": {
+      "dag": {
+        "tasks": {
+          "for-loop-2": {
+            "componentRef": {
+              "name": "comp-for-loop-2"
+            },
+            "inputs": {
+              "parameters": {
+                "pipelineparam--name": {
+                  "componentInputParameter": "name"
+                }
+              }
+            },
+            "parameterIterator": {
+              "itemInput": "pipelineparam--loop-item-param-1",
+              "items": {
+                "raw": "[1, 2]"
+              }
+            },
+            "taskInfo": {
+              "name": "for-loop-2"
+            }
+          },
+          "print-op": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-print-op"
+            },
+            "inputs": {
+              "parameters": {
+                "pipelineparam--name": {
+                  "componentInputParameter": "name"
+                },
+                "text": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "Hello {{$.inputs.parameters['pipelineparam--name']}}"
+                    }
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "print-op"
+            }
+          },
+          "print-op-2": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-print-op-2"
+            },
+            "dependentTasks": [
+              "print-op"
+            ],
+            "inputs": {
+              "parameters": {
+                "pipelineparam--print-op-Output": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "Output",
+                    "producerTask": "print-op"
+                  }
+                },
+                "text": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "{{$.inputs.parameters['pipelineparam--print-op-Output']}}, again."
+                    }
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "print-op-2"
+            }
+          }
+        }
+      },
+      "inputDefinitions": {
+        "parameters": {
+          "name": {
+            "type": "STRING"
+          }
+        }
+      }
+    },
+    "schemaVersion": "2.0.0",
+    "sdkVersion": "kfp-1.7.2"
+  },
+  "runtimeConfig": {
+    "gcsOutputDirectory": "dummy_root",
+    "parameters": {
+      "name": {
+        "stringValue": "KFP"
+      }
+    }
+  }
+}
