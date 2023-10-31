@@ -1,3 +1,4 @@
+import sys
 from metaflow.metaflow_config import (
     OTEL_ENDPOINT,
     ZIPKIN_ENDPOINT,
@@ -64,4 +65,4 @@ if not DISABLE_TRACING and (CONSOLE_TRACE_ENABLED or OTEL_ENDPOINT or ZIPKIN_END
         )
 
     except ImportError as e:
-        print(e.msg)
+        print(e.msg, file=sys.stderr)
