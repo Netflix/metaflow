@@ -19,21 +19,21 @@
       "contents": [
         {
           "type": "section",
-          "title": "progress bar",
+          "title": "Progress Bar",
           "contents": [
             {
               "type": "progressBar",
               "id": "progress1",
               "max": 100,
               "value": 55,
-              "label": "custom bar",
-              "unit": "%"
+              "label": "Epochs",
+              "details": "elapsed 00:35 left: 01:05, 1.00 iters/sec"
             }
           ]
         },
         {
           "type": "section",
-          "title": "Vertical Table",
+          "title": "Table with Progress Bar",
           "contents": [
             {
               "type": "table",
@@ -50,7 +50,29 @@
                 [
                   2,
                   "start",
-                  "completed",
+                  {
+                    "type": "progressBar",
+                    "id": "progress1",
+                    "max": 100,
+                    "value": 55,
+                    "label": "Epochs",
+                    "details": "elapsed 00:35 left: 01:05, 1.00 iters/sec"
+                  },
+                  "10-20-2021 05:18:34",
+                  "10-20-2021 05:18:34",
+                  "0.5s"
+                ],
+                [
+                  3,
+                  "middle",
+                  {
+                    "type": "progressBar",
+                    "id": "progress1",
+                    "max": 100,
+                    "value": 35,
+                    "label": "Epochs",
+                    "details": "elapsed 00:35 left: 01:05, 1.00 iters/sec"
+                  },
                   "10-20-2021 05:18:34",
                   "10-20-2021 05:18:34",
                   "0.5s"

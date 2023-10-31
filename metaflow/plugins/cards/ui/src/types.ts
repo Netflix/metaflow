@@ -28,9 +28,11 @@ export type TableDataCell =
   | BarChartComponent
   | DagComponent
   | HeadingComponent
+  | ImageComponent
   | LineChartComponent
   | LogComponent
   | MarkdownComponent
+  | ProgressBarComponent
   | TextComponent;
 
 export type TableColumns = string[];
@@ -137,6 +139,7 @@ export interface ProgressBarComponent {
   max: number;
   value: number;
   unit?: string;
+  details?: string;
 }
 
 export interface HeadingComponent {
