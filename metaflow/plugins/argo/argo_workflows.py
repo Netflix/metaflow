@@ -1391,13 +1391,15 @@ class ArgoWorkflows(object):
                     minutes_between_retries=minutes_between_retries,
                 )
                 .metadata(
-                    ObjectMeta().annotation("metaflow/step_name", node.name)
+                    ObjectMeta()
+                    .annotation("metaflow/step_name", node.name)
                     # Unfortunately, we can't set the task_id since it is generated
                     # inside the pod. However, it can be inferred from the annotation
                     # set by argo-workflows - `workflows.argoproj.io/outputs` - refer
                     # the field 'task-id' in 'parameters'
                     # .annotation("metaflow/task_id", ...)
                     .annotation("metaflow/attempt", retry_count)
+                    .labels(self.kubernetes_labels)
                 )
                 # Set emptyDir volume for state management
                 .empty_dir_volume("out")
