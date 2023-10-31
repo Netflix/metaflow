@@ -4,6 +4,7 @@ from metaflow.metaflow_config import (
     ZIPKIN_ENDPOINT,
     CONSOLE_TRACE_ENABLED,
     DISABLE_TRACING,
+    DEBUG_TRACING,
 )
 from functools import wraps
 import contextlib
@@ -65,4 +66,7 @@ if not DISABLE_TRACING and (CONSOLE_TRACE_ENABLED or OTEL_ENDPOINT or ZIPKIN_END
         )
 
     except ImportError as e:
-        print(e.msg, file=sys.stderr)
+        # We keep the errors silent by default so that having tracing environment variables present
+        # does not affect users with no need for tracing.
+        if DEBUG_TRACING:
+            print(e.msg, file=sys.stderr)
