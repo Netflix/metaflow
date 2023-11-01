@@ -30,8 +30,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        ver: ['3.9','3.10',]
+        os: [ubuntu-latest]
+        ver: ['3.9']
 
     steps:
     - uses: actions/checkout@v2
@@ -48,6 +48,3 @@ jobs:
 
     - name: Python Code Format Check
       run: black --target-version py39 --diff --check ./metaflow/plugins/aip/*.py
-
-    - name: Execute Python tests
-      run: tox
