@@ -52,6 +52,7 @@ from metaflow.plugins.aip.aip_constants import (
     PVC_CREATE_RETRY_COUNT,
     EXIT_HANDLER_RETRY_COUNT,
     BACKOFF_DURATION,
+    RETRY_BACKOFF_FACTOR,
 )
 from metaflow.plugins.aip.aip_decorator import AIPException
 from .accelerator_decorator import AcceleratorDecorator
@@ -107,6 +108,7 @@ class AIPComponent(object):
         environment_decorator: EnvironmentDecorator,
         total_retries: int,
         minutes_between_retries: str,
+        retry_backoff_factor: float,
     ):
         self.step_name = step_name
         self.resource_requirements = resource_requirements
@@ -116,6 +118,7 @@ class AIPComponent(object):
         self.environment_decorator = environment_decorator
         self.total_retries = total_retries
         self.minutes_between_retries = minutes_between_retries
+        self.retry_backoff_factor = retry_backoff_factor
 
         self.preceding_kfp_func: Callable = (
             aip_decorator.attributes.get("preceding_component", None)
@@ -445,6 +448,14 @@ class KubeflowPipelines(object):
         return None
 
     @staticmethod
+    def _get_retry_backoff_factor(node: DAGNode) -> Optional[float]:
+        retry_deco = [deco for deco in node.decorators if deco.name == "retry"]
+        if retry_deco:
+            val = retry_deco[0].attributes.get("retry_backoff_factor")
+            return int(val)
+        return None
+
+    @staticmethod
     def _get_resource_requirements(node: DAGNode) -> Dict[str, str]:
         """
         Get resources for a Metaflow step (node) set by @resources decorator.
@@ -580,6 +591,7 @@ class KubeflowPipelines(object):
             user_code_retries, total_retries = KubeflowPipelines._get_retries(node)
             resource_requirements = self._get_resource_requirements(node)
             minutes_between_retries = self._get_minutes_between_retries(node)
+            retry_backoff_factor = self._get_retry_backoff_factor(node)
 
             return AIPComponent(
                 step_name=node.name,
@@ -618,6 +630,7 @@ class KubeflowPipelines(object):
                 ),
                 total_retries=total_retries,
                 minutes_between_retries=minutes_between_retries,
+                retry_backoff_factor=retry_backoff_factor,
             )
 
         # Mapping of steps to their AIPComponent
@@ -869,7 +882,10 @@ class KubeflowPipelines(object):
             attribute_outputs=attribute_outputs,
         )
         resource.set_retry(
-            PVC_CREATE_RETRY_COUNT, policy="Always", backoff_duration=BACKOFF_DURATION
+            PVC_CREATE_RETRY_COUNT,
+            policy="Always",
+            backoff_duration=BACKOFF_DURATION,
+            backoff_factor=RETRY_BACKOFF_FACTOR,
         )
         self._set_container_labels(resource)
 
@@ -1120,6 +1136,7 @@ class KubeflowPipelines(object):
                         aip_component.total_retries,
                         policy="Always",
                         backoff_duration=aip_component.minutes_between_retries,
+                        backoff_factor=aip_component.retry_backoff_factor,
                     )
 
                 if preceding_kfp_component_op:
@@ -1450,6 +1467,12 @@ class KubeflowPipelines(object):
                 file_outputs={"Output": "/tmp/outputs/Output/data"},
             ).set_display_name("get_workflow_uid")
             KubeflowPipelines._set_minimal_container_resources(workflow_uid_op)
+            workflow_uid_op.set_retry(
+                S3_SENSOR_RETRY_COUNT,
+                policy="Always",
+                backoff_duration=BACKOFF_DURATION,
+                backoff_factor=RETRY_BACKOFF_FACTOR,
+            )
             return workflow_uid_op
         else:
             return None
@@ -1521,7 +1544,10 @@ class KubeflowPipelines(object):
 
         KubeflowPipelines._set_minimal_container_resources(s3_sensor_op)
         s3_sensor_op.set_retry(
-            S3_SENSOR_RETRY_COUNT, policy="Always", backoff_duration=BACKOFF_DURATION
+            S3_SENSOR_RETRY_COUNT,
+            policy="Always",
+            backoff_duration=BACKOFF_DURATION,
+            backoff_factor=RETRY_BACKOFF_FACTOR,
         )
         return s3_sensor_op
 
@@ -1585,5 +1611,6 @@ class KubeflowPipelines(object):
                 EXIT_HANDLER_RETRY_COUNT,
                 policy="Always",
                 backoff_duration=BACKOFF_DURATION,
+                backoff_factor=RETRY_BACKOFF_FACTOR,
             )
         )
