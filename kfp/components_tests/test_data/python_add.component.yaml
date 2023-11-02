@@ -1,0 +1,35 @@
+name: Add
+description: |
+  Returns sum of two arguments
+inputs:
+- {name: a, type: float}
+- {name: b, type: float}
+outputs:
+- {name: Output, type: float}
+implementation:
+  container:
+    image: python:3.5
+    command:
+    - python
+    - -c
+    - |
+      from pathlib import Path
+
+      def add(a: float, b: float) -> float:
+          '''Returns sum of two arguments'''
+          return a + b
+
+      def add_wrapper(a:float, b:float, output_file):
+          outputs = add(a, b)
+          if not isinstance(outputs, tuple):
+              outputs = (outputs,)
+          for idx, filename in enumerate([output_file]):
+              Path(filename).parent.mkdir(parents=True, exist_ok=True)
+              Path(filename).write_text(str(outputs[idx]))
+
+      import fire
+      fire.Fire(add_wrapper)
+    args:
+    - {inputValue: a}
+    - {inputValue: b}
+    - {outputPath: Output}

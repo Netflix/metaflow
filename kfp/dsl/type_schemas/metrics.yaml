@@ -1,0 +1,15 @@
+title: system.Metrics
+type: object
+properties:
+  accuracy:
+    type: number
+  precision:
+    type: number
+  recall:
+    type: number
+  f1score:
+    type: number
+  mean_absolute_error:
+    type: number
+  mean_squared_error:
+    type: number

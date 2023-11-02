@@ -1,0 +1,331 @@
+{
+  "pipelineSpec": {
+    "components": {
+      "comp-for-loop-1": {
+        "dag": {
+          "tasks": {
+            "for-loop-2": {
+              "componentRef": {
+                "name": "comp-for-loop-2"
+              },
+              "inputs": {
+                "parameters": {
+                  "pipelineparam--loop_parameter-loop-item": {
+                    "componentInputParameter": "pipelineparam--loop_parameter-loop-item"
+                  },
+                  "pipelineparam--loop_parameter-loop-item-subvar-p_a": {
+                    "componentInputParameter": "pipelineparam--loop_parameter-loop-item",
+                    "parameterExpressionSelector": "parseJson(string_value)[\"p_a\"]"
+                  }
+                }
+              },
+              "parameterIterator": {
+                "itemInput": "pipelineparam--loop_parameter-loop-item-subvar-p_a-loop-item",
+                "items": {
+                  "inputParameter": "pipelineparam--loop_parameter-loop-item-subvar-p_a"
+                }
+              },
+              "taskInfo": {
+                "name": "for-loop-2"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--loop_parameter": {
+              "type": "STRING"
+            },
+            "pipelineparam--loop_parameter-loop-item": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-for-loop-2": {
+        "dag": {
+          "tasks": {
+            "print-op": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-print-op"
+              },
+              "inputs": {
+                "parameters": {
+                  "msg": {
+                    "componentInputParameter": "pipelineparam--loop_parameter-loop-item-subvar-p_a-loop-item",
+                    "parameterExpressionSelector": "parseJson(string_value)[\"q_a\"]"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "print-op"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--loop_parameter-loop-item": {
+              "type": "STRING"
+            },
+            "pipelineparam--loop_parameter-loop-item-subvar-p_a": {
+              "type": "STRING"
+            },
+            "pipelineparam--loop_parameter-loop-item-subvar-p_a-loop-item": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-for-loop-4": {
+        "dag": {
+          "tasks": {
+            "for-loop-6": {
+              "componentRef": {
+                "name": "comp-for-loop-6"
+              },
+              "inputs": {
+                "parameters": {
+                  "pipelineparam--loop-item-param-3": {
+                    "componentInputParameter": "pipelineparam--loop-item-param-3"
+                  }
+                }
+              },
+              "parameterIterator": {
+                "itemInput": "pipelineparam--loop-item-param-5",
+                "items": {
+                  "raw": "[100, 200, 300]"
+                }
+              },
+              "taskInfo": {
+                "name": "for-loop-6"
+              }
+            },
+            "print-op-2": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-print-op-2"
+              },
+              "inputs": {
+                "parameters": {
+                  "msg": {
+                    "componentInputParameter": "pipelineparam--loop-item-param-3"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "print-op-2"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--loop-item-param-3": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-for-loop-6": {
+        "dag": {
+          "tasks": {
+            "print-op-3": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-print-op-3"
+              },
+              "inputs": {
+                "parameters": {
+                  "msg": {
+                    "componentInputParameter": "pipelineparam--loop-item-param-3"
+                  },
+                  "msg2": {
+                    "componentInputParameter": "pipelineparam--loop-item-param-5"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "print-op-3"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--loop-item-param-3": {
+              "type": "STRING"
+            },
+            "pipelineparam--loop-item-param-5": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-print-op": {
+        "executorLabel": "exec-print-op",
+        "inputDefinitions": {
+          "parameters": {
+            "msg": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-print-op-2": {
+        "executorLabel": "exec-print-op-2",
+        "inputDefinitions": {
+          "parameters": {
+            "msg": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-print-op-3": {
+        "executorLabel": "exec-print-op-3",
+        "inputDefinitions": {
+          "parameters": {
+            "msg": {
+              "type": "STRING"
+            },
+            "msg2": {
+              "type": "STRING"
+            }
+          }
+        }
+      }
+    },
+    "deploymentSpec": {
+      "executors": {
+        "exec-print-op": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "print_op"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef print_op(msg: str, msg2: Optional[str] = None):\n    print(f'msg: {msg}, msg2: {msg2}')\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-print-op-2": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "print_op"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef print_op(msg: str, msg2: Optional[str] = None):\n    print(f'msg: {msg}, msg2: {msg2}')\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-print-op-3": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "print_op"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef print_op(msg: str, msg2: Optional[str] = None):\n    print(f'msg: {msg}, msg2: {msg2}')\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        }
+      }
+    },
+    "pipelineInfo": {
+      "name": "pipeline-with-nested-loops"
+    },
+    "root": {
+      "dag": {
+        "tasks": {
+          "for-loop-1": {
+            "componentRef": {
+              "name": "comp-for-loop-1"
+            },
+            "inputs": {
+              "parameters": {
+                "pipelineparam--loop_parameter": {
+                  "componentInputParameter": "loop_parameter"
+                }
+              }
+            },
+            "parameterIterator": {
+              "itemInput": "pipelineparam--loop_parameter-loop-item",
+              "items": {
+                "inputParameter": "pipelineparam--loop_parameter"
+              }
+            },
+            "taskInfo": {
+              "name": "for-loop-1"
+            }
+          },
+          "for-loop-4": {
+            "componentRef": {
+              "name": "comp-for-loop-4"
+            },
+            "parameterIterator": {
+              "itemInput": "pipelineparam--loop-item-param-3",
+              "items": {
+                "raw": "[1, 2]"
+              }
+            },
+            "taskInfo": {
+              "name": "for-loop-4"
+            }
+          }
+        }
+      },
+      "inputDefinitions": {
+        "parameters": {
+          "loop_parameter": {
+            "type": "STRING"
+          }
+        }
+      }
+    },
+    "schemaVersion": "2.0.0",
+    "sdkVersion": "kfp-1.8.5"
+  },
+  "runtimeConfig": {
+    "parameters": {
+      "loop_parameter": {
+        "stringValue": "[{\"p_a\": [{\"q_a\": 1}, {\"q_a\": 2}], \"p_b\": \"hello\"}, {\"p_a\": [{\"q_a\": 11}, {\"q_a\": 22}], \"p_b\": \"halo\"}]"
+      }
+    }
+  }
+}

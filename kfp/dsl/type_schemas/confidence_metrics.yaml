@@ -1,0 +1,45 @@
+title: system.ConfidenceMetrics
+type: object
+properties:
+  confidenceThreshold:
+    type: number
+    format: float
+  maxPredictions:
+    type: integer
+    format: int32
+  recall:
+    type: number
+    format: float
+  precision:
+    type: number
+    format: float
+  falsePositiveRate:
+    type: number
+    format: float
+  f1Score:
+    type: number
+    format: float
+  recallAt1:
+    type: number
+    format: float
+  precisionAt1:
+    type: number
+    format: float
+  falsePositiveRateAt1:
+    type: number
+    format: float
+  f1ScoreAt1:
+    type: number
+    format: float
+  truePositiveCount:
+    type: integer
+    format: int64
+  falsePositiveCount:
+    type: integer
+    format: int64
+  falseNegativeCount:
+    type: integer
+    format: int64
+  trueNegativeCount:
+    type: integer
+    format: int64

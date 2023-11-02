@@ -32,3 +32,5 @@ main.js.map
 .coverage
 .coverage.*
 .vscode/settings.json
+.swo
+.swp

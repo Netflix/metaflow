@@ -1,0 +1,336 @@
+{
+  "pipelineSpec": {
+    "components": {
+      "comp-add-numbers": {
+        "executorLabel": "exec-add-numbers",
+        "inputDefinitions": {
+          "parameters": {
+            "first": {
+              "type": "INT"
+            },
+            "second": {
+              "type": "INT"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "parameters": {
+            "Output": {
+              "type": "INT"
+            }
+          }
+        }
+      },
+      "comp-concat-message": {
+        "executorLabel": "exec-concat-message",
+        "inputDefinitions": {
+          "parameters": {
+            "first": {
+              "type": "STRING"
+            },
+            "second": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "parameters": {
+            "Output": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-output-artifact": {
+        "executorLabel": "exec-output-artifact",
+        "inputDefinitions": {
+          "parameters": {
+            "message": {
+              "type": "STRING"
+            },
+            "number": {
+              "type": "INT"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "Output": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      },
+      "comp-output-named-tuple": {
+        "executorLabel": "exec-output-named-tuple",
+        "inputDefinitions": {
+          "artifacts": {
+            "artifact": {
+              "artifactType": {
+                "schemaTitle": "system.Dataset",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "metrics": {
+              "artifactType": {
+                "schemaTitle": "system.Metrics",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "model": {
+              "artifactType": {
+                "schemaTitle": "system.Model",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "scalar": {
+              "type": "STRING"
+            }
+          }
+        }
+      }
+    },
+    "deploymentSpec": {
+      "executors": {
+        "exec-add-numbers": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "add_numbers"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef add_numbers(first: int, second: int) -> int:\n    return first + second\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-concat-message": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "concat_message"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef concat_message(first: str, second: str) -> str:\n    return first + second\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-output-artifact": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "output_artifact"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef output_artifact(number: int, message: str) -> Dataset:\n    result = [message for _ in range(number)]\n    return '\\n'.join(result)\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-output-named-tuple": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "output_named_tuple"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef output_named_tuple(\n    artifact: Input[Dataset]\n) -> NamedTuple('Outputs', [\n    ('scalar', str),\n    ('metrics', Metrics),\n    ('model', Model),\n]):\n    scalar = \"123\"\n\n    import json\n    metrics = json.dumps({\n        'metrics': [{\n            'name': 'accuracy',\n            'numberValue': 0.9,\n            'format': \"PERCENTAGE\",\n        }]\n    })\n\n    with open(artifact.path, 'r') as f:\n        artifact_contents = f.read()\n    model = \"Model contents: \" + artifact_contents\n\n    from collections import namedtuple\n    output = namedtuple('Outputs', ['scalar', 'metrics', 'model'])\n    return output(scalar, metrics, model)\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        }
+      }
+    },
+    "pipelineInfo": {
+      "name": "functions-with-outputs"
+    },
+    "root": {
+      "dag": {
+        "outputs": {
+          "artifacts": {
+            "output-named-tuple-metrics": {
+              "artifactSelectors": [
+                {
+                  "outputArtifactKey": "metrics",
+                  "producerSubtask": "output-named-tuple"
+                }
+              ]
+            }
+          }
+        },
+        "tasks": {
+          "add-numbers": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-add-numbers"
+            },
+            "inputs": {
+              "parameters": {
+                "first": {
+                  "componentInputParameter": "first_number"
+                },
+                "second": {
+                  "componentInputParameter": "second_number"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "add-numbers"
+            }
+          },
+          "concat-message": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-concat-message"
+            },
+            "inputs": {
+              "parameters": {
+                "first": {
+                  "componentInputParameter": "first_message"
+                },
+                "second": {
+                  "componentInputParameter": "second_message"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "concat-message"
+            }
+          },
+          "output-artifact": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-output-artifact"
+            },
+            "dependentTasks": [
+              "add-numbers",
+              "concat-message"
+            ],
+            "inputs": {
+              "parameters": {
+                "message": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "Output",
+                    "producerTask": "concat-message"
+                  }
+                },
+                "number": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "Output",
+                    "producerTask": "add-numbers"
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "output-artifact"
+            }
+          },
+          "output-named-tuple": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-output-named-tuple"
+            },
+            "dependentTasks": [
+              "output-artifact"
+            ],
+            "inputs": {
+              "artifacts": {
+                "artifact": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "Output",
+                    "producerTask": "output-artifact"
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "output-named-tuple"
+            }
+          }
+        }
+      },
+      "inputDefinitions": {
+        "parameters": {
+          "first_message": {
+            "type": "STRING"
+          },
+          "first_number": {
+            "type": "INT"
+          },
+          "second_message": {
+            "type": "STRING"
+          },
+          "second_number": {
+            "type": "INT"
+          }
+        }
+      },
+      "outputDefinitions": {
+        "artifacts": {
+          "output-named-tuple-metrics": {
+            "artifactType": {
+              "schemaTitle": "system.Metrics",
+              "schemaVersion": "0.0.1"
+            }
+          }
+        }
+      }
+    },
+    "schemaVersion": "2.0.0",
+    "sdkVersion": "kfp-1.8.5"
+  },
+  "runtimeConfig": {
+    "gcsOutputDirectory": "dummy_root"
+  }
+}

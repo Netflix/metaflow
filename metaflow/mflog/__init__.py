@@ -40,9 +40,9 @@ BASH_MFLOG = (
     " }" % TASK_LOG_SOURCE
 )
 
-# In KFP, the same bash function goes through
+# In AIP plugin, the same bash function goes through
 #   - quotation marks escape adjustment for proper concatenation
-BASH_MFLOG_KFP = (
+BASH_MFLOG_AIP = (
     "mflog(){ "
     "T=$(date -u -Ins|tr , .); "
     'echo "[MFLOG|0|${T:0:26}Z|%s|$T]$1"'

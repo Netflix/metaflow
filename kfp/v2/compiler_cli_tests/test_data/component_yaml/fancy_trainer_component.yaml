@@ -1,0 +1,26 @@
+name: Trainer
+description: |
+  Component to train a model
+inputs:
+  - name: examples
+    description: The examples used to train
+    type: Dataset
+  - name: optimizer
+    description: The type of the optimizer used for the training
+    type: String
+  - name: n_epochs
+    description: Number of the epochs of training
+    type: Integer
+outputs:
+  - name: model
+    description: The trained model
+    type: Model
+implementation:
+  container:
+    image: gcr.io/my-project/my-fancy-trainer
+    args: [
+      --input-examples, {inputUri: examples},
+      --optimizer, {inputValue: optimizer},
+      --n_epochs, {inputValue: n_epochs},
+      --output-model, {outputUri: model},
+    ]

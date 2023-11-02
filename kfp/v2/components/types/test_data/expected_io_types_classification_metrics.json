@@ -1,0 +1,31 @@
+{
+  "confidenceMetrics":
+  [
+    {
+      "confidenceThreshold": 0.1,
+      "recall": 98.2,
+      "falsePositiveRate": 96.2
+    }, 
+    {
+      "confidenceThreshold": 24.3,
+      "recall": 24.5,
+      "falsePositiveRate": 98.4
+    }
+  ],
+  "confusionMatrix": 
+    {
+      "annotationSpecs": 
+      [
+        {"displayName": "dog"},
+        {"displayName": "cat"},
+        {"displayName": "horses"}
+      ], 
+      "rows": 
+        [
+          {"row" : [2, 6, 0]},
+          {"row" : [3, 0, 0]},
+          {"row" : [0, 0, 3]}
+        ]
+    },
+  "test": 1.0
+}

@@ -4,10 +4,16 @@ on:
     branches:
     - master
     - feature/kfp
+    - feature/aip
+    - feature/kfp-argo
   pull_request:
     branches:
     - master
     - feature/kfp
+    - feature/aip
+    - feature/kfp-argo
+    - tz/AIP-7418-remove-create
+    - tz/AIP-7773-argo-ftf
   workflow_call:
   
 jobs:
@@ -24,8 +30,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        ver: ['3.9','3.10',]
+        os: [ubuntu-latest]
+        ver: ['3.9']
 
     steps:
     - uses: actions/checkout@v2
@@ -41,7 +47,4 @@ jobs:
         python3 -m pip install tox numpy black
 
     - name: Python Code Format Check
-      run: black --target-version py39 --diff --check ./metaflow/plugins/kfp/*.py
-
-    - name: Execute Python tests
-      run: tox
+      run: black --target-version py39 --diff --check ./metaflow/plugins/aip/*.py

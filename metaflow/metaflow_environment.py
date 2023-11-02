@@ -6,7 +6,7 @@ from .util import get_username
 from . import metaflow_version
 from metaflow.exception import MetaflowException
 from metaflow.extension_support import dump_module_info
-from metaflow.mflog import BASH_MFLOG, BASH_MFLOG_KFP
+from metaflow.mflog import BASH_MFLOG, BASH_MFLOG_AIP
 from . import R
 
 version_cache = None
@@ -106,9 +106,9 @@ class MetaflowEnvironment(object):
     def get_package_commands(
         self,
         code_package_url,
-        is_kfp_plugin=False,
+        is_aip_plugin=False,
     ):
-        mflog_bash_cmd = BASH_MFLOG if not is_kfp_plugin else BASH_MFLOG_KFP
+        mflog_bash_cmd = BASH_MFLOG if not is_aip_plugin else BASH_MFLOG_AIP
         cmds = [
             mflog_bash_cmd,
             "mflog 'Setting up task environment.'",

@@ -1,0 +1,317 @@
+{
+  "pipelineSpec": {
+    "components": {
+      "comp-downstream": {
+        "executorLabel": "exec-downstream",
+        "inputDefinitions": {
+          "artifacts": {
+            "input_b": {
+              "artifactType": {
+                "schemaTitle": "system.Model",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "input_c": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "input_d": {
+              "artifactType": {
+                "schemaTitle": "system.Model",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "input_e": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "input_f": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "input_g": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "input_h": {
+              "artifactType": {
+                "schemaTitle": "system.HTML",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "input_i": {
+              "artifactType": {
+                "schemaTitle": "google.BQMLModel",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "input_a": {
+              "type": "INT"
+            }
+          }
+        }
+      },
+      "comp-upstream": {
+        "executorLabel": "exec-upstream",
+        "inputDefinitions": {
+          "parameters": {
+            "input_1": {
+              "type": "STRING"
+            },
+            "input_2": {
+              "type": "DOUBLE"
+            },
+            "input_3": {
+              "type": "STRING"
+            },
+            "input_4": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "output_2": {
+              "artifactType": {
+                "schemaTitle": "system.Model",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "output_3": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "output_4": {
+              "artifactType": {
+                "schemaTitle": "system.Model",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "output_5": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "output_6": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "output_7": {
+              "artifactType": {
+                "schemaTitle": "system.Artifact",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "output_8": {
+              "artifactType": {
+                "schemaTitle": "system.HTML",
+                "schemaVersion": "0.0.1"
+              }
+            },
+            "output_9": {
+              "artifactType": {
+                "schemaTitle": "google.BQMLModel",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          },
+          "parameters": {
+            "output_1": {
+              "type": "INT"
+            }
+          }
+        }
+      }
+    },
+    "deploymentSpec": {
+      "executors": {
+        "exec-downstream": {
+          "container": {
+            "args": [
+              "{{$.inputs.parameters['input_a']}}",
+              "{{$.inputs.artifacts['input_b'].uri}}",
+              "{{$.inputs.artifacts['input_c'].path}}",
+              "{{$.inputs.artifacts['input_d'].uri}}",
+              "{{$.inputs.artifacts['input_e'].uri}}",
+              "{{$.inputs.artifacts['input_f'].path}}",
+              "{{$.inputs.artifacts['input_g'].path}}",
+              "{{$.inputs.artifacts['input_h'].path}}"
+            ],
+            "image": "gcr.io/image"
+          }
+        },
+        "exec-upstream": {
+          "container": {
+            "args": [
+              "{{$.inputs.parameters['input_1']}}",
+              "{{$.inputs.parameters['input_2']}}",
+              "{{$.inputs.parameters['input_3']}}",
+              "{{$.inputs.parameters['input_4']}}",
+              "{{$.outputs.parameters['output_1'].output_file}}",
+              "{{$.outputs.artifacts['output_2'].uri}}",
+              "{{$.outputs.artifacts['output_3'].path}}",
+              "{{$.outputs.artifacts['output_4'].uri}}",
+              "{{$.outputs.artifacts['output_5'].uri}}",
+              "{{$.outputs.artifacts['output_6'].path}}",
+              "{{$.outputs.artifacts['output_7'].path}}",
+              "{{$.outputs.artifacts['output_8'].path}}"
+            ],
+            "image": "gcr.io/image"
+          }
+        }
+      }
+    },
+    "pipelineInfo": {
+      "name": "pipeline-with-various-types"
+    },
+    "root": {
+      "dag": {
+        "tasks": {
+          "downstream": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-downstream"
+            },
+            "dependentTasks": [
+              "upstream"
+            ],
+            "inputs": {
+              "artifacts": {
+                "input_b": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "output_2",
+                    "producerTask": "upstream"
+                  }
+                },
+                "input_c": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "output_3",
+                    "producerTask": "upstream"
+                  }
+                },
+                "input_d": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "output_4",
+                    "producerTask": "upstream"
+                  }
+                },
+                "input_e": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "output_5",
+                    "producerTask": "upstream"
+                  }
+                },
+                "input_f": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "output_6",
+                    "producerTask": "upstream"
+                  }
+                },
+                "input_g": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "output_7",
+                    "producerTask": "upstream"
+                  }
+                },
+                "input_h": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "output_8",
+                    "producerTask": "upstream"
+                  }
+                },
+                "input_i": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "output_9",
+                    "producerTask": "upstream"
+                  }
+                }
+              },
+              "parameters": {
+                "input_a": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "output_1",
+                    "producerTask": "upstream"
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "downstream"
+            }
+          },
+          "upstream": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-upstream"
+            },
+            "inputs": {
+              "parameters": {
+                "input_1": {
+                  "componentInputParameter": "input1"
+                },
+                "input_2": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "doubleValue": 3.1415926
+                    }
+                  }
+                },
+                "input_3": {
+                  "componentInputParameter": "input3"
+                },
+                "input_4": {
+                  "componentInputParameter": "input4"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "upstream"
+            }
+          }
+        }
+      },
+      "inputDefinitions": {
+        "parameters": {
+          "input1": {
+            "type": "STRING"
+          },
+          "input3": {
+            "type": "STRING"
+          },
+          "input4": {
+            "type": "STRING"
+          }
+        }
+      }
+    },
+    "schemaVersion": "2.0.0",
+    "sdkVersion": "kfp-1.8.3"
+  },
+  "runtimeConfig": {
+    "gcsOutputDirectory": "dummy_root",
+    "parameters": {
+      "input4": {
+        "stringValue": ""
+      }
+    }
+  }
+}

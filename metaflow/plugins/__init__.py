@@ -82,13 +82,15 @@ def get_plugin_cli():
     from .aws.batch import batch_cli
     from .aws.eks import kubernetes_cli
     from .aws.step_functions import step_functions_cli
-    from .kfp import kfp_cli
+    from .aip import aip_cli
+    from .aip import kfp_cli
     from .cards import card_cli
 
     return _ext_plugins["get_plugin_cli"]() + [
         package_cli.cli,
         batch_cli.cli,
         card_cli.cli,
+        aip_cli.cli,
         kfp_cli.cli,
         kubernetes_cli.cli,
         step_functions_cli.cli,
@@ -112,9 +114,9 @@ from .test_unbounded_foreach_decorator import (
 from .conda.conda_step_decorator import CondaStepDecorator
 from .cards.card_decorator import CardDecorator
 from .frameworks.pytorch import PytorchParallelDecorator
-from .kfp.kfp_decorator import KfpInternalDecorator
-from .kfp.accelerator_decorator import AcceleratorDecorator
-from .kfp.interruptible_decorator import interruptibleDecorator
+from .aip.aip_decorator import AIPInternalDecorator
+from .aip.accelerator_decorator import AcceleratorDecorator
+from .aip.interruptible_decorator import interruptibleDecorator
 
 
 STEP_DECORATORS = [
@@ -133,7 +135,7 @@ STEP_DECORATORS = [
     InternalTestUnboundedForeachDecorator,
     AcceleratorDecorator,
     interruptibleDecorator,
-    KfpInternalDecorator,
+    AIPInternalDecorator,
 ]
 _merge_lists(STEP_DECORATORS, _ext_plugins["STEP_DECORATORS"], "name")
 
@@ -156,7 +158,7 @@ _merge_lists(METADATA_PROVIDERS, _ext_plugins["METADATA_PROVIDERS"], "TYPE")
 from .conda.conda_flow_decorator import CondaFlowDecorator
 from .aws.step_functions.schedule_decorator import ScheduleDecorator
 from .project_decorator import ProjectDecorator
-from .kfp.s3_sensor_decorator import S3SensorDecorator
+from .aip.s3_sensor_decorator import S3SensorDecorator
 
 FLOW_DECORATORS = [
     CondaFlowDecorator,

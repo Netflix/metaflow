@@ -1,0 +1,197 @@
+{
+  "pipelineSpec": {
+    "components": {
+      "comp-for-loop-2": {
+        "dag": {
+          "outputs": {
+            "artifacts": {
+              "output-metrics-2-metrics": {
+                "artifactSelectors": [
+                  {
+                    "outputArtifactKey": "metrics",
+                    "producerSubtask": "output-metrics-2"
+                  }
+                ]
+              }
+            }
+          },
+          "tasks": {
+            "output-metrics-2": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-output-metrics-2"
+              },
+              "taskInfo": {
+                "name": "output-metrics-2"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--loop-item-param-1": {
+              "type": "STRING"
+            }
+          }
+        },
+        "outputDefinitions": {
+          "artifacts": {
+            "output-metrics-2-metrics": {
+              "artifactType": {
+                "schemaTitle": "system.Metrics",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      },
+      "comp-output-metrics": {
+        "executorLabel": "exec-output-metrics",
+        "outputDefinitions": {
+          "artifacts": {
+            "metrics": {
+              "artifactType": {
+                "schemaTitle": "system.Metrics",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      },
+      "comp-output-metrics-2": {
+        "executorLabel": "exec-output-metrics-2",
+        "outputDefinitions": {
+          "artifacts": {
+            "metrics": {
+              "artifactType": {
+                "schemaTitle": "system.Metrics",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      }
+    },
+    "deploymentSpec": {
+      "executors": {
+        "exec-output-metrics": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "output_metrics"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef output_metrics(metrics: Output[Metrics]):\n    \"\"\"Dummy component that outputs metrics with a random accuracy.\"\"\"\n    import random\n    result = random.randint(0, 100)\n    metrics.log_metric('accuracy', result)\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-output-metrics-2": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "output_metrics"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef output_metrics(metrics: Output[Metrics]):\n    \"\"\"Dummy component that outputs metrics with a random accuracy.\"\"\"\n    import random\n    result = random.randint(0, 100)\n    metrics.log_metric('accuracy', result)\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        }
+      }
+    },
+    "pipelineInfo": {
+      "name": "pipeline-with-metrics-outputs"
+    },
+    "root": {
+      "dag": {
+        "outputs": {
+          "artifacts": {
+            "output-metrics-2-metrics": {
+              "artifactSelectors": [
+                {
+                  "outputArtifactKey": "output-metrics-2-metrics",
+                  "producerSubtask": "for-loop-2"
+                }
+              ]
+            },
+            "output-metrics-metrics": {
+              "artifactSelectors": [
+                {
+                  "outputArtifactKey": "metrics",
+                  "producerSubtask": "output-metrics"
+                }
+              ]
+            }
+          }
+        },
+        "tasks": {
+          "for-loop-2": {
+            "componentRef": {
+              "name": "comp-for-loop-2"
+            },
+            "parameterIterator": {
+              "itemInput": "pipelineparam--loop-item-param-1",
+              "items": {
+                "raw": "[1, 2]"
+              }
+            },
+            "taskInfo": {
+              "name": "for-loop-2"
+            }
+          },
+          "output-metrics": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-output-metrics"
+            },
+            "taskInfo": {
+              "name": "output-metrics"
+            }
+          }
+        }
+      },
+      "outputDefinitions": {
+        "artifacts": {
+          "output-metrics-2-metrics": {
+            "artifactType": {
+              "schemaTitle": "system.Metrics",
+              "schemaVersion": "0.0.1"
+            }
+          },
+          "output-metrics-metrics": {
+            "artifactType": {
+              "schemaTitle": "system.Metrics",
+              "schemaVersion": "0.0.1"
+            }
+          }
+        }
+      }
+    },
+    "schemaVersion": "2.0.0",
+    "sdkVersion": "kfp-1.8.5"
+  },
+  "runtimeConfig": {
+    "gcsOutputDirectory": "dummy_root"
+  }
+}

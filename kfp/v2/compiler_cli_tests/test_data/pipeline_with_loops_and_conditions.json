@@ -1,0 +1,1292 @@
+{
+  "pipelineSpec": {
+    "components": {
+      "comp-args-generator-op": {
+        "executorLabel": "exec-args-generator-op",
+        "outputDefinitions": {
+          "parameters": {
+            "Output": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-args-generator-op-2": {
+        "executorLabel": "exec-args-generator-op-2",
+        "outputDefinitions": {
+          "parameters": {
+            "Output": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-condition-1": {
+        "dag": {
+          "tasks": {
+            "args-generator-op-2": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-args-generator-op-2"
+              },
+              "taskInfo": {
+                "name": "args-generator-op-2"
+              }
+            },
+            "for-loop-2": {
+              "componentRef": {
+                "name": "comp-for-loop-2"
+              },
+              "dependentTasks": [
+                "args-generator-op-2"
+              ],
+              "inputs": {
+                "parameters": {
+                  "pipelineparam--args-generator-op-2-Output": {
+                    "taskOutputParameter": {
+                      "outputParameterKey": "Output",
+                      "producerTask": "args-generator-op-2"
+                    }
+                  },
+                  "pipelineparam--args-generator-op-Output": {
+                    "componentInputParameter": "pipelineparam--args-generator-op-Output"
+                  },
+                  "pipelineparam--flip-coin-op-Output": {
+                    "componentInputParameter": "pipelineparam--flip-coin-op-Output"
+                  },
+                  "pipelineparam--loop_parameter": {
+                    "componentInputParameter": "pipelineparam--loop_parameter"
+                  },
+                  "pipelineparam--msg": {
+                    "componentInputParameter": "pipelineparam--msg"
+                  }
+                }
+              },
+              "parameterIterator": {
+                "itemInput": "pipelineparam--args-generator-op-Output-loop-item",
+                "items": {
+                  "inputParameter": "pipelineparam--args-generator-op-Output"
+                }
+              },
+              "taskInfo": {
+                "name": "for-loop-2"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--args-generator-op-Output": {
+              "type": "STRING"
+            },
+            "pipelineparam--flip-coin-op-Output": {
+              "type": "STRING"
+            },
+            "pipelineparam--loop_parameter": {
+              "type": "STRING"
+            },
+            "pipelineparam--msg": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-condition-13": {
+        "dag": {
+          "tasks": {
+            "print-op-9": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-print-op-9"
+              },
+              "inputs": {
+                "parameters": {
+                  "msg": {
+                    "runtimeValue": {
+                      "constantValue": {
+                        "stringValue": "1"
+                      }
+                    }
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "print-op-9"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--flip-coin-op-Output": {
+              "type": "STRING"
+            },
+            "pipelineparam--loop-item-param-11": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-condition-15": {
+        "dag": {
+          "tasks": {
+            "for-loop-16": {
+              "componentRef": {
+                "name": "comp-for-loop-16"
+              },
+              "inputs": {
+                "parameters": {
+                  "pipelineparam--loop_parameter-loop-item": {
+                    "componentInputParameter": "pipelineparam--loop_parameter-loop-item"
+                  },
+                  "pipelineparam--loop_parameter-loop-item-subvar-B_b": {
+                    "componentInputParameter": "pipelineparam--loop_parameter-loop-item",
+                    "parameterExpressionSelector": "parseJson(string_value)[\"B_b\"]"
+                  }
+                }
+              },
+              "parameterIterator": {
+                "itemInput": "pipelineparam--loop_parameter-loop-item-subvar-B_b-loop-item",
+                "items": {
+                  "inputParameter": "pipelineparam--loop_parameter-loop-item-subvar-B_b"
+                }
+              },
+              "taskInfo": {
+                "name": "for-loop-16"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--loop_parameter-loop-item": {
+              "type": "STRING"
+            },
+            "pipelineparam--loop_parameter-loop-item-subvar-A_a": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-condition-3": {
+        "dag": {
+          "tasks": {
+            "print-op-2": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-print-op-2"
+              },
+              "inputs": {
+                "parameters": {
+                  "msg": {
+                    "componentInputParameter": "pipelineparam--args-generator-op-Output-loop-item",
+                    "parameterExpressionSelector": "parseJson(string_value)[\"B_b\"]"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "print-op-2"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--args-generator-op-Output-loop-item": {
+              "type": "STRING"
+            },
+            "pipelineparam--args-generator-op-Output-loop-item-subvar-A_a": {
+              "type": "STRING"
+            },
+            "pipelineparam--flip-coin-op-Output": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-condition-4": {
+        "dag": {
+          "tasks": {
+            "print-op-3": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-print-op-3"
+              },
+              "inputs": {
+                "parameters": {
+                  "msg": {
+                    "componentInputParameter": "pipelineparam--args-generator-op-Output-loop-item",
+                    "parameterExpressionSelector": "parseJson(string_value)[\"B_b\"]"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "print-op-3"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--args-generator-op-Output-loop-item": {
+              "type": "STRING"
+            },
+            "pipelineparam--flip-coin-op-Output": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-condition-5": {
+        "dag": {
+          "tasks": {
+            "for-loop-7": {
+              "componentRef": {
+                "name": "comp-for-loop-7"
+              },
+              "inputs": {
+                "parameters": {
+                  "pipelineparam--args-generator-op-Output-loop-item": {
+                    "componentInputParameter": "pipelineparam--args-generator-op-Output-loop-item"
+                  },
+                  "pipelineparam--flip-coin-op-Output": {
+                    "componentInputParameter": "pipelineparam--flip-coin-op-Output"
+                  }
+                }
+              },
+              "parameterIterator": {
+                "itemInput": "pipelineparam--loop-item-param-6",
+                "items": {
+                  "raw": "[{\"a\": \"-1\"}, {\"a\": \"-2\"}]"
+                }
+              },
+              "taskInfo": {
+                "name": "for-loop-7"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--args-generator-op-Output-loop-item": {
+              "type": "STRING"
+            },
+            "pipelineparam--args-generator-op-Output-loop-item-subvar-A_a": {
+              "type": "STRING"
+            },
+            "pipelineparam--flip-coin-op-Output": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-flip-coin-op": {
+        "executorLabel": "exec-flip-coin-op",
+        "outputDefinitions": {
+          "parameters": {
+            "Output": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-for-loop-10": {
+        "dag": {
+          "tasks": {
+            "print-op-7": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-print-op-7"
+              },
+              "inputs": {
+                "parameters": {
+                  "msg": {
+                    "componentInputParameter": "pipelineparam--loop_parameter-loop-item"
+                  },
+                  "msg2": {
+                    "componentInputParameter": "pipelineparam--args-generator-op-2-Output-loop-item",
+                    "parameterExpressionSelector": "parseJson(string_value)[\"A_a\"]"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "print-op-7"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--args-generator-op-2-Output": {
+              "type": "STRING"
+            },
+            "pipelineparam--args-generator-op-2-Output-loop-item": {
+              "type": "STRING"
+            },
+            "pipelineparam--flip-coin-op-Output": {
+              "type": "STRING"
+            },
+            "pipelineparam--loop_parameter-loop-item": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-for-loop-12": {
+        "dag": {
+          "tasks": {
+            "condition-13": {
+              "componentRef": {
+                "name": "comp-condition-13"
+              },
+              "inputs": {
+                "parameters": {
+                  "pipelineparam--flip-coin-op-Output": {
+                    "componentInputParameter": "pipelineparam--flip-coin-op-Output"
+                  },
+                  "pipelineparam--loop-item-param-11": {
+                    "componentInputParameter": "pipelineparam--loop-item-param-11"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "condition-13"
+              },
+              "triggerPolicy": {
+                "condition": "inputs.parameters['pipelineparam--loop-item-param-11'].string_value == '1'"
+              }
+            },
+            "print-op-8": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-print-op-8"
+              },
+              "inputs": {
+                "parameters": {
+                  "msg": {
+                    "componentInputParameter": "pipelineparam--loop-item-param-11"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "print-op-8"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--flip-coin-op-Output": {
+              "type": "STRING"
+            },
+            "pipelineparam--loop-item-param-11": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-for-loop-14": {
+        "dag": {
+          "tasks": {
+            "condition-15": {
+              "componentRef": {
+                "name": "comp-condition-15"
+              },
+              "inputs": {
+                "parameters": {
+                  "pipelineparam--loop_parameter-loop-item": {
+                    "componentInputParameter": "pipelineparam--loop_parameter-loop-item"
+                  },
+                  "pipelineparam--loop_parameter-loop-item-subvar-A_a": {
+                    "componentInputParameter": "pipelineparam--loop_parameter-loop-item",
+                    "parameterExpressionSelector": "parseJson(string_value)[\"A_a\"]"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "condition-15"
+              },
+              "triggerPolicy": {
+                "condition": "inputs.parameters['pipelineparam--loop_parameter-loop-item-subvar-A_a'].string_value == 'heads'"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--loop_parameter": {
+              "type": "STRING"
+            },
+            "pipelineparam--loop_parameter-loop-item": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-for-loop-16": {
+        "dag": {
+          "tasks": {
+            "print-op-10": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-print-op-10"
+              },
+              "inputs": {
+                "parameters": {
+                  "msg": {
+                    "componentInputParameter": "pipelineparam--loop_parameter-loop-item-subvar-B_b-loop-item"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "print-op-10"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--loop_parameter-loop-item": {
+              "type": "STRING"
+            },
+            "pipelineparam--loop_parameter-loop-item-subvar-B_b": {
+              "type": "STRING"
+            },
+            "pipelineparam--loop_parameter-loop-item-subvar-B_b-loop-item": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-for-loop-2": {
+        "dag": {
+          "tasks": {
+            "condition-3": {
+              "componentRef": {
+                "name": "comp-condition-3"
+              },
+              "inputs": {
+                "parameters": {
+                  "pipelineparam--args-generator-op-Output-loop-item": {
+                    "componentInputParameter": "pipelineparam--args-generator-op-Output-loop-item"
+                  },
+                  "pipelineparam--args-generator-op-Output-loop-item-subvar-A_a": {
+                    "componentInputParameter": "pipelineparam--args-generator-op-Output-loop-item",
+                    "parameterExpressionSelector": "parseJson(string_value)[\"A_a\"]"
+                  },
+                  "pipelineparam--flip-coin-op-Output": {
+                    "componentInputParameter": "pipelineparam--flip-coin-op-Output"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "condition-3"
+              },
+              "triggerPolicy": {
+                "condition": "inputs.parameters['pipelineparam--args-generator-op-Output-loop-item-subvar-A_a'].string_value == 'heads'"
+              }
+            },
+            "condition-4": {
+              "componentRef": {
+                "name": "comp-condition-4"
+              },
+              "inputs": {
+                "parameters": {
+                  "pipelineparam--args-generator-op-Output-loop-item": {
+                    "componentInputParameter": "pipelineparam--args-generator-op-Output-loop-item"
+                  },
+                  "pipelineparam--flip-coin-op-Output": {
+                    "componentInputParameter": "pipelineparam--flip-coin-op-Output"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "condition-4"
+              },
+              "triggerPolicy": {
+                "condition": "inputs.parameters['pipelineparam--flip-coin-op-Output'].string_value == 'heads'"
+              }
+            },
+            "condition-5": {
+              "componentRef": {
+                "name": "comp-condition-5"
+              },
+              "inputs": {
+                "parameters": {
+                  "pipelineparam--args-generator-op-Output-loop-item": {
+                    "componentInputParameter": "pipelineparam--args-generator-op-Output-loop-item"
+                  },
+                  "pipelineparam--args-generator-op-Output-loop-item-subvar-A_a": {
+                    "componentInputParameter": "pipelineparam--args-generator-op-Output-loop-item",
+                    "parameterExpressionSelector": "parseJson(string_value)[\"A_a\"]"
+                  },
+                  "pipelineparam--flip-coin-op-Output": {
+                    "componentInputParameter": "pipelineparam--flip-coin-op-Output"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "condition-5"
+              },
+              "triggerPolicy": {
+                "condition": "inputs.parameters['pipelineparam--args-generator-op-Output-loop-item-subvar-A_a'].string_value == 'tails'"
+              }
+            },
+            "for-loop-12": {
+              "componentRef": {
+                "name": "comp-for-loop-12"
+              },
+              "inputs": {
+                "parameters": {
+                  "pipelineparam--flip-coin-op-Output": {
+                    "componentInputParameter": "pipelineparam--flip-coin-op-Output"
+                  }
+                }
+              },
+              "parameterIterator": {
+                "itemInput": "pipelineparam--loop-item-param-11",
+                "items": {
+                  "raw": "[\"1\", \"2\"]"
+                }
+              },
+              "taskInfo": {
+                "name": "for-loop-12"
+              }
+            },
+            "for-loop-8": {
+              "componentRef": {
+                "name": "comp-for-loop-8"
+              },
+              "inputs": {
+                "parameters": {
+                  "pipelineparam--args-generator-op-Output-loop-item": {
+                    "componentInputParameter": "pipelineparam--args-generator-op-Output-loop-item"
+                  },
+                  "pipelineparam--args-generator-op-Output-loop-item-subvar-B_b": {
+                    "componentInputParameter": "pipelineparam--args-generator-op-Output-loop-item",
+                    "parameterExpressionSelector": "parseJson(string_value)[\"B_b\"]"
+                  },
+                  "pipelineparam--flip-coin-op-Output": {
+                    "componentInputParameter": "pipelineparam--flip-coin-op-Output"
+                  }
+                }
+              },
+              "parameterIterator": {
+                "itemInput": "pipelineparam--args-generator-op-Output-loop-item-subvar-B_b-loop-item",
+                "items": {
+                  "inputParameter": "pipelineparam--args-generator-op-Output-loop-item-subvar-B_b"
+                }
+              },
+              "taskInfo": {
+                "name": "for-loop-8"
+              }
+            },
+            "for-loop-9": {
+              "componentRef": {
+                "name": "comp-for-loop-9"
+              },
+              "inputs": {
+                "parameters": {
+                  "pipelineparam--args-generator-op-2-Output": {
+                    "componentInputParameter": "pipelineparam--args-generator-op-2-Output"
+                  },
+                  "pipelineparam--flip-coin-op-Output": {
+                    "componentInputParameter": "pipelineparam--flip-coin-op-Output"
+                  },
+                  "pipelineparam--loop_parameter": {
+                    "componentInputParameter": "pipelineparam--loop_parameter"
+                  }
+                }
+              },
+              "parameterIterator": {
+                "itemInput": "pipelineparam--loop_parameter-loop-item",
+                "items": {
+                  "inputParameter": "pipelineparam--loop_parameter"
+                }
+              },
+              "taskInfo": {
+                "name": "for-loop-9"
+              }
+            },
+            "print-op": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-print-op"
+              },
+              "inputs": {
+                "parameters": {
+                  "msg": {
+                    "componentInputParameter": "pipelineparam--msg"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "print-op"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--args-generator-op-2-Output": {
+              "type": "STRING"
+            },
+            "pipelineparam--args-generator-op-Output": {
+              "type": "STRING"
+            },
+            "pipelineparam--args-generator-op-Output-loop-item": {
+              "type": "STRING"
+            },
+            "pipelineparam--flip-coin-op-Output": {
+              "type": "STRING"
+            },
+            "pipelineparam--loop_parameter": {
+              "type": "STRING"
+            },
+            "pipelineparam--msg": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-for-loop-7": {
+        "dag": {
+          "tasks": {
+            "print-op-4": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-print-op-4"
+              },
+              "inputs": {
+                "parameters": {
+                  "msg": {
+                    "componentInputParameter": "pipelineparam--loop-item-param-6"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "print-op-4"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--args-generator-op-Output-loop-item": {
+              "type": "STRING"
+            },
+            "pipelineparam--flip-coin-op-Output": {
+              "type": "STRING"
+            },
+            "pipelineparam--loop-item-param-6": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-for-loop-8": {
+        "dag": {
+          "tasks": {
+            "print-op-5": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-print-op-5"
+              },
+              "inputs": {
+                "parameters": {
+                  "msg": {
+                    "componentInputParameter": "pipelineparam--args-generator-op-Output-loop-item-subvar-B_b-loop-item"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "print-op-5"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--args-generator-op-Output-loop-item": {
+              "type": "STRING"
+            },
+            "pipelineparam--args-generator-op-Output-loop-item-subvar-B_b": {
+              "type": "STRING"
+            },
+            "pipelineparam--args-generator-op-Output-loop-item-subvar-B_b-loop-item": {
+              "type": "STRING"
+            },
+            "pipelineparam--flip-coin-op-Output": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-for-loop-9": {
+        "dag": {
+          "tasks": {
+            "for-loop-10": {
+              "componentRef": {
+                "name": "comp-for-loop-10"
+              },
+              "inputs": {
+                "parameters": {
+                  "pipelineparam--args-generator-op-2-Output": {
+                    "componentInputParameter": "pipelineparam--args-generator-op-2-Output"
+                  },
+                  "pipelineparam--flip-coin-op-Output": {
+                    "componentInputParameter": "pipelineparam--flip-coin-op-Output"
+                  },
+                  "pipelineparam--loop_parameter-loop-item": {
+                    "componentInputParameter": "pipelineparam--loop_parameter-loop-item"
+                  }
+                }
+              },
+              "parameterIterator": {
+                "itemInput": "pipelineparam--args-generator-op-2-Output-loop-item",
+                "items": {
+                  "inputParameter": "pipelineparam--args-generator-op-2-Output"
+                }
+              },
+              "taskInfo": {
+                "name": "for-loop-10"
+              }
+            },
+            "print-op-6": {
+              "cachingOptions": {
+                "enableCache": true
+              },
+              "componentRef": {
+                "name": "comp-print-op-6"
+              },
+              "inputs": {
+                "parameters": {
+                  "msg": {
+                    "componentInputParameter": "pipelineparam--loop_parameter-loop-item"
+                  }
+                }
+              },
+              "taskInfo": {
+                "name": "print-op-6"
+              }
+            }
+          }
+        },
+        "inputDefinitions": {
+          "parameters": {
+            "pipelineparam--args-generator-op-2-Output": {
+              "type": "STRING"
+            },
+            "pipelineparam--flip-coin-op-Output": {
+              "type": "STRING"
+            },
+            "pipelineparam--loop_parameter": {
+              "type": "STRING"
+            },
+            "pipelineparam--loop_parameter-loop-item": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-print-op": {
+        "executorLabel": "exec-print-op",
+        "inputDefinitions": {
+          "parameters": {
+            "msg": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-print-op-10": {
+        "executorLabel": "exec-print-op-10",
+        "inputDefinitions": {
+          "parameters": {
+            "msg": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-print-op-2": {
+        "executorLabel": "exec-print-op-2",
+        "inputDefinitions": {
+          "parameters": {
+            "msg": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-print-op-3": {
+        "executorLabel": "exec-print-op-3",
+        "inputDefinitions": {
+          "parameters": {
+            "msg": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-print-op-4": {
+        "executorLabel": "exec-print-op-4",
+        "inputDefinitions": {
+          "parameters": {
+            "msg": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-print-op-5": {
+        "executorLabel": "exec-print-op-5",
+        "inputDefinitions": {
+          "parameters": {
+            "msg": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-print-op-6": {
+        "executorLabel": "exec-print-op-6",
+        "inputDefinitions": {
+          "parameters": {
+            "msg": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-print-op-7": {
+        "executorLabel": "exec-print-op-7",
+        "inputDefinitions": {
+          "parameters": {
+            "msg": {
+              "type": "STRING"
+            },
+            "msg2": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-print-op-8": {
+        "executorLabel": "exec-print-op-8",
+        "inputDefinitions": {
+          "parameters": {
+            "msg": {
+              "type": "STRING"
+            }
+          }
+        }
+      },
+      "comp-print-op-9": {
+        "executorLabel": "exec-print-op-9",
+        "inputDefinitions": {
+          "parameters": {
+            "msg": {
+              "type": "STRING"
+            }
+          }
+        }
+      }
+    },
+    "deploymentSpec": {
+      "executors": {
+        "exec-args-generator-op": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "args_generator_op"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef args_generator_op() -> list:\n    return [\n        {\n            'A_a': '1',\n            'B_b': ['2', '20'],\n        },\n        {\n            'A_a': '10',\n            'B_b': ['22', '222'],\n        },\n    ]\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-args-generator-op-2": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "args_generator_op"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef args_generator_op() -> list:\n    return [\n        {\n            'A_a': '1',\n            'B_b': ['2', '20'],\n        },\n        {\n            'A_a': '10',\n            'B_b': ['22', '222'],\n        },\n    ]\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-flip-coin-op": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "flip_coin_op"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef flip_coin_op() -> str:\n    \"\"\"Flip a coin and output heads or tails randomly.\"\"\"\n    import random\n    result = 'heads' if random.randint(0, 1) == 0 else 'tails'\n    return result\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-print-op": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "print_op"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef print_op(msg: str, msg2: Optional[str] = None):\n    print(f'msg: {msg}, msg2: {msg2}')\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-print-op-10": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "print_op"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef print_op(msg: str, msg2: Optional[str] = None):\n    print(f'msg: {msg}, msg2: {msg2}')\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-print-op-2": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "print_op"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef print_op(msg: str, msg2: Optional[str] = None):\n    print(f'msg: {msg}, msg2: {msg2}')\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-print-op-3": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "print_op"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef print_op(msg: str, msg2: Optional[str] = None):\n    print(f'msg: {msg}, msg2: {msg2}')\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-print-op-4": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "print_op"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef print_op(msg: str, msg2: Optional[str] = None):\n    print(f'msg: {msg}, msg2: {msg2}')\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-print-op-5": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "print_op"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef print_op(msg: str, msg2: Optional[str] = None):\n    print(f'msg: {msg}, msg2: {msg2}')\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-print-op-6": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "print_op"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef print_op(msg: str, msg2: Optional[str] = None):\n    print(f'msg: {msg}, msg2: {msg2}')\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-print-op-7": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "print_op"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef print_op(msg: str, msg2: Optional[str] = None):\n    print(f'msg: {msg}, msg2: {msg2}')\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-print-op-8": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "print_op"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef print_op(msg: str, msg2: Optional[str] = None):\n    print(f'msg: {msg}, msg2: {msg2}')\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-print-op-9": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "print_op"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef print_op(msg: str, msg2: Optional[str] = None):\n    print(f'msg: {msg}, msg2: {msg2}')\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        }
+      }
+    },
+    "pipelineInfo": {
+      "name": "pipeline-with-loops-and-conditions-multi-layers"
+    },
+    "root": {
+      "dag": {
+        "tasks": {
+          "args-generator-op": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-args-generator-op"
+            },
+            "taskInfo": {
+              "name": "args-generator-op"
+            }
+          },
+          "condition-1": {
+            "componentRef": {
+              "name": "comp-condition-1"
+            },
+            "dependentTasks": [
+              "args-generator-op",
+              "flip-coin-op"
+            ],
+            "inputs": {
+              "parameters": {
+                "pipelineparam--args-generator-op-Output": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "Output",
+                    "producerTask": "args-generator-op"
+                  }
+                },
+                "pipelineparam--flip-coin-op-Output": {
+                  "taskOutputParameter": {
+                    "outputParameterKey": "Output",
+                    "producerTask": "flip-coin-op"
+                  }
+                },
+                "pipelineparam--loop_parameter": {
+                  "componentInputParameter": "loop_parameter"
+                },
+                "pipelineparam--msg": {
+                  "componentInputParameter": "msg"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "condition-1"
+            },
+            "triggerPolicy": {
+              "condition": "inputs.parameters['pipelineparam--flip-coin-op-Output'].string_value != 'no-such-result'"
+            }
+          },
+          "flip-coin-op": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-flip-coin-op"
+            },
+            "taskInfo": {
+              "name": "flip-coin-op"
+            }
+          },
+          "for-loop-14": {
+            "componentRef": {
+              "name": "comp-for-loop-14"
+            },
+            "inputs": {
+              "parameters": {
+                "pipelineparam--loop_parameter": {
+                  "componentInputParameter": "loop_parameter"
+                }
+              }
+            },
+            "parameterIterator": {
+              "itemInput": "pipelineparam--loop_parameter-loop-item",
+              "items": {
+                "inputParameter": "pipelineparam--loop_parameter"
+              }
+            },
+            "taskInfo": {
+              "name": "for-loop-14"
+            }
+          }
+        }
+      },
+      "inputDefinitions": {
+        "parameters": {
+          "loop_parameter": {
+            "type": "STRING"
+          },
+          "msg": {
+            "type": "STRING"
+          }
+        }
+      }
+    },
+    "schemaVersion": "2.0.0",
+    "sdkVersion": "kfp-1.8.5"
+  },
+  "runtimeConfig": {
+    "parameters": {
+      "loop_parameter": {
+        "stringValue": "[{\"A_a\": \"heads\", \"B_b\": [\"A\", \"B\"]}, {\"A_a\": \"tails\", \"B_b\": [\"X\", \"Y\", \"Z\"]}]"
+      },
+      "msg": {
+        "stringValue": "hello"
+      }
+    }
+  }
+}

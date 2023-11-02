@@ -1,0 +1,17 @@
+name: Serving
+description: |
+    Serving component
+inputs:
+- name: model
+  description: 'The path of the model file'
+  type: Model
+- name: model_cfg
+  description: 'Model config string'
+  type: String
+implementation:
+  container:
+    image: gcr.io/my-project/my-server
+    args: [
+       --model-to-serve, {inputUri: model},
+       --model-config, {inputValue: model_cfg}
+    ]

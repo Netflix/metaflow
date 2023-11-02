@@ -1,6 +1,6 @@
 include:
   - project: 'analytics/artificial-intelligence/ai-platform/aip-infrastructure/ci-templates/ci-cd-template'
-    ref: &include_ref 'v3'
+    ref: &include_ref 'v4'
     file: 'environments/devex.yml'
   - project: 'analytics/artificial-intelligence/ai-platform/aip-infrastructure/ci-templates/ci-cd-template'
     ref: *include_ref
@@ -8,11 +8,11 @@ include:
 
 variables:
   PY_LIBRARY_NAME: "zillow-metaflow"
-  MAJOR_VERSION: "1"
-  MINOR_VERSION: "3"
+  MAJOR_VERSION: "2"
+  MINOR_VERSION: "0"
   METAFLOW_VERSION_PATH: "setup.py"
   IMAGE_REPOSITORY_TAG_PATH: 'image_tag_file.txt'
-  IMAGE_REPOSITORY_TAG_PATH_KFP_STEP: 'image_tag_file_kfp_step.txt'
+  IMAGE_REPOSITORY_TAG_PATH_AIP_STEP: 'image_tag_file_aip_step.txt'
   # Run on the Internal cluster only on commit.
   # We run the tests via the integration test framework for Non-Prod/Prod.
   DEPLOY_INTERNAL: "true"
@@ -50,7 +50,7 @@ stages:
     PIPELINE_VERSION: "1.0"
   before_script:
     - export IMAGE_REPOSITORY_TAG=$( cat ${IMAGE_REPOSITORY_TAG_PATH} )
-    - export IMAGE_REPOSITORY_TAG_KFP_STEP=$( cat ${IMAGE_REPOSITORY_TAG_PATH_KFP_STEP} )
+    - export IMAGE_REPOSITORY_TAG_AIP_STEP=$( cat ${IMAGE_REPOSITORY_TAG_PATH_AIP_STEP} )
     - !reference [.generate_kubeconfig, before_script]
   script:
     - docker run
@@ -61,14 +61,16 @@ stages:
         -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY 
         -e AWS_SESSION_TOKEN=$AWS_SESSION_TOKEN 
         -e AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION 
-        -e KFP_RUN_URL_PREFIX=$KFP_RUN_URL_PREFIX 
-        -e KFP_SDK_NAMESPACE=$KFP_SDK_NAMESPACE 
+        -e ARGO_RUN_URL_PREFIX=$ARGO_RUN_URL_PREFIX
+        -e METAFLOW_RUN_URL_PREFIX=$METAFLOW_RUN_URL_PREFIX 
+        -e METAFLOW_KUBERNETES_NAMESPACE=$METAFLOW_KUBERNETES_NAMESPACE 
         -e USER=$GITLAB_USER_EMAIL
-        -e KFP_STEP_IMAGE=${IMAGE_REPOSITORY_TAG_KFP_STEP}
+        -e AIP_STEP_IMAGE=${IMAGE_REPOSITORY_TAG_AIP_STEP}
         ${IMAGE_REPOSITORY_TAG}
         bash -c "
-          cd /home/zservice/metaflow/metaflow/plugins/kfp/tests &&
-          python -m pytest -s -n 3 run_integration_tests.py --image ${IMAGE_REPOSITORY_TAG} --opsgenie-api-token ${OPSGENIE_API_TOKEN} --cov-config=setup.cfg
+          set -x &&
+          cd /home/zservice/metaflow/metaflow/plugins/aip/tests &&
+          python -m pytest -s -n 3 run_integration_tests.py --image ${IMAGE_REPOSITORY_TAG} --opsgenie-api-token ${OPSGENIE_API_TOKEN} --cov-config=setup.cfg --pipeline-tag pipeline_iid_${CI_PIPELINE_IID}
         "
   artifacts:
     when: always
@@ -85,7 +87,7 @@ build:docker:
         image_repository_tag_path=$2
 
         DOCKER_BUILDKIT=1 docker build \
-          --no-cache -f metaflow/plugins/kfp/tests/Dockerfile \
+          --no-cache -f metaflow/plugins/aip/tests/Dockerfile \
           --build-arg IMAGE_TAG=${image_repository_tag} \
           -t ${image_repository_tag} .
         echo ${DOCKER_API_KEY} | docker login -u ${DOCKER_USERNAME} --password-stdin ${DOCKER_REPO_URL}
@@ -105,22 +107,22 @@ build:docker:
       export IMAGE_REPOSITORY_TAG=${DOCKER_REPO_URL}/${CI_PROJECT_NAMESPACE}/${PY_LIBRARY_NAME}:${IMAGE_TAG}
       build_image $IMAGE_REPOSITORY_TAG $IMAGE_REPOSITORY_TAG_PATH
 
-    # Create another image specifically to test kfp_step_flow.py, this sets the image name within the built image
+    # Create another image specifically to test aip_flow.py, this sets the image name within the built image
     # such that the test can assert that for specific steps it is using this overridden image
     - |
-      export IMAGE_REPOSITORY_TAG_KFP_STEP=${DOCKER_REPO_URL}/${CI_PROJECT_NAMESPACE}/${PY_LIBRARY_NAME}:${IMAGE_TAG}_kfp_step
-      build_image $IMAGE_REPOSITORY_TAG_KFP_STEP $IMAGE_REPOSITORY_TAG_PATH_KFP_STEP
+      export IMAGE_REPOSITORY_TAG_AIP_STEP=${DOCKER_REPO_URL}/${CI_PROJECT_NAMESPACE}/${PY_LIBRARY_NAME}:${IMAGE_TAG}_aip_step
+      build_image $IMAGE_REPOSITORY_TAG_AIP_STEP $IMAGE_REPOSITORY_TAG_PATH_AIP_STEP
   artifacts:
     paths:
       - ${IMAGE_REPOSITORY_TAG_PATH}
-      - ${IMAGE_REPOSITORY_TAG_PATH_KFP_STEP}
+      - ${IMAGE_REPOSITORY_TAG_PATH_AIP_STEP}
 
 build:publish:
   extends: .aip_python_debian_image
   stage: build
   script:
   - *version
-  # Now write back the zillow-kfp version back to the original location we found the original so
+  # Now write back the zillow-metaflow version back to the original location we found the original so
   # python package managers can reference it as they need the version stored internally.
   - sed -i "s/\(version = ['\"]\)[^'\"]*\(['\"]\)/\1${PY_LIBRARY_VERSION}\2/" $METAFLOW_VERSION_PATH
   - python setup.py sdist
@@ -143,8 +145,9 @@ test:sandbox:
     - .devex_sandbox_eks
     - .test
   variables:
-    KFP_RUN_URL_PREFIX: "https://kubeflow.corp.sandbox-k8s.zg-aip.net/"
-    KFP_SDK_NAMESPACE: "metaflow-integration-testing-sandbox"
+    ARGO_RUN_URL_PREFIX: "https://argo-server.int.sandbox-k8s.zg-aip.net/"
+    METAFLOW_RUN_URL_PREFIX: "https://metaflow.int.sandbox-k8s.zg-aip.net"
+    METAFLOW_KUBERNETES_NAMESPACE: "metaflow-integration-testing-sandbox"
   rules:
     - if: '$DEPLOY_SANDBOX == "true"'
 
@@ -153,8 +156,9 @@ test:internal:
     - .devex_internal_eks
     - .test
   variables:
-    KFP_RUN_URL_PREFIX: "https://kubeflow.corp.dev-k8s.zg-aip.net/"
-    KFP_SDK_NAMESPACE: "metaflow-integration-testing-internal"
+    ARGO_RUN_URL_PREFIX: "https://argo-server.int.dev-k8s.zg-aip.net/"
+    METAFLOW_RUN_URL_PREFIX: "https://metaflow.int.dev-k8s.zg-aip.net"
+    METAFLOW_KUBERNETES_NAMESPACE: "metaflow-integration-testing-internal"
   rules:
     - if: '$DEPLOY_INTERNAL == "true"'
 
@@ -163,8 +167,9 @@ test:nonprod:
     - .devex_nonprod_eks
     - .test
   variables:
-    KFP_RUN_URL_PREFIX: "https://kubeflow.corp.stage-k8s.zg-aip.net/"
-    KFP_SDK_NAMESPACE: "metaflow-integration-testing-stage"
+    ARGO_RUN_URL_PREFIX: "https://argo-server.int.stage-k8s.zg-aip.net/"
+    METAFLOW_RUN_URL_PREFIX: "https://metaflow.int.stage-k8s.zg-aip.net"
+    METAFLOW_KUBERNETES_NAMESPACE: "metaflow-integration-testing-stage"
   rules:
     - if: '$DEPLOY_NONPROD == "true"'
 
@@ -173,7 +178,8 @@ test:prod:
   - .devex_prod_eks
   - .test
   variables:
-    KFP_RUN_URL_PREFIX: "https://kubeflow.corp.prod-k8s.zg-aip.net/"
-    KFP_SDK_NAMESPACE: "metaflow-integration-testing-prod"
+    ARGO_RUN_URL_PREFIX: "https://argo-server.int.prod-k8s.zg-aip.net/"
+    METAFLOW_RUN_URL_PREFIX: "https://metaflow.int.prod-k8s.zg-aip.net"
+    METAFLOW_KUBERNETES_NAMESPACE: "metaflow-integration-testing-prod"
   rules:
     - if: '$DEPLOY_PROD == "true"'

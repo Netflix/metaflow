@@ -1,0 +1,7 @@
+title: system.Model
+type: object
+properties:
+  framework:
+    type: string
+  framework_version:
+    type: string

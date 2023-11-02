@@ -1,0 +1,30 @@
+name: Trainer
+description: |
+    Component to train a model
+inputs:
+- name: input_location
+  description: The GCS path of the input file
+  type: GCSPath
+- name: train_optimizer
+  description: Optimizer argument, should be a string
+  type: String
+- name: num_epochs
+  description: Number of epochs to train the model, should be an integer
+  type: Integer
+outputs:
+- name: model_output
+  description: The path of the output model file
+  type: Model
+- name: model_config
+  description: Model config, should be a string
+  type: String
+implementation:
+  container:
+    image: gcr.io/my-project/my-training
+    args: [
+       --input-location, {inputUri: input_location},
+       --optimizer, {inputValue: train_optimizer},
+       --epochs, {inputValue: num_epochs},
+       --model, {outputUri: model_output},
+       --model-config, {outputPath: model_config}
+    ]

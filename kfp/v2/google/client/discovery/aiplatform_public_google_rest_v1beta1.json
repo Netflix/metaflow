@@ -1,0 +1,1235 @@
+{
+  "kind": "discovery#restDescription",
+  "discoveryVersion": "v1",
+  "id": "aiplatform:v1beta1",
+  "name": "aiplatform",
+  "canonicalName": "Aiplatform",
+  "version": "v1beta1",
+  "revision": "0",
+  "title": "Vertex AI API",
+  "description": "Train high-quality custom machine learning models with minimal machine learning expertise and effort.",
+  "ownerDomain": "google.com",
+  "ownerName": "Google",
+  "icons": {
+    "x16": "http://www.google.com/images/icons/product/search-16.gif",
+    "x32": "http://www.google.com/images/icons/product/search-32.gif"
+   },
+  "documentationLink": "https://cloud.google.com/vertex-ai/",
+  "protocol": "rest",
+  "rootUrl": "https://aiplatform.googleapis.com/",
+  "mtlsRootUrl": "https://aiplatform.mtls.googleapis.com/",
+  "servicePath": "",
+  "baseUrl": "https://aiplatform.googleapis.com/",
+  "batchPath": "batch",
+  "version_module": true,
+  "fullyEncodeReservedExpansion": true,
+  "parameters": {
+    "access_token": {
+      "type": "string",
+      "description": "OAuth access token.",
+      "location": "query"
+    },
+    "alt": {
+      "type": "string",
+      "description": "Data format for response.",
+      "default": "json",
+      "enum": [
+        "json",
+        "media",
+        "proto"
+      ],
+      "enumDescriptions": [
+        "Responses with Content-Type of application/json",
+        "Media download with context-dependent Content-Type",
+        "Responses with Content-Type of application/x-protobuf"
+      ],
+      "location": "query"
+    },
+    "callback": {
+      "type": "string",
+      "description": "JSONP",
+      "location": "query"
+    },
+    "fields": {
+      "type": "string",
+      "description": "Selector specifying which fields to include in a partial response.",
+      "location": "query"
+    },
+    "key": {
+      "type": "string",
+      "description": "API key. Your API key identifies your project and provides you with API access, quota, and reports. Required unless you provide an OAuth 2.0 token.",
+      "location": "query"
+    },
+    "oauth_token": {
+      "type": "string",
+      "description": "OAuth 2.0 token for the current user.",
+      "location": "query"
+    },
+    "prettyPrint": {
+      "type": "boolean",
+      "description": "Returns response with indentations and line breaks.",
+      "default": "true",
+      "location": "query"
+    },
+    "quotaUser": {
+      "type": "string",
+      "description": "Available to use for quota purposes for server-side applications. Can be any arbitrary string assigned to a user, but should not exceed 40 characters.",
+      "location": "query"
+    },
+    "upload_protocol": {
+      "type": "string",
+      "description": "Upload protocol for media (e.g. \"raw\", \"multipart\").",
+      "location": "query"
+    },
+    "uploadType": {
+      "type": "string",
+      "description": "Legacy upload protocol for media (e.g. \"media\", \"multipart\").",
+      "location": "query"
+    },
+    "$.xgafv": {
+      "type": "string",
+      "description": "V1 error format.",
+      "enum": [
+        "1",
+        "2"
+      ],
+      "enumDescriptions": [
+        "v1 error format",
+        "v2 error format"
+      ],
+      "location": "query"
+    }
+  },
+  "auth": {
+    "oauth2": {
+      "scopes": {
+        "https://www.googleapis.com/auth/cloud-platform": {
+          "description": "See, edit, configure, and delete your Google Cloud Platform data"
+        }
+      }
+    }
+  },
+  "schemas": {
+    "GoogleCloudLocationListLocationsResponse": {
+      "id": "GoogleCloudLocationListLocationsResponse",
+      "description": "The response message for Locations.ListLocations.",
+      "type": "object",
+      "properties": {
+        "locations": {
+          "description": "A list of locations that matches the specified filter in the request.",
+          "type": "array",
+          "items": {
+            "$ref": "GoogleCloudLocationLocation"
+          }
+        },
+        "nextPageToken": {
+          "description": "The standard List next-page token.",
+          "type": "string"
+        }
+      }
+    },
+    "GoogleCloudLocationLocation": {
+      "id": "GoogleCloudLocationLocation",
+      "description": "A resource that represents Google Cloud Platform location.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Resource name for the location, which may vary between implementations. For example: `\"projects\/example-project\/locations\/us-east1\"`",
+          "type": "string"
+        },
+        "locationId": {
+          "description": "The canonical id for this location. For example: `\"us-east1\"`.",
+          "type": "string"
+        },
+        "displayName": {
+          "description": "The friendly name for this location, typically a nearby city name. For example, \"Tokyo\".",
+          "type": "string"
+        },
+        "labels": {
+          "description": "Cross-service attributes for the location. For example {\"cloud.googleapis.com\/region\": \"us-east1\"}",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "metadata": {
+          "description": "Service-specific metadata. For example the available capacity at the given location.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "any",
+            "description": "Properties of the object. Contains field @type with type URL."
+          }
+        }
+      }
+    },
+    "GoogleLongrunningListOperationsResponse": {
+      "id": "GoogleLongrunningListOperationsResponse",
+      "description": "The response message for Operations.ListOperations.",
+      "type": "object",
+      "properties": {
+        "operations": {
+          "description": "A list of operations that matches the specified filter in the request.",
+          "type": "array",
+          "items": {
+            "$ref": "GoogleLongrunningOperation"
+          }
+        },
+        "nextPageToken": {
+          "description": "The standard List next-page token.",
+          "type": "string"
+        }
+      }
+    },
+    "GoogleLongrunningOperation": {
+      "id": "GoogleLongrunningOperation",
+      "description": "This resource represents a long-running operation that is the result of a network API call.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "The server-assigned name, which is only unique within the same service that originally returns it. If you use the default HTTP mapping, the `name` should be a resource name ending with `operations\/{unique_id}`.",
+          "type": "string"
+        },
+        "metadata": {
+          "description": "Service-specific metadata associated with the operation. It typically contains progress information and common metadata such as create time. Some services might not provide such metadata. Any method that returns a long-running operation should document the metadata type, if any.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "any",
+            "description": "Properties of the object. Contains field @type with type URL."
+          }
+        },
+        "done": {
+          "description": "If the value is `false`, it means the operation is still in progress. If `true`, the operation is completed, and either `error` or `response` is available.",
+          "type": "boolean"
+        },
+        "error": {
+          "description": "The error result of the operation in case of failure or cancellation.",
+          "$ref": "GoogleRpcStatus"
+        },
+        "response": {
+          "description": "The normal response of the operation in case of success. If the original method returns no data on success, such as `Delete`, the response is `google.protobuf.Empty`. If the original method is standard `Get`\/`Create`\/`Update`, the response should be the resource. For other methods, the response should have the type `XxxResponse`, where `Xxx` is the original method name. For example, if the original method name is `TakeSnapshot()`, the inferred response type is `TakeSnapshotResponse`.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "any",
+            "description": "Properties of the object. Contains field @type with type URL."
+          }
+        }
+      }
+    },
+    "GoogleRpcStatus": {
+      "id": "GoogleRpcStatus",
+      "description": "The `Status` type defines a logical error model that is suitable for different programming environments, including REST APIs and RPC APIs. It is used by [gRPC](https:\/\/github.com\/grpc). Each `Status` message contains three pieces of data: error code, error message, and error details. You can find out more about this error model and how to work with it in the [API Design Guide](https:\/\/cloud.google.com\/apis\/design\/errors).",
+      "type": "object",
+      "properties": {
+        "code": {
+          "description": "The status code, which should be an enum value of google.rpc.Code.",
+          "type": "integer",
+          "format": "int32"
+        },
+        "message": {
+          "description": "A developer-facing error message, which should be in English. Any user-facing error message should be localized and sent in the google.rpc.Status.details field, or localized by the client.",
+          "type": "string"
+        },
+        "details": {
+          "description": "A list of messages that carry the error details. There is a common set of message types for APIs to use.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "any",
+              "description": "Properties of the object. Contains field @type with type URL."
+            }
+          }
+        }
+      }
+    },
+    "GoogleProtobufEmpty": {
+      "id": "GoogleProtobufEmpty",
+      "description": "A generic empty message that you can re-use to avoid defining duplicated empty messages in your APIs. A typical example is to use it as the request or the response type of an API method. For instance: service Foo { rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty); } The JSON representation for `Empty` is empty JSON object `{}`.",
+      "type": "object",
+      "properties": {
+      }
+    },
+    "GoogleCloudAiplatformV1beta1EncryptionSpec": {
+      "id": "GoogleCloudAiplatformV1beta1EncryptionSpec",
+      "description": "Represents a customer-managed encryption key spec that can be applied to a top-level resource.",
+      "type": "object",
+      "properties": {
+        "kmsKeyName": {
+          "description": "Required. The Cloud KMS resource identifier of the customer managed encryption key used to protect a resource. Has the form: `projects\/my-project\/locations\/my-region\/keyRings\/my-kr\/cryptoKeys\/my-key`. The key needs to be in the same region as where the compute resource is created.",
+          "type": "string"
+        }
+      }
+    },
+    "GoogleCloudAiplatformV1beta1Artifact": {
+      "id": "GoogleCloudAiplatformV1beta1Artifact",
+      "description": "Instance of a general artifact.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Output only. The resource name of the Artifact.",
+          "readOnly": true,
+          "type": "string"
+        },
+        "displayName": {
+          "description": "User provided display name of the Artifact. May be up to 128 Unicode characters.",
+          "type": "string"
+        },
+        "uri": {
+          "description": "The uniform resource identifier of the artifact file. May be empty if there is no actual artifact file.",
+          "type": "string"
+        },
+        "etag": {
+          "description": "An eTag used to perform consistent read-modify-write updates. If not set, a blind \"overwrite\" update happens.",
+          "type": "string"
+        },
+        "labels": {
+          "description": "The labels with user-defined metadata to organize your Artifacts. Label keys and values can be no longer than 64 characters (Unicode codepoints), can only contain lowercase letters, numeric characters, underscores and dashes. International characters are allowed. No more than 64 user labels can be associated with one Artifact (System labels are excluded).",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "createTime": {
+          "description": "Output only. Timestamp when this Artifact was created.",
+          "readOnly": true,
+          "type": "string",
+          "format": "google-datetime"
+        },
+        "updateTime": {
+          "description": "Output only. Timestamp when this Artifact was last updated.",
+          "readOnly": true,
+          "type": "string",
+          "format": "google-datetime"
+        },
+        "state": {
+          "description": "The state of this Artifact. This is a property of the Artifact, and does not imply or capture any ongoing process. This property is managed by clients (such as Vertex Pipelines), and the system does not prescribe or check the validity of state transitions.",
+          "type": "string",
+          "enumDescriptions": [
+            "Unspecified state for the Artifact.",
+            "A state used by systems like Vertex Pipelines to indicate that the underlying data item represented by this Artifact is being created.",
+            "A state indicating that the Artifact should exist, unless something external to the system deletes it."
+          ],
+          "enum": [
+            "STATE_UNSPECIFIED",
+            "PENDING",
+            "LIVE"
+          ]
+        },
+        "schemaTitle": {
+          "description": "The title of the schema describing the metadata. Schema title and version is expected to be registered in earlier Create Schema calls. And both are used together as unique identifiers to identify schemas within the local metadata store.",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "description": "The version of the schema in schema_name to use. Schema title and version is expected to be registered in earlier Create Schema calls. And both are used together as unique identifiers to identify schemas within the local metadata store.",
+          "type": "string"
+        },
+        "metadata": {
+          "description": "Properties of the Artifact.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "any",
+            "description": "Properties of the object."
+          }
+        },
+        "description": {
+          "description": "Description of the Artifact",
+          "type": "string"
+        }
+      }
+    },
+    "GoogleCloudAiplatformV1beta1Context": {
+      "id": "GoogleCloudAiplatformV1beta1Context",
+      "description": "Instance of a general context.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Output only. The resource name of the Context.",
+          "readOnly": true,
+          "type": "string"
+        },
+        "displayName": {
+          "description": "User provided display name of the Context. May be up to 128 Unicode characters.",
+          "type": "string"
+        },
+        "etag": {
+          "description": "An eTag used to perform consistent read-modify-write updates. If not set, a blind \"overwrite\" update happens.",
+          "type": "string"
+        },
+        "labels": {
+          "description": "The labels with user-defined metadata to organize your Contexts. Label keys and values can be no longer than 64 characters (Unicode codepoints), can only contain lowercase letters, numeric characters, underscores and dashes. International characters are allowed. No more than 64 user labels can be associated with one Context (System labels are excluded).",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "createTime": {
+          "description": "Output only. Timestamp when this Context was created.",
+          "readOnly": true,
+          "type": "string",
+          "format": "google-datetime"
+        },
+        "updateTime": {
+          "description": "Output only. Timestamp when this Context was last updated.",
+          "readOnly": true,
+          "type": "string",
+          "format": "google-datetime"
+        },
+        "parentContexts": {
+          "description": "Output only. A list of resource names of Contexts that are parents of this Context. A Context may have at most 10 parent_contexts.",
+          "readOnly": true,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "schemaTitle": {
+          "description": "The title of the schema describing the metadata. Schema title and version is expected to be registered in earlier Create Schema calls. And both are used together as unique identifiers to identify schemas within the local metadata store.",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "description": "The version of the schema in schema_name to use. Schema title and version is expected to be registered in earlier Create Schema calls. And both are used together as unique identifiers to identify schemas within the local metadata store.",
+          "type": "string"
+        },
+        "metadata": {
+          "description": "Properties of the Context.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "any",
+            "description": "Properties of the object."
+          }
+        },
+        "description": {
+          "description": "Description of the Context",
+          "type": "string"
+        }
+      }
+    },
+    "GoogleCloudAiplatformV1beta1Execution": {
+      "id": "GoogleCloudAiplatformV1beta1Execution",
+      "description": "Instance of a general execution.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Output only. The resource name of the Execution.",
+          "readOnly": true,
+          "type": "string"
+        },
+        "displayName": {
+          "description": "User provided display name of the Execution. May be up to 128 Unicode characters.",
+          "type": "string"
+        },
+        "state": {
+          "description": "The state of this Execution. This is a property of the Execution, and does not imply or capture any ongoing process. This property is managed by clients (such as Vertex Pipelines) and the system does not prescribe or check the validity of state transitions.",
+          "type": "string",
+          "enumDescriptions": [
+            "Unspecified Execution state",
+            "The Execution is new",
+            "The Execution is running",
+            "The Execution has finished running",
+            "The Execution has failed"
+          ],
+          "enum": [
+            "STATE_UNSPECIFIED",
+            "NEW",
+            "RUNNING",
+            "COMPLETE",
+            "FAILED"
+          ]
+        },
+        "etag": {
+          "description": "An eTag used to perform consistent read-modify-write updates. If not set, a blind \"overwrite\" update happens.",
+          "type": "string"
+        },
+        "labels": {
+          "description": "The labels with user-defined metadata to organize your Executions. Label keys and values can be no longer than 64 characters (Unicode codepoints), can only contain lowercase letters, numeric characters, underscores and dashes. International characters are allowed. No more than 64 user labels can be associated with one Execution (System labels are excluded).",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "createTime": {
+          "description": "Output only. Timestamp when this Execution was created.",
+          "readOnly": true,
+          "type": "string",
+          "format": "google-datetime"
+        },
+        "updateTime": {
+          "description": "Output only. Timestamp when this Execution was last updated.",
+          "readOnly": true,
+          "type": "string",
+          "format": "google-datetime"
+        },
+        "schemaTitle": {
+          "description": "The title of the schema describing the metadata. Schema title and version is expected to be registered in earlier Create Schema calls. And both are used together as unique identifiers to identify schemas within the local metadata store.",
+          "type": "string"
+        },
+        "schemaVersion": {
+          "description": "The version of the schema in `schema_title` to use. Schema title and version is expected to be registered in earlier Create Schema calls. And both are used together as unique identifiers to identify schemas within the local metadata store.",
+          "type": "string"
+        },
+        "metadata": {
+          "description": "Properties of the Execution.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "any",
+            "description": "Properties of the object."
+          }
+        },
+        "description": {
+          "description": "Description of the Execution",
+          "type": "string"
+        }
+      }
+    },
+    "GoogleCloudAiplatformV1beta1PipelineJob": {
+      "id": "GoogleCloudAiplatformV1beta1PipelineJob",
+      "description": "An instance of a machine learning PipelineJob.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Output only. The resource name of the PipelineJob.",
+          "readOnly": true,
+          "type": "string"
+        },
+        "displayName": {
+          "description": "The display name of the Pipeline. The name can be up to 128 characters long and can be consist of any UTF-8 characters.",
+          "type": "string"
+        },
+        "createTime": {
+          "description": "Output only. Pipeline creation time.",
+          "readOnly": true,
+          "type": "string",
+          "format": "google-datetime"
+        },
+        "startTime": {
+          "description": "Output only. Pipeline start time.",
+          "readOnly": true,
+          "type": "string",
+          "format": "google-datetime"
+        },
+        "endTime": {
+          "description": "Output only. Pipeline end time.",
+          "readOnly": true,
+          "type": "string",
+          "format": "google-datetime"
+        },
+        "updateTime": {
+          "description": "Output only. Timestamp when this PipelineJob was most recently updated.",
+          "readOnly": true,
+          "type": "string",
+          "format": "google-datetime"
+        },
+        "pipelineSpec": {
+          "description": "Required. The spec of the pipeline.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "any",
+            "description": "Properties of the object."
+          }
+        },
+        "state": {
+          "description": "Output only. The detailed state of the job.",
+          "readOnly": true,
+          "type": "string",
+          "enumDescriptions": [
+            "The pipeline state is unspecified.",
+            "The pipeline has been created or resumed, and processing has not yet begun.",
+            "The service is preparing to run the pipeline.",
+            "The pipeline is in progress.",
+            "The pipeline completed successfully.",
+            "The pipeline failed.",
+            "The pipeline is being cancelled. From this state, the pipeline may only go to either PIPELINE_STATE_SUCCEEDED, PIPELINE_STATE_FAILED or PIPELINE_STATE_CANCELLED.",
+            "The pipeline has been cancelled.",
+            "The pipeline has been stopped, and can be resumed."
+          ],
+          "enum": [
+            "PIPELINE_STATE_UNSPECIFIED",
+            "PIPELINE_STATE_QUEUED",
+            "PIPELINE_STATE_PENDING",
+            "PIPELINE_STATE_RUNNING",
+            "PIPELINE_STATE_SUCCEEDED",
+            "PIPELINE_STATE_FAILED",
+            "PIPELINE_STATE_CANCELLING",
+            "PIPELINE_STATE_CANCELLED",
+            "PIPELINE_STATE_PAUSED"
+          ]
+        },
+        "jobDetail": {
+          "description": "Output only. The details of pipeline run. Not available in the list view.",
+          "readOnly": true,
+          "$ref": "GoogleCloudAiplatformV1beta1PipelineJobDetail"
+        },
+        "error": {
+          "description": "Output only. The error that occurred during pipeline execution. Only populated when the pipeline's state is FAILED or CANCELLED.",
+          "readOnly": true,
+          "$ref": "GoogleRpcStatus"
+        },
+        "labels": {
+          "description": "The labels with user-defined metadata to organize PipelineJob. Label keys and values can be no longer than 64 characters (Unicode codepoints), can only contain lowercase letters, numeric characters, underscores and dashes. International characters are allowed. See https:\/\/goo.gl\/xmQnxf for more information and examples of labels.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "runtimeConfig": {
+          "description": "Runtime config of the pipeline.",
+          "$ref": "GoogleCloudAiplatformV1beta1PipelineJobRuntimeConfig"
+        },
+        "encryptionSpec": {
+          "description": "Customer-managed encryption key spec for a pipelineJob. If set, this PipelineJob and all of its sub-resources will be secured by this key.",
+          "$ref": "GoogleCloudAiplatformV1beta1EncryptionSpec"
+        },
+        "serviceAccount": {
+          "description": "The service account that the pipeline workload runs as. If not specified, the Compute Engine default service account in the project will be used. See https:\/\/cloud.google.com\/compute\/docs\/access\/service-accounts#default_service_account Users starting the pipeline must have the `iam.serviceAccounts.actAs` permission on this service account.",
+          "type": "string"
+        },
+        "network": {
+          "description": "The full name of the Compute Engine [network](\/compute\/docs\/networks-and-firewalls#networks) to which the Pipeline Job's workload should be peered. For example, `projects\/12345\/global\/networks\/myVPC`. [Format](\/compute\/docs\/reference\/rest\/v1\/networks\/insert) is of the form `projects\/{project}\/global\/networks\/{network}`. Where {project} is a project number, as in `12345`, and {network} is a network name. Private services access must already be configured for the network. Pipeline job will apply the network configuration to the GCP resources being launched, if applied, such as Vertex AI Training or Dataflow job. If left unspecified, the workload is not peered with any network.",
+          "type": "string"
+        }
+      }
+    },
+    "GoogleCloudAiplatformV1beta1PipelineJobDetail": {
+      "id": "GoogleCloudAiplatformV1beta1PipelineJobDetail",
+      "description": "The runtime detail of PipelineJob.",
+      "type": "object",
+      "properties": {
+        "pipelineContext": {
+          "description": "Output only. The context of the pipeline.",
+          "readOnly": true,
+          "$ref": "GoogleCloudAiplatformV1beta1Context"
+        },
+        "pipelineRunContext": {
+          "description": "Output only. The context of the current pipeline run.",
+          "readOnly": true,
+          "$ref": "GoogleCloudAiplatformV1beta1Context"
+        },
+        "taskDetails": {
+          "description": "Output only. The runtime details of the tasks under the pipeline.",
+          "readOnly": true,
+          "type": "array",
+          "items": {
+            "$ref": "GoogleCloudAiplatformV1beta1PipelineTaskDetail"
+          }
+        }
+      }
+    },
+    "GoogleCloudAiplatformV1beta1PipelineTaskDetail": {
+      "id": "GoogleCloudAiplatformV1beta1PipelineTaskDetail",
+      "description": "The runtime detail of a task execution.",
+      "type": "object",
+      "properties": {
+        "taskId": {
+          "description": "Output only. The system generated ID of the task.",
+          "readOnly": true,
+          "type": "string",
+          "format": "int64"
+        },
+        "parentTaskId": {
+          "description": "Output only. The id of the parent task if the task is within a component scope. Empty if the task is at the root level.",
+          "readOnly": true,
+          "type": "string",
+          "format": "int64"
+        },
+        "taskName": {
+          "description": "Output only. The user specified name of the task that is defined in PipelineJob.spec.",
+          "readOnly": true,
+          "type": "string"
+        },
+        "createTime": {
+          "description": "Output only. Task create time.",
+          "readOnly": true,
+          "type": "string",
+          "format": "google-datetime"
+        },
+        "startTime": {
+          "description": "Output only. Task start time.",
+          "readOnly": true,
+          "type": "string",
+          "format": "google-datetime"
+        },
+        "endTime": {
+          "description": "Output only. Task end time.",
+          "readOnly": true,
+          "type": "string",
+          "format": "google-datetime"
+        },
+        "executorDetail": {
+          "description": "Output only. The detailed execution info.",
+          "readOnly": true,
+          "$ref": "GoogleCloudAiplatformV1beta1PipelineTaskExecutorDetail"
+        },
+        "state": {
+          "description": "Output only. State of the task.",
+          "readOnly": true,
+          "type": "string",
+          "enumDescriptions": [
+            "Unspecified.",
+            "Specifies pending state for the task.",
+            "Specifies task is being executed.",
+            "Specifies task completed successfully.",
+            "Specifies Task cancel is in pending state.",
+            "Specifies task is being cancelled.",
+            "Specifies task was cancelled.",
+            "Specifies task failed.",
+            "Specifies task was skipped due to cache hit.",
+            "Specifies that the task was not triggered because the task's trigger policy is not satisfied. The trigger policy is specified in the `condition` field of PipelineJob.pipeline_spec."
+          ],
+          "enum": [
+            "STATE_UNSPECIFIED",
+            "PENDING",
+            "RUNNING",
+            "SUCCEEDED",
+            "CANCEL_PENDING",
+            "CANCELLING",
+            "CANCELLED",
+            "FAILED",
+            "SKIPPED",
+            "NOT_TRIGGERED"
+          ]
+        },
+        "execution": {
+          "description": "Output only. The execution metadata of the task.",
+          "readOnly": true,
+          "$ref": "GoogleCloudAiplatformV1beta1Execution"
+        },
+        "error": {
+          "description": "Output only. The error that occurred during task execution. Only populated when the task's state is FAILED or CANCELLED.",
+          "readOnly": true,
+          "$ref": "GoogleRpcStatus"
+        },
+        "inputs": {
+          "description": "Output only. The runtime input artifacts of the task.",
+          "readOnly": true,
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "GoogleCloudAiplatformV1beta1PipelineTaskDetailArtifactList"
+          }
+        },
+        "outputs": {
+          "description": "Output only. The runtime output artifacts of the task.",
+          "readOnly": true,
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "GoogleCloudAiplatformV1beta1PipelineTaskDetailArtifactList"
+          }
+        }
+      }
+    },
+    "GoogleCloudAiplatformV1beta1PipelineTaskExecutorDetail": {
+      "id": "GoogleCloudAiplatformV1beta1PipelineTaskExecutorDetail",
+      "description": "The runtime detail of a pipeline executor.",
+      "type": "object",
+      "properties": {
+        "containerDetail": {
+          "description": "Output only. The detailed info for a container executor.",
+          "readOnly": true,
+          "$ref": "GoogleCloudAiplatformV1beta1PipelineTaskExecutorDetailContainerDetail"
+        },
+        "customJobDetail": {
+          "description": "Output only. The detailed info for a custom job executor.",
+          "readOnly": true,
+          "$ref": "GoogleCloudAiplatformV1beta1PipelineTaskExecutorDetailCustomJobDetail"
+        }
+      }
+    },
+    "GoogleCloudAiplatformV1beta1PipelineTaskExecutorDetailContainerDetail": {
+      "id": "GoogleCloudAiplatformV1beta1PipelineTaskExecutorDetailContainerDetail",
+      "description": "The detail of a container execution. It contains the job names of the lifecycle of a container execution.",
+      "type": "object",
+      "properties": {
+        "mainJob": {
+          "description": "Output only. The name of the CustomJob for the main container execution.",
+          "readOnly": true,
+          "type": "string"
+        },
+        "preCachingCheckJob": {
+          "description": "Output only. The name of the CustomJob for the pre-caching-check container execution. This job will be available if the PipelineJob.pipeline_spec specifies the `pre_caching_check` hook in the lifecycle events.",
+          "readOnly": true,
+          "type": "string"
+        }
+      }
+    },
+    "GoogleCloudAiplatformV1beta1PipelineTaskExecutorDetailCustomJobDetail": {
+      "id": "GoogleCloudAiplatformV1beta1PipelineTaskExecutorDetailCustomJobDetail",
+      "description": "The detailed info for a custom job executor.",
+      "type": "object",
+      "properties": {
+        "job": {
+          "description": "Output only. The name of the CustomJob.",
+          "readOnly": true,
+          "type": "string"
+        }
+      }
+    },
+    "GoogleCloudAiplatformV1beta1PipelineTaskDetailArtifactList": {
+      "id": "GoogleCloudAiplatformV1beta1PipelineTaskDetailArtifactList",
+      "description": "A list of artifact metadata.",
+      "type": "object",
+      "properties": {
+        "artifacts": {
+          "description": "Output only. A list of artifact metadata.",
+          "readOnly": true,
+          "type": "array",
+          "items": {
+            "$ref": "GoogleCloudAiplatformV1beta1Artifact"
+          }
+        }
+      }
+    },
+    "GoogleCloudAiplatformV1beta1PipelineJobRuntimeConfig": {
+      "id": "GoogleCloudAiplatformV1beta1PipelineJobRuntimeConfig",
+      "description": "The runtime config of a PipelineJob.",
+      "type": "object",
+      "properties": {
+        "parameters": {
+          "description": "The runtime parameters of the PipelineJob. The parameters will be passed into PipelineJob.pipeline_spec to replace the placeholders at runtime.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "GoogleCloudAiplatformV1beta1Value"
+          }
+        },
+        "gcsOutputDirectory": {
+          "description": "Required. A path in a Cloud Storage bucket, which will be treated as the root output directory of the pipeline. It is used by the system to generate the paths of output artifacts. The artifact paths are generated with a sub-path pattern `{job_id}\/{task_id}\/{output_key}` under the specified output directory. The service account specified in this pipeline must have the `storage.objects.get` and `storage.objects.create` permissions for this bucket.",
+          "type": "string"
+        }
+      }
+    },
+    "GoogleCloudAiplatformV1beta1Value": {
+      "id": "GoogleCloudAiplatformV1beta1Value",
+      "description": "Value is the value of the field.",
+      "type": "object",
+      "properties": {
+        "intValue": {
+          "description": "An integer value.",
+          "type": "string",
+          "format": "int64"
+        },
+        "doubleValue": {
+          "description": "A double value.",
+          "type": "number",
+          "format": "double"
+        },
+        "stringValue": {
+          "description": "A string value.",
+          "type": "string"
+        }
+      }
+    },
+    "GoogleCloudAiplatformV1beta1ListPipelineJobsResponse": {
+      "id": "GoogleCloudAiplatformV1beta1ListPipelineJobsResponse",
+      "description": "Response message for PipelineService.ListPipelineJobs",
+      "type": "object",
+      "properties": {
+        "pipelineJobs": {
+          "description": "List of PipelineJobs in the requested page.",
+          "type": "array",
+          "items": {
+            "$ref": "GoogleCloudAiplatformV1beta1PipelineJob"
+          }
+        },
+        "nextPageToken": {
+          "description": "A token to retrieve the next page of results. Pass to ListPipelineJobsRequest.page_token to obtain that page.",
+          "type": "string"
+        }
+      }
+    },
+    "GoogleCloudAiplatformV1beta1CancelPipelineJobRequest": {
+      "id": "GoogleCloudAiplatformV1beta1CancelPipelineJobRequest",
+      "description": "Request message for PipelineService.CancelPipelineJob.",
+      "type": "object",
+      "properties": {
+      }
+    }
+  },
+  "resources": {
+    "projects": {
+      "resources": {
+        "locations": {
+          "methods": {
+            "list": {
+              "id": "aiplatform.projects.locations.list",
+              "path": "v1beta1/{+name}/locations",
+              "flatPath": "v1beta1/projects/{projectsId}/locations",
+              "httpMethod": "GET",
+              "parameters": {
+                "name": {
+                  "description": "The resource that owns the locations collection, if applicable.",
+                  "pattern": "^projects\/[^\/]+$",
+                  "location": "path",
+                  "required": true,
+                  "type": "string"
+                },
+                "filter": {
+                  "description": "A filter to narrow down results to a preferred subset. The filtering language accepts strings like \"displayName=tokyo\", and is documented in more detail in [AIP-160](https:\/\/google.aip.dev\/160).",
+                  "location": "query",
+                  "type": "string"
+                },
+                "pageSize": {
+                  "description": "The maximum number of results to return. If not set, the service selects a default.",
+                  "location": "query",
+                  "type": "integer",
+                  "format": "int32"
+                },
+                "pageToken": {
+                  "description": "A page token received from the `next_page_token` field in the response. Send that page token to receive the subsequent page.",
+                  "location": "query",
+                  "type": "string"
+                }
+              },
+              "parameterOrder": [
+                "name"
+              ],
+              "response": {
+                "$ref": "GoogleCloudLocationListLocationsResponse"
+              },
+              "scopes": [
+                "https://www.googleapis.com/auth/cloud-platform"
+              ],
+              "description": "Lists information about the supported locations for this service."
+            },
+            "get": {
+              "id": "aiplatform.projects.locations.get",
+              "path": "v1beta1/{+name}",
+              "flatPath": "v1beta1/projects/{projectsId}/locations/{locationsId}",
+              "httpMethod": "GET",
+              "parameters": {
+                "name": {
+                  "description": "Resource name for the location.",
+                  "pattern": "^projects\/[^\/]+\/locations\/[^\/]+$",
+                  "location": "path",
+                  "required": true,
+                  "type": "string"
+                }
+              },
+              "parameterOrder": [
+                "name"
+              ],
+              "response": {
+                "$ref": "GoogleCloudLocationLocation"
+              },
+              "scopes": [
+                "https://www.googleapis.com/auth/cloud-platform"
+              ],
+              "description": "Gets information about a location."
+            }
+          }
+          ,
+          "resources": {
+            "pipelineJobs": {
+              "methods": {
+                "create": {
+                  "id": "aiplatform.projects.locations.pipelineJobs.create",
+                  "path": "v1beta1/{+parent}/pipelineJobs",
+                  "flatPath": "v1beta1/projects/{projectsId}/locations/{locationsId}/pipelineJobs",
+                  "httpMethod": "POST",
+                  "parameters": {
+                    "parent": {
+                      "description": "Required. The resource name of the Location to create the PipelineJob in. Format: `projects\/{project}\/locations\/{location}`",
+                      "pattern": "^projects\/[^\/]+\/locations\/[^\/]+$",
+                      "location": "path",
+                      "required": true,
+                      "type": "string"
+                    },
+                    "pipelineJobId": {
+                      "description": "The ID to use for the PipelineJob, which will become the final component of the PipelineJob name. If not provided, an ID will be automatically generated. This value should be less than 128 characters, and valid characters are \/a-z-\/.",
+                      "location": "query",
+                      "type": "string"
+                    }
+                  },
+                  "parameterOrder": [
+                    "parent"
+                  ],
+                  "request": {
+                    "$ref": "GoogleCloudAiplatformV1beta1PipelineJob"
+                  },
+                  "response": {
+                    "$ref": "GoogleCloudAiplatformV1beta1PipelineJob"
+                  },
+                  "scopes": [
+                    "https://www.googleapis.com/auth/cloud-platform"
+                  ],
+                  "description": "Creates a PipelineJob. A PipelineJob will run immediately when created."
+                },
+                "get": {
+                  "id": "aiplatform.projects.locations.pipelineJobs.get",
+                  "path": "v1beta1/{+name}",
+                  "flatPath": "v1beta1/projects/{projectsId}/locations/{locationsId}/pipelineJobs/{pipelineJobsId}",
+                  "httpMethod": "GET",
+                  "parameters": {
+                    "name": {
+                      "description": "Required. The name of the PipelineJob resource. Format: `projects\/{project}\/locations\/{location}\/pipelineJobs\/{pipeline_job}`",
+                      "pattern": "^projects\/[^\/]+\/locations\/[^\/]+\/pipelineJobs\/[^\/]+$",
+                      "location": "path",
+                      "required": true,
+                      "type": "string"
+                    }
+                  },
+                  "parameterOrder": [
+                    "name"
+                  ],
+                  "response": {
+                    "$ref": "GoogleCloudAiplatformV1beta1PipelineJob"
+                  },
+                  "scopes": [
+                    "https://www.googleapis.com/auth/cloud-platform"
+                  ],
+                  "description": "Gets a PipelineJob."
+                },
+                "list": {
+                  "id": "aiplatform.projects.locations.pipelineJobs.list",
+                  "path": "v1beta1/{+parent}/pipelineJobs",
+                  "flatPath": "v1beta1/projects/{projectsId}/locations/{locationsId}/pipelineJobs",
+                  "httpMethod": "GET",
+                  "parameters": {
+                    "parent": {
+                      "description": "Required. The resource name of the Location to list the PipelineJobs from. Format: `projects\/{project}\/locations\/{location}`",
+                      "pattern": "^projects\/[^\/]+\/locations\/[^\/]+$",
+                      "location": "path",
+                      "required": true,
+                      "type": "string"
+                    },
+                    "filter": {
+                      "description": "The standard list filter. Supported fields: * `display_name` supports `=` and `!=`. * `state` supports `=` and `!=`. The following examples demonstrate how to filter the list of PipelineJobs: * `state=\"PIPELINE_STATE_SUCCEEDED\" AND display_name=\"my_pipeline\"` * `state=\"PIPELINE_STATE_RUNNING\" OR display_name=\"my_pipeline\"` * `NOT display_name=\"my_pipeline\"` * `state=\"PIPELINE_STATE_FAILED\"`",
+                      "location": "query",
+                      "type": "string"
+                    },
+                    "pageSize": {
+                      "description": "The standard list page size.",
+                      "location": "query",
+                      "type": "integer",
+                      "format": "int32"
+                    },
+                    "pageToken": {
+                      "description": "The standard list page token. Typically obtained via ListPipelineJobsResponse.next_page_token of the previous PipelineService.ListPipelineJobs call.",
+                      "location": "query",
+                      "type": "string"
+                    }
+                  },
+                  "parameterOrder": [
+                    "parent"
+                  ],
+                  "response": {
+                    "$ref": "GoogleCloudAiplatformV1beta1ListPipelineJobsResponse"
+                  },
+                  "scopes": [
+                    "https://www.googleapis.com/auth/cloud-platform"
+                  ],
+                  "description": "Lists PipelineJobs in a Location."
+                },
+                "delete": {
+                  "id": "aiplatform.projects.locations.pipelineJobs.delete",
+                  "path": "v1beta1/{+name}",
+                  "flatPath": "v1beta1/projects/{projectsId}/locations/{locationsId}/pipelineJobs/{pipelineJobsId}",
+                  "httpMethod": "DELETE",
+                  "parameters": {
+                    "name": {
+                      "description": "Required. The name of the PipelineJob resource to be deleted. Format: `projects\/{project}\/locations\/{location}\/pipelineJobs\/{pipeline_job}`",
+                      "pattern": "^projects\/[^\/]+\/locations\/[^\/]+\/pipelineJobs\/[^\/]+$",
+                      "location": "path",
+                      "required": true,
+                      "type": "string"
+                    }
+                  },
+                  "parameterOrder": [
+                    "name"
+                  ],
+                  "response": {
+                    "$ref": "GoogleLongrunningOperation"
+                  },
+                  "scopes": [
+                    "https://www.googleapis.com/auth/cloud-platform"
+                  ],
+                  "description": "Deletes a PipelineJob."
+                },
+                "cancel": {
+                  "id": "aiplatform.projects.locations.pipelineJobs.cancel",
+                  "path": "v1beta1/{+name}:cancel",
+                  "flatPath": "v1beta1/projects/{projectsId}/locations/{locationsId}/pipelineJobs/{pipelineJobsId}:cancel",
+                  "httpMethod": "POST",
+                  "parameters": {
+                    "name": {
+                      "description": "Required. The name of the PipelineJob to cancel. Format: `projects\/{project}\/locations\/{location}\/pipelineJobs\/{pipeline_job}`",
+                      "pattern": "^projects\/[^\/]+\/locations\/[^\/]+\/pipelineJobs\/[^\/]+$",
+                      "location": "path",
+                      "required": true,
+                      "type": "string"
+                    }
+                  },
+                  "parameterOrder": [
+                    "name"
+                  ],
+                  "request": {
+                    "$ref": "GoogleCloudAiplatformV1beta1CancelPipelineJobRequest"
+                  },
+                  "response": {
+                    "$ref": "GoogleProtobufEmpty"
+                  },
+                  "scopes": [
+                    "https://www.googleapis.com/auth/cloud-platform"
+                  ],
+                  "description": "Cancels a PipelineJob. Starts asynchronous cancellation on the PipelineJob. The server makes a best effort to cancel the pipeline, but success is not guaranteed. Clients can use PipelineService.GetPipelineJob or other methods to check whether the cancellation succeeded or whether the pipeline completed despite cancellation. On successful cancellation, the PipelineJob is not deleted; instead it becomes a pipeline with a PipelineJob.error value with a google.rpc.Status.code of 1, corresponding to `Code.CANCELLED`, and PipelineJob.state is set to `CANCELLED`."
+                }
+              }
+              ,
+              "resources": {
+                "operations": {
+                  "methods": {
+                    "list": {
+                      "id": "aiplatform.projects.locations.pipelineJobs.operations.list",
+                      "path": "v1beta1/{+name}/operations",
+                      "flatPath": "v1beta1/projects/{projectsId}/locations/{locationsId}/pipelineJobs/{pipelineJobsId}/operations",
+                      "httpMethod": "GET",
+                      "parameters": {
+                        "name": {
+                          "description": "The name of the operation's parent resource.",
+                          "pattern": "^projects\/[^\/]+\/locations\/[^\/]+\/pipelineJobs\/[^\/]+$",
+                          "location": "path",
+                          "required": true,
+                          "type": "string"
+                        },
+                        "filter": {
+                          "description": "The standard list filter.",
+                          "location": "query",
+                          "type": "string"
+                        },
+                        "pageSize": {
+                          "description": "The standard list page size.",
+                          "location": "query",
+                          "type": "integer",
+                          "format": "int32"
+                        },
+                        "pageToken": {
+                          "description": "The standard list page token.",
+                          "location": "query",
+                          "type": "string"
+                        }
+                      },
+                      "parameterOrder": [
+                        "name"
+                      ],
+                      "response": {
+                        "$ref": "GoogleLongrunningListOperationsResponse"
+                      },
+                      "scopes": [
+                        "https://www.googleapis.com/auth/cloud-platform"
+                      ],
+                      "description": "Lists operations that match the specified filter in the request. If the server doesn't support this method, it returns `UNIMPLEMENTED`. NOTE: the `name` binding allows API services to override the binding to use different resource name schemes, such as `users\/*\/operations`. To override the binding, API services can add a binding such as `\"\/v1\/{name=users\/*}\/operations\"` to their service configuration. For backwards compatibility, the default name includes the operations collection id, however overriding users must ensure the name binding is the parent resource, without the operations collection id."
+                    },
+                    "get": {
+                      "id": "aiplatform.projects.locations.pipelineJobs.operations.get",
+                      "path": "v1beta1/{+name}",
+                      "flatPath": "v1beta1/projects/{projectsId}/locations/{locationsId}/pipelineJobs/{pipelineJobsId}/operations/{operationsId}",
+                      "httpMethod": "GET",
+                      "parameters": {
+                        "name": {
+                          "description": "The name of the operation resource.",
+                          "pattern": "^projects\/[^\/]+\/locations\/[^\/]+\/pipelineJobs\/[^\/]+\/operations\/[^\/]+$",
+                          "location": "path",
+                          "required": true,
+                          "type": "string"
+                        }
+                      },
+                      "parameterOrder": [
+                        "name"
+                      ],
+                      "response": {
+                        "$ref": "GoogleLongrunningOperation"
+                      },
+                      "scopes": [
+                        "https://www.googleapis.com/auth/cloud-platform"
+                      ],
+                      "description": "Gets the latest state of a long-running operation. Clients can use this method to poll the operation result at intervals as recommended by the API service."
+                    },
+                    "delete": {
+                      "id": "aiplatform.projects.locations.pipelineJobs.operations.delete",
+                      "path": "v1beta1/{+name}",
+                      "flatPath": "v1beta1/projects/{projectsId}/locations/{locationsId}/pipelineJobs/{pipelineJobsId}/operations/{operationsId}",
+                      "httpMethod": "DELETE",
+                      "parameters": {
+                        "name": {
+                          "description": "The name of the operation resource to be deleted.",
+                          "pattern": "^projects\/[^\/]+\/locations\/[^\/]+\/pipelineJobs\/[^\/]+\/operations\/[^\/]+$",
+                          "location": "path",
+                          "required": true,
+                          "type": "string"
+                        }
+                      },
+                      "parameterOrder": [
+                        "name"
+                      ],
+                      "response": {
+                        "$ref": "GoogleProtobufEmpty"
+                      },
+                      "scopes": [
+                        "https://www.googleapis.com/auth/cloud-platform"
+                      ],
+                      "description": "Deletes a long-running operation. This method indicates that the client is no longer interested in the operation result. It does not cancel the operation. If the server doesn't support this method, it returns `google.rpc.Code.UNIMPLEMENTED`."
+                    },
+                    "cancel": {
+                      "id": "aiplatform.projects.locations.pipelineJobs.operations.cancel",
+                      "path": "v1beta1/{+name}:cancel",
+                      "flatPath": "v1beta1/projects/{projectsId}/locations/{locationsId}/pipelineJobs/{pipelineJobsId}/operations/{operationsId}:cancel",
+                      "httpMethod": "POST",
+                      "parameters": {
+                        "name": {
+                          "description": "The name of the operation resource to be cancelled.",
+                          "pattern": "^projects\/[^\/]+\/locations\/[^\/]+\/pipelineJobs\/[^\/]+\/operations\/[^\/]+$",
+                          "location": "path",
+                          "required": true,
+                          "type": "string"
+                        }
+                      },
+                      "parameterOrder": [
+                        "name"
+                      ],
+                      "response": {
+                        "$ref": "GoogleProtobufEmpty"
+                      },
+                      "scopes": [
+                        "https://www.googleapis.com/auth/cloud-platform"
+                      ],
+                      "description": "Starts asynchronous cancellation on a long-running operation. The server makes a best effort to cancel the operation, but success is not guaranteed. If the server doesn't support this method, it returns `google.rpc.Code.UNIMPLEMENTED`. Clients can use Operations.GetOperation or other methods to check whether the cancellation succeeded or whether the operation completed despite cancellation. On successful cancellation, the operation is not deleted; instead, it becomes an operation with an Operation.error value with a google.rpc.Status.code of 1, corresponding to `Code.CANCELLED`."
+                    },
+                    "wait": {
+                      "id": "aiplatform.projects.locations.pipelineJobs.operations.wait",
+                      "path": "v1beta1/{+name}:wait",
+                      "flatPath": "v1beta1/projects/{projectsId}/locations/{locationsId}/pipelineJobs/{pipelineJobsId}/operations/{operationsId}:wait",
+                      "httpMethod": "POST",
+                      "parameters": {
+                        "name": {
+                          "description": "The name of the operation resource to wait on.",
+                          "pattern": "^projects\/[^\/]+\/locations\/[^\/]+\/pipelineJobs\/[^\/]+\/operations\/[^\/]+$",
+                          "location": "path",
+                          "required": true,
+                          "type": "string"
+                        },
+                        "timeout": {
+                          "description": "The maximum duration to wait before timing out. If left blank, the wait will be at most the time permitted by the underlying HTTP\/RPC protocol. If RPC context deadline is also specified, the shorter one will be used.",
+                          "location": "query",
+                          "type": "string",
+                          "format": "google-duration"
+                        }
+                      },
+                      "parameterOrder": [
+                        "name"
+                      ],
+                      "response": {
+                        "$ref": "GoogleLongrunningOperation"
+                      },
+                      "scopes": [
+                        "https://www.googleapis.com/auth/cloud-platform"
+                      ],
+                      "description": "Waits until the specified long-running operation is done or reaches at most a specified timeout, returning the latest state. If the operation is already done, the latest state is immediately returned. If the timeout specified is greater than the default HTTP\/RPC timeout, the HTTP\/RPC timeout is used. If the server does not support this method, it returns `google.rpc.Code.UNIMPLEMENTED`. Note that this method is on a best-effort basis. It may return the latest state before the specified timeout (including immediately), meaning even an immediate response is no guarantee that the operation is done."
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "basePath": ""
+}

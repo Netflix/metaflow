@@ -137,25 +137,25 @@ DEFAULT_CONTAINER_IMAGE = from_conf("METAFLOW_DEFAULT_CONTAINER_IMAGE")
 DEFAULT_CONTAINER_REGISTRY = from_conf("METAFLOW_DEFAULT_CONTAINER_REGISTRY")
 
 ##
-# KFP configuration
+# AIP plugin configuration
 ###
 # Link to image package:
 # https://github.com/zillow/metaflow/pkgs/container/metaflow%2Fmetaflow-zillow
 if DEFAULT_CONTAINER_REGISTRY and DEFAULT_CONTAINER_IMAGE:
-    KFP_DEFAULT_CONTAINER_IMAGE = (
+    AIP_DEFAULT_CONTAINER_IMAGE = (
         f"{DEFAULT_CONTAINER_REGISTRY.rstrip('/')}/{DEFAULT_CONTAINER_IMAGE}"
     )
 else:
-    KFP_DEFAULT_CONTAINER_IMAGE = "ghcr.io/zillow/metaflow/metaflow-zillow:2.2"
-KFP_SDK_NAMESPACE = from_conf("KFP_SDK_NAMESPACE", "kubeflow")
-KFP_SDK_API_NAMESPACE = from_conf("KFP_SDK_API_NAMESPACE", "kubeflow")
-KFP_TTL_SECONDS_AFTER_FINISHED = from_conf("KFP_TTL_SECONDS_AFTER_FINISHED", None)
-KFP_USER_DOMAIN = from_conf("KFP_USER_DOMAIN", "")
-# Note: `KFP_RUN_URL_PREFIX` is the URL prefix for KFP runs on your KFP cluster. The prefix includes
+    AIP_DEFAULT_CONTAINER_IMAGE = "ghcr.io/zillow/metaflow/metaflow-zillow:2.2"
+AIP_TTL_SECONDS_AFTER_FINISHED = from_conf("AIP_TTL_SECONDS_AFTER_FINISHED", None)
+# Note: `ARGO_RUN_URL_PREFIX` is the URL prefix for ARGO runs on your ARGO cluster. The prefix includes
 # all parts of the URL except the run_id at the end which we append once the run is created.
-# For eg, this would look like: "https://<your-kf-cluster-url>/pipeline/#/runs/details/"
-KFP_RUN_URL_PREFIX = from_conf("KFP_RUN_URL_PREFIX", "")
-KFP_MAX_PARALLELISM = int(from_conf("KFP_MAX_PARALLELISM", 10))
+# For eg, this would look like: "https://<your-kf-cluster-url>/argo-ui/workflows/
+ARGO_RUN_URL_PREFIX = from_conf("ARGO_RUN_URL_PREFIX", "")
+METAFLOW_RUN_URL_PREFIX = from_conf("METAFLOW_RUN_URL_PREFIX", "")
+AIP_MAX_PARALLELISM = int(from_conf("AIP_MAX_PARALLELISM", 10))
+AIP_MAX_RUN_CONCURRENCY = int(from_conf("AIP_MAX_RUN_CONCURRENCY", 10))
+AIP_SHOW_METAFLOW_UI_URL = bool(from_conf("AIP_SHOW_METAFLOW_UI_URL", False))
 ZILLOW_ZODIAC_SERVICE = from_conf("ZODIAC_SERVICE")
 ZILLOW_ZODIAC_TEAM = from_conf("ZODIAC_TEAM")
 ZILLOW_INDIVIDUAL_NAMESPACE = from_conf("INDIVIDUAL_NAMESPACE", "false")

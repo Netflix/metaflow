@@ -1,0 +1,216 @@
+syntax = "proto3";
+
+package org.kubeflow.pipelines.components.v1alpha1;
+import "google/protobuf/struct.proto";
+
+// Describes the component input specification
+message InputSpec {
+    string name = 1;
+    TypeSpecType type = 2;
+    string description = 3;
+    string default = 4;
+    bool optional = 5;
+}
+
+// Describes the component output specification
+message OutputSpec {
+    string name = 1;
+    TypeSpecType type = 2;
+    string description = 3;
+}
+
+message StringOrPlaceholder {
+    oneof oneof {
+        // Constant string
+        string constantValue = 1;
+
+        // Represents the command-line argument placeholder that will be replaced at run-time by the input argument value.
+        string inputValue = 2; // == input value for <Input name>
+
+        // Represents the command-line argument placeholder that will be replaced at run-time by a local file path pointing to a file containing the input argument value.
+        string inputPath = 3; // == input path for <Input name>
+
+        // Represents the command-line argument placeholder that will be replaced at run-time by a local file path pointing to a file where the program should write its output data.
+        string outputPath = 4; // == output path for <Output name>
+
+        // Represents the command-line argument placeholder that will be replaced at run-time by the concatenated values of its items.
+        ConcatPlaceholder concat = 5;
+
+        // Represents the command-line argument placeholder that will be replaced at run-time by a boolean value specifying whether the caller has passed an argument for the specified optional input.
+        IfPlaceholder if = 6;
+    }
+}
+
+message ContainerSpec {
+    // Docker image name.
+    string image = 1;
+
+    // Entrypoint array. Not executed within a shell. The docker image's ENTRYPOINT is used if this is not provided.
+    repeated StringOrPlaceholder command = 2;
+
+    // Arguments to the entrypoint. The docker image's CMD is used if this is not provided.
+    repeated StringOrPlaceholder args = 3;
+
+    // List of environment variables to set in the container.
+    map<string, string> env = 4;
+
+    // Legacy. Deprecated. Can be used to specify output paths for programs that do not allow setting the path of some output using command-line.
+    map<string, string> fileOutputs = 5;
+}
+
+// Represents the container component implementation.
+message ContainerImplementation {
+    ContainerSpec container = 1;
+}
+
+// Component specification. Describes the metadata (name, description, source), the interface (inputs and outputs) and the implementation of the component.
+message ComponentSpec {
+    string name = 1;
+    string description = 2;
+    repeated InputSpec inputs = 3;
+    repeated OutputSpec outputs = 4;
+    ImplementationType implementation = 5;
+    string version = 6;
+    MetadataSpec metadata = 7;
+}
+
+// Component reference. Contains information that can be used to locate and load a component by name, digest or URL
+message ComponentReference {
+    string name = 1;
+    string digest = 2;
+    string tag = 3;
+    string url = 4;
+    ComponentSpec spec = 5;
+}
+
+// References the input of the graph.
+message GraphInputReference {
+    string inputName = 1;
+    TypeSpecType type = 2;
+}
+
+// References the output of a sibling task.
+message TaskOutputReference {
+    string outputName = 1;
+    string taskId = 2;
+    TypeSpecType type = 3;
+}
+
+
+message TaskArgumentType {
+    oneof oneof {
+        // Constant task argument.
+        string string_value = 1;
+        
+        // Represents the task argument value that comes from the graph component input.
+        GraphInputReference graphInput = 2;
+
+        // Represents the task argument value that comes from the output of a sibling task.
+        TaskOutputReference taskOutput = 3;
+    }
+}
+
+// Task specification. Task is a configured component - a component supplied with arguments and other applied configuration changes.
+message TaskSpec {
+    ComponentReference componentRef = 1; // Reference to the component from which the task is instantiated
+
+    map<string, TaskArgumentType> arguments = 2; // Arguments to pass to the component
+
+    PredicateType isEnabled = 3; // Specifies predicate to execute the task conditionally
+
+    ExecutionOptionsSpec executionOptions = 4;
+}
+
+// Describes the graph component implementation. It represents a graph of component tasks connected to the upstream sources of data using the argument specifications. It also describes the sources of graph output values.
+message GraphSpec {
+    map<string, TaskSpec> tasks = 1; // List of tasks (components and their arguments) belonging to the graph.
+    map<string, TaskArgumentType> outputValues = 2; // Sources of the graph component output values.
+}
+
+// The implementation of the component
+message ImplementationType {
+    oneof oneof {
+        ContainerSpec container = 1; // Represents the component implementated as a containerized program
+        GraphSpec graph = 2; // Represents the component implementated as graph of connected tasks
+    }
+}
+
+// The object that can be sent to the backend to start a new Run.
+message PipelineRunSpec {
+    TaskSpec rootTask = 1;
+    TaskSpec onExitTask = 2;
+}
+
+message TypeSpecType {
+    message Properties {
+        map<string, TypeSpecType> type = 1;
+    }
+    
+    oneof oneof {
+        string type_name = 1;
+        Properties properties = 2;
+    }
+}
+
+// Represents the command-line argument placeholder that will be replaced at run-time by the concatenated values of its items.
+message ConcatPlaceholder {
+    // Items to concatenate
+    repeated StringOrPlaceholder items = 1;
+}
+
+message IfConditionArgumentType {
+    oneof oneof {
+        bool boolean_value = 1; // e.g. True
+        string string_value = 2; // e.g. "true"
+        string isPresent = 3; // Checks whether an argument for some input was passed to the component // Represents the command-line argument placeholder that will be replaced at run-time by a boolean value specifying whether the caller has passed an argument for the specified optional input.
+    }
+}
+
+message IfPlaceholder {
+    IfConditionArgumentType cond = 1;
+    repeated StringOrPlaceholder then = 2;
+    repeated StringOrPlaceholder else = 3;
+}
+
+message MetadataSpec {
+    map<string, string> annotations = 1;
+}
+
+// Represents a logical expression. Used to specify condition for conditional task executed.
+message PredicateType {
+    oneof oneof {
+        PredicateType not = 1;
+
+        TwoLogicalOperands and = 2;
+        TwoLogicalOperands or = 3;
+
+        TwoArgumentOperands eq = 4;
+        TwoArgumentOperands ne = 5;
+        TwoArgumentOperands gt = 6;
+        TwoArgumentOperands ge = 7;
+        TwoArgumentOperands lt = 8;
+        TwoArgumentOperands le = 9;
+    }
+}
+
+// Pair of operands for a binary operation.
+message TwoArgumentOperands {
+    TaskArgumentType op1 = 1;
+    TaskArgumentType op2 = 2;
+}
+
+// Pair of operands for a binary logical operation.
+message TwoLogicalOperands {
+    PredicateType op1 = 1;
+    PredicateType op2 = 2;
+}
+
+// Optional configuration that specifies how the task should be retried if it fails.
+message RetryStrategySpec {
+    int32 maxRetries = 1;
+}
+
+// Optional configuration that specifies how the task should be executed. Can be used to set some platform-specific options.
+message ExecutionOptionsSpec {
+    RetryStrategySpec retryStrategy = 1;
+}

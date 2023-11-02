@@ -1,0 +1,65 @@
+{
+  "pipelineSpec": {
+    "components": {
+      "comp-component-with-concat-placeholder": {
+        "executorLabel": "exec-component-with-concat-placeholder",
+        "inputDefinitions": {
+          "parameters": {
+            "input_prefix": {
+              "type": "STRING"
+            }
+          }
+        }
+      }
+    },
+    "deploymentSpec": {
+      "executors": {
+        "exec-component-with-concat-placeholder": {
+          "container": {
+            "args": [
+              "--arg0",
+              "{{$.inputs.parameters['input_prefix']}}some value"
+            ],
+            "image": "gcr.io/my-project/my-image"
+          }
+        }
+      }
+    },
+    "pipelineInfo": {
+      "name": "one-step-pipeline-with-concat-placeholder"
+    },
+    "root": {
+      "dag": {
+        "tasks": {
+          "component-with-concat-placeholder": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-component-with-concat-placeholder"
+            },
+            "inputs": {
+              "parameters": {
+                "input_prefix": {
+                  "runtimeValue": {
+                    "constantValue": {
+                      "stringValue": "some prefix:"
+                    }
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "component-with-concat-placeholder"
+            }
+          }
+        }
+      }
+    },
+    "schemaVersion": "2.0.0",
+    "sdkVersion": "kfp-1.7.2"
+  },
+  "runtimeConfig": {
+    "gcsOutputDirectory": "dummy_root"
+  }
+}

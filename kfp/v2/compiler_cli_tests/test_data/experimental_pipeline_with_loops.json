@@ -1,0 +1,442 @@
+{
+  "components": {
+    "comp-args-generator-op": {
+      "executorLabel": "exec-args-generator-op",
+      "outputDefinitions": {
+        "parameters": {
+          "output": {
+            "parameterType": "LIST"
+          }
+        }
+      }
+    },
+    "comp-for-loop-1": {
+      "dag": {
+        "tasks": {
+          "print-op": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-print-op"
+            },
+            "inputs": {
+              "parameters": {
+                "msg": {
+                  "componentInputParameter": "pipelinechannel--loop_parameter-loop-item"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "print-op"
+            }
+          }
+        }
+      },
+      "inputDefinitions": {
+        "parameters": {
+          "pipelinechannel--loop_parameter": {
+            "parameterType": "LIST"
+          },
+          "pipelinechannel--loop_parameter-loop-item": {
+            "parameterType": "STRING"
+          }
+        }
+      }
+    },
+    "comp-for-loop-2": {
+      "dag": {
+        "tasks": {
+          "print-op-2": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-print-op-2"
+            },
+            "inputs": {
+              "parameters": {
+                "msg": {
+                  "componentInputParameter": "pipelinechannel--args-generator-op-output-loop-item",
+                  "parameterExpressionSelector": "parseJson(string_value)[\"A_a\"]"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "print-op-2"
+            }
+          },
+          "print-op-3": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-print-op-3"
+            },
+            "inputs": {
+              "parameters": {
+                "msg": {
+                  "componentInputParameter": "pipelinechannel--args-generator-op-output-loop-item",
+                  "parameterExpressionSelector": "parseJson(string_value)[\"B_b\"]"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "print-op-3"
+            }
+          },
+          "print-struct": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-print-struct"
+            },
+            "inputs": {
+              "parameters": {
+                "msg": {
+                  "componentInputParameter": "pipelinechannel--args-generator-op-output-loop-item"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "print-struct"
+            }
+          }
+        }
+      },
+      "inputDefinitions": {
+        "parameters": {
+          "pipelinechannel--args-generator-op-output": {
+            "parameterType": "LIST"
+          },
+          "pipelinechannel--args-generator-op-output-loop-item": {
+            "parameterType": "STRUCT"
+          }
+        }
+      }
+    },
+    "comp-for-loop-4": {
+      "dag": {
+        "tasks": {
+          "print-op-4": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-print-op-4"
+            },
+            "inputs": {
+              "parameters": {
+                "msg": {
+                  "componentInputParameter": "pipelinechannel--loop-item-param-3",
+                  "parameterExpressionSelector": "parseJson(string_value)[\"A_a\"]"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "print-op-4"
+            }
+          },
+          "print-op-5": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-print-op-5"
+            },
+            "inputs": {
+              "parameters": {
+                "msg": {
+                  "componentInputParameter": "pipelinechannel--loop-item-param-3",
+                  "parameterExpressionSelector": "parseJson(string_value)[\"B_b\"]"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "print-op-5"
+            }
+          },
+          "print-struct-2": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-print-struct-2"
+            },
+            "inputs": {
+              "parameters": {
+                "msg": {
+                  "componentInputParameter": "pipelinechannel--loop-item-param-3"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "print-struct-2"
+            }
+          }
+        }
+      },
+      "inputDefinitions": {
+        "parameters": {
+          "pipelinechannel--loop-item-param-3": {
+            "parameterType": "STRUCT"
+          }
+        }
+      }
+    },
+    "comp-print-op": {
+      "executorLabel": "exec-print-op",
+      "inputDefinitions": {
+        "parameters": {
+          "msg": {
+            "parameterType": "STRING"
+          }
+        }
+      }
+    },
+    "comp-print-op-2": {
+      "executorLabel": "exec-print-op-2",
+      "inputDefinitions": {
+        "parameters": {
+          "msg": {
+            "parameterType": "STRING"
+          }
+        }
+      }
+    },
+    "comp-print-op-3": {
+      "executorLabel": "exec-print-op-3",
+      "inputDefinitions": {
+        "parameters": {
+          "msg": {
+            "parameterType": "STRING"
+          }
+        }
+      }
+    },
+    "comp-print-op-4": {
+      "executorLabel": "exec-print-op-4",
+      "inputDefinitions": {
+        "parameters": {
+          "msg": {
+            "parameterType": "STRING"
+          }
+        }
+      }
+    },
+    "comp-print-op-5": {
+      "executorLabel": "exec-print-op-5",
+      "inputDefinitions": {
+        "parameters": {
+          "msg": {
+            "parameterType": "STRING"
+          }
+        }
+      }
+    },
+    "comp-print-struct": {
+      "executorLabel": "exec-print-struct",
+      "inputDefinitions": {
+        "parameters": {
+          "msg": {
+            "parameterType": "STRUCT"
+          }
+        }
+      }
+    },
+    "comp-print-struct-2": {
+      "executorLabel": "exec-print-struct-2",
+      "inputDefinitions": {
+        "parameters": {
+          "msg": {
+            "parameterType": "STRUCT"
+          }
+        }
+      }
+    }
+  },
+  "deploymentSpec": {
+    "executors": {
+      "exec-args-generator-op": {
+        "container": {
+          "command": [
+            "sh",
+            "-c",
+            "set -e -x\necho \"[{'A_a': '1', 'B_b': '2'}, {'A_a': '10', 'B_b': '20'}]\" > \"$0\"\n",
+            "{{$.outputs.parameters['output'].output_file}}"
+          ],
+          "image": "alpine"
+        }
+      },
+      "exec-print-op": {
+        "container": {
+          "command": [
+            "sh",
+            "-c",
+            "set -e -x\necho \"$0\"\n",
+            "{{$.inputs.parameters['msg']}}"
+          ],
+          "image": "alpine"
+        }
+      },
+      "exec-print-op-2": {
+        "container": {
+          "command": [
+            "sh",
+            "-c",
+            "set -e -x\necho \"$0\"\n",
+            "{{$.inputs.parameters['msg']}}"
+          ],
+          "image": "alpine"
+        }
+      },
+      "exec-print-op-3": {
+        "container": {
+          "command": [
+            "sh",
+            "-c",
+            "set -e -x\necho \"$0\"\n",
+            "{{$.inputs.parameters['msg']}}"
+          ],
+          "image": "alpine"
+        }
+      },
+      "exec-print-op-4": {
+        "container": {
+          "command": [
+            "sh",
+            "-c",
+            "set -e -x\necho \"$0\"\n",
+            "{{$.inputs.parameters['msg']}}"
+          ],
+          "image": "alpine"
+        }
+      },
+      "exec-print-op-5": {
+        "container": {
+          "command": [
+            "sh",
+            "-c",
+            "set -e -x\necho \"$0\"\n",
+            "{{$.inputs.parameters['msg']}}"
+          ],
+          "image": "alpine"
+        }
+      },
+      "exec-print-struct": {
+        "container": {
+          "command": [
+            "sh",
+            "-c",
+            "set -e -x\necho \"$0\"\n",
+            "{{$.inputs.parameters['msg']}}"
+          ],
+          "image": "alpine"
+        }
+      },
+      "exec-print-struct-2": {
+        "container": {
+          "command": [
+            "sh",
+            "-c",
+            "set -e -x\necho \"$0\"\n",
+            "{{$.inputs.parameters['msg']}}"
+          ],
+          "image": "alpine"
+        }
+      }
+    }
+  },
+  "pipelineInfo": {
+    "name": "pipeline-with-loops"
+  },
+  "root": {
+    "dag": {
+      "tasks": {
+        "args-generator-op": {
+          "cachingOptions": {
+            "enableCache": true
+          },
+          "componentRef": {
+            "name": "comp-args-generator-op"
+          },
+          "taskInfo": {
+            "name": "args-generator-op"
+          }
+        },
+        "for-loop-1": {
+          "componentRef": {
+            "name": "comp-for-loop-1"
+          },
+          "inputs": {
+            "parameters": {
+              "pipelinechannel--loop_parameter": {
+                "componentInputParameter": "loop_parameter"
+              }
+            }
+          },
+          "parameterIterator": {
+            "itemInput": "pipelinechannel--loop_parameter-loop-item",
+            "items": {
+              "inputParameter": "pipelinechannel--loop_parameter"
+            }
+          },
+          "taskInfo": {
+            "name": "for-loop-1"
+          }
+        },
+        "for-loop-2": {
+          "componentRef": {
+            "name": "comp-for-loop-2"
+          },
+          "dependentTasks": [
+            "args-generator-op"
+          ],
+          "inputs": {
+            "parameters": {
+              "pipelinechannel--args-generator-op-output": {
+                "taskOutputParameter": {
+                  "outputParameterKey": "output",
+                  "producerTask": "args-generator-op"
+                }
+              }
+            }
+          },
+          "parameterIterator": {
+            "itemInput": "pipelinechannel--args-generator-op-output-loop-item",
+            "items": {
+              "inputParameter": "pipelinechannel--args-generator-op-output"
+            }
+          },
+          "taskInfo": {
+            "name": "for-loop-2"
+          }
+        },
+        "for-loop-4": {
+          "componentRef": {
+            "name": "comp-for-loop-4"
+          },
+          "parameterIterator": {
+            "itemInput": "pipelinechannel--loop-item-param-3",
+            "items": {
+              "raw": "[{\"A_a\": \"1\", \"B_b\": \"2\"}, {\"A_a\": \"10\", \"B_b\": \"20\"}]"
+            }
+          },
+          "taskInfo": {
+            "name": "for-loop-4"
+          }
+        }
+      }
+    },
+    "inputDefinitions": {
+      "parameters": {
+        "loop_parameter": {
+          "parameterType": "LIST"
+        }
+      }
+    }
+  },
+  "schemaVersion": "2.1.0",
+  "sdkVersion": "kfp-1.8.6"
+}

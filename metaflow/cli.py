@@ -1016,7 +1016,7 @@ def start(
             ctx.obj.echo
         )
 
-    if datastore_root is None and ctx.invoked_subcommand != "kfp":
+    if datastore_root is None and ctx.invoked_subcommand != "aip":
         raise CommandException(
             "Could not find the location of the datastore -- did you correctly set the "
             "METAFLOW_DATASTORE_SYSROOT_%s environment variable?" % datastore.upper()

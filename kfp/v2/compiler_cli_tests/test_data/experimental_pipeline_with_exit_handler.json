@@ -1,0 +1,182 @@
+{
+  "components": {
+    "comp-exit-handler-1": {
+      "dag": {
+        "tasks": {
+          "fail-op": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-fail-op"
+            },
+            "inputs": {
+              "parameters": {
+                "msg": {
+                  "runtimeValue": {
+                    "constant": "Task failed."
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "fail-op"
+            }
+          },
+          "print-op-2": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-print-op-2"
+            },
+            "inputs": {
+              "parameters": {
+                "msg": {
+                  "componentInputParameter": "pipelinechannel--message"
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "print-op-2"
+            }
+          }
+        }
+      },
+      "inputDefinitions": {
+        "parameters": {
+          "pipelinechannel--message": {
+            "parameterType": "STRING"
+          }
+        }
+      }
+    },
+    "comp-fail-op": {
+      "executorLabel": "exec-fail-op",
+      "inputDefinitions": {
+        "parameters": {
+          "msg": {
+            "parameterType": "STRING"
+          }
+        }
+      }
+    },
+    "comp-print-op": {
+      "executorLabel": "exec-print-op",
+      "inputDefinitions": {
+        "parameters": {
+          "msg": {
+            "parameterType": "STRING"
+          }
+        }
+      }
+    },
+    "comp-print-op-2": {
+      "executorLabel": "exec-print-op-2",
+      "inputDefinitions": {
+        "parameters": {
+          "msg": {
+            "parameterType": "STRING"
+          }
+        }
+      }
+    }
+  },
+  "deploymentSpec": {
+    "executors": {
+      "exec-fail-op": {
+        "container": {
+          "command": [
+            "sh",
+            "-c",
+            "set -e -x\necho \"$0\"\nexit 1\n",
+            "{{$.inputs.parameters['msg']}}"
+          ],
+          "image": "alpine"
+        }
+      },
+      "exec-print-op": {
+        "container": {
+          "command": [
+            "sh",
+            "-c",
+            "set -e -x\necho \"$0\"\n",
+            "{{$.inputs.parameters['msg']}}"
+          ],
+          "image": "alpine"
+        }
+      },
+      "exec-print-op-2": {
+        "container": {
+          "command": [
+            "sh",
+            "-c",
+            "set -e -x\necho \"$0\"\n",
+            "{{$.inputs.parameters['msg']}}"
+          ],
+          "image": "alpine"
+        }
+      }
+    }
+  },
+  "pipelineInfo": {
+    "name": "pipeline-with-exit-handler"
+  },
+  "root": {
+    "dag": {
+      "tasks": {
+        "exit-handler-1": {
+          "componentRef": {
+            "name": "comp-exit-handler-1"
+          },
+          "inputs": {
+            "parameters": {
+              "pipelinechannel--message": {
+                "componentInputParameter": "message"
+              }
+            }
+          },
+          "taskInfo": {
+            "name": "exit-handler-1"
+          }
+        },
+        "print-op": {
+          "cachingOptions": {
+            "enableCache": true
+          },
+          "componentRef": {
+            "name": "comp-print-op"
+          },
+          "dependentTasks": [
+            "exit-handler-1"
+          ],
+          "inputs": {
+            "parameters": {
+              "msg": {
+                "runtimeValue": {
+                  "constant": "Exit handler has worked!"
+                }
+              }
+            }
+          },
+          "taskInfo": {
+            "name": "print-op"
+          },
+          "triggerPolicy": {
+            "strategy": "ALL_UPSTREAM_TASKS_COMPLETED"
+          }
+        }
+      }
+    },
+    "inputDefinitions": {
+      "parameters": {
+        "message": {
+          "defaultValue": "Hello World!",
+          "parameterType": "STRING"
+        }
+      }
+    }
+  },
+  "schemaVersion": "2.1.0",
+  "sdkVersion": "kfp-1.8.6"
+}

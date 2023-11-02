@@ -1,0 +1,71 @@
+{
+  "displayName": "my-pipeline-2020-08-01-12-34-00",
+  "runtimeConfig": {
+    "gcsOutputDirectory": "gs://my-project/pipeline_root/tmp/",
+    "parameters": {
+      "name_param": {
+        "stringValue": "World"
+      }
+    }
+  },
+  "pipelineSpec": {
+    "pipelineInfo": {
+      "name": "my-pipeline"
+    },
+    "root": {
+      "dag": {
+        "tasks": {
+          "task-test": {
+            "taskInfo": {
+              "name": "task-test"
+            },
+            "inputs": {
+              "parameters": {
+                "name": {
+                  "componentInputParameter": "name_param"
+                }
+              }
+            },
+            "componentRef": {
+              "name": "comp-test"
+            }
+          }
+        }
+      },
+      "inputDefinitions": {
+        "parameters": {
+          "name_param": {
+            "type": "STRING"
+          }
+        }
+      }
+    },
+    "deploymentSpec": {
+      "executors": {
+        "exec-test": {
+          "container": {
+            "image": "python:3.7-alpine",
+            "command": [
+              "echo",
+              "Hello {{$.inputs.parameters['name']}} 2020-08-01"
+            ]
+          }
+        }
+      }
+    },
+    "components": {
+      "comp-test": {
+        "executorLabel": "exec-test",
+        "inputDefinitions": {
+          "parameters": {
+            "name": {
+              "type": "STRING"
+            }
+          }
+        }
+      }
+    },
+    "sdkVersion": "dummy-kfp-version",
+    "schemaVersion": "2.0.0"
+  }
+}

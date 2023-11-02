@@ -1,0 +1,114 @@
+{
+  "pipelineSpec": {
+    "components": {
+      "comp-consumer-op": {
+        "executorLabel": "exec-consumer-op",
+        "inputDefinitions": {
+          "artifacts": {
+            "model": {
+              "artifactType": {
+                "schemaTitle": "google.VertexModel",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      },
+      "comp-producer": {
+        "executorLabel": "exec-producer",
+        "outputDefinitions": {
+          "artifacts": {
+            "model": {
+              "artifactType": {
+                "schemaTitle": "google.VertexModel",
+                "schemaVersion": "0.0.1"
+              }
+            }
+          }
+        }
+      }
+    },
+    "deploymentSpec": {
+      "executors": {
+        "exec-consumer-op": {
+          "container": {
+            "args": [
+              "--executor_input",
+              "{{$}}",
+              "--function_to_execute",
+              "consumer_op"
+            ],
+            "command": [
+              "sh",
+              "-c",
+              "\nif ! [ -x \"$(command -v pip)\" ]; then\n    python3 -m ensurepip || python3 -m ensurepip --user || apt-get install python3-pip\nfi\n\nPIP_DISABLE_PIP_VERSION_CHECK=1 python3 -m pip install --quiet     --no-warn-script-location 'kfp==1.8.5' && \"$0\" \"$@\"\n",
+              "sh",
+              "-ec",
+              "program_path=$(mktemp -d)\nprintf \"%s\" \"$0\" > \"$program_path/ephemeral_component.py\"\npython3 -m kfp.v2.components.executor_main                         --component_module_path                         \"$program_path/ephemeral_component.py\"                         \"$@\"\n",
+              "\nimport kfp\nfrom kfp.v2 import dsl\nfrom kfp.v2.dsl import *\nfrom typing import *\n\ndef consumer_op(model: Input[VertexModel]):\n    pass\n\n"
+            ],
+            "image": "python:3.7"
+          }
+        },
+        "exec-producer": {
+          "container": {
+            "args": [
+              "{{$.outputs.artifacts['model'].path}}"
+            ],
+            "command": [
+              "cmd"
+            ],
+            "image": "dummy"
+          }
+        }
+      }
+    },
+    "pipelineInfo": {
+      "name": "pipeline-with-gcpc-types"
+    },
+    "root": {
+      "dag": {
+        "tasks": {
+          "consumer-op": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-consumer-op"
+            },
+            "dependentTasks": [
+              "producer"
+            ],
+            "inputs": {
+              "artifacts": {
+                "model": {
+                  "taskOutputArtifact": {
+                    "outputArtifactKey": "model",
+                    "producerTask": "producer"
+                  }
+                }
+              }
+            },
+            "taskInfo": {
+              "name": "consumer-op"
+            }
+          },
+          "producer": {
+            "cachingOptions": {
+              "enableCache": true
+            },
+            "componentRef": {
+              "name": "comp-producer"
+            },
+            "taskInfo": {
+              "name": "producer"
+            }
+          }
+        }
+      }
+    },
+    "schemaVersion": "2.0.0",
+    "sdkVersion": "kfp-1.8.5"
+  },
+  "runtimeConfig": {}
+}
