@@ -154,38 +154,24 @@ class Pip(object):
         with open(metadata_file, "r") as file:
             return json.loads(file.read())
 
-    def extra_index_urls(self, prefix):
-        # get extra index urls from Pip conf
-        extra_indices = []
-        for key in [":env:.extra-index-url", "global.extra-index-url"]:
-            try:
-                extras = self._call(prefix, args=["config", "get", key], isolated=False)
-                extra_indices.extend(extras.split(" "))
-            except Exception:
-                # Pip will throw an error when trying to get a config key that does
-                # not exist
-                pass
-        return extra_indices
-
-    def index_urls(self, prefix):
-        # get custom index url from Pip conf (possibly multiple indices)
-        indices = []
-        for key in [":env:.index-url", "global.index-url"]:
-            try:
-                index = self._call(prefix, args=["config", "get", key], isolated=False)
-                indices.append(index)
-            except Exception:
-                # Pip will throw an error when trying to get a config key that does
-                # not exist
-                pass
-        return indices
-
     def indices(self, prefix):
-        indices = self.index_urls(prefix)
-        extra_indices = self.extra_index_urls(prefix)
+        indices = []
+        extra_indices = []
+        try:
+            config = self._call(prefix, args=["config", "list"], isolated=False)
+            for line in config.splitlines():
+                key, value = line.split("=", 1)
+                _, key = key.split(".")
+                value = value.strip("'\"")
+                if key == "index-url":
+                    indices.append(value)
+                elif key == "extra-index-url":
+                    extra_indices.append(value)
+        except Exception:
+            pass
 
         # If there is more than one main index defined, use the first one and move the rest to extra indices.
-        # There is no priority between indices with pip so the choices does not matter.
+        # There is no priority between indices with pip so the order does not matter.
         index = indices[0] if indices else None
         extras = indices[1:]
 
