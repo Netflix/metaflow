@@ -50,8 +50,7 @@ class Pip(object):
                     for tag in pip_tags(python, platform)
                 ]
             )
-            custom_index_url = self.index_url(prefix)
-            extra_index_urls = self.extra_index_urls(prefix)
+            custom_index_url, extra_index_urls = self.indices(prefix)
             cmd = [
                 "install",
                 "--dry-run",
@@ -96,8 +95,7 @@ class Pip(object):
                 for tag in pip_tags(python, platform)
             ]
         )
-        custom_index_url = self.index_url(prefix)
-        extra_index_urls = self.extra_index_urls(prefix)
+        custom_index_url, extra_index_urls = self.indices(prefix)
         cmd = [
             "download",
             "--no-deps",
@@ -169,16 +167,31 @@ class Pip(object):
                 pass
         return extra_indices
 
-    def index_url(self, prefix):
-        # get custom index url from Pip conf
-        try:
-            return self._call(
-                prefix, args=["config", "get", "global.index-url"], isolated=False
-            )
-        except Exception:
-            # Pip will throw an error when trying to get a config key that does
-            # not exist
-            return None
+    def index_urls(self, prefix):
+        # get custom index url from Pip conf (possibly multiple indices)
+        indices = []
+        for key in [":env:.index-url", "global.index-url"]:
+            try:
+                index = self._call(prefix, args=["config", "get", key], isolated=False)
+                indices.append(index)
+            except Exception:
+                # Pip will throw an error when trying to get a config key that does
+                # not exist
+                pass
+        return indices
+
+    def indices(self, prefix):
+        indices = self.index_urls(prefix)
+        extra_indices = self.extra_index_urls(prefix)
+
+        # If there is more than one main index defined, use the first one and move the rest to extra indices.
+        # There is no priority between indices with pip so the choices does not matter.
+        index = indices[0] if indices else None
+        extras = indices[1:]
+
+        extras.extend(extra_indices)
+
+        return index, extras
 
     def _call(self, prefix, args, env=None, isolated=True):
         if env is None:
