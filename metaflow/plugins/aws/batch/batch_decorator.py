@@ -1,34 +1,32 @@
 import os
-import sys
 import platform
-import requests
+import sys
 import time
 
-from metaflow import util
-from metaflow import R, current
+import requests
 
+from metaflow import R, current
 from metaflow.decorators import StepDecorator
-from metaflow.plugins.resources_decorator import ResourcesDecorator
-from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.metadata import MetaDatum
 from metaflow.metadata.util import sync_local_metadata_to_datastore
 from metaflow.metaflow_config import (
-    ECS_S3_ACCESS_IAM_ROLE,
-    BATCH_JOB_QUEUE,
     BATCH_CONTAINER_IMAGE,
     BATCH_CONTAINER_REGISTRY,
-    ECS_FARGATE_EXECUTION_ROLE,
+    BATCH_JOB_QUEUE,
     DATASTORE_LOCAL_DIR,
+    ECS_FARGATE_EXECUTION_ROLE,
+    ECS_S3_ACCESS_IAM_ROLE,
 )
+from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.sidecar import Sidecar
 from metaflow.unbounded_foreach import UBF_CONTROL
 
-from .batch import BatchException
 from ..aws_utils import (
     compute_resource_attributes,
     get_docker_registry,
     get_ec2_instance_metadata,
 )
+from .batch import BatchException
 
 
 class BatchDecorator(StepDecorator):
@@ -73,6 +71,9 @@ class BatchDecorator(StepDecorator):
         aggressively. Accepted values are whole numbers between 0 and 100.
     use_tmpfs: bool, default: False
         This enables an explicit tmpfs mount for this step.
+    tags: map, optional
+        Sets arbitrary AWS tags on the AWS Batch compute environment.
+        Set as string key-value pairs.
     tmpfs_tempdir: bool, default: True
         sets METAFLOW_TEMPDIR to tmpfs_path if set for this step.
     tmpfs_size: int, optional
@@ -103,6 +104,7 @@ class BatchDecorator(StepDecorator):
         "efa": None,
         "host_volumes": None,
         "use_tmpfs": False,
+        "tags": None,
         "tmpfs_tempdir": True,
         "tmpfs_size": None,
         "tmpfs_path": "/metaflow_temp",
@@ -346,7 +348,7 @@ class BatchDecorator(StepDecorator):
                             len(flow._control_mapper_tasks),
                         )
                     )
-            except Exception as e:
+            except Exception:
                 pass
         raise Exception(
             "Batch secondary workers did not finish in %s seconds" % TIMEOUT
