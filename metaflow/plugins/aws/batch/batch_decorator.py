@@ -3,6 +3,8 @@ import platform
 import sys
 import time
 
+import requests
+
 from metaflow import R, current
 from metaflow.decorators import StepDecorator
 from metaflow.metadata_provider import MetaDatum
@@ -68,6 +70,9 @@ class BatchDecorator(StepDecorator):
         A swappiness value of 0 causes swapping not to happen unless absolutely
         necessary. A swappiness value of 100 causes pages to be swapped very
         aggressively. Accepted values are whole numbers between 0 and 100.
+    tags: map, optional
+        Sets arbitrary AWS tags on the AWS Batch compute environment.
+        Set as string key-value pairs.
     use_tmpfs : bool, default False
         This enables an explicit tmpfs mount for this step. Note that tmpfs is
         not available on Fargate compute environments
@@ -114,6 +119,7 @@ class BatchDecorator(StepDecorator):
         "host_volumes": None,
         "efs_volumes": None,
         "use_tmpfs": False,
+        "tags": None,
         "tmpfs_tempdir": True,
         "tmpfs_size": None,
         "tmpfs_path": "/metaflow_temp",
