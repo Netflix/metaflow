@@ -311,6 +311,8 @@ SERVICE_INTERNAL_URL = from_conf("SERVICE_INTERNAL_URL", SERVICE_URL)
 # in all Metaflow deployments. Hopefully, some day we can flip the
 # default to True.
 BATCH_EMIT_TAGS = from_conf("BATCH_EMIT_TAGS", False)
+# Default tags to add to AWS Batch jobs. These are in addition to the defaults set when BATCH_EMIT_TAGS is true.
+BATCH_DEFAULT_TAGS = from_conf("BATCH_DEFAULT_TAGS", {})
 
 ###
 # AWS Step Functions configuration
