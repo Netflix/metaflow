@@ -3,7 +3,6 @@ from metaflow._vendor import click
 from hashlib import sha1
 import json
 import re
-from distutils.version import LooseVersion
 
 from metaflow import current, decorators, parameters, JSONType
 from metaflow.metaflow_config import (
@@ -15,7 +14,7 @@ from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.package import MetaflowPackage
 from metaflow.plugins.aws.batch.batch_decorator import BatchDecorator
 from metaflow.tagging_util import validate_tags
-from metaflow.util import get_username, to_bytes, to_unicode
+from metaflow.util import get_username, to_bytes, to_unicode, version_parse
 
 from .step_functions import StepFunctions
 from .production_token import load_token, store_token, new_token
@@ -192,7 +191,7 @@ def check_metadata_service_version(obj):
     version = metadata.version()
     if version == "local":
         return
-    elif version is not None and LooseVersion(version) >= LooseVersion("2.0.2"):
+    elif version is not None and version_parse(version) >= version_parse("2.0.2"):
         # Metaflow metadata service needs to be at least at version 2.0.2
         return
     else:

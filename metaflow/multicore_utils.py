@@ -2,9 +2,9 @@ import sys
 import os
 import traceback
 from itertools import islice
-from multiprocessing import cpu_count
 from tempfile import NamedTemporaryFile
 import time
+import metaflow.tracing as tracing
 
 try:
     # Python 2
@@ -40,35 +40,37 @@ def _spawn(func, arg, dir):
     if pid:
         return pid, output_file
     else:
-        try:
-            exit_code = 1
-            ret = func(arg)
-            with open(output_file, "wb") as f:
-                pickle.dump(ret, f, protocol=pickle.HIGHEST_PROTOCOL)
-            exit_code = 0
-        except:
-            # we must not let any exceptions escape this function
-            # which might trigger unintended side effects
-            traceback.print_exc()
-        finally:
-            sys.stderr.flush()
-            sys.stdout.flush()
-            # we can't use sys.exit(0) here since it raises SystemExit
-            # that may have unintended side effects (e.g. triggering
-            # finally blocks).
-            os._exit(exit_code)
+        with tracing.post_fork():
+            try:
+                exit_code = 1
+                ret = func(arg)
+                with open(output_file, "wb") as f:
+                    pickle.dump(ret, f, protocol=pickle.HIGHEST_PROTOCOL)
+                exit_code = 0
+            except:
+                # we must not let any exceptions escape this function
+                # which might trigger unintended side-effects
+                traceback.print_exc()
+            finally:
+                sys.stderr.flush()
+                sys.stdout.flush()
+                # we can't use sys.exit(0) here since it raises SystemExit
+                # that may have unintended side-effects (e.g. triggering
+                # finally blocks).
+                os._exit(exit_code)
 
 
 def parallel_imap_unordered(func, iterable, max_parallel=None, dir=None):
-
     if max_parallel is None:
+        # Lazy import to save on startup time for metaflow as a whole
+        from multiprocessing import cpu_count
+
         max_parallel = cpu_count()
 
     args_iter = iter(iterable)
     pids = [_spawn(func, arg, dir) for arg in islice(args_iter, max_parallel)]
 
     while pids:
-
         for idx, pid_info in enumerate(pids):
             pid, output_file = pid_info
             pid, exit_code = os.waitpid(pid, os.WNOHANG)

@@ -31,6 +31,7 @@ from metaflow.util import (
 )
 from metaflow.exception import MetaflowException
 from metaflow.debug import debug
+import metaflow.tracing as tracing
 
 try:
     # python2
@@ -1173,9 +1174,14 @@ class S3(object):
         def _upload(s3, _):
             # We make sure we are at the beginning in case we are retrying
             blob.seek(0)
-            s3.upload_fileobj(
-                blob, src.netloc, src.path.lstrip("/"), ExtraArgs=extra_args
-            )
+
+            # We use manual tracing here because boto3 instrumentation
+            # has an issue with upload_fileobj losing track of tracing context
+            # https://github.com/open-telemetry/opentelemetry-python-contrib/issues/298
+            with tracing.traced("s3.upload_fileobj", {"path": src.path}):
+                s3.upload_fileobj(
+                    blob, src.netloc, src.path.lstrip("/"), ExtraArgs=extra_args
+                )
 
         if overwrite:
             self._one_boto_op(_upload, url, create_tmp_file=False)
@@ -1605,10 +1611,13 @@ class S3(object):
                     try:
                         debug.s3client_exec(cmdline + addl_cmdline)
                         # Run the operation.
+                        env = os.environ.copy()
+                        tracing.inject_tracing_vars(env)
                         stdout = subprocess.check_output(
                             cmdline + addl_cmdline,
                             cwd=self._tmpdir,
                             stderr=stderr.file,
+                            env=env,
                         )
                         # Here we did not have any error -- transient or otherwise.
                         ok_lines = stdout.splitlines()

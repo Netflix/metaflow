@@ -3,7 +3,6 @@ import json
 import platform
 import re
 import sys
-from distutils.version import LooseVersion
 from hashlib import sha1
 
 from metaflow import JSONType, current, decorators, parameters
@@ -26,7 +25,7 @@ from metaflow.plugins.aws.step_functions.production_token import (
 from metaflow.plugins.environment_decorator import EnvironmentDecorator
 from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
 from metaflow.tagging_util import validate_tags
-from metaflow.util import get_username, to_bytes, to_unicode
+from metaflow.util import get_username, to_bytes, to_unicode, version_parse
 
 from .argo_workflows import ArgoWorkflows
 
@@ -291,7 +290,7 @@ def check_metadata_service_version(obj):
     version = metadata.version()
     if version == "local":
         return
-    elif version is not None and LooseVersion(version) >= LooseVersion("2.0.2"):
+    elif version is not None and version_parse(version) >= version_parse("2.0.2"):
         # Metaflow metadata service needs to be at least at version 2.0.2
         # since prior versions did not support strings as object ids.
         return
@@ -806,7 +805,7 @@ def status(obj, run_id):
     name = run_id[5:]
     status = ArgoWorkflows.get_workflow_status(obj.flow.name, name)
     if status is not None:
-        obj.echo_always(status)
+        obj.echo_always(remap_status(status))
 
 
 @argo_workflows.command(help="Terminate flow execution on Argo Workflows.")
@@ -955,3 +954,11 @@ def sanitize_for_argo(text):
         .replace("+", "")
         .lower()
     )
+
+
+def remap_status(status):
+    """
+    Group similar Argo Workflow statuses together in order to have similar output to step functions statuses.
+    """
+    STATUS_MAP = {"Error": "Failed"}
+    return STATUS_MAP.get(status, status)

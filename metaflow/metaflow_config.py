@@ -1,9 +1,6 @@
-import logging
 import os
 import sys
 import types
-
-import pkg_resources
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config_funcs import from_conf, get_validate_choice_fn
@@ -352,7 +349,7 @@ CONDA_DEPENDENCY_RESOLVER = from_conf("CONDA_DEPENDENCY_RESOLVER", "conda")
 ###
 # Debug configuration
 ###
-DEBUG_OPTIONS = ["subcommand", "sidecar", "s3client"]
+DEBUG_OPTIONS = ["subcommand", "sidecar", "s3client", "tracing"]
 
 for typ in DEBUG_OPTIONS:
     vars()["DEBUG_%s" % typ.upper()] = from_conf("DEBUG_%s" % typ.upper(), False)
@@ -402,6 +399,12 @@ if AWS_SANDBOX_ENABLED:
 
 KUBERNETES_SANDBOX_INIT_SCRIPT = from_conf("KUBERNETES_SANDBOX_INIT_SCRIPT")
 
+OTEL_ENDPOINT = from_conf("OTEL_ENDPOINT")
+ZIPKIN_ENDPOINT = from_conf("ZIPKIN_ENDPOINT")
+CONSOLE_TRACE_ENABLED = from_conf("CONSOLE_TRACE_ENABLED", False)
+# internal env used for preventing the tracing module from loading during Conda bootstrapping.
+DISABLE_TRACING = bool(os.environ.get("DISABLE_TRACING", False))
+
 # MAX_ATTEMPTS is the maximum number of attempts, including the first
 # task, retries, and the final fallback task and its retries.
 #
@@ -413,24 +416,6 @@ KUBERNETES_SANDBOX_INIT_SCRIPT = from_conf("KUBERNETES_SANDBOX_INIT_SCRIPT")
 # Note also that DataStoreSet resolves the latest attempt_id using
 # lexicographic ordering of attempts. This won't work if MAX_ATTEMPTS > 99.
 MAX_ATTEMPTS = 6
-
-
-# the naughty, naughty driver.py imported by lib2to3 produces
-# spam messages to the root logger. This is what is required
-# to silence it:
-class Filter(logging.Filter):
-    def filter(self, record):
-        if record.pathname.endswith("driver.py") and "grammar" in record.msg:
-            return False
-        return True
-
-
-logger = logging.getLogger()
-logger.addFilter(Filter())
-
-
-def get_version(pkg):
-    return pkg_resources.get_distribution(pkg).version
 
 
 # PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution

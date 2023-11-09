@@ -391,16 +391,15 @@ def _get_extension_packages():
             # unlikely so we are going to ignore this case.
             dist_root = dist.locate_file(EXT_PKG).as_posix()
             all_paths.discard(dist_root)
-
-            if dist.metadata["Name"] in mf_ext_packages:
+            dist_name = dist.metadata["Name"]
+            if dist_name in mf_ext_packages:
                 _ext_debug(
                     "Ignoring duplicate package '%s' (duplicate paths in sys.path? (%s))"
-                    % (dist.metadata["Name"], str(sys.path))
+                    % (dist_name, str(sys.path))
                 )
                 continue
             _ext_debug(
-                "Found extension package '%s' at '%s'..."
-                % (dist.metadata["Name"], dist_root)
+                "Found extension package '%s' at '%s'..." % (dist_name, dist_root)
             )
 
             files_to_include = []
@@ -419,7 +418,7 @@ def _get_extension_packages():
                     if parts[1] == "__init__.py":
                         raise RuntimeError(
                             "Package '%s' providing '%s' is not an implicit namespace "
-                            "package as required" % (dist.metadata["Name"], EXT_PKG)
+                            "package as required" % (dist_name, EXT_PKG)
                         )
 
                     # Record the file as a candidate for inclusion when packaging if
@@ -436,7 +435,7 @@ def _get_extension_packages():
                             "Package '%s' should conform to '%s.X.%s' and not '%s.%s' where "
                             "X is your organization's name for example"
                             % (
-                                dist.metadata["Name"],
+                                dist_name,
                                 EXT_PKG,
                                 parts[1],
                                 EXT_PKG,
@@ -453,7 +452,7 @@ def _get_extension_packages():
                                 "Package '%s' defines more than one meta configuration: "
                                 "'%s' and '%s' (at least)"
                                 % (
-                                    dist.metadata["Name"],
+                                    dist_name,
                                     meta_module,
                                     potential_meta_module,
                                 )
@@ -470,7 +469,7 @@ def _get_extension_packages():
 
                     # To give useful errors in case multiple top-level packages in
                     # one package
-                    dist_full_name = "%s[%s]" % (dist.metadata["Name"], parts[1])
+                    dist_full_name = "%s[%s]" % (dist_name, parts[1])
                     for idx, ext_list in enumerate(list_ext_points):
                         if (
                             len(parts) > len(ext_list) + 2
@@ -489,7 +488,7 @@ def _get_extension_packages():
                                 config_to_pkg[config_module].append(dist_full_name)
                             cur_pkg = (
                                 extension_points_to_pkg[_extension_points[idx]]
-                                .setdefault(dist.metadata["Name"], {})
+                                .setdefault(dist_name, {})
                                 .get(parts[1])
                             )
                             if cur_pkg is not None:
@@ -513,9 +512,9 @@ def _get_extension_packages():
                                         % (parts[1], config_module)
                                     )
                                     extension_points_to_pkg[_extension_points[idx]][
-                                        dist.metadata["Name"]
+                                        dist_name
                                     ][parts[1]] = MFExtPackage(
-                                        package_name=dist.metadata["Name"],
+                                        package_name=dist_name,
                                         tl_package=parts[1],
                                         config_module=config_module,
                                     )
@@ -525,14 +524,14 @@ def _get_extension_packages():
                                     % (parts[1], _extension_points[idx], config_module)
                                 )
                                 extension_points_to_pkg[_extension_points[idx]][
-                                    dist.metadata["Name"]
+                                    dist_name
                                 ][parts[1]] = MFExtPackage(
-                                    package_name=dist.metadata["Name"],
+                                    package_name=dist_name,
                                     tl_package=parts[1],
                                     config_module=config_module,
                                 )
                             break
-            mf_ext_packages[dist.metadata["Name"]] = {
+            mf_ext_packages[dist_name] = {
                 "root_paths": [dist_root],
                 "meta_module": meta_module,
                 "files": files_to_include,
