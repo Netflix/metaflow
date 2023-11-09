@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import subprocess
 import tempfile
 from itertools import chain, product
@@ -162,11 +163,9 @@ class Pip(object):
             for line in config.splitlines():
                 key, value = line.split("=", 1)
                 _, key = key.split(".")
-                value = value.strip("'\"")
-                if key == "index-url":
-                    indices.append(value)
-                elif key == "extra-index-url":
-                    extra_indices.append(value)
+                if key in ("index-url", "extra-index-url"):
+                    values = map(lambda x: x.strip("'\""), re.split("\s+", value, re.M))
+                    (indices if key == "index-url" else extra_indices).extend(values)
         except Exception:
             pass
 
