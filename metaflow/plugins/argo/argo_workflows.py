@@ -252,8 +252,9 @@ class ArgoWorkflows(object):
         sensor_name = workflow_template["metadata"]["annotations"].get(
             "metaflow/sensor_name", name.replace(".", "-")
         )
+        # if below is missing then it was deployed before custom sensor namespaces
         sensor_namespace = workflow_template["metadata"]["annotations"].get(
-            "metaflow/sensor_namespace", ARGO_EVENTS_SENSOR_NAMESPACE
+            "metaflow/sensor_namespace", KUBERNETES_NAMESPACE
         )
 
         # Always try to delete the schedule. Failure in deleting the schedule should not
