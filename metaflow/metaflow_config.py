@@ -398,7 +398,7 @@ KUBERNETES_SANDBOX_INIT_SCRIPT = from_conf("KUBERNETES_SANDBOX_INIT_SCRIPT")
 
 OTEL_ENDPOINT = from_conf("OTEL_ENDPOINT")
 ZIPKIN_ENDPOINT = from_conf("ZIPKIN_ENDPOINT")
-# URL template for tracing links in the UI. 
+# URL template for tracing links in the UI.
 # An example value is "https://zipkin.example.com/trace/{trace_id}".
 TRACING_URL_TEMPLATE = from_conf("TRACING_URL_TEMPLATE")
 CONSOLE_TRACE_ENABLED = from_conf("CONSOLE_TRACE_ENABLED", False)
