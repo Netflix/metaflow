@@ -1,4 +1,4 @@
-from metaflow import FlowSpec, step
+from metaflow import FlowSpec, step, resources
 
 
 class HelloFlow(FlowSpec):
@@ -9,6 +9,7 @@ class HelloFlow(FlowSpec):
 
     """
 
+    @resources(cpu="500")  # this is intentional to cause a k8s failure
     @step
     def start(self):
         """

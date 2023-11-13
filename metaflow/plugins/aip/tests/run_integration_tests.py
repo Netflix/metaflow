@@ -51,12 +51,10 @@ non_standard_test_flows = [
 
 disabled_test_flows = [
     "aip_flow.py",  # kfp_preceding_component feature has been deprecated.
-    # "flow_triggering_flow.py",
-    # TODO(talebz) AIP-6717 re-enable for compilation changes or when cluster can handle
-    # "foreach_linear_foreach.py",
-    # "foreach_linear_split.py",
-    # "foreach_split_linear.py",
-    # "nested_foreach_with_branching.py",
+    "foreach_linear_foreach.py",
+    "foreach_linear_split.py",
+    "foreach_split_linear.py",
+    "nested_foreach_with_branching.py",
 ]
 
 
