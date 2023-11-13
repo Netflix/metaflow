@@ -5,6 +5,7 @@ import livereload from "rollup-plugin-livereload";
 import { terser } from "rollup-plugin-terser";
 import sveltePreprocess from "svelte-preprocess";
 import typescript from "@rollup/plugin-typescript";
+import json from "@rollup/plugin-json"
 /**
  * @NOTE: we are currently commenting out postcss,
  * it will be added back in a separate PR
@@ -77,7 +78,7 @@ export default {
       sourceMap: !production,
       inlineSources: !production,
     }),
-
+    json(),
     // In dev mode, call `npm run start` once
     // the bundle has been generated
     !production && serve(),

@@ -8,6 +8,7 @@
   import Heading from "./heading.svelte";
   import Image from "./image.svelte";
   import LineChart from "./line-chart.svelte";
+  import VegaChart from "./vega-chart.svelte";
   import Log from "./log.svelte";
   import Markdown from "./markdown.svelte";
   import Text from "./text.svelte";
@@ -27,6 +28,7 @@
     markdown: Markdown,
     progressBar: ProgressBar,
     text: Text,
+    vegaChart: VegaChart,
   };
 
   const type = (componentData as types.CardComponent)?.type;
