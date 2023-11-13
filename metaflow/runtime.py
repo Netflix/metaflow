@@ -18,7 +18,7 @@ from metaflow.datastore.exceptions import DataException
 
 from . import get_namespace
 from .metadata import MetaDatum
-from .metaflow_config import MAX_ATTEMPTS, UI_URL
+from .metaflow_config import MAX_ATTEMPTS, UI_URL, TRACING_URL_TEMPLATE
 from .exception import (
     MetaflowException,
     MetaflowInternalError,
@@ -310,6 +310,12 @@ class NativeRuntime(object):
                 )
             else:
                 self._logger("Done!", system_msg=True)
+            if TRACING_URL_TEMPLATE and tracing.get_trace_id():
+                tracing_log_template = "Tracing URL is %s" % TRACING_URL_TEMPLATE
+                self._logger(
+                    tracing_log_template.format(trace_id=tracing.get_trace_id()),
+                    system_msg=True,
+                )                
         elif self._clone_only:
             self._logger(
                 "Clone-only resume complete -- only previously successful steps were "

@@ -398,9 +398,13 @@ KUBERNETES_SANDBOX_INIT_SCRIPT = from_conf("KUBERNETES_SANDBOX_INIT_SCRIPT")
 
 OTEL_ENDPOINT = from_conf("OTEL_ENDPOINT")
 ZIPKIN_ENDPOINT = from_conf("ZIPKIN_ENDPOINT")
+# URL template for tracing links in the UI. 
+# An example value is "https://zipkin.example.com/trace/{trace_id}".
+TRACING_URL_TEMPLATE = from_conf("TRACING_URL_TEMPLATE")
 CONSOLE_TRACE_ENABLED = from_conf("CONSOLE_TRACE_ENABLED", False)
 # internal env used for preventing the tracing module from loading during Conda bootstrapping.
 DISABLE_TRACING = bool(os.environ.get("DISABLE_TRACING", False))
+DEBUG_TRACING = bool(os.environ.get("DEBUG_TRACING", False))
 
 # MAX_ATTEMPTS is the maximum number of attempts, including the first
 # task, retries, and the final fallback task and its retries.
