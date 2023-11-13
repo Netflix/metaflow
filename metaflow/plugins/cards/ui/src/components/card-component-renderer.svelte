@@ -16,6 +16,7 @@
   import Table from "./table.svelte";
   import Text from "./text.svelte";
   import Title from "./title.svelte";
+  import VegaChart from "./vega-chart.svelte";
 
   export let componentData: types.CardComponent;
 
@@ -36,6 +37,7 @@
       table: Table,
       text: Text,
       title: Title,
+      vegaChart: VegaChart,
     };
 
   let component = typesMap?.[componentData.type];

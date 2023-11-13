@@ -1,5 +1,7 @@
 import type { ChartConfiguration } from "chart.js";
 
+import type { VisualizationSpec } from "svelte-vega";
+
 export type Route = [string, string];
 
 export type Status = "success" | "error" | "idle" | "in-progress";
@@ -33,7 +35,8 @@ export type TableDataCell =
   | LogComponent
   | MarkdownComponent
   | ProgressBarComponent
-  | TextComponent;
+  | TextComponent
+  | VegaChartComponent;
 
 export type TableColumns = string[];
 export type TableData = TableDataCell[][];
@@ -206,6 +209,12 @@ export interface MarkdownComponent {
   source: string;
 }
 
+export interface VegaChartComponent {
+  type: "vegaChart";
+  id?: string;
+  spec: VisualizationSpec;
+  data: Record<string, unknown>;
+}
 // wrap all component options into a Component type
 export type CardComponent =
   | ArtifactsComponent
@@ -222,4 +231,5 @@ export type CardComponent =
   | SubtitleComponent
   | TableComponent
   | TextComponent
-  | TitleComponent;
+  | TitleComponent
+  | VegaChartComponent;
