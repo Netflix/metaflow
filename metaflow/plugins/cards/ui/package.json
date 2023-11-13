@@ -46,7 +46,11 @@
   "license": "UNLICENSED",
   "dependencies": {
     "@iconify/svelte": "^2.1.1",
+    "@rollup/plugin-json": "^6.0.1",
     "chart.js": "^3.7.0",
-    "svelte-markdown": "^0.2.1"
+    "svelte-markdown": "^0.2.1",
+    "svelte-vega": "^2.1.0",
+    "vega": "^5.26.1",
+    "vega-lite": "5.16.3"
   }
 }

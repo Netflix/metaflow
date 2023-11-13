@@ -1,4 +1,5 @@
 import type * as types from "./types";
+import type { VisualizationSpec } from "svelte-vega";
 import { writable } from "svelte/store";
 import type { Writable } from "svelte/store";
 
@@ -26,6 +27,24 @@ export const setCardDataFromWindow = ((window as any).metaflow_card_update = (
   return true;
 });
 
+const mutateChartElement = (
+  chart: types.VegaChartComponent,
+  newChart: types.VegaChartComponent,
+) => {
+  if (chart.data) {
+    chart.data = JSON.parse(JSON.stringify(newChart.data)) as Record<
+      string,
+      unknown
+    >;
+  }
+  const specHasChanged =
+    JSON.stringify(newChart.spec) === JSON.stringify(chart.spec);
+
+  if (specHasChanged) {
+    chart.spec = JSON.parse(JSON.stringify(newChart.spec)) as VisualizationSpec;
+  }
+};
+
 // NOTE: this function mutates the object! Be careful with it.
 const findAndMutateTree = (
   components: types.CardComponent[],
@@ -36,7 +55,15 @@ const findAndMutateTree = (
   );
 
   if (componentIndex > -1) {
-    Object.assign(components[componentIndex], newComponent);
+    if (components[componentIndex].type == "vegaChart") {
+      // if the component is a vegaChart, we need to merge the data
+      mutateChartElement(
+        components[componentIndex] as types.VegaChartComponent,
+        newComponent as types.VegaChartComponent,
+      );
+    } else {
+      Object.assign(components[componentIndex], newComponent);
+    }
   } else {
     // if the component has children, and nothing was found, run again with them
     components.forEach((component) => {
