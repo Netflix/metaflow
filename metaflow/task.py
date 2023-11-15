@@ -21,7 +21,7 @@ from .exception import (
 from .unbounded_foreach import UBF_CONTROL
 from .util import all_equal, get_username, resolve_identity, unicode_type
 from .current import current
-from metaflow.tracing import get_trace_id
+from metaflow.tracing import get_trace_id, get_tracing_url
 from collections import namedtuple
 
 ForeachFrame = namedtuple("ForeachFrame", ["step", "var", "num_splits", "index"])
@@ -423,6 +423,7 @@ class MetaflowTask(object):
                 tags=metadata_tags,
             ),
         ]
+
         trace_id = get_trace_id()
         if trace_id:
             metadata.append(
@@ -430,6 +431,17 @@ class MetaflowTask(object):
                     field="otel-trace-id",
                     value=trace_id,
                     type="trace-id",
+                    tags=metadata_tags,
+                )
+            )
+        # Add tracing url to metadata if available.
+        tracing_url = get_tracing_url()
+        if tracing_url:
+            metadata.append(
+                MetaDatum(
+                    field="tracing-url",
+                    value=tracing_url,
+                    type="tracing-url",
                     tags=metadata_tags,
                 )
             )

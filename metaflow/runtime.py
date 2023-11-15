@@ -217,8 +217,8 @@ class NativeRuntime(object):
                 "Workflow starting (run-id %s):" % self._run_id, system_msg=True
             )
 
-        if TRACING_URL_TEMPLATE and tracing.get_trace_id():
-            tracing_url = TRACING_URL_TEMPLATE.format(trace_id=tracing.get_trace_id())
+        tracing_url = tracing.get_tracing_url()
+        if tracing_url:
             self._logger(
                 "Tracing URL will appear in the following %s. " % tracing_url,
                 system_msg=True,
