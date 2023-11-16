@@ -622,7 +622,9 @@ class ArgoWorkflows(object):
             "metaflow/owner": self.username,
             "metaflow/user": "argo-workflows",
             "metaflow/flow_name": self.flow.name,
-            "metaflow/deployment_timestamp": str(datetime.now(timezone.utc).isoformat()),
+            "metaflow/deployment_timestamp": str(
+                datetime.now(timezone.utc).isoformat()
+            ),
         }
 
         if self.parameters:
