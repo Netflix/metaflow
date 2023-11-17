@@ -209,12 +209,6 @@ class ArgoWorkflows(object):
                     or old_sensor_namespace != ARGO_EVENTS_SENSOR_NAMESPACE
                 ):
                     client.delete_sensor(old_sensor_name, old_sensor_namespace)
-            # Clean up old schedules/cronworkflow
-            old_has_schedule = old_template["metadata"]["annotations"].get(
-                "metaflow/has_schedule"
-            )
-            if not self._schedule and (old_has_schedule is None or old_has_schedule):
-                client.delete_cronworkflow(self.name)
         except Exception as e:
             raise ArgoWorkflowsCleanupException(str(e))
 
@@ -381,10 +375,8 @@ class ArgoWorkflows(object):
         try:
             client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
-            if self._schedule:
-                client.schedule_workflow_template(
-                    self.name, self._schedule, self._timezone
-                )
+            # Create or suspend schedule
+            client.schedule_workflow_template(self.name, self._schedule, self._timezone)
             if self._sensor:
                 # Register sensor. Unfortunately, Argo Events Sensor names don't allow for
                 # dots (sensors run into an error) which rules out self.name :(
