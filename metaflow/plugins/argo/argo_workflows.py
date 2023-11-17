@@ -615,11 +615,16 @@ class ArgoWorkflows(object):
         # generate container templates at the top level (in WorkflowSpec) and maintain
         # references to them within the DAGTask.
 
+        from datetime import datetime, timezone
+
         annotations = {
             "metaflow/production_token": self.production_token,
             "metaflow/owner": self.username,
             "metaflow/user": "argo-workflows",
             "metaflow/flow_name": self.flow.name,
+            "metaflow/deployment_timestamp": str(
+                datetime.now(timezone.utc).isoformat()
+            ),
         }
 
         if self.parameters:
