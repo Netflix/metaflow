@@ -2,11 +2,9 @@
   import type { SvelteComponentDev } from "svelte/internal";
   import type * as types from "../types";
   import Artifacts from "./artifacts.svelte";
-  import BarChart from "./bar-chart.svelte";
   import Dag from "./dag/dag.svelte";
   import Heading from "./heading.svelte";
   import Image from "./image.svelte";
-  import LineChart from "./line-chart.svelte";
   import Log from "./log.svelte";
   import Markdown from "./markdown.svelte";
   import Page from "./page.svelte";
@@ -23,11 +21,9 @@
   const typesMap: Record<typeof componentData.type, typeof SvelteComponentDev> =
     {
       artifacts: Artifacts,
-      barChart: BarChart,
       dag: Dag,
       heading: Heading,
       image: Image,
-      lineChart: LineChart,
       log: Log,
       markdown: Markdown,
       page: Page,
