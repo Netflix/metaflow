@@ -11,6 +11,21 @@ from .basic import (
 from .card import MetaflowCardComponent
 from .convert_to_native_type import TaskToDict, _full_classname
 from .renderer_tools import render_safely
+import uuid
+
+
+def create_component_id(component):
+    uuid_bit = "".join(uuid.uuid4().hex.split("-"))[:6]
+    return type(component).__name__.lower() + "_" + uuid_bit
+
+
+def with_default_component_id(func):
+    def ret_func(self, *args, **kwargs):
+        if self.component_id is None:
+            self.component_id = create_component_id(self)
+        return func(self, *args, **kwargs)
+
+    return ret_func
 
 
 class UserComponent(MetaflowCardComponent):
@@ -51,6 +66,7 @@ class Artifact(UserComponent):
         self._name = name
         self._task_to_dict = TaskToDict(only_repr=compressed)
 
+    @with_default_component_id
     @render_safely
     def render(self):
         artifact = self._task_to_dict.infer_object(self._artifact)
@@ -164,6 +180,7 @@ class Table(UserComponent):
             for row in self._data
         ]
 
+    @with_default_component_id
     @render_safely
     def render(self):
         table_component = TableComponent(
@@ -381,6 +398,7 @@ class Image(UserComponent):
                 "%s" % traceback.format_exc(),
             )
 
+    @with_default_component_id
     @render_safely
     def render(self):
         if self._error_comp is not None:
@@ -453,8 +471,93 @@ class Markdown(UserComponent):
     def __init__(self, text=None):
         self._text = text
 
+    @with_default_component_id
     @render_safely
     def render(self):
         comp = MarkdownComponent(self._text)
         comp.component_id = self.component_id
         return comp.render()
+
+
+class ProgressBar(UserComponent):
+    type = "progressBar"
+
+    REALTIME_UPDATABLE = True
+
+    def __init__(self, max=100, label=None, value=0, unit=None, metadata=None):
+        self._label = label
+        self._max = max
+        self._value = value
+        self._unit = unit
+        self._metadata = metadata
+
+    def update(self, new_value, metadata=None):
+        self._value = new_value
+        if metadata is not None:
+            self._metadata = metadata
+
+    @with_default_component_id
+    @render_safely
+    def render(self):
+        data = {
+            "type": self.type,
+            "id": self.component_id,
+            "max": self._max,
+            "value": self._value,
+        }
+        if self._label:
+            data["label"] = self._label
+        if self._unit:
+            data["unit"] = self._unit
+        if self._metadata:
+            data["details"] = self._metadata
+        return data
+
+
+class VegaChart(UserComponent):
+    type = "vegaChart"
+
+    REALTIME_UPDATABLE = True
+
+    def __init__(self, spec, data=None):
+        self._spec = spec
+        self._data = data
+
+    def update(self, data=None, spec=None):
+        if spec is not None:
+            self._spec = spec
+        if data is not None:
+            self._data = data
+
+    @classmethod
+    def from_altair_chart(cls, altair_chart):
+        from metaflow.plugins.cards.card_modules.convert_to_native_type import (
+            _full_classname,
+        )
+
+        # This will feel slightly hacky but I am unable to find a natural way of determining the class
+        # name of the Altair chart. The only way I can think of is to use the full class name and then
+        # match with heuristics
+
+        fulclsname = _full_classname(altair_chart)
+        if not all([x in fulclsname for x in ["altair", "vegalite", "Chart"]]):
+            raise ValueError(fulclsname + " is not an altair chart")
+
+        altair_chart_dict = altair_chart.to_dict()
+
+        data_object = None
+        if "datasets" in altair_chart_dict:
+            data_object = altair_chart_dict["datasets"]
+            del altair_chart_dict["datasets"]
+        return cls(spec=altair_chart_dict, data=data_object)
+
+    @with_default_component_id
+    @render_safely
+    def render(self):
+        data = {
+            "type": self.type,
+            "id": self.component_id,
+            "spec": self._spec,
+            "data": self._data,
+        }
+        return data

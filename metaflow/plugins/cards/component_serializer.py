@@ -1,6 +1,6 @@
 from .card_modules import MetaflowCardComponent
 from .card_modules.basic import ErrorComponent, SectionComponent
-from .card_modules.components import UserComponent
+from .card_modules.components import UserComponent, create_component_id
 from .exception import ComponentOverwriteNotSupportedException
 from functools import partial
 import uuid
@@ -75,10 +75,6 @@ class ComponentStore:
             if c.REALTIME_UPDATABLE:
                 yield c
 
-    def _create_component_id(self, component):
-        uuid_bit = "".join(uuid.uuid4().hex.split("-"))[:6]
-        return type(component).__name__.lower() + "_" + uuid_bit
-
     def _store_component(self, component, component_id=None):
         if not _component_is_valid(component):
             warning_message(
@@ -90,7 +86,7 @@ class ComponentStore:
         if component_id is not None:
             component.component_id = component_id
         elif component.component_id is None:
-            component.component_id = self._create_component_id(component)
+            component.component_id = create_component_id(component)
         self._components.append(component)
         self._component_map[component.component_id] = self._components[-1]
         self._layout_last_changed_on = time.time()
