@@ -1,5 +1,3 @@
-import type { ChartConfiguration } from "chart.js";
-
 import type { VisualizationSpec } from "svelte-vega";
 
 export type Route = [string, string];
@@ -27,11 +25,9 @@ export type TableDataCell =
   | string
   | number
   | ArtifactsComponent
-  | BarChartComponent
   | DagComponent
   | HeadingComponent
   | ImageComponent
-  | LineChartComponent
   | LogComponent
   | MarkdownComponent
   | ProgressBarComponent
@@ -162,28 +158,6 @@ export interface TableComponent {
   vertical?: boolean;
 }
 
-// any chart that uses charts.js can be configured entirely custom by
-// passing in the custom chart config object.
-export interface DefaultChart {
-  config?: ChartConfiguration;
-}
-
-// you can pass in only a single line of data/label and we will render the chart
-export interface LineChartComponent extends DefaultChart {
-  type: "lineChart";
-  id?: string;
-  data?: number[];
-  labels?: string[] | number[];
-}
-
-// you can pass in only a single line of data/label and we will render the chart
-export interface BarChartComponent extends DefaultChart {
-  type: "barChart";
-  id?: string;
-  data?: number[];
-  labels?: string[] | number[];
-}
-
 export interface ArtifactsComponent {
   type: "artifacts";
   id?: string;
@@ -218,11 +192,9 @@ export interface VegaChartComponent {
 // wrap all component options into a Component type
 export type CardComponent =
   | ArtifactsComponent
-  | BarChartComponent
   | DagComponent
   | HeadingComponent
   | ImageComponent
-  | LineChartComponent
   | LogComponent
   | MarkdownComponent
   | PageComponent
