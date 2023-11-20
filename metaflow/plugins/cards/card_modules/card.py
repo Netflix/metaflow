@@ -115,6 +115,8 @@ class MetaflowCardComponent(object):
 
     _component_id = None
 
+    _logger = None
+
     @property
     def component_id(self):
         return self._component_id

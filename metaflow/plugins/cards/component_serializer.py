@@ -1,6 +1,10 @@
 from .card_modules import MetaflowCardComponent
 from .card_modules.basic import ErrorComponent, SectionComponent
-from .card_modules.components import UserComponent, create_component_id
+from .card_modules.components import (
+    UserComponent,
+    create_component_id,
+    NonExistingSubComponent,
+)
 from .exception import ComponentOverwriteNotSupportedException
 from functools import partial
 import uuid
@@ -34,6 +38,14 @@ def warning_message(message, logger=None, ts=False):
     if logger:
         msg = "[@card WARNING] %s" % message
         logger(msg, timestamp=ts, bad=True)
+
+
+def _get_stub(comp_id, logger):
+    stub = NonExistingSubComponent(
+        comp_id,
+    )
+    stub._logger = logger
+    return stub
 
 
 class WarningComponent(ErrorComponent):
@@ -87,6 +99,7 @@ class ComponentStore:
             component.component_id = component_id
         elif component.component_id is None:
             component.component_id = create_component_id(component)
+        setattr(component, "_logger", self._logger)
         self._components.append(component)
         self._component_map[component.component_id] = self._components[-1]
         self._layout_last_changed_on = time.time()
@@ -115,10 +128,10 @@ class ComponentStore:
 
     def __getitem__(self, key):
         if key not in self._component_map:
-            raise KeyError(
-                "MetaflowCardComponent with id `%s` not found. Available components for the cards include : %s"
-                % (key, ", ".join(self.keys()))
-            )
+            # Store a stub-component in place since `key` doesnt exist.
+            # If the user does a `current.card.append(component, id=key)`
+            # then the stub component will be replaced by the actual component.
+            self._store_component(NonExistingSubComponent(key), component_id=key)
         return self._component_map[key]
 
     def __delitem__(self, key):

@@ -28,8 +28,36 @@ def with_default_component_id(func):
     return ret_func
 
 
+def _warning_with_component(component, msg):
+    if component._logger is None:
+        return None
+    if component._warned_once:
+        return None
+    log_msg = "[@card-component WARNING] %s" % msg
+    component._logger(log_msg, timestamp=False, bad=True)
+    component._warned_once = True
+
+
 class UserComponent(MetaflowCardComponent):
-    pass
+
+    _warned_once = False
+
+    def update(self, *args, **kwargs):
+        cls_name = self.__class__.__name__
+        msg = (
+            "MetaflowCardComponent doesn't have an `update` method implemented "
+            "and is not compatible with realtime updates."
+        ) % cls_name
+        _warning_with_component(self, msg)
+
+
+class NonExistingSubComponent(UserComponent):
+    def __init__(self, component_id):
+        self._non_existing_comp_id = component_id
+
+    def update(self, *args, **kwargs):
+        msg = "Component with id %s doesn't exist. No updates will be made at anytime during runtime."
+        _warning_with_component(self, msg % self._non_existing_comp_id)
 
 
 class Artifact(UserComponent):
@@ -117,14 +145,25 @@ class Table(UserComponent):
         List (rows) of lists (columns). Each item can be a string or a `MetaflowCardComponent`.
     headers : List[str], optional
         Optional header row for the table.
+    disable_updates: bool, optional
+        A boolean value to disable realtime updates for all components within the table. Default: False
     """
 
     REALTIME_UPDATABLE = True
+
+    def update(self, *args, **kwargs):
+        msg = (
+            "`Table` doesn't have an `update` method implemented. "
+            "Components within a table can be updated individually "
+            "but the table itself cannot be updated."
+        )
+        _warning_with_component(self, msg)
 
     def __init__(
         self,
         data: Optional[List[List[Union[str, MetaflowCardComponent]]]] = None,
         headers: Optional[List[str]] = None,
+        disable_updates: bool = False,
     ):
         data = data or [[]]
         headers = headers or []
@@ -136,8 +175,15 @@ class Table(UserComponent):
         if data_bool:
             self._data = data
 
+        if disable_updates:
+            self.REALTIME_UPDATABLE = False
+
     @classmethod
-    def from_dataframe(cls, dataframe=None, truncate: bool = True):
+    def from_dataframe(
+        cls,
+        dataframe=None,
+        truncate: bool = True,
+    ):
         """
         Create a `Table` based on a Pandas dataframe.
 
@@ -154,11 +200,16 @@ class Table(UserComponent):
             table_data = task_to_dict._parse_pandas_dataframe(
                 dataframe, truncate=truncate
             )
-            return_val = cls(data=table_data["data"], headers=table_data["headers"])
+            return_val = cls(
+                data=table_data["data"],
+                headers=table_data["headers"],
+                disable_updates=True,
+            )
             return return_val
         else:
             return cls(
                 headers=["Object type %s not supported" % object_type],
+                disable_updates=True,
             )
 
     def _render_subcomponents(self):
@@ -239,23 +290,32 @@ class Image(UserComponent):
         The image data in `bytes`.
     label : str
         Optional label for the image.
+    disable_updates: bool
+        Disable realtime updates for the image. Default: True
     """
+
+    REALTIME_UPDATABLE = True
 
     @staticmethod
     def render_fail_headline(msg):
         return "[IMAGE_RENDER FAIL]: %s" % msg
 
-    def __init__(self, src=None, label=None):
-        self._error_comp = None
+    def _set_image_src(self, src, label=None):
         self._label = label
-
-        if type(src) is not str:
+        self._src = None
+        self._error_comp = None
+        if src is None:
+            self._error_comp = ErrorComponent(
+                self.render_fail_headline("`Image` Component `src` cannot be `None`"),
+                "",
+            )
+        elif type(src) is not str:
             try:
                 self._src = self._bytes_to_base64(src)
             except TypeError:
                 self._error_comp = ErrorComponent(
                     self.render_fail_headline(
-                        "first argument should be of type `bytes` or valid image base64 string"
+                        "The `Image` `src` argument should be of type `bytes` or valid image base64 string"
                     ),
                     "Type of %s is invalid" % (str(type(src))),
                 )
@@ -276,10 +336,85 @@ class Image(UserComponent):
             else:
                 self._error_comp = ErrorComponent(
                     self.render_fail_headline(
-                        "first argument should be of type `bytes` or valid image base64 string"
+                        "The `Image` `src` argument should be of type `bytes` or valid image base64 string"
                     ),
                     "String %s is invalid base64 string" % src,
                 )
+
+    def __init__(self, src=None, label=None, disable_updates: bool = True):
+        if disable_updates:
+            self.REALTIME_UPDATABLE = False
+        self._set_image_src(src, label=label)
+
+    @classmethod
+    def _parse_pil_image(cls, pilimage):
+        parsed_value = None
+        error_component = None
+        import io
+
+        PIL_IMAGE_PATH = "PIL.Image.Image"
+        task_to_dict = TaskToDict()
+        if task_to_dict.object_type(pilimage) != PIL_IMAGE_PATH:
+            return parsed_value, ErrorComponent(
+                cls.render_fail_headline(
+                    "first argument for `Image` should be of type %s" % PIL_IMAGE_PATH
+                ),
+                "Type of %s is invalid. Type of %s required"
+                % (task_to_dict.object_type(pilimage), PIL_IMAGE_PATH),
+            )
+        img_byte_arr = io.BytesIO()
+        try:
+            pilimage.save(img_byte_arr, format="PNG")
+        except OSError as e:
+            return parsed_value, ErrorComponent(
+                cls.render_fail_headline("PIL Image Not Parsable"), "%s" % repr(e)
+            )
+        img_byte_arr = img_byte_arr.getvalue()
+        parsed_value = task_to_dict.parse_image(img_byte_arr)
+        return parsed_value, error_component
+
+    @classmethod
+    def _parse_matplotlib(cls, plot):
+        import io
+        import traceback
+
+        parsed_value = None
+        error_component = None
+        try:
+            import matplotlib.pyplot as pyplt
+        except ImportError:
+            return parsed_value, ErrorComponent(
+                cls.render_fail_headline("Matplotlib cannot be imported"),
+                "%s" % traceback.format_exc(),
+            )
+        # First check if it is a valid Matplotlib figure.
+        figure = None
+        if _full_classname(plot) == "matplotlib.figure.Figure":
+            figure = plot
+
+        # If it is not valid figure then check if it is matplotlib.axes.Axes or a matplotlib.axes._subplots.AxesSubplot
+        # These contain the `get_figure` function to get the main figure object.
+        if figure is None:
+            if getattr(plot, "get_figure", None) is None:
+                return parsed_value, ErrorComponent(
+                    cls.render_fail_headline(
+                        "Invalid Type. Object %s is not from `matplotlib`" % type(plot)
+                    ),
+                    "",
+                )
+            else:
+                figure = plot.get_figure()
+
+        task_to_dict = TaskToDict()
+        img_bytes_arr = io.BytesIO()
+        figure.savefig(img_bytes_arr, format="PNG")
+        parsed_value = task_to_dict.parse_image(img_bytes_arr.getvalue())
+        pyplt.close(figure)
+        if parsed_value is not None:
+            return parsed_value, error_component
+        return parsed_value, ErrorComponent(
+            cls.render_fail_headline("Matplotlib plot's image is not parsable"), ""
+        )
 
     @staticmethod
     def _bytes_to_base64(bytes_arr):
@@ -304,40 +439,22 @@ class Image(UserComponent):
             Optional label for the image.
         """
         try:
-            import io
-
-            PIL_IMAGE_PATH = "PIL.Image.Image"
-            task_to_dict = TaskToDict()
-            if task_to_dict.object_type(pilimage) != PIL_IMAGE_PATH:
-                return ErrorComponent(
-                    cls.render_fail_headline(
-                        "first argument for `Image` should be of type %s"
-                        % PIL_IMAGE_PATH
-                    ),
-                    "Type of %s is invalid. Type of %s required"
-                    % (task_to_dict.object_type(pilimage), PIL_IMAGE_PATH),
-                )
-            img_byte_arr = io.BytesIO()
-            try:
-                pilimage.save(img_byte_arr, format="PNG")
-            except OSError as e:
-                return ErrorComponent(
-                    cls.render_fail_headline("PIL Image Not Parsable"), "%s" % repr(e)
-                )
-            img_byte_arr = img_byte_arr.getvalue()
-            parsed_image = task_to_dict.parse_image(img_byte_arr)
+            parsed_image, error_comp = cls._parse_pil_image(pilimage)
             if parsed_image is not None:
-                return cls(src=parsed_image, label=label)
-            return ErrorComponent(
-                cls.render_fail_headline("PIL Image Not Parsable"), ""
-            )
+                img = cls(src=parsed_image, label=label)
+            else:
+                img = cls(src=None, label=label)
+                img._error_comp = error_comp
+            return img
         except:
             import traceback
 
-            return ErrorComponent(
+            img = cls(src=None, label=label)
+            img._error_comp = ErrorComponent(
                 cls.render_fail_headline("PIL Image Not Parsable"),
                 "%s" % traceback.format_exc(),
             )
+            return img
 
     @classmethod
     def from_matplotlib(cls, plot, label: Optional[str] = None):
@@ -351,52 +468,23 @@ class Image(UserComponent):
         label : str, optional
             Optional label for the image.
         """
-        import io
-
         try:
-            try:
-                import matplotlib.pyplot as pyplt
-            except ImportError:
-                return ErrorComponent(
-                    cls.render_fail_headline("Matplotlib cannot be imported"),
-                    "%s" % traceback.format_exc(),
-                )
-            # First check if it is a valid Matplotlib figure.
-            figure = None
-            if _full_classname(plot) == "matplotlib.figure.Figure":
-                figure = plot
-
-            # If it is not valid figure then check if it is matplotlib.axes.Axes or a matplotlib.axes._subplots.AxesSubplot
-            # These contain the `get_figure` function to get the main figure object.
-            if figure is None:
-                if getattr(plot, "get_figure", None) is None:
-                    return ErrorComponent(
-                        cls.render_fail_headline(
-                            "Invalid Type. Object %s is not from `matplotlib`"
-                            % type(plot)
-                        ),
-                        "",
-                    )
-                else:
-                    figure = plot.get_figure()
-
-            task_to_dict = TaskToDict()
-            img_bytes_arr = io.BytesIO()
-            figure.savefig(img_bytes_arr, format="PNG")
-            parsed_image = task_to_dict.parse_image(img_bytes_arr.getvalue())
-            pyplt.close(figure)
+            parsed_image, error_comp = cls._parse_matplotlib(plot)
             if parsed_image is not None:
-                return cls(src=parsed_image, label=label)
-            return ErrorComponent(
-                cls.render_fail_headline("Matplotlib plot's image is not parsable"), ""
-            )
+                img = cls(src=parsed_image, label=label)
+            else:
+                img = cls(src=None, label=label)
+                img._error_comp = error_comp
+            return img
         except:
             import traceback
 
-            return ErrorComponent(
+            img = cls(src=None, label=label)
+            img._error_comp = ErrorComponent(
                 cls.render_fail_headline("Matplotlib plot's image is not parsable"),
                 "%s" % traceback.format_exc(),
             )
+            return img
 
     @with_default_component_id
     @render_safely
@@ -405,10 +493,58 @@ class Image(UserComponent):
             return self._error_comp.render()
 
         if self._src is not None:
-            return ImageComponent(src=self._src, label=self._label).render()
+            img_comp = ImageComponent(src=self._src, label=self._label)
+            img_comp.component_id = self.component_id
+            return img_comp.render()
         return ErrorComponent(
             self.render_fail_headline("`Image` Component `src` argument is `None`"), ""
         ).render()
+
+    def update(self, pilimage=None, plot=None, bytes=None, string=None, label=None):
+        """
+        Update the image.
+
+        Parameters
+        ----------
+        pilimage : PIL.Image, optional
+            a PIL image object.
+        plot :  matplotlib.figure.Figure or matplotlib.axes.Axes or matplotlib.axes._subplots.AxesSubplot, optional
+            a PIL axes (plot) object.
+        bytes : bytes, optional
+            The image data in `bytes`.
+        string : str, optional
+            The image data in base64 string.
+        label : str, optional
+            Optional label for the image.
+        """
+        if not self.REALTIME_UPDATABLE:
+            msg = (
+                "The `Image` component is disabled for realtime updates. "
+                "Please set `disable_updates` to `False` while creating the `Image` object."
+            )
+            _warning_with_component(self, msg)
+            return
+
+        _label = label if label is not None else self._label
+        if bytes is not None:
+            self._set_image_src(bytes, label=_label)
+            return
+        elif string is not None:
+            self._set_image_src(string, label=_label)
+            return
+
+        parsed_image = None
+        err_comp = None
+        if pilimage is not None:
+            parsed_image, err_comp = self._parse_pil_image(pilimage)
+        elif plot is not None:
+            parsed_image, err_comp = self._parse_matplotlib(plot)
+
+        if parsed_image is not None:
+            self._set_image_src(parsed_image, label=_label)
+        else:
+            self._set_image_src(None, label=_label)
+            self._error_comp = err_comp
 
 
 class Error(UserComponent):
