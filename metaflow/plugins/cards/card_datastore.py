@@ -95,9 +95,7 @@ class CardDatastore(object):
         self._run_id = run_id
         self._step_name = step_name
         self._pathspec = pathspec
-        self._temp_card_save_path = self._get_write_path(
-            base_pth=TEMP_DIR_NAME, suffix=CardPathSuffix.CARD
-        )
+        self._temp_card_save_path = self._get_card_write_path(base_pth=TEMP_DIR_NAME)
 
     @classmethod
     def get_card_location(
@@ -153,23 +151,39 @@ class CardDatastore(object):
             pth_arr.pop(0)
         return os.path.join(*pth_arr)
 
-    def _get_write_path(self, base_pth="", suffix=CardPathSuffix.CARD):
+    def _get_data_read_path(self, base_pth=""):
         return self._make_path(
-            base_pth, pathspec=self._pathspec, with_steps=True, suffix=suffix
+            base_pth=base_pth,
+            pathspec=self._pathspec,
+            with_steps=True,
+            suffix=CardPathSuffix.DATA,
         )
 
-    def _get_read_path(self, base_pth="", with_steps=False, suffix=CardPathSuffix.CARD):
-        # Data paths will always be under the path with steps
-        if suffix == CardPathSuffix.DATA:
-            return self._make_path(
-                base_pth=base_pth,
-                pathspec=self._pathspec,
-                with_steps=True,
-                suffix=suffix,
-            )
-
+    def _get_data_write_path(self, base_pth=""):
         return self._make_path(
-            base_pth, pathspec=self._pathspec, with_steps=with_steps, suffix=suffix
+            base_pth=base_pth,
+            pathspec=self._pathspec,
+            with_steps=True,
+            suffix=CardPathSuffix.DATA,
+        )
+
+    def _get_card_write_path(
+        self,
+        base_pth="",
+    ):
+        return self._make_path(
+            base_pth,
+            pathspec=self._pathspec,
+            with_steps=True,
+            suffix=CardPathSuffix.CARD,
+        )
+
+    def _get_card_read_path(self, base_pth="", with_steps=False):
+        return self._make_path(
+            base_pth,
+            pathspec=self._pathspec,
+            with_steps=with_steps,
+            suffix=CardPathSuffix.CARD,
         )
 
     @staticmethod
@@ -205,7 +219,7 @@ class CardDatastore(object):
     def save_data(self, uuid, card_type, json_data, card_id=None):
         card_file_name = card_type
         loc = self.get_card_location(
-            self._get_write_path(suffix=CardPathSuffix.DATA),
+            self._get_data_write_path(),
             card_file_name,
             uuid,
             card_id=card_id,
@@ -235,7 +249,7 @@ class CardDatastore(object):
         # It will also easily end up breaking the metaflow-ui (which maybe using a client from an older version).
         # Hence, we are writing cards to both paths so that we can introduce breaking changes later in the future.
         card_path_with_steps = self.get_card_location(
-            self._get_write_path(suffix=CardPathSuffix.CARD),
+            self._get_card_write_path(),
             card_file_name,
             uuid,
             card_id=card_id,
@@ -248,7 +262,7 @@ class CardDatastore(object):
             )
         else:
             card_path_without_steps = self.get_card_location(
-                self._get_read_path(with_steps=False, suffix=CardPathSuffix.CARD),
+                self._get_card_read_path(with_steps=False),
                 card_file_name,
                 uuid,
                 card_id=card_id,
@@ -265,12 +279,12 @@ class CardDatastore(object):
         # Check for new cards first
         card_paths = []
         card_paths_with_steps = self._backend.list_content(
-            [self._get_read_path(with_steps=True, suffix=CardPathSuffix.CARD)]
+            [self._get_card_read_path(with_steps=True)]
         )
 
         if len(card_paths_with_steps) == 0:
             card_paths_without_steps = self._backend.list_content(
-                [self._get_read_path(with_steps=False, suffix=CardPathSuffix.CARD)]
+                [self._get_card_read_path(with_steps=False)]
             )
             if len(card_paths_without_steps) == 0:
                 # If there are no files found on the Path then raise an error of
@@ -302,9 +316,7 @@ class CardDatastore(object):
         return cards_found
 
     def _list_card_data(self, card_type=None, card_hash=None, card_id=None):
-        card_data_paths = self._backend.list_content(
-            [self._get_read_path(suffix=CardPathSuffix.DATA, with_steps=False)]
-        )
+        card_data_paths = self._backend.list_content([self._get_data_read_path()])
         data_found = []
 
         for data_path in card_data_paths:
