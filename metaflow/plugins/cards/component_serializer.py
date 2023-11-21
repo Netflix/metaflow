@@ -7,7 +7,6 @@ from .card_modules.components import (
 )
 from .exception import ComponentOverwriteNotSupportedException
 from metaflow.metaflow_config import RUNTIME_CARD_RENDER_INTERVAL
-from functools import partial
 import uuid
 import json
 import time

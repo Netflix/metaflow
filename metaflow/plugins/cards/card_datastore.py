@@ -3,7 +3,6 @@
 """
 
 from collections import namedtuple
-from hashlib import sha1
 from io import BytesIO
 import os
 import json
