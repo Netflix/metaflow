@@ -121,7 +121,7 @@ class Pip(object):
 
             def _grab_wheel_from_path(path):
                 wheels = [
-                    os.path.join(path, f)
+                    f
                     for f in os.listdir(path)
                     if os.path.isfile(os.path.join(path, f)) and f.endswith(".whl")
                 ]
@@ -137,9 +137,9 @@ class Pip(object):
                 os.mkdir("%s/.pip/wheels" % prefix)
 
             for package, local_path in results:
-                built_wheel_path = _grab_wheel_from_path(local_path)
-                target_path = "%s/.pip/wheels/%s" % (prefix, package["wheel_name"])
-                shutil.copy(built_wheel_path, target_path)
+                built_wheel = _grab_wheel_from_path(local_path)
+                target_path = "%s/.pip/wheels/%s" % (prefix, built_wheel)
+                shutil.copy(os.path.join(local_path, built_wheel), target_path)
                 metadata[package["url"]] = target_path
 
         # write the url to wheel mappings in a magic location
@@ -222,6 +222,7 @@ class Pip(object):
     def create(self, id_, packages, python, platform):
         prefix = self.micromamba.path_to_environment(id_)
         installation_marker = INSTALLATION_MARKER.format(prefix=prefix)
+        url_mappings = self.metadata(id_, packages, python, platform)
         # install packages only if they haven't been installed before
         if os.path.isfile(installation_marker):
             return
@@ -237,17 +238,28 @@ class Pip(object):
                 "--quiet",
             ]
             for package in packages:
-                cmd.append("{url}".format(**package))
+                cmd.append(url_mappings[package["url"]])
             self._call(prefix, cmd)
         with open(installation_marker, "w") as file:
             file.write(json.dumps({"id": id_}))
 
     def metadata(self, id_, packages, python, platform):
-        # read the url to wheel mappings from a magic location
+        # read the url to wheel mappings from a magic location.
+        # Combine the metadata and build_metadata files, allowing build_metadata mappings to override.
         prefix = self.micromamba.path_to_environment(id_)
         metadata_file = METADATA_FILE.format(prefix=prefix)
-        with open(metadata_file, "r") as file:
-            return json.load(file)
+        build_metadata_file = BUILD_METADATA_FILE.format(prefix=prefix)
+        meta = {}
+        build_meta = {}
+        try:
+            with open(metadata_file, "r") as file:
+                meta = json.load(file)
+            with open(build_metadata_file, "r") as file:
+                build_meta = json.load(file)
+        except FileNotFoundError:
+            pass
+
+        return {**meta, **build_meta}
 
     def indices(self, prefix):
         indices = []
