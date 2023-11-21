@@ -9,6 +9,8 @@ from .exception import ComponentOverwriteNotSupportedException
 from metaflow.metaflow_config import RUNTIME_CARD_RENDER_INTERVAL
 import uuid
 import json
+import platform
+from collections import OrderedDict
 import time
 
 _TYPE = type
@@ -54,13 +56,26 @@ class ComponentStore:
 
     """
 
+    def _set_component_map(self):
+        """
+        The `_component_map` attribute is supposed to be a dictionary so that we can access the components by their ids.
+        But we also want to maintain order since all of these components are going to a UI. Since python3.6 dictionaries are
+        ordered by default we can use a dictionary as a map. But for python3.5 and below we need to use an OrderedDict.
+        """
+        python_version = int(platform.python_version_tuple()[0]) * 10 + int(
+            platform.python_version_tuple()[1]
+        )
+        if python_version < 36:
+            self._component_map = OrderedDict()
+        else:
+            self._component_map = {}
+
     def __init__(self, logger, card_type=None, components=None, user_set_id=None):
-        self._component_map = {}
-        self._components = []
         self._logger = logger
         self._card_type = card_type
         self._user_set_id = user_set_id
         self._layout_last_changed_on = time.time()
+        self._set_component_map()
         if components is not None:
             for c in list(components):
                 self._store_component(c, component_id=None)
@@ -71,7 +86,7 @@ class ComponentStore:
         return self._layout_last_changed_on
 
     def _realtime_updateable_components(self):
-        for c in self._components:
+        for c in self._component_map.values():
             if c.REALTIME_UPDATABLE:
                 yield c
 
@@ -88,17 +103,15 @@ class ComponentStore:
         elif component.component_id is None:
             component.component_id = create_component_id(component)
         setattr(component, "_logger", self._logger)
-        self._components.append(component)
-        self._component_map[component.component_id] = self._components[-1]
+        self._component_map[component.component_id] = component
         self._layout_last_changed_on = time.time()
 
     def _remove_component(self, component_id):
-        self._components.remove(self._component_map[component_id])
         del self._component_map[component_id]
         self._layout_last_changed_on = time.time()
 
     def __iter__(self):
-        return iter(self._components)
+        return iter(self._component_map.values())
 
     def __setitem__(self, key, value):
         if self._component_map.get(key) is not None:
@@ -141,20 +154,19 @@ class ComponentStore:
             self._store_component(c, component_id=None)
 
     def clear(self):
-        self._components.clear()
         self._component_map.clear()
 
     def keys(self):
         return list(self._component_map.keys())
 
     def values(self):
-        return self._components
+        return self._component_map.values()
 
     def __str__(self):
         return "Card components present in the card: `%s` " % ("`, `".join(self.keys()))
 
     def __len__(self):
-        return len(self._components)
+        return len(self._component_map)
 
 
 def _object_is_json_serializable(obj):
