@@ -119,7 +119,6 @@ if __name__ == "__main__":
                 shutil.move(tmpfile, dest)
 
         # Install PyPI packages.
-        # *.whl for regular index sources, *.zip for VCS sources
         cmds.extend(
             [
                 f"""set -e;
