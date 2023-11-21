@@ -81,6 +81,7 @@ class CardCreator:
             component_strings,
             logger,
             data,
+            final=final,
         )
 
     def _run_cards_subprocess(
@@ -94,9 +95,10 @@ class CardCreator:
         component_strings,
         logger,
         data=None,
+        final=False,
     ):
         components_file = data_file = None
-        wait = mode == "render"
+        wait = final
 
         if len(component_strings) > 0:
             # note that we can't delete temporary files here when calling the subprocess
@@ -164,6 +166,14 @@ class CardCreator:
                 bad=True,
             )
 
+    def _wait_for_async_processes_to_finish(self, card_uuid, async_timeout):
+        _async_proc, _async_started = CardProcessManager._get_card_process(card_uuid)
+        while _async_proc is not None and _async_proc.poll() is None:
+            if time.time() - _async_started > async_timeout:
+                # This means the process has crossed the timeout and we need to kill it.
+                CardProcessManager._remove_card_process(card_uuid)
+                break
+
     def _run_command(self, cmd, card_uuid, env, wait=True, timeout=None):
         fail = False
         timeout_args = {}
@@ -173,6 +183,7 @@ class CardCreator:
             timeout_args = dict(timeout=int(timeout) + 10)
 
         if wait:
+            self._wait_for_async_processes_to_finish(card_uuid, async_timeout)
             try:
                 rep = subprocess.check_output(
                     cmd, env=env, stderr=subprocess.STDOUT, **timeout_args
