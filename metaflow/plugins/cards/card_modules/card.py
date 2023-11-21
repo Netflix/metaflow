@@ -63,6 +63,9 @@ class MetaflowCard(object):
 
     scope = "task"  # can be task | run
 
+    # FIXME document runtime_data
+    runtime_data = None
+
     def __init__(self, options={}, components=[], graph=None):
         pass
 
@@ -74,8 +77,7 @@ class MetaflowCard(object):
         except ImportError:
             return None
 
-    # FIXME document data
-    def render(self, task, data=None) -> str:
+    def render(self, task) -> str:
         """
         Produce custom card contents in HTML.
 

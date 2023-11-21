@@ -8,7 +8,6 @@ import os
 import json
 import uuid
 import signal
-import inspect
 import random
 from contextlib import contextmanager
 from functools import wraps
@@ -427,7 +426,7 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
     """
 
     def _reload_token():
-        if data is None or "render_seq" not in data:
+        if "render_seq" not in data:
             return "never"
 
         if data["render_seq"] == "final":
@@ -461,27 +460,21 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
             return None, False
 
     def _call():
-        # check compatibility with old render()-method that doesn't accept the data arg
-        new_render = "data" in inspect.getfullargspec(mf_card.render).args
         if mode == "render":
-            if new_render:
-                output = _add_token_html(mf_card.render(task, data))
-                return CardRenderInfo(
-                    mode=mode,
-                    is_implemented=True,
-                    data=output,
-                    timed_out=False,
-                    timeout_stack_trace=None,
-                )
-            else:
-                output = _add_token_html(mf_card.render(task))
-                return CardRenderInfo(
-                    mode=mode,
-                    is_implemented=True,
-                    data=output,
-                    timed_out=False,
-                    timeout_stack_trace=None,
-                )
+            setattr(
+                mf_card.__class__,
+                "runtime_data",
+                property(fget=lambda _, data=data: data),
+            )
+            output = _add_token_html(mf_card.render(task))
+            return CardRenderInfo(
+                mode=mode,
+                is_implemented=True,
+                data=output,
+                timed_out=False,
+                timeout_stack_trace=None,
+            )
+
         elif mode == "render_runtime":
             # Since many cards created by metaflow users may not have implemented a
             # `render_time` / `refresh` methods, it can result in an exception and thereby
