@@ -124,7 +124,7 @@ if __name__ == "__main__":
             [
                 f"""set -e;
                 export PATH=$PATH:$(pwd)/micromamba;
-                micromamba run --prefix {prefix} pip --disable-pip-version-check install --root-user-action=ignore --no-compile {pypi_pkgs_dir}/*"""
+                micromamba run --prefix {prefix} pip --disable-pip-version-check install --root-user-action=ignore --no-compile {pypi_pkgs_dir}/*.whl"""
             ]
         )
 
