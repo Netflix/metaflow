@@ -1,5 +1,4 @@
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from functools import partial
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 import re
