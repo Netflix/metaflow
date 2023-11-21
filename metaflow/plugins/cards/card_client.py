@@ -159,12 +159,12 @@ class CardContainer:
     ```
     """
 
-    def __init__(self, card_paths, card_ds, from_resumed=False, origin_pathspec=None):
+    def __init__(self, card_paths, card_ds, origin_pathspec=None):
         self._card_paths = card_paths
         self._card_ds = card_ds
         self._current = 0
         self._high = len(card_paths)
-        self.from_resumed = from_resumed
+        self.from_resumed = origin_pathspec is not None
         self.origin_pathspec = origin_pathspec
 
     def __len__(self):
@@ -273,7 +273,6 @@ def get_cards(
     return CardContainer(
         card_paths,
         card_ds,
-        from_resumed=origin_taskpathspec is not None,
         origin_pathspec=origin_taskpathspec,
     )
 
