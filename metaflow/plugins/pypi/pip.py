@@ -1,6 +1,9 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import partial
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 from itertools import chain, product
@@ -22,6 +25,7 @@ class PipException(MetaflowException):
 
 
 METADATA_FILE = "{prefix}/.pip/metadata"
+BUILD_METADATA_FILE = "{prefix}/.pip/build_metadata"
 INSTALLATION_MARKER = "{prefix}/.pip/id"
 
 # TODO:
@@ -82,25 +86,98 @@ class Pip(object):
                 res = {k: v for k, v in dl_info.items() if k in ["url"]}
                 # Infer wheel name from url
                 res["wheel_name"] = res["url"].split("/")[-1]
+                res["require_build"] = False
+                # If wheel name is not a wheel, we need to build the target. Construct a wheel name and add a build flag
+                if not res["wheel_name"].endswith(".whl"):
+                    res["wheel_name"] = "{name}-{version}.whl".format(
+                        name=item["metadata"]["name"],
+                        version=item["metadata"]["version"],
+                    )
+                    res["require_build"] = True
+
                 # reconstruct the VCS url and pin to current commit_id
                 # so using @branch as a version acts somewhat as expected.
                 vcs_info = dl_info.get("vcs_info")
                 if vcs_info:
                     res["url"] = "{vcs}+{url}@{commit_id}".format(**vcs_info, **res)
-                    # VCS source packages get downloaded as 'name-version.zip'
-                    # so we explicitly record this as the wheel name for later use.
-                    res["wheel_name"] = "{name}-{version}.zip".format(
-                        name=item["metadata"]["name"],
-                        version=item["metadata"]["version"],
-                    )
                 return res
 
             with open(report, mode="r", encoding="utf-8") as f:
                 return [_format_item(item) for item in json.load(f)["install"]]
 
+    def build_wheels(self, id_, packages, python, platform):
+        prefix = self.micromamba.path_to_environment(id_)
+        build_metadata_file = BUILD_METADATA_FILE.format(prefix=prefix)
+        # skip build if it has been tried already.
+        if os.path.isfile(build_metadata_file):
+            return
+        metadata = {}
+        with ThreadPoolExecutor() as executor:
+            results = list(
+                executor.map(
+                    lambda x: self._build_wheel(*x, prefix), enumerate(packages)
+                )
+            )
+
+            def _grab_wheel_from_path(path):
+                wheels = [
+                    os.path.join(path, f)
+                    for f in os.listdir(path)
+                    if os.path.isfile(os.path.join(path, f)) and f.endswith(".whl")
+                ]
+                if len(wheels) != 1:
+                    raise Exception(
+                        "Incorrect number of wheels found in path %s after building: %s"
+                        % (path, wheels)
+                    )
+                return wheels[0]
+
+            # Create wheels path if it does not exist yet, which is possible as we build before downloading.
+            if not os.path.isdir("%s/.pip/wheels" % prefix):
+                os.mkdir("%s/.pip/wheels" % prefix)
+
+            for package, local_path in results:
+                built_wheel_path = _grab_wheel_from_path(local_path)
+                target_path = "%s/.pip/wheels/%s" % (prefix, package["wheel_name"])
+                shutil.copy(built_wheel_path, target_path)
+                metadata[package["url"]] = target_path
+
+        # write the url to wheel mappings in a magic location
+        with open(build_metadata_file, "w") as file:
+            file.write(json.dumps(metadata))
+
+    def _build_wheel(self, key, package, prefix):
+        custom_index_url, extra_index_urls = self.indices(prefix)
+        dest = "%s/.pip/built_wheels/%s" % (prefix, key)
+        cmd = [
+            "wheel",
+            "--no-deps",
+            "--progress-bar=off",
+            "-w",
+            dest,
+            "--quiet",
+            *(["--index-url", custom_index_url] if custom_index_url else []),
+            *(
+                chain.from_iterable(
+                    product(["--extra-index-url"], set(extra_index_urls))
+                )
+            ),
+            package["url"],
+        ]
+        self._call(prefix, cmd)
+        return package, dest
+
     def download(self, id_, packages, python, platform):
         prefix = self.micromamba.path_to_environment(id_)
         metadata_file = METADATA_FILE.format(prefix=prefix)
+        # Branch off to building wheels if any are required:
+        build_packages = [package for package in packages if package["require_build"]]
+        download_packages = [
+            package for package in packages if not package["require_build"]
+        ]
+        if build_packages:
+            self.build_wheels(id_, build_packages, python, platform)
+
         # download packages only if they haven't ever been downloaded before
         if os.path.isfile(metadata_file):
             return
@@ -131,7 +208,7 @@ class Pip(object):
             *(chain.from_iterable(product(["--platform"], set(platforms)))),
             # *(chain.from_iterable(product(["--implementations"], set(implementations)))),
         ]
-        for package in packages:
+        for package in download_packages:
             cmd.append(package["url"])
             # record the url-to-path mapping fo wheels in metadata file.
             metadata[package["url"]] = "{prefix}/.pip/wheels/{wheel}".format(
