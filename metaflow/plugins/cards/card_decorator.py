@@ -55,6 +55,7 @@ class CardDecorator(StepDecorator):
         "id": None,
         "save_errors": True,
         "customize": False,
+        "refresh_interval": 5,
     }
     allow_multiple = True
 
@@ -190,6 +191,7 @@ class CardDecorator(StepDecorator):
             editable=self._is_editable,
             customize=customize,
             runtime_card=self._is_runtime_card,
+            refresh_interval=self.attributes["refresh_interval"],
         )
         self._card_uuid = card_metadata["uuid"]
 

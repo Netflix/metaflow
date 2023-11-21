@@ -6,16 +6,13 @@ from .card_modules.components import (
     StubComponent,
 )
 from .exception import ComponentOverwriteNotSupportedException
+from metaflow.metaflow_config import RUNTIME_CARD_RENDER_INTERVAL
 from functools import partial
 import uuid
 import json
 import time
 
 _TYPE = type
-
-# TODO move these to config
-RUNTIME_CARD_MIN_REFRESH_INTERVAL = 5
-RUNTIME_CARD_RENDER_INTERVAL = 60
 
 
 def get_card_class(card_type):
@@ -222,6 +219,7 @@ class CardComponentManager:
         user_set_card_id=None,
         runtime_card=False,
         card_options=None,
+        refresh_interval=5,
     ):
         self._card_creator_args = dict(
             card_uuid=card_uuid,
@@ -232,6 +230,7 @@ class CardComponentManager:
             logger=logger,
         )
         self._card_creator = card_creator
+        self._refresh_interval = refresh_interval
         self._last_layout_change = None
         self._latest_user_data = None
         self._last_refresh = 0
@@ -276,8 +275,7 @@ class CardComponentManager:
         self._latest_user_data = data
         nu = time.time()
 
-        # FIXME: make `RUNTIME_CARD_MIN_REFRESH_INTERVAL` customizable at decorator level.
-        if nu - self._last_refresh < RUNTIME_CARD_MIN_REFRESH_INTERVAL:
+        if nu - self._last_refresh < self._refresh_interval:
             # rate limit refreshes: silently ignore requests that
             # happen too frequently
             return
@@ -450,6 +448,7 @@ class CardComponentCollector:
         customize=False,
         suppress_warnings=False,
         runtime_card=False,
+        refresh_interval=5,
     ):
         """
         This function helps collect cards from all the card decorators.
@@ -475,6 +474,7 @@ class CardComponentCollector:
             runtime_card=runtime_card,
             decorator_attributes=decorator_attributes,
             card_options=card_options,
+            refresh_interval=refresh_interval,
         )
         self._cards_meta[card_uuid] = card_metadata
         self._card_component_store[card_uuid] = CardComponentManager(
@@ -487,6 +487,7 @@ class CardComponentCollector:
             user_set_card_id=card_id,
             runtime_card=runtime_card,
             card_options=card_options,
+            refresh_interval=refresh_interval,
         )
         return card_metadata
 
@@ -676,6 +677,7 @@ class CardComponentCollector:
                 user_set_card_id=key,
                 card_options=self._cards_meta[card_uuid]["card_options"],
                 runtime_card=self._cards_meta[card_uuid]["runtime_card"],
+                refresh_interval=self._cards_meta[card_uuid]["refresh_interval"],
             )
             return
 
