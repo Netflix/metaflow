@@ -128,6 +128,7 @@ class Pip(object):
     def create(self, id_, packages, python, platform):
         prefix = self.micromamba.path_to_environment(id_)
         installation_marker = INSTALLATION_MARKER.format(prefix=prefix)
+        url_mappings = self.metadata(id_, packages, python, platform)
         # install packages only if they haven't been installed before
         if os.path.isfile(installation_marker):
             return
@@ -143,7 +144,7 @@ class Pip(object):
                 "--quiet",
             ]
             for package in packages:
-                cmd.append("{url}".format(**package))
+                cmd.append(url_mappings[package["url"]])
             self._call(prefix, cmd)
         with open(installation_marker, "w") as file:
             file.write(json.dumps({"id": id_}))
