@@ -45,22 +45,19 @@ class WarningComponent(ErrorComponent):
 
 class ComponentStore:
     """
-    The `ComponentStore` class handles the in-memory storage of the components for a single card.
-    This class has combination of a array/dictionary like interface to access the components.
+    The `ComponentStore` object helps store the components for a single card in memory.
+    This class has combination of a array/dictionary like interfaces to access/change the stored components.
 
-    It exposes the `append` /`extend` methods like an array to add components.
-    It also exposes the `__getitem__`/`__setitem__` methods like a dictionary to access the components by their Ids.
-
-    The reason this has dual behavior is because components cannot be stored entirely as a map/dictionary because
-    the order of the components matter. The order of the components will visually affect the order of the components seen on the browser.
-
+    It exposes the `append` /`extend` methods (like an array) to add components.
+    It also exposes the `__getitem__`/`__setitem__` methods (like a dictionary) to access the components by their Ids.
     """
 
     def _set_component_map(self):
         """
         The `_component_map` attribute is supposed to be a dictionary so that we can access the components by their ids.
-        But we also want to maintain order since all of these components are going to a UI. Since python3.6 dictionaries are
-        ordered by default we can use a dictionary as a map. But for python3.5 and below we need to use an OrderedDict.
+        But we also want to maintain order in which components are inserted since all of these components are going to be visible on a UI.
+        Since python3.6 dictionaries are ordered by default so we can use the default python `dict`.
+        For python3.5 and below we need to use an OrderedDict since `dict`'s are not ordered by default.
         """
         python_version = int(platform.python_version_tuple()[0]) * 10 + int(
             platform.python_version_tuple()[1]
@@ -179,31 +176,19 @@ def _object_is_json_serializable(obj):
 
 class CardComponentManager:
     """
-    This class manages the components for a single card.
-    It uses the `ComponentStore` to manage the storage of the components
-    and exposes methods to add, remove and access the components.
-
-    It also exposes a `refresh` method that will allow refreshing a card with new data
+    This class manages the card's state for a single card.
+    - It uses the `ComponentStore` to manage the storage of the components
+    - It exposes methods to add, remove and access the components.
+    - It exposes a `refresh` method that will allow refreshing a card with new data
     for realtime(ish) updates.
-
-    The `CardComponentCollector` class helps manage interaction with individual cards. The `CardComponentManager`
-    class helps manage the components for a single card.
-    The `CardComponentCollector` class uses this class to manage the components for a single card.
-
-    The `CardComponentCollector` exposes convinience methods similar to this class for a default editable card.
-    `CardComponentCollector` resolves the default editable card at the time of task initialization and
-    exposes component manipulation methods for that card. These methods include :
-
+    - The `CardComponentCollector` exposes convenience methods similar to this class for a default
+    editable card. These methods include :
         - `append`
         - `extend`
         - `clear`
         - `refresh`
         - `components`
         - `__iter__`
-
-    Under the hood these common methods will call the corresponding methods on the `CardComponentManager`.
-    `CardComponentManager` leverages the `ComponentStore` under the hood to actually add/update/remove components
-    under the hood.
 
     ## Usage Patterns :
 
@@ -215,7 +200,6 @@ class CardComponentManager:
     current.card["mycardid"].components["comp123"].update()
     current.card["mycardid"].components.clear() # Wipe all the components
     del current.card["mycardid"].components["mycomponentid"] # Delete a component
-    current.card["mycardid"].components["mynewcomponent"] = Markdown("## New Component") # Set a new component
     ```
     """
 

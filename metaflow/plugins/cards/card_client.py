@@ -5,7 +5,7 @@ from .card_resolver import resolve_paths_from_task, resumed_info
 from .card_datastore import CardDatastore, CardNameSuffix
 from .exception import (
     UnresolvableDatastoreException,
-    IncorrectArguementException,
+    IncorrectArgumentException,
     IncorrectPathspecException,
 )
 import os
@@ -259,7 +259,7 @@ def get_cards(
         task = Task(task_str)
     elif not isinstance(task, Task):
         # Exception that the task argument should be of form `Task` or `str`
-        raise IncorrectArguementException(_TYPE(task))
+        raise IncorrectArgumentException(_TYPE(task))
 
     origin_taskpathspec = None
     if follow_resumed:

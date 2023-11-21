@@ -384,7 +384,7 @@ def card_read_options_and_arguments(func):
 
 def update_card(mf_card, mode, task, data, timeout_value=None):
     """
-    This method will be resposible for returning creating a card/data-update based on the `mode` passed.
+    This method will be responsible for creating a card/data-update based on the `mode`.
     There are three possible modes taken by this function.
         - render :
             - This will render the "final" card.
@@ -418,11 +418,11 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
     Returns
     -------
     CardRenderInfo
-        NamedTuple which will contain:
+        - NamedTuple which will contain:
             - `mode`: The mode of rendering the card.
-            - `is_implemented`: weather the function was implemented or not.
+            - `is_implemented`: whether the function was implemented or not.
             - `data` : output from rendering the card (Can be string/dict)
-            - `timed_out` : weather the function timed out or not.
+            - `timed_out` : whether the function timed out or not.
             - `timeout_stack_trace` : stack trace of the function if it timed out.
     """
 
@@ -569,7 +569,7 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
     default=None,
     show_default=True,
     type=str,
-    help="JSON File with Pre-rendered components. (internal)",
+    help="JSON File with pre-rendered components. (internal)",
 )
 @click.option(
     "--mode",
@@ -583,6 +583,7 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
     default=None,
     show_default=True,
     type=str,
+    hidden=True,
     help="JSON file containing data to be updated. (internal)",
 )
 @click.option(
@@ -590,6 +591,7 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
     default=None,
     show_default=True,
     type=str,
+    hidden=True,
     help="Card UUID. (internal)",
 )
 @click.option(
@@ -597,7 +599,8 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
     default=False,
     is_flag=True,
     show_default=True,
-    help="Delete data-file and compontent-file after reading. (internal)",
+    hidden=True,
+    help="Delete data-file and component-file after reading. (internal)",
 )
 @click.pass_context
 def create(
@@ -710,10 +713,10 @@ def create(
 
     # In the entire card rendering process, there are a few cases we want to handle:
     # - [mode == "render"]
-    #   1. Card is rendered successfull (We store it in the datastore as a HTML file)
+    #   1. Card is rendered successfully (We store it in the datastore as a HTML file)
     #   2. Card is not rendered successfully and we have --save-error-card flag set to True
     #      (We store it in the datastore as a HTML file with stack trace)
-    #   3. Card render timeout and we have --save-error-card flag set to True
+    #   3. Card render timed-out and we have --save-error-card flag set to True
     #      (We store it in the datastore as a HTML file with stack trace)
     #   4. `render` returns nothing and we have --save-error-card flag set to True.
     #       (We store it in the datastore as a HTML file with some message saying you returned nothing)
@@ -758,7 +761,7 @@ def create(
         and mode != "refresh"
     ):
         rendered_content = error_card().render(
-            task, stack_trace="No information rendered From card of type %s" % type
+            task, stack_trace="No information rendered from card of type %s" % type
         )
     elif (
         not rendered_info.is_implemented

@@ -116,7 +116,7 @@ class UnresolvableDatastoreException(MetaflowException):
         super(UnresolvableDatastoreException, self).__init__(msg)
 
 
-class IncorrectArguementException(MetaflowException):
+class IncorrectArgumentException(MetaflowException):
     headline = (
         "`get_cards` function requires a `Task` object or pathspec as an argument"
     )

@@ -124,7 +124,7 @@ class MetaflowCardComponent(object):
     @component_id.setter
     def component_id(self, value):
         if not isinstance(value, str):
-            raise TypeError("id must be a string")
+            raise TypeError("Component ID must be a string")
         self._component_id = value
 
     def update(self, *args, **kwargs):
