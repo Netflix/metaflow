@@ -152,7 +152,7 @@ def resolve_card(
 
 
 @contextmanager
-def timeout(time, on_timeout_return_callback):
+def timeout(time):
     # Register a function to raise a TimeoutError on the signal.
     signal.signal(signal.SIGALRM, raise_timeout)
     # Schedule the signal to be sent after ``time``.
@@ -160,9 +160,6 @@ def timeout(time, on_timeout_return_callback):
 
     try:
         yield
-    except TimeoutError:
-        stack_trace = traceback.format_exc()
-        return on_timeout_return_callback(stack_trace)
     finally:
         # Unregister the signal so that it won't be triggered
         # if the timeout is not reached.
@@ -512,26 +509,22 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
                 timeout_stack_trace=None,
             )
 
-    timeout_info = None
-
-    def _on_timeout_return_callback(stack_trace):
-        nonlocal timeout_info
-        timeout_info = CardRenderInfo(
-            mode=mode,
-            is_implemented=True,
-            data=None,
-            timed_out=True,
-            timeout_stack_trace=stack_trace,
-        )
-
     render_info = None
     if timeout_value is None or timeout_value < 0:
         return _call()
     else:
-        with timeout(timeout_value, _on_timeout_return_callback):
-            render_info = _call()
-        if timeout_info is not None:
-            return timeout_info
+        try:
+            with timeout(timeout_value):
+                render_info = _call()
+        except TimeoutError:
+            stack_trace = traceback.format_exc()
+            return CardRenderInfo(
+                mode=mode,
+                is_implemented=True,
+                data=None,
+                timed_out=True,
+                timeout_stack_trace=stack_trace,
+            )
         return render_info
 
 
