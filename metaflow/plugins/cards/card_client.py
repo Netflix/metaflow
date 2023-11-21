@@ -57,7 +57,7 @@ class Card:
         # Tempfile to open stuff in browser
         self._temp_file = None
 
-    def _get_data(self) -> Optional[dict]:
+    def get_data(self) -> Optional[dict]:
         # currently an internal method to retrieve a card's data.
         data_paths = self._card_ds.extract_data_paths(
             card_type=self.type, card_hash=self.hash, card_id=self._card_id

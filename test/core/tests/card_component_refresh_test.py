@@ -95,7 +95,7 @@ class CardComponentRefreshTest(MetaflowTest):
             current.card.refresh()
 
             possible_reload_tokens.append(_reload_tok)
-            card_data = card._get_data()
+            card_data = card.get_data()
             if card_data is not None:
                 assert_equals(card_data["reload_token"] in possible_reload_tokens, True)
                 assert_equals(

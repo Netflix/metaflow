@@ -79,9 +79,9 @@ class CardWithRefreshTest(MetaflowTest):
             # actually got shiped.
             start_arr.append(_create_random_strings(10))
             current.card.refresh({"arr": start_arr})
-            # We call the `card._get_data` interface to validate the data is available in the card.
+            # We call the `card.get_data` interface to validate the data is available in the card.
             # This is a private interface and should not be used by users but is used by internal services.
-            card_data = card._get_data()
+            card_data = card.get_data()
             if card_data is not None:
                 # Assert that data is atleast subset of what we sent to the datastore.
                 assert_equals(

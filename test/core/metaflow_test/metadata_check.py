@@ -179,10 +179,10 @@ class MetadataCheck(MetaflowCheck):
             return False, None
         if card_id is None:
             # Return the first piece of card_data we can find.
-            return True, card_iter[0]._get_data()
+            return True, card_iter[0].get_data()
         for card in card_iter:
             if card.id == card_id:
-                return True, card._get_data()
+                return True, card.get_data()
         return False, None
 
     def get_log(self, step, logtype):
