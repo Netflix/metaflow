@@ -132,13 +132,12 @@ class Pip(object):
                 return wheels[0]
 
             # Create wheels path if it does not exist yet, which is possible as we build before downloading.
-            if not os.path.isdir("%s/.pip/wheels" % prefix):
-                os.mkdir("%s/.pip/wheels" % prefix)
+            os.makedirs("%s/.pip/wheels" % prefix, exist_ok=True)
 
             for package, local_path in results:
                 built_wheel = _grab_wheel_from_path(local_path)
                 target_path = "%s/.pip/wheels/%s" % (prefix, built_wheel)
-                shutil.copy(os.path.join(local_path, built_wheel), target_path)
+                shutil.move(os.path.join(local_path, built_wheel), target_path)
                 metadata[package["url"]] = target_path
 
         # write the url to wheel mappings in a magic location
