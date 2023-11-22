@@ -109,9 +109,9 @@ class CondaEnvironment(MetaflowEnvironment):
                 base, _file = os.path.split(urlparse(url).path)
                 _, localfile = os.path.split(local_path)
                 # Uses netloc and basepath from the url, but the filename from local_path
-                # to support pip wheels that are installed from version control system urls
+                # to support pip wheels that were built on the fly.
                 #
-                # the VCS url does not contain a file extension, which also can not be inferred after the fact.
+                # the url might not contain a file extension, which also can not be inferred after the fact.
                 # pip install fails during bootstrapping if the downloaded packages are missing file extensions.
                 return urlparse(url).netloc + os.path.join(base, localfile)
 
