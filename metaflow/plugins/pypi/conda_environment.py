@@ -133,11 +133,17 @@ class CondaEnvironment(MetaflowEnvironment):
                         # Cache only those packages that manifest is unaware of
                         local_packages.pop(package["url"], None)
                     else:
+                        pkg_path = urlparse(package["url"]).path
                         # TODO: Match up with CONDA_DATASTORE_ROOT so that cache
                         #       gets invalidated when DATASTORE is moved.
+                        # We might have built the wheel during resolving,
+                        # in which case we need to pull the actual package name from the local path
+                        if package.get("require_build", False):
+                            local_path = local_packages[package["url"]]["local_path"]
+                            pkg_path = local_path
                         package["path"] = _datastore_url(
                             package["url"],
-                            package.get("wheel_name", urlparse(package["url"]).path),
+                            pkg_path,
                         )
                         dirty.add(id_)
 

@@ -83,16 +83,8 @@ class Pip(object):
             def _format_item(item):
                 dl_info = item["download_info"]
                 res = {k: v for k, v in dl_info.items() if k in ["url"]}
-                # Infer wheel name from url
-                res["wheel_name"] = res["url"].split("/")[-1]
-                res["require_build"] = False
-                # If wheel name is not a wheel, we need to build the target. Construct a wheel name and add a build flag
-                if not res["wheel_name"].endswith(".whl"):
-                    res["wheel_name"] = "{name}-{version}.whl".format(
-                        name=item["metadata"]["name"],
-                        version=item["metadata"]["version"],
-                    )
-                    res["require_build"] = True
+                # If source url is not a wheel, we need to build the target. Add a build flag.
+                res["require_build"] = not res["url"].endswith(".whl")
 
                 # reconstruct the VCS url and pin to current commit_id
                 # so using @branch as a version acts somewhat as expected.
@@ -191,7 +183,6 @@ class Pip(object):
             "download",
             "--no-deps",
             "--no-index",
-            "--no-build-isolation",  # required when using --no-index for setuptools to be found.
             "--progress-bar=off",
             #  if packages are present in Pip cache, this will be a local copy
             "--dest=%s/.pip/wheels" % prefix,
@@ -210,7 +201,7 @@ class Pip(object):
             cmd.append(package["url"])
             # record the url-to-path mapping fo wheels in metadata file.
             metadata[package["url"]] = "{prefix}/.pip/wheels/{wheel}".format(
-                prefix=prefix, wheel=package["wheel_name"]
+                prefix=prefix, wheel=package["url"].split("/")[-1]
             )
         self._call(prefix, cmd)
         # write the url to wheel mappings in a magic location
@@ -243,7 +234,7 @@ class Pip(object):
 
     def metadata(self, id_, packages, python, platform):
         # read the url to wheel mappings from a magic location.
-        # Combine the metadata and build_metadata files, allowing build_metadata mappings to override.
+        # Combine the metadata and build_metadata files (these should be disjoint sets).
         prefix = self.micromamba.path_to_environment(id_)
         metadata_file = METADATA_FILE.format(prefix=prefix)
         build_metadata_file = BUILD_METADATA_FILE.format(prefix=prefix)
