@@ -11,6 +11,7 @@ if sys.version_info < (3, 6):
     tags = Tags()
 else:
     from metaflow._vendor.packaging import tags
+    from metaflow._vendor.packaging.utils import parse_wheel_filename
 
 from metaflow.exception import MetaflowException
 
@@ -30,6 +31,11 @@ def conda_platform():
             return "osx-32"
         else:
             return "osx-64"
+
+
+def tags_from_wheel_name(wheel_name):
+    _, _, _, parsed_tags = parse_wheel_filename(wheel_name)
+    return list(parsed_tags)[0]
 
 
 def pip_tags(python_version, mamba_platform):
