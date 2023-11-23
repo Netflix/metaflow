@@ -1,3 +1,4 @@
+import os
 import platform
 import sys
 
@@ -13,6 +14,7 @@ else:
     from metaflow._vendor.packaging import tags
 
 from metaflow.exception import MetaflowException
+from urllib.parse import unquote, urlparse
 
 
 def conda_platform():
@@ -73,3 +75,16 @@ def pip_tags(python_version, mamba_platform):
     supported.extend(tags.cpython_tags(py_version, abis, platforms))
     supported.extend(tags.compatible_tags(py_version, interpreter, platforms))
     return supported
+
+
+def parse_filename_from_url(url):
+    # Separate method as it might require additional checks for the parsing.
+    filename = url.split("/")[-1]
+    return unquote(filename)
+
+
+def generate_cache_path(url, local_path):
+    base, _ = os.path.split(urlparse(url).path)
+    _, localfile = os.path.split(local_path)
+    unquoted_base = unquote(base)
+    return urlparse(url).netloc + os.path.join(unquoted_base, localfile)
