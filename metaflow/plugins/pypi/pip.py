@@ -117,7 +117,7 @@ class Pip(object):
                     if os.path.isfile(os.path.join(path, f)) and f.endswith(".whl")
                 ]
                 if len(wheels) != 1:
-                    raise Exception(
+                    raise PipException(
                         "Incorrect number of wheels found in path %s after building: %s"
                         % (path, wheels)
                     )
