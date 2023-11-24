@@ -4,8 +4,6 @@ import sys
 import time
 import traceback
 
-from distutils.dir_util import copy_tree
-
 from metaflow import util
 from metaflow import R
 from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
@@ -141,6 +139,13 @@ def kill(ctx, run_id, user, my_runs):
 @click.option("--max-swap", help="Max Swap requirement for AWS Batch.")
 @click.option("--swappiness", help="Swappiness requirement for AWS Batch.")
 @click.option("--inferentia", help="Inferentia requirement for AWS Batch.")
+@click.option(
+    "--efa",
+    default=0,
+    type=int,
+    help="Activate designated number of elastic fabric adapter devices. "
+    "EFA driver must be installed and instance type compatible with EFA",
+)
 @click.option("--use-tmpfs", is_flag=True, help="tmpfs requirement for AWS Batch.")
 @click.option("--tmpfs-tempdir", is_flag=True, help="tmpfs requirement for AWS Batch.")
 @click.option("--tmpfs-size", help="tmpfs requirement for AWS Batch.")
@@ -173,6 +178,7 @@ def step(
     max_swap=None,
     swappiness=None,
     inferentia=None,
+    efa=None,
     use_tmpfs=None,
     tmpfs_tempdir=None,
     tmpfs_size=None,
@@ -300,6 +306,7 @@ def step(
                 max_swap=max_swap,
                 swappiness=swappiness,
                 inferentia=inferentia,
+                efa=efa,
                 env=env,
                 attrs=attrs,
                 host_volumes=host_volumes,

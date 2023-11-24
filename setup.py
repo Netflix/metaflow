@@ -1,6 +1,7 @@
 from setuptools import setup, find_packages
 
-version = "2.9.15"
+with open("metaflow/version.py", mode="r") as f:
+    version = f.read().splitlines()[0].split("=")[1].strip(" \"'")
 
 setup(
     include_package_data=True,
@@ -25,6 +26,7 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
     project_urls={
         "Source": "https://github.com/Netflix/metaflow",
@@ -35,7 +37,13 @@ setup(
     py_modules=[
         "metaflow",
     ],
-    package_data={"metaflow": ["tutorials/*/*", "py.typed"]},
+    package_data={
+        "metaflow": [
+            "tutorials/*/*",
+            "plugins/env_escape/configurations/*/*",
+            "py.typed",
+        ]
+    },
     entry_points="""
         [console_scripts]
         metaflow=metaflow.cmd.main_cli:start

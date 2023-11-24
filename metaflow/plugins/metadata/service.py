@@ -4,8 +4,6 @@ import random
 import requests
 import time
 
-from distutils.version import LooseVersion
-
 from metaflow.exception import (
     MetaflowException,
     MetaflowTaggingError,
@@ -19,6 +17,8 @@ from metaflow.metaflow_config import (
 from metaflow.metadata import MetadataProvider
 from metaflow.metadata.heartbeat import HB_URL_KEY
 from metaflow.sidecar import Message, MessageTypes, Sidecar
+
+from metaflow.util import version_parse
 
 
 # Define message enums
@@ -59,7 +59,7 @@ class ServiceMetadataProvider(MetadataProvider):
     def compute_info(cls, val):
         v = val.rstrip("/")
         try:
-            resp = requests.get(os.path.join(v, "ping"), headers=SERVICE_HEADERS)
+            resp = requests.get(os.path.join(v, "ping"), headers=SERVICE_HEADERS.copy())
             resp.raise_for_status()
         except:  # noqa E722
             raise ValueError("Metaflow service [%s] unreachable." % v)
@@ -140,7 +140,7 @@ class ServiceMetadataProvider(MetadataProvider):
         service_version = self.version()
         payload["service_version"] = service_version
         # start sidecar
-        if service_version is None or LooseVersion(service_version) < LooseVersion(
+        if service_version is None or version_parse(service_version) < version_parse(
             "2.0.4"
         ):
             # if old version of the service is running
@@ -190,9 +190,9 @@ class ServiceMetadataProvider(MetadataProvider):
         min_service_version_with_tag_mutation = "2.3.0"
         if cls._supports_tag_mutation is None:
             version = cls._version(None)
-            cls._supports_tag_mutation = version is not None and LooseVersion(
+            cls._supports_tag_mutation = version is not None and version_parse(
                 version
-            ) >= LooseVersion(min_service_version_with_tag_mutation)
+            ) >= version_parse(min_service_version_with_tag_mutation)
         if not cls._supports_tag_mutation:
             raise ServiceException(
                 "Adding or removing tags on a run requires the Metaflow service to be "
@@ -239,9 +239,9 @@ class ServiceMetadataProvider(MetadataProvider):
         if attempt is not None:
             if cls._supports_attempt_gets is None:
                 version = cls._version(None)
-                cls._supports_attempt_gets = version is not None and LooseVersion(
+                cls._supports_attempt_gets = version is not None and version_parse(
                     version
-                ) >= LooseVersion("2.0.6")
+                ) >= version_parse("2.0.6")
             if not cls._supports_attempt_gets:
                 raise ServiceException(
                     "Getting specific attempts of Tasks or Artifacts requires "
@@ -347,7 +347,6 @@ class ServiceMetadataProvider(MetadataProvider):
         tags=None,
         sys_tags=None,
     ):
-
         if tags is None:
             tags = set()
         if sys_tags is None:
@@ -413,25 +412,29 @@ class ServiceMetadataProvider(MetadataProvider):
                 if method == "GET":
                     if monitor:
                         with monitor.measure("metaflow.service_metadata.get"):
-                            resp = requests.get(url, headers=SERVICE_HEADERS)
+                            resp = requests.get(url, headers=SERVICE_HEADERS.copy())
                     else:
-                        resp = requests.get(url, headers=SERVICE_HEADERS)
+                        resp = requests.get(url, headers=SERVICE_HEADERS.copy())
                 elif method == "POST":
                     if monitor:
                         with monitor.measure("metaflow.service_metadata.post"):
                             resp = requests.post(
-                                url, headers=SERVICE_HEADERS, json=data
+                                url, headers=SERVICE_HEADERS.copy(), json=data
                             )
                     else:
-                        resp = requests.post(url, headers=SERVICE_HEADERS, json=data)
+                        resp = requests.post(
+                            url, headers=SERVICE_HEADERS.copy(), json=data
+                        )
                 elif method == "PATCH":
                     if monitor:
                         with monitor.measure("metaflow.service_metadata.patch"):
                             resp = requests.patch(
-                                url, headers=SERVICE_HEADERS, json=data
+                                url, headers=SERVICE_HEADERS.copy(), json=data
                             )
                     else:
-                        resp = requests.patch(url, headers=SERVICE_HEADERS, json=data)
+                        resp = requests.patch(
+                            url, headers=SERVICE_HEADERS.copy(), json=data
+                        )
                 else:
                     raise MetaflowInternalError("Unexpected HTTP method %s" % (method,))
             except MetaflowInternalError:
@@ -496,9 +499,9 @@ class ServiceMetadataProvider(MetadataProvider):
             try:
                 if monitor:
                     with monitor.measure("metaflow.service_metadata.get"):
-                        resp = requests.get(url, headers=SERVICE_HEADERS)
+                        resp = requests.get(url, headers=SERVICE_HEADERS.copy())
                 else:
-                    resp = requests.get(url, headers=SERVICE_HEADERS)
+                    resp = requests.get(url, headers=SERVICE_HEADERS.copy())
             except:
                 if monitor:
                     with monitor.count("metaflow.service_metadata.failed_request"):

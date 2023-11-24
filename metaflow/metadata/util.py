@@ -1,11 +1,28 @@
 from io import BytesIO
 import os
+import shutil
 import tarfile
-
-from distutils.dir_util import copy_tree
 
 from metaflow import util
 from metaflow.plugins.datastores.local_storage import LocalStorage
+
+
+def copy_tree(src, dst, update=False):
+    if not os.path.exists(dst):
+        os.makedirs(dst)
+    for item in os.listdir(src):
+        s = os.path.join(src, item)
+        d = os.path.join(dst, item)
+        if os.path.isdir(s):
+            copy_tree(s, d, update)
+        else:
+            if (
+                update
+                and os.path.exists(d)
+                and os.path.getmtime(s) <= os.path.getmtime(d)
+            ):
+                continue
+            shutil.copy2(s, d)
 
 
 def sync_local_metadata_to_datastore(metadata_local_dir, task_ds):

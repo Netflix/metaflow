@@ -3,17 +3,16 @@ import json
 import platform
 import re
 import sys
-from distutils.version import LooseVersion
 from hashlib import sha1
 
 from metaflow import JSONType, current, decorators, parameters
 from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import (
-    SERVICE_VERSION_CHECK,
-    UI_URL,
     ARGO_WORKFLOWS_UI_URL,
     KUBERNETES_NAMESPACE,
+    SERVICE_VERSION_CHECK,
+    UI_URL,
 )
 from metaflow.package import MetaflowPackage
 
@@ -26,7 +25,7 @@ from metaflow.plugins.aws.step_functions.production_token import (
 from metaflow.plugins.environment_decorator import EnvironmentDecorator
 from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
 from metaflow.tagging_util import validate_tags
-from metaflow.util import get_username, to_bytes, to_unicode
+from metaflow.util import get_username, to_bytes, to_unicode, version_parse
 
 from .argo_workflows import ArgoWorkflows
 
@@ -290,7 +289,7 @@ def check_metadata_service_version(obj):
     version = metadata.version()
     if version == "local":
         return
-    elif version is not None and LooseVersion(version) >= LooseVersion("2.0.2"):
+    elif version is not None and version_parse(version) >= version_parse("2.0.2"):
         # Metaflow metadata service needs to be at least at version 2.0.2
         # since prior versions did not support strings as object ids.
         return
@@ -787,6 +786,27 @@ def validate_token(name, token_prefix, authorize, instructions_fn=None):
     return True
 
 
+@argo_workflows.command(help="Fetch flow execution status on Argo Workflows.")
+@click.argument("run-id", required=True, type=str)
+@click.pass_obj
+def status(obj, run_id):
+    if not run_id.startswith("argo-"):
+        raise RunIdMismatch(
+            "Run IDs for flows executed through Argo Workflows begin with 'argo-'"
+        )
+    obj.echo(
+        "Fetching status for run *{run_id}* for {flow_name} ...".format(
+            run_id=run_id, flow_name=obj.flow.name
+        ),
+        bold=True,
+    )
+    # Trim prefix from run_id
+    name = run_id[5:]
+    status = ArgoWorkflows.get_workflow_status(obj.flow.name, name)
+    if status is not None:
+        obj.echo_always(remap_status(status))
+
+
 @argo_workflows.command(help="Terminate flow execution on Argo Workflows.")
 @click.option(
     "--authorize",
@@ -831,6 +851,21 @@ def terminate(obj, run_id, authorize=None):
     terminated = ArgoWorkflows.terminate(obj.flow.name, name)
     if terminated:
         obj.echo("\nRun terminated.")
+
+
+@argo_workflows.command(help="List Argo Workflow templates for the flow.")
+@click.option(
+    "--all",
+    default=False,
+    is_flag=True,
+    type=bool,
+    help="list all Argo Workflow Templates (not just limited to this flow)",
+)
+@click.pass_obj
+def list_workflow_templates(obj, all=None):
+    templates = ArgoWorkflows.list_templates(obj.flow.name, all)
+    for template_name in templates:
+        obj.echo_always(template_name)
 
 
 def validate_run_id(
@@ -918,3 +953,11 @@ def sanitize_for_argo(text):
         .replace("+", "")
         .lower()
     )
+
+
+def remap_status(status):
+    """
+    Group similar Argo Workflow statuses together in order to have similar output to step functions statuses.
+    """
+    STATUS_MAP = {"Error": "Failed"}
+    return STATUS_MAP.get(status, status)

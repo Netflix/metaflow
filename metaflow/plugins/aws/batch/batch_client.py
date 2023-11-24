@@ -149,6 +149,7 @@ class BatchJob(object):
         max_swap,
         swappiness,
         inferentia,
+        efa,
         memory,
         host_volumes,
         use_tmpfs,
@@ -215,7 +216,7 @@ class BatchJob(object):
             if shared_memory is not None:
                 if not (
                     isinstance(shared_memory, (int, unicode, basestring))
-                    and int(shared_memory) > 0
+                    and int(float(shared_memory)) > 0
                 ):
                     raise BatchJobException(
                         "Invalid shared memory size value ({}); "
@@ -224,7 +225,7 @@ class BatchJob(object):
                 else:
                     job_definition["containerProperties"]["linuxParameters"][
                         "sharedMemorySize"
-                    ] = int(shared_memory)
+                    ] = int(float(shared_memory))
             if swappiness is not None:
                 if not (
                     isinstance(swappiness, (int, unicode, basestring))
@@ -297,7 +298,7 @@ class BatchJob(object):
                     )
             else:
                 # default tmpfs behavior - https://man7.org/linux/man-pages/man5/tmpfs.5.html
-                tmpfs_size = int(memory) / 2
+                tmpfs_size = int(float(memory)) / 2
 
             job_definition["containerProperties"]["linuxParameters"]["tmpfs"] = [
                 {
@@ -309,6 +310,31 @@ class BatchJob(object):
                     ],
                 }
             ]
+
+        if efa:
+            if not (isinstance(efa, (int, unicode, basestring))):
+                raise BatchJobException(
+                    "Invalid efa value: ({}) (should be 0 or greater)".format(efa)
+                )
+            else:
+                job_definition["containerProperties"]["linuxParameters"]["devices"] = []
+                if (num_parallel or 0) > 1:
+                    # Multi-node parallel jobs require the container path and permissions explicitly specified in Job definition
+                    for i in range(int(efa)):
+                        job_definition["containerProperties"]["linuxParameters"][
+                            "devices"
+                        ].append(
+                            {
+                                "hostPath": "/dev/infiniband/uverbs{}".format(i),
+                                "containerPath": "/dev/infiniband/uverbs{}".format(i),
+                                "permissions": ["READ", "WRITE", "MKNOD"],
+                            }
+                        )
+                else:
+                    # Single-node container jobs only require host path in job definition
+                    job_definition["containerProperties"]["linuxParameters"][
+                        "devices"
+                    ].append({"hostPath": "/dev/infiniband/uverbs0"})
 
         self.num_parallel = num_parallel or 0
         if self.num_parallel >= 1:
@@ -332,6 +358,7 @@ class BatchJob(object):
                         "container": job_definition["containerProperties"],
                     }
                 )
+
             del job_definition["containerProperties"]  # not used for multi-node
 
         # check if job definition already exists
@@ -371,6 +398,7 @@ class BatchJob(object):
         max_swap,
         swappiness,
         inferentia,
+        efa,
         memory,
         host_volumes,
         use_tmpfs,
@@ -388,6 +416,7 @@ class BatchJob(object):
             max_swap,
             swappiness,
             inferentia,
+            efa,
             memory,
             host_volumes,
             use_tmpfs,
@@ -436,6 +465,10 @@ class BatchJob(object):
 
     def inferentia(self, inferentia):
         self._inferentia = inferentia
+        return self
+
+    def efa(self, efa):
+        self._efa = efa
         return self
 
     def command(self, command):

@@ -4,13 +4,11 @@ import os
 import random
 import string
 import sys
-import time
-import uuid
 from collections import defaultdict
 
 from metaflow import R
 from metaflow.decorators import flow_decorators
-from metaflow.exception import MetaflowException, MetaflowInternalError
+from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     EVENTS_SFN_ACCESS_IAM_ROLE,
     S3_ENDPOINT_URL,
@@ -19,12 +17,8 @@ from metaflow.metaflow_config import (
     SFN_IAM_ROLE,
 )
 from metaflow.parameters import deploy_time_eval
-from metaflow.plugins.aws.batch.batch_decorator import BatchDecorator
-from metaflow.plugins.resources_decorator import ResourcesDecorator
-from metaflow.plugins.retry_decorator import RetryDecorator
-from metaflow.util import compress_list, dict_to_cli_options, to_pascalcase
+from metaflow.util import dict_to_cli_options, to_pascalcase
 
-from ..aws_utils import compute_resource_attributes
 from ..batch.batch import Batch
 from .event_bridge_client import EventBridgeClient
 from .step_functions_client import StepFunctionsClient
@@ -248,6 +242,7 @@ class StepFunctions(object):
                 "Deploying flows with @trigger or @trigger_on_finish decorator(s) "
                 "to AWS Step Functions is not supported currently."
             )
+
         # Visit every node of the flow and recursively build the state machine.
         def _visit(node, workflow, exit_node=None):
             if node.parallel_foreach:
@@ -663,11 +658,6 @@ class StepFunctions(object):
         batch_deco = [deco for deco in node.decorators if deco.name == "batch"][0]
         resources = {}
         resources.update(batch_deco.attributes)
-        resources.update(
-            compute_resource_attributes(
-                node.decorators, batch_deco, batch_deco.resource_defaults
-            )
-        )
         # Resolve retry strategy.
         user_code_retries, total_retries = self._get_retries(node)
 
@@ -705,6 +695,7 @@ class StepFunctions(object):
                 shared_memory=resources["shared_memory"],
                 max_swap=resources["max_swap"],
                 swappiness=resources["swappiness"],
+                efa=resources["efa"],
                 use_tmpfs=resources["use_tmpfs"],
                 tmpfs_tempdir=resources["tmpfs_tempdir"],
                 tmpfs_size=resources["tmpfs_size"],

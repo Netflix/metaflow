@@ -5,6 +5,8 @@ import re
 import shlex
 import time
 from typing import Dict, List, Optional
+import uuid
+from uuid import uuid4
 
 from metaflow import current, util
 from metaflow.exception import MetaflowException
@@ -15,6 +17,7 @@ from metaflow.metaflow_config import (
     ARGO_EVENTS_SERVICE_ACCOUNT,
     ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    ARGO_EVENTS_WEBHOOK_AUTH,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     CARD_AZUREROOT,
     CARD_GSROOT,
@@ -33,6 +36,7 @@ from metaflow.metaflow_config import (
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
     S3_SERVER_SIDE_ENCRYPTION,
+    OTEL_ENDPOINT,
 )
 from metaflow.metaflow_config_funcs import config_values
 
@@ -180,7 +184,7 @@ class Kubernetes(object):
         job = (
             KubernetesClient()
             .job(
-                generate_name="t-",
+                generate_name="t-{uid}-".format(uid=str(uuid4())[:8]),
                 namespace=namespace,
                 service_account=service_account,
                 secrets=secrets,
@@ -260,6 +264,7 @@ class Kubernetes(object):
             .environment_variable(
                 "METAFLOW_INIT_SCRIPT", KUBERNETES_SANDBOX_INIT_SCRIPT
             )
+            .environment_variable("METAFLOW_OTEL_ENDPOINT", OTEL_ENDPOINT)
             # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync
             # between the local user instance and the remote Kubernetes pod
             # assumes metadata is stored in DATASTORE_LOCAL_DIR on the Kubernetes
@@ -291,6 +296,10 @@ class Kubernetes(object):
         )
         job.environment_variable(
             "METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT", ARGO_EVENTS_SERVICE_ACCOUNT
+        )
+        job.environment_variable(
+            "METAFLOW_ARGO_EVENTS_WEBHOOK_AUTH",
+            ARGO_EVENTS_WEBHOOK_AUTH,
         )
 
         tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)

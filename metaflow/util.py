@@ -433,3 +433,9 @@ def tar_safe_extract(tar, path=".", members=None, *, numeric_owner=False):
         raise Exception("Attempted path traversal in TAR file")
 
     tar.extractall(path, members, numeric_owner=numeric_owner)
+
+
+if sys.version_info[:2] > (3, 5):
+    from metaflow._vendor.packaging.version import parse as version_parse
+else:
+    from distutils.version import LooseVersion as version_parse

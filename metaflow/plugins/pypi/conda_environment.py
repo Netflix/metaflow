@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 
 import requests
 
+from metaflow.metaflow_config import get_pinned_conda_libs
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.metaflow_profile import profile
@@ -46,6 +47,12 @@ class CondaEnvironment(MetaflowEnvironment):
 
     def validate_environment(self, echo, datastore_type):
         self.datastore_type = datastore_type
+        self.echo = echo
+
+        # Avoiding circular imports.
+        from metaflow.plugins import DATASTORES
+
+        self.datastore = [d for d in DATASTORES if d.TYPE == self.datastore_type][0]
 
         # Initialize necessary virtual environments for all Metaflow tasks.
         # Use Micromamba for solving conda packages and Pip for solving pypi packages.
@@ -115,8 +122,6 @@ class CondaEnvironment(MetaflowEnvironment):
                         # Cache only those packages that manifest is unaware of
                         local_packages.pop(package["url"], None)
                     else:
-                        # TODO: Match up with CONDA_DATASTORE_ROOT so that cache
-                        #       gets invalidated when DATASTORE is moved.
                         package["path"] = (
                             urlparse(package["url"]).netloc
                             + urlparse(package["url"]).path
@@ -153,11 +158,8 @@ class CondaEnvironment(MetaflowEnvironment):
                 )
             if self.datastore_type not in ["local"]:
                 # Cache packages only when a remote datastore is in play.
-                # Avoiding circular imports.
-                from metaflow.plugins import DATASTORES
-
-                storage = [d for d in DATASTORES if d.TYPE == self.datastore_type][0](
-                    _datastore_packageroot(self.datastore_type)
+                storage = self.datastore(
+                    _datastore_packageroot(self.datastore, self.echo)
                 )
                 cache(storage, results, solver)
         echo("Virtual environment(s) bootstrapped!")
@@ -179,6 +181,15 @@ class CondaEnvironment(MetaflowEnvironment):
         # User workloads are executed through the conda environment's interpreter.
         return self.solvers["conda"].interpreter(id_)
 
+    def is_disabled(self, step):
+        for decorator in step.decorators:
+            # @conda decorator is guaranteed to exist thanks to self.decospecs
+            if decorator.name in ["conda", "pypi"]:
+                # handle @conda/@pypi(disabled=True)
+                disabled = decorator.attributes["disabled"]
+                return disabled or str(disabled).lower() != "false"
+        return False
+
     @functools.lru_cache(maxsize=None)
     def get_environment(self, step):
         environment = {}
@@ -195,22 +206,18 @@ class CondaEnvironment(MetaflowEnvironment):
                     }
                 else:
                     return {}
+        # Resolve conda environment for @pypi's Python, falling back on @conda's
+        # Python
+        env_python = (
+            environment.get("pypi", environment["conda"]).get("python")
+            or environment["conda"]["python"]
+        )
         # TODO: Support dependencies for `--metadata`.
         # TODO: Introduce support for `--telemetry` as a follow up.
         # Certain packages are required for metaflow runtime to function correctly.
         # Ensure these packages are available both in Conda channels and PyPI
         # repostories.
-        pinned_packages = {"requests": ">=2.21.0"}
-        if self.datastore_type == "s3":
-            pinned_packages.update({"boto3": ">=1.14.0"})
-        elif self.datastore_type == "azure":
-            pinned_packages.update(
-                {"azure-identity": ">=1.10.0", "azure-storage-blob": ">=12.12.0"}
-            )
-        elif self.datastore_type == "gs":
-            pinned_packages.update(
-                {"google-cloud-storage": ">=2.5.0", "google-auth": ">=2.11.0"}
-            )
+        pinned_packages = get_pinned_conda_libs(env_python, self.datastore_type)
 
         # PyPI dependencies are prioritized over Conda dependencies.
         environment.get("pypi", environment["conda"])["packages"] = {
@@ -252,12 +259,8 @@ class CondaEnvironment(MetaflowEnvironment):
                 {target_platform, conda_platform()}
             )
             environment["pypi"]["platforms"] = [target_platform]
-            # Resolve conda environment for @pypi's Python, falling back on @conda's
-            # Python
-            environment["pypi"]["python"] = environment["conda"]["python"] = (
-                environment["pypi"].get("python", environment["conda"]["python"])
-                or environment["conda"]["python"]
-            )
+            # Match PyPI and Conda python versions with the resolved environment Python.
+            environment["pypi"]["python"] = environment["conda"]["python"] = env_python
 
         # Z combinator for a recursive lambda
         deep_sort = (lambda f: f(f))(
@@ -269,10 +272,26 @@ class CondaEnvironment(MetaflowEnvironment):
                 else obj
             )
         )
+
         return {
             **environment,
             # Create a stable unique id for the environment.
-            "id_": sha256(json.dumps(deep_sort(environment)).encode()).hexdigest()[:15],
+            # Add packageroot to the id so that packageroot modifications can
+            # invalidate existing environments.
+            "id_": sha256(
+                json.dumps(
+                    deep_sort(
+                        {
+                            **environment,
+                            **{
+                                "package_root": _datastore_packageroot(
+                                    self.datastore, self.echo
+                                )
+                            },
+                        }
+                    )
+                ).encode()
+            ).hexdigest()[:15],
         }
 
     def pylint_config(self):
@@ -301,9 +320,14 @@ class CondaEnvironment(MetaflowEnvironment):
         if id_:
             return [
                 "echo 'Bootstrapping virtual environment...'",
-                'python -m metaflow.plugins.pypi.bootstrap "%s" %s "%s" linux-64'
+                # We have to prevent the tracing module from loading,
+                # as the bootstrapping process uses the internal S3 client which would fail to import tracing
+                # due to the required dependencies being bundled into the conda environment,
+                # which is yet to be initialized at this point.
+                'DISABLE_TRACING=True python -m metaflow.plugins.pypi.bootstrap "%s" %s "%s" linux-64'
                 % (self.flow.name, id_, self.datastore_type),
                 "echo 'Environment bootstrapped.'",
+                "export PATH=$PATH:$(pwd)/micromamba",
             ]
         else:
             # for @conda/@pypi(disabled=True).

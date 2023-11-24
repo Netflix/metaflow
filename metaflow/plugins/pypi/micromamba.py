@@ -24,8 +24,13 @@ class Micromamba(object):
         # micromamba is a tiny version of the mamba package manager and comes with
         # metaflow specific performance enhancements.
 
+        # METAFLOW_HOME might not be writable but METAFLOW_TOKEN_HOME might be.
+        if os.environ.get("METAFLOW_TOKEN_HOME"):
+            _home = os.environ.get("METAFLOW_TOKEN_HOME")
+        else:
+            _home = os.environ.get("METAFLOW_HOME", "~/.metaflowconfig")
         _path_to_hidden_micromamba = os.path.join(
-            os.path.expanduser(os.environ.get("METAFLOW_HOME", "~/.metaflowconfig")),
+            os.path.expanduser(_home),
             "micromamba",
         )
         self.bin = (
@@ -277,10 +282,12 @@ def _install_micromamba(installation_location):
     try:
         subprocess.Popen(f"mkdir -p {installation_location}", shell=True).wait()
         # https://mamba.readthedocs.io/en/latest/micromamba-installation.html#manual-installation
+        # requires bzip2
         result = subprocess.Popen(
             f"curl -Ls https://micro.mamba.pm/api/micromamba/{platform}/latest | tar -xvj -C {installation_location} bin/micromamba",
             shell=True,
             stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
         )
         _, err = result.communicate()
         if result.returncode != 0:
