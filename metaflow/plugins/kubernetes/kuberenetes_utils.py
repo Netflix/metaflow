@@ -1,11 +1,5 @@
 import json
-import math
-import random
-import time
-
-from metaflow.exception import MetaflowException
-
-from metaflow.metaflow_config import KUBERNETES_SECRETS
+from metaflow.tracing import inject_tracing_vars
 
 
 def compute_resource_limits(args):
@@ -79,6 +73,10 @@ def make_kubernetes_container(
                 "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME": "spec.serviceAccountName",
                 "METAFLOW_KUBERNETES_NODE_IP": "status.hostIP",
             }.items()
+        ]
+        + [
+            client.V1EnvVar(name=k, value=str(v))
+            for k, v in inject_tracing_vars({}).items()
         ],
         env_from=[
             client.V1EnvFromSource(
