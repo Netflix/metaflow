@@ -10,14 +10,18 @@ _logger = logging.getLogger(__name__)
 @click.option("--flow_name")
 @click.option("--status")
 @click.option("--run_id")
-@click.option("--notify_variables_json")
+@click.option("--env_variables_json")
 @click.option("--flow_parameters_json")
+@click.option("--run_email_notify", is_flag=True)
+@click.option("--run_sqs_on_error", is_flag=True)
 def exit_handler(
     flow_name: str,
     status: str,
     run_id: str,
-    notify_variables_json: str,
+    env_variables_json: str,
     flow_parameters_json: str,
+    run_email_notify: bool = False,
+    run_sqs_on_error: bool = False,
 ):
     """
     The environment variables that this depends on:
@@ -38,10 +42,10 @@ def exit_handler(
     import boto3
     from botocore.session import Session
 
-    notify_variables: Dict[str, str] = json.loads(notify_variables_json)
+    env_variables: Dict[str, str] = json.loads(env_variables_json)
 
     def get_env(name, default=None) -> str:
-        return notify_variables.get(name, os.environ.get(name, default=default))
+        return env_variables.get(name, os.environ.get(name, default=default))
 
     def email_notify(send_to):
         import posixpath
@@ -133,34 +137,38 @@ def exit_handler(
             _logger.error(err)
             raise err
 
-    notify_on_error = get_env("METAFLOW_NOTIFY_ON_ERROR")
-    notify_on_success = get_env("METAFLOW_NOTIFY_ON_SUCCESS")
+    if run_email_notify:
+        notify_on_error = get_env("METAFLOW_NOTIFY_ON_ERROR")
+        notify_on_success = get_env("METAFLOW_NOTIFY_ON_SUCCESS")
 
-    print(f"Flow completed with status={status}")
-    if notify_on_error and status == "Failed":
-        email_notify(notify_on_error)
-    elif notify_on_success and status == "Succeeded":
-        email_notify(notify_on_success)
-    else:
-        print("No notification is necessary!")
-
-    # Send message to SQS if 'METAFLOW_SQS_URL_ON_ERROR' is set
-    metaflow_sqs_url_on_error = get_env("METAFLOW_SQS_URL_ON_ERROR")
-
-    if metaflow_sqs_url_on_error:
-        if status == "Failed":
-            message_body = flow_parameters_json
-            metaflow_sqs_role_arn_on_error = get_env("METAFLOW_SQS_ROLE_ARN_ON_ERROR")
-            send_sqs_message(
-                metaflow_sqs_url_on_error,
-                message_body,
-                role_arn=metaflow_sqs_role_arn_on_error,
-            )
-            print(f"message was sent to: {metaflow_sqs_url_on_error} successfully")
+        print(f"Flow completed with status={status}")
+        if notify_on_error and status == "Failed":
+            email_notify(notify_on_error)
+        elif notify_on_success and status == "Succeeded":
+            email_notify(notify_on_success)
         else:
-            print("Workflow succeeded, thus no SQS message is sent to SQS!")
-    else:
-        print("SQS is not configured!")
+            print("No notification is necessary!")
+
+    if run_sqs_on_error:
+        # Send message to SQS if 'METAFLOW_SQS_URL_ON_ERROR' is set
+        metaflow_sqs_url_on_error = get_env("METAFLOW_SQS_URL_ON_ERROR")
+
+        if metaflow_sqs_url_on_error:
+            if status == "Failed":
+                message_body = flow_parameters_json
+                metaflow_sqs_role_arn_on_error = get_env(
+                    "METAFLOW_SQS_ROLE_ARN_ON_ERROR"
+                )
+                send_sqs_message(
+                    metaflow_sqs_url_on_error,
+                    message_body,
+                    role_arn=metaflow_sqs_role_arn_on_error,
+                )
+                print(f"message was sent to: {metaflow_sqs_url_on_error} successfully")
+            else:
+                print("Workflow succeeded, thus no SQS message is sent to SQS!")
+        else:
+            print("SQS is not configured!")
 
 
 if __name__ == "__main__":

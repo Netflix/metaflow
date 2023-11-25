@@ -294,6 +294,59 @@ class KubeflowPipelines(object):
 
         KubeflowPipelines._add_archive_section_to_cards_artifacts(workflow)
 
+        if "onExit" in workflow["spec"]:
+            # replace entrypoint content with the exit handler handler content
+            """
+            # What it looks like beforehand...
+            entrypoint: helloflow
+            templates:
+            - name: exit-handler-1
+              dag:
+                tasks:
+                - name: end
+                  template: end
+                  dependencies: [start]
+                - {name: start, template: start}
+            - name: helloflow
+              dag:
+                tasks:
+                - {name: exit-handler-1, template: exit-handler-1}
+                - {name: sqs-exit-handler, template: sqs-exit-handler}
+            """
+            # find the exit-handler-1 template
+            exit_handler_template: dict = [
+                template
+                for template in workflow["spec"]["templates"]
+                if template["name"] == "exit-handler-1"
+            ][0]
+
+            # find the entrypoint template
+            entrypoint_template: dict = [
+                template
+                for template in workflow["spec"]["templates"]
+                if template["name"] == workflow["spec"]["entrypoint"]
+            ][0]
+
+            # replace the entrypoint template with the exit handler template
+            entrypoint_template["dag"] = exit_handler_template["dag"]
+
+            # rename exit-handler-1 to exit-handler
+            exit_handler_template["name"] = "exit-handler"
+            workflow["spec"]["onExit"] = "exit-handler"
+            exit_handler_template["dag"] = {
+                "tasks": [
+                    {
+                        "name": "sqs-exit-handler",
+                        "template": "sqs-exit-handler",
+                        "dependencies": ["notify-email-exit-handler"],
+                    },
+                    {
+                        "name": "notify-email-exit-handler",
+                        "template": "notify-email-exit-handler",
+                    },
+                ]
+            }
+
         return workflow
 
     @staticmethod
@@ -1239,11 +1292,18 @@ class KubeflowPipelines(object):
                 )
 
             if self.notify or self.sqs_url_on_error:
-                with dsl.ExitHandler(
-                    self._create_exit_handler_op(
-                        flow_variables.package_commands, flow_parameters
-                    )
-                ):
+                op = self._create_notify_exit_handler_op(
+                    flow_variables.package_commands, flow_parameters
+                )
+
+                # The following exit handler gets created and added as a ContainerOp
+                # and also as a parallel task to the Argo template "exit-handler-1"
+                # (the hardcoded kfp compiler name of the exit handler)
+                # We replace, and rename, this parallel task dag with dag of steps in _create_workflow_yaml().
+                self._create_sqs_exit_handler_op(
+                    flow_variables.package_commands, flow_parameters
+                )
+                with dsl.ExitHandler(op):
                     s3_sensor_op: Optional[ContainerOp] = self.create_s3_sensor_op(
                         flow_variables,
                     )
@@ -1551,12 +1611,36 @@ class KubeflowPipelines(object):
         )
         return s3_sensor_op
 
-    def _create_exit_handler_op(
+    def _create_sqs_exit_handler_op(
         self,
         package_commands: str,
         flow_parameters: Dict,
     ) -> ContainerOp:
-        notify_variables: dict = {
+        env_variables: dict = {
+            key: from_conf(key)
+            for key in [
+                "ARGO_RUN_URL_PREFIX",
+            ]
+            if from_conf(key)
+        }
+
+        if self.sqs_role_arn_on_error:
+            env_variables["METAFLOW_SQS_ROLE_ARN_ON_ERROR"] = self.sqs_role_arn_on_error
+
+        return self._get_aip_exit_handler_op(
+            flow_parameters,
+            env_variables,
+            package_commands,
+            name="sqs-exit-handler",
+            flag="--run_sqs_on_error",
+        )
+
+    def _create_notify_exit_handler_op(
+        self,
+        package_commands: str,
+        flow_parameters: Dict,
+    ) -> ContainerOp:
+        env_variables: dict = {
             key: from_conf(key)
             for key in [
                 "METAFLOW_NOTIFY_EMAIL_FROM",
@@ -1569,19 +1653,27 @@ class KubeflowPipelines(object):
         }
 
         if self.notify_on_error:
-            notify_variables["METAFLOW_NOTIFY_ON_ERROR"] = self.notify_on_error
+            env_variables["METAFLOW_NOTIFY_ON_ERROR"] = self.notify_on_error
 
         if self.notify_on_success:
-            notify_variables["METAFLOW_NOTIFY_ON_SUCCESS"] = self.notify_on_success
+            env_variables["METAFLOW_NOTIFY_ON_SUCCESS"] = self.notify_on_success
 
-        if self.sqs_url_on_error:
-            notify_variables["METAFLOW_SQS_URL_ON_ERROR"] = self.sqs_url_on_error
+        return self._get_aip_exit_handler_op(
+            flow_parameters,
+            env_variables,
+            package_commands,
+            name="notify-email-exit-handler",
+            flag="--run_email_notify",
+        )
 
-        if self.sqs_role_arn_on_error:
-            notify_variables[
-                "METAFLOW_SQS_ROLE_ARN_ON_ERROR"
-            ] = self.sqs_role_arn_on_error
-
+    def _get_aip_exit_handler_op(
+        self,
+        flow_parameters: Dict,
+        env_variables: Dict,
+        package_commands: str,
+        name: str,
+        flag: str = "",
+    ) -> ContainerOp:
         # when there are no flow parameters argo complains
         # that {{workflow.parameters}} failed to resolve
         # see https://github.com/argoproj/argo-workflows/issues/6036
@@ -1594,19 +1686,19 @@ class KubeflowPipelines(object):
                 " && python -m metaflow.plugins.aip.aip_exit_handler"
                 f" --flow_name {self.name}"
                 " --run_id {{workflow.name}}"
-                f" --notify_variables_json {json.dumps(json.dumps(notify_variables))}"
+                f" --env_variables_json {json.dumps(json.dumps(env_variables))}"
                 f" --flow_parameters_json {flow_parameters_json if flow_parameters else '{}'}"
                 "  --status {{workflow.status}}"
+                f" {flag}"
             ),
         ]
-
         return (
             dsl.ContainerOp(
-                name="exit_handler",
+                name=name,
                 image=self.base_image,
                 command=exit_handler_command,
             )
-            .set_display_name("exit_handler")
+            .set_display_name(name)
             .set_retry(
                 EXIT_HANDLER_RETRY_COUNT,
                 policy="Always",
