@@ -18,7 +18,7 @@ from metaflow.datastore.exceptions import DataException
 
 from . import get_namespace
 from .metadata import MetaDatum
-from .metaflow_config import MAX_ATTEMPTS, UI_URL, TRACING_URL_TEMPLATE
+from .metaflow_config import MAX_ATTEMPTS, UI_URL
 from .exception import (
     MetaflowException,
     MetaflowInternalError,
@@ -215,13 +215,6 @@ class NativeRuntime(object):
         else:
             self._logger(
                 "Workflow starting (run-id %s):" % self._run_id, system_msg=True
-            )
-
-        tracing_url = tracing.get_tracing_url()
-        if tracing_url:
-            self._logger(
-                "Tracing URL will appear in the following %s. " % tracing_url,
-                system_msg=True,
             )
 
         self._metadata.start_run_heartbeat(self._flow.name, self._run_id)

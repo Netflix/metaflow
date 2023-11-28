@@ -2,7 +2,6 @@ import sys
 from metaflow.metaflow_config import (
     OTEL_ENDPOINT,
     ZIPKIN_ENDPOINT,
-    TRACING_URL_TEMPLATE,
     CONSOLE_TRACE_ENABLED,
     DISABLE_TRACING,
     DEBUG_TRACING,
@@ -38,16 +37,6 @@ def inject_tracing_vars(env_dict: Dict[str, str]) -> Dict[str, str]:
 
 def get_trace_id() -> str:
     return ""
-
-
-def get_tracing_url() -> str:
-    # Do not return anything if tracing is disabled.
-    if DISABLE_TRACING:
-        return ""
-    # Do not return anything if no trace id is available.
-    if not (TRACING_URL_TEMPLATE and get_trace_id()):
-        return ""
-    return TRACING_URL_TEMPLATE.format(trace_id=get_trace_id())
 
 
 @contextlib.contextmanager

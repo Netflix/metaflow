@@ -404,7 +404,6 @@ TRACING_URL_TEMPLATE = from_conf("TRACING_URL_TEMPLATE")
 CONSOLE_TRACE_ENABLED = from_conf("CONSOLE_TRACE_ENABLED", False)
 # internal env used for preventing the tracing module from loading during Conda bootstrapping.
 DISABLE_TRACING = bool(os.environ.get("DISABLE_TRACING", False))
-DEBUG_TRACING = bool(os.environ.get("DEBUG_TRACING", False))
 
 # MAX_ATTEMPTS is the maximum number of attempts, including the first
 # task, retries, and the final fallback task and its retries.
