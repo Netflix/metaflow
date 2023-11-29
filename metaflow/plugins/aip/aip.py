@@ -333,19 +333,32 @@ class KubeflowPipelines(object):
             # rename exit-handler-1 to exit-handler
             exit_handler_template["name"] = "exit-handler"
             workflow["spec"]["onExit"] = "exit-handler"
-            exit_handler_template["dag"] = {
-                "tasks": [
-                    {
-                        "name": "sqs-exit-handler",
-                        "template": "sqs-exit-handler",
-                        "dependencies": ["notify-email-exit-handler"],
-                    },
-                    {
-                        "name": "notify-email-exit-handler",
-                        "template": "notify-email-exit-handler",
-                    },
-                ]
-            }
+
+            if self.sqs_url_on_error:
+                exit_handler_template["dag"] = {
+                    "tasks": [
+                        {
+                            "name": "sqs-exit-handler",
+                            "template": "sqs-exit-handler",
+                            "when": "{{workflow.status}} != 'Succeeded'",
+                        },
+                    ]
+                }
+
+            if self.notify:
+                notify_task = {
+                    "name": "notify-email-exit-handler",
+                    "template": "notify-email-exit-handler",
+                }
+
+                if self.notify_on_success:
+                    # Always run, even on failure because METAFLOW_NOTIFY_ON_ERROR
+                    # can be injected by the AIP webhook.
+                    pass
+                else:
+                    notify_task["when"] = "{{workflow.status}} != 'Succeeded'"
+
+                exit_handler_template["dag"]["tasks"].append(notify_task)
 
         return workflow
 
@@ -1292,18 +1305,26 @@ class KubeflowPipelines(object):
                 )
 
             if self.notify or self.sqs_url_on_error:
-                op = self._create_notify_exit_handler_op(
-                    flow_variables.package_commands, flow_parameters
+                op = (
+                    self._create_notify_exit_handler_op(
+                        flow_variables.package_commands, flow_parameters
+                    )
+                    if self.notify
+                    else None
                 )
 
                 # The following exit handler gets created and added as a ContainerOp
                 # and also as a parallel task to the Argo template "exit-handler-1"
                 # (the hardcoded kfp compiler name of the exit handler)
                 # We replace, and rename, this parallel task dag with dag of steps in _create_workflow_yaml().
-                self._create_sqs_exit_handler_op(
-                    flow_variables.package_commands, flow_parameters
+                op2 = (
+                    self._create_sqs_exit_handler_op(
+                        flow_variables.package_commands, flow_parameters
+                    )
+                    if self.sqs_url_on_error
+                    else None
                 )
-                with dsl.ExitHandler(op):
+                with dsl.ExitHandler(op if op else op2):
                     s3_sensor_op: Optional[ContainerOp] = self.create_s3_sensor_op(
                         flow_variables,
                     )

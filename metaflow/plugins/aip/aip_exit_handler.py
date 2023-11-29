@@ -12,8 +12,8 @@ _logger = logging.getLogger(__name__)
 @click.option("--run_id")
 @click.option("--env_variables_json")
 @click.option("--flow_parameters_json")
-@click.option("--run_email_notify", is_flag=True)
-@click.option("--run_sqs_on_error", is_flag=True)
+@click.option("--run_email_notify", is_flag=True, default=False)
+@click.option("--run_sqs_on_error", is_flag=True, default=False)
 def exit_handler(
     flow_name: str,
     status: str,
@@ -48,7 +48,6 @@ def exit_handler(
         return env_variables.get(name, os.environ.get(name, default=default))
 
     def email_notify(send_to):
-        import posixpath
         import smtplib
         from email.mime.multipart import MIMEMultipart
         from email.mime.text import MIMEText
@@ -137,11 +136,11 @@ def exit_handler(
             _logger.error(err)
             raise err
 
+    print(f"Flow completed with status={status}")
     if run_email_notify:
         notify_on_error = get_env("METAFLOW_NOTIFY_ON_ERROR")
         notify_on_success = get_env("METAFLOW_NOTIFY_ON_SUCCESS")
 
-        print(f"Flow completed with status={status}")
         if notify_on_error and status == "Failed":
             email_notify(notify_on_error)
         elif notify_on_success and status == "Succeeded":
