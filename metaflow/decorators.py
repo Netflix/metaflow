@@ -129,7 +129,7 @@ class Decorator(object):
 
         attrs = {}
         # TODO: Do we really want to allow spaces in the names of attributes?!?
-        for a in re.split(""",(?=[\s\w]+=)""", deco_spec):
+        for a in re.split(r""",(?=[\s\w]+=)""", deco_spec):
             name, val = a.split("=", 1)
             try:
                 val_parsed = json.loads(val.strip().replace('\\"', '"'))
