@@ -334,16 +334,16 @@ class KubeflowPipelines(object):
             exit_handler_template["name"] = "exit-handler"
             workflow["spec"]["onExit"] = "exit-handler"
 
+            # initialize
+            exit_handler_template["dag"] = {"tasks": []}
             if self.sqs_url_on_error:
-                exit_handler_template["dag"] = {
-                    "tasks": [
-                        {
-                            "name": "sqs-exit-handler",
-                            "template": "sqs-exit-handler",
-                            "when": "{{workflow.status}} != 'Succeeded'",
-                        },
-                    ]
-                }
+                exit_handler_template["dag"]["tasks"].append(
+                    {
+                        "name": "sqs-exit-handler",
+                        "template": "sqs-exit-handler",
+                        "when": "{{workflow.status}} != 'Succeeded'",
+                    }
+                )
 
             if self.notify:
                 notify_task = {
