@@ -24,7 +24,7 @@ class IncorrectProductionToken(MetaflowException):
     headline = "Incorrect production token"
 
 
-VALID_NAME = re.compile("[^a-zA-Z0-9_\-\.]")
+VALID_NAME = re.compile(r"[^a-zA-Z0-9_\-\.]")
 
 
 def resolve_token(
