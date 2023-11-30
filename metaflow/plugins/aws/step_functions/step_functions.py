@@ -704,6 +704,7 @@ class StepFunctions(object):
                 env=env,
                 attrs=attrs,
                 host_volumes=resources["host_volumes"],
+                efs_volumes=resources["efs_volumes"],
             )
             .attempts(total_retries + 1)
         )
