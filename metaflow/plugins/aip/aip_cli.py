@@ -16,6 +16,7 @@ from metaflow.metaflow_config import (
     AIP_MAX_RUN_CONCURRENCY,
 )
 from metaflow.package import MetaflowPackage
+from metaflow.plugins.aip.aip_udf_exit_handler import invoke_user_defined_exit_handler
 from metaflow.plugins.aws.step_functions.step_functions_cli import (
     check_metadata_service_version,
 )
@@ -42,6 +43,40 @@ def cli():
 @click.pass_obj
 def kubeflow_pipelines(obj):
     pass
+
+
+@kubeflow_pipelines.command(
+    help="Internal step command to invoke user defined exit handler"
+)
+@click.option("--flow_name")
+@click.option("--status")
+@click.option("--run_id")
+@click.option("--env_variables_json")
+@click.option("--flow_parameters_json")
+@click.option("--metaflow_configs_json")
+@click.option("--retries")
+@click.pass_obj
+def user_defined_exit_handler(
+    obj,
+    flow_name: str,
+    status: str,
+    run_id: str,
+    env_variables_json: str,
+    flow_parameters_json: str,
+    metaflow_configs_json: str,
+    retries: int,
+):
+    # call user defined exit handler
+    invoke_user_defined_exit_handler(
+        obj.graph,
+        flow_name,
+        status,
+        run_id,
+        env_variables_json,
+        flow_parameters_json,
+        metaflow_configs_json,
+        retries,
+    )
 
 
 @kubeflow_pipelines.command(help="Internal step command to initialize parent taskIds")
