@@ -37,6 +37,7 @@ from .data_transferer import DataTransferer, ObjReference
 from .exception_transferer import load_exception
 from .override_decorators import LocalAttrOverride, LocalException, LocalOverride
 from .stub import create_class
+from .utils import get_canonical_name
 
 BIND_TIMEOUT = 0.1
 BIND_RETRY = 0
@@ -336,7 +337,7 @@ class Client(object):
     def get_local_class(self, name, obj_id=None):
         # Gets (and creates if needed), the class mapping to the remote
         # class of name 'name'.
-        name = self._get_canonical_name(name)
+        name = get_canonical_name(name, self._aliases)
         if name == "function":
             # Special handling of pickled functions. We create a new class that
             # simply has a __call__ method that will forward things back to
@@ -397,17 +398,6 @@ class Client(object):
             local_class = self.get_local_class(remote_class_name, obj_id)
             local_instance = local_class(self, remote_class_name, obj_id)
         return local_instance
-
-    def _get_canonical_name(self, name):
-        # We look at the aliases looking for the most specific match first
-        base_name = self._aliases.get(name)
-        if base_name is not None:
-            return base_name
-        for idx in reversed([pos for pos, char in enumerate(name) if char == "."]):
-            base_name = self._aliases.get(name[:idx])
-            if base_name is not None:
-                return ".".join([base_name, name[idx + 1 :]])
-        return name
 
     def _communicate(self, msg):
         if os.getpid() != self._active_pid:
