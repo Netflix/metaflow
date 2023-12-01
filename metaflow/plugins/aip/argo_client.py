@@ -88,7 +88,12 @@ class ArgoClient(object):
         body = {
             "apiVersion": "argoproj.io/v1alpha1",
             "kind": "Workflow",
-            "metadata": {"generateName": name + "-"},
+            "metadata": {
+                "generateName": name + "-",
+                "labels": {
+                    "zodiac.zillowgroup.net/product": "batch"
+                }
+            },
             "spec": {
                 "workflowTemplateRef": {"name": name},
                 "arguments": {
