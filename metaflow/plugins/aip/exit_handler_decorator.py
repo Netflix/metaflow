@@ -96,7 +96,7 @@ class ExitHandlerDecorator(FlowDecorator):
     >>> @exit_handler_resources(memory="2G")
     >>> def my_exit_handler(
     >>>     status: str,
-    >>>     flow_parameters: Dict[str, str],
+    >>>     flow_parameters: dict,
     >>>     argo_workflow_run_name: str,
     >>>     metaflow_run_id: str,
     >>>     argo_ui_url: str,

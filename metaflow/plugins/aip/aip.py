@@ -382,15 +382,17 @@ class KubeflowPipelines(object):
                     "template": "user-defined-exit-handler",
                 }
 
-                if udf_handler.attributes.get(
-                    "on_success", True
-                ) and udf_handler.attributes.get("on_failure", True):
-                    # always run
+                on_success = udf_handler.attributes.get("on_success", True)
+                on_failure = udf_handler.attributes.get("on_failure", True)
+                if on_success and on_failure:
+                    # always run, no condition
                     pass
-                elif udf_handler.attributes.get("on_success", True):
+                elif on_success:
                     udf_task["when"] = "{{workflow.status}} == 'Succeeded'"
-                else:
+                elif on_failure:
                     udf_task["when"] = "{{workflow.status}} != 'Succeeded'"
+                else:
+                    raise AIPException("on_success and on_failure cannot both be False")
 
                 exit_handler_template["dag"]["tasks"].append(udf_task)
 
