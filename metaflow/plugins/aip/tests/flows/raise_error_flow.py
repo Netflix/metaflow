@@ -1,7 +1,8 @@
 from metaflow import FlowSpec, step, exit_handler
-from metaflow.plugins.aip import exit_handler_retry
+from metaflow.plugins.aip import exit_handler_retry, exit_handler_resources
 
 
+@exit_handler_resources(cpu="501m", memory="601Mi")
 @exit_handler_retry(times=1, minutes_between_retries=0)
 def my_exit_handler(
     status: str,

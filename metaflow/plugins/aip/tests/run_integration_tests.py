@@ -360,8 +360,34 @@ def test_user_defined_exit_handler(pytestconfig) -> None:
         for task in exit_handler_template["dag"]["tasks"]
         if task["name"] == "user-defined-exit-handler"
     )
-
     assert user_defined_exit_handler
+
+    user_defined_exit_handler_template = next(
+        template
+        for template in flow_yaml["spec"]["templates"]
+        if template["name"] == "user-defined-exit-handler"
+    )
+
+    # check that the exit-handler spec template has the correct
+    # resource requirements
+    assert (
+        user_defined_exit_handler_template["container"]["resources"]["requests"]["cpu"]
+        == "501m"
+    )
+    assert (
+        user_defined_exit_handler_template["container"]["resources"]["limits"]["cpu"]
+        == "501m"
+    )
+    assert (
+        user_defined_exit_handler_template["container"]["resources"]["requests"][
+            "memory"
+        ]
+        == "601Mi"
+    )
+    assert (
+        user_defined_exit_handler_template["container"]["resources"]["limits"]["memory"]
+        == "601Mi"
+    )
 
 
 def test_kubernetes_service_account_compile_only(pytestconfig) -> None:

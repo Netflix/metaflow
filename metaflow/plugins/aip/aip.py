@@ -1720,20 +1720,10 @@ class KubeflowPipelines(object):
         env_variables: dict = {
             key: from_conf(key)
             for key in [
-                "METAFLOW_NOTIFY_EMAIL_FROM",
-                "METAFLOW_NOTIFY_EMAIL_SMTP_HOST",
-                "METAFLOW_NOTIFY_EMAIL_SMTP_PORT",
-                "METAFLOW_NOTIFY_EMAIL_BODY",
                 "ARGO_RUN_URL_PREFIX",
             ]
             if from_conf(key)
         }
-
-        if self.notify_on_error:
-            env_variables["METAFLOW_NOTIFY_ON_ERROR"] = self.notify_on_error
-
-        if self.notify_on_success:
-            env_variables["METAFLOW_NOTIFY_ON_SUCCESS"] = self.notify_on_success
 
         return self._get_user_defined_exit_handler_op(
             udf_handler,
