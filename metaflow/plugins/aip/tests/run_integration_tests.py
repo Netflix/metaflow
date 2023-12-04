@@ -336,6 +336,60 @@ def test_kfp_pod_default(pytestconfig) -> None:
             )
 
 
+def test_user_defined_exit_handler(pytestconfig) -> None:
+    with tempfile.TemporaryDirectory() as yaml_tmp_dir:
+        yaml_file_path: str = os.path.join(yaml_tmp_dir, "s3_sensor_flow.yaml")
+
+        compile_to_yaml_cmd: str = (
+            f" {_python()} flows/raise_error_flow.py --no-pylint --datastore s3 aip run"
+            f" --no-s3-code-package --yaml-only --notify --pipeline-path {yaml_file_path} "
+            f"--tag {pytestconfig.getoption('pipeline_tag')} "
+        )
+        flow_yaml = get_compiled_yaml(compile_to_yaml_cmd, yaml_file_path)
+
+    # find the exit-handler spec template
+    exit_handler_template = next(
+        template
+        for template in flow_yaml["spec"]["templates"]
+        if template["name"] == "exit-handler"
+    )
+
+    # find user-defined-exit-handler in the exit-handler dag
+    user_defined_exit_handler = next(
+        task
+        for task in exit_handler_template["dag"]["tasks"]
+        if task["name"] == "user-defined-exit-handler"
+    )
+    assert user_defined_exit_handler
+
+    user_defined_exit_handler_template = next(
+        template
+        for template in flow_yaml["spec"]["templates"]
+        if template["name"] == "user-defined-exit-handler"
+    )
+
+    # check that the exit-handler spec template has the correct
+    # resource requirements
+    assert (
+        user_defined_exit_handler_template["container"]["resources"]["requests"]["cpu"]
+        == "501m"
+    )
+    assert (
+        user_defined_exit_handler_template["container"]["resources"]["limits"]["cpu"]
+        == "501m"
+    )
+    assert (
+        user_defined_exit_handler_template["container"]["resources"]["requests"][
+            "memory"
+        ]
+        == "601Mi"
+    )
+    assert (
+        user_defined_exit_handler_template["container"]["resources"]["limits"]["memory"]
+        == "601Mi"
+    )
+
+
 def test_kubernetes_service_account_compile_only(pytestconfig) -> None:
     service_account = "test-service-account"
     with tempfile.TemporaryDirectory() as yaml_tmp_dir:

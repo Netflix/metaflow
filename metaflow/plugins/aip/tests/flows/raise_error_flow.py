@@ -1,6 +1,27 @@
-from metaflow import FlowSpec, step
+from metaflow import FlowSpec, step, exit_handler
+from metaflow.plugins.aip import exit_handler_retry, exit_handler_resources
 
 
+@exit_handler_resources(cpu="501m", memory="601Mi")
+@exit_handler_retry(times=1, minutes_between_retries=0)
+def my_exit_handler(
+    status: str,
+    flow_parameters: dict,
+    argo_workflow_run_name: str,
+    metaflow_run_id: str,
+    argo_ui_url: str,
+    retries: int,
+) -> None:
+    if status == "Succeeded":
+        print("Congratulations! The flow succeeded.")
+    else:
+        print("Oh no! The flow failed.")
+
+    if retries == 0:
+        raise Exception("oopsie")
+
+
+@exit_handler(func=my_exit_handler)
 class RaiseErrorFlow(FlowSpec):
     """
     This flow is intended to "test" the Metaflow integration testing framework.

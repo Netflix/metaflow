@@ -159,12 +159,14 @@ from .conda.conda_flow_decorator import CondaFlowDecorator
 from .aws.step_functions.schedule_decorator import ScheduleDecorator
 from .project_decorator import ProjectDecorator
 from .aip.s3_sensor_decorator import S3SensorDecorator
+from .aip.exit_handler_decorator import ExitHandlerDecorator
 
 FLOW_DECORATORS = [
     CondaFlowDecorator,
     ScheduleDecorator,
     ProjectDecorator,
     S3SensorDecorator,
+    ExitHandlerDecorator,
 ]
 _merge_lists(FLOW_DECORATORS, _ext_plugins["FLOW_DECORATORS"], "name")
 

@@ -35,7 +35,7 @@ from kubernetes.client import (
     V1Volume,
 )
 
-from metaflow.decorators import FlowDecorator
+from metaflow.decorators import FlowDecorator, flow_decorators
 from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_S3,
     AIP_TTL_SECONDS_AFTER_FINISHED,
@@ -52,6 +52,7 @@ from metaflow.plugins.aip.aip_constants import (
     PVC_CREATE_RETRY_COUNT,
     EXIT_HANDLER_RETRY_COUNT,
     BACKOFF_DURATION,
+    BACKOFF_DURATION_INT,
     RETRY_BACKOFF_FACTOR,
 )
 from metaflow.plugins.aip.aip_decorator import AIPException
@@ -203,6 +204,7 @@ class KubeflowPipelines(object):
         self.sqs_url_on_error = sqs_url_on_error
         self.sqs_role_arn_on_error = sqs_role_arn_on_error
         self._client = None
+        self._exit_handler_created = False
 
     @classmethod
     def trigger(cls, kubernetes_namespace: str, name: str, parameters=None):
@@ -294,32 +296,40 @@ class KubeflowPipelines(object):
 
         KubeflowPipelines._add_archive_section_to_cards_artifacts(workflow)
 
-        if "onExit" in workflow["spec"]:
+        if self._exit_handler_created:
             # replace entrypoint content with the exit handler handler content
             """
             # What it looks like beforehand...
             entrypoint: helloflow
             templates:
-            - name: exit-handler-1
+            - name: helloflow
               dag:
                 tasks:
                 - name: end
                   template: end
                   dependencies: [start]
                 - {name: start, template: start}
+            """
+
+            """
+            # What it looks like afterwards...
+            entrypoint: helloflow
+            onExit: exit-handler
+            templates:
             - name: helloflow
               dag:
                 tasks:
-                - {name: exit-handler-1, template: exit-handler-1}
-                - {name: sqs-exit-handler, template: sqs-exit-handler}
+                - name: end
+                  template: end
+                  dependencies: [start]
+                - {name: start, template: start}
+            - name: exit-handler
+                dag:
+                  tasks:
+                  - {name: exit-handler-1, template: exit-handler-1}
+                  - {name: sqs-exit-handler, template: sqs-exit-handler}
+                  - {name: user-defined-exit-handler, template: user-defined-exit-handler}
             """
-            # find the exit-handler-1 template
-            exit_handler_template: dict = [
-                template
-                for template in workflow["spec"]["templates"]
-                if template["name"] == "exit-handler-1"
-            ][0]
-
             # find the entrypoint template
             entrypoint_template: dict = [
                 template
@@ -327,15 +337,18 @@ class KubeflowPipelines(object):
                 if template["name"] == workflow["spec"]["entrypoint"]
             ][0]
 
-            # replace the entrypoint template with the exit handler template
-            entrypoint_template["dag"] = exit_handler_template["dag"]
+            # remove exit handlers from the entrypoint template
+            entrypoint_template["dag"]["tasks"] = [
+                task
+                for task in entrypoint_template["dag"]["tasks"]
+                if "exit-handler" not in task["name"]
+            ]
 
-            # rename exit-handler-1 to exit-handler
-            exit_handler_template["name"] = "exit-handler"
+            # initialize the exit-handler template
+            exit_handler_template: dict = {"name": "exit-handler", "dag": {"tasks": []}}
+            workflow["spec"]["templates"].append(exit_handler_template)
             workflow["spec"]["onExit"] = "exit-handler"
 
-            # initialize
-            exit_handler_template["dag"] = {"tasks": []}
             if self.sqs_url_on_error:
                 exit_handler_template["dag"]["tasks"].append(
                     {
@@ -359,6 +372,29 @@ class KubeflowPipelines(object):
                     notify_task["when"] = "{{workflow.status}} != 'Succeeded'"
 
                 exit_handler_template["dag"]["tasks"].append(notify_task)
+
+            udf_handler: Optional[FlowDecorator] = next(
+                (d for d in flow_decorators() if d.name == "exit_handler"), None
+            )
+            if udf_handler:
+                udf_task = {
+                    "name": "user-defined-exit-handler",
+                    "template": "user-defined-exit-handler",
+                }
+
+                on_success = udf_handler.attributes.get("on_success", True)
+                on_failure = udf_handler.attributes.get("on_failure", True)
+                if on_success and on_failure:
+                    # always run, no condition
+                    pass
+                elif on_success:
+                    udf_task["when"] = "{{workflow.status}} == 'Succeeded'"
+                elif on_failure:
+                    udf_task["when"] = "{{workflow.status}} != 'Succeeded'"
+                else:
+                    raise AIPException("on_success and on_failure cannot both be False")
+
+                exit_handler_template["dag"]["tasks"].append(udf_task)
 
         return workflow
 
@@ -522,6 +558,15 @@ class KubeflowPipelines(object):
         return None
 
     @staticmethod
+    def _to_k8s_resource_format(resource: str, value: Union[int, float, str]) -> str:
+        value = str(value)
+
+        # Defaults memory unit to megabyte
+        if resource in ["memory", "volume"] and value.isnumeric():
+            value = f"{value}M"
+        return value
+
+    @staticmethod
     def _get_resource_requirements(node: DAGNode) -> Dict[str, str]:
         """
         Get resources for a Metaflow step (node) set by @resources decorator.
@@ -541,22 +586,6 @@ class KubeflowPipelines(object):
             @step
             def my_aip_step(): ...
         """
-
-        def to_k8s_resource_format(resource: str, value: Union[int, float, str]) -> str:
-            value = str(value)
-
-            # Defaults memory unit to megabyte
-            if (
-                resource
-                in [
-                    "memory",
-                    "volume",
-                ]
-                and value.isnumeric()
-            ):
-                value = f"{value}M"
-            return value
-
         resource_requirements = {}
         for deco in node.decorators:
             if isinstance(deco, ResourcesDecorator):
@@ -568,7 +597,9 @@ class KubeflowPipelines(object):
 
                 for attr_key, attr_value in deco.attributes.items():
                     if attr_value is not None:
-                        resource_requirements[attr_key] = to_k8s_resource_format(
+                        resource_requirements[
+                            attr_key
+                        ] = KubeflowPipelines._to_k8s_resource_format(
                             attr_key, attr_value
                         )
 
@@ -1304,49 +1335,31 @@ class KubeflowPipelines(object):
                     ),
                 )
 
-            if self.notify or self.sqs_url_on_error:
-                op = (
-                    self._create_notify_exit_handler_op(
-                        flow_variables.package_commands, flow_parameters
-                    )
-                    if self.notify
-                    else None
-                )
+            # The following exit handlers get created and added as a ContainerOp
+            # and also as a parallel task to the Flow dag
+            # We remove them and introduce a new dag invoked by Argo onExit
+            notify_op: ContainerOp = self._create_notify_exit_handler_op(
+                flow_variables.package_commands, flow_parameters
+            )
+            sqs_op: Optional[ContainerOp] = self._create_sqs_exit_handler_op(
+                flow_variables.package_commands, flow_parameters
+            )
+            udf_op: Optional[ContainerOp] = self._create_user_defined_exit_handler_op(
+                flow_variables.package_commands, flow_parameters
+            )
+            self._exit_handler_created: bool = (
+                notify_op or sqs_op or udf_op
+            ) is not None
 
-                # The following exit handler gets created and added as a ContainerOp
-                # and also as a parallel task to the Argo template "exit-handler-1"
-                # (the hardcoded kfp compiler name of the exit handler)
-                # We replace, and rename, this parallel task dag with dag of steps in _create_workflow_yaml().
-                op2 = (
-                    self._create_sqs_exit_handler_op(
-                        flow_variables.package_commands, flow_parameters
-                    )
-                    if self.sqs_url_on_error
-                    else None
-                )
-                with dsl.ExitHandler(op if op else op2):
-                    s3_sensor_op: Optional[ContainerOp] = self.create_s3_sensor_op(
-                        flow_variables,
-                    )
-                    workflow_uid_op: Optional[
-                        ContainerOp
-                    ] = self._create_workflow_uid_op(
-                        s3_sensor_op.output if s3_sensor_op else "",
-                        step_name_to_aip_component,
-                        flow_variables.package_commands,
-                    )
-                    call_build_kfp_dag(workflow_uid_op)
-            else:
-                # TODO: can this and above duplicated code be in a function?
-                s3_sensor_op: Optional[ContainerOp] = self.create_s3_sensor_op(
-                    flow_variables,
-                )
-                workflow_uid_op: Optional[ContainerOp] = self._create_workflow_uid_op(
-                    s3_sensor_op.output if s3_sensor_op else "",
-                    step_name_to_aip_component,
-                    flow_variables.package_commands,
-                )
-                call_build_kfp_dag(workflow_uid_op)
+            s3_sensor_op: Optional[ContainerOp] = self.create_s3_sensor_op(
+                flow_variables,
+            )
+            workflow_uid_op: Optional[ContainerOp] = self._create_workflow_uid_op(
+                s3_sensor_op.output if s3_sensor_op else "",
+                step_name_to_aip_component,
+                flow_variables.package_commands,
+            )
+            call_build_kfp_dag(workflow_uid_op)
 
             # Instruct KFP of the DAG order by iterating over the Metaflow
             # graph nodes.  Each Metaflow graph node has in_funcs (nodes that
@@ -1636,7 +1649,10 @@ class KubeflowPipelines(object):
         self,
         package_commands: str,
         flow_parameters: Dict,
-    ) -> ContainerOp:
+    ) -> Optional[ContainerOp]:
+        if not self.sqs_url_on_error:
+            return None
+
         env_variables: dict = {
             key: from_conf(key)
             for key in [
@@ -1660,7 +1676,10 @@ class KubeflowPipelines(object):
         self,
         package_commands: str,
         flow_parameters: Dict,
-    ) -> ContainerOp:
+    ) -> Optional[ContainerOp]:
+        if not self.notify:
+            return None
+
         env_variables: dict = {
             key: from_conf(key)
             for key in [
@@ -1685,6 +1704,33 @@ class KubeflowPipelines(object):
             package_commands,
             name="notify-email-exit-handler",
             flag="--run_email_notify",
+        )
+
+    def _create_user_defined_exit_handler_op(
+        self,
+        package_commands: str,
+        flow_parameters: Dict,
+    ) -> Optional[ContainerOp]:
+        udf_handler: Optional[FlowDecorator] = next(
+            (d for d in flow_decorators() if d.name == "exit_handler"), None
+        )
+        if not udf_handler:
+            return None
+
+        env_variables: dict = {
+            key: from_conf(key)
+            for key in [
+                "ARGO_RUN_URL_PREFIX",
+            ]
+            if from_conf(key)
+        }
+
+        return self._get_user_defined_exit_handler_op(
+            udf_handler,
+            flow_parameters,
+            env_variables,
+            package_commands,
+            name="user-defined-exit-handler",
         )
 
     def _get_aip_exit_handler_op(
@@ -1727,3 +1773,65 @@ class KubeflowPipelines(object):
                 backoff_factor=RETRY_BACKOFF_FACTOR,
             )
         )
+
+    def _get_user_defined_exit_handler_op(
+        self,
+        udf_handler: FlowDecorator,
+        flow_parameters: Dict,
+        env_variables: Dict,
+        package_commands: str,
+        name: str,
+    ) -> ContainerOp:
+        # when there are no flow parameters argo complains
+        # that {{workflow.parameters}} failed to resolve
+        # see https://github.com/argoproj/argo-workflows/issues/6036
+        flow_parameters_json = f"'{FLOW_PARAMETERS_JSON}'"
+
+        top_level: str = "--quiet --no-pylint"
+
+        # capture metaflow configs from client to be used at runtime
+        # client configs have the highest precedence
+        metaflow_configs = dict(
+            METAFLOW_DATASTORE_SYSROOT_S3=DATASTORE_SYSROOT_S3,
+            METAFLOW_USER=METAFLOW_USER,
+        )
+
+        exit_handler_command = [
+            "bash",
+            "-ec",
+            (
+                f"{package_commands}"
+                f" && METAFLOW_USER=aip-user python {os.path.basename(sys.argv[0])} {top_level} aip user-defined-exit-handler"
+                f" --flow_name {self.name}"
+                " --run_id {{workflow.name}}"
+                f" --env_variables_json {json.dumps(json.dumps(env_variables))}"
+                f" --flow_parameters_json {flow_parameters_json if flow_parameters else '{}'}"
+                "  --status {{workflow.status}}"
+                f" --metaflow_configs_json {json.dumps(json.dumps(metaflow_configs))}"
+                " --retries {{retries}}"
+            ),
+        ]
+
+        container_op = dsl.ContainerOp(
+            name=name,
+            image=self.base_image,
+            command=exit_handler_command,
+        ).set_display_name(name)
+
+        func = udf_handler.attributes["func"]
+        if hasattr(func, "memory"):
+            mem = KubeflowPipelines._to_k8s_resource_format("memory", func.memory)
+            container_op.container.set_memory_request(mem)
+            container_op.container.set_memory_limit(mem)
+        if hasattr(func, "cpu"):
+            container_op.container.set_cpu_request(func.cpu)
+            container_op.container.set_cpu_limit(func.cpu)
+
+        container_op.set_retry(
+            getattr(func, "retries", EXIT_HANDLER_RETRY_COUNT),
+            policy="Always",
+            backoff_duration=f"{getattr(func, 'minutes_between_retries', BACKOFF_DURATION_INT)}m",
+            backoff_factor=getattr(func, "retry_backoff_factor", RETRY_BACKOFF_FACTOR),
+        )
+
+        return container_op
