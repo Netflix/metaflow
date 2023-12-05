@@ -11,10 +11,53 @@ from .basic import (
 from .card import MetaflowCardComponent
 from .convert_to_native_type import TaskToDict, _full_classname
 from .renderer_tools import render_safely
+import uuid
+
+
+def create_component_id(component):
+    uuid_bit = "".join(uuid.uuid4().hex.split("-"))[:6]
+    return type(component).__name__.lower() + "_" + uuid_bit
+
+
+def with_default_component_id(func):
+    def ret_func(self, *args, **kwargs):
+        if self.component_id is None:
+            self.component_id = create_component_id(self)
+        return func(self, *args, **kwargs)
+
+    return ret_func
+
+
+def _warning_with_component(component, msg):
+    if component._logger is None:
+        return None
+    if component._warned_once:
+        return None
+    log_msg = "[@card-component WARNING] %s" % msg
+    component._logger(log_msg, timestamp=False, bad=True)
+    component._warned_once = True
 
 
 class UserComponent(MetaflowCardComponent):
-    pass
+
+    _warned_once = False
+
+    def update(self, *args, **kwargs):
+        cls_name = self.__class__.__name__
+        msg = (
+            "MetaflowCardComponent doesn't have an `update` method implemented "
+            "and is not compatible with realtime updates."
+        ) % cls_name
+        _warning_with_component(self, msg)
+
+
+class StubComponent(UserComponent):
+    def __init__(self, component_id):
+        self._non_existing_comp_id = component_id
+
+    def update(self, *args, **kwargs):
+        msg = "Component with id %s doesn't exist. No updates will be made at anytime during runtime."
+        _warning_with_component(self, msg % self._non_existing_comp_id)
 
 
 class Artifact(UserComponent):

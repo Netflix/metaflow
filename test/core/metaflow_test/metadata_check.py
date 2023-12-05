@@ -167,6 +167,24 @@ class MetadataCheck(MetaflowCheck):
             )
         return True
 
+    def get_card_data(self, step, task, card_type, card_id=None):
+        """
+        returns : (card_present, card_data)
+        """
+        from metaflow.plugins.cards.exception import CardNotPresentException
+
+        try:
+            card_iter = self.get_card(step, task, card_type, card_id=card_id)
+        except CardNotPresentException:
+            return False, None
+        if card_id is None:
+            # Return the first piece of card_data we can find.
+            return True, card_iter[0].get_data()
+        for card in card_iter:
+            if card.id == card_id:
+                return True, card.get_data()
+        return False, None
+
     def get_log(self, step, logtype):
         return "".join(getattr(task, logtype) for task in self.run[step])
 
