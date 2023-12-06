@@ -1082,6 +1082,9 @@ class KubeflowPipelines(object):
         container_op.add_pod_label(
             "tags.ledger.zgtools.net/ai-step-name", container_op.name
         )
+        container_op.add_pod_label(
+            "zodiac.zillowgroup.net/product", "batch"
+        )
         if self.experiment:
             container_op.add_pod_label(
                 "tags.ledger.zgtools.net/ai-experiment-name", self.experiment
