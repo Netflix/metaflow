@@ -35,7 +35,7 @@ from metaflow.util import TempDir, url_quote, url_unquote
 from metaflow.multicore_utils import parallel_map
 from metaflow.datatools.s3util import aws_retry, read_in_chunks, get_timestamp
 
-NUM_WORKERS_DEFAULT = 64
+NUM_WORKERS_DEFAULT = int(os.environ.get("METAFLOW_S3OP_NUM_WORKERS_DEFAULT", 64))
 
 DOWNLOAD_FILE_THRESHOLD = 2 * TransferConfig().multipart_threshold
 DOWNLOAD_MAX_CHUNK = 2 * 1024 * 1024 * 1024 - 1
