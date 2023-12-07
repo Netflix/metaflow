@@ -375,9 +375,9 @@ def aip_metaflow_step(
     ):
         metaflow_configs_new["METAFLOW_USER"] = "aip-user"
 
-    if is_join_step and "METAFLOW_S3OP_NUM_WORKERS_DEFAULT" not in os.environ:
+    if is_join_step and "METAFLOW_S3OP_NUM_WORKERS" not in os.environ:
         # AIP-7487: Metaflow joins steps require lots of memory
-        os.environ["METAFLOW_S3OP_NUM_WORKERS_DEFAULT"] = "10"
+        os.environ["METAFLOW_S3OP_NUM_WORKERS"] = "10"
 
     env: Dict[str, str] = {
         **os.environ,
