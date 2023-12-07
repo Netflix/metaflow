@@ -22,6 +22,7 @@ from metaflow.plugins.aip.aip_constants import (
     STDOUT_PATH,
     STEP_ENVIRONMENT_VARIABLES,
     TASK_ID_ENV_NAME,
+    AIP_JOIN_METAFLOW_S3OP_NUM_WORKERS,
 )
 
 from ... import R
@@ -282,6 +283,7 @@ def _command(
 @click.option("--user_code_retries", type=int)
 @click.option("--workflow_name")
 @click.option("--is-interruptible/--not-interruptible", default=False)
+@click.option("--is-join-step", is_flag=True, default=False)
 def aip_metaflow_step(
     volume_dir: str,
     environment: str,
@@ -306,6 +308,7 @@ def aip_metaflow_step(
     user_code_retries: int,
     workflow_name: str,
     is_interruptible: bool,
+    is_join_step: bool,
 ) -> None:
     """
     (1) Renders and runs the Metaflow package_commands and Metaflow step
@@ -372,6 +375,12 @@ def aip_metaflow_step(
         or metaflow_configs_new["METAFLOW_USER"] is None
     ):
         metaflow_configs_new["METAFLOW_USER"] = "aip-user"
+
+    if is_join_step and "METAFLOW_S3OP_NUM_WORKERS" not in os.environ:
+        # AIP-7487: Metaflow joins steps require lots of memory
+        os.environ["METAFLOW_S3OP_NUM_WORKERS"] = str(
+            AIP_JOIN_METAFLOW_S3OP_NUM_WORKERS
+        )
 
     env: Dict[str, str] = {
         **os.environ,

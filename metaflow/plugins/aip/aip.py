@@ -1488,6 +1488,8 @@ class KubeflowPipelines(object):
             metaflow_execution_cmd += f" --namespace {flow_variables.namespace}"
         if step_variables.is_split_index:
             metaflow_execution_cmd += " --is_split_index"
+        if node.type == "join":
+            metaflow_execution_cmd += " --is-join-step"
 
         metaflow_execution_cmd += ' --preceding_component_outputs_dict "'
         for key in preceding_component_outputs_dict:
