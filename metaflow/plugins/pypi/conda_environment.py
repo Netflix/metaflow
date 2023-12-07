@@ -104,47 +104,46 @@ class CondaEnvironment(MetaflowEnvironment):
             )
 
         def cache(storage, results, type_):
-            def _datastore_url(url, local_path):
+            def _datastore_url(url, local_path, dedupl_prefix=None):
                 # Generate a valid path for a file for the datastore.
                 base, _file = os.path.split(urlparse(url).path)
                 _, localfile = os.path.split(local_path)
                 # Uses netloc and basepath from the url, but the filename from local_path
                 # to support pip wheels that were built on the fly.
                 #
+                path_prefix = dedupl_prefix if dedupl_prefix else ""
                 # the url might not contain a file extension, which also can not be inferred after the fact.
                 # pip install fails during bootstrapping if the downloaded packages are missing file extensions.
-                return urlparse(url).netloc + os.path.join(base, localfile)
+                return urlparse(url).netloc + os.path.join(base, path_prefix, localfile)
 
-            local_packages = {
-                url: {
-                    # Path to package in datastore.
-                    "path": _datastore_url(url, local_path),
-                    # Path to package on local disk.
-                    "local_path": local_path,
-                }
-                for result in results
-                for url, local_path in self.solvers[type_].metadata(*result).items()
-            }
+            local_packages = {}
+            for result in results:
+                _id, packages, _, _ = result
+                for url, local_path in self.solvers[type_].metadata(*result).items():
+                    pkg_meta = next((pkg for pkg in packages if pkg["url"] == url), {})
+                    local_packages[url] = {
+                        # Path to package in datastore.
+                        "path": _datastore_url(
+                            url, local_path, pkg_meta.get("hash", None)
+                        ),
+                        # Path to package on local disk.
+                        "local_path": local_path,
+                    }
+
             dirty = set()
             # Prune list of packages to cache.
             for id_, packages, _, _ in results:
                 for package in packages:
                     if package.get("path"):
-                        # Cache only those packages that manifest is unaware of
+                        # Cache only those packages that manifest is unaware of.
+                        # Checked because "results" are read from the manifest if present,
+                        # otherwise they are solved and will not contain "path".
                         local_packages.pop(package["url"], None)
                     else:
-                        pkg_path = urlparse(package["url"]).path
                         # TODO: Match up with CONDA_DATASTORE_ROOT so that cache
                         #       gets invalidated when DATASTORE is moved.
-                        # We might have built the wheel during resolving,
-                        # in which case we need to pull the actual package name from the local path
-                        if package.get("require_build", False):
-                            local_path = local_packages[package["url"]]["local_path"]
-                            pkg_path = local_path
-                        package["path"] = _datastore_url(
-                            package["url"],
-                            pkg_path,
-                        )
+                        # Path in datastore is not yet saved to manifest, add the one we generated earlier
+                        package["path"] = local_packages[package["url"]]["path"]
                         dirty.add(id_)
 
             list_of_path_and_filehandle = [

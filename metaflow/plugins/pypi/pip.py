@@ -91,6 +91,8 @@ class Pip(object):
                 vcs_info = dl_info.get("vcs_info")
                 if vcs_info:
                     res["url"] = "{vcs}+{url}@{commit_id}".format(**vcs_info, **res)
+                    # used to deduplicate the storage location in case wheel does not build with enough unique identifiers.
+                    res["hash"] = vcs_info["commit_id"]
                 return res
 
             with open(report, mode="r", encoding="utf-8") as f:
