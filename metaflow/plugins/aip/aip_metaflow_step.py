@@ -22,6 +22,7 @@ from metaflow.plugins.aip.aip_constants import (
     STDOUT_PATH,
     STEP_ENVIRONMENT_VARIABLES,
     TASK_ID_ENV_NAME,
+    AIP_JOIN_METAFLOW_S3OP_NUM_WORKERS,
 )
 
 from ... import R
@@ -377,7 +378,9 @@ def aip_metaflow_step(
 
     if is_join_step and "METAFLOW_S3OP_NUM_WORKERS" not in os.environ:
         # AIP-7487: Metaflow joins steps require lots of memory
-        os.environ["METAFLOW_S3OP_NUM_WORKERS"] = "5"
+        os.environ["METAFLOW_S3OP_NUM_WORKERS"] = str(
+            AIP_JOIN_METAFLOW_S3OP_NUM_WORKERS
+        )
 
     env: Dict[str, str] = {
         **os.environ,
