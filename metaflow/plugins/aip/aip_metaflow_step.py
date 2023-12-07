@@ -377,7 +377,7 @@ def aip_metaflow_step(
 
     if is_join_step and "METAFLOW_S3OP_NUM_WORKERS" not in os.environ:
         # AIP-7487: Metaflow joins steps require lots of memory
-        os.environ["METAFLOW_S3OP_NUM_WORKERS"] = "10"
+        os.environ["METAFLOW_S3OP_NUM_WORKERS"] = "5"
 
     env: Dict[str, str] = {
         **os.environ,
