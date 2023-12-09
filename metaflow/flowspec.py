@@ -7,7 +7,7 @@ from itertools import islice
 from types import FunctionType, MethodType
 from typing import Any, Callable, List, Optional, Tuple
 
-from . import cmd_with_io
+from . import cmd_with_io, parameters
 from .parameters import DelayedEvaluationParameter, Parameter
 from .exception import (
     MetaflowException,
@@ -99,6 +99,13 @@ class FlowSpec(object):
 
         self._graph = FlowGraph(self.__class__)
         self._steps = [getattr(self, node.name) for node in self._graph]
+
+        # This must be set before calling cli.main() below (or specifically, add_custom_parameters)
+        parameters.parameters = [
+            getattr(self, a)
+            for a in dir(self)
+            if isinstance(getattr(self, a, None), Parameter)
+        ]
 
         if use_cli:
             # we import cli here to make sure custom parameters in
@@ -197,7 +204,7 @@ class FlowSpec(object):
                 continue
             try:
                 val = getattr(self, var)
-            except:
+            except Exception:
                 continue
             if isinstance(val, Parameter):
                 yield var, val
@@ -559,7 +566,7 @@ class FlowSpec(object):
         for i, dst in enumerate(dsts):
             try:
                 name = dst.__func__.__name__
-            except:
+            except Exception:
                 msg = (
                     "In step *{step}* the {arg}. argument in self.next() is "
                     "not a function. Make sure all arguments in self.next() "
@@ -600,7 +607,7 @@ class FlowSpec(object):
 
             try:
                 foreach_iter = getattr(self, foreach)
-            except:
+            except Exception:
                 msg = (
                     "Foreach variable *self.{var}* in step *{step}* "
                     "does not exist. Check your variable.".format(

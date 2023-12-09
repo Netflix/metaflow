@@ -31,11 +31,7 @@ ParameterContext = NamedTuple(
     ],
 )
 
-# currently we execute only one flow per process, so we can treat
-# Parameters globally. If this was to change, it should/might be
-# possible to move these globals in a FlowSpec (instance) specific
-# closure.
-parameters = []
+parameters = []  # Set by FlowSpec.__init__()
 context_proto = None
 
 
@@ -48,7 +44,7 @@ class JSONTypeClass(click.ParamType):
             return value
         try:
             return json.loads(value)
-        except:
+        except Exception:
             self.fail("%s is not a valid JSON object" % value, param, ctx)
 
     def __str__(self):
@@ -113,7 +109,7 @@ class DeployTimeField(object):
                 val = self.fun(ctx, deploy_time)
             except TypeError:
                 val = self.fun(ctx)
-        except:
+        except Exception:
             raise ParameterFieldFailed(self.parameter_name, self.field)
         else:
             return self._check_type(val, deploy_time)
@@ -210,7 +206,7 @@ class DelayedEvaluationParameter(object):
     def __call__(self, return_str=False):
         try:
             return self._fun(return_str=return_str)
-        except Exception as e:
+        except Exception:
             raise ParameterFieldFailed(self._name, self._field)
 
 
@@ -335,7 +331,6 @@ class Parameter(object):
                 "Parameter *%s*: Separator is only allowed "
                 "for string parameters." % name
             )
-        parameters.append(self)
 
     def option_kwargs(self, deploy_mode):
         kwargs = self.kwargs
