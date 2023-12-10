@@ -328,6 +328,4 @@ class Pip(object):
 def verify_wheel_tags_supported(wheel_name, python, platform):
     target_tags = set(pip_tags(python, platform))
     built_tags = tags_from_wheel_name(wheel_name)
-    if len(target_tags.intersection(built_tags)) == 0:
-        print(target_tags)
     return len(target_tags.intersection(built_tags)) > 0
