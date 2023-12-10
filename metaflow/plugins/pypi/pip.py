@@ -125,15 +125,6 @@ class Pip(object):
                     )
                 return wheels[0]
 
-            def _verify_wheel_tags_supported(wheel_name):
-                target_tags = pip_tags(python, platform)
-                built_tags = tags_from_wheel_name(wheel_name)
-                if built_tags not in target_tags:
-                    raise PipException(
-                        "The built wheel %s is not supported for the target platform %s with python %s"
-                        % (wheel_name, platform, python)
-                    )
-
             # Create wheels path if it does not exist yet, which is possible as we build before downloading.
             os.makedirs("%s/.pip/wheels" % prefix, exist_ok=True)
 
@@ -142,7 +133,11 @@ class Pip(object):
 
                 # Verify that the built package will work with our target platform and interpreter
                 # This is completely reliant on the wheel tags being accurate.
-                _verify_wheel_tags_supported(built_wheel)
+                if not verify_wheel_tags_supported(built_wheel, python, platform):
+                    raise PipException(
+                        "The built wheel %s is not supported for the target platform %s with python %s"
+                        % (built_wheel, platform, python)
+                    )
 
                 # Move final wheel to the correct location and map local path to package url.
                 target_path = "%s/.pip/wheels/%s" % (prefix, built_wheel)
@@ -328,3 +323,11 @@ class Pip(object):
                     stderr=e.stderr.decode(),
                 )
             )
+
+
+def verify_wheel_tags_supported(wheel_name, python, platform):
+    target_tags = set(pip_tags(python, platform))
+    built_tags = tags_from_wheel_name(wheel_name)
+    if len(target_tags.intersection(built_tags)) == 0:
+        print(target_tags)
+    return len(target_tags.intersection(built_tags)) > 0

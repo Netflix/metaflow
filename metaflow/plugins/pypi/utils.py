@@ -35,7 +35,7 @@ def conda_platform():
 
 def tags_from_wheel_name(wheel_name):
     _, _, _, parsed_tags = parse_wheel_filename(wheel_name)
-    return list(parsed_tags)[0]
+    return list(parsed_tags)
 
 
 def pip_tags(python_version, mamba_platform):
