@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { SvelteComponentDev } from "svelte/internal";
+  import type { ComponentType } from "svelte";
   import type * as types from "../types";
   import Artifacts from "./artifacts.svelte";
   import Dag from "./dag/dag.svelte";
@@ -18,23 +18,22 @@
 
   export let componentData: types.CardComponent;
 
-  const typesMap: Record<typeof componentData.type, typeof SvelteComponentDev> =
-    {
-      artifacts: Artifacts,
-      dag: Dag,
-      heading: Heading,
-      image: Image,
-      log: Log,
-      markdown: Markdown,
-      page: Page,
-      progressBar: ProgressBar,
-      section: Section,
-      subtitle: Subtitle,
-      table: Table,
-      text: Text,
-      title: Title,
-      vegaChart: VegaChart,
-    };
+  const typesMap: Record<typeof componentData.type, ComponentType> = {
+    artifacts: Artifacts,
+    dag: Dag,
+    heading: Heading,
+    image: Image,
+    log: Log,
+    markdown: Markdown,
+    page: Page,
+    progressBar: ProgressBar,
+    section: Section,
+    subtitle: Subtitle,
+    table: Table,
+    text: Text,
+    title: Title,
+    vegaChart: VegaChart,
+  };
 
   let component = typesMap?.[componentData.type];
   if (!component) {

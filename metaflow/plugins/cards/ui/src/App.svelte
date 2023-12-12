@@ -1,8 +1,8 @@
 <script lang="ts">
   // we are importing prism locally because its custom compiled.
-  import "./prism";
+  import "../prism";
+  import "../prism.css";
   import "./global.css";
-  import "./prism.css";
   import "./app.css";
   import { cardData, setCardData, modal } from "./store";
   import * as utils from "./utils";
