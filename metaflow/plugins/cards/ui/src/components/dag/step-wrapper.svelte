@@ -1,5 +1,5 @@
 <!-- A wrapper for each Step and its children. Handles joins and foreaches -->
-<script type="ts">
+<script lang="ts">
   import { onMount } from "svelte";
   import type { Boxes, Dag } from "../../types";
   import Step from "./step.svelte";
@@ -29,8 +29,8 @@
     currentStep?.type === "foreach"
       ? levels + 1
       : currentStep?.type === "join"
-      ? levels - 1
-      : levels;
+        ? levels - 1
+        : levels;
 
   let hasNext = currentStep?.next?.find((nextStepName) => {
     return steps[nextStepName]?.type !== "join";

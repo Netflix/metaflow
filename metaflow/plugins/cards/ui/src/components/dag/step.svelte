@@ -1,5 +1,5 @@
 <!-- Renders a single step in a DAG. -->
-<script type="ts">
+<script lang="ts">
   import type { DagStep } from "../../types";
   import { getContext, onMount } from "svelte";
   import { isOverflown } from "../../utils";
