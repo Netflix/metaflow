@@ -10,7 +10,7 @@ from itertools import chain, product
 from metaflow.exception import MetaflowException
 
 from .micromamba import Micromamba
-from .utils import pip_tags, tags_from_wheel_name
+from .utils import pip_tags, tags_from_wheel_name, parse_filename_from_url
 
 
 class PipException(MetaflowException):
@@ -213,7 +213,7 @@ class Pip(object):
             cmd.append(package["url"])
             # record the url-to-path mapping fo wheels in metadata file.
             metadata[package["url"]] = "{prefix}/.pip/wheels/{wheel}".format(
-                prefix=prefix, wheel=package["url"].split("/")[-1]
+                prefix=prefix, wheel=parse_filename_from_url(package["url"])
             )
         self._call(prefix, cmd)
         # write the url to wheel mappings in a magic location

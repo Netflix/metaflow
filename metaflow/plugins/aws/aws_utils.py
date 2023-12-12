@@ -38,7 +38,7 @@ def get_ec2_instance_metadata():
 
 
 def get_docker_registry(image_uri):
-    """
+    r"""
     Explanation:
         (.+?(?:[:.].+?)\/)? - [GROUP 0] REGISTRY
             .+?                 - A registry must start with at least one character

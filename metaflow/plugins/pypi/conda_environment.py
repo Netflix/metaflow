@@ -20,7 +20,7 @@ from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.metaflow_profile import profile
 
 from . import MAGIC_FILE, _datastore_packageroot
-from .utils import conda_platform
+from .utils import conda_platform, generate_cache_path, parse_filename_from_url
 
 
 class CondaEnvironmentException(MetaflowException):
@@ -104,18 +104,6 @@ class CondaEnvironment(MetaflowEnvironment):
             )
 
         def cache(storage, results, type_):
-            def _datastore_url(url, local_path, dedupl_prefix=None):
-                # Generate a valid path for a file for the datastore.
-                base, _file = os.path.split(urlparse(url).path)
-                _, localfile = os.path.split(local_path)
-                # Uses netloc and basepath from the url, but the filename from local_path
-                # to support pip wheels that were built on the fly.
-                #
-                path_prefix = dedupl_prefix if dedupl_prefix else ""
-                # the url might not contain a file extension, which also can not be inferred after the fact.
-                # pip install fails during bootstrapping if the downloaded packages are missing file extensions.
-                return urlparse(url).netloc + os.path.join(base, path_prefix, localfile)
-
             local_packages = {}
             for result in results:
                 _id, packages, _, _ = result
@@ -123,7 +111,7 @@ class CondaEnvironment(MetaflowEnvironment):
                     pkg_meta = next((pkg for pkg in packages if pkg["url"] == url), {})
                     local_packages[url] = {
                         # Path to package in datastore.
-                        "path": _datastore_url(
+                        "path": generate_cache_path(
                             url, local_path, pkg_meta.get("hash", None)
                         ),
                         # Path to package on local disk.

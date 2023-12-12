@@ -1,3 +1,4 @@
+import os
 import platform
 import sys
 
@@ -14,6 +15,7 @@ else:
     from metaflow._vendor.packaging.utils import parse_wheel_filename
 
 from metaflow.exception import MetaflowException
+from urllib.parse import unquote, urlparse
 
 
 def conda_platform():
@@ -79,3 +81,22 @@ def pip_tags(python_version, mamba_platform):
     supported.extend(tags.cpython_tags(py_version, abis, platforms))
     supported.extend(tags.compatible_tags(py_version, interpreter, platforms))
     return supported
+
+
+def parse_filename_from_url(url):
+    # Separate method as it might require additional checks for the parsing.
+    filename = url.split("/")[-1]
+    return unquote(filename)
+
+
+def generate_cache_path(url, local_path, dedupl_prefix=None):
+    base, _file = os.path.split(urlparse(url).path)
+    _, localfile = os.path.split(local_path)
+    # Uses netloc and basepath from the url, but the filename from local_path
+    # to support pip wheels that were built on the fly.
+    #
+    path_prefix = dedupl_prefix if dedupl_prefix else ""
+    # the url might not contain a file extension, which also can not be inferred after the fact.
+    # pip install fails during bootstrapping if the downloaded packages are missing file extensions.
+    unquoted_base = unquote(base)
+    return urlparse(url).netloc + os.path.join(unquoted_base, path_prefix, localfile)

@@ -19,7 +19,7 @@ from metaflow.util import get_username, to_bytes, to_unicode, version_parse
 from .step_functions import StepFunctions
 from .production_token import load_token, store_token, new_token
 
-VALID_NAME = re.compile("[^a-zA-Z0-9_\-\.]")
+VALID_NAME = re.compile(r"[^a-zA-Z0-9_\-\.]")
 
 
 class IncorrectProductionToken(MetaflowException):

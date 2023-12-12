@@ -53,7 +53,7 @@ from .override_decorators import (
     RemoteExceptionSerializer,
 )
 from .exception_transferer import dump_exception
-from .utils import get_methods
+from .utils import get_methods, get_canonical_name
 
 BIND_TIMEOUT = 0.1
 BIND_RETRY = 1
@@ -61,7 +61,6 @@ BIND_RETRY = 1
 
 class Server(object):
     def __init__(self, config_dir, max_pickle_version):
-
         self._max_pickle_version = data_transferer.defaultProtocol = max_pickle_version
         try:
             mappings = importlib.import_module(".server_mappings", package=config_dir)
@@ -108,6 +107,11 @@ class Server(object):
             for alias in aliases:
                 a = self._aliases.setdefault(alias, base_name)
                 if a != base_name:
+                    # Technically we could have a that aliases b and b that aliases c
+                    # and then a that aliases c. This would error out in that case
+                    # even though it is valid. It is easy for the user to get around
+                    # this by listing aliases in the same order so we don't support
+                    # it for now.
                     raise ValueError(
                         "%s is an alias to both %s and %s" % (alias, base_name, a)
                     )
@@ -155,12 +159,13 @@ class Server(object):
         parent_to_child = {}
 
         for ex_name, ex_cls in self._known_exceptions.items():
+            ex_name_canonical = get_canonical_name(ex_name, self._aliases)
             parents = []
             for base in ex_cls.__mro__[1:]:
                 if base is object:
                     raise ValueError(
-                        "Exported exceptions not rooted in a builtin exception are not supported: %s"
-                        % ex_name
+                        "Exported exceptions not rooted in a builtin exception "
+                        "are not supported: %s." % ex_name
                     )
                 if base.__module__ == "builtins":
                     # We found our base exception
@@ -168,17 +173,19 @@ class Server(object):
                     break
                 else:
                     fqn = ".".join([base.__module__, base.__name__])
-                    if fqn in self._known_exceptions:
-                        parents.append(fqn)
-                        children = parent_to_child.setdefault(fqn, [])
-                        children.append(ex_name)
+                    canonical_fqn = get_canonical_name(fqn, self._aliases)
+                    if canonical_fqn in self._known_exceptions:
+                        parents.append(canonical_fqn)
+                        children = parent_to_child.setdefault(canonical_fqn, [])
+                        children.append(ex_name_canonical)
                     else:
                         raise ValueError(
                             "Exported exception %s has non exported and non builtin parent "
-                            "exception: %s" % (ex_name, fqn)
+                            "exception: %s. Known exceptions: %s"
+                            % (ex_name, fqn, str(self._known_exceptions))
                         )
-            name_to_parent_count[ex_name] = len(parents) - 1
-            name_to_parents[ex_name] = parents
+            name_to_parent_count[ex_name_canonical] = len(parents) - 1
+            name_to_parents[ex_name_canonical] = parents
 
         # We now form the exceptions and put them in self._known_exceptions in
         # the proper order (topologically)

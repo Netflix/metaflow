@@ -27,7 +27,39 @@
             "checks": [ "python3-cli", "python3-metadata"],
             "disabled_tests": [
                 "LargeArtifactTest",
-                "S3FailureTest"
+                "S3FailureTest",
+                "CardComponentRefreshTest",
+                "CardWithRefreshTest"
+            ]
+        },
+        {
+            "name": "python3-all-local-cards-realtime",
+            "disabled": true,
+            "env": {
+                "METAFLOW_USER": "tester",
+                "METAFLOW_RUN_BOOL_PARAM": "False",
+                "METAFLOW_RUN_NO_DEFAULT_PARAM": "test_str",
+                "METAFLOW_DEFAULT_METADATA": "local"
+            },
+            "python": "python3",
+            "top_options": [
+                "--metadata=local",
+                "--datastore=local",
+                "--environment=local",
+                "--event-logger=nullSidecarLogger",
+                "--no-pylint",
+                "--quiet"
+            ],
+            "run_options": [
+                "--max-workers", "50",
+                "--max-num-splits", "10000",
+                "--tag", "\u523a\u8eab means sashimi",
+                "--tag", "multiple tags should be ok"
+            ],
+            "checks": [ "python3-cli", "python3-metadata"],
+            "enabled_tests": [
+                "CardComponentRefreshTest",
+                "CardWithRefreshTest"
             ]
         },
         {

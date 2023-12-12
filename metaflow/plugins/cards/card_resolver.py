@@ -1,5 +1,3 @@
-from collections import namedtuple
-
 from .card_datastore import CardDatastore
 
 
