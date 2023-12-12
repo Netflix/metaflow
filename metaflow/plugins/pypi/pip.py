@@ -9,7 +9,7 @@ from metaflow.exception import MetaflowException
 from metaflow.util import which
 
 from .micromamba import Micromamba
-from .utils import pip_tags
+from .utils import parse_filename_from_url, pip_tags
 
 
 class PipException(MetaflowException):
@@ -118,7 +118,7 @@ class Pip(object):
         for package in packages:
             cmd.append("{url}".format(**package))
             metadata["{url}".format(**package)] = "{prefix}/.pip/wheels/{wheel}".format(
-                prefix=prefix, wheel=package["url"].split("/")[-1]
+                prefix=prefix, wheel=parse_filename_from_url(package["url"])
             )
         self._call(prefix, cmd)
         # write the url to wheel mappings in a magic location

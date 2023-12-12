@@ -20,7 +20,7 @@ from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.metaflow_profile import profile
 
 from . import MAGIC_FILE, _datastore_packageroot
-from .utils import conda_platform
+from .utils import conda_platform, generate_cache_path, parse_filename_from_url
 
 
 class CondaEnvironmentException(MetaflowException):
@@ -107,7 +107,7 @@ class CondaEnvironment(MetaflowEnvironment):
             local_packages = {
                 url: {
                     # Path to package in datastore.
-                    "path": urlparse(url).netloc + urlparse(url).path,
+                    "path": generate_cache_path(url, local_path),
                     # Path to package on local disk.
                     "local_path": local_path,
                 }
@@ -122,9 +122,8 @@ class CondaEnvironment(MetaflowEnvironment):
                         # Cache only those packages that manifest is unaware of
                         local_packages.pop(package["url"], None)
                     else:
-                        package["path"] = (
-                            urlparse(package["url"]).netloc
-                            + urlparse(package["url"]).path
+                        package["path"] = generate_cache_path(
+                            package["url"], parse_filename_from_url(package["url"])
                         )
                         dirty.add(id_)
 
