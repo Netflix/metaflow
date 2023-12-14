@@ -11,7 +11,7 @@ def process_input_paths(input_paths):
     flow, run_id, task_ids = input_paths.split("/")
     task_ids = re.sub("[\[\]{}]", "", task_ids)
     task_ids = task_ids.split(",")
-    tasks = [t.split(":")[1] for t in task_ids]
+    tasks = [t.split(":")[1].strip('"') for t in task_ids]
     return "{}/{}/:{}".format(flow, run_id, ",".join(tasks))
 
 

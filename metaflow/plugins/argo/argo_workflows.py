@@ -1036,11 +1036,13 @@ class ArgoWorkflows(object):
             # right now.
 
             task_str = node.name + "-{{workflow.creationTimestamp}}"
-            # Note: The input paths might be quite large for foreach joins,
-            # so we need to take care not to unnecessarily repeat this in the scripts due to a max sizelimit with Argo.
-            input_paths_expr = "export INPUT_PATHS="
+            # The input paths might be quite large for foreach joins,
+            # so we need to take care not to unnecessarily repeat these in the scripts due to a template max size limit with Argo.
+            # Note: We inline a Python script here because jq might not be present, and bundling this as an utility will not work
+            # as the metaflow module initializes only after this line.
+            # read input-paths directly from ARGO_TEMPLATE environment variable.
+            input_paths_expr = """export INPUT_PATHS=$(python -c \\"import sys, os, json; template = json.loads(os.environ['ARGO_TEMPLATE']); input_paths = next((param['value'] for param in template.get('inputs', {'parameters': []})['parameters'] if param['name'] == 'input-paths'), None); sys.stdout.write(input_paths if input_paths else '')\\")"""
             if node.name != "start":
-                input_paths_expr += "{{inputs.parameters.input-paths}}"
                 task_str += "-$(echo $INPUT_PATHS)"
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 task_str += "-{{inputs.parameters.split-index}}"
