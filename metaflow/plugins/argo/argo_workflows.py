@@ -971,12 +971,13 @@ class ArgoWorkflows(object):
                         Arguments().parameters(
                             [
                                 Parameter("input-paths").value(
-                                    "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters}}"
-                                    % (
-                                        self.graph[node.matching_join].in_funcs[-1],
-                                        foreach_template_name,
-                                    )
-                                )
+                                    "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
+                                    % (node.name, self._sanitize(node.name))
+                                ),
+                                Parameter("max-split").value(
+                                    "{{tasks.%s.outputs.parameters.max-split}}"
+                                    % self._sanitize(node.name)
+                                ),
                             ]
                         )
                     )
@@ -1034,16 +1035,36 @@ class ArgoWorkflows(object):
             # Ideally, we would like these task ids to be the same as node name
             # (modulo retry suffix) on Argo Workflows but that doesn't seem feasible
             # right now.
+
             task_str = node.name + "-{{workflow.creationTimestamp}}"
+            task_idx = ""
+            # export input_paths as it is used multiple times in the container script and we do not want to repeat the values.
+            input_paths_expr = "export INPUT_PATHS=''"
             if node.name != "start":
-                task_str += "-{{inputs.parameters.input-paths}}"
+                input_paths_expr = (
+                    "export INPUT_PATHS={{inputs.parameters.input-paths}}"
+                )
+                task_str += "-$(echo $INPUT_PATHS)"
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
-                task_str += "-{{inputs.parameters.split-index}}"
+                task_idx = "-{{inputs.parameters.split-index}}"
+            # if node.type == "join" and any(n for n in node.in_funcs if self.graph[n].is_inside_foreach):
+            if (
+                node.type == "join"
+                and self.graph[node.split_parents[-1]].type == "foreach"
+            ):
+                # disambiguate foreach join task_id, as the input-paths will not contain enough entropy otherwise.
+                # only do this for joins of foreach, not static splits.
+                # we need:
+                # - the input_paths that go into the processing task for the foreach.
+                #   This will be in the join steps parameters.input-paths
+                # - the name of the node for the foreach task
+                task_str += "{{inputs.parameters.max-split}}"
             # Generated task_ids need to be non-numeric - see register_task_id in
             # service.py. We do so by prefixing `t-`
             task_id_expr = (
                 "export METAFLOW_TASK_ID="
-                "(t-$(echo %s | md5sum | cut -d ' ' -f 1 | tail -c 9))" % task_str
+                "(t-$(echo %s%s | md5sum | cut -d ' ' -f 1 | tail -c 9))"
+                % (task_str, task_idx)
             )
             task_id = "$METAFLOW_TASK_ID"
 
@@ -1087,6 +1108,7 @@ class ArgoWorkflows(object):
                     # env var.
                     '${METAFLOW_INIT_SCRIPT:+eval \\"${METAFLOW_INIT_SCRIPT}\\"}',
                     "mkdir -p $PWD/.logs",
+                    input_paths_expr,
                     task_id_expr,
                     mflog_expr,
                 ]
@@ -1098,7 +1120,7 @@ class ArgoWorkflows(object):
                 node.name, self.flow_datastore.TYPE
             )
 
-            input_paths = "{{inputs.parameters.input-paths}}"
+            input_paths = "$(echo $INPUT_PATHS)"
 
             top_opts_dict = {
                 "with": [
@@ -1169,9 +1191,19 @@ class ArgoWorkflows(object):
                 and self.graph[node.split_parents[-1]].type == "foreach"
             ):
                 # Set aggregated input-paths for a foreach-join
+                foreach_step_name = next(
+                    n for n in node.in_funcs if self.graph[n].is_inside_foreach
+                )
+                creation_timestamp = "{{workflow.creationTimestamp}}"
+                foreach_max_split = "{{inputs.parameters.max-split}}"
                 input_paths = (
-                    "$(python -m metaflow.plugins.argo.process_input_paths %s)"
-                    % input_paths
+                    "$(python -m metaflow.plugins.argo.generate_input_paths %s %s %s %s)"
+                    % (
+                        foreach_step_name,
+                        creation_timestamp,
+                        input_paths,
+                        foreach_max_split,
+                    )
                 )
             step = [
                 "step",
@@ -1344,14 +1376,25 @@ class ArgoWorkflows(object):
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 # Fetch split-index from parent
                 inputs.append(Parameter("split-index"))
+            if (
+                node.type == "join"
+                and self.graph[node.split_parents[-1]].type == "foreach"
+            ):
+                # append this only for joins of foreaches, not static splits
+                inputs.append(Parameter("max-split"))
 
             outputs = []
             if node.name != "end":
                 outputs = [Parameter("task-id").valueFrom({"path": "/mnt/out/task_id"})]
             if node.type == "foreach":
                 # Emit split cardinality from foreach task
+                # list of split indices
                 outputs.append(
                     Parameter("num-splits").valueFrom({"path": "/mnt/out/splits"})
+                )
+                # maximum of the splits
+                outputs.append(
+                    Parameter("max-split").valueFrom({"path": "/mnt/out/max_split"})
                 )
 
             # It makes no sense to set env vars to None (shows up as "None" string)
