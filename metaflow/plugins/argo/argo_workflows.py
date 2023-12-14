@@ -1034,9 +1034,14 @@ class ArgoWorkflows(object):
             # Ideally, we would like these task ids to be the same as node name
             # (modulo retry suffix) on Argo Workflows but that doesn't seem feasible
             # right now.
+
             task_str = node.name + "-{{workflow.creationTimestamp}}"
+            # Note: The input paths might be quite large for foreach joins,
+            # so we need to take care not to unnecessarily repeat this in the scripts due to a max sizelimit with Argo.
+            input_paths_expr = "export INPUT_PATHS="
             if node.name != "start":
-                task_str += "-{{inputs.parameters.input-paths}}"
+                input_paths_expr += "{{inputs.parameters.input-paths}}"
+                task_str += "-$(echo $INPUT_PATHS)"
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 task_str += "-{{inputs.parameters.split-index}}"
             # Generated task_ids need to be non-numeric - see register_task_id in
@@ -1087,6 +1092,7 @@ class ArgoWorkflows(object):
                     # env var.
                     '${METAFLOW_INIT_SCRIPT:+eval \\"${METAFLOW_INIT_SCRIPT}\\"}',
                     "mkdir -p $PWD/.logs",
+                    input_paths_expr,
                     task_id_expr,
                     mflog_expr,
                 ]
@@ -1098,7 +1104,7 @@ class ArgoWorkflows(object):
                 node.name, self.flow_datastore.TYPE
             )
 
-            input_paths = "{{inputs.parameters.input-paths}}"
+            input_paths = "$(echo $INPUT_PATHS)"
 
             top_opts_dict = {
                 "with": [
