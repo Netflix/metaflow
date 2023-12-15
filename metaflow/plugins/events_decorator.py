@@ -43,11 +43,11 @@ class TriggerDecorator(FlowDecorator):
 
     Parameters
     ----------
-    event : Union[str, Dict[str, Any]], default: None
+    event : Union[str, Dict[str, Any]], default None
         Event dependency for this flow.
-    events : List[Union[str, Dict[str, Any]]], default: []
+    events : List[Union[str, Dict[str, Any]]], default []
         Events dependency for this flow.
-    options : Dict[str, Any], default: {}
+    options : Dict[str, Any], default {}
         Backend-specific configuration for tuning eventing behavior.
 
     MF Add To Current
@@ -227,11 +227,11 @@ class TriggerOnFinishDecorator(FlowDecorator):
 
     Parameters
     ----------
-    flow : Union[str, Dict[str, str]], optional, default: None
+    flow : Union[str, Dict[str, str]], optional, default None
         Upstream flow dependency for this flow.
-    flows : List[Union[str, Dict[str, str]]], default: []
+    flows : List[Union[str, Dict[str, str]]], default []
         Upstream flow dependencies for this flow.
-    options : Dict[str, Any], default: {}
+    options : Dict[str, Any], default {}
         Backend-specific configuration for tuning eventing behavior.
 
     MF Add To Current
