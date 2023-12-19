@@ -634,6 +634,7 @@ class DefaultCard(MetaflowCard):
             title=task.pathspec,
             css=CSS_DATA,
             card_data_id=uuid.uuid4(),
+            RENDER_COMPLETE=not runtime,
         )
         return pt.render(RENDER_TEMPLATE, data_dict)
 
@@ -672,7 +673,7 @@ class BlankCard(MetaflowCard):
             self._title = options["title"]
         self._components = components
 
-    def render(self, task, components=[]):
+    def render(self, task, components=[], runtime=False):
         RENDER_TEMPLATE = read_file(RENDER_TEMPLATE_PATH)
         JS_DATA = read_file(JS_PATH)
         CSS_DATA = read_file(CSS_PATH)
@@ -697,11 +698,12 @@ class BlankCard(MetaflowCard):
             title=task.pathspec,
             css=CSS_DATA,
             card_data_id=uuid.uuid4(),
+            RENDER_COMPLETE=not runtime,
         )
         return pt.render(RENDER_TEMPLATE, data_dict)
 
     def render_runtime(self, task, data):
-        return self.render(task)
+        return self.render(task, runtime=True)
 
     def refresh(self, task, data):
         return data["components"]
