@@ -8,14 +8,14 @@
   // we'll have to implement some extra styling options to do this later.
   // lets save this for if its ever requested as a feature.
   $: ({ max, id, value, label, unit, details } = componentData);
-  if (value == null){
+  if (value == null) {
     value = 0;
   }
   let displayValue = value.toString();
-    $: if (max) {
-      displayValue = `${value}/${max}`;
-	} else if (unit) {
-      displayValue = `${value} ${unit}`;
+  $: if (max) {
+    displayValue = `${value}/${max}`;
+  } else if (unit) {
+    displayValue = `${value} ${unit}`;
   }
 </script>
 
@@ -41,9 +41,18 @@
 </div>
 
 <style>
-  ::-webkit-progress-bar,
-  ::-moz-progress-bar {
-    background-color: #326cde;
+  /* styling a progress bar is trickier than it should be. */
+  progress::-webkit-progress-bar {
+    background-color: white !important;
+    width: 100%;
+  }
+  progress {
+    background-color: white;
+    color: #326cded9 !important;
+  }
+
+  progress::-moz-progress-bar {
+    background-color: #326cde !important;
   }
 
   :global(table .container) {
