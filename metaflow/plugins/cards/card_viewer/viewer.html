@@ -1,0 +1,147 @@
+
+<html>
+    <head>
+    <style type="text/css">
+        body{
+            font-size: 100%;
+            font-family: sans-serif;
+            padding: 0;
+            margin: 0;
+        }
+        iframe{
+            height: 2000;
+            width: 80%;
+            border: 0px;
+        }
+        #header{
+            padding: 20px;
+            padding-top: 10px;
+            margin-bottom: 20px;
+            background: #f6f6f6;
+            color: #666;
+            box-shadow: 0px 5px 10px #eee;
+        }
+        #header h1{
+            font-size: 140%;
+        }
+    </style>
+    <head>
+<body>
+
+<div id="header">
+<h1 id="title">Loading the latest run..</h1>
+
+
+
+<script>
+// TODO : make `DATA_UPDATE_POLL_INTERVAL` configurable when starting the server
+const DATA_UPDATE_POLL_INTERVAL = 5000;
+const RUN_UPDATE_POLL_INTERVAL = 10000;
+async function data_update(frame_src, data_url, update_fun, reload_token){
+    const response = await fetch(data_url);
+    const resp = await response.json();
+    let frame = document.getElementById('cardFrame');
+    // first check the user hasn't switched to another card
+    console.log('data', resp, 'reload_token', reload_token)
+    if (frame.src == frame_src){
+        // do we have valid data?
+        if (resp.status == 'not found')
+            // if not, try again later
+            setTimeout(() => data_update(frame_src, data_url, update_fun, reload_token), DATA_UPDATE_POLL_INTERVAL);
+        else{            
+            console.log("data is valid")
+            // yes, data is valid
+            // do we have the right version of the card content?
+            if (resp.payload.reload_token == reload_token){
+                console.log()
+                // update data and check that the return value is valid. In particular,
+                // the result is undefined if the card has changed and update_fun is invalid
+                if (update_fun(resp.payload.data))
+                    setTimeout(() => data_update(frame_src, data_url, update_fun, reload_token), DATA_UPDATE_POLL_INTERVAL);
+            }else{
+                // card is outdated, reload it. This will re-fetch data, so we will be back
+                // in this function soon
+                frame.contentWindow.location.reload();
+            }
+        }
+    }
+}
+
+function card_loaded(){
+    let frame = document.getElementById('cardFrame');
+    let update_fun = frame.contentWindow.metaflow_card_update;
+    const reload_token = frame.contentWindow.METAFLOW_RELOAD_TOKEN;
+    frame.style.display = 'block';
+    if (update_fun){
+        console.log("Update fn found")
+        console.log(update_fun)
+        let data_url = "/data/" + frame.src.split('/').slice(4).join('/');
+        setTimeout(() => data_update(frame.src, data_url, update_fun, reload_token), DATA_UPDATE_POLL_INTERVAL);
+    }
+}
+
+function load_card(){
+    let cardEl = document.getElementById("cards");
+    let frame = document.getElementById('cardFrame');
+    frame.style.display = 'none';
+    if (cardEl.options.length > 0){
+        const val = cardEl.options[cardEl.selectedIndex].value;
+        frame.src = "/card/" + val;
+    }
+}
+
+async function refresh_cards(){
+    const response = await fetch("/runinfo");
+    const info = await response.json();
+    let shouldUpdate = false;
+    if (info.status == 'ok'){
+        let frame = document.getElementById('cardFrame');
+
+        let cardEl = document.getElementById("cards");
+        let selected;
+        if (cardEl.options[cardEl.selectedIndex])
+            selected = cardEl.options[cardEl.selectedIndex].value;
+        cardEl.innerHTML = '';
+
+        let title = info.flow + "/" + info.run_id;
+        if (title != document.getElementById("title").innerHTML){
+            frame.style.display = 'none';
+            shouldUpdate = true;
+        }
+        document.getElementById("title").innerHTML = title;
+
+        for (let i = 0; i < info.cards.length; i++){
+            let el = document.createElement("option");
+            el.value = info.cards[i].card;
+            el.innerHTML = info.cards[i].label;
+            if (el.innerHTML == selected)
+                el.select
+            cardEl.appendChild(el);
+        }
+        if (!frame.src || shouldUpdate)
+            load_card();
+
+        if (selected)
+            cardEl.value = selected;
+        else if (info.cards.length > 0)
+            cardEl.selectedIndex = 0;
+    }
+    setTimeout(refresh_cards, RUN_UPDATE_POLL_INTERVAL);
+}
+
+window.onload = function(){
+    refresh_cards();
+}
+
+</script>
+
+<select id="cards" onChange="load_card()">
+</select>
+</div>
+
+<div>
+<iframe id="cardFrame" onLoad="card_loaded()"></iframe>
+</div>
+
+<body>
+</html>
