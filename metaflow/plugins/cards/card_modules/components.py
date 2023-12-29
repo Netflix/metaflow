@@ -724,15 +724,13 @@ class VegaChart(UserComponent):
 
     REALTIME_UPDATABLE = True
 
-    def __init__(self, spec, data=None):
+    def __init__(self, spec, show_controls=False):
         self._spec = spec
-        self._data = data
+        self._show_controls = show_controls
 
-    def update(self, data=None, spec=None):
+    def update(self, spec=None):
         if spec is not None:
             self._spec = spec
-        if data is not None:
-            self._data = data
 
     @classmethod
     def from_altair_chart(cls, altair_chart):
@@ -750,11 +748,8 @@ class VegaChart(UserComponent):
 
         altair_chart_dict = altair_chart.to_dict()
 
-        data_object = None
-        if "datasets" in altair_chart_dict:
-            data_object = altair_chart_dict["datasets"]
-            del altair_chart_dict["datasets"]
-        return cls(spec=altair_chart_dict, data=data_object)
+        cht = cls(spec=altair_chart_dict)
+        return cht
 
     @with_default_component_id
     @render_safely
@@ -763,6 +758,10 @@ class VegaChart(UserComponent):
             "type": self.type,
             "id": self.component_id,
             "spec": self._spec,
-            "data": self._data,
         }
+        if not self._show_controls:
+            data["options"] = {"actions": False}
+
+        if "width" not in self._spec:
+            data["spec"]["width"] = "container"
         return data
