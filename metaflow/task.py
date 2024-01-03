@@ -24,7 +24,9 @@ from .current import current
 from metaflow.tracing import get_trace_id
 from collections import namedtuple
 
-ForeachFrame = namedtuple("ForeachFrame", ["step", "var", "num_splits", "index"])
+ForeachFrame = namedtuple(
+    "ForeachFrame", ["step", "var", "num_splits", "index", "value"]
+)
 
 
 class MetaflowTask(object):
@@ -188,10 +190,10 @@ class MetaflowTask(object):
                     if join_type == "foreach":
                         top = i["_foreach_stack"][-1]
                         bottom = i["_foreach_stack"][:-1]
-                        # the topmost indices in the stack are all
-                        # different naturally, so ignore them in the
+                        # the topmost indices and values in the stack are
+                        # all different naturally, so ignore them in the
                         # assertion
-                        yield bottom + [top._replace(index=0)]
+                        yield bottom + [top._replace(index=0, value=0)]
                     else:
                         yield i["_foreach_stack"]
 
@@ -249,6 +251,7 @@ class MetaflowTask(object):
                 inputs[0]["_foreach_var"],
                 inputs[0]["_foreach_num_splits"],
                 split_index,
+                inputs[0]["_foreach_values"][split_index],
             )
 
             stack = inputs[0]["_foreach_stack"]

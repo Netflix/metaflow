@@ -502,6 +502,62 @@ class FlowSpec(object):
             )
             raise InvalidNextException(msg)
 
+    def _get_foreach_item_value(self, item, foreach_var, default_value):
+        """
+        Get the unique value for the item in the foreach iterator. We will use
+        the following order of precedence:
+
+        1) If the item is a primitive type, use the item itself.
+        2) If the item is a dictionary and has a key named `foreach_var`, use the value of that key.
+        3) If the item is a dictionary and has a key named `key`, use the value of that key.
+        4) If the item has an attribute named `key`, use the value of that attribute.
+
+        If no suitable value is found, return the default value.
+
+        Parameters
+        ----------
+        item : Any
+            The item to get the value from.
+        foreach_var : str
+            The name of the variable that is being iterated over.
+        default_value : str
+            The default value to use if no suitable value is found.
+
+        Returns
+        -------
+        str
+            The value to use for the item.
+        """
+
+        def _is_primitive_type(item):
+            return (
+                isinstance(item, basestring)
+                or isinstance(item, int)
+                or isinstance(item, float)
+                or isinstance(item, bool)
+            )
+
+        MAX_VALUE_LENGTH = 32
+
+        value = default_value
+        if _is_primitive_type(item):
+            value = item
+        elif (
+            isinstance(item, dict)
+            and foreach_var in item
+            and _is_primitive_type(item[foreach_var])
+        ):
+            value = item[foreach_var]
+        elif (
+            isinstance(item, dict)
+            and "value" in item
+            and _is_primitive_type(item["value"])
+        ):
+            value = item["value"]
+        elif hasattr(item, "value") and _is_primitive_type(item.value):
+            value = item.value
+        return basestring(value)[:MAX_VALUE_LENGTH]
+
     def next(self, *dsts: Callable[..., None], **kwargs) -> None:
         """
         Indicates the next step to execute after this step has completed.
@@ -611,22 +667,37 @@ class FlowSpec(object):
                     )
                 )
                 raise InvalidNextException(msg)
-
+            self._foreach_values = None
             if issubclass(type(foreach_iter), UnboundedForeachInput):
                 self._unbounded_foreach = True
                 self._foreach_num_splits = None
                 self._validate_ubf_step(funcs[0])
             else:
                 try:
-                    self._foreach_num_splits = sum(1 for _ in foreach_iter)
-                except TypeError:
+                    self._foreach_num_splits = 0
+                    self._foreach_values = []
+                    for item in foreach_iter:
+                        current_index = self._foreach_num_splits
+                        value = self._get_foreach_item_value(
+                            item, foreach, str(current_index)
+                        )
+                        self._foreach_values.append(value)
+                        self._foreach_num_splits += 1
+
+                except Exception as e:
                     msg = (
                         "Foreach variable *self.{var}* in step *{step}* "
-                        "is not iterable. Check your variable.".format(
-                            step=step, var=foreach
+                        "is not iterable. Please check details: {err}".format(
+                            step=step, var=foreach, err=str(e)
                         )
                     )
                     raise InvalidNextException(msg)
+
+                # If values are not unique, we need to fallback to using the index.
+                if len(self._foreach_values) != len(set(self._foreach_values)):
+                    self._foreach_values = list(
+                        map(str, range(self._foreach_num_splits))
+                    )
 
                 if self._foreach_num_splits == 0:
                     msg = (
