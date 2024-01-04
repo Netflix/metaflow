@@ -43,7 +43,7 @@ class TriggerDecorator(FlowDecorator):
 
     Parameters
     ----------
-    event : Union[str, Dict[str, Any]], default None
+    event : Union[str, Dict[str, Any]], optional, default None
         Event dependency for this flow.
     events : List[Union[str, Dict[str, Any]]], default []
         Events dependency for this flow.

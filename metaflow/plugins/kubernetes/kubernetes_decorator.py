@@ -71,7 +71,8 @@ class KubernetesDecorator(StepDecorator):
         the scheduled node should not have GPUs.
     gpu_vendor : str, default KUBERNETES_GPU_VENDOR
         The vendor of the GPUs to be used for this step.
-    tolerations : List[str], default METAFLOW_KUBERNETES_TOLERATIONS
+    tolerations : List[str], default []
+        The default is extracted from METAFLOW_KUBERNETES_TOLERATIONS.
         Kubernetes tolerations to use when launching pod in Kubernetes.
     use_tmpfs : bool, default False
         This enables an explicit tmpfs mount for this step.

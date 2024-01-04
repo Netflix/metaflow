@@ -605,7 +605,7 @@ class StubGenerator:
         buff.write(")" + ret_annotation + ":\n")
 
         if doc is not None:
-            buff.write('%s%s"""\n' % (indentation, TAB))
+            buff.write('%s%sr"""\n' % (indentation, TAB))
             doc = cast(str, deindent_docstring(doc))
             init_blank = True
             for line in doc.split("\n"):
@@ -705,9 +705,14 @@ class StubGenerator:
                     + "\n\n"
                 )
                 f.write("from __future__ import annotations\n\n")
+                imported_typing = False
                 for module in self._imports:
                     f.write("import " + module + "\n")
+                    if module == "typing":
+                        imported_typing = True
                 if self._typing_imports:
+                    if not imported_typing:
+                        f.write("import typing\n")
                     f.write("if typing.TYPE_CHECKING:\n")
                     for module in self._typing_imports:
                         f.write(TAB + "import " + module + "\n")

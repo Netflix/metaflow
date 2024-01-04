@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-version = "2.10.2"
+version = "2.10.8"
 
 setup(
     name="metaflow-stubs",
