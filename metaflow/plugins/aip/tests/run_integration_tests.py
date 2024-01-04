@@ -495,6 +495,7 @@ def test_flow_labels():
     assert tags["metaflow.org/tag_t1"] == "true"
     assert tags["metaflow.org/tag_s1"] == "true"
     assert tags["zodiac.zillowgroup.net/owner"] == "foo"
+    assert tags["zodiac.zillowgroup.net/product"] == "batch"
 
     with pytest.raises(ValueError) as e:
         KubeflowPipelines._get_flow_labels(

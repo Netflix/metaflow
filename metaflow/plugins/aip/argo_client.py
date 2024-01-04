@@ -90,9 +90,6 @@ class ArgoClient(object):
             "kind": "Workflow",
             "metadata": {
                 "generateName": name + "-",
-                "labels": {
-                    "zodiac.zillowgroup.net/product": "batch"
-                }
             },
             "spec": {
                 "workflowTemplateRef": {"name": name},

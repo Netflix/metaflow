@@ -1041,21 +1041,25 @@ class KubeflowPipelines(object):
 
             ret_flow_labels[annotation_name] = annotation_value
 
+        zodiac_prefix = "zodiac.zillowgroup.net"
+
         # - In context of Zillow CICD username == "cicd_compile"
         # - In the context of a Zillow NB username == METAFLOW_USER (user_alias)
         # - In the context of Metaflow integration tests username == USER=$GITLAB_USER_EMAIL
         owner = username
         if "@" in owner:
             owner = owner.split("@")[0]
-        ret_flow_labels["zodiac.zillowgroup.net/owner"] = owner
+        ret_flow_labels[f"{zodiac_prefix}/owner"] = owner
 
         # If the Zodiac environment variable is present in the notebook (individual profile notebooks only),
         # the Zodiac service and team labels are added to the AIP pods and set. These labels are not added
         # by the AIP webhook to support user-supplied Zodiac service per AIP Notebook. Workflows launched
         # in project CICD profiles will still have these labels added via the AIP webhook.
         if ZILLOW_ZODIAC_SERVICE and ZILLOW_ZODIAC_TEAM:
-            ret_flow_labels["zodiac.zillowgroup.net/service"] = ZILLOW_ZODIAC_SERVICE
-            ret_flow_labels["zodiac.zillowgroup.net/team"] = ZILLOW_ZODIAC_TEAM
+            ret_flow_labels[f"{zodiac_prefix}/service"] = ZILLOW_ZODIAC_SERVICE
+            ret_flow_labels[f"{zodiac_prefix}/team"] = ZILLOW_ZODIAC_TEAM
+
+        ret_flow_labels[f"{zodiac_prefix}/product"] = "batch"
 
         return ret_flow_labels
 
@@ -1081,9 +1085,6 @@ class KubeflowPipelines(object):
         container_op.add_pod_label("tags.ledger.zgtools.net/ai-flow-name", self.name)
         container_op.add_pod_label(
             "tags.ledger.zgtools.net/ai-step-name", container_op.name
-        )
-        container_op.add_pod_label(
-            "zodiac.zillowgroup.net/product", "batch"
         )
         if self.experiment:
             container_op.add_pod_label(
