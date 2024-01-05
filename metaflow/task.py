@@ -24,9 +24,22 @@ from .current import current
 from metaflow.tracing import get_trace_id
 from collections import namedtuple
 
+# To be backwards compatible.
+def construct_frame(*args):
+    return ForeachFrame(*args[: len(ForeachFrame._fields)])
+
+
+foreach_frame_field_list = ["step", "var", "num_splits", "index", "value"]
 ForeachFrame = namedtuple(
-    "ForeachFrame", ["step", "var", "num_splits", "index", "value"]
+    "ForeachFrame",
+    foreach_frame_field_list,
+    defaults=(None,) * len(foreach_frame_field_list),
 )
+ForeachFrame.__reduce__ = lambda frame: (construct_frame, tuple(frame))
+
+# To be backwards compatible.
+def construct_frame(*args):
+    return ForeachFrame(*args[: len(ForeachFrame._fields)])
 
 
 class MetaflowTask(object):
@@ -437,13 +450,6 @@ class MetaflowTask(object):
                 )
             )
 
-        self.metadata.register_metadata(
-            run_id,
-            step_name,
-            task_id,
-            metadata,
-        )
-
         step_func = getattr(self.flow, step_name)
         decorators = step_func.decorators
 
@@ -465,6 +471,30 @@ class MetaflowTask(object):
 
             # 3. initialize foreach state
             self._init_foreach(step_name, join_type, inputs, split_index)
+
+            # Add foreach stack to metadata of the task
+            if hasattr(self.flow, "_foreach_stack") and self.flow._foreach_stack:
+                foreach_stack_formatted = ", ".join(
+                    [
+                        "%s=%s" % (frame.var, frame.value)
+                        for frame in self.flow._foreach_stack
+                    ]
+                )
+                metadata.append(
+                    MetaDatum(
+                        field="foreach-stack",
+                        value=foreach_stack_formatted,
+                        type="foreach-stack",
+                        tags=metadata_tags,
+                    )
+                )
+
+        self.metadata.register_metadata(
+            run_id,
+            step_name,
+            task_id,
+            metadata,
+        )
 
         # 4. initialize the current singleton
         current._set_env(

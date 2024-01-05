@@ -2,6 +2,7 @@ import inspect
 import os
 import sys
 import traceback
+import reprlib
 
 from itertools import islice
 from types import FunctionType, MethodType
@@ -502,7 +503,7 @@ class FlowSpec(object):
             )
             raise InvalidNextException(msg)
 
-    def _get_foreach_item_value(self, item, foreach_var, default_value):
+    def _get_foreach_item_value(self, item, foreach_var):
         """
         Get the unique value for the item in the foreach iterator. We will use
         the following order of precedence:
@@ -512,7 +513,8 @@ class FlowSpec(object):
         3) If the item is a dictionary and has a key named `key`, use the value of that key.
         4) If the item has an attribute named `key`, use the value of that attribute.
 
-        If no suitable value is found, return the default value.
+        If no suitable value is found, return the value formatted by reprlib, which is at
+        most 30 characters long.
 
         Parameters
         ----------
@@ -537,9 +539,7 @@ class FlowSpec(object):
                 or isinstance(item, bool)
             )
 
-        MAX_VALUE_LENGTH = 32
-
-        value = default_value
+        value = reprlib.Repr().repr(item)
         if _is_primitive_type(item):
             value = item
         elif (
@@ -556,7 +556,7 @@ class FlowSpec(object):
             value = item["value"]
         elif hasattr(item, "value") and _is_primitive_type(item.value):
             value = item.value
-        return basestring(value)[:MAX_VALUE_LENGTH]
+        return basestring(value)
 
     def next(self, *dsts: Callable[..., None], **kwargs) -> None:
         """
@@ -674,15 +674,11 @@ class FlowSpec(object):
                 self._validate_ubf_step(funcs[0])
             else:
                 try:
-                    self._foreach_num_splits = 0
                     self._foreach_values = []
                     for item in foreach_iter:
-                        current_index = self._foreach_num_splits
-                        value = self._get_foreach_item_value(
-                            item, foreach, str(current_index)
-                        )
+                        value = self._get_foreach_item_value(item, foreach)
                         self._foreach_values.append(value)
-                        self._foreach_num_splits += 1
+                    self._foreach_num_splits = len(self._foreach_values)
 
                 except Exception as e:
                     msg = (
