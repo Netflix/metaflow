@@ -1,5 +1,5 @@
 from metaflow.decorators import StepDecorator
-from metaflow.current import current
+from metaflow.metaflow_current import current
 from metaflow.util import to_unicode
 from .component_serializer import CardComponentCollector, get_card_class
 from .card_creator import CardCreator

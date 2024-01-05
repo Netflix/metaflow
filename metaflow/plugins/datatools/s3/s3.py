@@ -12,7 +12,7 @@ from tempfile import mkdtemp, NamedTemporaryFile
 from typing import Dict, Iterable, List, Optional, Tuple, Union, TYPE_CHECKING
 
 from metaflow import FlowSpec
-from metaflow.current import current
+from metaflow.metaflow_current import current
 from metaflow.metaflow_config import (
     DATATOOLS_S3ROOT,
     S3_RETRY_COUNT,

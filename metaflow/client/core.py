@@ -19,7 +19,7 @@ from typing import (
     Tuple,
 )
 
-from metaflow.current import current
+from metaflow.metaflow_current import current
 from metaflow.events import Trigger
 from metaflow.exception import (
     MetaflowInternalError,

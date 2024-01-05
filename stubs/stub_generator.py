@@ -343,7 +343,10 @@ class StubGenerator:
                     )
 
         # Special handling for the current module
-        if self._current_module_name == "metaflow.current" and name == "Current":
+        if (
+            self._current_module_name == "metaflow.metaflow_current"
+            and name == "Current"
+        ):
             # Multiple decorators can add the same object (trigger and trigger_on_finish)
             # as examples so we sort it out.
             resulting_dict = (

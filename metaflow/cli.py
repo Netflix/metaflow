@@ -13,7 +13,7 @@ from . import parameters
 from . import decorators
 from . import metaflow_version
 from . import namespace
-from . import current
+from .metaflow_current import current
 from .cli_args import cli_args
 from .tagging_util import validate_tags
 from .util import (
@@ -235,7 +235,6 @@ def output_dot(obj):
 )
 @click.pass_obj
 def dump(obj, input_path, private=None, max_value_size=None, include=None, file=None):
-
     output = {}
     kwargs = {
         "show_private": private,
@@ -738,7 +737,6 @@ def resume(
     decospecs=None,
     run_id_file=None,
 ):
-
     before_run(obj, tags, decospecs + obj.environment.decospecs())
 
     if origin_run_id is None:
@@ -824,7 +822,6 @@ def run(
     user_namespace=None,
     **kwargs
 ):
-
     if user_namespace is not None:
         namespace(user_namespace or None)
     before_run(obj, tags, decospecs + obj.environment.decospecs())
