@@ -293,6 +293,10 @@ class AzureStorage(DataStoreStorage):
         # create_on_absent doesn't do anything.  This matches S3Storage
         return DATASTORE_SYSROOT_AZURE
 
+    @check_azure_deps
+    def check_dependencies(self):
+        pass
+
     @handle_executor_exceptions
     def is_file(self, paths):
         # preserving order is important...

@@ -45,6 +45,9 @@ class LocalStorage(DataStoreStorage):
             result = os.path.join(result, DATASTORE_LOCAL_DIR)
         return result
 
+    def check_dependencies(self):
+        pass
+
     @staticmethod
     def _makedirs(path):
         try:

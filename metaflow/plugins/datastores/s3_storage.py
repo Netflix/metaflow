@@ -28,6 +28,10 @@ class S3Storage(DataStoreStorage):
     def get_datastore_root_from_config(cls, echo, create_on_absent=True):
         return DATASTORE_SYSROOT_S3
 
+    @check_s3_deps
+    def check_dependencies(self):
+        pass
+
     def is_file(self, paths):
         with S3(
             s3root=self.datastore_root,

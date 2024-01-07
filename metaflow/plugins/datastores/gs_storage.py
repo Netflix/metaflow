@@ -174,6 +174,10 @@ class GSStorage(DataStoreStorage):
         # create_on_absent doesn't do anything.  This matches S3Storage
         return DATASTORE_SYSROOT_GS
 
+    @check_gs_deps
+    def check_dependencies(self):
+        pass
+
     @handle_executor_exceptions
     def is_file(self, paths):
         # preserving order is important...

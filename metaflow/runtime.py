@@ -76,6 +76,8 @@ class NativeRuntime(object):
         max_num_splits=MAX_NUM_SPLITS,
         max_log_size=MAX_LOG_SIZE,
     ):
+        self._flow_datastore = flow_datastore
+        self._flow_datastore.check_dependencies()
 
         if run_id is None:
             self._run_id = metadata.new_run_id()
@@ -85,7 +87,6 @@ class NativeRuntime(object):
 
         self._flow = flow
         self._graph = graph
-        self._flow_datastore = flow_datastore
         self._metadata = metadata
         self._environment = environment
         self._logger = logger
