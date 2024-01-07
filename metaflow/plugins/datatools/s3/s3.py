@@ -56,7 +56,6 @@ def _check_and_init_s3_deps():
     try:
         import boto3
         from boto3.s3.transfer import TransferConfig
-
     except ImportError:
         raise MetaflowException("You need to install 'boto3' in order to use S3.")
 
@@ -518,6 +517,7 @@ class S3(object):
         encryption: Optional[str] = S3_SERVER_SIDE_ENCRYPTION,
         **kwargs
     ):
+        # cannot decorate __init__... invoke it with dummy decoratee
         check_s3_deps(lambda: 0)
 
         if run:

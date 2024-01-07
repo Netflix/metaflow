@@ -19,6 +19,7 @@ class S3Storage(DataStoreStorage):
     TYPE = "s3"
 
     def __init__(self, root=None):
+        # cannot decorate __init__... invoke it with dummy decoratee
         check_s3_deps(lambda: 0)
         super(S3Storage, self).__init__(root)
         self.s3_client = S3Client()
