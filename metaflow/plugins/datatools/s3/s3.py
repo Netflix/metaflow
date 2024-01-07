@@ -51,16 +51,26 @@ from .s3util import (
 if TYPE_CHECKING:
     from metaflow.client import Run
 
-try:
-    import boto3
-    from boto3.s3.transfer import TransferConfig
 
-    DOWNLOAD_FILE_THRESHOLD = 2 * TransferConfig().multipart_threshold
-    DOWNLOAD_MAX_CHUNK = 2 * 1024 * 1024 * 1024 - 1
-    boto_found = True
-except:
-    boto_found = False
+def _check_and_init_s3_deps():
+    try:
+        import boto3
+        from boto3.s3.transfer import TransferConfig
 
+    except ImportError:
+        raise MetaflowException("You need to install 'boto3' in order to use S3.")
+
+
+def check_s3_deps(func):
+    """The decorated function checks S3 dependencies (as needed for AWS S3 storage backend).
+    This includes boto3.
+    """
+
+    def _inner_func(*args, **kwargs):
+        _check_and_init_s3_deps()
+        return func(*args, **kwargs)
+
+    return _inner_func
 
 TEST_INJECT_RETRYABLE_FAILURES = int(
     os.environ.get("METAFLOW_S3_TEST_RETRYABLE_FAILURES", 0)
@@ -508,8 +518,7 @@ class S3(object):
         encryption: Optional[str] = S3_SERVER_SIDE_ENCRYPTION,
         **kwargs
     ):
-        if not boto_found:
-            raise MetaflowException("You need to install 'boto3' in order to use S3.")
+        check_s3_deps(lambda: 0)
 
         if run:
             # 1. use a (current) run ID with optional customizations
@@ -875,6 +884,10 @@ class S3(object):
         `S3Object`
             An S3Object corresponding to the object requested.
         """
+        from boto3.s3.transfer import TransferConfig
+        DOWNLOAD_FILE_THRESHOLD = 2 * TransferConfig().multipart_threshold
+        DOWNLOAD_MAX_CHUNK = 2 * 1024 * 1024 * 1024 - 1
+
         url, r = self._url_and_range(key)
         src = urlparse(url)
 
