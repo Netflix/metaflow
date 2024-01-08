@@ -44,7 +44,7 @@
   /* styling a progress bar is trickier than it should be. */
   progress::-webkit-progress-bar {
     background-color: white !important;
-    width: 100%;
+    min-width: 100%;
   }
   progress {
     background-color: white;

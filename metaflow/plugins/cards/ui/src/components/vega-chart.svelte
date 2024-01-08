@@ -3,12 +3,12 @@
   import { Vega } from "svelte-vega";
 
   export let componentData: VegaChartComponent
-  $:({data, spec} = componentData)
+  $:({data, spec, options} = componentData)
 </script>
 {#if data && spec}
-  <Vega data={data} spec={spec} />
+  <Vega data={data} spec={spec} options={options} />
 {:else}
-  <Vega spec={spec} />  
+  <Vega spec={spec} options={options}/>  
 {/if}
 
 
