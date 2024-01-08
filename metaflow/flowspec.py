@@ -19,7 +19,7 @@ from .unbounded_foreach import UnboundedForeachInput
 
 # For Python 3 compatibility
 try:
-    basestring
+    basestring  # pyright: ignore [reportUndefinedVariable, reportUnusedExpression]
 except NameError:
     basestring = str
 
@@ -477,7 +477,7 @@ class FlowSpec(object):
             raise MissingInMergeArtifactsException(msg, missing)
         # If things are resolved, we pass down the variables from the input datastores
         for var, (inp, _) in to_merge.items():
-            self._datastore.passdown_partial(inp._datastore, [var])
+            self._datastore.passdown_partial(inp._datastore, [var])  # pyright: ignore [reportOptionalMemberAccess]
 
     def _validate_ubf_step(self, step_name):
         join_list = self._graph[step_name].out_funcs
@@ -558,7 +558,7 @@ class FlowSpec(object):
         funcs = []
         for i, dst in enumerate(dsts):
             try:
-                name = dst.__func__.__name__
+                name = dst.__func__.__name__  # pyright: ignore [reportFunctionMemberAccess]
             except:
                 msg = (
                     "In step *{step}* the {arg}. argument in self.next() is "
@@ -584,7 +584,7 @@ class FlowSpec(object):
 
         # check: foreach is valid
         if foreach:
-            if not isinstance(foreach, basestring):
+            if not isinstance(foreach, basestring):  # pyright: ignore [reportUnboundVariable]
                 msg = (
                     "Step *{step}* has an invalid self.next() transition. "
                     "The argument to 'foreach' must be a string.".format(step=step)
@@ -651,7 +651,7 @@ class FlowSpec(object):
     def __str__(self):
         step_name = getattr(self, "_current_step", None)
         if step_name:
-            index = ",".join(str(idx) for idx, _, _ in self.foreach_stack())
+            index = ",".join(str(idx) for idx, _, _ in self.foreach_stack())  # pyright: ignore [reportOptionalIterable]
             if index:
                 inp = self.input
                 if inp is None:

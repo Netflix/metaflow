@@ -1,0 +1,32 @@
+{
+    "include": ["./metaflow"],
+    "exclude": [
+        "./metaflow/cli_args.py",
+        "./metaflow/cmd_with_io.py",
+        "./metaflow/datastore",
+        "./metaflow/debug.py",
+        "./metaflow/decorators.py",
+        "./metaflow/event_logger.py",
+        "./metaflow/extension_support",
+        "./metaflow/graph.py",
+        "./metaflow/metadata",
+        "./metaflow/metaflow_config_funcs.py",
+        "./metaflow/metaflow_environment.py",
+        "./metaflow/mflog",
+        "./metaflow/monitor.py",
+        "./metaflow/package.py",
+        "./metaflow/R.py",
+        "./metaflow/sidecar",
+        "./metaflow/unbounded_foreach.py",
+        "./metaflow/util.py",
+        "./metaflow/tutorials",
+        "./metaflow/_vendor",
+        "./metaflow/plugins/env_escape",
+        "./metaflow/cmd",
+        "./metaflow/**/*cli.py",
+        "./metaflow/plugins/datatools/s3/s3op.py",
+        "./metaflow/lint.py"
+    ],
+    "stubPath": "./stubs/metaflow-stubs",
+    "reportMissingImports": false
+}

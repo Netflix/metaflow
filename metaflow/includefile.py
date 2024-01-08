@@ -1,3 +1,6 @@
+# pyright: reportGeneralTypeIssues=false
+
+
 from collections import namedtuple
 import gzip
 

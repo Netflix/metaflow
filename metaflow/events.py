@@ -56,14 +56,14 @@ class Trigger(object):
 
     @classmethod
     def from_runs(cls, run_objs: List["metaflow.Run"]):
-        run_objs.sort(key=lambda x: x.finished_at, reverse=True)
+        run_objs.sort(key=lambda x: x.finished_at, reverse=True)  # pyright: ignore [reportGeneralTypeIssues]
         trigger = Trigger(
             [
                 {
                     "type": "run",
                     "timestamp": run_obj.finished_at,
-                    "name": "metaflow.%s.%s" % (run_obj.parent.id, run_obj["end"].id),
-                    "id": run_obj.end_task.pathspec,
+                    "name": "metaflow.%s.%s" % (run_obj.parent.id, run_obj["end"].id),  # pyright: ignore [reportOptionalMemberAccess]
+                    "id": run_obj.end_task.pathspec,  # pyright: ignore [reportOptionalMemberAccess]
                 }
                 for run_obj in run_objs
             ]
@@ -112,7 +112,7 @@ class Trigger(object):
         """
         if self._runs is None:
             self.runs
-        return next(iter(self._runs), None)
+        return next(iter(self._runs), None)  # pyright: ignore [reportGeneralTypeIssues]
 
     @property
     def runs(self) -> Optional[List["metaflow.Run"]]:
