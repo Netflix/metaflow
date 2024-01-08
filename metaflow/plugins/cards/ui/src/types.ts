@@ -1,5 +1,7 @@
 import type { VisualizationSpec } from "svelte-vega";
 
+import type { EmbedOptions } from "vega-embed";
+
 export type Route = [string, string];
 
 export type Status = "success" | "error" | "idle" | "in-progress";
@@ -188,6 +190,7 @@ export interface VegaChartComponent {
   id?: string;
   spec: VisualizationSpec;
   data: Record<string, unknown>;
+  options?: EmbedOptions;
 }
 // wrap all component options into a Component type
 export type CardComponent =

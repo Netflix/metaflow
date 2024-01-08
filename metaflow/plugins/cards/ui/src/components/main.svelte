@@ -25,5 +25,6 @@
   /* if the embed class is present, we hide the aside, and we should center the main */
   :global(.embed main) {
     margin: 0 auto;
+    min-width: 80%
   }
 </style>

@@ -12,7 +12,7 @@ export const cardData: Writable<types.CardResponse | undefined> =
  * changes that have come from the parent window.
  */
 (window as any).metaflow_card_update = (
-  dataChanges: Record<string, types.CardComponent>,
+  dataChanges: Record<string, types.CardComponent>
 ) => {
   console.log("metaflow_card_update", dataChanges, cardData?.update);
 
@@ -21,7 +21,7 @@ export const cardData: Writable<types.CardResponse | undefined> =
 
     Object.values(dataChanges).forEach(
       (change) =>
-        newData?.components && findAndMutateTree(newData.components, change),
+        newData?.components && findAndMutateTree(newData.components, change)
     );
 
     return newData;
@@ -31,7 +31,7 @@ export const cardData: Writable<types.CardResponse | undefined> =
 
 const mutateChartElement = (
   chart: types.VegaChartComponent,
-  newChart: types.VegaChartComponent,
+  newChart: types.VegaChartComponent
 ) => {
   if (chart.data) {
     chart.data = JSON.parse(JSON.stringify(newChart.data)) as Record<
@@ -39,10 +39,10 @@ const mutateChartElement = (
       unknown
     >;
   }
-  const specHasChanged =
+  const specHasNotChanged =
     JSON.stringify(newChart.spec) === JSON.stringify(chart.spec);
 
-  if (specHasChanged) {
+  if (!specHasNotChanged) {
     chart.spec = JSON.parse(JSON.stringify(newChart.spec)) as VisualizationSpec;
   }
 };
@@ -50,10 +50,10 @@ const mutateChartElement = (
 // NOTE: this function mutates the object! Be careful with it.
 const findAndMutateTree = (
   components: types.CardComponent[],
-  newComponent: types.CardComponent,
+  newComponent: types.CardComponent
 ) => {
   const componentIndex = components.findIndex(
-    (fcomp) => newComponent.id === fcomp?.id,
+    (fcomp) => newComponent.id === fcomp?.id
   );
 
   if (componentIndex > -1) {
@@ -61,7 +61,7 @@ const findAndMutateTree = (
       // if the component is a vegaChart, we need to merge the data
       mutateChartElement(
         components[componentIndex] as types.VegaChartComponent,
-        newComponent as types.VegaChartComponent,
+        newComponent as types.VegaChartComponent
       );
     } else {
       Object.assign(components[componentIndex], newComponent);
@@ -84,7 +84,7 @@ export const setCardData: (cardDataId: string) => void = (cardDataId) => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     const data = JSON.parse(
-      atob((window as any).__MF_DATA__[cardDataId]),
+      atob((window as any).__MF_DATA__[cardDataId])
     ) as types.CardResponse;
     cardData.set(data);
   } catch (error) {
