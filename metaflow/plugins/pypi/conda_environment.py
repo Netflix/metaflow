@@ -186,7 +186,7 @@ class CondaEnvironment(MetaflowEnvironment):
             if decorator.name in ["conda", "pypi"]:
                 # handle @conda/@pypi(disabled=True)
                 disabled = decorator.attributes["disabled"]
-                return disabled or str(disabled).lower() != "false"
+                return str(disabled).lower() == "true"
         return False
 
     @functools.lru_cache(maxsize=None)
