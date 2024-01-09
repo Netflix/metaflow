@@ -44,7 +44,7 @@ jobs:
       run: tox
 
     - name: Generate Stubs
-      run: rm -rf metaflow-stubs/ && python -c "from stub_generator import StubGenerator; gen = StubGenerator('./metaflow-stubs'); gen.write_out()"
+      run: cd ./stubs && rm -rf metaflow-stubs/ && python -c "from stub_generator import StubGenerator; gen = StubGenerator('./metaflow-stubs'); gen.write_out()" && cd -
 
     - name: Validate with Stubs and pyright
       run: pyright
