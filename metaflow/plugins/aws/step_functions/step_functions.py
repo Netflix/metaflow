@@ -1,3 +1,6 @@
+# pyright: reportGeneralTypeIssues=false
+
+
 import hashlib
 import json
 import os

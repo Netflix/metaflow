@@ -46,7 +46,7 @@ class AirflowSensorDecorator(FlowDecorator):
         task_args = self.serialize_operator_args()
         return AirflowTask(
             self._airflow_task_name,
-            operator_type=self.operator_type,
+            operator_type=self.operator_type,  # pyright: ignore [reportGeneralTypeIssues]
         ).set_operator_args(**{k: v for k, v in task_args.items() if v is not None})
 
     def validate(self):

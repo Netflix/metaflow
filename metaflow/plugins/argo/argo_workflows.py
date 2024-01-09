@@ -1,3 +1,6 @@
+# pyright: reportGeneralTypeIssues=false
+
+
 import base64
 import json
 import os
@@ -1513,7 +1516,7 @@ class ArgoWorkflows(object):
                                     )
                                     for claim, path in resources.get(
                                         "persistent_volume_claims"
-                                    ).items()
+                                    ).items()  # pyright: ignore [reportOptionalMemberAccess]
                                 ]
                                 if resources.get("persistent_volume_claims") is not None
                                 else []
@@ -1951,8 +1954,8 @@ class ArgoWorkflows(object):
                             # timezone is IANA standard, e.g. America/Los_Angeles
                             # TODO: Introduce "end_of_day", "end_of_hour" ..
                         ).conditions_reset(
-                            cron=self.trigger_options.get("reset_at", {}).get("cron"),
-                            timezone=self.trigger_options.get("reset_at", {}).get(
+                            cron=self.trigger_options.get("reset_at", {}).get("cron"),  # pyright: ignore [reportOptionalMemberAccess]
+                            timezone=self.trigger_options.get("reset_at", {}).get(  # pyright: ignore [reportOptionalMemberAccess]
                                 "timezone"
                             ),
                         )

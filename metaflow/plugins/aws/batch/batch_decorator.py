@@ -1,7 +1,7 @@
 import os
 import sys
 import platform
-import requests
+import requests  # pyright: ignore [reportMissingModuleSource]
 import time
 
 from metaflow import util
@@ -141,33 +141,33 @@ class BatchDecorator(StepDecorator):
         if not get_docker_registry(self.attributes["image"]):
             if BATCH_CONTAINER_REGISTRY:
                 self.attributes["image"] = "%s/%s" % (
-                    BATCH_CONTAINER_REGISTRY.rstrip("/"),
+                    BATCH_CONTAINER_REGISTRY.rstrip("/"),  # pyright: ignore [reportGeneralTypeIssues]
                     self.attributes["image"],
                 )
 
     # Refer https://github.com/Netflix/metaflow/blob/master/docs/lifecycle.png
     # to understand where these functions are invoked in the lifecycle of a
     # Metaflow flow.
-    def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
+    def step_init(self, flow, graph, step_name, decorators, environment, flow_datastore, logger):
         if flow_datastore.TYPE != "s3":
             raise BatchException("The *@batch* decorator requires --datastore=s3.")
 
         # Set internal state.
         self.logger = logger
         self.environment = environment
-        self.step = step
+        self.step = step_name
         self.flow_datastore = flow_datastore
 
         self.attributes.update(
-            compute_resource_attributes(decos, self, self.resource_defaults)
+            compute_resource_attributes(decorators, self, self.resource_defaults)
         )
 
         # Set run time limit for the AWS Batch job.
-        self.run_time_limit = get_run_time_limit_for_task(decos)
+        self.run_time_limit = get_run_time_limit_for_task(decorators)
         if self.run_time_limit < 60:
             raise BatchException(
                 "The timeout for step *{step}* should be at "
-                "least 60 seconds for execution on AWS Batch.".format(step=step)
+                "least 60 seconds for execution on AWS Batch.".format(step=self.step)
             )
 
         # Validate tmpfs_path. Batch requires this to be an absolute path
@@ -212,7 +212,7 @@ class BatchDecorator(StepDecorator):
         flow,
         graph,
         retry_count,
-        max_retries,
+        max_user_code_retries,
         ubf_context,
         inputs,
     ):
@@ -277,7 +277,7 @@ class BatchDecorator(StepDecorator):
         if num_parallel >= 1 and ubf_context == UBF_CONTROL:
             # UBF handling for multinode case
             control_task_id = current.task_id
-            top_task_id = control_task_id.replace("control-", "")  # chop "-0"
+            top_task_id = control_task_id.replace("control-", "")  # chop "-0"  # pyright: ignore [reportOptionalMemberAccess]
             mapper_task_ids = [control_task_id] + [
                 "%s-node-%d" % (top_task_id, node_idx)
                 for node_idx in range(1, num_parallel)
@@ -292,7 +292,7 @@ class BatchDecorator(StepDecorator):
             _setup_multinode_environment()
 
     def task_finished(
-        self, step_name, flow, graph, is_task_ok, retry_count, max_retries
+        self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries
     ):
         # task_finished may run locally if fallback is activated for @catch
         # decorator.

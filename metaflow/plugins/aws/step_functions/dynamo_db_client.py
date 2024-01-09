@@ -1,5 +1,5 @@
 import os
-import requests
+import requests  # pyright: ignore [reportMissingModuleSource]
 from metaflow.metaflow_config import SFN_DYNAMO_DB_TABLE
 
 

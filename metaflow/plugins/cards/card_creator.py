@@ -1,3 +1,6 @@
+# pyright: reportGeneralTypeIssues=false
+
+
 import time
 import subprocess
 import tempfile

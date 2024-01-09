@@ -1,5 +1,5 @@
 import re
-import requests
+import requests  # pyright: ignore [reportMissingModuleSource]
 
 from metaflow.exception import MetaflowException
 
@@ -82,7 +82,7 @@ def get_docker_registry(image_uri):
     """
 
     pattern = re.compile(r"^(.+?(?:[:.].+?)\/)?(.*?)(?:[@:])?((?<=[@:]).*)?$")
-    registry, repository, tag = pattern.match(image_uri).groups()
+    registry, repository, tag = pattern.match(image_uri).groups()  # pyright: ignore [reportOptionalMemberAccess]
     if registry is not None:
         registry = registry.rstrip("/")
     return registry

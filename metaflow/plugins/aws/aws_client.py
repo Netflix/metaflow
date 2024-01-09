@@ -22,7 +22,7 @@ class Boto3ClientProvider(object):
         if client_params is None:
             client_params = {}
 
-        import requests
+        import requests  # pyright: ignore [reportMissingModuleSource]
 
         try:
             import boto3
@@ -50,7 +50,7 @@ class Boto3ClientProvider(object):
                 url = "%s/auth/token" % AWS_SANDBOX_STS_ENDPOINT_URL
                 headers = {"x-api-key": AWS_SANDBOX_API_KEY}
                 try:
-                    r = requests.get(url, headers=headers)
+                    r = requests.get(url, headers=headers)  # pyright: ignore [reportGeneralTypeIssues]
                     r.raise_for_status()
                     cached_aws_sandbox_creds = r.json()
                 except requests.exceptions.HTTPError as e:

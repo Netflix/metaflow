@@ -13,7 +13,7 @@ def _token_generator(token_prefix):
         prefix = "%s-%d-" % (token_prefix, i)
         # we need to use a consistent hash here, which is why
         # random.seed(prefix) or random.seed(hash(prefix)) won't work
-        random.seed(zlib.adler32(to_bytes(prefix)))
+        random.seed(zlib.adler32(to_bytes(prefix)))  # pyright: ignore [reportGeneralTypeIssues]
         yield prefix + "".join(random.sample(string.ascii_lowercase, 4))
 
 

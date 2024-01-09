@@ -1,9 +1,12 @@
+# pyright: reportGeneralTypeIssues=false
+
+
 # Deployed on {{deployed_on}}
 
-CONFIG = {{{config}}}
+CONFIG = {{{config}}}  # pyright: ignore [reportUndefinedVariable]
 
-{{{utils}}}
+{{{utils}}}  # pyright: ignore [reportUndefinedVariable, reportUnusedExpression]
 
-dag = Workflow.from_dict(CONFIG).compile()
+dag = Workflow.from_dict(CONFIG).compile()  # pyright: ignore [reportUndefinedVariable]
 with dag:
     pass

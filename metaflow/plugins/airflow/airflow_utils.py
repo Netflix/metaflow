@@ -1,3 +1,6 @@
+# pyright: reportGeneralTypeIssues=false
+
+
 import hashlib
 import json
 import sys
@@ -545,7 +548,7 @@ class AirflowTask(object):
 
     def _make_sensor(self):
         TaskSensor = _get_sensor(self._operator_type)
-        return TaskSensor(
+        return TaskSensor(  # pyright: ignore [reportOptionalCall]
             task_id=self.name,
             **_parse_sensor_args(self._operator_type, self._operator_args)
         )
@@ -676,7 +679,7 @@ class Workflow(object):
 
         _validate_minimum_airflow_version()
 
-        if self._metadata["contains_foreach"]:
+        if self._metadata["contains_foreach"]:  # pyright: ignore [reportOptionalSubscript]
             _validate_dynamic_mapping_compatibility()
             # We need to verify if KubernetesPodOperator is of version > 4.2.0 to support foreachs / dynamic task mapping.
             # If the dag uses dynamic Task mapping then we throw an error since the `resources` argument in the `KubernetesPodOperator`
@@ -702,8 +705,8 @@ class Workflow(object):
                     for parent in parents:
                         # Handle foreach nodes.
                         if self.states[node].is_mapper_node:
-                            task = task.expand(mapper_arr=XComArg(parent))
-                        parent >> task
+                            task = task.expand(mapper_arr=XComArg(parent))  # pyright: ignore [reportOptionalCall]
+                        parent >> task  # pyright: ignore [reportUnusedExpression]
                 return [task]  # Return Parent
 
             # this means a split from parent
@@ -725,7 +728,7 @@ class Workflow(object):
 
         with dag:
             parent = None
-            for node in self.graph_structure:
+            for node in self.graph_structure:  # pyright: ignore [reportOptionalIterable]
                 parent = add_node(node, parent, dag)
 
         return dag

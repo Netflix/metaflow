@@ -79,7 +79,7 @@ def format(name):
     # We truncate the rule name if the computed name is greater
     # than 64 chars and append a hashed suffix to ensure uniqueness.
     if len(name) > 64:
-        name_hash = to_unicode(base64.b32encode(sha1(to_bytes(name)).digest()))[
+        name_hash = to_unicode(base64.b32encode(sha1(to_bytes(name)).digest()))[  # pyright: ignore [reportGeneralTypeIssues]
             :16
         ].lower()
         # construct an 64 character long rule name

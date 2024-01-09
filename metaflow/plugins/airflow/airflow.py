@@ -1,3 +1,6 @@
+# pyright: reportGeneralTypeIssues=false
+
+
 import json
 import os
 import random
@@ -174,7 +177,7 @@ class Airflow(object):
         )
 
         if parent_is_foreach:
-            max_user_code_retries + foreach_default_retry
+            max_user_code_retries + foreach_default_retry  # pyright: ignore [reportUnusedExpression]
         return max_user_code_retries, max_user_code_retries + max_error_retries
 
     def _get_retry_delay(self, node):
@@ -737,7 +740,7 @@ class Airflow(object):
         if len(appending_sensors) > 0:
             for s in appending_sensors:
                 workflow.add_state(s)
-            workflow.graph_structure.insert(0, [[s.name] for s in appending_sensors])
+            workflow.graph_structure.insert(0, [[s.name] for s in appending_sensors])  # pyright: ignore [reportOptionalMemberAccess]
         return self._to_airflow_dag_file(workflow.to_dict())
 
     def _to_airflow_dag_file(self, json_dag):

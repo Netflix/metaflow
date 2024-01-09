@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+
+# pyright: reportUnboundVariable=false
+
+
 from collections import defaultdict, deque
 import copy
 import random
@@ -8,7 +12,7 @@ import time
 import hashlib
 
 try:
-    unicode
+    unicode  # pyright: ignore [reportUndefinedVariable, reportUnusedExpression]
 except NameError:
     unicode = str
     basestring = str
@@ -127,7 +131,7 @@ class BatchJob(object):
                 if num_nodes > 1
                 else []
             )
-            self.payload["nodeOverrides"] = {
+            self.payload["nodeOverrides"] = {  # pyright: ignore [reportGeneralTypeIssues]
                 "nodePropertyOverrides": [
                     {"targetNodes": "0:0", "containerOverrides": main_task_override},
                 ]

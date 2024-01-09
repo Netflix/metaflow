@@ -50,12 +50,12 @@ class Azure(object):
         if not return_missing:
             raise MetaflowException("Azure object supports only return_missing=True")
         # We fabricate a uri scheme to fit into existing includefile code (just like local://)
-        if not key.startswith("azure://"):
+        if not key.startswith("azure://"):  # pyright: ignore [reportOptionalMemberAccess]
             raise MetaflowInternalError(
                 msg="Expected Azure object key to start with 'azure://'"
             )
         uri_style_key = key
-        short_key = key[8:]
+        short_key = key[8:]  # pyright: ignore [reportOptionalSubscript]
         storage = self._get_storage_backend(short_key)
         azure_object = None
         with storage.load_bytes([short_key]) as load_result:
@@ -84,13 +84,13 @@ class Azure(object):
 
     def info(self, key=None, return_missing=False):
         # We fabricate a uri scheme to fit into existing includefile code (just like local://)
-        if not key.startswith("azure://"):
+        if not key.startswith("azure://"):  # pyright: ignore [reportOptionalMemberAccess]
             raise MetaflowInternalError(
                 msg="Expected Azure object key to start with 'azure://'"
             )
         # aliasing this purely for clarity
         uri_style_key = key
-        short_key = key[8:]
+        short_key = key[8:]  # pyright: ignore [reportOptionalSubscript]
         storage = self._get_storage_backend(short_key)
         blob_size = storage.size_file(short_key)
         blob_exists = blob_size is not None

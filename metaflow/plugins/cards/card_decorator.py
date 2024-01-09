@@ -189,7 +189,7 @@ class CardDecorator(StepDecorator):
         if str(self.attributes["customize"]) == "True":
             customize = True
 
-        card_metadata = current.card._add_card(
+        card_metadata = current.card._add_card(  # pyright: ignore [reportGeneralTypeIssues]
             self.attributes["type"],
             self._user_set_card_id,
             self.attributes,
@@ -205,7 +205,7 @@ class CardDecorator(StepDecorator):
         # We can now `finalize` method in the CardComponentCollector object.
         # This will set up the `current.card` object for usage inside `@step` code.
         if self.step_counter == self.total_decos_on_step[step_name]:
-            current.card._finalize()
+            current.card._finalize()  # pyright: ignore [reportGeneralTypeIssues]
 
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries
@@ -219,8 +219,8 @@ class CardDecorator(StepDecorator):
             logger=self._logger,
         )
         if is_task_ok:
-            self.card_creator.create(mode="render", final=True, **create_options)
-            self.card_creator.create(mode="refresh", final=True, **create_options)
+            self.card_creator.create(mode="render", final=True, **create_options)  # pyright: ignore [reportOptionalMemberAccess]
+            self.card_creator.create(mode="refresh", final=True, **create_options)  # pyright: ignore [reportOptionalMemberAccess]
 
     @staticmethod
     def _options(mapping):
@@ -236,8 +236,8 @@ class CardDecorator(StepDecorator):
     def _create_top_level_args(self):
         top_level_options = {
             "quiet": True,
-            "metadata": self._metadata.TYPE,
-            "environment": self._environment.TYPE,
+            "metadata": self._metadata.TYPE,  # pyright: ignore [reportOptionalMemberAccess]
+            "environment": self._environment.TYPE,  # pyright: ignore [reportOptionalMemberAccess]
             "datastore": self._flow_datastore.TYPE,
             "datastore-root": self._flow_datastore.datastore_root,
             "no-pylint": True,

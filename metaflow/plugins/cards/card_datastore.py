@@ -1,6 +1,5 @@
-""" 
+# pyright: reportUnboundVariable=false
 
-"""
 
 from collections import namedtuple
 from io import BytesIO
@@ -91,7 +90,7 @@ class CardDatastore(object):
     def __init__(self, flow_datastore, pathspec=None):
         self._backend = flow_datastore._storage_impl
         self._flow_name = flow_datastore.flow_name
-        _, run_id, step_name, _ = pathspec.split("/")
+        _, run_id, step_name, _ = pathspec.split("/")  # pyright: ignore [reportOptionalMemberAccess]
         self._run_id = run_id
         self._step_name = step_name
         self._pathspec = pathspec

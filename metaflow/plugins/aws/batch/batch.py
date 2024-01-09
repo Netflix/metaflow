@@ -391,7 +391,7 @@ class Batch(object):
     def wait(self, stdout_location, stderr_location, echo=None):
         def wait_for_launch(job, child_jobs):
             status = job.status
-            echo(
+            echo(  # pyright: ignore [reportOptionalCall]
                 "Task is starting (status %s)..." % status,
                 "stderr",
                 batch_id=job.id,
@@ -426,7 +426,7 @@ class Batch(object):
                             )
                         )
                     status = job.status
-                    echo(
+                    echo(  # pyright: ignore [reportOptionalCall]
                         "Task is starting (status %s)... %s" % (status, child_statuses),
                         "stderr",
                         batch_id=job.id,
@@ -480,7 +480,7 @@ class Batch(object):
             if self.job.is_running:
                 # Kill the job if it is still running by throwing an exception.
                 raise BatchException("Task failed!")
-            echo(
+            echo(  # pyright: ignore [reportOptionalCall]
                 "Task finished with exit code %s." % self.job.status_code,
                 "stderr",
                 batch_id=self.job.id,

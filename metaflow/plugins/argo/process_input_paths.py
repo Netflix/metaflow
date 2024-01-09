@@ -9,7 +9,7 @@ def process_input_paths(input_paths):
     # flow/step/[{task-id:foo},{task-id:bar}] => flow/step/:foo,bar
 
     flow, run_id, task_ids = input_paths.split("/")
-    task_ids = re.sub("[\[\]{}]", "", task_ids)
+    task_ids = re.sub("[\[\]{}]", "", task_ids)  # pyright: ignore [reportInvalidStringEscapeSequence]
     task_ids = task_ids.split(",")
     tasks = [t.split(":")[1] for t in task_ids]
     return "{}/{}/:{}".format(flow, run_id, ",".join(tasks))
