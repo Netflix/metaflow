@@ -38,10 +38,16 @@ jobs:
     - name: Install Python ${{ matrix.ver }} dependencies
       run: |
         python3 -m pip install --upgrade pip setuptools
-        python3 -m pip install tox numpy
+        python3 -m pip install tox numpy pyright
 
     - name: Execute Python tests
       run: tox
+
+    - name: Generate Stubs
+      run: rm -rf metaflow-stubs/ && python -c "from stub_generator import StubGenerator; gen = StubGenerator('./metaflow-stubs'); gen.write_out()"
+
+    - name: Validate with Stubs and pyright
+      run: pyright
 
   R:
     name: core / R ${{ matrix.ver }} on ${{ matrix.os }}
