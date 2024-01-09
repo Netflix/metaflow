@@ -8,7 +8,7 @@ class DebugEventLogger(NullEventLogger):
     TYPE = "debugLogger"
 
     @classmethod
-    def get_worker(cls):
+    def get_worker(cls):  # pyright: ignore [reportIncompatibleMethodOverride]
         return DebugEventLoggerSidecar
 
 

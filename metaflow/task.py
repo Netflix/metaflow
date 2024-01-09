@@ -1,3 +1,6 @@
+# pyright: reportUnboundVariable=false
+
+
 from __future__ import print_function
 from io import BytesIO
 import math
@@ -525,7 +528,7 @@ class MetaflowTask(object):
 
                 # Multiple input contexts are passed in as an argument
                 # to the step function.
-                input_obj = Inputs(self._clone_flow(inp) for inp in inputs)
+                input_obj = Inputs(self._clone_flow(inp) for inp in inputs)  # pyright: ignore [reportUnboundVariable, reportGeneralTypeIssues]
                 self.flow._set_datastore(output)
                 # initialize parameters (if they exist)
                 # We take Parameter values from the first input,

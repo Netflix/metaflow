@@ -59,7 +59,7 @@ def _spawn(func, arg, dir):
                 # we can't use sys.exit(0) here since it raises SystemExit
                 # that may have unintended side-effects (e.g. triggering
                 # finally blocks).
-                os._exit(exit_code)
+                os._exit(exit_code)  # pyright: ignore [reportUnboundVariable]
 
 
 def parallel_imap_unordered(

@@ -1,3 +1,7 @@
+# pyright: reportOptionalMemberAccess=false
+# pyright: reportGeneralTypeIssues=false
+
+
 """
 Local backend
 
@@ -297,7 +301,7 @@ class NativeRuntime(object):
             # on finish clean tasks
             for step in self._flow:
                 for deco in step.decorators:
-                    deco.runtime_finished(exception)
+                    deco.runtime_finished(exception)  # pyright: ignore [reportUnboundVariable]
 
             self._metadata.stop_heartbeat()
 
@@ -867,7 +871,7 @@ class Task(object):
         if not self._is_cloned:
             self.new_attempt()
 
-            for deco in decos:
+            for deco in decos:  # pyright: ignore [reportOptionalIterable]
                 deco.runtime_task_created(
                     self._ds,
                     task_id,
@@ -913,7 +917,7 @@ class Task(object):
         else:
             prefix = "[%s] " % self._path
 
-        self._logger(msg, head=prefix, system_msg=system_msg, timestamp=timestamp)
+        self._logger(msg, head=prefix, system_msg=system_msg, timestamp=timestamp)  # pyright: ignore [reportOptionalCall]
         sys.stdout.flush()
 
     def _get_task_id(self, task_id):
@@ -990,7 +994,7 @@ class Task(object):
         else:
             # all inputs must have the same foreach stack, so we can safely
             # pick the first one
-            parent_pathspec = self.input_paths[0]
+            parent_pathspec = self.input_paths[0]  # pyright: ignore [reportOptionalSubscript]
             origin_parent_pathspec = self.clone_pathspec_mapping[parent_pathspec]
             parent = self.origin_ds_set.get_with_pathspec(origin_parent_pathspec)
             # Parent should be non-None since only clone the child if the parent

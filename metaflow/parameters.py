@@ -12,7 +12,7 @@ from .exception import (
 
 try:
     # Python2
-    strtype = basestring
+    strtype = basestring  # pyright: ignore [reportUndefinedVariable]
 except NameError:
     # Python3
     strtype = str
@@ -104,7 +104,7 @@ class DeployTimeField(object):
         #    this scenario, the value should be something that can be converted to JSON.
         # The deploy_time value can therefore be used to determine which type of
         # processing is requested.
-        ctx = context_proto._replace(parameter_name=self.parameter_name)
+        ctx = context_proto._replace(parameter_name=self.parameter_name)  # pyright: ignore [reportOptionalMemberAccess]
         try:
             try:
                 # Most user-level functions may not care about the deploy_time parameter
@@ -135,7 +135,7 @@ class DeployTimeField(object):
 
         if self.parameter_type in TYPES:
             if type(val) != self.parameter_type:
-                msg += "Expected a %s." % TYPES[self.parameter_type]
+                msg += "Expected a %s." % TYPES[self.parameter_type]  # pyright: ignore [reportGeneralTypeIssues]
                 raise ParameterFieldTypeMismatch(msg)
             return str(val) if self.return_str else val
         else:
@@ -180,8 +180,8 @@ def set_parameter_context(flow_name, echo, datastore):
     global context_proto
     context_proto = ParameterContext(
         flow_name=flow_name,
-        user_name=get_username(),
-        parameter_name=None,
+        user_name=get_username(),  # pyright: ignore [reportGeneralTypeIssues]
+        parameter_name=None,  # pyright: ignore [reportGeneralTypeIssues]
         logger=echo,
         ds_type=datastore.TYPE,
     )
@@ -322,7 +322,7 @@ class Parameter(object):
         # default can be defined as a function
         default_field = self.kwargs.get("default")
         if callable(default_field) and not isinstance(default_field, DeployTimeField):
-            self.kwargs["default"] = DeployTimeField(
+            self.kwargs["default"] = DeployTimeField(  # pyright: ignore [reportGeneralTypeIssues]
                 name, param_type, "default", self.kwargs["default"], return_str=True
             )
 
@@ -342,9 +342,9 @@ class Parameter(object):
             ret = dict(kwargs)
             help_msg = kwargs.get("help")
             help_msg = "" if help_msg is None else help_msg
-            ret["help"] = help_msg + "[default: deploy-time value of '%s']" % self.name
-            ret["default"] = None
-            ret["required"] = False
+            ret["help"] = help_msg + "[default: deploy-time value of '%s']" % self.name  # pyright: ignore [reportGeneralTypeIssues]
+            ret["default"] = None  # pyright: ignore [reportGeneralTypeIssues]
+            ret["required"] = False  # pyright: ignore [reportGeneralTypeIssues]
             return ret
         else:
             return kwargs

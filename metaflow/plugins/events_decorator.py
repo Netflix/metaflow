@@ -68,7 +68,7 @@ class TriggerDecorator(FlowDecorator):
         "options": {},
     }
 
-    def flow_init(
+    def flow_init(  # pyright: ignore [reportIncompatibleMethodOverride]
         self,
         flow_name,
         graph,
@@ -259,7 +259,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
         ),
     }
 
-    def flow_init(
+    def flow_init(  # pyright: ignore [reportIncompatibleMethodOverride]
         self,
         flow_name,
         graph,

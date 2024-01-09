@@ -48,7 +48,7 @@ class TimeoutDecorator(StepDecorator):
             + int(self.attributes["seconds"])
         )
 
-    def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
+    def step_init(self, flow, graph, step_name, decorators, environment, flow_datastore, logger):
         self.logger = logger
         if not self.secs:
             raise MetaflowException("Specify a duration for @timeout.")

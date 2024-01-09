@@ -81,9 +81,9 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
     step_name = current.step_name
     control_task_id = current.task_id
 
-    (_, split_step_name, split_task_id) = control_task_id.split("-")[1:]
+    (_, split_step_name, split_task_id) = control_task_id.split("-")[1:]  # pyright: ignore [reportOptionalMemberAccess]
     # UBF handling for multinode case
-    top_task_id = control_task_id.replace("control-", "")  # chop "-0"
+    top_task_id = control_task_id.replace("control-", "")  # chop "-0"  # pyright: ignore [reportOptionalMemberAccess]
     mapper_task_ids = [control_task_id]
     # If we are running inside Conda, we use the base executable FIRST;
     # the conda environment will then be used when runtime_step_cli is

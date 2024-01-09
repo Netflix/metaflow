@@ -27,7 +27,7 @@ class RetryDecorator(StepDecorator):
     name = "retry"
     defaults = {"times": "3", "minutes_between_retries": "2"}
 
-    def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
+    def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):  # pyright: ignore [reportIncompatibleMethodOverride]
         # The total number of attempts must not exceed MAX_ATTEMPTS.
         # attempts = normal task (1) + retries (N) + @catch fallback (1)
         if int(self.attributes["times"]) + 2 > MAX_ATTEMPTS:
@@ -36,5 +36,5 @@ class RetryDecorator(StepDecorator):
                 "@retry(times=%d)." % (MAX_ATTEMPTS - 2)
             )
 
-    def step_task_retry_count(self):
+    def step_task_retry_count(self):  # pyright: ignore [reportIncompatibleMethodOverride]
         return int(self.attributes["times"]), 0

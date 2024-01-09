@@ -138,8 +138,8 @@ SIDECARS = resolve_plugins("sidecar")
 LOGGING_SIDECARS = resolve_plugins("logging_sidecar")
 MONITOR_SIDECARS = resolve_plugins("monitor_sidecar")
 
-SIDECARS.update(LOGGING_SIDECARS)
-SIDECARS.update(MONITOR_SIDECARS)
+SIDECARS.update(LOGGING_SIDECARS)  # pyright: ignore [reportGeneralTypeIssues]
+SIDECARS.update(MONITOR_SIDECARS)  # pyright: ignore [reportGeneralTypeIssues]
 
 AWS_CLIENT_PROVIDERS = resolve_plugins("aws_client_provider")
 SECRETS_PROVIDERS = resolve_plugins("secrets_provider")

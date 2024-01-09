@@ -1,3 +1,8 @@
+# pyright: reportGeneralTypeIssues=false
+# pyright: reportOptionalSubscript=false
+# pyright: reportOptionalMemberAccess=false
+
+
 from __future__ import print_function
 
 import json

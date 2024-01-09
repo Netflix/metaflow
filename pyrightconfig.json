@@ -25,7 +25,11 @@
         "./metaflow/cmd",
         "./metaflow/**/*cli.py",
         "./metaflow/plugins/datatools/s3/s3op.py",
-        "./metaflow/lint.py"
+        "./metaflow/lint.py",
+        "./metaflow/procpoll.py",
+        "./metaflow/pylint_wrapper.py",
+        "./metaflow/vendor.py",
+        "./metaflow/plugins/test_unbounded_foreach_decorator.py"
     ],
     "stubPath": "./stubs/metaflow-stubs",
     "reportMissingImports": false

@@ -1,3 +1,6 @@
+# pyright: reportGeneralTypeIssues=false
+
+
 from __future__ import print_function
 from collections import OrderedDict
 import os
@@ -273,7 +276,7 @@ class FileCache(object):
             raise
         size = os.path.getsize(path)
         self._total += size
-        self._objects.append((int(time.time()), size, path))
+        self._objects.append((int(time.time()), size, path))  # pyright: ignore [reportOptionalMemberAccess]
         self._garbage_collect()
 
     def read_file(self, path):
@@ -321,7 +324,7 @@ class FileCache(object):
 
     def _garbage_collect(self):
         now = time.time()
-        while self._objects and self._total > self._max_size * 1024**2:
+        while self._objects and self._total > self._max_size * 1024**2:  # pyright: ignore [reportOptionalOperand]
             if now - self._objects[0][0] < NEW_FILE_QUARANTINE:
                 break
             ctime, size, path = self._objects.pop(0)

@@ -41,15 +41,15 @@ class CatchDecorator(StepDecorator):
     name = "catch"
     defaults = {"var": None, "print_exception": True}
 
-    def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
+    def step_init(self, flow, graph, step_name, decorators, environment, flow_datastore, logger):
         # handling _foreach_var and _foreach_num_splits requires some
         # deeper thinking, so let's not support that use case for now
         self.logger = logger
-        if graph[step].type == "foreach":
+        if graph[step_name].type == "foreach":
             raise MetaflowException(
                 "@catch is defined for the step *%s* "
                 "but @catch is not supported in foreach "
-                "split steps." % step
+                "split steps." % step_name
             )
 
     def _print_exception(self, step, flow):
@@ -62,24 +62,24 @@ class CatchDecorator(StepDecorator):
         if var:
             setattr(flow, var, val)
 
-    def task_exception(
-        self, exception, step, flow, graph, retry_count, max_user_code_retries
+    def task_exception(  # pyright: ignore [reportIncompatibleMethodOverride]
+        self, exception, step_name, flow, graph, retry_count, max_user_code_retries
     ):
         # Only "catch" exceptions after all retries are exhausted
         if retry_count < max_user_code_retries:
             return False
 
         if self.attributes["print_exception"]:
-            self._print_exception(step, flow)
+            self._print_exception(step_name, flow)
 
         # pretend that self.next() was called as usual
-        flow._transition = (graph[step].out_funcs, None)
+        flow._transition = (graph[step_name].out_funcs, None)
 
         # If this task is a UBF control task, it will return itself as the singleton
         # list of tasks.
         if hasattr(flow, "_parallel_ubf_iter"):
             flow._control_mapper_tasks = [
-                "/".join((current.run_id, current.step_name, current.task_id))
+                "/".join((current.run_id, current.step_name, current.task_id))  # pyright: ignore [reportGeneralTypeIssues]
             ]
         # store the exception
         picklable = MetaflowExceptionWrapper(exception)
@@ -93,7 +93,7 @@ class CatchDecorator(StepDecorator):
         # there was no exception, set the exception var (if any) to None
         self._set_var(flow, None)
 
-    def step_task_retry_count(self):
+    def step_task_retry_count(self):  # pyright: ignore [reportIncompatibleMethodOverride]
         return 0, NUM_FALLBACK_RETRIES
 
     def task_decorate(

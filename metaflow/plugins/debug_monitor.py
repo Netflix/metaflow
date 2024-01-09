@@ -8,7 +8,7 @@ class DebugMonitor(NullMonitor):
     TYPE = "debugMonitor"
 
     @classmethod
-    def get_worker(cls):
+    def get_worker(cls):  # pyright: ignore [reportIncompatibleMethodOverride]
         return DebugMonitorSidecar
 
 
@@ -28,7 +28,7 @@ class DebugMonitorSidecar(object):
                 metric = Metric.deserialize(v)
                 print(
                     "DebugMonitor[metric]: %s for %s: %s"
-                    % (metric.metric_type, metric.name, str(metric.value)),
+                    % (metric.metric_type, metric.name, str(metric.value)),  # pyright: ignore [reportOptionalMemberAccess]
                     file=sys.stderr,
                 )
 
