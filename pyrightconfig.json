@@ -29,7 +29,8 @@
         "./metaflow/procpoll.py",
         "./metaflow/pylint_wrapper.py",
         "./metaflow/vendor.py",
-        "./metaflow/plugins/test_unbounded_foreach_decorator.py"
+        "./metaflow/plugins/test_unbounded_foreach_decorator.py",
+        "./metaflow/plugins/cards/card_modules/test_cards.py"
     ],
     "stubPath": "./stubs/metaflow-stubs",
     "reportMissingImports": false

@@ -36,7 +36,7 @@ def get_s3_client(s3_role_arn=None, s3_session_vars=None, s3_client_params=None)
 def aws_retry(f):
     def retry_wrapper(self, *args, **kwargs):
         last_exc = None
-        for i in range(S3_RETRY_COUNT + 1):
+        for i in range(S3_RETRY_COUNT + 1):  # pyright: ignore [reportGeneralTypeIssues]
             try:
                 ret = f(self, *args, **kwargs)
                 if TEST_S3_RETRY and i == 0:
@@ -60,7 +60,7 @@ def aws_retry(f):
                     sys.stderr.write(
                         "[WARNING] S3 datastore operation %s failed (%s). "
                         "Retrying %d more times..\n"
-                        % (function_name, ex, S3_RETRY_COUNT - i)
+                        % (function_name, ex, S3_RETRY_COUNT - i)  # pyright: ignore [reportGeneralTypeIssues]
                     )
                 if i + 1 > RETRY_WARNING_THRESHOLD:
                     # In a real failure, print this warning message only after a certain
@@ -68,14 +68,14 @@ def aws_retry(f):
                     sys.stderr.write(
                         "[WARNING] S3 datastore operation %s failed (%s). "
                         "Retrying %d more times..\n"
-                        % (function_name, ex, S3_RETRY_COUNT - i)
+                        % (function_name, ex, S3_RETRY_COUNT - i)  # pyright: ignore [reportGeneralTypeIssues]
                     )
                 self.reset_client(hard_reset=True)
                 last_exc = ex
                 # exponential backoff for real failures
                 if not (TEST_S3_RETRY and i == 0):
                     time.sleep(2**i + random.randint(0, 5))
-        raise last_exc
+        raise last_exc  # pyright: ignore [reportGeneralTypeIssues]
 
     return retry_wrapper
 

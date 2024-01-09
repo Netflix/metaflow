@@ -1,3 +1,6 @@
+# pyright: reportGeneralTypeIssues=false
+
+
 from typing import Any, List, Optional, Union
 from .basic import (
     LogComponent,
@@ -374,7 +377,7 @@ class Image(UserComponent):
             except ImportError:
                 return ErrorComponent(
                     cls.render_fail_headline("Matplotlib cannot be imported"),
-                    "%s" % traceback.format_exc(),
+                    "%s" % traceback.format_exc(),  # pyright: ignore [reportUnboundVariable]
                 )
             # First check if it is a valid Matplotlib figure.
             figure = None

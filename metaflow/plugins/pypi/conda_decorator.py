@@ -57,13 +57,13 @@ class CondaStepDecorator(StepDecorator):
         }
         del self.attributes["libraries"]
 
-    def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
+    def step_init(self, flow, graph, step_name, decorators, environment, flow_datastore, logger):
         # The init_environment hook for Environment creates the relevant virtual
         # environments. The step_init hook sets up the relevant state for that hook to
         # do it's magic.
 
         self.flow = flow
-        self.step = step
+        self.step = step_name
         self.environment = environment
         self.datastore = flow_datastore
 
@@ -216,13 +216,13 @@ class CondaStepDecorator(StepDecorator):
         self,
         step_name,
         task_datastore,
-        meta,
+        metadata,
         run_id,
         task_id,
         flow,
         graph,
         retry_count,
-        max_retries,
+        max_user_code_retries,
         ubf_context,
         inputs,
     ):

@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
 
+# pyright: reportGeneralTypeIssues=false
+
+
 import io
 from os import linesep, path
 

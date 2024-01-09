@@ -1,3 +1,6 @@
+# pyright: reportGeneralTypeIssues=false
+
+
 import collections
 import glob
 import json
@@ -35,7 +38,7 @@ class LocalMetadataProvider(MetadataProvider):
         )
 
     @classmethod
-    def default_info(cls):
+    def default_info(cls):  # pyright: ignore [reportIncompatibleMethodOverride]
         from metaflow.plugins.datastores.local_storage import LocalStorage
 
         def print_clean(line, **kwargs):
@@ -50,7 +53,7 @@ class LocalMetadataProvider(MetadataProvider):
             )
         return os.path.dirname(v)
 
-    def version(self):
+    def version(self):  # pyright: ignore [reportIncompatibleMethodOverride]
         return "local"
 
     def new_run_id(self, tags=None, sys_tags=None):
@@ -357,7 +360,7 @@ class LocalMetadataProvider(MetadataProvider):
                 )
                 # obj_type IS run, or more granular than run, let's do sanity check vs args
                 if obj_order >= RUN_ORDER:
-                    if run_id != args[RUN_ORDER - 1]:
+                    if run_id != args[RUN_ORDER - 1]:  # pyright: ignore [reportOptionalOperand]
                         raise MetaflowInternalError(
                             msg="Unexpected run id %s deduced from meta path" % run_id
                         )
@@ -553,7 +556,7 @@ class LocalMetadataProvider(MetadataProvider):
             os.rename(f.name, filepath)
         finally:
             # clean up in case anything goes wrong
-            if f and os.path.isfile(f.name):
+            if f and os.path.isfile(f.name):  # pyright: ignore [reportUnboundVariable]
                 os.remove(f.name)
 
     @staticmethod

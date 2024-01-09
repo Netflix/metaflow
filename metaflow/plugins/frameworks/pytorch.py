@@ -31,7 +31,7 @@ def setup_torch_distributed(master_port=None):
     # Choose port depending on run id to reduce probability of collisions, unless
     # provided by the user.
     try:
-        master_port = master_port or (51000 + abs(int(current.run_id)) % 10000)
+        master_port = master_port or (51000 + abs(int(current.run_id)) % 10000)  # pyright: ignore [reportGeneralTypeIssues]
     except:
         # if `int()` fails, i.e. `run_id` is not an `int`, use just a constant port. Can't use `hash()`,
         # as that is not constant.

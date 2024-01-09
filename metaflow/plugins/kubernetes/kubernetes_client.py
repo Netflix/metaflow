@@ -17,7 +17,7 @@ class KubernetesClient(object):
     def __init__(self):
         try:
             # Kubernetes is a soft dependency.
-            from kubernetes import client, config
+            from kubernetes import client, config  # pyright: ignore [reportGeneralTypeIssues]
         except (NameError, ImportError):
             raise KubernetesClientException(
                 "Could not import module 'kubernetes'.\n\nInstall Kubernetes "
@@ -30,7 +30,7 @@ class KubernetesClient(object):
         self._refresh_client()
 
     def _refresh_client(self):
-        from kubernetes import client, config
+        from kubernetes import client, config  # pyright: ignore [reportGeneralTypeIssues]
 
         if os.getenv("KUBERNETES_SERVICE_HOST"):
             # We are inside a pod, authenticate via ServiceAccount assigned to us

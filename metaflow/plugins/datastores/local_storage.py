@@ -1,3 +1,6 @@
+# pyright: reportGeneralTypeIssues=false
+
+
 import json
 import os
 
@@ -119,9 +122,9 @@ class LocalStorage(DataStoreStorage):
                 with open("%s_meta" % full_path, mode="w") as f:
                     json.dump(metadata, f)
 
-    def load_bytes(self, paths):
+    def load_bytes(self, keys):
         def iter_results():
-            for path in paths:
+            for path in keys:
                 full_path = self.full_uri(path)
                 metadata = None
                 if os.path.exists(full_path):

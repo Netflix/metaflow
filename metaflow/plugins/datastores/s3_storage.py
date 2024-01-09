@@ -1,3 +1,6 @@
+# pyright: reportGeneralTypeIssues=false
+
+
 import os
 
 from itertools import starmap
@@ -60,7 +63,7 @@ class S3Storage(DataStoreStorage):
             return s3obj.size
 
     def list_content(self, paths):
-        strip_prefix_len = len(self.datastore_root.rstrip("/")) + 1
+        strip_prefix_len = len(self.datastore_root.rstrip("/")) + 1  # pyright: ignore [reportOptionalMemberAccess]
         with S3(
             s3root=self.datastore_root,
             tmproot=ARTIFACT_LOCALROOT,
@@ -114,8 +117,8 @@ class S3Storage(DataStoreStorage):
                 for key, obj, _, _, metadata in _convert():
                     s3.put(key, obj, overwrite=overwrite, metadata=metadata)
 
-    def load_bytes(self, paths):
-        if len(paths) == 0:
+    def load_bytes(self, keys):
+        if len(keys) == 0:
             return CloseAfterUse(iter([]))
 
         s3 = S3(
@@ -127,15 +130,15 @@ class S3Storage(DataStoreStorage):
         def iter_results():
             # We similarly do things in parallel for many files. This is again
             # a hack.
-            if len(paths) > 10:
-                results = s3.get_many(paths, return_missing=True, return_info=True)
+            if len(keys) > 10:
+                results = s3.get_many(keys, return_missing=True, return_info=True)
                 for r in results:
                     if r.exists:
                         yield r.key, r.path, r.metadata
                     else:
                         yield r.key, None, None
             else:
-                for p in paths:
+                for p in keys:
                     r = s3.get(p, return_missing=True, return_info=True)
                     if r.exists:
                         yield r.key, r.path, r.metadata

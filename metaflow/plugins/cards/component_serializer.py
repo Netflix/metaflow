@@ -280,7 +280,7 @@ class CardComponentManager:
         # 1. refresh is called with `force=True`
         # 2. Layout of the components in the card has changed. i.e. The actual elements in the component array have changed.
         # 3. The last time the card was rendered was more the minimum interval after which they should be rendered.
-        last_rendered_before_minimum_interval = (
+        last_rendered_before_minimum_interval = (  # pyright: ignore [reportGeneralTypeIssues]
             nu - self._last_refresh
         ) > RUNTIME_CARD_RENDER_INTERVAL
         layout_has_changed = (
@@ -305,7 +305,7 @@ class CardComponentManager:
 
     def _warning(self, message):
         msg = "[@card WARNING] %s" % message
-        self._logger(msg, timestamp=False, bad=True)
+        self._logger(msg, timestamp=False, bad=True)  # pyright: ignore [reportOptionalCall]
 
     def _get_latest_data(self, final=False, mode=None):
         """

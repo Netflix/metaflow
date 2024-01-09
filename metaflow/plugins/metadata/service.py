@@ -1,7 +1,10 @@
+# pyright: reportGeneralTypeIssues=false
+
+
 import os
 import random
 
-import requests
+import requests  # pyright: ignore [reportMissingModuleSource]
 import time
 
 from metaflow.exception import (
@@ -66,10 +69,10 @@ class ServiceMetadataProvider(MetadataProvider):
         return v
 
     @classmethod
-    def default_info(cls):
+    def default_info(cls):  # pyright: ignore [reportIncompatibleMethodOverride]
         return SERVICE_URL
 
-    def version(self):
+    def version(self):  # pyright: ignore [reportIncompatibleMethodOverride]
         return self._version(self._monitor)
 
     def new_run_id(self, tags=None, sys_tags=None):
@@ -161,7 +164,7 @@ class ServiceMetadataProvider(MetadataProvider):
         return self.sidecar is not None
 
     def stop_heartbeat(self):
-        self.sidecar.terminate()
+        self.sidecar.terminate()  # pyright: ignore [reportOptionalMemberAccess]
 
     def register_data_artifacts(
         self, run_id, step_name, task_id, attempt_id, artifacts
@@ -476,7 +479,7 @@ class ServiceMetadataProvider(MetadataProvider):
                     )
             time.sleep(2**i)
 
-        if resp:
+        if resp:  # pyright: ignore [reportUnboundVariable]
             raise ServiceException(
                 "Metadata request (%s) failed (code %s): %s"
                 % (path, resp.status_code, resp.text),
@@ -522,7 +525,7 @@ class ServiceMetadataProvider(MetadataProvider):
                         resp.text,
                     )
             time.sleep(2**i)
-        if resp:
+        if resp:  # pyright: ignore [reportUnboundVariable]
             raise ServiceException(
                 "Metadata request (%s) failed (code %s): %s"
                 % (url, resp.status_code, resp.text),

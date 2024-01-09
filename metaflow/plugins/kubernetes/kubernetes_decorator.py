@@ -29,7 +29,7 @@ from ..aws.aws_utils import get_docker_registry, get_ec2_instance_metadata
 from .kubernetes import KubernetesException, parse_kube_keyvalue_list
 
 try:
-    unicode
+    unicode  # pyright: ignore [reportUndefinedVariable, reportUnusedExpression]
 except NameError:
     unicode = str
     basestring = str
@@ -126,13 +126,13 @@ class KubernetesDecorator(StepDecorator):
         if not self.attributes["node_selector"] and KUBERNETES_NODE_SELECTOR:
             self.attributes["node_selector"] = KUBERNETES_NODE_SELECTOR
         if not self.attributes["tolerations"] and KUBERNETES_TOLERATIONS:
-            self.attributes["tolerations"] = json.loads(KUBERNETES_TOLERATIONS)
+            self.attributes["tolerations"] = json.loads(KUBERNETES_TOLERATIONS)  # pyright: ignore [reportGeneralTypeIssues]
         if (
             not self.attributes["persistent_volume_claims"]
             and KUBERNETES_PERSISTENT_VOLUME_CLAIMS
         ):
             self.attributes["persistent_volume_claims"] = json.loads(
-                KUBERNETES_PERSISTENT_VOLUME_CLAIMS
+                KUBERNETES_PERSISTENT_VOLUME_CLAIMS  # pyright: ignore [reportGeneralTypeIssues]
             )
         if not self.attributes["image_pull_policy"] and KUBERNETES_IMAGE_PULL_POLICY:
             self.attributes["image_pull_policy"] = KUBERNETES_IMAGE_PULL_POLICY
@@ -184,7 +184,7 @@ class KubernetesDecorator(StepDecorator):
         if not get_docker_registry(self.attributes["image"]):
             if KUBERNETES_CONTAINER_REGISTRY:
                 self.attributes["image"] = "%s/%s" % (
-                    KUBERNETES_CONTAINER_REGISTRY.rstrip("/"),
+                    KUBERNETES_CONTAINER_REGISTRY.rstrip("/"),  # pyright: ignore [reportGeneralTypeIssues]
                     self.attributes["image"],
                 )
         # Check if TmpFS is enabled and set default tmpfs_size if missing.
@@ -196,7 +196,7 @@ class KubernetesDecorator(StepDecorator):
                 self.attributes["tmpfs_size"] = int(self.attributes["memory"]) // 2
 
     # Refer https://github.com/Netflix/metaflow/blob/master/docs/lifecycle.png
-    def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
+    def step_init(self, flow, graph, step_name, decorators, environment, flow_datastore, logger):
         # Executing Kubernetes jobs requires a non-local datastore.
         if flow_datastore.TYPE not in ("s3", "azure", "gs"):
             raise KubernetesException(
@@ -206,30 +206,30 @@ class KubernetesDecorator(StepDecorator):
         # Set internal state.
         self.logger = logger
         self.environment = environment
-        self.step = step
+        self.step = step_name
         self.flow_datastore = flow_datastore
 
-        if any([deco.name == "batch" for deco in decos]):
+        if any([deco.name == "batch" for deco in decorators]):
             raise MetaflowException(
                 "Step *{step}* is marked for execution both on AWS Batch and "
-                "Kubernetes. Please use one or the other.".format(step=step)
+                "Kubernetes. Please use one or the other.".format(step=self.step)
             )
 
-        for deco in decos:
+        for deco in decorators:
             if getattr(deco, "IS_PARALLEL", False):
                 raise KubernetesException(
                     "@kubernetes does not support parallel execution currently."
                 )
 
         # Set run time limit for the Kubernetes job.
-        self.run_time_limit = get_run_time_limit_for_task(decos)
+        self.run_time_limit = get_run_time_limit_for_task(decorators)
         if self.run_time_limit < 60:
             raise KubernetesException(
                 "The timeout for step *{step}* should be at least 60 seconds for "
-                "execution on Kubernetes.".format(step=step)
+                "execution on Kubernetes.".format(step=self.step)
             )
 
-        for deco in decos:
+        for deco in decorators:
             if isinstance(deco, ResourcesDecorator):
                 for k, v in deco.attributes.items():
                     # If GPU count is specified, explicitly set it in self.attributes.
@@ -252,47 +252,47 @@ class KubernetesDecorator(StepDecorator):
         if self.attributes["gpu_vendor"].lower() not in ("amd", "nvidia"):
             raise KubernetesException(
                 "GPU vendor *{}* for step *{step}* is not currently supported.".format(
-                    self.attributes["gpu_vendor"], step=step
+                    self.attributes["gpu_vendor"], step=self.step
                 )
             )
 
         # CPU, Disk, and Memory values should be greater than 0.
         for attr in ["cpu", "disk", "memory"]:
             if not (
-                isinstance(self.attributes[attr], (int, unicode, basestring, float))
+                isinstance(self.attributes[attr], (int, unicode, basestring, float))  # pyright: ignore [reportUnboundVariable]
                 and float(self.attributes[attr]) > 0
             ):
                 raise KubernetesException(
                     "Invalid {} value *{}* for step *{step}*; it should be greater than 0".format(
-                        attr, self.attributes[attr], step=step
+                        attr, self.attributes[attr], step=self.step
                     )
                 )
 
         if self.attributes["gpu"] is not None and not (
-            isinstance(self.attributes["gpu"], (int, unicode, basestring))
+            isinstance(self.attributes["gpu"], (int, unicode, basestring))  # pyright: ignore [reportUnboundVariable]
             and float(self.attributes["gpu"]).is_integer()
         ):
             raise KubernetesException(
                 "Invalid GPU value *{}* for step *{step}*; it should be an integer".format(
-                    self.attributes["gpu"], step=step
+                    self.attributes["gpu"], step=self.step
                 )
             )
 
         if self.attributes["tmpfs_size"]:
             if not (
-                isinstance(self.attributes["tmpfs_size"], (int, unicode, basestring))
+                isinstance(self.attributes["tmpfs_size"], (int, unicode, basestring))  # pyright: ignore [reportUnboundVariable]
                 and int(self.attributes["tmpfs_size"]) > 0
             ):
                 raise KubernetesException(
                     "Invalid tmpfs_size value: *{size}* for step *{step}* (should be an integer greater than 0)".format(
-                        size=self.attributes["tmpfs_size"], step=step
+                        size=self.attributes["tmpfs_size"], step=self.step
                     )
                 )
 
     def package_init(self, flow, step_name, environment):
         try:
             # Kubernetes is a soft dependency.
-            from kubernetes import client, config
+            from kubernetes import client, config  # pyright: ignore [reportGeneralTypeIssues]
         except (NameError, ImportError):
             raise KubernetesException(
                 "Could not import module 'kubernetes'.\n\nInstall Kubernetes "
@@ -357,7 +357,7 @@ class KubernetesDecorator(StepDecorator):
         flow,
         graph,
         retry_count,
-        max_retries,
+        max_user_code_retries,
         ubf_context,
         inputs,
     ):
@@ -419,7 +419,7 @@ class KubernetesDecorator(StepDecorator):
             self._save_logs_sidecar.start()
 
     def task_finished(
-        self, step_name, flow, graph, is_task_ok, retry_count, max_retries
+        self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries
     ):
         # task_finished may run locally if fallback is activated for @catch
         # decorator.

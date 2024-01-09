@@ -4,7 +4,7 @@ from metaflow.metaflow_config import (
     ZIPKIN_ENDPOINT,
     CONSOLE_TRACE_ENABLED,
     DISABLE_TRACING,
-    DEBUG_TRACING,
+    DEBUG_TRACING,  # pyright: ignore [reportGeneralTypeIssues]
 )
 from functools import wraps
 import contextlib

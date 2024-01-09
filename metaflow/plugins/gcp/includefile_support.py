@@ -45,7 +45,7 @@ class GS(object):
         """Key MUST be a fully qualified path.  gs://<bucket_name>/b/l/o/b/n/a/m/e"""
         if not return_missing:
             raise MetaflowException("GS object supports only return_missing=True")
-        if not key.startswith("gs://"):
+        if not key.startswith("gs://"):  # pyright: ignore [reportOptionalMemberAccess]
             raise MetaflowInternalError(
                 msg="Expected GS object key to start with 'gs://'"
             )
@@ -72,7 +72,7 @@ class GS(object):
         return key
 
     def info(self, key=None, return_missing=False):
-        if not key.startswith("gs://"):
+        if not key.startswith("gs://"):  # pyright: ignore [reportOptionalMemberAccess]
             raise MetaflowInternalError(
                 msg="Expected GS object key to start with 'gs://'"
             )

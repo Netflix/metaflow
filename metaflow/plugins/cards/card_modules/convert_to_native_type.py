@@ -199,7 +199,7 @@ class TaskToDict:
             only_repr=self._only_repr,
         )
         (
-            data_dict["data"],
+            data_dict["data"],  # pyright: ignore [reportGeneralTypeIssues]
             data_dict["type"],
             data_dict["supported_type"],
             data_dict["large_object"],
@@ -355,9 +355,9 @@ class TaskToDict:
                     return parsed_col.fillna("null")
             return truncate_long_objects(column_object.fillna("null"))
         except ValueError as e:
-            return "Unsupported type: {0}".format(col_type)
+            return "Unsupported type: {0}".format(col_type)  # pyright: ignore [reportUnboundVariable]
         except TypeError as e:
-            return "Unsupported type: {0}".format(col_type)
+            return "Unsupported type: {0}".format(col_type)  # pyright: ignore [reportUnboundVariable]
 
     def _parse_pandas_dataframe(self, data_object, truncate=True):
         headers = list(data_object.columns)

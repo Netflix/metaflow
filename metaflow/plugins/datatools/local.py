@@ -98,7 +98,7 @@ class Local(object):
             from metaflow.plugins.datastores.local_storage import LocalStorage
 
             result = LocalStorage.get_datastore_root_from_config(echo, create_on_absent)
-            result = os.path.join(result, DATATOOLS_SUFFIX)
+            result = os.path.join(result, DATATOOLS_SUFFIX)  # pyright: ignore [reportGeneralTypeIssues]
             if create_on_absent and not os.path.exists(result):
                 os.mkdir(result)
         return result

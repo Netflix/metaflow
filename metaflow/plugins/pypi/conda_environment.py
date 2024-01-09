@@ -12,7 +12,7 @@ from io import BufferedIOBase
 from itertools import chain
 from urllib.parse import urlparse
 
-import requests
+import requests  # pyright: ignore [reportMissingModuleSource]
 
 from metaflow.metaflow_config import get_pinned_conda_libs
 from metaflow.exception import MetaflowException
@@ -41,7 +41,7 @@ class CondaEnvironment(MetaflowEnvironment):
         # this method's invocation in the decorator
         self.local_root = local_root
 
-    def decospecs(self):
+    def decospecs(self):  # pyright: ignore [reportIncompatibleMethodOverride]
         # Apply conda decorator to manage the task execution lifecycle.
         return ("conda",) + super().decospecs()
 
@@ -148,7 +148,7 @@ class CondaEnvironment(MetaflowEnvironment):
         for solver in ["conda", "pypi"]:
             with ThreadPoolExecutor() as executor:
                 results = list(
-                    executor.map(lambda x: solve(*x, solver), environments(solver))
+                    executor.map(lambda x: solve(*x, solver), environments(solver))  # pyright: ignore [reportGeneralTypeIssues]
                 )
             _ = list(map(lambda x: self.solvers[solver].download(*x), results))
             with ThreadPoolExecutor() as executor:
@@ -300,7 +300,7 @@ class CondaEnvironment(MetaflowEnvironment):
         return config
 
     @classmethod
-    def get_client_info(cls, flow_name, metadata):
+    def get_client_info(cls, flow_name, metadata):  # pyright: ignore [reportIncompatibleMethodOverride]
         # TODO: Decide this method's fate
         return None
 
@@ -400,7 +400,7 @@ class LazyOpen(BufferedIOBase):
 
     def _download_to_buffer(self):
         # TODO: Stream it in chunks?
-        response = requests.get(self.url, stream=True)
+        response = requests.get(self.url, stream=True)  # pyright: ignore [reportGeneralTypeIssues]
         response.raise_for_status()
         return response.content
 
@@ -410,17 +410,17 @@ class LazyOpen(BufferedIOBase):
     def seekable(self):
         return True
 
-    def read(self, size=-1):
+    def read(self, size=-1):  # pyright: ignore [reportIncompatibleMethodOverride]
         self._ensure_file()
-        return self._file.read(size)
+        return self._file.read(size)  # pyright: ignore [reportOptionalMemberAccess]
 
     def seek(self, offset, whence=io.SEEK_SET):
         self._ensure_file()
-        return self._file.seek(offset, whence)
+        return self._file.seek(offset, whence)  # pyright: ignore [reportOptionalMemberAccess]
 
     def tell(self):
         self._ensure_file()
-        return self._file.tell()
+        return self._file.tell()  # pyright: ignore [reportOptionalMemberAccess]
 
     def close(self):
         if self._file:

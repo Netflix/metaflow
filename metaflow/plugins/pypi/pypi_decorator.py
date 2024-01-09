@@ -24,13 +24,13 @@ class PyPIStepDecorator(StepDecorator):
     name = "pypi"
     defaults = {"packages": {}, "python": None, "disabled": None}  # wheels
 
-    def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
+    def step_init(self, flow, graph, step_name, decorators, environment, flow_datastore, logger):
         # The init_environment hook for Environment creates the relevant virtual
         # environments. The step_init hook sets up the relevant state for that hook to
         # do it's magic.
 
         self.flow = flow
-        self.step = step
+        self.step = step_name
 
         # Support flow-level decorator
         if "pypi_base" in self.flow._flow_decorators:

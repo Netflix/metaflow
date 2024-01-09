@@ -22,7 +22,7 @@ def parse_gs_full_path(gs_uri):
 
 def _check_and_init_gs_deps():
     try:
-        from google.cloud import storage
+        from google.cloud import storage  # pyright: ignore [reportGeneralTypeIssues]
         import google.auth
     except ImportError:
         raise MetaflowGSPackageError()

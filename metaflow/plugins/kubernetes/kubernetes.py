@@ -310,9 +310,9 @@ class Kubernetes(object):
         if current.get("project_name"):
             annotations.update(
                 {
-                    "metaflow/project_name": current.project_name,
-                    "metaflow/branch_name": current.branch_name,
-                    "metaflow/project_flow_name": current.project_flow_name,
+                    "metaflow/project_name": current.project_name,  # pyright: ignore [reportGeneralTypeIssues]
+                    "metaflow/branch_name": current.branch_name,  # pyright: ignore [reportGeneralTypeIssues]
+                    "metaflow/project_flow_name": current.project_flow_name,  # pyright: ignore [reportGeneralTypeIssues]
                 }
             )
 
@@ -343,7 +343,7 @@ class Kubernetes(object):
 
         def wait_for_launch(job):
             status = job.status
-            echo(
+            echo(  # pyright: ignore [reportOptionalCall]
                 "Task is starting (%s)..." % status,
                 "stderr",
                 job_id=job.id,
@@ -354,7 +354,7 @@ class Kubernetes(object):
                 new_status = job.status
                 if status != new_status or (time.time() - t) > 30:
                     status = new_status
-                    echo(
+                    echo(  # pyright: ignore [reportOptionalCall]
                         "Task is starting (%s)..." % status,
                         "stderr",
                         job_id=job.id,
@@ -417,7 +417,7 @@ class Kubernetes(object):
             )
 
         exit_code, _ = self._job.reason
-        echo(
+        echo(  # pyright: ignore [reportOptionalCall]
             "Task finished with exit code %s." % exit_code,
             "stderr",
             job_id=self._job.id,
@@ -427,7 +427,7 @@ class Kubernetes(object):
     def _get_labels(extra_labels=None):
         if extra_labels is None:
             extra_labels = {}
-        env_labels = KUBERNETES_LABELS.split(",") if KUBERNETES_LABELS else []
+        env_labels = KUBERNETES_LABELS.split(",") if KUBERNETES_LABELS else []  # pyright: ignore [reportGeneralTypeIssues]
         env_labels = parse_kube_keyvalue_list(env_labels, False)
         labels = {**env_labels, **extra_labels}
         validate_kube_labels(labels)

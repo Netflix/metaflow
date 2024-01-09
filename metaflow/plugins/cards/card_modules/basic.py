@@ -1,3 +1,6 @@
+# pyright: reportGeneralTypeIssues=false
+
+
 import base64
 import json
 import os
@@ -340,7 +343,7 @@ class TaskInfoComponent(MetaflowCardComponent):
             self._task, graph=self._graph
         )
         # ignore the name as an artifact
-        del task_data_dict["data"]["name"]
+        del task_data_dict["data"]["name"]  # pyright: ignore [reportOptionalSubscript]
 
         _metadata = dict(version=1, template="defaultCardTemplate")
         # try to parse out metaflow version from tags, but let it go if unset
@@ -393,15 +396,15 @@ class TaskInfoComponent(MetaflowCardComponent):
         )
 
         img_components = []
-        for img_name in task_data_dict["images"]:
+        for img_name in task_data_dict["images"]:  # pyright: ignore [reportOptionalIterable]
             img_components.append(
                 ImageComponent(
-                    src=task_data_dict["images"][img_name], label=img_name
+                    src=task_data_dict["images"][img_name], label=img_name  # pyright: ignore [reportOptionalSubscript]
                 ).render()
             )
         table_comps = []
-        for tabname in task_data_dict["tables"]:
-            tab_dict = task_data_dict["tables"][tabname]
+        for tabname in task_data_dict["tables"]:  # pyright: ignore [reportOptionalIterable]
+            tab_dict = task_data_dict["tables"][tabname]  # pyright: ignore [reportOptionalSubscript]
             tab_title = "Artifact Name: %s" % tabname
             sec_tab_comp = [
                 TableComponent(headers=tab_dict["headers"], data=tab_dict["data"])
@@ -435,7 +438,7 @@ class TaskInfoComponent(MetaflowCardComponent):
         ]
         if len(param_ids) > 0:
             param_component = ArtifactsComponent(
-                data=[task_data_dict["data"][pid] for pid in param_ids]
+                data=[task_data_dict["data"][pid] for pid in param_ids]  # pyright: ignore [reportOptionalSubscript]
             )
         else:
             param_component = TitleComponent(text="No Parameters")
@@ -447,8 +450,8 @@ class TaskInfoComponent(MetaflowCardComponent):
 
         # Don't include parameter ids + "name" in the task artifacts
         artifactlist = [
-            task_data_dict["data"][k]
-            for k in task_data_dict["data"]
+            task_data_dict["data"][k]  # pyright: ignore [reportOptionalSubscript]
+            for k in task_data_dict["data"]  # pyright: ignore [reportOptionalIterable]
             if k not in param_ids
         ]
         if len(artifactlist) > 0:
@@ -552,7 +555,7 @@ class ErrorCard(MetaflowCard):
             title=task.pathspec,
             card_data_id=uuid.uuid4(),
         )
-        return pt.render(RENDER_TEMPLATE, data_dict)
+        return pt.render(RENDER_TEMPLATE, data_dict)  # pyright: ignore [reportOptionalMemberAccess]
 
 
 class DefaultCardJSON(MetaflowCard):
@@ -609,7 +612,7 @@ class DefaultCard(MetaflowCard):
             css=CSS_DATA,
             card_data_id=uuid.uuid4(),
         )
-        return pt.render(RENDER_TEMPLATE, data_dict)
+        return pt.render(RENDER_TEMPLATE, data_dict)  # pyright: ignore [reportOptionalMemberAccess]
 
 
 class BlankCard(MetaflowCard):
@@ -651,7 +654,7 @@ class BlankCard(MetaflowCard):
             css=CSS_DATA,
             card_data_id=uuid.uuid4(),
         )
-        return pt.render(RENDER_TEMPLATE, data_dict)
+        return pt.render(RENDER_TEMPLATE, data_dict)  # pyright: ignore [reportOptionalMemberAccess]
 
 
 class TaskSpecCard(MetaflowCard):

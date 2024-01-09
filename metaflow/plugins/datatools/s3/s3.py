@@ -1,3 +1,6 @@
+# pyright: reportGeneralTypeIssues=false
+
+
 import json
 import os
 import re
@@ -293,7 +296,7 @@ class S3Object(object):
             Contents of the object as text.
         """
         if self._path:
-            return self.blob.decode("utf-8", errors="replace")
+            return self.blob.decode("utf-8", errors="replace")  # pyright: ignore [reportOptionalMemberAccess]
 
     @property
     def size(self) -> Optional[int]:
@@ -531,9 +534,9 @@ class S3(object):
                         "flow is not supported."
                     )
             else:
-                prefix = os.path.join(prefix, run.parent.id, run.id)
+                prefix = os.path.join(prefix, run.parent.id, run.id)  # pyright: ignore [reportOptionalMemberAccess]
 
-            self._s3root = "s3://%s" % os.path.join(bucket, prefix.strip("/"))
+            self._s3root = "s3://%s" % os.path.join(bucket, prefix.strip("/"))  # pyright: ignore [reportOptionalMemberAccess]
         elif s3root:
             # 2. use an explicit S3 prefix
             parsed = urlparse(to_unicode(s3root))
@@ -904,14 +907,14 @@ class S3(object):
             sz = resp["ContentLength"]
             if range_result is None:
                 range_result = RangeInfo(sz, request_offset=0, request_length=sz)
-            if not r and sz > DOWNLOAD_FILE_THRESHOLD:
+            if not r and sz > DOWNLOAD_FILE_THRESHOLD:  # pyright: ignore [reportUnboundVariable]
                 # In this case, it is more efficient to use download_file as it
                 # will download multiple parts in parallel (it does it after
                 # multipart_threshold)
                 s3.download_file(src.netloc, src.path.lstrip("/"), tmp)
             else:
                 with open(tmp, mode="wb") as t:
-                    read_in_chunks(t, resp["Body"], sz, DOWNLOAD_MAX_CHUNK)
+                    read_in_chunks(t, resp["Body"], sz, DOWNLOAD_MAX_CHUNK)  # pyright: ignore [reportUnboundVariable]
             if return_info:
                 return {
                     "content_type": resp["ContentType"],
@@ -1589,7 +1592,7 @@ class S3(object):
 
                         input_filename = tmp_input.name
                     else:
-                        input_filename = base_input_filename
+                        input_filename = base_input_filename  # pyright: ignore [reportUnboundVariable]
 
                     addl_cmdline.extend(["--inputs", input_filename])
 
@@ -1746,4 +1749,4 @@ class S3(object):
 
         # At this point, we check out_lines; strip None which can happen for puts that
         # didn't upload files
-        return [o for o in out_lines if o is not None], err_out
+        return [o for o in out_lines if o is not None], err_out  # pyright: ignore [reportUnboundVariable]

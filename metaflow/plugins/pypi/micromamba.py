@@ -29,8 +29,8 @@ class Micromamba(object):
             _home = os.environ.get("METAFLOW_TOKEN_HOME")
         else:
             _home = os.environ.get("METAFLOW_HOME", "~/.metaflowconfig")
-        _path_to_hidden_micromamba = os.path.join(
-            os.path.expanduser(_home),
+        _path_to_hidden_micromamba = os.path.join(  # pyright: ignore [reportGeneralTypeIssues]
+            os.path.expanduser(_home),  # pyright: ignore [reportGeneralTypeIssues]
             "micromamba",
         )
         self.bin = (
@@ -138,7 +138,7 @@ class Micromamba(object):
             self._call(cmd, env)
             # Perf optimization to skip cross-platform downloads.
             if platform != self.platform():
-                os.makedirs(prefix, exist_ok=True) or open(
+                os.makedirs(prefix, exist_ok=True) or open(  # pyright: ignore [reportUnusedExpression]
                     f"{prefix}/fake.done", "w"
                 ).close()
             return
@@ -212,7 +212,7 @@ class Micromamba(object):
         return metadata
 
     def interpreter(self, id_):
-        return os.path.join(self.path_to_environment(id_), "bin/python")
+        return os.path.join(self.path_to_environment(id_), "bin/python")  # pyright: ignore [reportGeneralTypeIssues]
 
     def platform(self):
         return self.info()["platform"]

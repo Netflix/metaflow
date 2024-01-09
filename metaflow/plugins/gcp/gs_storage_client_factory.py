@@ -11,7 +11,7 @@ def _get_cache_key():
 def get_gs_storage_client():
     cache_key = _get_cache_key()
     if cache_key not in _client_cache:
-        from google.cloud import storage
+        from google.cloud import storage  # pyright: ignore [reportGeneralTypeIssues]
         import google.auth
 
         credentials, project_id = google.auth.default(scopes=storage.Client.SCOPE)

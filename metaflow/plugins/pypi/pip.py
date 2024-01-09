@@ -164,7 +164,7 @@ class Pip(object):
                 key, value = line.split("=", 1)
                 _, key = key.split(".")
                 if key in ("index-url", "extra-index-url"):
-                    values = map(lambda x: x.strip("'\""), re.split("\s+", value, re.M))
+                    values = map(lambda x: x.strip("'\""), re.split("\s+", value, re.M))  # pyright: ignore [reportInvalidStringEscapeSequence]
                     (indices if key == "index-url" else extra_indices).extend(values)
         except Exception:
             pass

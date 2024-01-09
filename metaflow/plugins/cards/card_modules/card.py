@@ -94,7 +94,7 @@ class MetaflowCard(object):
         str
             Card contents as an HTML string.
         """
-        return NotImplementedError()
+        return NotImplementedError()  # pyright: ignore [reportGeneralTypeIssues]
 
     # FIXME document
     def render_runtime(self, task, data):

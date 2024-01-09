@@ -24,7 +24,7 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
 
         @wraps(function)
         def wrapper(*args, **kwargs):
-            from kubernetes import client
+            from kubernetes import client  # pyright: ignore [reportGeneralTypeIssues]
 
             deadline = time.time() + deadline_seconds
             retry_number = 0
@@ -151,7 +151,7 @@ class KubernetesJob(object):
                                         )
                                     )
                                     for k in list(self._kwargs.get("secrets", []))
-                                    + KUBERNETES_SECRETS.split(",")
+                                    + KUBERNETES_SECRETS.split(",")  # pyright: ignore [reportGeneralTypeIssues]
                                     if k
                                 ],
                                 image=self._kwargs["image"],

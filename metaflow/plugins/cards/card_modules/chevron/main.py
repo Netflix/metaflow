@@ -29,7 +29,7 @@ def main(template, data=None, **kwargs):
 
 def _load_data(file, yaml_loader):
     try:
-        import yaml
+        import yaml  # pyright: ignore [reportMissingModuleSource]
 
         loader = getattr(yaml, yaml_loader)  # not tested
         return yaml.load(file, Loader=loader)  # not tested
