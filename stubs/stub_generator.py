@@ -4,20 +4,35 @@ import inspect
 import logging
 import math
 import os
+import pathlib
 import re
 import time
 import typing
 
 from datetime import datetime
 from io import StringIO
-from typing import *
 from types import ModuleType
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    ForwardRef,
+    Iterable,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    TypeVar,
+    Union,
+    cast,
+)
 
 from metaflow.decorators import Decorator
 from metaflow.graph import deindent_docstring
 from metaflow.metaflow_version import get_version
 
 TAB = "    "
+METAFLOW_CURRENT_MODULE_NAME = "metaflow.metaflow_current"
 
 param_section_header = re.compile(r"Parameters\s*\n----------\s*\n", flags=re.M)
 add_to_current_header = re.compile(
@@ -30,7 +45,7 @@ type_annotations = re.compile(
 )
 
 logger = logging.getLogger("StubGenerator")
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 
 def descend_object(object: str, options: Iterable[str]):
@@ -270,7 +285,7 @@ class StubGenerator:
                 return "typing.%s[%s]" % (element._name, ", ".join(args_str))
             else:
                 return "%s[%s]" % (element.__origin__, ", ".join(args_str))
-        elif isinstance(element, typing.ForwardRef):
+        elif isinstance(element, ForwardRef):
             f_arg = element.__forward_arg__
             # if f_arg in ("Run", "Task"):  # HACK -- forward references in current.py
             #    _add_to_import("metaflow")
@@ -344,7 +359,7 @@ class StubGenerator:
 
         # Special handling for the current module
         if (
-            self._current_module_name == "metaflow.metaflow_current"
+            self._current_module_name == METAFLOW_CURRENT_MODULE_NAME
             and name == "Current"
         ):
             # Multiple decorators can add the same object (trigger and trigger_on_finish)
@@ -452,7 +467,7 @@ class StubGenerator:
                             else None
                             if is_optional
                             else inspect.Parameter.empty,
-                            annotation=typing.Optional[type_name]
+                            annotation=Optional[type_name]
                             if is_optional
                             else type_name,
                         )
@@ -608,7 +623,7 @@ class StubGenerator:
         buff.write(")" + ret_annotation + ":\n")
 
         if doc is not None:
-            buff.write('%s%sr"""\n' % (indentation, TAB))
+            buff.write('%s%s"""\n' % (indentation, TAB))
             doc = cast(str, deindent_docstring(doc))
             init_blank = True
             for line in doc.split("\n"):
@@ -656,6 +671,17 @@ class StubGenerator:
                 self._stubs.append(self._generate_generic_stub(name, attr))
 
     def write_out(self):
+        out_dir = self._output_dir
+        os.makedirs(out_dir, exist_ok=True)
+        # Write out py.typed (pylance seems to require it even though it is not
+        # required in PEP 561) as well as a file we will use to check the "version"
+        # of the stubs -- this helps to inform the user if the stubs were generated
+        # for another version of Metaflow.
+        pathlib.Path(os.path.join(out_dir, "py.typed")).touch()
+        pathlib.Path(os.path.join(out_dir, "generated_for.txt")).write_text(
+            "%s %s"
+            % (self._mf_version, datetime.fromtimestamp(time.time()).isoformat())
+        )
         while len(self._pending_modules) != 0:
             module_name = self._pending_modules.pop(0)
             # Skip vendored stuff
@@ -663,7 +689,7 @@ class StubGenerator:
                 continue
             # We delay current module
             if (
-                module_name == "metaflow.current"
+                module_name == METAFLOW_CURRENT_MODULE_NAME
                 and len(set(self._pending_modules)) > 1
             ):
                 self._pending_modules.append(module_name)

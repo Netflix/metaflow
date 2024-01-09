@@ -1,12 +1,14 @@
 from setuptools import find_packages, setup
 
-version = "2.10.8"
+with open("../metaflow/version.py", mode="r") as f:
+    version = f.read().splitlines()[0].split("=")[1].strip(" \"'")
 
 setup(
+    include_package_data=True,
     name="metaflow-stubs",
     version=version,
     description="Metaflow: More Data Science, Less Engineering",
-    long_description=open("README.md").read(),
+    long_description=open("../README.md").read(),
     long_description_content_type="text/markdown",
     author="Metaflow Developers",
     author_email="help@metaflow.org",
@@ -34,7 +36,7 @@ setup(
         "metaflow-stubs",
     ],
     package_data={
-        "metaflow-stubs": ["**/*.pyi"],
+        "metaflow-stubs": ["**/*.pyi", "py.typed", "generated_for.txt"],
     },
     py_modules=[
         "metaflow-stubs",
