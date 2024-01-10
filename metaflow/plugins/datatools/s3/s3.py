@@ -71,6 +71,7 @@ def check_s3_deps(func):
 
     return _inner_func
 
+
 TEST_INJECT_RETRYABLE_FAILURES = int(
     os.environ.get("METAFLOW_S3_TEST_RETRYABLE_FAILURES", 0)
 )
@@ -883,6 +884,7 @@ class S3(object):
             An S3Object corresponding to the object requested.
         """
         from boto3.s3.transfer import TransferConfig
+
         DOWNLOAD_FILE_THRESHOLD = 2 * TransferConfig().multipart_threshold
         DOWNLOAD_MAX_CHUNK = 2 * 1024 * 1024 * 1024 - 1
 
