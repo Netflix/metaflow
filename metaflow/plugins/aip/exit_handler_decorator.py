@@ -39,7 +39,7 @@ def exit_handler_resources(cpu=None, memory=None):
 
 def exit_handler_retry(
     times: int = EXIT_HANDLER_RETRY_COUNT,
-    minutes_between_retries: int = int(BACKOFF_DURATION_INT),
+    minutes_between_retries: int = BACKOFF_DURATION_INT,
     retry_backoff_factor: int = RETRY_BACKOFF_FACTOR,
 ):
     """
