@@ -63,9 +63,6 @@ class FlowDataStore(object):
             self._storage_impl.path_join(self.flow_name, "data"), self._storage_impl
         )
 
-    def check_dependencies(self):
-        self._storage_impl.check_dependencies()
-
     @property
     def datastore_root(self):
         return self._storage_impl.datastore_root

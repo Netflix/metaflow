@@ -18,19 +18,14 @@ except:
 class S3Storage(DataStoreStorage):
     TYPE = "s3"
 
+    @check_s3_deps
     def __init__(self, root=None):
-        # cannot decorate __init__... invoke it with dummy decoratee
-        check_s3_deps(lambda: 0)
         super(S3Storage, self).__init__(root)
         self.s3_client = S3Client()
 
     @classmethod
     def get_datastore_root_from_config(cls, echo, create_on_absent=True):
         return DATASTORE_SYSROOT_S3
-
-    @check_s3_deps
-    def check_dependencies(self):
-        pass
 
     def is_file(self, paths):
         with S3(

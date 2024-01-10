@@ -248,9 +248,8 @@ class _AzureRootClient(object):
 class AzureStorage(DataStoreStorage):
     TYPE = "azure"
 
+    @check_azure_deps
     def __init__(self, root=None):
-        # cannot decorate __init__... invoke it with dummy decoratee
-        check_azure_deps(lambda: 0)
         super(AzureStorage, self).__init__(root)
         self._tmproot = ARTIFACT_LOCALROOT
         self._default_scope_token = None
@@ -292,10 +291,6 @@ class AzureStorage(DataStoreStorage):
     def get_datastore_root_from_config(cls, echo, create_on_absent=True):
         # create_on_absent doesn't do anything.  This matches S3Storage
         return DATASTORE_SYSROOT_AZURE
-
-    @check_azure_deps
-    def check_dependencies(self):
-        pass
 
     @handle_executor_exceptions
     def is_file(self, paths):

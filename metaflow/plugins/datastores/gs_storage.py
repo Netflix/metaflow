@@ -145,9 +145,8 @@ class _GSRootClient(object):
 class GSStorage(DataStoreStorage):
     TYPE = "gs"
 
+    @check_gs_deps
     def __init__(self, root=None):
-        # cannot decorate __init__... invoke it with dummy decoratee
-        check_gs_deps(lambda: 0)
         super(GSStorage, self).__init__(root)
         self._tmproot = ARTIFACT_LOCALROOT
         self._root_client = None
@@ -173,10 +172,6 @@ class GSStorage(DataStoreStorage):
     def get_datastore_root_from_config(cls, echo, create_on_absent=True):
         # create_on_absent doesn't do anything.  This matches S3Storage
         return DATASTORE_SYSROOT_GS
-
-    @check_gs_deps
-    def check_dependencies(self):
-        pass
 
     @handle_executor_exceptions
     def is_file(self, paths):

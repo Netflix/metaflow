@@ -507,6 +507,7 @@ class S3(object):
     def get_root_from_config(cls, echo, create_on_absent=True):
         return DATATOOLS_S3ROOT
 
+    @check_s3_deps
     def __init__(
         self,
         tmproot: str = TEMPDIR,
@@ -517,9 +518,6 @@ class S3(object):
         encryption: Optional[str] = S3_SERVER_SIDE_ENCRYPTION,
         **kwargs
     ):
-        # cannot decorate __init__... invoke it with dummy decoratee
-        check_s3_deps(lambda: 0)
-
         if run:
             # 1. use a (current) run ID with optional customizations
             if DATATOOLS_S3ROOT is None:
