@@ -211,6 +211,11 @@ class Table(UserComponent):
             )
 
     def _render_subcomponents(self):
+        for row in self._data:
+            for col in row:
+                if isinstance(col, VegaChart):
+                    col._chart_inside_table = True
+
         return [
             SectionComponent.render_subcomponents(
                 row,
@@ -760,6 +765,7 @@ class VegaChart(UserComponent):
     def __init__(self, spec: dict, show_controls=False):
         self._spec = spec
         self._show_controls = show_controls
+        self._chart_inside_table = False
 
     def update(self, spec=None):
         if spec is not None:
@@ -794,7 +800,8 @@ class VegaChart(UserComponent):
         }
         if not self._show_controls:
             data["options"] = {"actions": False}
-
-        if "width" not in self._spec:
+        if "width" not in self._spec and not self._chart_inside_table:
             data["spec"]["width"] = "container"
+        if self._chart_inside_table and "autosize" not in self._spec:
+            data["spec"]["autosize"] = "fit-x"
         return data
