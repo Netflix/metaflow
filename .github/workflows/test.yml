@@ -46,6 +46,9 @@ jobs:
     - name: Generate Stubs
       run: cd ./stubs && rm -rf metaflow-stubs/ && python -c "from stub_generator import StubGenerator; gen = StubGenerator('./metaflow-stubs'); gen.write_out()" && cd -
 
+    - name: Install metaflow
+      run: pip install -e .
+
     - name: Install metaflow-stubs
       run: cd ./stubs && pip install -e . && cd -
 
