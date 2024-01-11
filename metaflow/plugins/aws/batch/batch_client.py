@@ -303,7 +303,13 @@ class BatchJob(object):
                         efs_id, container_path = efs_id.split(":", 1)
                     name = "efs_" + efs_id
                     job_definition["containerProperties"]["volumes"].append(
-                        {"name": name, "efsVolumeConfiguration": {"fileSystemId": efs_id, "transitEncryption": "ENABLED"}}
+                        {
+                            "name": name,
+                            "efsVolumeConfiguration": {
+                                "fileSystemId": efs_id,
+                                "transitEncryption": "ENABLED",
+                            },
+                        }
                     )
                     job_definition["containerProperties"]["mountPoints"].append(
                         {"sourceVolume": name, "containerPath": container_path}
