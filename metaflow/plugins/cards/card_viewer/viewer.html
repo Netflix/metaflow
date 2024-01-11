@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Metaflow Run</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap");
+
+      body {
+        font-size: 14px;
+        font-family: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+          "Helvetica Neue", sans-serif;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        width: 100%;
+        overflow: hidden;
+        color: #31302f;
+      }
+
+      header {
+        height: 65px;
+        flex: 0 1 auto;
+        flex-grow: none;
+        background: #f9f9f9;
+        display: flex;
+        justify-content: space-evenly;
+      }
+
+      h1,
+      h2,
+      h3,
+      h4 {
+        font-size: inherit;
+        font-weight: 500;
+        margin: 0;
+        padding: 0;
+      }
+
+      header > * {
+        padding: 20px 25px;
+        flex: 1;
+        display: flex;
+        align-items: center;
+      }
+
+      header > div:nth-child(2) {
+        text-align: center;
+        flex: 1;
+        justify-content: center;
+      }
+
+      header > div:nth-child(3) {
+        text-align: right;
+        justify-content: flex-end;
+        font-weight: 400;
+      }
+
+      .taskStatus {
+        color: #6a6867;
+      }
+
+      .taskStatus.error {
+        color: #e67058;
+      }
+
+      .content {
+        flex: 1 1 auto;
+        overflow-y: scroll;
+      }
+
+      iframe {
+        width: 100%;
+        height: calc(100vh - 65px);
+        outline: none;
+        border: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      header select {
+        width: 100%;
+        border: 0;
+        outline: none;
+        font-size: inherit;
+        font-family: inherit;
+        background: transparent;
+        padding: 0 1rem;
+      }
+
+      .selectorContainer {
+        border: 0;
+        outline: none;
+        font-size: inherit;
+        font-family: inherit;
+        border-radius: 8px;
+        background: #ebeaea;
+        padding: 0 1rem;
+        margin: 1rem;
+      }
+
+      .logoContainer {
+        display: none !important;
+      }
+
+      .errorContainer svg {
+        position: relative;
+        top: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1 id="header-title">Metaflow Run</h1>
+      <div class="selectorContainer">
+        <select id="selector">
+          <option value="" disabled selected>
+            Select a card
+          </option>
+        </select>
+      </div>
+      <div>
+        <div id="task-status" class="taskStatus">Initializing</div>
+        <div id="task-action" class="" style="display: none">Pause</div>
+      </div>
+    </header>
+    <div class="content">
+      <iframe id="card-frame"></iframe>
+    </div>
+
+    <script type="application/javascript">
+      (() => {
+        // setup constants
+        let DATA_UPDATE_POLL_INTERVAL = 5000;
+        let RUN_UPDATE_POLL_INTERVAL = 10000;
+
+        // setup state
+        let currentCardsLength = 0;
+        let currentRunId = "";
+        let selectedCard = "";
+
+        // setup selector
+        const selector = document.getElementById("selector");
+        selector?.addEventListener("change", (event) => {
+          selectedCard = event.target.value;
+          handleLoadCard(event.target.name, event.target.value);
+        });
+
+        /**
+         * Handle any changes to the status of the page
+         */
+        function handleStatus(status, isComplete = false) {
+          const statusDiv = document.getElementById("task-status");
+
+          // change the text of the status depending if its in progress or not
+          if (statusDiv) {
+            // complete
+            if (isComplete && status === "ok") {
+              statusDiv.innerText = "Task Is Complete";
+              // running
+            } else if (!isComplete && status === "ok") {
+              statusDiv.innerText = "Task Is Running";
+              // error
+            } else {
+              statusDiv.innerHTML = `<div class="errorContainer"><svg width="17" height="17" viewBox="0 0 17 17" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <g clip-path="url(#clip0_164_815)"> <circle cx="8.5" cy="8.5" r="8" fill="#E67058"/> <path d="M11.6475 6.0575C11.8422 5.86282 11.8422 5.54718 11.6475 5.3525C11.4528 5.15782 11.1372 5.15782 10.9425 5.3525L8.5 7.795L6.0575 5.3525C5.86282 5.15782 5.54718 5.15782 5.3525 5.3525C5.15782 5.54718 5.15782 5.86282 5.3525 6.0575L7.795 8.5L5.3525 10.9425C5.15782 11.1372 5.15782 11.4528 5.3525 11.6475C5.54718 11.8422 5.86282 11.8422 6.0575 11.6475L8.5 9.205L10.9425 11.6475C11.1372 11.8422 11.4528 11.8422 11.6475 11.6475C11.8422 11.4528 11.8422 11.1372 11.6475 10.9425L9.205 8.5L11.6475 6.0575Z" fill="white"/> </g><defs><clipPath id="clip0_164_815"><rect width="16" height="16" fill="white" transform="translate(0.5 0.5)"/></clipPath></defs></svg>
+       <span>${status}</span></div>
+      `;
+            }
+          }
+        }
+
+        /**
+         * Handle any changes to the cards
+         */
+        function onCardsLoaded(runInfo) {
+          const { cards, flow, run_id } = runInfo;
+          if (!Array.isArray(cards) || !flow || !run_id) {
+            console.log("Data was not in the correct format");
+            return;
+          }
+          // console.log("Running ON CARDS LOADED", cards, flow, run_id)
+
+          // reset
+          currentCardsLength = cards.length;
+          selector.innerHTML = "";
+          // if the task has finished, change to the next card
+          changeToNewCardIfTaskHasFinished(runInfo);
+
+          // create select options for each card
+          cards.reverse().forEach((card) => {
+            const option = document.createElement("option");
+            option.value = card.card;
+            option.innerText = card.label.split(" ")?.[0] || card.label;
+            option.selected = card.card === selectedCard;
+            selector.appendChild(option);
+          });
+
+          // get card-title element and change it to name
+          const title = document.getElementById("header-title");
+          title.innerText = `${flow}/${run_id}`;
+        }
+
+        /**
+         * This function will determine if changes need to be made to the
+         * card and if so, will we do it by push or by reload
+         */
+
+        async function watchForCardChanges(iframe) {
+          // replace the /card/ url with the data url
+          const dataUri = iframe.src.replace(/.*\/card\//, "/data/");
+          let resp;
+          try {
+            const req = await fetch(dataUri);
+            resp = await req.json();
+            // setup UI to show complete and status
+            handleStatus(resp.status, resp?.is_complete);
+
+            // grab update fn from iframe
+            const update = iframe.contentWindow?.metaflow_card_update;
+            // make sure we're able to update the card
+            if (resp.status !== "ok" || !update || !resp.payload?.data) {
+              console.log(
+                "Data-updates not taking place because either : status is not `ok` or update function is not available or data is not available",
+                resp,
+                update
+              );
+            } else {
+              // make appropriate updates by pushing if the reload token matches
+              update &&
+              resp.payload?.reload_token ===
+                iframe.contentWindow.METAFLOW_RELOAD_TOKEN
+                ? update(resp.payload.data)
+                : iframe.contentWindow.location.reload();
+            }
+            // If there is no Update function than we don't need to wire the
+            // periodic updates
+            if (!update) {
+              console.log(
+                "No metaflow_card_update function available. So not running any periodic updates"
+              );
+              return;
+            }
+          } catch (error) {
+            console.error(error);
+          }
+          // if this update is not the last one, run it again!
+          if (!(resp.payload?.reload_token === "final")) {
+            setTimeout(
+              () => watchForCardChanges(iframe),
+              DATA_UPDATE_POLL_INTERVAL
+            );
+          }
+        }
+
+        /**
+         * Setup a new card and start the watcher
+         */
+        function handleLoadCard(name, value) {
+          document.getElementsByTagName("title").innerHTML = name;
+          const iframe = document.getElementById("card-frame");
+          iframe.src = `/card/${value}?embed=true`;
+          iframe.onload = () => {
+            watchForCardChanges(iframe);
+          };
+        }
+
+        function changeToNewCardIfTaskHasFinished(runInfo) {
+          // search for the selectedCard in the runInfo
+          const card = runInfo.cards.find((card) => card.card === selectedCard);
+          // if the card object contains `finished` === True, then change to the next card that has not finished
+          if (card?.finished) {
+            // find the index of the current card
+            const currentCardIndex = runInfo.cards.findIndex(
+              (card) => card.card === selectedCard
+            );
+            // find the next card that has not finished
+            const nextCard = runInfo.cards.find((card) => !card.finished);
+            // if there is a next card, change to it
+
+            console.log("nextCard", nextCard);
+            if (nextCard) {
+              selectedCard = nextCard.card;
+              handleLoadCard(nextCard.label, nextCard.card);
+            }
+          }
+        }
+
+        /**
+         * Main loop function
+         */
+        async function main() {
+          try {
+            // get info on the entire run
+            const runInfoRequest = await fetch("/runinfo");
+            const runInfo = await runInfoRequest.json();
+
+            // reset the state if the run_id changes or on first time
+            if (currentRunId !== runInfo.run_id) {
+              currentRunId = runInfo.run_id;
+              currentCardsLength = 0;
+              selectedCard = "";
+              console.log("runInfo", runInfo);
+            }
+            if (runInfo.poll_interval * 1000 !== DATA_UPDATE_POLL_INTERVAL) {
+              DATA_UPDATE_POLL_INTERVAL = runInfo.poll_interval * 1000;
+            }
+            if (runInfo.poll_interval * 1000 !== RUN_UPDATE_POLL_INTERVAL) {
+              RUN_UPDATE_POLL_INTERVAL = runInfo.poll_interval * 1000;
+            }
+            if (runInfo?.status === "ok") {
+              // only make changes if the cards length has changed
+              if (runInfo?.cards.length !== currentCardsLength) {
+                onCardsLoaded(runInfo);
+              }
+              // if there is no selected card, select the first one
+              if (!selectedCard) {
+                selectedCard = runInfo.cards[0].card;
+                handleLoadCard(runInfo.cards[0].label, runInfo.cards[0].card);
+              }
+            } else {
+              handleStatus(runInfo?.status, false);
+            }
+          } catch (error) {
+            console.error(error);
+          }
+          // always run the main loop, because a user can start a new run,
+          // or restart the web server, and we want the page to continue working
+          setTimeout(main, RUN_UPDATE_POLL_INTERVAL);
+        }
+
+        // start the main loop
+        window.onload = () => {
+          main();
+        };
+      })();
+    </script>
+  </body>
+</html>
