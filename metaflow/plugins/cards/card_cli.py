@@ -965,7 +965,7 @@ def list(
     default=8324,
     show_default=True,
     type=int,
-    help="Port on which Metaflow card server will run",
+    help="Port on which Metaflow card viewer server will run",
 )
 @click.option(
     "--namespace",
@@ -980,14 +980,14 @@ def list(
     default=5,
     show_default=True,
     type=int,
-    help="Polling interval of the card viewer.",
+    help="Polling interval of the card viewer server.",
 )
 @click.option(
     "--max-cards",
     default=30,
     show_default=True,
     type=int,
-    help="Maximum number of cards to be shown at any time by the server",
+    help="Maximum number of cards to be shown at any time by the card viewer server",
 )
 @click.pass_context
 def server(ctx, run_id, port, user_namespace, poll_interval, max_cards):
@@ -1001,7 +1001,7 @@ def server(ctx, run_id, port, user_namespace, poll_interval, max_cards):
         ctx.obj.echo(_status_message, fg="red")
     options = CardServerOptions(
         flow_name=ctx.obj.flow.name,
-        run_object=run, 
+        run_object=run,
         only_running=False,
         follow_resumed=False,
         flow_datastore=ctx.obj.flow_datastore,

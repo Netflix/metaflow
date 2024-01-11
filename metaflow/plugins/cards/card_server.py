@@ -302,9 +302,9 @@ class CardViewerRoutes(BaseHTTPRequestHandler):
         if card_data is not None:
             self.log_message(
                 "Task Success: %s, Task Finished: %s"
-                % (task_object.successful, task_object.finished)
+                % (task_object.successful, is_complete)
             )
-            if not task_object.successful and task_object.finished:
+            if not task_object.successful and is_complete:
                 status = "Task Failed"
             self._response(
                 {"status": status, "payload": card_data, "is_complete": is_complete},
@@ -330,6 +330,13 @@ class CardViewerRoutes(BaseHTTPRequestHandler):
     ROUTES = {"runinfo": get_runinfo, "card": get_card, "data": get_data}
 
 
+def _is_debug_mode():
+    debug_flag = os.environ.get("METAFLOW_DEBUG_CARD_SERVER")
+    if debug_flag is None:
+        return False
+    return debug_flag.lower() in ["true", "1"]
+
+
 def create_card_server(card_options: CardServerOptions, port, ctx_obj):
     CardViewerRoutes.card_options = card_options
     global _ClickLogger
@@ -346,7 +353,7 @@ def create_card_server(card_options: CardServerOptions, port, ctx_obj):
         bold=True,
     )
     # Disable logging if not in debug mode
-    if "METAFLOW_DEBUG_CARD_SERVER" not in os.environ:
+    if not _is_debug_mode():
         CardViewerRoutes.log_request = lambda *args, **kwargs: None
         CardViewerRoutes.log_message = lambda *args, **kwargs: None
 
