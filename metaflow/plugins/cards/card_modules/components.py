@@ -211,6 +211,11 @@ class Table(UserComponent):
             )
 
     def _render_subcomponents(self):
+        for row in self._data:
+            for col in row:
+                if isinstance(col, VegaChart):
+                    col._chart_inside_table = True
+
         return [
             SectionComponent.render_subcomponents(
                 row,
@@ -685,18 +690,51 @@ class Markdown(UserComponent):
 
 
 class ProgressBar(UserComponent):
+    """
+    A Progress bar for tracking progress of any task.
+
+    Example:
+    ```
+    progress_bar = ProgressBar(
+        max=100,
+        label="Progress Bar",
+        value=0,
+        unit="%",
+        metadata="0.1 items/s"
+    )
+    current.card.append(
+        progress_bar
+    )
+    for i in range(100):
+        progress_bar.update(i, metadata="%s items/s" % i)
+
+    ```
+
+    Parameters
+    ----------
+    text : str
+        Text formatted in Markdown.
+    """
+
     type = "progressBar"
 
     REALTIME_UPDATABLE = True
 
-    def __init__(self, max=100, label=None, value=0, unit=None, metadata=None):
+    def __init__(
+        self,
+        max: int = 100,
+        label: str = None,
+        value: int = 0,
+        unit: str = None,
+        metadata: str = None,
+    ):
         self._label = label
         self._max = max
         self._value = value
         self._unit = unit
         self._metadata = metadata
 
-    def update(self, new_value, metadata=None):
+    def update(self, new_value: int, metadata: str = None):
         self._value = new_value
         if metadata is not None:
             self._metadata = metadata
@@ -724,9 +762,10 @@ class VegaChart(UserComponent):
 
     REALTIME_UPDATABLE = True
 
-    def __init__(self, spec, show_controls=False):
+    def __init__(self, spec: dict, show_controls=False):
         self._spec = spec
         self._show_controls = show_controls
+        self._chart_inside_table = False
 
     def update(self, spec=None):
         if spec is not None:
@@ -761,7 +800,8 @@ class VegaChart(UserComponent):
         }
         if not self._show_controls:
             data["options"] = {"actions": False}
-
-        if "width" not in self._spec:
+        if "width" not in self._spec and not self._chart_inside_table:
             data["spec"]["width"] = "container"
+        if self._chart_inside_table and "autosize" not in self._spec:
+            data["spec"]["autosize"] = "fit-x"
         return data

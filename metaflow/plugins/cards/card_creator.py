@@ -57,8 +57,11 @@ class CardCreator:
         logger=None,
         mode="render",
         final=False,
+        sync=False,
     ):
-        # warning_message("calling proc for uuid %s" % self._card_uuid, self._logger)
+        # Setting `final` will affect the Reload token set during the card refresh
+        # data creation along with synchronous execution of subprocess.
+        # Setting `sync` will only cause synchronous execution of subprocess.
         if mode != "render" and not runtime_card:
             # silently ignore runtime updates for cards that don't support them
             return
@@ -68,7 +71,6 @@ class CardCreator:
             component_strings = []
         else:
             component_strings = current.card._serialize_components(card_uuid)
-
         data = current.card._get_latest_data(card_uuid, final=final, mode=mode)
         runspec = "/".join([current.run_id, current.step_name, current.task_id])
         self._run_cards_subprocess(
@@ -82,6 +84,7 @@ class CardCreator:
             logger,
             data,
             final=final,
+            sync=sync,
         )
 
     def _run_cards_subprocess(
@@ -96,9 +99,10 @@ class CardCreator:
         logger,
         data=None,
         final=False,
+        sync=False,
     ):
         components_file = data_file = None
-        wait = final
+        wait = final or sync
 
         if len(component_strings) > 0:
             # note that we can't delete temporary files here when calling the subprocess
