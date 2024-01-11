@@ -1,5 +1,5 @@
 <!-- Draws all the connectors between Steps in a DAG -->
-<script type="ts">
+<script lang="ts">
   import type { Boxes, Dag } from "../../types";
   import { convertPixelsToRem } from "../../utils";
   import Connector from "./connector.svelte";

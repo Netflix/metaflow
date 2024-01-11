@@ -4,10 +4,9 @@
   import ArtifactRow from "./artifact-row.svelte";
 
   export let componentData: types.ArtifactsComponent;
-  const { data } = componentData;
 
   // we can't guarantee the data is sorted from the source, so we sort before render
-  const sortedData = data.sort((a, b) => {
+  const sortedData = componentData?.data.sort((a, b) => {
     // nulls first
     if (a.name && b.name) {
       if (a.name > b.name) {
@@ -24,7 +23,7 @@
   <!-- language-python is a prism.js class -->
   <table class="language-python">
     {#each sortedData as artifact}
-      <ArtifactRow id={artifact.name} artifact={artifact} />
+      <ArtifactRow id={artifact.name} {artifact} />
     {/each}
   </table>
 </div>

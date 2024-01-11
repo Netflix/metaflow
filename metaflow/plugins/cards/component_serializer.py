@@ -263,12 +263,13 @@ class CardComponentManager:
     def clear(self):
         self._components.clear()
 
-    def _card_proc(self, mode):
-        self._card_creator.create(**self._card_creator_args, mode=mode)
+    def _card_proc(self, mode, sync=False):
+        self._card_creator.create(**self._card_creator_args, mode=mode, sync=sync)
 
     def refresh(self, data=None, force=False):
         self._latest_user_data = data
         nu = time.time()
+        first_render = True if self._last_render == 0 else False
 
         if nu - self._last_refresh < self._refresh_interval:
             # rate limit refreshes: silently ignore requests that
@@ -287,11 +288,24 @@ class CardComponentManager:
             self._last_layout_change != self.components.layout_last_changed_on
             or self._last_layout_change is None
         )
-
         if force or last_rendered_before_minimum_interval or layout_has_changed:
             self._render_seq += 1
             self._last_render = nu
             self._card_proc("render_runtime")
+            # The below `if not first_render` condition is a special case for the following scenario:
+            # Lets assume the case that the user is only doing `current.card.append` followed by `refresh`.
+            # In this case, there will be no process executed in `refresh` mode since `layout_has_changed`
+            # will always be true and as a result there will be no data update that informs the UI of the RELOAD_TOKEN change.
+            # This will cause the UI to seek for the data update object but will constantly find None. So if it is not
+            # the first render then we should also have a `refresh` call followed by a `render_runtime` call so
+            # that the UI can always be updated with the latest data.
+            if not first_render:
+                # For the general case, the CardCreator's ProcessManager run's the `refresh` / `render_runtime` in a asynchronous manner.
+                # Due to this when the `render_runtime` call is happening, an immediately subsequent call to `refresh` will not be able to
+                # execute since the card-process manager will be busy executing the `render_runtime` call and ignore the `refresh` call.
+                # Hence we need to pass the `sync=True` argument to the `refresh` call so that the `refresh` call is executed synchronously and waits for the
+                # `render_runtime` call to finish.
+                self._card_proc("refresh", sync=True)
             # We set self._last_layout_change so that when self._last_layout_change is not the same
             # as `self.components.layout_last_changed_on`, then the component array itself
             # has been modified. So we should force a re-render of the card.

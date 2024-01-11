@@ -20,6 +20,7 @@
 </script>
 
 {#if componentData && $modal}
+  <!-- svelte-ignore a11y-click-events-have-key-events a11y-no-static-element-interactions -->
   <div class="modal" on:click={handleModalClick} data-component="modal">
     <span class="cancelButton">
       <Icon icon="mdi:close" />

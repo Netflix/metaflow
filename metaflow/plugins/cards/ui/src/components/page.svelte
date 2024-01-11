@@ -2,10 +2,13 @@
 <script lang="ts">
   import type * as types from "../types";
   export let componentData: types.PageComponent;
-  const { title } = componentData;
 </script>
 
-<div id={`page-${title || "No Title"}`} class="page" data-component="page">
+<div
+  id={`page-${componentData?.title || "No Title"}`}
+  class="page"
+  data-component="page"
+>
   <slot />
 </div>
 
