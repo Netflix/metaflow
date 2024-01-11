@@ -248,9 +248,8 @@ class _AzureRootClient(object):
 class AzureStorage(DataStoreStorage):
     TYPE = "azure"
 
+    @check_azure_deps
     def __init__(self, root=None):
-        # cannot decorate __init__... invoke it with dummy decoratee
-        check_azure_deps(lambda: 0)
         super(AzureStorage, self).__init__(root)
         self._tmproot = ARTIFACT_LOCALROOT
         self._default_scope_token = None
