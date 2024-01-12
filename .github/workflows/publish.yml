@@ -18,6 +18,8 @@ jobs:
       run: |
         python3 -m pip install --upgrade pip
         pip3 install setuptools wheel twine
+    - name: Generate Stubs
+      run: python -c "from metaflow.cmd.develop.stub_generator import StubGenerator; StubGenerator('./metaflow', False).write_out()"
     - name: Build package
       run: |
         python3 setup.py sdist bdist_wheel --universal
@@ -26,4 +28,3 @@ jobs:
       with:
         user: __token__
         password: ${{ secrets.pypi_password }}
-
