@@ -11,6 +11,7 @@ from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     EVENTS_SFN_ACCESS_IAM_ROLE,
+    DATASTORE_SYSROOT_S3,
     S3_ENDPOINT_URL,
     SFN_DYNAMO_DB_TABLE,
     SFN_EXECUTION_LOG_GROUP_ARN,
@@ -52,6 +53,7 @@ class StepFunctions(object):
         max_workers=None,
         workflow_timeout=None,
         is_project=False,
+        use_distributed_map=False,
     ):
         self.name = name
         self.graph = graph
@@ -69,6 +71,7 @@ class StepFunctions(object):
         self.username = username
         self.max_workers = max_workers
         self.workflow_timeout = workflow_timeout
+        self.use_distributed_map = use_distributed_map
 
         self._client = StepFunctionsClient()
         self._workflow = self._compile()
@@ -262,7 +265,7 @@ class StepFunctions(object):
             # id, we can't call it as such. Similar situation for `Parameters`.
             state = (
                 State(node.name)
-                .batch(self._batch(node))
+                .batch(self._batch(node), self.use_distributed_map)
                 .output_path(
                     "$.['JobId', " "'Parameters', " "'Index', " "'SplitParentTaskId']"
                 )
@@ -302,19 +305,28 @@ class StepFunctions(object):
                 workflow.add_state(state.next(cardinality_state_name))
                 cardinality_state = (
                     State(cardinality_state_name)
-                    .dynamo_db(SFN_DYNAMO_DB_TABLE, "$.JobId", "for_each_cardinality")
+                    .dynamo_db(
+                        SFN_DYNAMO_DB_TABLE,
+                        "$.JobId",
+                        "for_each_cardinality, root_run_id",
+                    )
                     .result_path("$.Result")
                 )
                 iterator_name = "*%s" % node.out_funcs[0]
                 workflow.add_state(cardinality_state.next(iterator_name))
                 workflow.add_state(
-                    Map(iterator_name)
+                    Map(iterator_name, self.use_distributed_map)
                     .items_path("$.Result.Item.for_each_cardinality.NS")
                     .parameter("JobId.$", "$.JobId")
                     .parameter("SplitParentTaskId.$", "$.JobId")
                     .parameter("Parameters.$", "$.Parameters")
                     .parameter("Index.$", "$$.Map.Item.Value")
-                    .next(node.matching_join)
+                    .parameter("RootRunId.$", "$.Result.Item.root_run_id.S")
+                    .next(
+                        f"{iterator_name}_GetManifest"
+                        if self.use_distributed_map
+                        else node.matching_join
+                    )
                     .iterator(
                         _visit(
                             self.graph[node.out_funcs[0]],
@@ -323,8 +335,63 @@ class StepFunctions(object):
                         )
                     )
                     .max_concurrency(self.max_workers)
-                    .output_path("$.[0]")
+                    .output_path("$" if self.use_distributed_map else "$.[0]")
                 )
+
+                # If we are using DistributedMap we need to obtain the Parameters
+                # one of the batch jobs. Distributed Map jobs can be so big that
+                # we can't just pull the value from the OutputPath, instead
+                # we need to write the results to S3 and then get the data from S3.
+                # These additional states are how we pull the data from S3.
+                if self.use_distributed_map:
+                    workflow.add_state_hack(
+                        f"{iterator_name}_GetManifest",
+                        {
+                            "Type": "Task",
+                            "Next": f"{iterator_name}_Map",
+                            "Parameters": {
+                                "Bucket.$": "$.ResultWriterDetails.Bucket",
+                                "Key.$": "$.ResultWriterDetails.Key",
+                            },
+                            "Resource": "arn:aws:states:::aws-sdk:s3:getObject",
+                            "ResultSelector": {"Body.$": "States.StringToJson($.Body)"},
+                        },
+                    )
+                    workflow.add_state_hack(
+                        f"{iterator_name}_Map",
+                        {
+                            "Type": "Map",
+                            "ItemProcessor": {
+                                "ProcessorConfig": {
+                                    "Mode": "DISTRIBUTED",
+                                    "ExecutionType": "STANDARD",
+                                },
+                                "StartAt": f"{iterator_name}_Pass",
+                                "States": {
+                                    f"{iterator_name}_Pass": {
+                                        "Type": "Pass",
+                                        "End": True,
+                                        "Parameters": {
+                                            "Output.$": "States.StringToJson($.Output)"
+                                        },
+                                        "OutputPath": "$.Output",
+                                    }
+                                },
+                            },
+                            "Next": node.matching_join,
+                            "MaxConcurrency": 1000,
+                            "ItemReader": {
+                                "Resource": "arn:aws:states:::s3:getObject",
+                                "ReaderConfig": {"InputType": "JSON", "MaxItems": 1},
+                                "Parameters": {
+                                    "Bucket.$": "$.Body.DestinationBucket",
+                                    "Key.$": "$.Body.ResultFiles.SUCCEEDED.[0].Key",
+                                },
+                            },
+                            "OutputPath": "$.[0]",
+                        },
+                    )
+
                 # Continue the traversal from the matching_join.
                 _visit(self.graph[node.matching_join], workflow, exit_node)
             # We shouldn't ideally ever get here.
@@ -533,11 +600,13 @@ class StepFunctions(object):
                     attrs[
                         "split_parent_task_id_%s.$" % node.split_parents[-1]
                     ] = "$.SplitParentTaskId"
+                    attrs["root_run_id.$"] = "$.RootRunId"
                     for parent in node.split_parents[:-1]:
                         if self.graph[parent].type == "foreach":
                             attrs["split_parent_task_id_%s.$" % parent] = (
                                 "$.Parameters.split_parent_task_id_%s" % parent
                             )
+                            attrs["root_run_id.$"] = "$.Parameters.root_run_id"
                 elif node.type == "join":
                     if self.graph[node.split_parents[-1]].type == "foreach":
                         # A foreach join only gets one set of input from the
@@ -554,23 +623,27 @@ class StepFunctions(object):
                             "$.Parameters.split_parent_task_id_%s"
                             % node.split_parents[-1]
                         )
+                        attrs["root_run_id.$"] = "$.Parameters.root_run_id"
                         for parent in node.split_parents[:-1]:
                             if self.graph[parent].type == "foreach":
                                 attrs["split_parent_task_id_%s.$" % parent] = (
                                     "$.Parameters.split_parent_task_id_%s" % parent
                                 )
+                                attrs["root_run_id.$"] = "$.Parameters.root_run_id"
                     else:
                         for parent in node.split_parents:
                             if self.graph[parent].type == "foreach":
                                 attrs["split_parent_task_id_%s.$" % parent] = (
                                     "$.[0].Parameters.split_parent_task_id_%s" % parent
                                 )
+                                attrs["root_run_id.$"] = "$.Parameters.root_run_id"
                 else:
                     for parent in node.split_parents:
                         if self.graph[parent].type == "foreach":
                             attrs["split_parent_task_id_%s.$" % parent] = (
                                 "$.Parameters.split_parent_task_id_%s" % parent
                             )
+                            attrs["root_run_id.$"] = "$.Parameters.root_run_id"
 
                 # Set `METAFLOW_SPLIT_PARENT_TASK_ID_FOR_FOREACH_JOIN` if the
                 # next transition is to a foreach join, so that the
@@ -598,7 +671,10 @@ class StepFunctions(object):
         env["METAFLOW_CODE_URL"] = self.code_package_url
         env["METAFLOW_FLOW_NAME"] = attrs["metaflow.flow_name"]
         env["METAFLOW_STEP_NAME"] = attrs["metaflow.step_name"]
-        env["METAFLOW_RUN_ID"] = attrs["metaflow.run_id.$"]
+        if node.is_inside_foreach is True:
+            env["METAFLOW_RUN_ID"] = attrs["root_run_id.$"]
+        else:
+            env["METAFLOW_RUN_ID"] = attrs["metaflow.run_id.$"]
         env["METAFLOW_PRODUCTION_TOKEN"] = self.production_token
         env["SFN_STATE_MACHINE"] = self.name
         env["METAFLOW_OWNER"] = attrs["metaflow.owner"]
@@ -849,6 +925,10 @@ class Workflow(object):
         self.payload["States"][state.name] = state.payload
         return self
 
+    def add_state_hack(self, state_name, state_payload):
+        self.payload["States"][state_name] = state_payload
+        return self
+
     def timeout_seconds(self, timeout_seconds):
         self.payload["TimeoutSeconds"] = timeout_seconds
         return self
@@ -892,7 +972,7 @@ class State(object):
         # This is needed to support AWS Gov Cloud and AWS CN regions
         return SFN_IAM_ROLE.split(":")[1]
 
-    def batch(self, job):
+    def batch(self, job, use_distributed_map=False):
         self.resource(
             "arn:%s:states:::batch:submitJob.sync" % self._partition()
         ).parameter("JobDefinition", job.payload["jobDefinition"]).parameter(
@@ -911,6 +991,18 @@ class State(object):
         # tags may not be present in all scenarios
         if "tags" in job.payload:
             self.parameter("Tags", job.payload["tags"])
+        if use_distributed_map:
+            self.payload["Retry"] = [
+                {
+                    "ErrorEquals": ["Batch.AWSBatchException"],
+                    "BackoffRate": 2,
+                    "IntervalSeconds": 5,
+                    # 10_000 (max jobs for Step Functions distributed map) / 50 (TSP for Batch submit) == 200 attempts
+                    "MaxAttempts": 200,
+                    "MaxDelaySeconds": 60,
+                    "JitterStrategy": "FULL",
+                }
+            ]
         return self
 
     def dynamo_db(self, table_name, primary_key, values):
@@ -951,14 +1043,27 @@ class Parallel(object):
 
 
 class Map(object):
-    def __init__(self, name):
+    def __init__(self, name, use_distributed_map):
         self.name = name
         tree = lambda: defaultdict(tree)
         self.payload = tree()
         self.payload["Type"] = "Map"
         self.payload["MaxConcurrency"] = 0
+        self.use_distributed_map = use_distributed_map
 
     def iterator(self, workflow):
+        if self.use_distributed_map:
+            workflow.payload["ProcessorConfig"] = {
+                "Mode": "DISTRIBUTED",
+                "ExecutionType": "STANDARD",
+            }
+            self.payload["ResultWriter"] = {
+                "Resource": "arn:aws:states:::s3:putObject",
+                "Parameters": {
+                    "Bucket": DATASTORE_SYSROOT_S3.split("/")[2],
+                    "Prefix": "distributed_map_output",
+                },
+            }
         self.payload["Iterator"] = workflow.payload
         return self
 

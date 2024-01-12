@@ -120,6 +120,11 @@ def step_functions(obj, name=None):
     help="Log AWS Step Functions execution history to AWS CloudWatch "
     "Logs log group.",
 )
+@click.option(
+    "--use-distributed-map",
+    is_flag=True,
+    help="Use the Distributed Map instead of an Inline Map",
+)
 @click.pass_obj
 def create(
     obj,
@@ -132,6 +137,7 @@ def create(
     max_workers=None,
     workflow_timeout=None,
     log_execution_history=False,
+    use_distributed_map=False,
 ):
     validate_tags(tags)
 
@@ -161,6 +167,7 @@ def create(
         max_workers,
         workflow_timeout,
         obj.is_project,
+        use_distributed_map,
     )
 
     if only_json:
@@ -269,7 +276,7 @@ def resolve_state_machine_name(obj, name):
 
 
 def make_flow(
-    obj, token, name, tags, namespace, max_workers, workflow_timeout, is_project
+    obj, token, name, tags, namespace, max_workers, workflow_timeout, is_project, use_distributed_map,
 ):
     if obj.flow_datastore.TYPE != "s3":
         raise MetaflowException("AWS Step Functions requires --datastore=s3.")
@@ -305,6 +312,7 @@ def make_flow(
         username=get_username(),
         workflow_timeout=workflow_timeout,
         is_project=is_project,
+        use_distributed_map=use_distributed_map,
     )
 
 

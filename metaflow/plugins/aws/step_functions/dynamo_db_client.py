@@ -10,7 +10,9 @@ class DynamoDbClient(object):
         self._client = get_aws_client("dynamodb")
         self.name = SFN_DYNAMO_DB_TABLE
 
-    def save_foreach_cardinality(self, foreach_split_task_id, foreach_cardinality, ttl):
+    def save_foreach_cardinality(
+        self, foreach_split_task_id, foreach_cardinality, ttl, root_run_id
+    ):
         return self._client.put_item(
             TableName=self.name,
             Item={
@@ -18,6 +20,7 @@ class DynamoDbClient(object):
                 "for_each_cardinality": {
                     "NS": list(map(str, range(foreach_cardinality)))
                 },
+                "root_run_id": {"S": root_run_id},
                 "ttl": {"N": str(ttl)},
             },
         )
