@@ -1,3 +1,0 @@
-include metaflow-stubs/**/*.pyi
-include metaflow-stubs/py.typed
-include metaflow-stubs/generated_for.txt
