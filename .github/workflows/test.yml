@@ -47,7 +47,7 @@ jobs:
       run: python -c "from metaflow.cmd.develop.stub_generator import StubGenerator; StubGenerator('./metaflow', False).write_out()"
 
     - name: Install metaflow with stubs
-      run: pip install -e .
+      run: pip install .
 
     - name: Validate sample flow with mypy
       run: cd ./stubs && mypy test/flow.py --ignore-missing-imports && cd -
