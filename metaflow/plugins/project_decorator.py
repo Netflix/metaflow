@@ -31,7 +31,7 @@ class ProjectDecorator(FlowDecorator):
     project_name -> str
         The name of the project assigned to this flow, i.e. `X` in `@project(name=X)`.
 
-        Returns
+        @@ Returns
         -------
         str
             Project name.
@@ -40,7 +40,7 @@ class ProjectDecorator(FlowDecorator):
         The flow name prefixed with the current project and branch. This name identifies
         the deployment on a production scheduler.
 
-        Returns
+        @@ Returns
         -------
         str
             Flow name prefixed with project information.
@@ -48,7 +48,7 @@ class ProjectDecorator(FlowDecorator):
     branch_name -> str
         The current branch, i.e. `X` in `--branch=X` set during deployment or run.
 
-        Returns
+        @@ Returns
         -------
         str
             Branch name.
@@ -57,7 +57,7 @@ class ProjectDecorator(FlowDecorator):
         True if the flow is deployed without a specific `--branch` or a `--production`
         flag.
 
-        Returns
+        @@ Returns
         -------
         bool
             True if the deployment does not correspond to a specific branch.
@@ -65,7 +65,7 @@ class ProjectDecorator(FlowDecorator):
     is_production -> bool
         True if the flow is deployed with the `--production` flag
 
-        Returns
+        @@ Returns
         -------
         bool
             True if the flow is deployed with `--production`.

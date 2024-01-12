@@ -55,10 +55,10 @@ class TriggerDecorator(FlowDecorator):
     trigger -> metaflow.events.Trigger
         Returns `Trigger` if the current run is triggered by an event
 
-        Returns
+        @@ Returns
         -------
-            Trigger
-                `Trigger` if triggered by an event
+        Trigger
+            `Trigger` if triggered by an event
     """
 
     name = "trigger"
@@ -239,10 +239,10 @@ class TriggerOnFinishDecorator(FlowDecorator):
     trigger -> metaflow.events.Trigger
         Returns `Trigger` if the current run is triggered by an event
 
-        Returns
+        @@ Returns
         -------
-            Trigger
-                `Trigger` if triggered by an event
+        Trigger
+            `Trigger` if triggered by an event
     """
 
     name = "trigger_on_finish"

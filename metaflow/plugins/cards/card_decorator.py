@@ -46,7 +46,7 @@ class CardDecorator(StepDecorator):
 
         Methods available are `append` and `extend`
 
-        Returns
+        @@ Returns
         -------
         CardComponentCollector
             The or one of the cards attached to this step.

@@ -42,6 +42,7 @@ setup(
             "tutorials/*/*",
             "plugins/env_escape/configurations/*/*",
             "py.typed",
+            "**/*.pyi",
         ]
     },
     entry_points="""
