@@ -257,13 +257,6 @@ class Pip(object):
 
         return index, extras
 
-    def build(self, id_, packages, python, platform):
-        prefix = self.micromamba.path_to_environment(id_)
-        build_metadata_file = BUILD_METADATA_FILE.format(prefix=prefix)
-        # skip build if already built.
-        if os.path.isfile(build_metadata_file):
-            return
-
     def _call(self, prefix, args, env=None, isolated=True):
         if env is None:
             env = {}
