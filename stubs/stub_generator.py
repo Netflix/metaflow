@@ -1,7 +1,6 @@
 import functools
 import importlib
 import inspect
-import logging
 import math
 import os
 import pathlib
@@ -19,6 +18,7 @@ from typing import (
     ForwardRef,
     Iterable,
     List,
+    NewType,
     Optional,
     Set,
     Tuple,
@@ -27,7 +27,9 @@ from typing import (
     cast,
 )
 
-from metaflow.decorators import Decorator
+from metaflow import FlowSpec, step
+from metaflow.debug import debug
+from metaflow.decorators import Decorator, FlowDecorator
 from metaflow.graph import deindent_docstring
 from metaflow.metaflow_version import get_version
 
@@ -44,8 +46,34 @@ type_annotations = re.compile(
     r"(?P<type>.*?)(?P<optional>, optional|\(optional\))?(?:, [Dd]efault(?: is | = |: |s to |)\s*(?P<default>.*))?$"
 )
 
-logger = logging.getLogger("StubGenerator")
-logger.setLevel(logging.INFO)
+FlowSpecDerived = TypeVar("FlowSpecDerived", bound=FlowSpec)
+
+StepFlag = NewType("StepFlag", bool)
+
+MetaflowStepFunction = Union[
+    Callable[[FlowSpecDerived, StepFlag], None],
+    Callable[[FlowSpecDerived, Any, StepFlag], None],
+]
+
+
+def type_var_to_str(t: TypeVar) -> str:
+    bound_name = None
+    if t.__bound__ is not None:
+        if isinstance(t.__bound__, typing.ForwardRef):
+            bound_name = t.__bound__.__forward_arg__
+        else:
+            bound_name = t.__bound__.__name__
+    return 'typing.TypeVar("%s", %s, contravariant=%s, covariant=%s%s)' % (
+        t.__name__,
+        'bound="%s"' % bound_name if t.__bound__ else "",
+        t.__contravariant__,
+        t.__covariant__,
+        ", ".join([""] + [c.__name__ for c in t.__constraints__]),
+    )
+
+
+def new_type_to_str(t: typing.NewType) -> str:
+    return 'typing.NewType("%s", %s)' % (t.__name__, t.__supertype__.__name__)
 
 
 def descend_object(object: str, options: Iterable[str]):
@@ -77,7 +105,7 @@ class StubGenerator:
     the library or below it but not any external imports)
     """
 
-    def __init__(self, output_dir: str):
+    def __init__(self, output_dir: str, include_generated_for: bool = True):
         """
         Initializes the StubGenerator.
         :param file_path: the file path
@@ -86,17 +114,17 @@ class StubGenerator:
         :type members_from_other_modules: List[str]
         """
 
+        self._write_generated_for = include_generated_for
         self._pending_modules = ["metaflow"]  # type: List[str]
         self._root_module = "metaflow."
         self._safe_modules = ["metaflow.", "metaflow_extensions."]
 
         # We exclude some modules to not create a bunch of random non-user facing
-        # .pyi files. For now, it is definitely crucial to exclude metadata as it
-        # conflicts with the metadata() function defined in metaflow as well and
-        # griffe legitimately has a problem with it.
+        # .pyi files.
         self._exclude_modules = set(
             [
                 "metaflow.cli_args",
+                "metaflow.cmd",
                 "metaflow.cmd_with_io",
                 "metaflow.datastore",
                 "metaflow.debug",
@@ -104,16 +132,28 @@ class StubGenerator:
                 "metaflow.event_logger",
                 "metaflow.extension_support",
                 "metaflow.graph",
-                "metaflow.metadata",
+                "metaflow.integrations",
+                "metaflow.lint",
+                "metaflow.metaflow_metadata",
                 "metaflow.metaflow_config_funcs",
                 "metaflow.metaflow_environment",
+                "metaflow.metaflow_profile",
+                "metaflow.metaflow_version",
                 "metaflow.mflog",
                 "metaflow.monitor",
                 "metaflow.package",
+                "metaflow.plugins.datastores",
+                "metaflow.plugins.env_escape",
+                "metaflow.plugins.metadata",
+                "metaflow.procpoll.py",
                 "metaflow.R",
+                "metaflow.runtime",
                 "metaflow.sidecar",
+                "metaflow.task",
+                "metaflow.tracing",
                 "metaflow.unbounded_foreach",
                 "metaflow.util",
+                "metaflow.vendor",
             ]
         )
         self._done_modules = set()  # type: Set[str]
@@ -133,6 +173,8 @@ class StubGenerator:
         self._imports = set()  # type: Set[str]
         # Typing imports (behind if TYPE_CHECKING) that are needed at the top of the file
         self._typing_imports = set()  # type: Set[str]
+        # Typevars that are defined
+        self._typevars = dict()  # type: Dict[str, Union[TypeVar, type]]
         # Current objects in the file being processed
         self._current_objects = {}  # type: Dict[str, Any]
         # Current stubs in the file being processed
@@ -144,12 +186,14 @@ class StubGenerator:
         self._current_parent_module = None  # type: Optional[ModuleType]
 
     def _get_module(self, name):
-        logger.info("Analyzing module %s ...", name)
+        debug.stubgen_exec("Analyzing module %s ..." % name)
         self._current_module = importlib.import_module(name)
         self._current_module_name = name
         for objname, obj in self._current_module.__dict__.items():
             if objname.startswith("_"):
-                logger.debug("Skipping object because it starts with _ %s", objname)
+                debug.stubgen_exec(
+                    "Skipping object because it starts with _ %s" % objname
+                )
                 continue
             if inspect.ismodule(obj):
                 # Only consider modules that are part of the root module
@@ -157,22 +201,29 @@ class StubGenerator:
                     obj.__name__.startswith(self._root_module)
                     and not obj.__name__ in self._exclude_modules
                 ):
-                    logger.debug("Adding child module %s to process", obj.__name__)
+                    debug.stubgen_exec(
+                        "Adding child module %s to process" % obj.__name__
+                    )
                     self._pending_modules.append(obj.__name__)
                 else:
-                    logger.debug("Skipping child module %s", obj.__name__)
+                    debug.stubgen_exec("Skipping child module %s" % obj.__name__)
             else:
                 parent_module = inspect.getmodule(obj)
                 # For objects we include:
                 #  - stuff that is a functools.partial (these are all the decorators;
-                #    we could be more specific but good enough for now) for root module
+                #    we could be more specific but good enough for now) for root module.
+                #    We also include the step decorator (it's from metaflow.decorators
+                #    which is typically excluded)
                 #  - otherwise, anything that is in safe_modules. Note this may include
                 #    a bit much (all the imports)
                 if (
                     parent_module is None
                     or (
                         name + "." == self._root_module
-                        and (parent_module.__name__.startswith("functools"))
+                        and (
+                            (parent_module.__name__.startswith("functools"))
+                            or obj == step
+                        )
                     )
                     or (
                         not any(
@@ -189,10 +240,10 @@ class StubGenerator:
                         )
                     )
                 ):
-                    logger.debug("Adding object %s to process", objname)
+                    debug.stubgen_exec("Adding object %s to process" % objname)
                     self._current_objects[objname] = obj
                 else:
-                    logger.debug("Skipping object %s", objname)
+                    debug.stubgen_exec("Skipping object %s" % objname)
                 # We also include the module to process if it is part of root_module
                 if (
                     parent_module is not None
@@ -204,9 +255,9 @@ class StubGenerator:
                     )
                     and parent_module.__name__.startswith(self._root_module)
                 ):
-                    logger.debug(
-                        "Adding module of child object %s to process",
-                        parent_module.__name__,
+                    debug.stubgen_exec(
+                        "Adding module of child object %s to process"
+                        % parent_module.__name__,
                     )
                     self._pending_modules.append(parent_module.__name__)
 
@@ -242,10 +293,11 @@ class StubGenerator:
         if isinstance(element, str):
             _add_to_typing_check(element)
             return '"%s"' % element
-        elif isinstance(element, TypeVar):
-            return "{0}.{1}".format(
-                element.__module__, element.__bound__.__forward_arg__
-            )
+        # 3.10+ has NewType as a class but not before so hack around to check for NewType
+        elif isinstance(element, TypeVar) or hasattr(element, "__supertype__"):
+            if not element.__name__ in self._typevars:
+                self._typevars[element.__name__] = element
+            return element.__name__
         elif isinstance(element, type):
             module = inspect.getmodule(element)
             if (
@@ -265,6 +317,14 @@ class StubGenerator:
                 return element.__name__
         elif isinstance(element, type(Ellipsis)):
             return "..."
+        # elif (
+        #    isinstance(element, typing._GenericAlias)
+        #    and hasattr(element, "_name")
+        #    and element._name in ("List", "Tuple", "Dict", "Set")
+        # ):
+        #    # 3.7 has these as _GenericAlias but they don't behave like the ones in 3.10
+        #    _add_to_import("typing")
+        #    return str(element)
         elif isinstance(element, typing._GenericAlias):
             # We need to check things recursively in __args__ if it exists
             args_str = []
@@ -295,13 +355,21 @@ class StubGenerator:
         elif inspect.getmodule(element) == inspect.getmodule(typing):
             _add_to_import("typing")
             # Special handling for NamedTuple which is a function
-            if element.__name__ == "NamedTuple":
+            if hasattr(element, "__name__") and element.__name__ == "NamedTuple":
                 return "typing.NamedTuple"
             return str(element)
         else:
             raise RuntimeError(
                 "Does not handle element %s of type %s" % (str(element), type(element))
             )
+
+    def _exploit_annotation(self, annotation: Any, starting: str = ": ") -> str:
+        annotation_string = ""
+        if annotation and annotation != inspect.Parameter.empty:
+            annotation_string += starting + self._get_element_name_with_module(
+                annotation
+            )
+        return annotation_string
 
     def _generate_class_stub(self, name: str, clazz: type) -> str:
         buff = StringIO()
@@ -375,7 +443,7 @@ class StubGenerator:
                 buff.write(
                     self._generate_function_stub(
                         name,
-                        sign=sign,
+                        sign=[sign],
                         indentation=TAB,
                         doc="(only in the presence of the %s decorator%s)\n\n"
                         % (", or ".join(decos), "" if len(decos) == 1 else "s")
@@ -388,22 +456,24 @@ class StubGenerator:
                 self._generate_function_stub(
                     "__init__",
                     func=None,
-                    sign=inspect.Signature(
-                        parameters=[
-                            inspect.Parameter(
-                                name="self",
-                                kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                            )
-                        ]
-                        + [
-                            inspect.Parameter(
-                                name=name,
-                                kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                                annotation=annotation,
-                            )
-                            for name, annotation in annotation_dict.items()
-                        ]
-                    ),
+                    sign=[
+                        inspect.Signature(
+                            parameters=[
+                                inspect.Parameter(
+                                    name="self",
+                                    kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                                )
+                            ]
+                            + [
+                                inspect.Parameter(
+                                    name=name,
+                                    kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                                    annotation=annotation,
+                                )
+                                for name, annotation in annotation_dict.items()
+                            ]
+                        )
+                    ],
                     indentation=TAB,
                 )
             )
@@ -411,9 +481,9 @@ class StubGenerator:
 
         return buff.getvalue()
 
-    def _extract_parameters_from_doc(
-        self, name: str, raw_doc: Optional[str]
-    ) -> Optional[Tuple[inspect.Signature, str]]:
+    def _extract_signature_from_decorator(
+        self, name: str, raw_doc: Optional[str], is_flow_decorator: bool = False
+    ) -> Optional[List[Tuple[inspect.Signature, str]]]:
         # TODO: This only handles the `Parameters` section for now; we are
         # using it only to parse the documentation for step/flow decorators so
         # this is enough for now but it could be extended more.
@@ -421,6 +491,11 @@ class StubGenerator:
         # https://github.com/rr-/docstring_parser/blob/master/docstring_parser/numpydoc.py
         if raw_doc is None:
             return None
+
+        if not "FlowSpecDerived" in self._typevars:
+            self._typevars["FlowSpecDerived"] = FlowSpecDerived
+            self._typevars["StepFlag"] = StepFlag
+
         raw_doc = inspect.cleandoc(raw_doc)
         has_parameters = param_section_header.search(raw_doc)
         has_add_to_current = add_to_current_header.search(raw_doc)
@@ -434,6 +509,7 @@ class StubGenerator:
             doc = raw_doc[has_parameters.end() :]
             add_to_current_doc = None
         parameters = []
+        no_arg_version = True
         for line in doc.splitlines():
             if non_indented_line.match(line):
                 match = param_name_type.match(line)
@@ -461,7 +537,7 @@ class StubGenerator:
                     parameters.append(
                         inspect.Parameter(
                             name=arg_name,
-                            kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                            kind=inspect.Parameter.KEYWORD_ONLY,
                             default=default
                             if default_set
                             else None
@@ -472,73 +548,194 @@ class StubGenerator:
                             else type_name,
                         )
                     )
-        if not add_to_current_doc:
-            return inspect.Signature(parameters=parameters), raw_doc
+                    if not default_set:
+                        # If we don't have a default set for any parameter, we can't
+                        # have a no-arg version since the decorator would be incomplete
+                        no_arg_version = False
+        if add_to_current_doc:
+            current_property = None
+            current_return_type = None
+            current_property_indent = None
+            current_doc = []
+            add_to_current = dict()  # type: Dict[str, Tuple[inspect.Signature, str]]
 
-        current_property = None
-        current_return_type = None
-        current_property_indent = None
-        current_doc = []
-        add_to_current = dict()  # type: Dict[str, Tuple[inspect.Signature, str]]
+            def _add():
+                if current_property:
+                    add_to_current[current_property] = (
+                        inspect.Signature(
+                            [
+                                inspect.Parameter(
+                                    "self", inspect.Parameter.POSITIONAL_OR_KEYWORD
+                                )
+                            ],
+                            return_annotation=current_return_type,
+                        ),
+                        "\n".join(current_doc),
+                    )
 
-        def _add():
-            if current_property:
-                add_to_current[current_property] = (
-                    inspect.Signature(
-                        [
-                            inspect.Parameter(
-                                "self", inspect.Parameter.POSITIONAL_OR_KEYWORD
-                            )
-                        ],
-                        return_annotation=current_return_type,
-                    ),
-                    "\n".join(current_doc),
+            for line in add_to_current_doc.splitlines():
+                # Parse stanzas that look like the following:
+                # <property-name> -> type
+                # indented doc string
+                if current_property_indent is not None and (
+                    line.startswith(current_property_indent + " ") or line.strip() == ""
+                ):
+                    offset = len(current_property_indent)
+                    if line.lstrip().startswith("@@ "):
+                        line = line.replace("@@ ", "")
+                    current_doc.append(line[offset:].rstrip())
+                else:
+                    if line.strip() == 0:
+                        continue
+                    if current_property:
+                        # Ends a property stanza
+                        _add()
+                    # Now start a new one
+                    line = line.rstrip()
+                    current_property_indent = line[: len(line) - len(line.lstrip())]
+                    # This is a line so we split it using "->"
+                    current_property, current_return_type = line.split("->")
+                    current_property = current_property.strip()
+                    current_return_type = current_return_type.strip()
+                    current_doc = []
+            _add()
+
+            self._addl_current[name] = add_to_current
+
+        result = []
+        if no_arg_version:
+            if is_flow_decorator:
+                result.extend(
+                    [
+                        (
+                            inspect.Signature(
+                                parameters=parameters,
+                                return_annotation=Callable[
+                                    [typing.Type[FlowSpecDerived]],
+                                    typing.Type[FlowSpecDerived],
+                                ],
+                            ),
+                            "",
+                        ),
+                        (
+                            inspect.Signature(
+                                parameters=[
+                                    inspect.Parameter(
+                                        name="f",
+                                        kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                                        annotation=typing.Type[FlowSpecDerived],
+                                    )
+                                ],
+                                return_annotation=typing.Type[FlowSpecDerived],
+                            ),
+                            "",
+                        ),
+                    ]
+                )
+            else:
+                result.extend(
+                    [
+                        (
+                            inspect.Signature(
+                                parameters=parameters,
+                                return_annotation=typing.Callable[
+                                    [MetaflowStepFunction], MetaflowStepFunction
+                                ],
+                            ),
+                            "",
+                        ),
+                        (
+                            inspect.Signature(
+                                parameters=[
+                                    inspect.Parameter(
+                                        name="f",
+                                        kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                                        annotation=Callable[
+                                            [FlowSpecDerived, StepFlag], None
+                                        ],
+                                    )
+                                ],
+                                return_annotation=Callable[
+                                    [FlowSpecDerived, StepFlag], None
+                                ],
+                            ),
+                            "",
+                        ),
+                        (
+                            inspect.Signature(
+                                parameters=[
+                                    inspect.Parameter(
+                                        name="f",
+                                        kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                                        annotation=Callable[
+                                            [FlowSpecDerived, Any, StepFlag], None
+                                        ],
+                                    )
+                                ],
+                                return_annotation=Callable[
+                                    [FlowSpecDerived, Any, StepFlag], None
+                                ],
+                            ),
+                            "",
+                        ),
+                    ]
                 )
 
-        for line in add_to_current_doc.splitlines():
-            # Parse stanzas that look like the following:
-            # <property-name> -> type
-            # indented doc string
-            if current_property_indent is not None and (
-                line.startswith(current_property_indent + " ") or line.strip() == ""
-            ):
-                current_doc.append(line[len(current_property_indent) :].rstrip())
-            else:
-                if line.strip() == 0:
-                    continue
-                if current_property:
-                    # Ends a property stanza
-                    _add()
-                # Now start a new one
-                line = line.rstrip()
-                current_property_indent = line[: len(line) - len(line.lstrip())]
-                # This is a line so we split it using "->"
-                current_property, current_return_type = line.split("->")
-                current_property = current_property.strip()
-                current_return_type = current_return_type.strip()
-                current_doc = []
-        _add()
-
-        self._addl_current[name] = add_to_current
-        return inspect.Signature(parameters=parameters), raw_doc
+        if is_flow_decorator:
+            return result + [
+                (
+                    inspect.Signature(
+                        parameters=[
+                            inspect.Parameter(
+                                name="f",
+                                kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                                annotation=Optional[typing.Type[FlowSpecDerived]],
+                                default=None
+                                if no_arg_version
+                                else inspect.Parameter.empty,
+                            )
+                        ]
+                        if no_arg_version
+                        else [] + parameters,
+                        return_annotation=inspect.Signature.empty
+                        if no_arg_version
+                        else Callable[
+                            [typing.Type[FlowSpecDerived]], typing.Type[FlowSpecDerived]
+                        ],
+                    ),
+                    raw_doc,
+                ),
+            ]
+        return result + [
+            (
+                inspect.Signature(
+                    parameters=[
+                        inspect.Parameter(
+                            name="f",
+                            kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                            annotation=Optional[MetaflowStepFunction],
+                            default=None if no_arg_version else inspect.Parameter.empty,
+                        )
+                    ]
+                    if no_arg_version
+                    else [] + parameters,
+                    return_annotation=inspect.Signature.empty
+                    if no_arg_version
+                    else typing.Callable[[MetaflowStepFunction], MetaflowStepFunction],
+                ),
+                raw_doc,
+            ),
+        ]
 
     def _generate_function_stub(
         self,
         name: str,
         func: Optional[Union[Callable, classmethod]] = None,
-        sign: Optional[inspect.Signature] = None,
+        sign: Optional[List[inspect.Signature]] = None,
         indentation: Optional[str] = None,
         doc: Optional[str] = None,
         deco: Optional[str] = None,
     ) -> str:
-        def exploit_annotation(annotation: Any, starting: str = ": ") -> str:
-            annotation_string = ""
-            if annotation and annotation != inspect.Parameter.empty:
-                annotation_string += starting + self._get_element_name_with_module(
-                    annotation
-                )
-            return annotation_string
-
         def exploit_default(default_value: Any) -> Optional[str]:
             if (
                 default_value != inspect.Parameter.empty
@@ -596,43 +793,63 @@ class StubGenerator:
                 "Cannot generate stub for function %s with either a function or signature"
                 % name
             )
-        sign = sign or inspect.signature(cast(Callable, func))
+        try:
+            sign = sign or [inspect.signature(cast(Callable, func))]
+        except ValueError:
+            # In 3.7, NamedTuples have properties that then give an operator.itemgetter
+            # which doesn't have a signature. We ignore for now. It doesn't have much
+            # value
+            return ""
         doc = doc or func.__doc__
         indentation = indentation or ""
 
-        if deco:
-            buff.write(indentation + deco + "\n")
-        buff.write(indentation + "def " + name + "(")
-        for i, (par_name, parameter) in enumerate(sign.parameters.items()):
-            annotation = exploit_annotation(parameter.annotation)
-            default = exploit_default(parameter.default)
+        # Deal with overload annotations -- the last one will be non overloaded and
+        # will be the one that shows up as the type hint (for Jedi and PyCharm which
+        # don't handle overloads as well)
+        do_overload = False
+        if sign and len(sign) > 1:
+            do_overload = True
+        for count, my_sign in enumerate(sign):
+            if count > 0:
+                buff.write("\n")
 
-            if parameter.kind == inspect.Parameter.VAR_KEYWORD:
-                par_name = "**%s" % par_name
-            elif parameter.kind == inspect.Parameter.VAR_POSITIONAL:
-                par_name = "*%s" % par_name
+            if do_overload and count < len(sign) - 1:
+                buff.write(indentation + "@typing.overload\n")
+            if deco:
+                buff.write(indentation + deco + "\n")
+            buff.write(indentation + "def " + name + "(")
+            for i, (par_name, parameter) in enumerate(my_sign.parameters.items()):
+                annotation = self._exploit_annotation(parameter.annotation)
+                default = exploit_default(parameter.default)
 
-            if default:
-                buff.write(par_name + annotation + " = " + default)
-            else:
-                buff.write(par_name + annotation)
+                if parameter.kind == inspect.Parameter.VAR_KEYWORD:
+                    par_name = "**%s" % par_name
+                elif parameter.kind == inspect.Parameter.VAR_POSITIONAL:
+                    par_name = "*%s" % par_name
 
-            if i < len(sign.parameters) - 1:
-                buff.write(", ")
-        ret_annotation = exploit_annotation(sign.return_annotation, starting=" -> ")
-        buff.write(")" + ret_annotation + ":\n")
+                if default:
+                    buff.write(par_name + annotation + " = " + default)
+                else:
+                    buff.write(par_name + annotation)
 
-        if doc is not None:
-            buff.write('%s%s"""\n' % (indentation, TAB))
-            doc = cast(str, deindent_docstring(doc))
-            init_blank = True
-            for line in doc.split("\n"):
-                if init_blank and len(line.strip()) == 0:
-                    continue
-                init_blank = False
-                buff.write("%s%s%s\n" % (indentation, TAB, line.rstrip()))
-            buff.write('%s%s"""\n' % (indentation, TAB))
-        buff.write("%s%s...\n" % (indentation, TAB))
+                if i < len(my_sign.parameters) - 1:
+                    buff.write(", ")
+            ret_annotation = self._exploit_annotation(
+                my_sign.return_annotation, starting=" -> "
+            )
+            buff.write(")" + ret_annotation + ":\n")
+
+            if count == len(sign) - 1 and doc is not None:
+                buff.write('%s%s"""\n' % (indentation, TAB))
+                my_doc = cast(str, deindent_docstring(doc))
+                init_blank = True
+                for line in my_doc.split("\n"):
+                    if init_blank and len(line.strip()) == 0:
+                        continue
+                    init_blank = False
+                    buff.write("%s%s%s\n" % (indentation, TAB, line.rstrip()))
+                buff.write('%s%s"""\n' % (indentation, TAB))
+            buff.write("%s%s...\n" % (indentation, TAB))
         return buff.getvalue()
 
     def _generate_generic_stub(self, element_name: str, element: Any) -> str:
@@ -646,19 +863,68 @@ class StubGenerator:
             if inspect.isclass(attr):
                 self._stubs.append(self._generate_class_stub(name, attr))
             elif inspect.isfunction(attr):
-                self._stubs.append(self._generate_function_stub(name, attr))
+                # Special handling of the `step` function where we want to add an
+                # overload. This is just a single case so we don't make it general.
+                # Unfortunately, when iterating, it doesn't see the @overload
+                if (
+                    name == "step"
+                    and self._current_module_name == self._root_module[:-1]
+                ):
+                    self._stubs.append(
+                        self._generate_function_stub(
+                            name,
+                            func=attr,
+                            sign=[
+                                inspect.Signature(
+                                    parameters=[
+                                        inspect.Parameter(
+                                            name="f",
+                                            kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                                            annotation=Callable[
+                                                [FlowSpecDerived], None
+                                            ],
+                                        )
+                                    ],
+                                    return_annotation=Callable[
+                                        [FlowSpecDerived, StepFlag], None
+                                    ],
+                                ),
+                                inspect.Signature(
+                                    parameters=[
+                                        inspect.Parameter(
+                                            name="f",
+                                            kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                                            annotation=Callable[
+                                                [FlowSpecDerived, Any], None
+                                            ],
+                                        )
+                                    ],
+                                    return_annotation=Callable[
+                                        [FlowSpecDerived, Any, StepFlag], None
+                                    ],
+                                ),
+                                inspect.signature(attr),
+                            ],
+                        )
+                    )
+                else:
+                    self._stubs.append(self._generate_function_stub(name, attr))
             elif isinstance(attr, functools.partial):
                 if issubclass(attr.args[0], Decorator):
                     # Special case where we are going to extract the parameters from
                     # the docstring to make the decorator look nicer
-                    res = self._extract_parameters_from_doc(name, attr.args[0].__doc__)
+                    res = self._extract_signature_from_decorator(
+                        name,
+                        attr.args[0].__doc__,
+                        is_flow_decorator=issubclass(attr.args[0], FlowDecorator),
+                    )
                     if res:
                         self._stubs.append(
                             self._generate_function_stub(
                                 name,
                                 func=attr.func,
-                                sign=res[0],
-                                doc=res[1],
+                                sign=[r[0] for r in res],
+                                doc=res[-1][1],
                             )
                         )
                 else:
@@ -678,10 +944,11 @@ class StubGenerator:
         # of the stubs -- this helps to inform the user if the stubs were generated
         # for another version of Metaflow.
         pathlib.Path(os.path.join(out_dir, "py.typed")).touch()
-        pathlib.Path(os.path.join(out_dir, "generated_for.txt")).write_text(
-            "%s %s"
-            % (self._mf_version, datetime.fromtimestamp(time.time()).isoformat())
-        )
+        if self._write_generated_for:
+            pathlib.Path(os.path.join(out_dir, "generated_for.txt")).write_text(
+                "%s %s"
+                % (self._mf_version, datetime.fromtimestamp(time.time()).isoformat())
+            )
         while len(self._pending_modules) != 0:
             module_name = self._pending_modules.pop(0)
             # Skip vendored stuff
@@ -702,13 +969,24 @@ class StubGenerator:
             self._get_module(module_name)
             self._generate_stubs()
 
-            # We don't include "metaflow" in the out directory
-            out_dir = os.path.join(
-                self._output_dir, *self._current_module.__name__.split(".")[1:]
+            if hasattr(self._current_module, "__path__"):
+                # This is a package (so a directory) and we are dealing with
+                # a __init__.pyi type of case
+                dir_path = os.path.join(
+                    self._output_dir, *self._current_module.__name__.split(".")[1:]
+                )
+            else:
+                # This is NOT a package so the original source file is not a __init__.py
+                dir_path = os.path.join(
+                    self._output_dir, *self._current_module.__name__.split(".")[1:-1]
+                )
+            out_file = os.path.join(
+                dir_path, os.path.basename(self._current_module.__file__) + "i"
             )
-            os.makedirs(out_dir, exist_ok=True)
 
-            width = 55
+            os.makedirs(os.path.dirname(out_file), exist_ok=True)
+
+            width = 80
             title_line = "Auto-generated Metaflow stub file"
             title_white_space = (width - len(title_line)) / 2
             title_line = "#%s%s%s#\n" % (
@@ -716,9 +994,7 @@ class StubGenerator:
                 title_line,
                 " " * math.ceil(title_white_space),
             )
-            with open(
-                os.path.join(out_dir, "__init__.pyi"), mode="w", encoding="utf-8"
-            ) as f:
+            with open(out_file, mode="w", encoding="utf-8") as f:
                 f.write(
                     "#" * (width + 2)
                     + "\n"
@@ -742,9 +1018,23 @@ class StubGenerator:
                 if self._typing_imports:
                     if not imported_typing:
                         f.write("import typing\n")
+                        imported_typing = True
                     f.write("if typing.TYPE_CHECKING:\n")
                     for module in self._typing_imports:
                         f.write(TAB + "import " + module + "\n")
+                if self._typevars:
+                    if not imported_typing:
+                        f.write("import typing\n")
+                        imported_typing = True
+                    for type_name, type_var in self._typevars.items():
+                        if isinstance(type_var, TypeVar):
+                            f.write(
+                                "%s = %s\n" % (type_name, type_var_to_str(type_var))
+                            )
+                        else:
+                            f.write(
+                                "%s = %s\n" % (type_name, new_type_to_str(type_var))
+                            )
                 f.write("\n")
                 for stub in self._stubs:
                     f.write(stub + "\n")
