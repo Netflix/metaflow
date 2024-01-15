@@ -712,8 +712,16 @@ class ProgressBar(UserComponent):
 
     Parameters
     ----------
-    text : str
-        Text formatted in Markdown.
+    max : int
+        The maximum value of the progress bar.
+    label : str, optional
+        Optional label for the progress bar.
+    value : int, optional
+        Optional initial value of the progress bar.
+    unit : str, optional
+        Optional unit for the progress bar.
+    metadata : str, optional
+        Optional additional information to show on the progress bar.
     """
 
     type = "progressBar"
@@ -762,31 +770,41 @@ class VegaChart(UserComponent):
 
     REALTIME_UPDATABLE = True
 
-    def __init__(self, spec: dict, show_controls=False):
+    def __init__(self, spec: dict, show_controls: bool = False):
         self._spec = spec
         self._show_controls = show_controls
         self._chart_inside_table = False
 
     def update(self, spec=None):
-        if spec is not None:
-            self._spec = spec
+        """
+        Update the chart.
+
+        Parameters
+        ----------
+        spec : dict or altair.Chart
+            The updated chart spec or an altair Chart Object.
+        """
+        _spec = spec
+        if self._object_is_altair_chart(spec):
+            _spec = spec.to_dict()
+        if _spec is not None:
+            self._spec = _spec
+
+    @staticmethod
+    def _object_is_altair_chart(altair_chart):
+        # This will feel slightly hacky but I am unable to find a natural way of determining the class
+        # name of the Altair chart. The only way simple way is to extract the full class name and then
+        # match with heuristics
+        fulclsname = _full_classname(altair_chart)
+        if not all([x in fulclsname for x in ["altair", "vegalite", "Chart"]]):
+            return False
+        return True
 
     @classmethod
     def from_altair_chart(cls, altair_chart):
-        from metaflow.plugins.cards.card_modules.convert_to_native_type import (
-            _full_classname,
-        )
-
-        # This will feel slightly hacky but I am unable to find a natural way of determining the class
-        # name of the Altair chart. The only way I can think of is to use the full class name and then
-        # match with heuristics
-
-        fulclsname = _full_classname(altair_chart)
-        if not all([x in fulclsname for x in ["altair", "vegalite", "Chart"]]):
-            raise ValueError(fulclsname + " is not an altair chart")
-
+        if not cls._object_is_altair_chart(altair_chart):
+            raise ValueError(_full_classname(altair_chart) + " is not an altair chart")
         altair_chart_dict = altair_chart.to_dict()
-
         cht = cls(spec=altair_chart_dict)
         return cht
 
