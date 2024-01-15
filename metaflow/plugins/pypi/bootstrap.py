@@ -114,7 +114,6 @@ if __name__ == "__main__":
             [package["path"] for package in env["pypi"]]
         ) as results:
             for key, tmpfile, _ in results:
-                print(key)
                 dest = os.path.join(pypi_pkgs_dir, os.path.basename(key))
                 os.makedirs(os.path.dirname(dest), exist_ok=True)
                 shutil.move(tmpfile, dest)
