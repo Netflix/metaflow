@@ -1,0 +1,31 @@
+- case: project_decorator_without_args
+  main: |
+    from metaflow import FlowSpec, project
+
+    @project
+    class MyFlow(FlowSpec):
+      ...
+  out: |
+    main:3: error: Argument 1 to "project" has incompatible type "type[MyFlow]"; expected "str"  [arg-type]
+
+- case: project_decorator_without_name
+  main: |
+    from metaflow import FlowSpec, project
+
+    @project(foo="bar")
+    class MyFlow(FlowSpec):
+      ...
+  out: |
+    main:3: error: Unexpected keyword argument "foo" for "project"  [call-arg]
+
+- case: using_batch_without_step
+  main: |
+    from metaflow import FlowSpec, batch
+
+    class MyFlow(FlowSpec):
+
+      @batch
+      def model(self):
+        ...
+  out: |
+    main:5: error: Argument 1 to "batch" has incompatible type "Callable[[MyFlow], Any]"; expected "Callable[[MyFlow, StepFlag], None]"  [arg-type]

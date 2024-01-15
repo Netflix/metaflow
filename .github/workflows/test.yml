@@ -38,7 +38,7 @@ jobs:
     - name: Install Python ${{ matrix.ver }} dependencies
       run: |
         python3 -m pip install --upgrade pip setuptools
-        python3 -m pip install tox numpy mypy
+        python3 -m pip install tox numpy mypy pytest-mypy-plugins
 
     - name: Execute Python tests
       run: tox
@@ -51,6 +51,9 @@ jobs:
 
     - name: Install metaflow-stubs
       run: cd ./stubs && pip install . && cd -
+
+    - name: Run mypy tests
+      run: cd ./stubs && pytest --mypy-ini-file test/setup.cfg --mypy-only-local-stub && cd -
 
     - name: Validate sample flow with mypy
       run: cd ./stubs && mypy test/flow.py --ignore-missing-imports && cd -
