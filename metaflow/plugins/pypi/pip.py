@@ -143,7 +143,6 @@ class Pip(object):
                     ),
                 )
             )
-            os.makedirs("%s/.pip/wheels" % prefix, exist_ok=True)
 
             for package, path in results:
                 (wheel,) = [
@@ -159,9 +158,12 @@ class Pip(object):
                         "The built wheel %s is not supported for %s with Python %s"
                         % (wheel, platform, python)
                     )
-                target = "{prefix}/.pip/wheels/{wheel}".format(
-                    prefix=prefix, wheel=wheel
+                target = "{prefix}/.pip/wheels/{hash}/{wheel}".format(
+                    prefix=prefix,
+                    wheel=wheel,
+                    hash=package["hash"],
                 )
+                os.makedirs(os.path.dirname(target), exist_ok=True)
                 shutil.move(os.path.join(path, wheel), target)
                 metadata["{url}".format(**package)] = target
 

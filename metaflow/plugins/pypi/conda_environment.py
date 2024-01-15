@@ -115,7 +115,6 @@ class CondaEnvironment(MetaflowEnvironment):
                     )
                 else:
                     return urlparse(url).netloc + urlparse(url).path
-                base, _ = os.path.split(urlparse(url).path)
 
             local_packages = {
                 url: {
