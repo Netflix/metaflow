@@ -313,7 +313,14 @@ class MarkdownComponent(DefaultComponent):
 
     def render(self):
         datadict = super().render()
-        datadict["source"] = self._text
+        _text = self._text
+        # When we have a markdown text that doesn't start with a `#`,
+        # we need to add a newline to make sure that the markdown
+        # is rendered correctly. Otherwise `svelte-markdown` will render
+        # the empty `<p>` tags during re-renders on card data updates.
+        if self._text is not None and not self._text.startswith("#"):
+            _text = "\n" + _text
+        datadict["source"] = _text
         if self.component_id is not None:
             datadict["id"] = self.component_id
         return datadict
