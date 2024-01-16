@@ -1,31 +1,222 @@
-- case: project_decorator_without_args
+- case: project_decorator_args
   main: |
     from metaflow import FlowSpec, project
 
     @project
     class MyFlow(FlowSpec):
       ...
-  out: |
-    main:3: error: Argument 1 to "project" has incompatible type "type[MyFlow]"; expected "str"  [arg-type]
 
-- case: project_decorator_without_name
-  main: |
-    from metaflow import FlowSpec, project
+    @project("project_name")
+    class MyFlow2(FlowSpec):
+      ...
 
     @project(foo="bar")
-    class MyFlow(FlowSpec):
+    class MyFlow3(FlowSpec):
+      ...
+
+    @project(name="project_name")
+    class NotAFlow(object):
+      ...
+
+    @project(name="project_name")
+    def not_a_flow_function():
+      ...
+
+    @project(name="project_name")
+    class CorrectFlow(FlowSpec):
       ...
   out: |
-    main:3: error: Unexpected keyword argument "foo" for "project"  [call-arg]
+    main:3: error: Argument 1 to "project" has incompatible type "type[MyFlow]"; expected "str"  [arg-type]
+    main:4: error: Too many positional arguments for "project"  [misc]
+    main:7: error: Too many positional arguments for "project"  [misc]
+    main:11: error: Unexpected keyword argument "foo" for "project"  [call-arg]
+    main:16: error: Value of type variable "FlowSpecDerived" of function cannot be "NotAFlow"  [type-var]
+    main:19: error: Argument 1 has incompatible type "Callable[[], Any]"; expected "type[Any]"  [arg-type]
 
-- case: using_batch_without_step
+- case: step_decorator_validity
   main: |
-    from metaflow import FlowSpec, batch
+    from metaflow import FlowSpec, step
+
+    @step
+    class MyFlow(FlowSpec):
+      ...
+
+    class MyFlow2(FlowSpec):
+      @step()
+      def no_arg_for_step(self):
+        ...
+
+      @step
+      def too_many_args(self, a, b):
+        ...
+
+      @step
+      def too_few_args():
+        ...
+
+      @step
+      @staticmethod
+      def static_method_not_ok(a: int):
+        ...
+
+      @step
+      @classmethod
+      def class_method_not_ok(cls):
+        ...
+
+      @step
+      def linear_step_ok(self):
+        ...
+
+      @step
+      def join_step_ok(self, inputs):
+        ...
+    
+    @step
+    def typed_func_not_ok(a: int):
+      ...
+  out: |
+    main:3: error: Argument 1 to "step" has incompatible type "type[MyFlow]"; expected "Callable[[Any], None]"  [arg-type]
+    main:8: error: All overload variants of "step" require at least one argument  [call-overload]
+    main:8: note: Possible overload variants:
+    main:8: note:     def [FlowSpecDerived <: FlowSpec] step(f: Callable[[FlowSpecDerived], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
+    main:8: note:     def [FlowSpecDerived <: FlowSpec] step(f: Callable[[FlowSpecDerived, Any], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+    main:12: error: Argument 1 to "step" has incompatible type "Callable[[MyFlow2, Any, Any], Any]"; expected "Callable[[MyFlow2], None]"  [arg-type]
+    main:16: error: Argument 1 to "step" has incompatible type "Callable[[], Any]"; expected "Callable[[Never], None]"  [arg-type]
+    main:17: error: Method must have at least one argument. Did you forget the "self" argument?  [misc]
+    main:20: error: Value of type variable "FlowSpecDerived" of "step" cannot be "int"  [type-var]
+    main:25: error: Value of type variable "FlowSpecDerived" of "step" cannot be "type[MyFlow2]"  [type-var]
+    main:38: error: Value of type variable "FlowSpecDerived" of "step" cannot be "int"  [type-var]
+
+- case: decorator_order
+  main: |
+    from metaflow import FlowSpec, step, retry, catch
 
     class MyFlow(FlowSpec):
+      @retry(times=3)
+      def missing_step(self):
+        ...
 
-      @batch
-      def model(self):
+      @step
+      @retry(times=3)
+      def wrong_order(self):
+        ...
+
+      @retry(times=3)
+      @step
+      def ok_step(self):
+        ...
+
+      @catch
+      @retry(times=3)
+      @step
+      def ok_stack(self):
         ...
   out: |
-    main:5: error: Argument 1 to "batch" has incompatible type "Callable[[MyFlow], Any]"; expected "Callable[[MyFlow, StepFlag], None]"  [arg-type]
+    main:4: error: Argument 1 has incompatible type "Callable[[MyFlow], Any]"; expected "Callable[[Never, StepFlag], None] | Callable[[Never, Any, StepFlag], None]"  [arg-type]
+    main:8: error: Argument 1 has incompatible type "Callable[[MyFlow], Any]"; expected "Callable[[Never, StepFlag], None] | Callable[[Never, Any, StepFlag], None]"  [arg-type]
+    main:8: error: Argument 1 to "step" has incompatible type "Callable[[Never, StepFlag], None] | Callable[[Never, Any, StepFlag], None]"; expected "Callable[[Never], None]"  [arg-type]
+
+- case: batch_decorator_validity
+  main: |
+    from metaflow import FlowSpec, step, batch
+
+    @batch
+    class NonFlowDecorator(FlowSpec):
+      ...
+
+    @batch(cpu=1)
+    class NonFlowDecorator2(FlowSpec):
+      ...
+
+    class MyFlow(FlowSpec):
+      @batch(1)
+      @step
+      def need_kwarg(self):
+        ...
+
+      @batch(foo=1)
+      @step
+      def wrong_kwarg(self):
+        ...
+
+      @batch
+      @step
+      def ok_no_arg(self):
+        ...
+
+      @batch(cpu=1)
+      @step
+      def ok_with_arg(self):
+        ...
+  out: |
+    main:3: error: Argument 1 to "batch" has incompatible type "type[NonFlowDecorator]"; expected "Callable[[Any, StepFlag], None]"  [arg-type]
+    main:7: error: Argument 1 has incompatible type "type[NonFlowDecorator2]"; expected "Callable[[Never, StepFlag], None] | Callable[[Never, Any, StepFlag], None]"  [arg-type]
+    main:12: error: No overload variant of "batch" matches argument type "int"  [call-overload]
+    main:12: note: Possible overload variants:
+    main:12: note:     def batch(*, cpu: int = ..., gpu: int = ..., memory: int = ..., image: str | None = ..., queue: str = ..., iam_role: str = ..., execution_role: str = ..., shared_memory: int | None = ..., max_swap: int | None = ..., swappiness: int | None = ..., use_tmpfs: bool = ..., tmpfs_tempdir: bool = ..., tmpfs_size: int | None = ..., tmpfs_path: str | None = ..., inferentia: int = ..., efa: int = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
+    main:12: note:     def [FlowSpecDerived <: FlowSpec] batch(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
+    main:12: note:     def [FlowSpecDerived <: FlowSpec] batch(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+    main:17: error: No overload variant of "batch" matches argument type "int"  [call-overload] 
+    main:17: note: Possible overload variants:    
+    main:17: note:     def batch(*, cpu: int = ..., gpu: int = ..., memory: int = ..., image: str | None = ..., queue: str = ..., iam_role: str = ..., execution_role: str = ..., shared_memory: int | None = ..., max_swap: int | None = ..., swappiness: int | None = ..., use_tmpfs: bool = ..., tmpfs_tempdir: bool = ..., tmpfs_size: int | None = ..., tmpfs_path: str | None = ..., inferentia: int = ..., efa: int = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]] 
+    main:17: note:     def [FlowSpecDerived <: FlowSpec] batch(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None] 
+    main:17: note:     def [FlowSpecDerived <: FlowSpec] batch(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None] 
+
+- case: client_types
+  main: |
+    from metaflow import Flow, Run, Step, Task, DataArtifact
+
+    reveal_type(Flow("flow_name"))
+    reveal_type(Flow("flow_name")["run_id"])
+    reveal_type(Flow("flow_name")["run_id"]["step_name"])
+    reveal_type(Flow("flow_name")["run_id"]["step_name"]["task_name"])
+    reveal_type(Flow("flow_name")["run_id"]["step_name"]["task_name"]["data_name"])
+
+    Flow("flow_name")[0]
+    Run("flow_name/run_id")[0]
+    Step("flow_name/run_id/step_name")[0]
+  out: |
+    main:3: note: Revealed type is "metaflow.Flow"
+    main:4: note: Revealed type is "metaflow.client.core.Run"
+    main:5: note: Revealed type is "metaflow.client.core.Step"
+    main:6: note: Revealed type is "metaflow.client.core.Task" 
+    main:7: note: Revealed type is "metaflow.client.core.DataArtifact" 
+    main:9: error: Invalid index type "int" for "Flow"; expected type "str"  [index] 
+    main:10: error: Invalid index type "int" for "Run"; expected type "str"  [index] 
+    main:11: error: Invalid index type "int" for "Step"; expected type "str"  [index] 
+
+- case: current_object
+  main: |
+    from metaflow import current
+
+    current.project_name
+    current.flow_name
+
+    current.project_name = "foo"
+    current.flow_name = "bar"
+  out: |
+    main:6: error: Property "project_name" defined in "Current" is read-only  [misc]
+    main:7: error: Property "flow_name" defined in "Current" is read-only  [misc]
+
+- case: sample_flow
+  main: |
+    from metaflow import FlowSpec, step, batch, project, schedule
+
+    @project(name="my_project")
+    @schedule(weekly=True)
+    class MyFlow(FlowSpec):
+      @step
+      def start(self):
+        print("Hi")
+        self.next(self.batch_step)
+
+      @batch
+      @step
+      def batch_step(self):
+        self.next(self.end)
+
+      @step
+      def end(self):
+        print("Done")
+  out: |

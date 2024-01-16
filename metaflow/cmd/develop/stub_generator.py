@@ -818,10 +818,22 @@ class StubGenerator:
             if deco:
                 buff.write(indentation + deco + "\n")
             buff.write(indentation + "def " + name + "(")
+            kw_only_param = False
             for i, (par_name, parameter) in enumerate(my_sign.parameters.items()):
                 annotation = self._exploit_annotation(parameter.annotation)
                 default = exploit_default(parameter.default)
 
+                if kw_only_param and parameter.kind != inspect.Parameter.KEYWORD_ONLY:
+                    raise RuntimeError(
+                        "In function '%s': cannot have a positional parameter after a "
+                        "keyword only parameter" % name
+                    )
+                if (
+                    parameter.kind == inspect.Parameter.KEYWORD_ONLY
+                    and not kw_only_param
+                ):
+                    kw_only_param = True
+                    buff.write("*, ")
                 if parameter.kind == inspect.Parameter.VAR_KEYWORD:
                     par_name = "**%s" % par_name
                 elif parameter.kind == inspect.Parameter.VAR_POSITIONAL:
