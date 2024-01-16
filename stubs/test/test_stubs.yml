@@ -141,6 +141,10 @@
         ...
 
       @batch
+      def wrong_without_step(self):
+        ...
+
+      @batch
       @step
       def ok_no_arg(self):
         ...
@@ -162,6 +166,7 @@
     main:17: note:     def batch(*, cpu: int = ..., gpu: int = ..., memory: int = ..., image: str | None = ..., queue: str = ..., iam_role: str = ..., execution_role: str = ..., shared_memory: int | None = ..., max_swap: int | None = ..., swappiness: int | None = ..., use_tmpfs: bool = ..., tmpfs_tempdir: bool = ..., tmpfs_size: int | None = ..., tmpfs_path: str | None = ..., inferentia: int = ..., efa: int = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]] 
     main:17: note:     def [FlowSpecDerived <: FlowSpec] batch(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None] 
     main:17: note:     def [FlowSpecDerived <: FlowSpec] batch(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None] 
+    main:22: error: Argument 1 to "batch" has incompatible type "Callable[[MyFlow], Any]"; expected "Callable[[MyFlow, StepFlag], None]"  [arg-type]
 
 - case: kubernetes_decorator_validity
   main: |
@@ -187,6 +192,10 @@
         ...
 
       @kubernetes
+      def wrong_without_step(self):
+        ...
+
+      @kubernetes
       @step
       def ok_no_arg(self):
         ...
@@ -208,6 +217,7 @@
     main:17: note:     def kubernetes(*, cpu: int = ..., memory: int = ..., disk: int = ..., image: str | None = ..., image_pull_policy: str = ..., service_account: str = ..., secrets: list[str] | None = ..., namespace: str = ..., gpu: int | None = ..., gpu_vendor: str = ..., tolerations: list[str] = ..., use_tmpfs: bool = ..., tmpfs_tempdir: bool = ..., tmpfs_size: int | None = ..., tmpfs_path: str | None = ..., persistent_volume_claims: dict[str, str] | None = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
     main:17: note:     def [FlowSpecDerived <: FlowSpec] kubernetes(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
     main:17: note:     def [FlowSpecDerived <: FlowSpec] kubernetes(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+    main:22: error: Argument 1 to "kubernetes" has incompatible type "Callable[[MyFlow], Any]"; expected "Callable[[MyFlow, StepFlag], None]"  [arg-type]
 
 - case: environment_decorator_validity
   main: |
@@ -233,6 +243,10 @@
         ...
 
       @environment
+      def wrong_without_step(self):
+        ...
+
+      @environment
       @step
       def ok_no_arg(self):
         ...
@@ -254,6 +268,7 @@
     main:17: note:     def environment(*, vars: dict[str, str] = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
     main:17: note:     def [FlowSpecDerived <: FlowSpec] environment(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
     main:17: note:     def [FlowSpecDerived <: FlowSpec] environment(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+    main:22: error: Argument 1 to "environment" has incompatible type "Callable[[MyFlow], Any]"; expected "Callable[[MyFlow, StepFlag], None]"  [arg-type]
 
 - case: card_decorator_validity
   main: |
@@ -279,6 +294,10 @@
         ...
 
       @card
+      def wrong_without_step(self):
+        ...
+
+      @card
       @step
       def ok_no_arg(self):
         ...
@@ -300,6 +319,7 @@
     main:17: note:     def card(*, type: str = ..., id: str | None = ..., options: dict[str, Any] = ..., timeout: int = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
     main:17: note:     def [FlowSpecDerived <: FlowSpec] card(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
     main:17: note:     def [FlowSpecDerived <: FlowSpec] card(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+    main:22: error: Argument 1 to "card" has incompatible type "Callable[[MyFlow], Any]"; expected "Callable[[MyFlow, StepFlag], None]"  [arg-type]
 
 - case: catch_decorator_validity
   main: |
@@ -325,6 +345,10 @@
         ...
 
       @catch
+      def wrong_without_step(self):
+        ...
+
+      @catch
       @step
       def ok_no_arg(self):
         ...
@@ -346,6 +370,7 @@
     main:17: note:     def catch(*, var: str | None = ..., print_exception: bool = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
     main:17: note:     def [FlowSpecDerived <: FlowSpec] catch(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
     main:17: note:     def [FlowSpecDerived <: FlowSpec] catch(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+    main:22: error: Argument 1 to "catch" has incompatible type "Callable[[MyFlow], Any]"; expected "Callable[[MyFlow, StepFlag], None]"  [arg-type]
 
 - case: conda_decorator_validity
   main: |
@@ -375,6 +400,10 @@
       def wrong_no_arg(self):
         ...
 
+      @conda
+      def wrong_without_step(self):
+        ...
+
       @conda(libraries={'scikit-learn': '1.3.1'})
       @step
       def ok_with_arg(self):
@@ -387,6 +416,212 @@
     main:17: error: Unexpected keyword argument "foo" for "conda"  [call-arg]
     main:22: error: Too many positional arguments for "conda"  [misc]
     main:22: error: Argument 1 to "conda" has incompatible type "Callable[[MyFlow, StepFlag], None]"; expected "dict[str, str]"  [arg-type]
+    main:27: error: Too many positional arguments for "conda"  [misc]
+    main:27: error: Argument 1 to "conda" has incompatible type "Callable[[MyFlow], Any]"; expected "dict[str, str]"  [arg-type]
+
+- case: resources_decorator_validity
+  main: |
+    from metaflow import FlowSpec, step, resources
+
+    @resources
+    class NonFlowDecorator(FlowSpec):
+      ...
+
+    @resources(cpu=1)
+    class NonFlowDecorator2(FlowSpec):
+      ...
+
+    class MyFlow(FlowSpec):
+      @resources(1)
+      @step
+      def need_kwarg(self):
+        ...
+
+      @resources(foo=1)
+      @step
+      def wrong_kwarg(self):
+        ...
+
+      @resources
+      def wrong_without_step(self):
+        ...
+
+      @resources
+      @step
+      def ok_no_arg(self):
+        ...
+
+      @resources(cpu=1)
+      @step
+      def ok_with_arg(self):
+        ...
+  out: |
+    main:3: error: Argument 1 to "resources" has incompatible type "type[NonFlowDecorator]"; expected "Callable[[Any, StepFlag], None]"  [arg-type]
+    main:7: error: Argument 1 has incompatible type "type[NonFlowDecorator2]"; expected "Callable[[Never, StepFlag], None] | Callable[[Never, Any, StepFlag], None]"  [arg-type]
+    main:12: error: No overload variant of "resources" matches argument type "int"  [call-overload]
+    main:12: note: Possible overload variants:
+    main:12: note:     def resources(*, cpu: int = ..., gpu: int = ..., disk: int | None = ..., memory: int = ..., shared_memory: int | None = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
+    main:12: note:     def [FlowSpecDerived <: FlowSpec] resources(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
+    main:12: note:     def [FlowSpecDerived <: FlowSpec] resources(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+    main:17: error: No overload variant of "resources" matches argument type "int"  [call-overload]
+    main:17: note: Possible overload variants:
+    main:17: note:     def resources(*, cpu: int = ..., gpu: int = ..., disk: int | None = ..., memory: int = ..., shared_memory: int | None = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
+    main:17: note:     def [FlowSpecDerived <: FlowSpec] resources(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
+    main:17: note:     def [FlowSpecDerived <: FlowSpec] resources(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+    main:22: error: Argument 1 to "resources" has incompatible type "Callable[[MyFlow], Any]"; expected "Callable[[MyFlow, StepFlag], None]"  [arg-type]
+
+- case: retry_decorator_validity
+  main: |
+    from metaflow import FlowSpec, step, retry
+
+    @retry
+    class NonFlowDecorator(FlowSpec):
+      ...
+
+    @retry(times=1)
+    class NonFlowDecorator2(FlowSpec):
+      ...
+
+    class MyFlow(FlowSpec):
+      @retry(1)
+      @step
+      def need_kwarg(self):
+        ...
+
+      @retry(foo=1)
+      @step
+      def wrong_kwarg(self):
+        ...
+
+      @retry
+      def wrong_without_step(self):
+        ...
+
+      @retry
+      @step
+      def ok_no_arg(self):
+        ...
+
+      @retry(times=1)
+      @step
+      def ok_with_arg(self):
+        ...
+  out: |
+    main:3: error: Argument 1 to "retry" has incompatible type "type[NonFlowDecorator]"; expected "Callable[[Any, StepFlag], None]"  [arg-type]
+    main:7: error: Argument 1 has incompatible type "type[NonFlowDecorator2]"; expected "Callable[[Never, StepFlag], None] | Callable[[Never, Any, StepFlag], None]"  [arg-type]
+    main:12: error: No overload variant of "retry" matches argument type "int"  [call-overload]
+    main:12: note: Possible overload variants:
+    main:12: note:     def retry(*, times: int = ..., minutes_between_retries: int = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
+    main:12: note:     def [FlowSpecDerived <: FlowSpec] retry(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
+    main:12: note:     def [FlowSpecDerived <: FlowSpec] retry(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+    main:17: error: No overload variant of "retry" matches argument type "int"  [call-overload]
+    main:17: note: Possible overload variants:
+    main:17: note:     def retry(*, times: int = ..., minutes_between_retries: int = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
+    main:17: note:     def [FlowSpecDerived <: FlowSpec] retry(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
+    main:17: note:     def [FlowSpecDerived <: FlowSpec] retry(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+    main:22: error: Argument 1 to "retry" has incompatible type "Callable[[MyFlow], Any]"; expected "Callable[[MyFlow, StepFlag], None]"  [arg-type]
+
+- case: secrets_decorator_validity
+  main: |
+    from metaflow import FlowSpec, step, secrets
+
+    @secrets
+    class NonFlowDecorator(FlowSpec):
+      ...
+
+    @secrets(sources=['metaflow-example-password'])
+    class NonFlowDecorator2(FlowSpec):
+      ...
+
+    class MyFlow(FlowSpec):
+      @secrets(['metaflow-example-password'])
+      @step
+      def need_kwarg(self):
+        ...
+
+      @secrets(foo=['metaflow-example-password'])
+      @step
+      def wrong_kwarg(self):
+        ...
+
+      @secrets
+      def wrong_without_step(self):
+        ...
+
+      @secrets
+      @step
+      def ok_no_arg(self):
+        ...
+
+      @secrets(sources=['metaflow-example-password'])
+      @step
+      def ok_with_arg(self):
+        ...
+  out: |
+    main:3: error: Argument 1 to "secrets" has incompatible type "type[NonFlowDecorator]"; expected "Callable[[Any, StepFlag], None]"  [arg-type]
+    main:7: error: Argument 1 has incompatible type "type[NonFlowDecorator2]"; expected "Callable[[Never, StepFlag], None] | Callable[[Never, Any, StepFlag], None]"  [arg-type]
+    main:12: error: No overload variant of "secrets" matches argument type "list[str]"  [call-overload]
+    main:12: note: Possible overload variants:
+    main:12: note:     def secrets(*, sources: list[str | dict[str, Any]] = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
+    main:12: note:     def [FlowSpecDerived <: FlowSpec] secrets(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
+    main:12: note:     def [FlowSpecDerived <: FlowSpec] secrets(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+    main:17: error: No overload variant of "secrets" matches argument type "list[str]"  [call-overload]
+    main:17: note: Possible overload variants:
+    main:17: note:     def secrets(*, sources: list[str | dict[str, Any]] = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
+    main:17: note:     def [FlowSpecDerived <: FlowSpec] secrets(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
+    main:17: note:     def [FlowSpecDerived <: FlowSpec] secrets(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+    main:22: error: Argument 1 to "secrets" has incompatible type "Callable[[MyFlow], Any]"; expected "Callable[[MyFlow, StepFlag], None]"  [arg-type]
+
+- case: timeout_decorator_validity
+  main: |
+    from metaflow import FlowSpec, step, timeout
+
+    @timeout
+    class NonFlowDecorator(FlowSpec):
+      ...
+
+    @timeout(seconds=30)
+    class NonFlowDecorator2(FlowSpec):
+      ...
+
+    class MyFlow(FlowSpec):
+      @timeout(30)
+      @step
+      def need_kwarg(self):
+        ...
+
+      @timeout(foo=30)
+      @step
+      def wrong_kwarg(self):
+        ...
+
+      @timeout
+      def wrong_without_step(self):
+        ...
+
+      @timeout
+      @step
+      def ok_no_arg(self):
+        ...
+
+      @timeout(seconds=30)
+      @step
+      def ok_with_arg(self):
+        ...
+  out: |
+    main:3: error: Argument 1 to "timeout" has incompatible type "type[NonFlowDecorator]"; expected "Callable[[Any, StepFlag], None]"  [arg-type]
+    main:7: error: Argument 1 has incompatible type "type[NonFlowDecorator2]"; expected "Callable[[Never, StepFlag], None] | Callable[[Never, Any, StepFlag], None]"  [arg-type]
+    main:12: error: No overload variant of "timeout" matches argument type "int"  [call-overload]
+    main:12: note: Possible overload variants:
+    main:12: note:     def timeout(*, seconds: int = ..., minutes: int = ..., hours: int = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
+    main:12: note:     def [FlowSpecDerived <: FlowSpec] timeout(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
+    main:12: note:     def [FlowSpecDerived <: FlowSpec] timeout(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+    main:17: error: No overload variant of "timeout" matches argument type "int"  [call-overload]
+    main:17: note: Possible overload variants:
+    main:17: note:     def timeout(*, seconds: int = ..., minutes: int = ..., hours: int = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
+    main:17: note:     def [FlowSpecDerived <: FlowSpec] timeout(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
+    main:17: note:     def [FlowSpecDerived <: FlowSpec] timeout(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+    main:22: error: Argument 1 to "timeout" has incompatible type "Callable[[MyFlow], Any]"; expected "Callable[[MyFlow, StepFlag], None]"  [arg-type]
 
 - case: client_types
   main: |
