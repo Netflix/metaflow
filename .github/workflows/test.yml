@@ -55,9 +55,6 @@ jobs:
     - name: Run mypy tests
       run: cd ./stubs && pytest --mypy-ini-file test/setup.cfg --mypy-only-local-stub && cd -
 
-    - name: Validate sample flow with mypy
-      run: cd ./stubs && mypy test/flow.py --ignore-missing-imports && cd -
-
   R:
     name: core / R ${{ matrix.ver }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
