@@ -85,7 +85,6 @@ class Pip(object):
 
             def _format(dl_info):
                 res = {k: v for k, v in dl_info.items() if k in ["url"]}
-                print(res)
                 # If source url is not a wheel, we need to build the target.
                 res["require_build"] = not res["url"].endswith(".whl")
 
