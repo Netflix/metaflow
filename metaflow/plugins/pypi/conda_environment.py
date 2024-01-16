@@ -1,3 +1,4 @@
+import copy
 import errno
 import fcntl
 import functools
@@ -130,13 +131,15 @@ class CondaEnvironment(MetaflowEnvironment):
             }
             dirty = set()
             # Prune list of packages to cache.
+
+            _meta = copy.deepcopy(local_packages)
             for id_, packages, _, _ in results:
                 for package in packages:
                     if package.get("path"):
                         # Cache only those packages that manifest is unaware of
                         local_packages.pop(package["url"], None)
                     else:
-                        package["path"] = local_packages[package["url"]]["path"]
+                        package["path"] = _meta[package["url"]]["path"]
                         dirty.add(id_)
 
             list_of_path_and_filehandle = [
