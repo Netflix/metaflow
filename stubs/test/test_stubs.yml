@@ -163,6 +163,52 @@
     main:17: note:     def [FlowSpecDerived <: FlowSpec] batch(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None] 
     main:17: note:     def [FlowSpecDerived <: FlowSpec] batch(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None] 
 
+- case: kubernetes_decorator_validity
+  main: |
+    from metaflow import FlowSpec, step, kubernetes
+
+    @kubernetes
+    class NonFlowDecorator(FlowSpec):
+      ...
+
+    @kubernetes(cpu=1)
+    class NonFlowDecorator2(FlowSpec):
+      ...
+
+    class MyFlow(FlowSpec):
+      @kubernetes(1)
+      @step
+      def need_kwarg(self):
+        ...
+
+      @kubernetes(foo=1)
+      @step
+      def wrong_kwarg(self):
+        ...
+
+      @kubernetes
+      @step
+      def ok_no_arg(self):
+        ...
+
+      @kubernetes(cpu=1)
+      @step
+      def ok_with_arg(self):
+        ...
+  out: |
+    main:3: error: Argument 1 to "kubernetes" has incompatible type "type[NonFlowDecorator]"; expected "Callable[[Any, StepFlag], None]"  [arg-type]
+    main:7: error: Argument 1 has incompatible type "type[NonFlowDecorator2]"; expected "Callable[[Never, StepFlag], None] | Callable[[Never, Any, StepFlag], None]"  [arg-type]
+    main:12: error: No overload variant of "kubernetes" matches argument type "int"  [call-overload]
+    main:12: note: Possible overload variants:
+    main:12: note:     def kubernetes(*, cpu: int = ..., memory: int = ..., disk: int = ..., image: str | None = ..., image_pull_policy: str = ..., service_account: str = ..., secrets: list[str] | None = ..., namespace: str = ..., gpu: int | None = ..., gpu_vendor: str = ..., tolerations: list[str] = ..., use_tmpfs: bool = ..., tmpfs_tempdir: bool = ..., tmpfs_size: int | None = ..., tmpfs_path: str | None = ..., persistent_volume_claims: dict[str, str] | None = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
+    main:12: note:     def [FlowSpecDerived <: FlowSpec] kubernetes(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
+    main:12: note:     def [FlowSpecDerived <: FlowSpec] kubernetes(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+    main:17: error: No overload variant of "kubernetes" matches argument type "int"  [call-overload]
+    main:17: note: Possible overload variants:
+    main:17: note:     def kubernetes(*, cpu: int = ..., memory: int = ..., disk: int = ..., image: str | None = ..., image_pull_policy: str = ..., service_account: str = ..., secrets: list[str] | None = ..., namespace: str = ..., gpu: int | None = ..., gpu_vendor: str = ..., tolerations: list[str] = ..., use_tmpfs: bool = ..., tmpfs_tempdir: bool = ..., tmpfs_size: int | None = ..., tmpfs_path: str | None = ..., persistent_volume_claims: dict[str, str] | None = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
+    main:17: note:     def [FlowSpecDerived <: FlowSpec] kubernetes(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
+    main:17: note:     def [FlowSpecDerived <: FlowSpec] kubernetes(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+
 - case: client_types
   main: |
     from metaflow import Flow, Run, Step, Task, DataArtifact
