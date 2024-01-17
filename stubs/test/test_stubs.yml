@@ -33,6 +33,158 @@
     main:16: error: Value of type variable "FlowSpecDerived" of function cannot be "NotAFlow"  [type-var]
     main:19: error: Argument 1 has incompatible type "Callable[[], Any]"; expected "type[Any]"  [arg-type]
 
+- case: conda_base_decorator_validity
+  main: |
+    from metaflow import FlowSpec, conda_base
+
+    @conda_base
+    class MyFlow(FlowSpec):
+      ...
+
+    @conda_base({'scikit-learn': '1.3.1'})
+    class MyFlow2(FlowSpec):
+      ...
+
+    @conda_base(foo={'scikit-learn': '1.3.1'})
+    class MyFlow3(FlowSpec):
+      ...
+
+    @conda_base(libraries={'scikit-learn': '1.3.1'})
+    class NotAFlow(object):
+      ...
+
+    @conda_base(libraries={'scikit-learn': '1.3.1'})
+    def not_a_flow_function():
+      ...
+
+    @conda_base(libraries={'scikit-learn': '1.3.1'})
+    class CorrectFlow(FlowSpec):
+      ...
+  out: |
+    main:3: error: Argument 1 to "conda_base" has incompatible type "type[MyFlow]"; expected "dict[str, str]"  [arg-type]
+    main:4: error: Too many positional arguments for "conda_base"  [misc]
+    main:7: error: Too many positional arguments for "conda_base"  [misc]
+    main:11: error: Unexpected keyword argument "foo" for "conda_base"  [call-arg]
+    main:16: error: Value of type variable "FlowSpecDerived" of function cannot be "NotAFlow"  [type-var]
+    main:19: error: Argument 1 has incompatible type "Callable[[], Any]"; expected "type[Any]"  [arg-type]
+
+- case: schedule_decorator_validity
+  main: |
+    from metaflow import FlowSpec, schedule
+
+    @schedule
+    class MyFlow(FlowSpec):
+      ...
+
+    @schedule(True)
+    class MyFlow2(FlowSpec):
+      ...
+
+    @schedule(foo=True)
+    class MyFlow3(FlowSpec):
+      ...
+
+    @schedule(daily=True)
+    class NotAFlow(object):
+      ...
+
+    @schedule(daily=True)
+    def not_a_flow_function():
+      ...
+
+    @schedule(daily=True)
+    class CorrectFlow(FlowSpec):
+      ...
+  out: |
+    main:7: error: No overload variant of "schedule" matches argument type "bool"  [call-overload]
+    main:7: note: Possible overload variants:
+    main:7: note:     def schedule(*, hourly: bool = ..., daily: bool = ..., weekly: bool = ..., cron: str | None = ..., timezone: str | None = ...) -> Callable[[type[FlowSpecDerived]], type[FlowSpecDerived]]
+    main:7: note:     def [FlowSpecDerived <: FlowSpec] schedule(f: type[FlowSpecDerived]) -> type[FlowSpecDerived]
+    main:11: error: No overload variant of "schedule" matches argument type "bool"  [call-overload]
+    main:11: note: Possible overload variants:
+    main:11: note:     def schedule(*, hourly: bool = ..., daily: bool = ..., weekly: bool = ..., cron: str | None = ..., timezone: str | None = ...) -> Callable[[type[FlowSpecDerived]], type[FlowSpecDerived]]
+    main:11: note:     def [FlowSpecDerived <: FlowSpec] schedule(f: type[FlowSpecDerived]) -> type[FlowSpecDerived]
+    main:16: error: Value of type variable "FlowSpecDerived" of function cannot be "NotAFlow"  [type-var]
+    main:19: error: Argument 1 has incompatible type "Callable[[], Any]"; expected "type[Any]"  [arg-type]
+
+- case: trigger_decorator_validity
+  main: |
+    from metaflow import FlowSpec, trigger
+
+    @trigger
+    class MyFlow(FlowSpec):
+      ...
+
+    @trigger('bar')
+    class MyFlow2(FlowSpec):
+      ...
+
+    @trigger(foo='bar')
+    class MyFlow3(FlowSpec):
+      ...
+
+    @trigger(event='bar')
+    class NotAFlow(object):
+      ...
+
+    @trigger(event='bar')
+    def not_a_flow_function():
+      ...
+
+    @trigger(event='bar')
+    class CorrectFlow(FlowSpec):
+      ...
+  out: |
+    main:7: error: No overload variant of "trigger" matches argument type "str"  [call-overload]
+    main:7: note: Possible overload variants:
+    main:7: note:     def trigger(*, event: str | dict[str, Any] | None = ..., events: list[str | dict[str, Any]] = ..., options: dict[str, Any] = ...) -> Callable[[type[FlowSpecDerived]], type[FlowSpecDerived]]
+    main:7: note:     def [FlowSpecDerived <: FlowSpec] trigger(f: type[FlowSpecDerived]) -> type[FlowSpecDerived]
+    main:11: error: No overload variant of "trigger" matches argument type "str"  [call-overload]
+    main:11: note: Possible overload variants:
+    main:11: note:     def trigger(*, event: str | dict[str, Any] | None = ..., events: list[str | dict[str, Any]] = ..., options: dict[str, Any] = ...) -> Callable[[type[FlowSpecDerived]], type[FlowSpecDerived]]
+    main:11: note:     def [FlowSpecDerived <: FlowSpec] trigger(f: type[FlowSpecDerived]) -> type[FlowSpecDerived]
+    main:16: error: Value of type variable "FlowSpecDerived" of function cannot be "NotAFlow"  [type-var]
+    main:19: error: Argument 1 has incompatible type "Callable[[], Any]"; expected "type[Any]"  [arg-type]
+
+- case: trigger_on_finish_decorator_validity
+  main: |
+    from metaflow import FlowSpec, trigger_on_finish
+
+    @trigger_on_finish
+    class MyFlow(FlowSpec):
+      ...
+
+    @trigger_on_finish('bar')
+    class MyFlow2(FlowSpec):
+      ...
+
+    @trigger_on_finish(foo='bar')
+    class MyFlow3(FlowSpec):
+      ...
+
+    @trigger_on_finish(flow='bar')
+    class NotAFlow(object):
+      ...
+
+    @trigger_on_finish(flow='bar')
+    def not_a_flow_function():
+      ...
+
+    @trigger_on_finish(flow='bar')
+    class CorrectFlow(FlowSpec):
+      ...
+  out: |
+    main:7: error: No overload variant of "trigger_on_finish" matches argument type "str"  [call-overload]
+    main:7: note: Possible overload variants:
+    main:7: note:     def trigger_on_finish(*, flow: str | dict[str, str] | None = ..., flows: list[str | dict[str, str]] = ..., options: dict[str, Any] = ...) -> Callable[[type[FlowSpecDerived]], type[FlowSpecDerived]]
+    main:7: note:     def [FlowSpecDerived <: FlowSpec] trigger_on_finish(f: type[FlowSpecDerived]) -> type[FlowSpecDerived]
+    main:11: error: No overload variant of "trigger_on_finish" matches argument type "str"  [call-overload]
+    main:11: note: Possible overload variants:
+    main:11: note:     def trigger_on_finish(*, flow: str | dict[str, str] | None = ..., flows: list[str | dict[str, str]] = ..., options: dict[str, Any] = ...) -> Callable[[type[FlowSpecDerived]], type[FlowSpecDerived]]
+    main:11: note:     def [FlowSpecDerived <: FlowSpec] trigger_on_finish(f: type[FlowSpecDerived]) -> type[FlowSpecDerived]
+    main:16: error: Value of type variable "FlowSpecDerived" of function cannot be "NotAFlow"  [type-var]
+    main:19: error: Argument 1 has incompatible type "Callable[[], Any]"; expected "type[Any]"  [arg-type]
+
 - case: step_decorator_validity
   main: |
     from metaflow import FlowSpec, step
