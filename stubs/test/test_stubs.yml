@@ -61,10 +61,14 @@
     class CorrectFlow(FlowSpec):
       ...
   out: |
-    main:3: error: Argument 1 to "conda_base" has incompatible type "type[MyFlow]"; expected "dict[str, str]"  [arg-type]
-    main:4: error: Too many positional arguments for "conda_base"  [misc]
-    main:7: error: Too many positional arguments for "conda_base"  [misc]
-    main:11: error: Unexpected keyword argument "foo" for "conda_base"  [call-arg]
+    main:7: error: No overload variant of "conda_base" matches argument type "dict[str, str]"  [call-overload]
+    main:7: note: Possible overload variants:
+    main:7: note:     def conda_base(*, packages: dict[str, str] = ..., libraries: dict[str, str] = ..., python: str | None = ..., disabled: bool = ...) -> Callable[[type[FlowSpecDerived]], type[FlowSpecDerived]]
+    main:7: note:     def [FlowSpecDerived <: FlowSpec] conda_base(f: type[FlowSpecDerived]) -> type[FlowSpecDerived]
+    main:11: error: No overload variant of "conda_base" matches argument type "dict[str, str]"  [call-overload]
+    main:11: note: Possible overload variants:
+    main:11: note:     def conda_base(*, packages: dict[str, str] = ..., libraries: dict[str, str] = ..., python: str | None = ..., disabled: bool = ...) -> Callable[[type[FlowSpecDerived]], type[FlowSpecDerived]]
+    main:11: note:     def [FlowSpecDerived <: FlowSpec] conda_base(f: type[FlowSpecDerived]) -> type[FlowSpecDerived]
     main:16: error: Value of type variable "FlowSpecDerived" of function cannot be "NotAFlow"  [type-var]
     main:19: error: Argument 1 has incompatible type "Callable[[], Any]"; expected "type[Any]"  [arg-type]
 
@@ -223,7 +227,7 @@
       @step
       def join_step_ok(self, inputs):
         ...
-    
+
     @step
     def typed_func_not_ok(a: int):
       ...
@@ -313,11 +317,11 @@
     main:12: note:     def batch(*, cpu: int = ..., gpu: int = ..., memory: int = ..., image: str | None = ..., queue: str = ..., iam_role: str = ..., execution_role: str = ..., shared_memory: int | None = ..., max_swap: int | None = ..., swappiness: int | None = ..., use_tmpfs: bool = ..., tmpfs_tempdir: bool = ..., tmpfs_size: int | None = ..., tmpfs_path: str | None = ..., inferentia: int = ..., efa: int = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
     main:12: note:     def [FlowSpecDerived <: FlowSpec] batch(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
     main:12: note:     def [FlowSpecDerived <: FlowSpec] batch(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
-    main:17: error: No overload variant of "batch" matches argument type "int"  [call-overload] 
-    main:17: note: Possible overload variants:    
-    main:17: note:     def batch(*, cpu: int = ..., gpu: int = ..., memory: int = ..., image: str | None = ..., queue: str = ..., iam_role: str = ..., execution_role: str = ..., shared_memory: int | None = ..., max_swap: int | None = ..., swappiness: int | None = ..., use_tmpfs: bool = ..., tmpfs_tempdir: bool = ..., tmpfs_size: int | None = ..., tmpfs_path: str | None = ..., inferentia: int = ..., efa: int = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]] 
-    main:17: note:     def [FlowSpecDerived <: FlowSpec] batch(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None] 
-    main:17: note:     def [FlowSpecDerived <: FlowSpec] batch(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None] 
+    main:17: error: No overload variant of "batch" matches argument type "int"  [call-overload]
+    main:17: note: Possible overload variants:
+    main:17: note:     def batch(*, cpu: int = ..., gpu: int = ..., memory: int = ..., image: str | None = ..., queue: str = ..., iam_role: str = ..., execution_role: str = ..., shared_memory: int | None = ..., max_swap: int | None = ..., swappiness: int | None = ..., use_tmpfs: bool = ..., tmpfs_tempdir: bool = ..., tmpfs_size: int | None = ..., tmpfs_path: str | None = ..., inferentia: int = ..., efa: int = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
+    main:17: note:     def [FlowSpecDerived <: FlowSpec] batch(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
+    main:17: note:     def [FlowSpecDerived <: FlowSpec] batch(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
     main:22: error: Argument 1 to "batch" has incompatible type "Callable[[MyFlow], Any]"; expected "Callable[[MyFlow, StepFlag], None]"  [arg-type]
 
 - case: kubernetes_decorator_validity
@@ -549,7 +553,7 @@
 
       @conda
       @step
-      def wrong_no_arg(self):
+      def ok_no_arg(self):
         ...
 
       @conda
@@ -561,15 +565,19 @@
       def ok_with_arg(self):
         ...
   out: |
-    main:3: error: Argument 1 to "conda" has incompatible type "type[NonFlowDecorator]"; expected "dict[str, str]"  [arg-type]
-    main:4: error: Too many positional arguments for "conda"  [misc]
+    main:3: error: Argument 1 to "conda" has incompatible type "type[NonFlowDecorator]"; expected "Callable[[Any, StepFlag], None]"  [arg-type]
     main:7: error: Argument 1 has incompatible type "type[NonFlowDecorator2]"; expected "Callable[[Never, StepFlag], None] | Callable[[Never, Any, StepFlag], None]"  [arg-type]
-    main:12: error: Too many positional arguments for "conda"  [misc]
-    main:17: error: Unexpected keyword argument "foo" for "conda"  [call-arg]
-    main:22: error: Too many positional arguments for "conda"  [misc]
-    main:22: error: Argument 1 to "conda" has incompatible type "Callable[[MyFlow, StepFlag], None]"; expected "dict[str, str]"  [arg-type]
-    main:27: error: Too many positional arguments for "conda"  [misc]
-    main:27: error: Argument 1 to "conda" has incompatible type "Callable[[MyFlow], Any]"; expected "dict[str, str]"  [arg-type]
+    main:12: error: No overload variant of "conda" matches argument type "dict[str, str]"  [call-overload]
+    main:12: note: Possible overload variants:
+    main:12: note:     def conda(*, packages: dict[str, str] = ..., libraries: dict[str, str] = ..., python: str | None = ..., disabled: bool = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
+    main:12: note:     def [FlowSpecDerived <: FlowSpec] conda(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
+    main:12: note:     def [FlowSpecDerived <: FlowSpec] conda(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+    main:17: error: No overload variant of "conda" matches argument type "dict[str, str]"  [call-overload]
+    main:17: note: Possible overload variants:
+    main:17: note:     def conda(*, packages: dict[str, str] = ..., libraries: dict[str, str] = ..., python: str | None = ..., disabled: bool = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
+    main:17: note:     def [FlowSpecDerived <: FlowSpec] conda(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
+    main:17: note:     def [FlowSpecDerived <: FlowSpec] conda(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+    main:27: error: Argument 1 to "conda" has incompatible type "Callable[[MyFlow], Any]"; expected "Callable[[MyFlow, StepFlag], None]"  [arg-type]
 
 - case: resources_decorator_validity
   main: |
@@ -792,11 +800,11 @@
     main:3: note: Revealed type is "metaflow.Flow"
     main:4: note: Revealed type is "metaflow.client.core.Run"
     main:5: note: Revealed type is "metaflow.client.core.Step"
-    main:6: note: Revealed type is "metaflow.client.core.Task" 
-    main:7: note: Revealed type is "metaflow.client.core.DataArtifact" 
-    main:9: error: Invalid index type "int" for "Flow"; expected type "str"  [index] 
-    main:10: error: Invalid index type "int" for "Run"; expected type "str"  [index] 
-    main:11: error: Invalid index type "int" for "Step"; expected type "str"  [index] 
+    main:6: note: Revealed type is "metaflow.client.core.Task"
+    main:7: note: Revealed type is "metaflow.client.core.DataArtifact"
+    main:9: error: Invalid index type "int" for "Flow"; expected type "str"  [index]
+    main:10: error: Invalid index type "int" for "Run"; expected type "str"  [index]
+    main:11: error: Invalid index type "int" for "Step"; expected type "str"  [index]
 
 - case: current_object
   main: |

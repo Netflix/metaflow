@@ -695,6 +695,7 @@ class StubGenerator:
                                 else inspect.Parameter.empty,
                             )
                         ]
+                        + parameters
                         if no_arg_version
                         else [] + parameters,
                         return_annotation=inspect.Signature.empty
@@ -717,6 +718,7 @@ class StubGenerator:
                             default=None if no_arg_version else inspect.Parameter.empty,
                         )
                     ]
+                    + parameters
                     if no_arg_version
                     else [] + parameters,
                     return_annotation=inspect.Signature.empty
