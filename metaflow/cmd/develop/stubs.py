@@ -139,9 +139,8 @@ def get_mf_version() -> Tuple[str, Optional[str]]:
 
 def get_stubs_version(stubs_root_path: Optional[str]) -> Tuple[str, Optional[str]]:
     if stubs_root_path is None:
-        # In this case, we just return the version of metaflow but only the first
-        # part since the stubs are just integrated as part of metaflow
-        return get_mf_version()[0], None
+        # The stubs are NOT an integrated part of metaflow
+        return None, None
     if not os.path.isfile(os.path.join(stubs_root_path, "generated_for.txt")):
         return None, None
 
@@ -166,11 +165,11 @@ def internal_check(quiet: bool) -> str:
         stubs_path = None
     stub_version = get_stubs_version(stubs_path)
 
-    if stub_version is None:
+    if stub_version == (None, None):
         if quiet:
             return "invalid"
         else:
-            return "The stubs package is invalid"
+            return "The stubs package is invalid or not installed"
     elif stub_version != mf_version:
         if quiet:
             return "invalid"
