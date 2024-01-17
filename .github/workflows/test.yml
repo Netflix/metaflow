@@ -38,10 +38,22 @@ jobs:
     - name: Install Python ${{ matrix.ver }} dependencies
       run: |
         python3 -m pip install --upgrade pip setuptools
-        python3 -m pip install tox numpy
+        python3 -m pip install tox numpy mypy pytest-mypy-plugins
 
     - name: Execute Python tests
       run: tox
+
+    - name: Install metaflow
+      run: pip install .
+
+    - name: Generate Stubs
+      run: cd ./stubs && rm -rf metaflow-stubs/ && python -c "from metaflow.cmd.develop.stub_generator import StubGenerator; StubGenerator('./metaflow-stubs').write_out()" && cd -
+
+    - name: Install metaflow-stubs
+      run: cd ./stubs && pip install . && cd -
+
+    - name: Run mypy tests
+      run: cd ./stubs && pytest --mypy-ini-file test/setup.cfg --mypy-only-local-stub && cd -
 
   R:
     name: core / R ${{ matrix.ver }} on ${{ matrix.os }}

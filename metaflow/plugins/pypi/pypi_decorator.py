@@ -16,7 +16,7 @@ class PyPIStepDecorator(StepDecorator):
     packages : Dict[str, str], default: {}
         Packages to use for this step. The key is the name of the package
         and the value is the version to use.
-    python : str, optional
+    python : str, optional, default: None
         Version of Python to use, e.g. '3.7.4'. A default value of None implies
         that the version used will correspond to the version of the Python interpreter used to start the run.
     """
@@ -96,7 +96,7 @@ class PyPIFlowDecorator(FlowDecorator):
     packages : Dict[str, str], default: {}
         Packages to use for this flow. The key is the name of the package
         and the value is the version to use.
-    python : str, optional
+    python : str, optional, default: None
         Version of Python to use, e.g. '3.7.4'. A default value of None implies
         that the version used will correspond to the version of the Python interpreter used to start the run.
     """
