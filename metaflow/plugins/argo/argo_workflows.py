@@ -1047,17 +1047,12 @@ class ArgoWorkflows(object):
                 task_str += "-$(echo $INPUT_PATHS)"
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 task_idx = "-{{inputs.parameters.split-index}}"
-            # if node.type == "join" and any(n for n in node.in_funcs if self.graph[n].is_inside_foreach):
             if (
                 node.type == "join"
                 and self.graph[node.split_parents[-1]].type == "foreach"
             ):
                 # disambiguate foreach join task_id, as the input-paths will not contain enough entropy otherwise.
                 # only do this for joins of foreach, not static splits.
-                # we need:
-                # - the input_paths that go into the processing task for the foreach.
-                #   This will be in the join steps parameters.input-paths
-                # - the name of the node for the foreach task
                 task_str += "{{inputs.parameters.max-split}}"
             # Generated task_ids need to be non-numeric - see register_task_id in
             # service.py. We do so by prefixing `t-`
