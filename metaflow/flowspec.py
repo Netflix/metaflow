@@ -101,11 +101,7 @@ class FlowSpec(object):
         self._steps = [getattr(self, node.name) for node in self._graph]
 
         # This must be set before calling cli.main() below (or specifically, add_custom_parameters)
-        parameters.parameters = [
-            getattr(self, a)
-            for a in dir(self)
-            if isinstance(getattr(self, a, None), Parameter)
-        ]
+        parameters.parameters = [p for _, p in self._get_parameters()]
 
         if use_cli:
             # we import cli here to make sure custom parameters in
