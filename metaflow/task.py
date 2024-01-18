@@ -24,11 +24,6 @@ from .current import current
 from metaflow.tracing import get_trace_id
 from collections import namedtuple
 
-# To be backwards compatible.
-def construct_frame(*args):
-    return ForeachFrame(*args[: len(ForeachFrame._fields)])
-
-
 foreach_frame_field_list = ["step", "var", "num_splits", "index", "value"]
 ForeachFrame = namedtuple(
     "ForeachFrame",
@@ -36,7 +31,6 @@ ForeachFrame = namedtuple(
     defaults=(None,) * len(foreach_frame_field_list),
 )
 ForeachFrame.__reduce__ = lambda frame: (construct_frame, tuple(frame))
-
 # To be backwards compatible.
 def construct_frame(*args):
     return ForeachFrame(*args[: len(ForeachFrame._fields)])
@@ -258,13 +252,18 @@ class MetaflowTask(object):
                     "specified." % step_name
                 )
 
+            split_value = (
+                inputs[0]["_foreach_values"][split_index]
+                if not inputs[0].is_none("_foreach_values")
+                else None
+            )
             # push a new index after a split to the stack
             frame = ForeachFrame(
                 step_name,
                 inputs[0]["_foreach_var"],
                 inputs[0]["_foreach_num_splits"],
                 split_index,
-                inputs[0]["_foreach_values"][split_index],
+                split_value,
             )
 
             stack = inputs[0]["_foreach_stack"]
@@ -473,13 +472,20 @@ class MetaflowTask(object):
             self._init_foreach(step_name, join_type, inputs, split_index)
 
             # Add foreach stack to metadata of the task
-            if hasattr(self.flow, "_foreach_stack") and self.flow._foreach_stack:
-                foreach_stack_formatted = ", ".join(
-                    [
-                        "%s=%s" % (frame.var, frame.value)
-                        for frame in self.flow._foreach_stack
-                    ]
-                )
+
+            foreach_stack = (
+                self.flow._foreach_stack
+                if hasattr(self.flow, "_foreach_stack") and self.flow._foreach_stack
+                else []
+            )
+            foreach_stack_formatted = ", ".join(
+                [
+                    "%s=%s" % (frame.var, frame.value)
+                    for frame in foreach_stack
+                    if frame.value
+                ]
+            )
+            if foreach_stack_formatted:
                 metadata.append(
                     MetaDatum(
                         field="foreach-stack",

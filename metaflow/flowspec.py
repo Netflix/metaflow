@@ -17,6 +17,7 @@ from .exception import (
 )
 from .graph import FlowGraph
 from .unbounded_foreach import UnboundedForeachInput
+from .metaflow_config import INCLUDE_FOREACH_STACK
 
 # For Python 3 compatibility
 try:
@@ -503,27 +504,15 @@ class FlowSpec(object):
             )
             raise InvalidNextException(msg)
 
-    def _get_foreach_item_value(self, item, foreach_var):
+    def _get_foreach_item_value(self, item):
         """
-        Get the unique value for the item in the foreach iterator. We will use
-        the following order of precedence:
-
-        1) If the item is a primitive type, use the item itself.
-        2) If the item is a dictionary and has a key named `foreach_var`, use the value of that key.
-        3) If the item is a dictionary and has a key named `key`, use the value of that key.
-        4) If the item has an attribute named `key`, use the value of that attribute.
-
-        If no suitable value is found, return the value formatted by reprlib, which is at
-        most 30 characters long.
+        Get the unique value for the item in the foreach iterator.  If no suitable value
+        is found, return the value formatted by reprlib, which is at most 30 characters long.
 
         Parameters
         ----------
         item : Any
             The item to get the value from.
-        foreach_var : str
-            The name of the variable that is being iterated over.
-        default_value : str
-            The default value to use if no suitable value is found.
 
         Returns
         -------
@@ -539,23 +528,7 @@ class FlowSpec(object):
                 or isinstance(item, bool)
             )
 
-        value = reprlib.Repr().repr(item)
-        if _is_primitive_type(item):
-            value = item
-        elif (
-            isinstance(item, dict)
-            and foreach_var in item
-            and _is_primitive_type(item[foreach_var])
-        ):
-            value = item[foreach_var]
-        elif (
-            isinstance(item, dict)
-            and "value" in item
-            and _is_primitive_type(item["value"])
-        ):
-            value = item["value"]
-        elif hasattr(item, "value") and _is_primitive_type(item.value):
-            value = item.value
+        value = item if _is_primitive_type(item) else reprlib.Repr().repr(item)
         return basestring(value)
 
     def next(self, *dsts: Callable[..., None], **kwargs) -> None:
@@ -674,12 +647,14 @@ class FlowSpec(object):
                 self._validate_ubf_step(funcs[0])
             else:
                 try:
-                    self._foreach_values = []
-                    for item in foreach_iter:
-                        value = self._get_foreach_item_value(item, foreach)
-                        self._foreach_values.append(value)
-                    self._foreach_num_splits = len(self._foreach_values)
-
+                    if INCLUDE_FOREACH_STACK:
+                        self._foreach_values = []
+                        for item in foreach_iter:
+                            value = self._get_foreach_item_value(item)
+                            self._foreach_values.append(value)
+                        self._foreach_num_splits = len(self._foreach_values)
+                    else:
+                        self._foreach_num_splits = sum(1 for _ in foreach_iter)
                 except Exception as e:
                     msg = (
                         "Foreach variable *self.{var}* in step *{step}* "
@@ -688,12 +663,6 @@ class FlowSpec(object):
                         )
                     )
                     raise InvalidNextException(msg)
-
-                # If values are not unique, we need to fallback to using the index.
-                if len(self._foreach_values) != len(set(self._foreach_values)):
-                    self._foreach_values = list(
-                        map(str, range(self._foreach_num_splits))
-                    )
 
                 if self._foreach_num_splits == 0:
                     msg = (
