@@ -200,7 +200,7 @@ class FlowSpec(object):
                 continue
             try:
                 val = getattr(self, var)
-            except Exception:
+            except:
                 continue
             if isinstance(val, Parameter):
                 yield var, val
@@ -562,7 +562,7 @@ class FlowSpec(object):
         for i, dst in enumerate(dsts):
             try:
                 name = dst.__func__.__name__
-            except Exception:
+            except:
                 msg = (
                     "In step *{step}* the {arg}. argument in self.next() is "
                     "not a function. Make sure all arguments in self.next() "
@@ -603,7 +603,7 @@ class FlowSpec(object):
 
             try:
                 foreach_iter = getattr(self, foreach)
-            except Exception:
+            except:
                 msg = (
                     "Foreach variable *self.{var}* in step *{step}* "
                     "does not exist. Check your variable.".format(

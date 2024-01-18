@@ -44,7 +44,7 @@ class JSONTypeClass(click.ParamType):
             return value
         try:
             return json.loads(value)
-        except Exception:
+        except:
             self.fail("%s is not a valid JSON object" % value, param, ctx)
 
     def __str__(self):
@@ -109,7 +109,7 @@ class DeployTimeField(object):
                 val = self.fun(ctx, deploy_time)
             except TypeError:
                 val = self.fun(ctx)
-        except Exception:
+        except:
             raise ParameterFieldFailed(self.parameter_name, self.field)
         else:
             return self._check_type(val, deploy_time)
@@ -206,7 +206,7 @@ class DelayedEvaluationParameter(object):
     def __call__(self, return_str=False):
         try:
             return self._fun(return_str=return_str)
-        except Exception:
+        except Exception as e:
             raise ParameterFieldFailed(self._name, self._field)
 
 
