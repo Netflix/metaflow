@@ -4,12 +4,31 @@ import subprocess
 import sys
 import tempfile
 
-from typing import Any, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from metaflow._vendor import click
 
 from . import develop
 from .stub_generator import StubGenerator
+
+_py_ver = sys.version_info[:2]
+_metadata_package = None
+
+
+def _check_stubs_supported():
+    global _metadata_package
+    if _metadata_package is not None:
+        return _metadata_package
+    else:
+        if _py_ver >= (3, 4):
+            if _py_ver >= (3, 8):
+                from importlib import metadata
+            elif _py_ver >= (3, 6):
+                from metaflow._vendor.v3_6 import importlib_metadata as metadata
+            else:
+                from metaflow._vendor.v3_5 import importlib_metadata as metadata
+            _metadata_package = metadata
+        return _metadata_package
 
 
 @develop.group(short_help="Stubs management")
@@ -24,7 +43,12 @@ def stubs(ctx: Any):
     This CLI provides utilities to check and generate stubs for your current Metaflow
     installation.
     """
-    pass
+    if _check_stubs_supported() is None:
+        raise click.UsageError(
+            "Building and installing stubs are not supported on Python %d.%d "
+            "(3.4 minimum required)" % _py_ver,
+            ctx=ctx,
+        )
 
 
 @stubs.command(short_help="Check validity of stubs")
@@ -35,11 +59,32 @@ def check(ctx: Any):
     match the currently installed version of Metaflow.
     """
 
-    res = internal_check(ctx.obj.quiet)
-    if ctx.obj.quiet:
-        ctx.obj.echo_always(res)
-    else:
-        ctx.obj.echo(res)
+    dist_packages, paths = get_packages_for_stubs()
+    if len(dist_packages) + len(paths) == 0:
+        return print_status(ctx, "no package provides `metaflow-stubs`", False)
+    if len(dist_packages) + len(paths) == 1:
+        if dist_packages:
+            return print_status(
+                ctx, *internal_check(dist_packages[0][1], dist_packages[0][0])
+            )
+        return print_status(ctx, *internal_check(paths[0]))
+
+    pkg_names = None
+    pkg_paths = None
+    if dist_packages:
+        pkg_names = " packages " + ", ".join([p[0] for p in dist_packages])
+    if paths:
+        pkg_paths = "directories at " + ", ".join(paths)
+    return print_status(
+        ctx,
+        "metaflow-stubs is provided multiple times by%s %s%s"
+        % (
+            pkg_names if pkg_names else "",
+            "and " if pkg_names and pkg_paths else "",
+            pkg_paths if pkg_paths else "",
+        ),
+        False,
+    )
 
 
 @stubs.command(short_help="Generate Python stubs")
@@ -60,18 +105,26 @@ def install(ctx: Any, force: bool):
         import build
     except ImportError:
         raise RuntimeError(
-            "Installating stubs requires 'build' -- " "please install it and try again"
+            "Installing stubs requires 'build' -- please install it and try again"
         )
 
-    if internal_check(True) == "valid" and not force:
-        if ctx.obj.quiet:
-            ctx.obj.echo_always("already_installed")
-        else:
-            ctx.obj.echo(
-                "Stubs are already installed and valid -- use --force to reinstall"
-            )
-        return
-    mf_version, extensions = get_mf_version()
+    dist_packages, paths = get_packages_for_stubs()
+    if paths:
+        raise RuntimeError(
+            "Cannot install stubs when metaflow-stubs is already provided by a directory. "
+            "Please remove the following and try again: %s" % ", ".join(paths)
+        )
+
+    if len(dist_packages) == 1:
+        if internal_check(dist_packages[0][1])[1] == True and not force:
+            if ctx.obj.quiet:
+                ctx.obj.echo_always("already_installed")
+            else:
+                ctx.obj.echo(
+                    "Metaflow stubs are already installed and valid -- use --force to reinstall"
+                )
+            return
+    mf_version, _ = get_mf_version()
     with tempfile.TemporaryDirectory() as tmp_dir:
         with open(os.path.join(tmp_dir, "setup.py"), "w") as f:
             f.write(
@@ -101,6 +154,29 @@ setup(
             stderr=subprocess.DEVNULL if ctx.obj.quiet else None,
             stdout=subprocess.DEVNULL if ctx.obj.quiet else None,
         )
+
+        if dist_packages:
+            # We need to uninstall all the other packages first
+            pkgs_to_remove = [p[0] for p in dist_packages]
+            ctx.obj.echo(
+                "Uninstalling existing packages providing metaflow-stubs: %s"
+                % ", ".join(pkgs_to_remove)
+            )
+
+            subprocess.check_call(
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "uninstall",
+                    "-y",
+                    *pkgs_to_remove,
+                ],
+                cwd=tmp_dir,
+                stderr=subprocess.DEVNULL if ctx.obj.quiet else None,
+                stdout=subprocess.DEVNULL if ctx.obj.quiet else None,
+            )
+
         subprocess.check_call(
             [
                 sys.executable,
@@ -121,7 +197,7 @@ setup(
     if ctx.obj.quiet:
         ctx.obj.echo_always("installed")
     else:
-        ctx.obj.echo("Stubs successfully installed")
+        ctx.obj.echo("Metaflow stubs successfully installed")
 
 
 def split_version(vers: str) -> Tuple[str, Optional[str]]:
@@ -150,42 +226,70 @@ def get_stubs_version(stubs_root_path: Optional[str]) -> Tuple[str, Optional[str
         return split_version(f.read().strip().split(" ", 1)[0])
 
 
-def internal_check(quiet: bool) -> str:
+def internal_check(stubs_path: str, pkg_name: Optional[str] = None) -> Tuple[str, bool]:
     mf_version = get_mf_version()
-    try:
-        m = importlib.import_module("metaflow-stubs")
-        stubs_path = list(m.__path__)
-        if len(stubs_path) == 1:
-            stubs_path = stubs_path[0]
-        else:
-            stubs_path = None  # Should not be a real namespace package. It has a .pyi
-            # so will look like a namespace package but it is not.
-
-    except ImportError:
-        stubs_path = None
     stub_version = get_stubs_version(stubs_path)
 
     if stub_version == (None, None):
-        if quiet:
-            return "invalid"
-        else:
-            return "The stubs package is invalid or not installed"
+        return "the installed stubs package does not seem valid", False
     elif stub_version != mf_version:
-        if quiet:
-            return "invalid"
-        else:
-            return (
-                "The stubs package was generated for Metaflow version %s%s "
-                "but you have Metaflow version %s%s installed."
-                % (
-                    stub_version[0],
-                    " and extensions %s" % stub_version[1] if stub_version[1] else "",
-                    mf_version[0],
-                    " and extensions %s" % mf_version[1] if mf_version[1] else "",
-                )
-            )
+        return (
+            "the stubs package was generated for Metaflow version %s%s "
+            "but you have Metaflow version %s%s installed."
+            % (
+                stub_version[0],
+                " and extensions %s" % stub_version[1] if stub_version[1] else "",
+                mf_version[0],
+                " and extensions %s" % mf_version[1] if mf_version[1] else "",
+            ),
+            False,
+        )
+    return (
+        "the stubs package %s matches your current Metaflow version"
+        % (pkg_name if pkg_name else "installed at '%s'" % stubs_path),
+        True,
+    )
+
+
+def get_packages_for_stubs() -> Tuple[List[Tuple[str, str]], List[str]]:
+    """
+    Gets the packages that provide metaflow-stubs.
+
+    This returns two lists:
+      - the first list contains tuples of package names and root path for the package
+      - the second list contains all non package names (ie: things in path for example)
+
+    Returns
+    -------
+    Tuple[List[Tuple[str, str]], Optional[List[Tuple[str, str]]]]
+        Packages or paths providing metaflow-stubs
+    """
+    try:
+        m = importlib.import_module("metaflow-stubs")
+        all_paths = set(m.__path__)
+    except:
+        return [], []
+
+    dist_list = []
+    for dist in _metadata_package.distributions():
+        if any(
+            [
+                pkg == "metaflow-stubs"
+                for pkg in (dist.read_text("top_level.txt") or "").split()
+            ]
+        ):
+            # This is a package we care about
+            root_path = dist.locate_file("metaflow-stubs").as_posix()
+            dist_list.append((dist.metadata["Name"], root_path))
+            all_paths.discard(root_path)
+    return dist_list, list(all_paths)
+
+
+def print_status(ctx: click.Context, msg: str, valid: bool):
+    if ctx.obj.quiet:
+        ctx.obj.echo_always("valid" if valid else "invalid")
     else:
-        if quiet:
-            return "valid"
-        else:
-            return "The stubs package installed matches your current Metaflow version"
+        ctx.obj.echo(
+            "Metaflow stubs are *%s*: " % ("valid" if valid else "invalid") + msg
+        )
+    return
