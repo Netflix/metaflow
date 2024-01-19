@@ -31,11 +31,7 @@ ParameterContext = NamedTuple(
     ],
 )
 
-# currently we execute only one flow per process, so we can treat
-# Parameters globally. If this was to change, it should/might be
-# possible to move these globals in a FlowSpec (instance) specific
-# closure.
-parameters = []
+parameters = []  # Set by FlowSpec.__init__()
 context_proto = None
 
 
@@ -335,7 +331,6 @@ class Parameter(object):
                 "Parameter *%s*: Separator is only allowed "
                 "for string parameters." % name
             )
-        parameters.append(self)
 
     def option_kwargs(self, deploy_mode):
         kwargs = self.kwargs
