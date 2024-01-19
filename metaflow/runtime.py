@@ -1026,8 +1026,8 @@ class Task(object):
 
     @property
     def finished_id(self):
-        # note: id is not available before the task has finished
-        # index already identifies the task within the foreach,
+        # note: id is not available before the task has finished.
+        # Index already identifies the task within the foreach,
         # we will remove foreach value so that it is easier to
         # identify siblings within a foreach.
         foreach_stack_tuple = tuple(

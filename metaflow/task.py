@@ -36,6 +36,10 @@ def construct_frame(*args):
     return ForeachFrame(*args[: len(ForeachFrame._fields)])
 
 
+# Maximum number of characters of the foreach path that we store in the metadata.
+MAX_FOREACH_PATH_LENGTH = 256
+
+
 class MetaflowTask(object):
     """
     MetaflowTask prepares a Flow instance for execution of a single step.
@@ -478,13 +482,22 @@ class MetaflowTask(object):
                 if hasattr(self.flow, "_foreach_stack") and self.flow._foreach_stack
                 else []
             )
-            foreach_stack_formatted = ", ".join(
-                [
-                    "%s=%s" % (frame.var, frame.value)
-                    for frame in foreach_stack
-                    if frame.value
-                ]
-            )
+
+            foreach_stack_formatted = []
+            current_foreach_path_length = 0
+            for frame in foreach_stack:
+                if not (frame.var and frame.value):
+                    break
+
+                foreach_step = "%s=%s" % (frame.var, frame.value)
+                if (
+                    current_foreach_path_length + len(foreach_step)
+                    > MAX_FOREACH_PATH_LENGTH
+                ):
+                    break
+                current_foreach_path_length += len(foreach_step)
+                foreach_stack_formatted.append(foreach_step)
+
             if foreach_stack_formatted:
                 metadata.append(
                     MetaDatum(

@@ -504,7 +504,7 @@ class FlowSpec(object):
             )
             raise InvalidNextException(msg)
 
-    def _get_foreach_item_value(self, item):
+    def _get_foreach_item_value(self, item: Any):
         """
         Get the unique value for the item in the foreach iterator.  If no suitable value
         is found, return the value formatted by reprlib, which is at most 30 characters long.
