@@ -1,12 +1,11 @@
-from metaflow._vendor import click
 import os
 import sys
 import time
 import traceback
 
-from metaflow import util
-from metaflow import R
-from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
+from metaflow import R, util
+from metaflow._vendor import click
+from metaflow.exception import METAFLOW_EXIT_DISALLOW_RETRY, CommandException
 from metaflow.metadata.util import sync_local_metadata_from_datastore
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.mflog import TASK_LOG_SOURCE
@@ -146,6 +145,7 @@ def kill(ctx, run_id, user, my_runs):
     help="Activate designated number of elastic fabric adapter devices. "
     "EFA driver must be installed and instance type compatible with EFA",
 )
+@click.option("--aws-tags", multiple=True, default=None, help="AWS tags.")
 @click.option("--use-tmpfs", is_flag=True, help="tmpfs requirement for AWS Batch.")
 @click.option("--tmpfs-tempdir", is_flag=True, help="tmpfs requirement for AWS Batch.")
 @click.option("--tmpfs-size", help="tmpfs requirement for AWS Batch.")
@@ -180,6 +180,7 @@ def step(
     swappiness=None,
     inferentia=None,
     efa=None,
+    aws_tags=None,
     use_tmpfs=None,
     tmpfs_tempdir=None,
     tmpfs_size=None,
@@ -187,7 +188,7 @@ def step(
     host_volumes=None,
     efs_volumes=None,
     num_parallel=None,
-    **kwargs
+    **kwargs,
 ):
     def echo(msg, stream="stderr", batch_id=None, **kwargs):
         msg = util.to_unicode(msg)
@@ -314,12 +315,13 @@ def step(
                 host_volumes=host_volumes,
                 efs_volumes=efs_volumes,
                 use_tmpfs=use_tmpfs,
+                tags=aws_tags,
                 tmpfs_tempdir=tmpfs_tempdir,
                 tmpfs_size=tmpfs_size,
                 tmpfs_path=tmpfs_path,
                 num_parallel=num_parallel,
             )
-    except Exception as e:
+    except Exception:
         traceback.print_exc()
         _sync_metadata()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
