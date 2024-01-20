@@ -1,4 +1,4 @@
-name: metaflow.s3-tests
+name: lint
 
 on:
   pull_request:
@@ -6,7 +6,7 @@ on:
 
 jobs:
   test_data:
-    name: metaflow.s3
+    name: lint
     runs-on: ubuntu-latest
 
     steps:
