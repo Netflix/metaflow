@@ -1672,7 +1672,7 @@ class Step(MetaflowObject):
         Yields
         ------
         Task
-            Control Task object for this step
+            Control Task objects for this step
         """
         children = super(Step, self).__iter__()
         for child in children:

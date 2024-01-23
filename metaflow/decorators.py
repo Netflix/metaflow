@@ -549,6 +549,11 @@ def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
 
 FlowSpecDerived = TypeVar("FlowSpecDerived", bound=FlowSpec)
 
+# The StepFlag is a "fake" input item to be able to distinguish
+# callables and those that have had a `@step` decorator on them. This enables us
+# to check the ordering of decorators (ie: put @step first) with the type
+# system. There should be a better way to do this with a more flexible type
+# system but this is what works for now with the Python type system
 StepFlag = NewType("StepFlag", bool)
 
 

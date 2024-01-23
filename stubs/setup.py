@@ -7,9 +7,7 @@ setup(
     include_package_data=True,
     name="metaflow-stubs",
     version=version,
-    description="Metaflow: More Data Science, Less Engineering",
-    long_description=open("../README.md").read(),
-    long_description_content_type="text/markdown",
+    description="Metaflow Stubs: Stubs for the metaflow package",
     author="Metaflow Developers",
     author_email="help@metaflow.org",
     license="Apache Software License",
@@ -26,6 +24,7 @@ setup(
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
     ],
     project_urls={
         "Source": "https://github.com/Netflix/metaflow",
