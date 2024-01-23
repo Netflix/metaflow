@@ -1,6 +1,7 @@
 include:
   - project: 'analytics/artificial-intelligence/ai-platform/aip-infrastructure/ci-templates/ci-cd-template'
-    ref: &include_ref 'v4'
+#    ref: &include_ref 'v4'
+    ref: &include_ref '4e25c7200369aec17fcf8de723db360a7726151a'
     file: 'environments/devex.yml'
   - project: 'analytics/artificial-intelligence/ai-platform/aip-infrastructure/ci-templates/ci-cd-template'
     ref: *include_ref
