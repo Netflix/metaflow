@@ -33,6 +33,45 @@
     main:16: error: Value of type variable "FlowSpecDerived" of function cannot be "NotAFlow"  [type-var]
     main:19: error: Argument 1 has incompatible type "Callable[[], Any]"; expected "type[Any]"  [arg-type]
 
+- case: pypi_base_decorator_validity
+  main: |
+    from metaflow import FlowSpec, pypi_base
+
+    @pypi_base
+    class MyFlow(FlowSpec):
+      ...
+
+    @pypi_base({'scikit-learn': '1.3.1'})
+    class MyFlow2(FlowSpec):
+      ...
+
+    @pypi_base(foo={'scikit-learn': '1.3.1'})
+    class MyFlow3(FlowSpec):
+      ...
+
+    @pypi_base(packages={'scikit-learn': '1.3.1'})
+    class NotAFlow(object):
+      ...
+
+    @pypi_base(packages={'scikit-learn': '1.3.1'})
+    def not_a_flow_function():
+      ...
+
+    @pypi_base(packages={'scikit-learn': '1.3.1'})
+    class CorrectFlow(FlowSpec):
+      ...
+  out: |
+    main:7: error: No overload variant of "pypi_base" matches argument type "dict[str, str]"  [call-overload]
+    main:7: note: Possible overload variants:
+    main:7: note:     def pypi_base(*, packages: dict[str, str] = ..., python: str | None = ...) -> Callable[[type[FlowSpecDerived]], type[FlowSpecDerived]]
+    main:7: note:     def [FlowSpecDerived <: FlowSpec] pypi_base(f: type[FlowSpecDerived]) -> type[FlowSpecDerived]
+    main:11: error: No overload variant of "pypi_base" matches argument type "dict[str, str]"  [call-overload]
+    main:11: note: Possible overload variants:
+    main:11: note:     def pypi_base(*, packages: dict[str, str] = ..., python: str | None = ...) -> Callable[[type[FlowSpecDerived]], type[FlowSpecDerived]]
+    main:11: note:     def [FlowSpecDerived <: FlowSpec] pypi_base(f: type[FlowSpecDerived]) -> type[FlowSpecDerived]
+    main:16: error: Value of type variable "FlowSpecDerived" of function cannot be "NotAFlow"  [type-var]
+    main:19: error: Argument 1 has incompatible type "Callable[[], Any]"; expected "type[Any]"  [arg-type]
+
 - case: conda_base_decorator_validity
   main: |
     from metaflow import FlowSpec, conda_base
@@ -527,6 +566,57 @@
     main:17: note:     def [FlowSpecDerived <: FlowSpec] catch(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
     main:17: note:     def [FlowSpecDerived <: FlowSpec] catch(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
     main:22: error: Argument 1 to "catch" has incompatible type "Callable[[MyFlow], Any]"; expected "Callable[[MyFlow, StepFlag], None]"  [arg-type]
+
+- case: pypi_decorator_validity
+  main: |
+    from metaflow import FlowSpec, step, pypi
+
+    @pypi
+    class NonFlowDecorator(FlowSpec):
+      ...
+
+    @pypi(packages={'scikit-learn': '1.3.1'})
+    class NonFlowDecorator2(FlowSpec):
+      ...
+
+    class MyFlow(FlowSpec):
+      @pypi({'scikit-learn': '1.3.1'})
+      @step
+      def need_kwarg(self):
+        ...
+
+      @pypi(foo={'scikit-learn': '1.3.1'})
+      @step
+      def wrong_kwarg(self):
+        ...
+
+      @pypi
+      @step
+      def ok_no_arg(self):
+        ...
+
+      @pypi
+      def wrong_without_step(self):
+        ...
+
+      @pypi(packages={'scikit-learn': '1.3.1'})
+      @step
+      def ok_with_arg(self):
+        ...
+  out: |
+    main:3: error: Argument 1 to "pypi" has incompatible type "type[NonFlowDecorator]"; expected "Callable[[Any, StepFlag], None]"  [arg-type]
+    main:7: error: Argument 1 has incompatible type "type[NonFlowDecorator2]"; expected "Callable[[Never, StepFlag], None] | Callable[[Never, Any, StepFlag], None]"  [arg-type]
+    main:12: error: No overload variant of "pypi" matches argument type "dict[str, str]"  [call-overload]
+    main:12: note: Possible overload variants:
+    main:12: note:     def pypi(*, packages: dict[str, str] = ..., python: str | None = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
+    main:12: note:     def [FlowSpecDerived <: FlowSpec] pypi(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
+    main:12: note:     def [FlowSpecDerived <: FlowSpec] pypi(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+    main:17: error: No overload variant of "pypi" matches argument type "dict[str, str]"  [call-overload]
+    main:17: note: Possible overload variants:
+    main:17: note:     def pypi(*, packages: dict[str, str] = ..., python: str | None = ...) -> Callable[[Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]], Callable[[FlowSpecDerived, StepFlag], None] | Callable[[FlowSpecDerived, Any, StepFlag], None]]
+    main:17: note:     def [FlowSpecDerived <: FlowSpec] pypi(f: Callable[[FlowSpecDerived, StepFlag], None]) -> Callable[[FlowSpecDerived, StepFlag], None]
+    main:17: note:     def [FlowSpecDerived <: FlowSpec] pypi(f: Callable[[FlowSpecDerived, Any, StepFlag], None]) -> Callable[[FlowSpecDerived, Any, StepFlag], None]
+    main:27: error: Argument 1 to "pypi" has incompatible type "Callable[[MyFlow], Any]"; expected "Callable[[MyFlow, StepFlag], None]"  [arg-type]
 
 - case: conda_decorator_validity
   main: |
