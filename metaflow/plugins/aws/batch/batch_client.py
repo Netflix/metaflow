@@ -344,7 +344,10 @@ class BatchJob(object):
                     "Invalid efa value: ({}) (should be 0 or greater)".format(efa)
                 )
             else:
-                job_definition["containerProperties"]["linuxParameters"]["devices"] = []
+                if "linuxParameters" not in job_definition["containerProperties"]:
+                    job_definition["containerProperties"]["linuxParameters"] = {}
+                if "devices" not in job_definition["containerProperties"]["linuxParameters"]:
+                    job_definition["containerProperties"]["linuxParameters"]["devices"] = []
                 if (num_parallel or 0) > 1:
                     # Multi-node parallel jobs require the container path and permissions explicitly specified in Job definition
                     for i in range(int(efa)):
