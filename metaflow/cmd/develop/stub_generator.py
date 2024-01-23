@@ -267,12 +267,21 @@ class StubGenerator:
             if name != self._current_module_name:
                 self._imports.add(name)
 
-        def _add_to_typing_check(name):
-            splits = name.rsplit(".", 1)
-            if len(splits) == 2:
-                # We don't add things that are just one name -- probably things within
-                # the current file
-                if splits[0] != self._current_module_name:
+        def _add_to_typing_check(name, is_module=False):
+            # if name != self._current_module_name:
+            #    self._typing_imports.add(name)
+            #
+            if name == "None":
+                return
+            if is_module:
+                self._typing_imports.add(name)
+            else:
+                splits = name.rsplit(".", 1)
+                if len(splits) > 1 and not (
+                    len(splits) == 2 and splits[0] == self._current_module_name
+                ):
+                    # We don't add things that are just one name -- probably things within
+                    # the current file
                     self._typing_imports.add(splits[0])
 
         if isinstance(element, str):
@@ -310,7 +319,7 @@ class StubGenerator:
                     return "None"
                 return element.__name__
 
-            _add_to_import(module.__name__)
+            _add_to_typing_check(module.__name__, is_module=True)
             if module.__name__ != self._current_module_name:
                 return "{0}.{1}".format(module.__name__, element.__name__)
             else:
@@ -499,14 +508,20 @@ class StubGenerator:
         raw_doc = inspect.cleandoc(raw_doc)
         has_parameters = param_section_header.search(raw_doc)
         has_add_to_current = add_to_current_header.search(raw_doc)
-        if not has_parameters:
-            return None
-        if has_add_to_current:
+
+        if has_parameters and has_add_to_current:
             doc = raw_doc[has_parameters.end() : has_add_to_current.start()]
             add_to_current_doc = raw_doc[has_add_to_current.end() :]
             raw_doc = raw_doc[: has_add_to_current.start()]
-        else:
+        elif has_parameters:
             doc = raw_doc[has_parameters.end() :]
+            add_to_current_doc = None
+        elif has_add_to_current:
+            add_to_current_doc = raw_doc[has_add_to_current.end() :]
+            raw_doc = raw_doc[: has_add_to_current.start()]
+            doc = ""
+        else:
+            doc = ""
             add_to_current_doc = None
         parameters = []
         no_arg_version = True
@@ -605,8 +620,8 @@ class StubGenerator:
         result = []
         if no_arg_version:
             if is_flow_decorator:
-                result.extend(
-                    [
+                if has_parameters:
+                    result.append(
                         (
                             inspect.Signature(
                                 parameters=parameters,
@@ -616,25 +631,26 @@ class StubGenerator:
                                 ],
                             ),
                             "",
+                        )
+                    )
+                result.append(
+                    (
+                        inspect.Signature(
+                            parameters=[
+                                inspect.Parameter(
+                                    name="f",
+                                    kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                                    annotation=typing.Type[FlowSpecDerived],
+                                )
+                            ],
+                            return_annotation=typing.Type[FlowSpecDerived],
                         ),
-                        (
-                            inspect.Signature(
-                                parameters=[
-                                    inspect.Parameter(
-                                        name="f",
-                                        kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                                        annotation=typing.Type[FlowSpecDerived],
-                                    )
-                                ],
-                                return_annotation=typing.Type[FlowSpecDerived],
-                            ),
-                            "",
-                        ),
-                    ]
+                        "",
+                    ),
                 )
             else:
-                result.extend(
-                    [
+                if has_parameters:
+                    result.append(
                         (
                             inspect.Signature(
                                 parameters=parameters,
@@ -643,7 +659,10 @@ class StubGenerator:
                                 ],
                             ),
                             "",
-                        ),
+                        )
+                    )
+                result.extend(
+                    [
                         (
                             inspect.Signature(
                                 parameters=[
@@ -682,7 +701,7 @@ class StubGenerator:
                 )
 
         if is_flow_decorator:
-            return result + [
+            result = result + [
                 (
                     inspect.Signature(
                         parameters=[
@@ -695,6 +714,7 @@ class StubGenerator:
                                 else inspect.Parameter.empty,
                             )
                         ]
+                        + parameters
                         if no_arg_version
                         else [] + parameters,
                         return_annotation=inspect.Signature.empty
@@ -706,26 +726,37 @@ class StubGenerator:
                     raw_doc,
                 ),
             ]
-        return result + [
-            (
-                inspect.Signature(
-                    parameters=[
-                        inspect.Parameter(
-                            name="f",
-                            kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                            annotation=Optional[MetaflowStepFunction],
-                            default=None if no_arg_version else inspect.Parameter.empty,
-                        )
-                    ]
-                    if no_arg_version
-                    else [] + parameters,
-                    return_annotation=inspect.Signature.empty
-                    if no_arg_version
-                    else typing.Callable[[MetaflowStepFunction], MetaflowStepFunction],
+        else:
+            result = result + [
+                (
+                    inspect.Signature(
+                        parameters=[
+                            inspect.Parameter(
+                                name="f",
+                                kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                                annotation=Optional[MetaflowStepFunction],
+                                default=None
+                                if no_arg_version
+                                else inspect.Parameter.empty,
+                            )
+                        ]
+                        + parameters
+                        if no_arg_version
+                        else [] + parameters,
+                        return_annotation=inspect.Signature.empty
+                        if no_arg_version
+                        else typing.Callable[
+                            [MetaflowStepFunction], MetaflowStepFunction
+                        ],
+                    ),
+                    raw_doc,
                 ),
-                raw_doc,
-            ),
-        ]
+            ]
+        if len(result) == 2:
+            # If we only have one overload -- we don't need it at all. Happens for
+            # flow-level decorators that don't take any arguments
+            return result[1:]
+        return result
 
     def _generate_function_stub(
         self,
@@ -774,7 +805,7 @@ class StubGenerator:
                     if default_value.__module__ == "builtins":
                         return default_value.__name__
                     else:
-                        self._imports.add(default_value.__module__)
+                        self._typing_imports.add(default_value.__module__)
                         return ".".join(
                             [default_value.__module__, default_value.__name__]
                         )
@@ -818,10 +849,22 @@ class StubGenerator:
             if deco:
                 buff.write(indentation + deco + "\n")
             buff.write(indentation + "def " + name + "(")
+            kw_only_param = False
             for i, (par_name, parameter) in enumerate(my_sign.parameters.items()):
                 annotation = self._exploit_annotation(parameter.annotation)
                 default = exploit_default(parameter.default)
 
+                if kw_only_param and parameter.kind != inspect.Parameter.KEYWORD_ONLY:
+                    raise RuntimeError(
+                        "In function '%s': cannot have a positional parameter after a "
+                        "keyword only parameter" % name
+                    )
+                if (
+                    parameter.kind == inspect.Parameter.KEYWORD_ONLY
+                    and not kw_only_param
+                ):
+                    kw_only_param = True
+                    buff.write("*, ")
                 if parameter.kind == inspect.Parameter.VAR_KEYWORD:
                     par_name = "**%s" % par_name
                 elif parameter.kind == inspect.Parameter.VAR_POSITIONAL:
@@ -927,6 +970,12 @@ class StubGenerator:
                                 doc=res[-1][1],
                             )
                         )
+                    else:
+                        # print(
+                        #    "WARNING: Could not extract decorator signature for %s"
+                        #    % name
+                        # )
+                        pass
                 else:
                     self._stubs.append(
                         self._generate_function_stub(

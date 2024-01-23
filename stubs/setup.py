@@ -1,4 +1,4 @@
-from setuptools import find_packages, setup
+from setuptools import setup
 
 with open("../metaflow/version.py", mode="r") as f:
     version = f.read().splitlines()[0].split("=")[1].strip(" \"'")
@@ -31,17 +31,8 @@ setup(
         "Issues": "https://github.com/Netflix/metaflow/issues",
         "Documentation": "https://docs.metaflow.org",
     },
-    packages=[
-        "metaflow-stubs",
-    ],
-    package_data={
-        "metaflow-stubs": ["**/*.pyi", "py.typed", "generated_for.txt"],
-    },
-    py_modules=[
-        "metaflow-stubs",
-    ],
-    install_requires=[
-        "metaflow==%s" % version,
-    ],
+    packages=["metaflow-stubs"],
+    package_data={"metaflow-stubs": ["generated_for.txt", "py.typed", "**/*.pyi"]},
+    install_requires=[f"metaflow=={version}"],
     python_requires=">=3.5.2",
 )

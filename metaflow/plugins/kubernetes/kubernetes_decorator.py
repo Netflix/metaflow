@@ -66,7 +66,7 @@ class KubernetesDecorator(StepDecorator):
         in Metaflow configuration.
     namespace : str, default METAFLOW_KUBERNETES_NAMESPACE
         Kubernetes namespace to use when launching pod in Kubernetes.
-    gpu : int, optional
+    gpu : int, optional, default None
         Number of GPUs required for this step. A value of zero implies that
         the scheduled node should not have GPUs.
     gpu_vendor : str, default KUBERNETES_GPU_VENDOR
