@@ -103,6 +103,11 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
                 json.dump(list(range(flow._foreach_num_splits)), file)
             with open("/mnt/out/max_split", "w") as file:
                 json.dump(flow._foreach_num_splits, file)
+
+            if graph[step_name].is_inside_foreach:
+                with open("/mnt/out/root_index", "w") as file:
+                    json.dump(flow.index, file)
+
         # Unfortunately, we can't always use pod names as task-ids since the pod names
         # are not static across retries. We write the task-id to a file that is read
         # by the next task here.

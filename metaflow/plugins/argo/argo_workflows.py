@@ -835,7 +835,9 @@ class ArgoWorkflows(object):
 
     # Visit every node and yield the uber DAGTemplate(s).
     def _dag_templates(self):
-        def _visit(node, exit_node=None, templates=None, dag_tasks=None):
+        def _visit(
+            node, exit_node=None, templates=None, dag_tasks=None, parent_foreach=None
+        ):
             # Every for-each node results in a separate subDAG and an equivalent
             # DAGTemplate rooted at the child of the for-each node. Each DAGTemplate
             # has a unique name - the top-level DAGTemplate is named as the name of
@@ -848,6 +850,7 @@ class ArgoWorkflows(object):
             if templates is None:
                 templates = []
             if exit_node is not None and exit_node is node.name:
+                print(f"HIT EXIT NODE: {node.name}")
                 return templates, dag_tasks
 
             if node.name == "start":
@@ -883,6 +886,35 @@ class ArgoWorkflows(object):
                         )
                     )
                 ]
+                # We need to add a root-index for the last step in a nested foreach to be able to generate
+                # task id's for the last step more deterministically.
+                if (
+                    node.is_inside_foreach
+                    and self.graph[node.out_funcs[0]].type == "join"
+                ):
+                    # print(f"DEBUG: this hit the node: {node.name}")
+                    join = self.graph[node.out_funcs[0]]
+                    matching_foreach = next(
+                        (
+                            parent
+                            for parent in join.split_parents
+                            if self.graph[parent].matching_join == join.name
+                            and self.graph[parent].type == "foreach"
+                        ),
+                        False,
+                    )
+                    if matching_foreach:
+                        print(
+                            f"adding root-index for node: {node.name} for matching foreach: {matching_foreach}"
+                        )
+                        parameters.append(
+                            Parameter("root-index").value(
+                                "{{inputs.parameters.root-index}}"
+                            )
+                        )
+                    else:
+                        print(f"skipped adding for node: {node.name}")
+
                 dag_task = (
                     DAGTask(self._sanitize(node.name))
                     .dependencies(
@@ -903,9 +935,19 @@ class ArgoWorkflows(object):
             # For split nodes traverse all the children
             if node.type == "split":
                 for n in node.out_funcs:
-                    _visit(self.graph[n], node.matching_join, templates, dag_tasks)
+                    _visit(
+                        self.graph[n],
+                        node.matching_join,
+                        templates,
+                        dag_tasks,
+                        parent_foreach,
+                    )
                 return _visit(
-                    self.graph[node.matching_join], exit_node, templates, dag_tasks
+                    self.graph[node.matching_join],
+                    exit_node,
+                    templates,
+                    dag_tasks,
+                    parent_foreach,
                 )
             # For foreach nodes generate a new sub DAGTemplate
             elif node.type == "foreach":
@@ -929,6 +971,16 @@ class ArgoWorkflows(object):
                                 ),
                                 Parameter("split-index").value("{{item}}"),
                             ]
+                            + (
+                                [
+                                    Parameter("root-index").value(
+                                        "{{tasks.%s.outputs.parameters.root-index}}"
+                                        % self._sanitize(node.name)
+                                    )
+                                ]
+                                if parent_foreach
+                                else []
+                            )
                         )
                     )
                     .with_param(
@@ -938,13 +990,22 @@ class ArgoWorkflows(object):
                 )
                 dag_tasks.append(foreach_task)
                 templates, dag_tasks_1 = _visit(
-                    self.graph[node.out_funcs[0]], node.matching_join, templates, []
+                    self.graph[node.out_funcs[0]],
+                    node.matching_join,
+                    templates,
+                    [],
+                    node.name,
                 )
                 templates.append(
                     Template(foreach_template_name)
                     .inputs(
                         Inputs().parameters(
                             [Parameter("input-paths"), Parameter("split-index")]
+                            + (
+                                [Parameter("root-index")]
+                                if node.is_inside_foreach
+                                else []
+                            )
                         )
                     )
                     .outputs(
@@ -979,6 +1040,17 @@ class ArgoWorkflows(object):
                                     % self._sanitize(node.name)
                                 ),
                             ]
+                            + (
+                                [
+                                    Parameter("root-index").value(
+                                        "{{tasks.%s.outputs.parameters.root-index}}"
+                                        % self._sanitize(node.name)
+                                    )
+                                ]
+                                # if self.graph[node.matching_join].is_inside_foreach
+                                if parent_foreach
+                                else []
+                            )
                         )
                     )
                 )
@@ -988,11 +1060,16 @@ class ArgoWorkflows(object):
                     exit_node,
                     templates,
                     dag_tasks,
+                    parent_foreach,
                 )
             # For linear nodes continue traversing to the next node
             if node.type in ("linear", "join", "start"):
                 return _visit(
-                    self.graph[node.out_funcs[0]], exit_node, templates, dag_tasks
+                    self.graph[node.out_funcs[0]],
+                    exit_node,
+                    templates,
+                    dag_tasks,
+                    parent_foreach,
                 )
             else:
                 raise ArgoWorkflowsException(
@@ -1047,12 +1124,24 @@ class ArgoWorkflows(object):
                 task_str += "-$(echo $INPUT_PATHS)"
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 task_idx = "-{{inputs.parameters.split-index}}"
+            if node.is_inside_foreach and self.graph[node.out_funcs[0]].type == "join":
+                join_node = self.graph[node.out_funcs[0]]
+                if any(
+                    self.graph[parent].matching_join == join_node.name
+                    for parent in join_node.split_parents
+                    if self.graph[parent].type == "foreach"
+                ):
+                    # we need to use the root index in case this is the last step in a nested foreach
+                    print(f"added task_idx for step: {node.name}")
+                    task_idx += "{{inputs.parameters.root-index}}"
             if (
                 node.type == "join"
                 and self.graph[node.split_parents[-1]].type == "foreach"
+                and not node.is_inside_foreach
             ):
-                # disambiguate foreach join task_id, as the input-paths will not contain enough entropy otherwise.
+                # disambiguate root foreach join task_id, as the input-paths will not contain enough entropy otherwise.
                 # only do this for joins of foreach, not static splits.
+                # TODO: Is this even necessary?
                 task_str += "{{inputs.parameters.max-split}}"
             # Generated task_ids need to be non-numeric - see register_task_id in
             # service.py. We do so by prefixing `t-`
@@ -1377,6 +1466,18 @@ class ArgoWorkflows(object):
             ):
                 # append this only for joins of foreaches, not static splits
                 inputs.append(Parameter("max-split"))
+            if node.is_inside_foreach and self.graph[node.out_funcs[0]].type == "join":
+                join_node = self.graph[node.out_funcs[0]]
+                if any(
+                    self.graph[parent].matching_join == join_node.name
+                    for parent in join_node.split_parents
+                    if self.graph[parent].type == "foreach"
+                ):
+                    # we need to carry the split-index info for the last step inside a foreach
+                    # for correctly joining nested foreaches
+                    # TODO: fix so only applies to foreach joins
+                    print(f"appending root-index for step: {node.name}")
+                    inputs.append(Parameter("root-index"))
 
             outputs = []
             if node.name != "end":
@@ -1391,6 +1492,13 @@ class ArgoWorkflows(object):
                 outputs.append(
                     Parameter("max-split").valueFrom({"path": "/mnt/out/max_split"})
                 )
+                if node.is_inside_foreach:
+                    # outer foreach index
+                    outputs.append(
+                        Parameter("root-index").valueFrom(
+                            {"path": "/mnt/out/root_index"}
+                        )
+                    )
 
             # It makes no sense to set env vars to None (shows up as "None" string)
             # Also we skip some env vars (e.g. in case we want to pull them from KUBERNETES_SECRETS)
