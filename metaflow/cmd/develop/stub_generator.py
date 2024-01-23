@@ -971,10 +971,11 @@ class StubGenerator:
                             )
                         )
                     else:
-                        print(
-                            "WARNING: Could not extract decorator signature for %s"
-                            % name
-                        )
+                        # print(
+                        #    "WARNING: Could not extract decorator signature for %s"
+                        #    % name
+                        # )
+                        pass
                 else:
                     self._stubs.append(
                         self._generate_function_stub(

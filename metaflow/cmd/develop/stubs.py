@@ -60,6 +60,7 @@ def check(ctx: Any):
     """
 
     dist_packages, paths = get_packages_for_stubs()
+
     if len(dist_packages) + len(paths) == 0:
         return print_status(ctx, "no package provides `metaflow-stubs`", False)
     if len(dist_packages) + len(paths) == 1:
@@ -181,12 +182,19 @@ setup(
     author="Metaflow Developers",
     author_email="help@metaflow.org",
     license="Apache Software License",
-    packages=find_namespace_packages(include=["metaflow-stubs.*"]),
-    py_modules=["metaflow-stubs"],
+    packages=find_namespace_packages(),
     package_data={{"metaflow-stubs": ["generated_for.txt", "py.typed", "**/*.pyi"]}},
     install_requires=["metaflow=={mf_version}"],
     python_requires=">=3.5.2",
 )
+                """
+            )
+        with open(os.path.join(tmp_dir, "MANIFEST.in"), "w") as f:
+            f.write(
+                """
+include metaflow-stubs/generated_for.txt
+include metaflow-stubs/py.typed
+global-include *.pyi
                 """
             )
 
