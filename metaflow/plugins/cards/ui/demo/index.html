@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+    <title>Metaflow Card Example</title>
+
+    <link rel="stylesheet" href="bundle.css" />
+    <script defer src="main.js"></script>
+  </head>
+
+  <body>
+    <div class="card_app"></div>
+
+    <script defer>
+      let i = 0;
+      const interval = setInterval(() => {
+        if (window?.metaflow_card_update) {
+          window.metaflow_card_update({
+            progress1: {
+              type: "progressBar",
+              id: "progress1",
+              max: 100,
+              value: i,
+            },
+          });
+        }
+
+        if (i <= 100) {
+          i++;
+        } else {
+          clearInterval(interval);
+        }
+      }, 1000);
+    </script>
+  </body>
+</html>

@@ -573,6 +573,7 @@ class MetaflowTask(object):
                     inputs,
                 )
 
+            for deco in decorators:
                 # decorators can actually decorate the step function,
                 # or they can replace it altogether. This functionality
                 # is used e.g. by catch_decorator which switches to a

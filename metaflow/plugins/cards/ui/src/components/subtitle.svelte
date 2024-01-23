@@ -4,7 +4,7 @@
   export let componentData: types.SubtitleComponent;
 </script>
 
-<p class="subtitle" data-component="subtitle">{componentData.text}</p>
+<p class="subtitle" data-component="subtitle">{componentData?.text || ""}</p>
 
 <style>
   .subtitle {

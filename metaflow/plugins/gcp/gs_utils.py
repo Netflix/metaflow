@@ -34,7 +34,7 @@ def _check_and_init_gs_deps():
 
 
 def check_gs_deps(func):
-    """The decorated function checks GS dependencies (as needed for Azure storage backend). This includes
+    """The decorated function checks GS dependencies (as needed for Google Cloud storage backend). This includes
     various GCP SDK packages, as well as a Python version of >=3.7
     """
 

@@ -1,5 +1,5 @@
 <!-- A line that connects each step to the next. -->
-<script type="ts">
+<script lang="ts">
   // In rems
   export let top = 0;
   export let left = 0;

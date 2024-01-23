@@ -145,9 +145,8 @@ class _GSRootClient(object):
 class GSStorage(DataStoreStorage):
     TYPE = "gs"
 
+    @check_gs_deps
     def __init__(self, root=None):
-        # cannot decorate __init__... invoke it with dummy decoratee
-        check_gs_deps(lambda: 0)
         super(GSStorage, self).__init__(root)
         self._tmproot = ARTIFACT_LOCALROOT
         self._root_client = None

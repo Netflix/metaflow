@@ -154,13 +154,16 @@ class TestRefreshCard(MetaflowCard):
 
     type = "test_refresh_card"
 
-    def render(self, task, data) -> str:
+    def render(self, task) -> str:
+        return self._render_func(task, self.runtime_data)
+
+    def _render_func(self, task, data):
         return self.HTML_TEMPLATE.replace(
             "[REPLACE_CONTENT_HERE]", json.dumps(data["user"])
         ).replace("[PATHSPEC]", task.pathspec)
 
     def render_runtime(self, task, data):
-        return self.render(task, data)
+        return self._render_func(task, data)
 
     def refresh(self, task, data):
         return data
@@ -195,14 +198,14 @@ class TestRefreshComponentCard(MetaflowCard):
     def __init__(self, options={}, components=[], graph=None):
         self._components = components
 
-    def render(self, task, data) -> str:
+    def render(self, task) -> str:
         # Calling `render`/`render_runtime` wont require the `data` object
         return self.HTML_TEMPLATE.replace(
             "[REPLACE_CONTENT_HERE]", json.dumps(self._components)
         ).replace("[PATHSPEC]", task.pathspec)
 
     def render_runtime(self, task, data):
-        return self.render(task, data)
+        return self.render(task)
 
     def refresh(self, task, data):
         # Govers the information passed in the data update

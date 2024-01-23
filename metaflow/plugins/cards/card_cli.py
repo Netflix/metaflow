@@ -1,6 +1,11 @@
 from metaflow.client import Task
 from metaflow import JSONType, namespace
-from metaflow.exception import CommandException
+from metaflow.util import resolve_identity
+from metaflow.exception import (
+    CommandException,
+    MetaflowNotFound,
+    MetaflowNamespaceMismatch,
+)
 import webbrowser
 import re
 from metaflow._vendor import click
@@ -945,3 +950,125 @@ def list(
         show_list_as_json=as_json,
         file=file,
     )
+
+
+@card.command(help="Run local card viewer server")
+@click.option(
+    "--run-id",
+    default=None,
+    show_default=True,
+    type=str,
+    help="Run ID of the flow",
+)
+@click.option(
+    "--port",
+    default=8324,
+    show_default=True,
+    type=int,
+    help="Port on which Metaflow card viewer server will run",
+)
+@click.option(
+    "--namespace",
+    "user_namespace",
+    default=None,
+    show_default=True,
+    type=str,
+    help="Namespace of the flow",
+)
+@click.option(
+    "--poll-interval",
+    default=5,
+    show_default=True,
+    type=int,
+    help="Polling interval of the card viewer server.",
+)
+@click.option(
+    "--max-cards",
+    default=30,
+    show_default=True,
+    type=int,
+    help="Maximum number of cards to be shown at any time by the card viewer server",
+)
+@click.pass_context
+def server(ctx, run_id, port, user_namespace, poll_interval, max_cards):
+    from .card_server import create_card_server, CardServerOptions
+
+    user_namespace = resolve_identity() if user_namespace is None else user_namespace
+    run, follow_new_runs, _status_message = _get_run_object(
+        ctx.obj, run_id, user_namespace
+    )
+    if _status_message is not None:
+        ctx.obj.echo(_status_message, fg="red")
+    options = CardServerOptions(
+        flow_name=ctx.obj.flow.name,
+        run_object=run,
+        only_running=False,
+        follow_resumed=False,
+        flow_datastore=ctx.obj.flow_datastore,
+        max_cards=max_cards,
+        follow_new_runs=follow_new_runs,
+        poll_interval=poll_interval,
+    )
+    create_card_server(options, port, ctx.obj)
+
+
+def _get_run_from_cli_set_runid(obj, run_id):
+    # This run-id will be set from the command line args.
+    # So if we hit a MetaflowNotFound exception / Namespace mismatch then
+    # we should raise an exception
+    from metaflow import Run
+
+    flow_name = obj.flow.name
+    if len(run_id.split("/")) > 1:
+        raise CommandException(
+            "run_id should NOT be of the form: `<flowname>/<runid>`. Please provide only run-id"
+        )
+    try:
+        pathspec = "%s/%s" % (flow_name, run_id)
+        # Since we are looking at all namespaces,
+        # we will not
+        namespace(None)
+        return Run(pathspec)
+    except MetaflowNotFound:
+        raise CommandException("No run (%s) found for *%s*." % (run_id, flow_name))
+
+
+def _get_run_object(obj, run_id, user_namespace):
+    from metaflow import Flow
+
+    follow_new_runs = True
+    flow_name = obj.flow.name
+
+    if run_id is not None:
+        follow_new_runs = False
+        run = _get_run_from_cli_set_runid(obj, run_id)
+        obj.echo("Using run-id %s" % run.pathspec, fg="blue", bold=False)
+        return run, follow_new_runs, None
+
+    _msg = "Searching for runs in namespace: %s" % user_namespace
+    obj.echo(_msg, fg="blue", bold=False)
+
+    try:
+        namespace(user_namespace)
+        flow = Flow(pathspec=flow_name)
+        run = flow.latest_run
+    except MetaflowNotFound:
+        # When we have no runs found for the Flow, we need to ensure that
+        # if the `follow_new_runs` is set to True; If `follow_new_runs` is set to True then
+        # we don't raise the Exception and instead we return None and let the
+        # background Thread wait on the Retrieving the run object.
+        _status_msg = "No run found for *%s*." % flow_name
+        return None, follow_new_runs, _status_msg
+
+    except MetaflowNamespaceMismatch:
+        _status_msg = (
+            "No run found for *%s* in namespace *%s*. You can switch the namespace using --namespace"
+            % (
+                flow_name,
+                user_namespace,
+            )
+        )
+        return None, follow_new_runs, _status_msg
+
+    obj.echo("Using run-id %s" % run.pathspec, fg="blue", bold=False)
+    return run, follow_new_runs, None

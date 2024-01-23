@@ -102,6 +102,7 @@ class BatchDecorator(StepDecorator):
         "inferentia": None,
         "efa": None,
         "host_volumes": None,
+        "efs_volumes": None,
         "use_tmpfs": False,
         "tmpfs_tempdir": True,
         "tmpfs_size": None,

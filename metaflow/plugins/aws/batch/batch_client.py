@@ -152,6 +152,7 @@ class BatchJob(object):
         efa,
         memory,
         host_volumes,
+        efs_volumes,
         use_tmpfs,
         tmpfs_tempdir,
         tmpfs_size,
@@ -274,19 +275,45 @@ class BatchJob(object):
                         }
                     )
 
-        if host_volumes:
+        if host_volumes or efs_volumes:
             job_definition["containerProperties"]["volumes"] = []
             job_definition["containerProperties"]["mountPoints"] = []
-            if isinstance(host_volumes, str):
-                host_volumes = [host_volumes]
-            for host_path in host_volumes:
-                name = host_path.replace("/", "_").replace(".", "_")
-                job_definition["containerProperties"]["volumes"].append(
-                    {"name": name, "host": {"sourcePath": host_path}}
-                )
-                job_definition["containerProperties"]["mountPoints"].append(
-                    {"sourceVolume": name, "containerPath": host_path}
-                )
+
+            if host_volumes:
+                if isinstance(host_volumes, str):
+                    host_volumes = [host_volumes]
+                for host_path in host_volumes:
+                    container_path = host_path
+                    if ":" in host_path:
+                        host_path, container_path = host_path.split(":", 1)
+                    name = host_path.replace("/", "_").replace(".", "_")
+                    job_definition["containerProperties"]["volumes"].append(
+                        {"name": name, "host": {"sourcePath": host_path}}
+                    )
+                    job_definition["containerProperties"]["mountPoints"].append(
+                        {"sourceVolume": name, "containerPath": container_path}
+                    )
+
+            if efs_volumes:
+                if isinstance(efs_volumes, str):
+                    efs_volumes = [efs_volumes]
+                for efs_id in efs_volumes:
+                    container_path = "/mnt/" + efs_id
+                    if ":" in efs_id:
+                        efs_id, container_path = efs_id.split(":", 1)
+                    name = "efs_" + efs_id
+                    job_definition["containerProperties"]["volumes"].append(
+                        {
+                            "name": name,
+                            "efsVolumeConfiguration": {
+                                "fileSystemId": efs_id,
+                                "transitEncryption": "ENABLED",
+                            },
+                        }
+                    )
+                    job_definition["containerProperties"]["mountPoints"].append(
+                        {"sourceVolume": name, "containerPath": container_path}
+                    )
 
         if use_tmpfs or (tmpfs_size and not use_tmpfs):
             if tmpfs_size:
@@ -401,6 +428,7 @@ class BatchJob(object):
         efa,
         memory,
         host_volumes,
+        efs_volumes,
         use_tmpfs,
         tmpfs_tempdir,
         tmpfs_size,
@@ -419,6 +447,7 @@ class BatchJob(object):
             efa,
             memory,
             host_volumes,
+            efs_volumes,
             use_tmpfs,
             tmpfs_tempdir,
             tmpfs_size,

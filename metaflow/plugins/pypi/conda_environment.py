@@ -1,3 +1,4 @@
+import copy
 import errno
 import fcntl
 import functools
@@ -10,17 +11,17 @@ from concurrent.futures import ThreadPoolExecutor
 from hashlib import sha256
 from io import BufferedIOBase
 from itertools import chain
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import requests
 
-from metaflow.metaflow_config import get_pinned_conda_libs
 from metaflow.exception import MetaflowException
+from metaflow.metaflow_config import get_pinned_conda_libs
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.metaflow_profile import profile
 
 from . import MAGIC_FILE, _datastore_packageroot
-from .utils import conda_platform, generate_cache_path, parse_filename_from_url
+from .utils import conda_platform
 
 
 class CondaEnvironmentException(MetaflowException):
@@ -104,10 +105,24 @@ class CondaEnvironment(MetaflowEnvironment):
             )
 
         def cache(storage, results, type_):
+            def _path(url, local_path):
+                # Special handling for VCS packages
+                if url.startswith("git+"):
+                    base, _ = os.path.split(urlparse(url).path)
+                    _, file = os.path.split(local_path)
+                    prefix = url.split("@")[-1]
+                    return urlparse(url).netloc + os.path.join(
+                        unquote(base), prefix, file
+                    )
+                else:
+                    return urlparse(url).netloc + urlparse(url).path
+
             local_packages = {
                 url: {
                     # Path to package in datastore.
-                    "path": generate_cache_path(url, local_path),
+                    "path": _path(
+                        url, local_path
+                    ),  # urlparse(url).netloc + urlparse(url).path,
                     # Path to package on local disk.
                     "local_path": local_path,
                 }
@@ -116,22 +131,26 @@ class CondaEnvironment(MetaflowEnvironment):
             }
             dirty = set()
             # Prune list of packages to cache.
+
+            _meta = copy.deepcopy(local_packages)
             for id_, packages, _, _ in results:
                 for package in packages:
                     if package.get("path"):
                         # Cache only those packages that manifest is unaware of
                         local_packages.pop(package["url"], None)
                     else:
-                        package["path"] = generate_cache_path(
-                            package["url"], parse_filename_from_url(package["url"])
-                        )
+                        package["path"] = _meta[package["url"]]["path"]
                         dirty.add(id_)
 
             list_of_path_and_filehandle = [
                 (
                     package["path"],
                     # Lazily fetch package from the interweb if needed.
-                    LazyOpen(package["local_path"], "rb", url),
+                    LazyOpen(
+                        package["local_path"],
+                        "rb",
+                        url,
+                    ),
                 )
                 for url, package in local_packages.items()
             ]
@@ -186,7 +205,7 @@ class CondaEnvironment(MetaflowEnvironment):
             if decorator.name in ["conda", "pypi"]:
                 # handle @conda/@pypi(disabled=True)
                 disabled = decorator.attributes["disabled"]
-                return disabled or str(disabled).lower() != "false"
+                return str(disabled).lower() == "true"
         return False
 
     @functools.lru_cache(maxsize=None)
@@ -393,6 +412,10 @@ class LazyOpen(BufferedIOBase):
             if self.filename and os.path.exists(self.filename):
                 self._file = open(self.filename, self.mode)
             elif self.url:
+                if self.url.startswith("git+"):
+                    raise ValueError(
+                        "LazyOpen doesn't support VCS url %s yet!" % self.url
+                    )
                 self._buffer = self._download_to_buffer()
                 self._file = io.BytesIO(self._buffer)
             else:
