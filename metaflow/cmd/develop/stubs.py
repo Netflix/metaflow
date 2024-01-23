@@ -87,6 +87,49 @@ def check(ctx: Any):
     )
 
 
+@stubs.command(short_help="Remove all packages providing metaflow stubs")
+@click.pass_context
+def remove(ctx: Any):
+    """
+    Removes all packages that provide metaflow-stubs from the current Python environment.
+    """
+    dist_packages, paths = get_packages_for_stubs()
+    if len(dist_packages) + len(paths) == 0:
+        if ctx.obj.quiet:
+            ctx.obj.echo_always("not_installed")
+        else:
+            ctx.obj.echo("No packages provide `metaflow-stubs")
+
+    if paths:
+        raise RuntimeError(
+            "Cannot remove stubs when metaflow-stubs is already provided by a directory. "
+            "Please remove the following and try again: %s" % ", ".join(paths)
+        )
+
+    pkgs_to_remove = [p[0] for p in dist_packages]
+    ctx.obj.echo(
+        "Uninstalling existing packages providing metaflow-stubs: %s"
+        % ", ".join(pkgs_to_remove)
+    )
+
+    subprocess.check_call(
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "uninstall",
+            "-y",
+            *pkgs_to_remove,
+        ],
+        stderr=subprocess.DEVNULL if ctx.obj.quiet else None,
+        stdout=subprocess.DEVNULL if ctx.obj.quiet else None,
+    )
+    if ctx.obj.quiet:
+        ctx.obj.echo_always("ok")
+    else:
+        ctx.obj.echo("All packages providing metaflow-stubs have been removed.")
+
+
 @stubs.command(short_help="Generate Python stubs")
 @click.pass_context
 @click.option(
@@ -129,7 +172,7 @@ def install(ctx: Any, force: bool):
         with open(os.path.join(tmp_dir, "setup.py"), "w") as f:
             f.write(
                 f"""
-from setuptools import setup
+from setuptools import setup, find_namespace_packages
 setup(
     include_package_data=True,
     name="metaflow-stubs",
@@ -138,7 +181,8 @@ setup(
     author="Metaflow Developers",
     author_email="help@metaflow.org",
     license="Apache Software License",
-    packages=["metaflow-stubs"],
+    packages=find_namespace_packages(include=["metaflow-stubs.*"]),
+    py_modules=["metaflow-stubs"],
     package_data={{"metaflow-stubs": ["generated_for.txt", "py.typed", "**/*.pyi"]}},
     install_requires=["metaflow=={mf_version}"],
     python_requires=">=3.5.2",
