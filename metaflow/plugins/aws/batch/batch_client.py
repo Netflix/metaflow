@@ -271,7 +271,7 @@ class BatchJob(object):
                         {
                             "containerPath": "/dev/neuron{}".format(i),
                             "hostPath": "/dev/neuron{}".format(i),
-                            "permissions": ["read", "write"],
+                            "permissions": ["READ", "WRITE"],
                         }
                     )
 
