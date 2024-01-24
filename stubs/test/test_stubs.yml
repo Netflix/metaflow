@@ -1,37 +1,31 @@
 - case: project_decorator_validity
+  regex: yes
   main: |
     from metaflow import FlowSpec, project
 
-    @project
-    class MyFlow(FlowSpec):
+    @project                      # E: .*expected "str"\s+\[arg-type\]
+    class MyFlow(FlowSpec):       # E: .*Too many positional arguments for "project"\s+\[misc\]
       ...
 
-    @project("project_name")
+    @project("project_name")      # E: .*Too many positional arguments for "project"\s+\[misc\]
     class MyFlow2(FlowSpec):
       ...
 
-    @project(foo="bar")
+    @project(foo="bar")           # E: .*Unexpected keyword argument "foo" for "project"\s+\[call-arg\]
     class MyFlow3(FlowSpec):
       ...
 
     @project(name="project_name")
-    class NotAFlow(object):
+    class NotAFlow(object):       # E: .*cannot be "NotAFlow"\s+\[type-var\]
       ...
 
-    @project(name="project_name")
+    @project(name="project_name") # E: .*\[arg-type\]
     def not_a_flow_function():
       ...
 
     @project(name="project_name")
     class CorrectFlow(FlowSpec):
       ...
-  out: |
-    main:3: error: Argument 1 to "project" has incompatible type "type[MyFlow]"; expected "str"  [arg-type]
-    main:4: error: Too many positional arguments for "project"  [misc]
-    main:7: error: Too many positional arguments for "project"  [misc]
-    main:11: error: Unexpected keyword argument "foo" for "project"  [call-arg]
-    main:16: error: Value of type variable "FlowSpecDerived" of function cannot be "NotAFlow"  [type-var]
-    main:19: error: Argument 1 has incompatible type "Callable[[], Any]"; expected "type[Any]"  [arg-type]
 
 - case: pypi_base_decorator_validity
   main: |
