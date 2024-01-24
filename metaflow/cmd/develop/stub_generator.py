@@ -153,7 +153,7 @@ class StubGenerator:
                 "metaflow.tracing",
                 "metaflow.unbounded_foreach",
                 "metaflow.util",
-                "metaflow.vendor",
+                "metaflow._vendor",
             ]
         )
         self._done_modules = set()  # type: Set[str]
@@ -723,7 +723,7 @@ class StubGenerator:
                             [typing.Type[FlowSpecDerived]], typing.Type[FlowSpecDerived]
                         ],
                     ),
-                    raw_doc,
+                    "",
                 ),
             ]
         else:
@@ -749,13 +749,17 @@ class StubGenerator:
                             [MetaflowStepFunction], MetaflowStepFunction
                         ],
                     ),
-                    raw_doc,
+                    "",
                 ),
             ]
         if len(result) == 2:
             # If we only have one overload -- we don't need it at all. Happens for
             # flow-level decorators that don't take any arguments
-            return result[1:]
+            result = result[1:]
+        # Add doc to first and last overloads. Jedi uses the last one and pycharm
+        # the first one. Go figure.
+        result[0] = (result[0][0], raw_doc)
+        result[-1] = (result[-1][0], raw_doc)
         return result
 
     def _generate_function_stub(
@@ -882,7 +886,7 @@ class StubGenerator:
             )
             buff.write(")" + ret_annotation + ":\n")
 
-            if count == len(sign) - 1 and doc is not None:
+            if (count == 0 or count == len(sign) - 1) and doc is not None:
                 buff.write('%s%s"""\n' % (indentation, TAB))
                 my_doc = cast(str, deindent_docstring(doc))
                 init_blank = True
