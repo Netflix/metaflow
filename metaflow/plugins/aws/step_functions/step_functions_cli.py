@@ -661,7 +661,7 @@ def terminate(obj, run_id, authorize=None):
 
     terminated = StepFunctions.terminate(obj.state_machine_name, name)
     if terminated:
-        obj.echo(f"\nRun terminated at {terminated.get('stopDate')}.")
+        obj.echo("\nRun terminated at %s." % terminated.get("stopDate"))
 
 
 def validate_run_id(

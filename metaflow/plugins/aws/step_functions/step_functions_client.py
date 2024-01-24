@@ -86,7 +86,7 @@ class StepFunctionsClient(object):
             response = self._client.stop_execution(executionArn=execution_arn)
             return response
         except self._client.exceptions.ExecutionDoesNotExist:
-            raise ValueError(f"The execution ARN {execution_arn} does not exist.")
+            raise ValueError("The execution ARN %s does not exist." % execution_arn)
         except Exception as e:
             raise e
 
