@@ -167,6 +167,13 @@ class StepFunctions(object):
         return schedule_deleted, sfn_deleted
 
     @classmethod
+    def terminate(cls, flow_name, name):
+        client = StepFunctionsClient()
+        execution_arn, _, _, _, _, _ = cls.get_execution(flow_name, name)
+        response = client.terminate_execution(execution_arn)
+        return response
+
+    @classmethod
     def trigger(cls, name, parameters):
         try:
             state_machine = StepFunctionsClient().get(name)
@@ -233,6 +240,48 @@ class StepFunctions(object):
                     "Functions." % name
                 )
         return None
+
+    @classmethod
+    def get_execution(cls, state_machine_name, name):
+        client = StepFunctionsClient()
+        try:
+            state_machine = client.get(state_machine_name)
+        except Exception as e:
+            raise StepFunctionsException(repr(e))
+        if state_machine is None:
+            raise StepFunctionsException(
+                "The workflow *%s* doesn't exist " "on AWS Step Functions." % name
+            )
+        try:
+            state_machine_arn = state_machine.get("stateMachineArn")
+            parameters = (
+                json.loads(state_machine.get("definition"))
+                .get("States")
+                .get("start")
+                .get("Parameters")
+                .get("Parameters")
+            )
+
+            executions = client.list_executions(state_machine_arn, states=["RUNNING"])
+            for execution in executions:
+                if execution.get("name") == name:
+                    try:
+                        return (
+                            execution.get("executionArn"),
+                            parameters.get("metaflow.owner"),
+                            parameters.get("metaflow.production_token"),
+                            parameters.get("metaflow.flow_name"),
+                            parameters.get("metaflow.branch_name", None),
+                            parameters.get("metaflow.project_name", None),
+                        )
+                    except KeyError:
+                        raise StepFunctionsException(
+                            "A non-metaflow workflow *%s* already exists in AWS Step Functions."
+                            % name
+                        )
+            return None
+        except Exception as e:
+            raise StepFunctionsException(repr(e))
 
     def _compile(self):
         if self.flow._flow_decorators.get("trigger") or self.flow._flow_decorators.get(

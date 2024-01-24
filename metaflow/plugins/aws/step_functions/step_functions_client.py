@@ -81,9 +81,14 @@ class StepFunctionsClient(object):
             for execution in page["executions"]
         )
 
-    def terminate_execution(self, state_machine_arn, execution_arn):
-        # TODO
-        pass
+    def terminate_execution(self, execution_arn):
+        try:
+            response = self._client.stop_execution(executionArn=execution_arn)
+            return response
+        except self._client.exceptions.ExecutionDoesNotExist:
+            raise ValueError(f"The execution ARN {execution_arn} does not exist.")
+        except Exception as e:
+            raise e
 
     def _default_logging_configuration(self, log_execution_history):
         if log_execution_history:
