@@ -903,9 +903,6 @@ class ArgoWorkflows(object):
                         False,
                     )
                     if matching_foreach:
-                        print(
-                            f"adding root-index for node: {node.name} for matching foreach: {matching_foreach}"
-                        )
                         parameters.extend(
                             [
                                 Parameter("root-index").value(
@@ -916,8 +913,6 @@ class ArgoWorkflows(object):
                                 ),
                             ]
                         )
-                    else:
-                        print(f"skipped adding for node: {node.name}")
 
                 dag_task = (
                     DAGTask(self._sanitize(node.name))
