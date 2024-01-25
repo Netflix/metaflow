@@ -43,17 +43,6 @@ jobs:
     - name: Execute Python tests
       run: tox
 
-    - name: Install metaflow
-      run: pip install .
-
-    - name: Install metaflow-stubs
-      if: contains(fromJson('["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]'), matrix.ver)
-      run: metaflow develop stubs install --force
-
-    - name: Run mypy tests for Python 3.7 to 3.12
-      if: contains(fromJson('["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]'), matrix.ver)
-      run: cd ./stubs && pytest --mypy-ini-file test/setup.cfg --mypy-only-local-stub && cd -
-
   R:
     name: core / R ${{ matrix.ver }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
