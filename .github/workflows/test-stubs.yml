@@ -43,6 +43,7 @@ jobs:
       uses: nick-fields/retry@v2
       with:
         max_attempts: 2
+        timeout_minutes: 3
         retry_on: error
         command: cd ./stubs && pytest --mypy-ini-file test/setup.cfg --mypy-only-local-stub && cd -
         on_retry_command: |
