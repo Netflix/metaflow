@@ -38,7 +38,7 @@ jobs:
     - name: Install Python ${{ matrix.ver }} dependencies
       run: |
         python3 -m pip install --upgrade pip setuptools
-        python3 -m pip install build tox numpy mypy pytest-mypy-plugins
+        python3 -m pip install tox numpy
 
     - name: Execute Python tests
       run: tox
