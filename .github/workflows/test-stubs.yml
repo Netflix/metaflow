@@ -46,5 +46,3 @@ jobs:
         timeout_minutes: 3
         retry_on: error
         command: cd ./stubs && pytest --mypy-ini-file test/setup.cfg --mypy-only-local-stub && cd -
-        on_retry_command: |
-          [[ $(pwd) == *stubs ]] && cd ..
