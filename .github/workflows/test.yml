@@ -38,7 +38,7 @@ jobs:
     - name: Install Python ${{ matrix.ver }} dependencies
       run: |
         python3 -m pip install --upgrade pip setuptools
-        python3 -m pip install tox numpy mypy pytest-mypy-plugins
+        python3 -m pip install build tox numpy mypy pytest-mypy-plugins
 
     - name: Execute Python tests
       run: tox
@@ -46,13 +46,12 @@ jobs:
     - name: Install metaflow
       run: pip install .
 
-    - name: Generate Stubs
-      run: cd ./stubs && rm -rf metaflow-stubs/ && python -c "from metaflow.cmd.develop.stub_generator import StubGenerator; StubGenerator('./metaflow-stubs').write_out()" && cd -
-
     - name: Install metaflow-stubs
-      run: cd ./stubs && pip install . && cd -
+      if: contains(fromJson('["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]'), matrix.ver)
+      run: metaflow develop stubs install --force
 
-    - name: Run mypy tests
+    - name: Run mypy tests for Python 3.7 to 3.12
+      if: contains(fromJson('["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]'), matrix.ver)
       run: cd ./stubs && pytest --mypy-ini-file test/setup.cfg --mypy-only-local-stub && cd -
 
   R:
