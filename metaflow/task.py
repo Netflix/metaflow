@@ -22,19 +22,18 @@ from .unbounded_foreach import UBF_CONTROL
 from .util import all_equal, get_username, resolve_identity, unicode_type
 from .current import current
 from metaflow.tracing import get_trace_id
-from collections import namedtuple
+from metaflow.util import namedtuple_with_defaults
 
-foreach_frame_field_list = ["step", "var", "num_splits", "index", "value"]
-ForeachFrame = namedtuple(
-    "ForeachFrame",
-    foreach_frame_field_list,
-    defaults=(None,) * len(foreach_frame_field_list),
+foreach_frame_field_list = [
+    ("step", str),
+    ("var", str),
+    ("num_splits", int),
+    ("index", int),
+    ("value", str),
+]
+ForeachFrame = namedtuple_with_defaults(
+    "ForeachFrame", foreach_frame_field_list, (None,) * (len(foreach_frame_field_list))
 )
-ForeachFrame.__reduce__ = lambda frame: (construct_frame, tuple(frame))
-# To be backwards compatible.
-def construct_frame(*args):
-    return ForeachFrame(*args[: len(ForeachFrame._fields)])
-
 
 # Maximum number of characters of the foreach path that we store in the metadata.
 MAX_FOREACH_PATH_LENGTH = 256

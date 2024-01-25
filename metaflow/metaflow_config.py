@@ -203,6 +203,7 @@ DEFAULT_CONTAINER_IMAGE = from_conf("DEFAULT_CONTAINER_IMAGE")
 # Default container registry
 DEFAULT_CONTAINER_REGISTRY = from_conf("DEFAULT_CONTAINER_REGISTRY")
 # Controls whether to include foreach stack information in metadata.
+# TODO(Darin, 05/01/24): Remove this flag once we are confident with this feature.
 INCLUDE_FOREACH_STACK = from_conf("INCLUDE_FOREACH_STACK", False)
 
 ###
