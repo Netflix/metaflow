@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04, macos-latest]
-        ver: ['3.5', '3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+        ver: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
 
     steps:
     - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
@@ -32,11 +32,9 @@ jobs:
       run: pip install .
 
     - name: Install metaflow-stubs
-      if: contains(fromJson('["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]'), matrix.ver)
       run: metaflow develop stubs install --force
 
-    - name: Run mypy tests for Python 3.7 to 3.12
-      if: contains(fromJson('["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]'), matrix.ver)
+    - name: Run mypy tests
       uses: nick-fields/retry@v2
       with:
         max_attempts: 2
