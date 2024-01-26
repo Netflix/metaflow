@@ -53,4 +53,7 @@ setup(
         "requests",
         "boto3",
     ],
+    extras_require={
+        "stubs": ["metaflow-stubs==%s" % version],
+    },
 )
