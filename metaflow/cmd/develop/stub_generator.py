@@ -63,9 +63,9 @@ def type_var_to_str(t: TypeVar) -> str:
             bound_name = t.__bound__.__forward_arg__
         else:
             bound_name = t.__bound__.__name__
-    return 'typing.TypeVar("%s", %s, contravariant=%s, covariant=%s%s)' % (
+    return 'typing.TypeVar("%s", %scontravariant=%s, covariant=%s%s)' % (
         t.__name__,
-        'bound="%s"' % bound_name if t.__bound__ else "",
+        'bound="%s", ' % bound_name if t.__bound__ else "",
         t.__contravariant__,
         t.__covariant__,
         ", ".join([""] + [c.__name__ for c in t.__constraints__]),
