@@ -903,13 +903,18 @@ class ArgoWorkflows(object):
                         False,
                     )
                     if matching_foreach:
+                        print(
+                            f"matching foreach for last step: {node.name} is {matching_foreach}"
+                        )
                         parameters.extend(
                             [
-                                Parameter("root-index").value(
-                                    "{{inputs.parameters.root-index}}"
+                                Parameter("split-index").value(
+                                    "{{inputs.parameters.split-index}}"
                                 ),
                                 Parameter("root-input-path").value(
-                                    "{{inputs.parameters.root-input-path}}"
+                                    "{{inputs.parameters.input-paths}}"
+                                    # "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
+                                    # % (matching_foreach, self._sanitize(matching_foreach))),
                                 ),
                             ]
                         )
@@ -972,16 +977,9 @@ class ArgoWorkflows(object):
                             ]
                             + (
                                 [
-                                    Parameter("root-index").value(
-                                        "{{tasks.%s.outputs.parameters.root-index}}"
-                                        % self._sanitize(parent_foreach)
-                                    ),
                                     Parameter("root-input-path").value(
                                         "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
-                                        % (
-                                            parent_foreach,
-                                            self._sanitize(parent_foreach),
-                                        )
+                                        % (node.name, self._sanitize(node.name))
                                     ),
                                 ]
                                 if parent_foreach
@@ -1008,7 +1006,7 @@ class ArgoWorkflows(object):
                         Inputs().parameters(
                             [Parameter("input-paths"), Parameter("split-index")]
                             + (
-                                [Parameter("root-index"), Parameter("root-input-path")]
+                                [Parameter("root-input-path")]
                                 if node.is_inside_foreach
                                 else []
                             )
@@ -1048,13 +1046,11 @@ class ArgoWorkflows(object):
                             ]
                             + (
                                 [
-                                    Parameter("root-index").value(
-                                        "{{tasks.%s.outputs.parameters.root-index}}"
-                                        % self._sanitize(node.name)
+                                    Parameter("split-index").value(
+                                        "{{inputs.parameters.split-index}}"
                                     ),
                                     Parameter("root-input-path").value(
-                                        "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
-                                        % (node.name, self._sanitize(node.name))
+                                        "{{inputs.parameters.input-paths}}"
                                     ),
                                 ]
                                 if parent_foreach
@@ -1125,7 +1121,6 @@ class ArgoWorkflows(object):
             task_idx = ""
             input_paths = ""
             root_input = None
-            root_idx = None
             # export input_paths as it is used multiple times in the container script and we do not want to repeat the values.
             input_paths_expr = "export INPUT_PATHS=''"
             if node.name != "start":
@@ -1144,7 +1139,7 @@ class ArgoWorkflows(object):
                 ):
                     # we need to use the root index in case this is the last step in a nested foreach
                     print(f"added root_idx,root_input for step: {node.name}")
-                    root_idx = "{{inputs.parameters.root-index}}"
+                    task_idx = "{{inputs.parameters.split-index}}"
                     root_input = "{{inputs.parameters.root-input-path}}"
             if (
                 node.type == "join"
@@ -1163,7 +1158,7 @@ class ArgoWorkflows(object):
                     node.name,
                     "{{workflow.creationTimestamp}}",
                     root_input or input_paths,
-                    root_idx or task_idx,
+                    task_idx,
                 ]
             )
 
@@ -1171,8 +1166,7 @@ class ArgoWorkflows(object):
             # service.py. We do so by prefixing `t-`
             task_id_expr = (
                 "export METAFLOW_TASK_ID="
-                "(t-$(echo %s%s | md5sum | cut -d ' ' -f 1 | tail -c 9))"
-                % (task_str, task_idx)
+                "(t-$(echo %s | md5sum | cut -d ' ' -f 1 | tail -c 9))" % task_str
             )
             task_id = "$METAFLOW_TASK_ID"
 
@@ -1307,7 +1301,7 @@ class ArgoWorkflows(object):
                     % (
                         foreach_step_name,
                         creation_timestamp,
-                        root_input or input_paths,
+                        input_paths,
                         foreach_max_split,
                     )
                 )
@@ -1498,9 +1492,9 @@ class ArgoWorkflows(object):
                     # we need to carry the split-index info for the last step inside a foreach
                     # for correctly joining nested foreaches
                     # TODO: fix so only applies to foreach joins
-                    print(f"appending root-index for step: {node.name}")
+                    print(f"appending split-index for step: {node.name}")
                     inputs.extend(
-                        [Parameter("root-index"), Parameter("root-input-path")]
+                        [Parameter("split-index"), Parameter("root-input-path")]
                     )
 
             outputs = []
@@ -1516,13 +1510,13 @@ class ArgoWorkflows(object):
                 outputs.append(
                     Parameter("max-split").valueFrom({"path": "/mnt/out/max_split"})
                 )
-                if node.is_inside_foreach:
-                    # outer foreach index
-                    outputs.append(
-                        Parameter("root-index").valueFrom(
-                            {"path": "/mnt/out/root_index"}
-                        )
-                    )
+                # if node.is_inside_foreach:
+                #     # outer foreach index
+                #     outputs.append(
+                #         Parameter("root-index").valueFrom(
+                #             {"path": "/mnt/out/root_index"}
+                #         )
+                #     )
 
             # It makes no sense to set env vars to None (shows up as "None" string)
             # Also we skip some env vars (e.g. in case we want to pull them from KUBERNETES_SECRETS)
