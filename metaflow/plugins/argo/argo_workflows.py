@@ -999,11 +999,7 @@ class ArgoWorkflows(object):
                     .inputs(
                         Inputs().parameters(
                             [Parameter("input-paths"), Parameter("split-index")]
-                            + (
-                                [Parameter("root-input-path")]
-                                if node.is_inside_foreach
-                                else []
-                            )
+                            + ([Parameter("root-input-path")] if parent_foreach else [])
                         )
                     )
                     .outputs(
@@ -1126,11 +1122,22 @@ class ArgoWorkflows(object):
                 task_idx = "{{inputs.parameters.split-index}}"
             if node.is_inside_foreach and self.graph[node.out_funcs[0]].type == "join":
                 join_node = self.graph[node.out_funcs[0]]
-                if any(
+                join_is_foreach = any(
                     self.graph[parent].matching_join == join_node.name
                     for parent in join_node.split_parents
                     if self.graph[parent].type == "foreach"
-                ):
+                )
+                node_in_nested_foreach = (
+                    len(
+                        [
+                            parent
+                            for parent in node.split_parents
+                            if self.graph[parent].type == "foreach"
+                        ]
+                    )
+                    > 1
+                )
+                if join_is_foreach and node_in_nested_foreach:
                     # we need to use the split index in case this is the last step in a nested foreach
                     task_idx = "{{inputs.parameters.split-index}}"
                     root_input = "{{inputs.parameters.root-input-path}}"
@@ -1464,11 +1471,13 @@ class ArgoWorkflows(object):
             # to thank the designers of Argo Workflows for making this so
             # straightforward!
             inputs = []
+            has_split_index = False
             if node.name != "start":
                 inputs.append(Parameter("input-paths"))
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 # Fetch split-index from parent
                 inputs.append(Parameter("split-index"))
+                has_split_index = True
             if (
                 node.type == "join"
                 and self.graph[node.split_parents[-1]].type == "foreach"
@@ -1477,16 +1486,28 @@ class ArgoWorkflows(object):
                 inputs.append(Parameter("max-split"))
             if node.is_inside_foreach and self.graph[node.out_funcs[0]].type == "join":
                 join_node = self.graph[node.out_funcs[0]]
-                if any(
+                join_is_foreach = any(
                     self.graph[parent].matching_join == join_node.name
                     for parent in join_node.split_parents
                     if self.graph[parent].type == "foreach"
-                ):
-                    # we need to carry the split-index info for the last step inside a foreach
-                    # for correctly joining nested foreaches
-                    inputs.extend(
-                        [Parameter("split-index"), Parameter("root-input-path")]
+                )
+                node_in_nested_foreach = (
+                    len(
+                        [
+                            parent
+                            for parent in node.split_parents
+                            if self.graph[parent].type == "foreach"
+                        ]
                     )
+                    > 1
+                )
+                if join_is_foreach and node_in_nested_foreach:
+                    # we need to carry the split-index and root-input-path info for the last step inside a foreach
+                    # for correctly joining nested foreaches
+                    if not has_split_index:
+                        # Don't add duplicate split index parameters.
+                        inputs.append(Parameter("split-index"))
+                    inputs.append(Parameter("root-input-path"))
 
             outputs = []
             if node.name != "end":
@@ -1501,13 +1522,6 @@ class ArgoWorkflows(object):
                 outputs.append(
                     Parameter("max-split").valueFrom({"path": "/mnt/out/max_split"})
                 )
-                # if node.is_inside_foreach:
-                #     # outer foreach index
-                #     outputs.append(
-                #         Parameter("root-index").valueFrom(
-                #             {"path": "/mnt/out/root_index"}
-                #         )
-                #     )
 
             # It makes no sense to set env vars to None (shows up as "None" string)
             # Also we skip some env vars (e.g. in case we want to pull them from KUBERNETES_SECRETS)
