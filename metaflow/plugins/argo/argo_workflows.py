@@ -850,7 +850,6 @@ class ArgoWorkflows(object):
             if templates is None:
                 templates = []
             if exit_node is not None and exit_node is node.name:
-                print(f"HIT EXIT NODE: {node.name}")
                 return templates, dag_tasks
 
             if node.name == "start":
@@ -886,7 +885,7 @@ class ArgoWorkflows(object):
                         )
                     )
                 ]
-                # We need to add a root-index for the last step in a nested foreach to be able to generate
+                # We need to add the split-index for the last step in a nested foreach to be able to generate
                 # task id's for the last step more deterministically.
                 if (
                     node.is_inside_foreach
@@ -903,9 +902,6 @@ class ArgoWorkflows(object):
                         False,
                     )
                     if matching_foreach:
-                        print(
-                            f"matching foreach for last step: {node.name} is {matching_foreach}"
-                        )
                         parameters.extend(
                             [
                                 Parameter("split-index").value(
@@ -913,8 +909,6 @@ class ArgoWorkflows(object):
                                 ),
                                 Parameter("root-input-path").value(
                                     "{{inputs.parameters.input-paths}}"
-                                    # "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
-                                    # % (matching_foreach, self._sanitize(matching_foreach))),
                                 ),
                             ]
                         )
@@ -1137,20 +1131,19 @@ class ArgoWorkflows(object):
                     for parent in join_node.split_parents
                     if self.graph[parent].type == "foreach"
                 ):
-                    # we need to use the root index in case this is the last step in a nested foreach
-                    print(f"added root_idx,root_input for step: {node.name}")
+                    # we need to use the split index in case this is the last step in a nested foreach
                     task_idx = "{{inputs.parameters.split-index}}"
                     root_input = "{{inputs.parameters.root-input-path}}"
-            if (
-                node.type == "join"
-                and self.graph[node.split_parents[-1]].type == "foreach"
-                and not node.is_inside_foreach
-            ):
-                # disambiguate root foreach join task_id, as the input-paths will not contain enough entropy otherwise.
-                # only do this for joins of foreach, not static splits.
-                # TODO: Is this even necessary?
-                # task_str += "{{inputs.parameters.max-split}}"
-                pass
+            # if (
+            #     node.type == "join"
+            #     and self.graph[node.split_parents[-1]].type == "foreach"
+            #     and not node.is_inside_foreach
+            # ):
+            #     # disambiguate root foreach join task_id, as the input-paths will not contain enough entropy otherwise.
+            #     # only do this for joins of foreach, not static splits.
+            #     # TODO: Is this even necessary?
+            #     # task_str += "{{inputs.parameters.max-split}}"
+            #     pass
 
             # Task string to be hashed into an ID
             task_str = "-".join(
@@ -1491,8 +1484,6 @@ class ArgoWorkflows(object):
                 ):
                     # we need to carry the split-index info for the last step inside a foreach
                     # for correctly joining nested foreaches
-                    # TODO: fix so only applies to foreach joins
-                    print(f"appending split-index for step: {node.name}")
                     inputs.extend(
                         [Parameter("split-index"), Parameter("root-input-path")]
                     )
