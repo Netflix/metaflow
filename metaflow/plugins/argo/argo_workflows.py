@@ -1141,16 +1141,6 @@ class ArgoWorkflows(object):
                     # we need to use the split index in case this is the last step in a nested foreach
                     task_idx = "{{inputs.parameters.split-index}}"
                     root_input = "{{inputs.parameters.root-input-path}}"
-            # if (
-            #     node.type == "join"
-            #     and self.graph[node.split_parents[-1]].type == "foreach"
-            #     and not node.is_inside_foreach
-            # ):
-            #     # disambiguate root foreach join task_id, as the input-paths will not contain enough entropy otherwise.
-            #     # only do this for joins of foreach, not static splits.
-            #     # TODO: Is this even necessary?
-            #     # task_str += "{{inputs.parameters.max-split}}"
-            #     pass
 
             # Task string to be hashed into an ID
             task_str = "-".join(
