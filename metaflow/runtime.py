@@ -427,7 +427,7 @@ class NativeRuntime(object):
                 else:
                     # Update _finished since these tasks were successfully
                     # run elsewhere so that join will be unblocked.
-                    step_name, foreach_stack = task.finished_id
+                    _, foreach_stack = task.finished_id
                     top = foreach_stack[-1]
                     bottom = list(foreach_stack[:-1])
                     for i in range(num_splits):
@@ -437,7 +437,7 @@ class NativeRuntime(object):
 
             # Find and check status of control task and retrieve its pathspec
             # for retrieving unbounded foreach cardinality.
-            step_name, foreach_stack = task.finished_id
+            _, foreach_stack = task.finished_id
             top = foreach_stack[-1]
             bottom = list(foreach_stack[:-1])
             s = tuple(bottom + [top._replace(index=None)])
@@ -466,7 +466,7 @@ class NativeRuntime(object):
         else:
             # matching_split is the split-parent of the finished task
             matching_split = self._graph[self._graph[next_step].split_parents[-1]]
-            step_name, foreach_stack = task.finished_id
+            _, foreach_stack = task.finished_id
 
             if matching_split.type == "foreach":
                 # next step is a foreach join
@@ -1026,8 +1026,14 @@ class Task(object):
 
     @property
     def finished_id(self):
-        # note: id is not available before the task has finished
-        return (self.step, tuple(self.results["_foreach_stack"]))
+        # note: id is not available before the task has finished.
+        # Index already identifies the task within the foreach,
+        # we will remove foreach value so that it is easier to
+        # identify siblings within a foreach.
+        foreach_stack_tuple = tuple(
+            [s._replace(value=0) for s in self.results["_foreach_stack"]]
+        )
+        return (self.step, foreach_stack_tuple)
 
     @property
     def is_cloned(self):

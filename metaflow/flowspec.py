@@ -2,6 +2,7 @@ import inspect
 import os
 import sys
 import traceback
+import reprlib
 
 from itertools import islice
 from types import FunctionType, MethodType
@@ -16,6 +17,7 @@ from .exception import (
 )
 from .graph import FlowGraph
 from .unbounded_foreach import UnboundedForeachInput
+from .metaflow_config import INCLUDE_FOREACH_STACK
 
 # For Python 3 compatibility
 try:
@@ -502,6 +504,33 @@ class FlowSpec(object):
             )
             raise InvalidNextException(msg)
 
+    def _get_foreach_item_value(self, item: Any):
+        """
+        Get the unique value for the item in the foreach iterator.  If no suitable value
+        is found, return the value formatted by reprlib, which is at most 30 characters long.
+
+        Parameters
+        ----------
+        item : Any
+            The item to get the value from.
+
+        Returns
+        -------
+        str
+            The value to use for the item.
+        """
+
+        def _is_primitive_type(item):
+            return (
+                isinstance(item, basestring)
+                or isinstance(item, int)
+                or isinstance(item, float)
+                or isinstance(item, bool)
+            )
+
+        value = item if _is_primitive_type(item) else reprlib.Repr().repr(item)
+        return basestring(value)
+
     def next(self, *dsts: Callable[..., None], **kwargs) -> None:
         """
         Indicates the next step to execute after this step has completed.
@@ -611,19 +640,26 @@ class FlowSpec(object):
                     )
                 )
                 raise InvalidNextException(msg)
-
+            self._foreach_values = None
             if issubclass(type(foreach_iter), UnboundedForeachInput):
                 self._unbounded_foreach = True
                 self._foreach_num_splits = None
                 self._validate_ubf_step(funcs[0])
             else:
                 try:
-                    self._foreach_num_splits = sum(1 for _ in foreach_iter)
-                except TypeError:
+                    if INCLUDE_FOREACH_STACK:
+                        self._foreach_values = []
+                        for item in foreach_iter:
+                            value = self._get_foreach_item_value(item)
+                            self._foreach_values.append(value)
+                        self._foreach_num_splits = len(self._foreach_values)
+                    else:
+                        self._foreach_num_splits = sum(1 for _ in foreach_iter)
+                except Exception as e:
                     msg = (
                         "Foreach variable *self.{var}* in step *{step}* "
-                        "is not iterable. Check your variable.".format(
-                            step=step, var=foreach
+                        "is not iterable. Please check details: {err}".format(
+                            step=step, var=foreach, err=str(e)
                         )
                     )
                     raise InvalidNextException(msg)
