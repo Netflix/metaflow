@@ -169,7 +169,7 @@ class StepFunctions(object):
     @classmethod
     def terminate(cls, flow_name, name):
         client = StepFunctionsClient()
-        execution_arn, _, _, _, _, _ = cls.get_execution(flow_name, name)
+        execution_arn, _, _, _ = cls.get_execution(flow_name, name)
         response = client.terminate_execution(execution_arn)
         return response
 
@@ -250,29 +250,30 @@ class StepFunctions(object):
             raise StepFunctionsException(repr(e))
         if state_machine is None:
             raise StepFunctionsException(
-                "The workflow *%s* doesn't exist " "on AWS Step Functions." % name
+                "The workflow *%s* doesn't exist on AWS Step Functions." % name
             )
         try:
             state_machine_arn = state_machine.get("stateMachineArn")
-            parameters = (
+            environment_vars = (
                 json.loads(state_machine.get("definition"))
                 .get("States")
                 .get("start")
                 .get("Parameters")
-                .get("Parameters")
+                .get("ContainerOverrides")
+                .get("Environment")
             )
-
+            parameters = {
+                item.get("Name"): item.get("Value") for item in environment_vars
+            }
             executions = client.list_executions(state_machine_arn, states=["RUNNING"])
             for execution in executions:
                 if execution.get("name") == name:
                     try:
                         return (
                             execution.get("executionArn"),
-                            parameters.get("metaflow.owner"),
-                            parameters.get("metaflow.production_token"),
-                            parameters.get("metaflow.flow_name"),
-                            parameters.get("metaflow.branch_name", None),
-                            parameters.get("metaflow.project_name", None),
+                            parameters.get("METAFLOW_OWNER"),
+                            parameters.get("METAFLOW_PRODUCTION_TOKEN"),
+                            parameters.get("SFN_STATE_MACHINE"),
                         )
                     except KeyError:
                         raise StepFunctionsException(

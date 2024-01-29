@@ -680,28 +680,13 @@ def validate_run_id(
             % name
         )
 
-    _, owner, token, flow_name, branch_name, project_name = execution
+    _, owner, token, sfn_state_machine = execution
 
-    if current.flow_name != flow_name:
+    if state_machine_name != sfn_state_machine:
         raise RunIdMismatch(
-            "The workflow with the run_id *%s* belongs to the flow *%s*, not for the flow *%s*."
-            % (run_id, flow_name, current.flow_name)
+            "The workflow with the run_id *%s* belongs to the state machine *%s*, not for the state machine *%s*."
+            % (run_id, sfn_state_machine, state_machine_name)
         )
-
-    if project_name is not None:
-        if current.get("project_name") != project_name:
-            raise RunIdMismatch(
-                "The workflow belongs to the project *%s*. "
-                "Please use the project decorator or --name to target the correct project"
-                % project_name
-            )
-
-        if current.get("branch_name") != branch_name:
-            raise RunIdMismatch(
-                "The workflow belongs to the branch *%s*. "
-                "Please use --branch, --production or --name to target the correct branch"
-                % branch_name
-            )
 
     if authorize is None:
         authorize = load_token(token_prefix)
