@@ -682,6 +682,8 @@ def validate_run_id(
 
     _, owner, token, sfn_state_machine = execution
 
+    # this snippet is probably never triggered since we fail early with not
+    # being able to find the state_machine itself
     if state_machine_name != sfn_state_machine:
         raise RunIdMismatch(
             "The workflow with the run_id *%s* belongs to the state machine *%s*, not for the state machine *%s*."

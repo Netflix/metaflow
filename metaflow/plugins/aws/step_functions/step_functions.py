@@ -250,7 +250,8 @@ class StepFunctions(object):
             raise StepFunctionsException(repr(e))
         if state_machine is None:
             raise StepFunctionsException(
-                "The workflow *%s* doesn't exist on AWS Step Functions." % name
+                "The state machine *%s* doesn't exist on AWS Step Functions."
+                % state_machine_name
             )
         try:
             state_machine_arn = state_machine.get("stateMachineArn")
