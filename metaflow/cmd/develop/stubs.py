@@ -341,7 +341,10 @@ def print_status(ctx: click.Context, msg: str, valid: bool):
     if ctx.obj.quiet:
         ctx.obj.echo_always("valid" if valid else "invalid")
     else:
-        ctx.obj.echo(
-            "Metaflow stubs are *%s*: " % ("valid" if valid else "invalid") + msg
-        )
+        ctx.obj.echo("Metaflow stubs are ", nl=False)
+        if valid:
+            ctx.obj.echo("valid", fg="green", nl=False)
+        else:
+            ctx.obj.echo("invalid", fg="red", nl=False)
+        ctx.obj.echo(": " + msg)
     return
