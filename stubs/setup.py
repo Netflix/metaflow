@@ -1,15 +1,13 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 
-with open("metaflow/version.py", mode="r") as f:
+with open("../metaflow/version.py", mode="r") as f:
     version = f.read().splitlines()[0].split("=")[1].strip(" \"'")
 
 setup(
     include_package_data=True,
-    name="metaflow",
+    name="metaflow-stubs",
     version=version,
-    description="Metaflow: More Data Science, Less Engineering",
-    long_description=open("README.md").read(),
-    long_description_content_type="text/markdown",
+    description="Metaflow Stubs: Stubs for the metaflow package",
     author="Metaflow Developers",
     author_email="help@metaflow.org",
     license="Apache Software License",
@@ -33,27 +31,8 @@ setup(
         "Issues": "https://github.com/Netflix/metaflow/issues",
         "Documentation": "https://docs.metaflow.org",
     },
-    packages=find_packages(exclude=["metaflow_test"]),
-    py_modules=[
-        "metaflow",
-    ],
-    package_data={
-        "metaflow": [
-            "tutorials/*/*",
-            "plugins/env_escape/configurations/*/*",
-            "py.typed",
-            "**/*.pyi",
-        ]
-    },
-    entry_points="""
-        [console_scripts]
-        metaflow=metaflow.cmd.main_cli:start
-      """,
-    install_requires=[
-        "requests",
-        "boto3",
-    ],
-    extras_require={
-        "stubs": ["metaflow-stubs==%s" % version],
-    },
+    packages=["metaflow-stubs"],
+    package_data={"metaflow-stubs": ["generated_for.txt", "py.typed", "**/*.pyi"]},
+    install_requires=[f"metaflow=={version}"],
+    python_requires=">=3.5.2",
 )

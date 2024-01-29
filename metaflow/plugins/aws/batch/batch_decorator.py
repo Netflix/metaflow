@@ -37,53 +37,53 @@ class BatchDecorator(StepDecorator):
 
     Parameters
     ----------
-    cpu : int, default: 1
+    cpu : int, default 1
         Number of CPUs required for this step. If `@resources` is
         also present, the maximum value from all decorators is used.
-    gpu : int, default: 0
+    gpu : int, default 0
         Number of GPUs required for this step. If `@resources` is
         also present, the maximum value from all decorators is used.
-    memory : int, default: 4096
+    memory : int, default 4096
         Memory size (in MB) required for this step. If
         `@resources` is also present, the maximum value from all decorators is
         used.
-    image : str, optional
+    image : str, optional, default None
         Docker image to use when launching on AWS Batch. If not specified, and
         METAFLOW_BATCH_CONTAINER_IMAGE is specified, that image is used. If
         not, a default Docker image mapping to the current version of Python is used.
-    queue : str, default: METAFLOW_BATCH_JOB_QUEUE
+    queue : str, default METAFLOW_BATCH_JOB_QUEUE
         AWS Batch Job Queue to submit the job to.
-    iam_role : str, default: METAFLOW_ECS_S3_ACCESS_IAM_ROLE
+    iam_role : str, default METAFLOW_ECS_S3_ACCESS_IAM_ROLE
         AWS IAM role that AWS Batch container uses to access AWS cloud resources.
-    execution_role : str, default: METAFLOW_ECS_FARGATE_EXECUTION_ROLE
+    execution_role : str, default METAFLOW_ECS_FARGATE_EXECUTION_ROLE
         AWS IAM role that AWS Batch can use [to trigger AWS Fargate tasks]
         (https://docs.aws.amazon.com/batch/latest/userguide/execution-IAM-role.html).
-    shared_memory : int, optional
+    shared_memory : int, optional, default None
         The value for the size (in MiB) of the /dev/shm volume for this step.
         This parameter maps to the `--shm-size` option in Docker.
-    max_swap : int, optional
+    max_swap : int, optional, default None
         The total amount of swap memory (in MiB) a container can use for this
         step. This parameter is translated to the `--memory-swap` option in
         Docker where the value is the sum of the container memory plus the
         `max_swap` value.
-    swappiness : int, optional
+    swappiness : int, optional, default None
         This allows you to tune memory swappiness behavior for this step.
         A swappiness value of 0 causes swapping not to happen unless absolutely
         necessary. A swappiness value of 100 causes pages to be swapped very
         aggressively. Accepted values are whole numbers between 0 and 100.
-    use_tmpfs: bool, default: False
+    use_tmpfs : bool, default False
         This enables an explicit tmpfs mount for this step.
-    tmpfs_tempdir: bool, default: True
+    tmpfs_tempdir : bool, default True
         sets METAFLOW_TEMPDIR to tmpfs_path if set for this step.
-    tmpfs_size: int, optional
+    tmpfs_size : int, optional, default None
         The value for the size (in MiB) of the tmpfs mount for this step.
         This parameter maps to the `--tmpfs` option in Docker. Defaults to 50% of the
         memory allocated for this step.
-    tmpfs_path: string, optional
+    tmpfs_path : str, optional, default None
         Path to tmpfs mount for this step. Defaults to /metaflow_temp.
-    inferentia : int, default: 0
+    inferentia : int, default 0
         Number of Inferentia chips required for this step.
-    efa: int, default: 0
+    efa : int, default 0
         Number of elastic fabric adapter network devices to attach to container
     """
 

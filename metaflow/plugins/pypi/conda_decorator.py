@@ -24,15 +24,15 @@ class CondaStepDecorator(StepDecorator):
 
     Parameters
     ----------
-    packages : Dict[str, str], default: {}
+    packages : Dict[str, str], default {}
         Packages to use for this step. The key is the name of the package
         and the value is the version to use.
-    libraries : Dict[str, str], default: {}
+    libraries : Dict[str, str], default {}
         Supported for backward compatibility. When used with packages, packages will take precedence.
-    python : str, optional
+    python : str, optional, default None
         Version of Python to use, e.g. '3.7.4'. A default value of None implies
         that the version used will correspond to the version of the Python interpreter used to start the run.
-    disabled : bool, default: False
+    disabled : bool, default False
         If set to True, disables @conda.
     """
 
@@ -276,15 +276,15 @@ class CondaFlowDecorator(FlowDecorator):
 
     Parameters
     ----------
-    packages : Dict[str, str], default: {}
+    packages : Dict[str, str], default {}
         Packages to use for this flow. The key is the name of the package
         and the value is the version to use.
-    libraries : Dict[str, str], default: {}
+    libraries : Dict[str, str], default {}
         Supported for backward compatibility. When used with packages, packages will take precedence.
-    python : str, optional
+    python : str, optional, default None
         Version of Python to use, e.g. '3.7.4'. A default value of None implies
         that the version used will correspond to the version of the Python interpreter used to start the run.
-    disabled : bool, default: False
+    disabled : bool, default False
         If set to True, disables Conda.
     """
 

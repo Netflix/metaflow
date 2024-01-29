@@ -1,8 +1,8 @@
 from functools import partial
 import json
 import re
-import os
-import sys
+
+from typing import Any, Callable, NewType, TypeVar, Union, overload
 
 from .flowspec import FlowSpec
 from .exception import (
@@ -12,7 +12,6 @@ from .exception import (
 )
 
 from metaflow._vendor import click
-
 
 try:
     unicode
@@ -174,7 +173,6 @@ class Decorator(object):
 
 
 class FlowDecorator(Decorator):
-
     _flow_decorators = []
     options = {}
 
@@ -549,9 +547,63 @@ def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
             )
 
 
-def step(f):
+FlowSpecDerived = TypeVar("FlowSpecDerived", bound=FlowSpec)
+
+# The StepFlag is a "fake" input item to be able to distinguish
+# callables and those that have had a `@step` decorator on them. This enables us
+# to check the ordering of decorators (ie: put @step first) with the type
+# system. There should be a better way to do this with a more flexible type
+# system but this is what works for now with the Python type system
+StepFlag = NewType("StepFlag", bool)
+
+
+@overload
+def step(
+    f: Callable[[FlowSpecDerived], None]
+) -> Callable[[FlowSpecDerived, StepFlag], None]:
+    ...
+
+
+@overload
+def step(
+    f: Callable[[FlowSpecDerived, Any], None],
+) -> Callable[[FlowSpecDerived, Any, StepFlag], None]:
+    ...
+
+
+def step(
+    f: Union[Callable[[FlowSpecDerived], None], Callable[[FlowSpecDerived, Any], None]]
+):
     """
-    The step decorator. Makes a method a step in the workflow.
+    Marks a method in a FlowSpec as a Metaflow Step. Note that this
+    decorator needs to be placed as close to the method as possible (ie:
+    before other decorators).
+
+    In other words, this is valid:
+    ```
+    @batch
+    @step
+    def foo(self):
+        pass
+    ```
+
+    whereas this is not:
+    ```
+    @step
+    @batch
+    def foo(self):
+        pass
+    ```
+
+    Parameters
+    ----------
+    f : Union[Callable[[FlowSpecDerived], None], Callable[[FlowSpecDerived, Any], None]]
+        Function to make into a Metaflow Step
+
+    Returns
+    -------
+    Union[Callable[[FlowSpecDerived, StepFlag], None], Callable[[FlowSpecDerived, Any, StepFlag], None]]
+        Function that is a Metaflow Step
     """
     f.is_step = True
     f.decorators = []

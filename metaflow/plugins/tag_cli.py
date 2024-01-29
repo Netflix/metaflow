@@ -4,7 +4,7 @@ from itertools import chain
 
 from metaflow import namespace
 from metaflow.client import Flow, Run
-from metaflow.current import current
+from metaflow.metaflow_current import current
 from metaflow.util import resolve_identity
 from metaflow.exception import CommandException, MetaflowNotFound, MetaflowInternalError
 from metaflow.exception import MetaflowNamespaceMismatch

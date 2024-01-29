@@ -18,12 +18,24 @@ jobs:
       run: |
         python3 -m pip install --upgrade pip
         pip3 install setuptools wheel twine
-    - name: Build package
+    - name: Install metaflow
+      run: pip install .
+    - name: Generate Stubs
+      run: cd ./stubs && rm -rf metaflow-stubs/ && python -c "from metaflow.cmd.develop.stub_generator import StubGenerator; StubGenerator('./metaflow-stubs').write_out()" && cd -
+    - name: Build metaflow package
       run: |
         python3 setup.py sdist bdist_wheel --universal
-    - name: Publish package
+    - name: Build metaflow-stubs package
+      run: |
+        cd ./stubs && python3 setup.py sdist bdist_wheel --universal && cd -
+    - name: Publish metaflow-stubs package
       uses: pypa/gh-action-pypi-publish@9b8e7336db3f96a2939a3e9fa827c62f466ca60d # master
       with:
         user: __token__
         password: ${{ secrets.pypi_password }}
-
+        packages-dir: ./stubs/dist
+    - name: Publish metaflow package
+      uses: pypa/gh-action-pypi-publish@9b8e7336db3f96a2939a3e9fa827c62f466ca60d # master
+      with:
+        user: __token__
+        password: ${{ secrets.pypi_password }}

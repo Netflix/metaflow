@@ -1,5 +1,5 @@
 from metaflow.decorators import StepDecorator
-from metaflow.current import current
+from metaflow.metaflow_current import current
 from metaflow.util import to_unicode
 from .component_serializer import CardComponentCollector, get_card_class
 from .card_creator import CardCreator
@@ -27,14 +27,29 @@ class CardDecorator(StepDecorator):
 
     Parameters
     ----------
-    type : str, default: 'default'
+    type : str, default 'default'
         Card type.
-    id : str, optional, default: None
+    id : str, optional, default None
         If multiple cards are present, use this id to identify this card.
-    options : Dict[str, Any], default: {}
+    options : Dict[str, Any], default {}
         Options passed to the card. The contents depend on the card type.
-    timeout : int, default: 45
+    timeout : int, default 45
         Interrupt reporting if it takes more than this many seconds.
+
+    MF Add To Current
+    -----------------
+    card -> metaflow.plugins.cards.component_serializer.CardComponentCollector
+        The `@card` decorator makes the cards available through the `current.card`
+        object. If multiple `@card` decorators are present, you can add an `ID` to
+        distinguish between them using `@card(id=ID)` as the decorator. You will then
+        be able to access that specific card using `current.card[ID].
+
+        Methods available are `append` and `extend`
+
+        @@ Returns
+        -------
+        CardComponentCollector
+            The or one of the cards attached to this step.
     """
 
     name = "card"

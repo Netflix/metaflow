@@ -38,22 +38,22 @@ def get_ec2_instance_metadata():
 
 
 def get_docker_registry(image_uri):
-    r"""
+    """
     Explanation:
-        (.+?(?:[:.].+?)\/)? - [GROUP 0] REGISTRY
-            .+?                 - A registry must start with at least one character
-            (?:[:.].+?)\/       - A registry must have ":" or "." and end with "/"
-            ?                   - Make a registry optional
-        (.*?)               - [GROUP 1] REPOSITORY
-            .*?                 - Get repository name until separator
-        (?:[@:])?           - SEPARATOR
-            ?:                  - Don't capture separator
-            [@:]                - The separator must be either "@" or ":"
-            ?                   - The separator is optional
-        ((?<=[@:]).*)?      - [GROUP 2] TAG / DIGEST
-            (?<=[@:])           - A tag / digest must be preceded by "@" or ":"
-            .*                  - Capture rest of tag / digest
-            ?                   - A tag / digest is optional
+        (.+?(?:[:.].+?)\\/)? - [GROUP 0] REGISTRY
+            .+?                  - A registry must start with at least one character
+            (?:[:.].+?)\\/       - A registry must have ":" or "." and end with "/"
+            ?                    - Make a registry optional
+        (.*?)                - [GROUP 1] REPOSITORY
+            .*?                  - Get repository name until separator
+        (?:[@:])?            - SEPARATOR
+            ?:                   - Don't capture separator
+            [@:]                 - The separator must be either "@" or ":"
+            ?                    - The separator is optional
+        ((?<=[@:]).*)?       - [GROUP 2] TAG / DIGEST
+            (?<=[@:])            - A tag / digest must be preceded by "@" or ":"
+            .*                   - Capture rest of tag / digest
+            ?                    - A tag / digest is optional
     Examples:
         image
             - None

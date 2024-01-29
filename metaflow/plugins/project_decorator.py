@@ -25,6 +25,50 @@ class ProjectDecorator(FlowDecorator):
         Project name. Make sure that the name is unique amongst all
         projects that use the same production scheduler. The name may
         contain only lowercase alphanumeric characters and underscores.
+
+    MF Add To Current
+    -----------------
+    project_name -> str
+        The name of the project assigned to this flow, i.e. `X` in `@project(name=X)`.
+
+        @@ Returns
+        -------
+        str
+            Project name.
+
+    project_flow_name -> str
+        The flow name prefixed with the current project and branch. This name identifies
+        the deployment on a production scheduler.
+
+        @@ Returns
+        -------
+        str
+            Flow name prefixed with project information.
+
+    branch_name -> str
+        The current branch, i.e. `X` in `--branch=X` set during deployment or run.
+
+        @@ Returns
+        -------
+        str
+            Branch name.
+
+    is_user_branch -> bool
+        True if the flow is deployed without a specific `--branch` or a `--production`
+        flag.
+
+        @@ Returns
+        -------
+        bool
+            True if the deployment does not correspond to a specific branch.
+
+    is_production -> bool
+        True if the flow is deployed with the `--production` flag
+
+        @@ Returns
+        -------
+        bool
+            True if the flow is deployed with `--production`.
     """
 
     name = "project"
@@ -83,7 +127,6 @@ class ProjectDecorator(FlowDecorator):
 
 
 def format_name(flow_name, project_name, deploy_prod, given_branch, user_name):
-
     if not project_name:
         # an empty string is not a valid project name
         raise MetaflowException(

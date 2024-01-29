@@ -1,14 +1,13 @@
 from collections import namedtuple
 import os
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING
 
 from metaflow.metaflow_config import TEMPDIR
 
 Parallel = namedtuple("Parallel", ["main_ip", "num_nodes", "node_index"])
 
-# Can add this if we are ok with 3.5.2+
-# if typing.TYPE_CHECKING:
-#     from metaflow.client.core import Run, Task
+if TYPE_CHECKING:
+    import metaflow
 
 
 class Current(object):
@@ -199,7 +198,7 @@ class Current(object):
         return "/".join(pathspec_components)
 
     @property
-    def task(self) -> Optional["Task"]:
+    def task(self) -> Optional["metaflow.Task"]:
         """
         Task object of the current task.
 
@@ -221,7 +220,7 @@ class Current(object):
         return Task("/".join(pathspec_components), _namespace_check=False)
 
     @property
-    def run(self) -> Optional["Run"]:
+    def run(self) -> Optional["metaflow.Run"]:
         """
         Run object of the current run.
 

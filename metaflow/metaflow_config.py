@@ -351,7 +351,7 @@ CONDA_DEPENDENCY_RESOLVER = from_conf("CONDA_DEPENDENCY_RESOLVER", "conda")
 ###
 # Debug configuration
 ###
-DEBUG_OPTIONS = ["subcommand", "sidecar", "s3client", "tracing"]
+DEBUG_OPTIONS = ["subcommand", "sidecar", "s3client", "tracing", "stubgen"]
 
 for typ in DEBUG_OPTIONS:
     vars()["DEBUG_%s" % typ.upper()] = from_conf("DEBUG_%s" % typ.upper(), False)

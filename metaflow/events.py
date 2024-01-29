@@ -1,6 +1,11 @@
 from collections import OrderedDict, namedtuple
 from datetime import datetime
 
+from typing import List, Optional, TYPE_CHECKING, Union
+
+if TYPE_CHECKING:
+    import metaflow
+
 MetaflowEvent = namedtuple("MetaflowEvent", ["name", "id", "timestamp", "type"])
 MetaflowEvent.__doc__ = """
     Container of metadata that identifies the event that triggered
@@ -50,7 +55,7 @@ class Trigger(object):
         ]
 
     @classmethod
-    def from_runs(cls, run_objs):
+    def from_runs(cls, run_objs: List["metaflow.Run"]):
         run_objs.sort(key=lambda x: x.finished_at, reverse=True)
         trigger = Trigger(
             [
@@ -67,7 +72,7 @@ class Trigger(object):
         return trigger
 
     @property
-    def event(self):
+    def event(self) -> Optional[MetaflowEvent]:
         """
         The `MetaflowEvent` object corresponding to the triggering event.
 
@@ -81,7 +86,7 @@ class Trigger(object):
         return next(iter(self._events), None)
 
     @property
-    def events(self):
+    def events(self) -> Optional[List[MetaflowEvent]]:
         """
         The list of `MetaflowEvent` objects correspondings to all the triggering events.
 
@@ -93,7 +98,7 @@ class Trigger(object):
         return list(self._events) or None
 
     @property
-    def run(self):
+    def run(self) -> Optional["metaflow.Run"]:
         """
         The corresponding `Run` object if the triggering event is a Metaflow run.
 
@@ -110,7 +115,7 @@ class Trigger(object):
         return next(iter(self._runs), None)
 
     @property
-    def runs(self):
+    def runs(self) -> Optional[List["metaflow.Run"]]:
         """
         The list of `Run` objects in the triggering events.
         Returns `None` if none of the triggering events are `Run` objects.
@@ -136,14 +141,14 @@ class Trigger(object):
 
         return list(self._runs) or None
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> Union["metaflow.Run", MetaflowEvent]:
         """
         If triggering events are runs, `key` corresponds to the flow name of the triggering run.
         Otherwise, `key` corresponds to the event name and a `MetaflowEvent` object is returned.
 
         Returns
         -------
-        Run or MetaflowEvent
+        Union[Run, MetaflowEvent]
             `Run` object if triggered by a run. Otherwise returns a `MetaflowEvent`.
         """
         if self.runs:
@@ -161,8 +166,8 @@ class Trigger(object):
             return iter(self.events)
         return iter([])
 
-    def __contains__(self, id):
+    def __contains__(self, ident: str) -> bool:
         try:
-            return bool(self.__getitem__(id))
+            return bool(self.__getitem__(ident))
         except KeyError:
             return False

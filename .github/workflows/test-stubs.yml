@@ -1,0 +1,48 @@
+name: Test Stubs
+on:
+  push:
+    branches:
+    - master
+  pull_request:
+    branches:
+    - master
+  workflow_call:
+
+permissions: read-all
+
+jobs:
+  Python:
+    name: core / Python ${{ matrix.ver }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-20.04, macos-latest]
+        ver: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+
+    steps:
+    - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
+
+    - name: Set up Python
+      uses: actions/setup-python@75f3110429a8c05be0e1bf360334e4cced2b63fa # v2.3.3
+      with:
+        python-version: ${{ matrix.ver }}
+
+    - name: Install Python ${{ matrix.ver }} dependencies
+      run: |
+        python3 -m pip install --upgrade pip setuptools
+        python3 -m pip install pytest build mypy pytest-mypy-plugins
+
+    - name: Install metaflow
+      run: pip install .
+
+    - name: Install metaflow-stubs
+      run: metaflow develop stubs install --force
+
+    - name: Run mypy tests
+      uses: nick-fields/retry@v2
+      with:
+        max_attempts: 2
+        timeout_minutes: 3
+        retry_on: error
+        command: cd ./stubs && pytest --mypy-ini-file test/setup.cfg --mypy-only-local-stub && cd -

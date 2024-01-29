@@ -1,7 +1,7 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from metaflow.client import Task
+    import metaflow
 
 
 class MetaflowCard(object):
@@ -77,7 +77,7 @@ class MetaflowCard(object):
         except ImportError:
             return None
 
-    def render(self, task) -> str:
+    def render(self, task: "metaflow.Task") -> str:
         """
         Produce custom card contents in HTML.
 

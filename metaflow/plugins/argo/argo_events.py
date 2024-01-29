@@ -73,7 +73,7 @@ class ArgoEvent(object):
         ----------
         payload : dict
             Additional key-value pairs to add to the payload.
-        ignore_errors : bool, default: True
+        ignore_errors : bool, default True
             If True, events are created on a best effort basis - errors are silently ignored.
         """
 
@@ -90,7 +90,7 @@ class ArgoEvent(object):
         ----------
         payload : dict
             Additional key-value pairs to add to the payload.
-        ignore_errors : bool, default: True
+        ignore_errors : bool, default True
             If True, events are created on a best effort basis - errors are silently ignored.
         """
 

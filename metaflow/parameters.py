@@ -73,7 +73,6 @@ class DeployTimeField(object):
         return_str=True,
         print_representation=None,
     ):
-
         self.fun = fun
         self.field = field
         self.parameter_name = parameter_name
@@ -242,16 +241,16 @@ class Parameter(object):
         indicate that the value must be a valid JSON object. A function
         implies that the parameter corresponds to a *deploy-time parameter*.
         The type of the default value is used as the parameter `type`.
-    type : Type, default: None
+    type : Type, default None
         If `default` is not specified, define the parameter type. Specify
         one of `str`, `float`, `int`, `bool`, or `JSONType`. If None, defaults
         to the type of `default` or `str` if none specified.
     help : str, optional
         Help text to show in `run --help`.
-    required : bool, default: False
+    required : bool, default False
         Require that the user specified a value for the parameter.
         `required=True` implies that the `default` is not used.
-    show_default : bool, default: True
+    show_default : bool, default True
         If True, show the default value in the help text.
     """
 

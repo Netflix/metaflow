@@ -1,5 +1,3 @@
-import json
-import time
 import re
 
 from metaflow import current
@@ -45,12 +43,22 @@ class TriggerDecorator(FlowDecorator):
 
     Parameters
     ----------
-    event : Union[str, dict], optional
+    event : Union[str, Dict[str, Any]], optional, default None
         Event dependency for this flow.
-    events : List[Union[str, dict]], optional
+    events : List[Union[str, Dict[str, Any]]], default []
         Events dependency for this flow.
-    options : dict, optional
+    options : Dict[str, Any], default {}
         Backend-specific configuration for tuning eventing behavior.
+
+    MF Add To Current
+    -----------------
+    trigger -> metaflow.events.Trigger
+        Returns `Trigger` if the current run is triggered by an event
+
+        @@ Returns
+        -------
+        Trigger
+            `Trigger` if triggered by an event
     """
 
     name = "trigger"
@@ -219,12 +227,22 @@ class TriggerOnFinishDecorator(FlowDecorator):
 
     Parameters
     ----------
-    flow : Union[str, Dict[str, str]], optional
+    flow : Union[str, Dict[str, str]], optional, default None
         Upstream flow dependency for this flow.
-    flows : List[Union[str, Dict[str, str]], optional
+    flows : List[Union[str, Dict[str, str]]], default []
         Upstream flow dependencies for this flow.
-    options : dict, optional
+    options : Dict[str, Any], default {}
         Backend-specific configuration for tuning eventing behavior.
+
+    MF Add To Current
+    -----------------
+    trigger -> metaflow.events.Trigger
+        Returns `Trigger` if the current run is triggered by an event
+
+        @@ Returns
+        -------
+        Trigger
+            `Trigger` if triggered by an event
     """
 
     name = "trigger_on_finish"

@@ -98,7 +98,7 @@ from .multicore_utils import parallel_imap_unordered, parallel_map
 from .metaflow_profile import profile
 
 # current runtime singleton
-from .current import current
+from .metaflow_current import current
 
 # Flow spec
 from .flowspec import FlowSpec

@@ -89,7 +89,7 @@ class FlowSpec(object):
 
         Parameters
         ----------
-        use_cli : bool, default: True
+        use_cli : bool, default True
             Set to True if the flow is invoked from __main__ or the command line
         """
 
@@ -322,7 +322,7 @@ class FlowSpec(object):
 
         Returns
         -------
-        List[Tuple[int, int, object]]
+        List[Tuple[int, int, Any]]
             An array describing the current stack of foreach steps.
         """
         return [
@@ -402,10 +402,10 @@ class FlowSpec(object):
         ----------
         inputs : Inputs
             Incoming steps to the join point.
-        exclude : List[str], optional
+        exclude : List[str], optional, default None
             If specified, do not consider merging artifacts with a name in `exclude`.
             Cannot specify if `include` is also specified.
-        include : List[str], optional
+        include : List[str], optional, default None
             If specified, only merge artifacts specified. Cannot specify if `exclude` is
             also specified.
 
@@ -557,7 +557,7 @@ class FlowSpec(object):
 
         Parameters
         ----------
-        dsts : Method
+        dsts : Callable[..., None]
             One or more methods annotated with `@step`.
 
         Raises
