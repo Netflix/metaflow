@@ -676,19 +676,11 @@ def validate_run_id(
     execution = StepFunctions.get_execution(state_machine_name, name)
     if execution is None:
         raise MetaflowException(
-            "Could not find the execution *%s* (in RUNNING state) on AWS Step Functions"
-            % name
+            "Could not find the execution *%s* (in RUNNING state) for the state machine *%s* on AWS Step Functions"
+            % (name, state_machine_name)
         )
 
-    _, owner, token, sfn_state_machine = execution
-
-    # this snippet is probably never triggered since we fail early with not
-    # being able to find the state_machine itself
-    if state_machine_name != sfn_state_machine:
-        raise RunIdMismatch(
-            "The workflow with the run_id *%s* belongs to the state machine *%s*, not for the state machine *%s*."
-            % (run_id, sfn_state_machine, state_machine_name)
-        )
+    _, owner, token, _ = execution
 
     if authorize is None:
         authorize = load_token(token_prefix)
