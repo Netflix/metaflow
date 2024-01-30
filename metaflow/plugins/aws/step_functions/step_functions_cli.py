@@ -26,6 +26,10 @@ class IncorrectProductionToken(MetaflowException):
     headline = "Incorrect production token"
 
 
+class RunIdMismatch(MetaflowException):
+    headline = "Run ID mismatch"
+
+
 class IncorrectMetadataServiceVersion(MetaflowException):
     headline = "Incorrect version for metaflow service"
 
@@ -612,6 +616,83 @@ def delete(obj, authorize=None):
             "In-flight executions will not be affected. "
             "If necessary, terminate them manually."
         )
+
+
+@step_functions.command(help="Terminate flow execution on Step Functions.")
+@click.option(
+    "--authorize",
+    default=None,
+    type=str,
+    help="Authorize the termination with a production token",
+)
+@click.argument("run-id", required=True, type=str)
+@click.pass_obj
+def terminate(obj, run_id, authorize=None):
+    def _token_instructions(flow_name, prev_user):
+        obj.echo(
+            "There is an existing version of *%s* on AWS Step Functions which was "
+            "deployed by the user *%s*." % (flow_name, prev_user)
+        )
+        obj.echo(
+            "To terminate this flow, you need to use the same production token that they used."
+        )
+        obj.echo(
+            "Please reach out to them to get the token. Once you have it, call "
+            "this command:"
+        )
+        obj.echo("    step-functions terminate --authorize MY_TOKEN RUN_ID", fg="green")
+        obj.echo(
+            'See "Organizing Results" at docs.metaflow.org for more information '
+            "about production tokens."
+        )
+
+    validate_run_id(
+        obj.state_machine_name, obj.token_prefix, authorize, run_id, _token_instructions
+    )
+
+    # Trim prefix from run_id
+    name = run_id[4:]
+    obj.echo(
+        "Terminating run *{run_id}* for {flow_name} ...".format(
+            run_id=run_id, flow_name=obj.flow.name
+        ),
+        bold=True,
+    )
+
+    terminated = StepFunctions.terminate(obj.state_machine_name, name)
+    if terminated:
+        obj.echo("\nRun terminated at %s." % terminated.get("stopDate"))
+
+
+def validate_run_id(
+    state_machine_name, token_prefix, authorize, run_id, instructions_fn=None
+):
+    if not run_id.startswith("sfn-"):
+        raise RunIdMismatch(
+            "Run IDs for flows executed through AWS Step Functions begin with 'sfn-'"
+        )
+
+    name = run_id[4:]
+    execution = StepFunctions.get_execution(state_machine_name, name)
+    if execution is None:
+        raise MetaflowException(
+            "Could not find the execution *%s* (in RUNNING state) for the state machine *%s* on AWS Step Functions"
+            % (name, state_machine_name)
+        )
+
+    _, owner, token, _ = execution
+
+    if authorize is None:
+        authorize = load_token(token_prefix)
+    elif authorize.startswith("production:"):
+        authorize = authorize[11:]
+
+    if owner != get_username() and authorize != token:
+        if instructions_fn:
+            instructions_fn(flow_name=name, prev_user=owner)
+        raise IncorrectProductionToken("Try again with the correct production token.")
+
+    return True
 
 
 def validate_token(name, token_prefix, authorize, instruction_fn=None):

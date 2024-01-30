@@ -227,8 +227,8 @@ class ArgoWorkflows(object):
 
         return schedule_deleted, sensor_deleted, workflow_deleted
 
-    @staticmethod
-    def terminate(flow_name, name):
+    @classmethod
+    def terminate(cls, flow_name, name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
         response = client.terminate_workflow(name)
