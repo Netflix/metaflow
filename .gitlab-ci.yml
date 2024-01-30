@@ -17,7 +17,7 @@ variables:
   # Run on the Internal cluster only on commit.
   # We run the tests via the integration test framework for Non-Prod/Prod.
   DEPLOY_INTERNAL: "true"
-  DEPLOY_NONPROD: "false"
+  DEPLOY_DEV: "false"  # runs on Non-Prod
   DEPLOY_PROD: "false"
   DEPLOY_SANDBOX: "false"
   PUBLISH: "true"
@@ -172,7 +172,7 @@ test:nonprod:
     METAFLOW_RUN_URL_PREFIX: "https://metaflow.int.stage-k8s.zg-aip.net"
     METAFLOW_KUBERNETES_NAMESPACE: "metaflow-integration-testing-stage"
   rules:
-    - if: '$DEPLOY_NONPROD == "true"'
+    - if: '$DEPLOY_DEV == "true"'
 
 test:prod:
   extends: 
