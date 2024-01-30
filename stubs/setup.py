@@ -33,6 +33,7 @@ setup(
     },
     packages=["metaflow-stubs"],
     package_data={"metaflow-stubs": ["generated_for.txt", "py.typed", "**/*.pyi"]},
+    py_modules=["metaflow-stubs"],
     install_requires=[f"metaflow=={version}"],
-    python_requires=">=3.5.2",
+    python_requires=">=3.7.0",
 )

@@ -29,13 +29,13 @@ jobs:
       run: |
         cd ./stubs && python3 setup.py sdist bdist_wheel --universal && cd -
     - name: Publish metaflow-stubs package
-      uses: pypa/gh-action-pypi-publish@9b8e7336db3f96a2939a3e9fa827c62f466ca60d # master
+      uses: pypa/gh-action-pypi-publish@2f6f737ca5f74c637829c0f5c3acd0e29ea5e8bf #v1.8.11
       with:
         user: __token__
         password: ${{ secrets.pypi_password }}
         packages-dir: ./stubs/dist
     - name: Publish metaflow package
-      uses: pypa/gh-action-pypi-publish@9b8e7336db3f96a2939a3e9fa827c62f466ca60d # master
+      uses: pypa/gh-action-pypi-publish@2f6f737ca5f74c637829c0f5c3acd0e29ea5e8bf #v1.8.11
       with:
         user: __token__
         password: ${{ secrets.pypi_password }}
