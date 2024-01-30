@@ -45,7 +45,7 @@ from metaflow.metaflow_config import (
     UI_URL,
 )
 from metaflow.metaflow_config_funcs import config_values
-from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
+from metaflow.mflog import _get_bash_capture_log, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.kubernetes.kubernetes import (
     parse_kube_keyvalue_list,
@@ -1194,7 +1194,7 @@ class ArgoWorkflows(object):
 
             cmd_str = "%s; c=$?; %s; exit $c" % (
                 " && ".join([init_cmds, bash_capture_logs(" && ".join(step_cmds))]),
-                BASH_SAVE_LOGS,
+                _get_bash_capture_log()[1],
             )
             cmds = shlex.split('bash -c "%s"' % cmd_str)
 

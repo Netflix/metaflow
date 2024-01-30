@@ -331,19 +331,22 @@ class CondaEnvironment(MetaflowEnvironment):
             files.append((manifest, os.path.basename(manifest)))
         return files
 
-    def bootstrap_commands(self, step_name, datastore_type):
+    def bootstrap_commands(self, step_name, datastore_type, default_executable_path=None):
         # Bootstrap conda and execution environment for step
         step = next(step for step in self.flow if step.name == step_name)
         id_ = self.get_environment(step).get("id_")
         if id_:
+            python_executable_path = (
+                "python" if default_executable_path is None else default_executable_path
+            )
             return [
                 "echo 'Bootstrapping virtual environment...'",
                 # We have to prevent the tracing module from loading,
                 # as the bootstrapping process uses the internal S3 client which would fail to import tracing
                 # due to the required dependencies being bundled into the conda environment,
                 # which is yet to be initialized at this point.
-                'DISABLE_TRACING=True python -m metaflow.plugins.pypi.bootstrap "%s" %s "%s" linux-64'
-                % (self.flow.name, id_, self.datastore_type),
+                'DISABLE_TRACING=True %s -m metaflow.plugins.pypi.bootstrap "%s" %s "%s" linux-64'
+                % (python_executable_path, self.flow.name, id_, self.datastore_type),
                 "echo 'Environment bootstrapped.'",
                 "export PATH=$PATH:$(pwd)/micromamba",
             ]

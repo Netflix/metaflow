@@ -41,7 +41,7 @@ from metaflow.metaflow_config import (
 from metaflow.metaflow_config_funcs import config_values
 
 from metaflow.mflog import (
-    BASH_SAVE_LOGS,
+    _get_bash_capture_log,
     bash_capture_logs,
     export_mflog_env_vars,
     get_log_tailer,
@@ -130,7 +130,7 @@ class Kubernetes(object):
         # We lose the last logs in this scenario.
         #
         # TODO: Capture hard exit logs in Kubernetes.
-        cmd_str += "c=$?; %s; exit $c" % BASH_SAVE_LOGS
+        cmd_str += "c=$?; %s; exit $c" % _get_bash_capture_log()
         # For supporting sandboxes, ensure that a custom script is executed before
         # anything else is executed. The script is passed in as an env var.
         cmd_str = (

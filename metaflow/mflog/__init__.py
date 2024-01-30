@@ -41,21 +41,23 @@ BASH_MFLOG = (
     " }" % TASK_LOG_SOURCE
 )
 
-BASH_SAVE_LOGS_ARGS = ["python", "-m", "metaflow.mflog.save_logs"]
-BASH_SAVE_LOGS = " ".join(BASH_SAVE_LOGS_ARGS)
+
+def _get_bash_capture_log(default_python_executable="python"):
+    bash_save_log_args = [default_python_executable, "-m", "metaflow.mflog.save_logs"]
+    return bash_save_log_args, " ".join(bash_save_log_args)
 
 
 # this function returns a bash expression that redirects stdout
 # and stderr of the given bash expression to mflog.tee
-def bash_capture_logs(bash_expr, var_transform=None):
+def bash_capture_logs(bash_expr, var_transform=None, default_python_executable_path="python"):
     if var_transform is None:
         var_transform = lambda s: "$%s" % s
 
-    cmd = "python -m metaflow.mflog.tee %s %s"
+    cmd = "%s -m metaflow.mflog.tee %s %s"
     parts = (
         bash_expr,
-        cmd % (TASK_LOG_SOURCE, var_transform("MFLOG_STDOUT")),
-        cmd % (TASK_LOG_SOURCE, var_transform("MFLOG_STDERR")),
+        cmd % (default_python_executable_path, TASK_LOG_SOURCE, var_transform("MFLOG_STDOUT")),
+        cmd % (default_python_executable_path, TASK_LOG_SOURCE, var_transform("MFLOG_STDERR")),
     )
     return "(%s) 1>> >(%s) 2>> >(%s >&2)" % parts
 

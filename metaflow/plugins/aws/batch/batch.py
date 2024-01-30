@@ -30,7 +30,7 @@ from metaflow.mflog import (
     export_mflog_env_vars,
     bash_capture_logs,
     tail_logs,
-    BASH_SAVE_LOGS,
+    _get_bash_capture_log,
 )
 
 from .batch_client import BatchClient
@@ -92,7 +92,7 @@ class Batch(object):
         # Note that if step_expr OOMs, this tail expression is never executed.
         # We lose the last logs in this scenario (although they are visible
         # still through AWS CloudWatch console).
-        cmd_str += "c=$?; %s; exit $c" % BASH_SAVE_LOGS
+        cmd_str += "c=$?; %s; exit $c" % _get_bash_capture_log()[1]
         return shlex.split('bash -c "%s"' % cmd_str)
 
     def _search_jobs(self, flow_name, run_id, user):
