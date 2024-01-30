@@ -33,7 +33,7 @@ jobs:
       with:
         user: __token__
         password: ${{ secrets.pypi_password }}
-        packages_dir: ./stubs/dist
+        packages-dir: ./stubs/dist
     - name: Publish metaflow package
       uses: pypa/gh-action-pypi-publish@release/v1.8
       with:
