@@ -885,7 +885,7 @@ class ArgoWorkflows(object):
                         )
                     )
                 ]
-                # We need to add the split-index for the last step in a nested foreach to be able to generate
+                # We need to add the split-index and root-input-path for the last step in any foreach to be able to generate
                 # task id's for the last step more deterministically.
                 if (
                     node.is_inside_foreach
@@ -1127,17 +1127,11 @@ class ArgoWorkflows(object):
                     for parent in join_node.split_parents
                     if self.graph[parent].type == "foreach"
                 )
-                node_in_nested_foreach = (
-                    len(
-                        [
-                            parent
-                            for parent in node.split_parents
-                            if self.graph[parent].type == "foreach"
-                        ]
-                    )
-                    > 1
+                not_first_in_foreach = any(
+                    not self.graph[f].type == "foreach" for f in node.in_funcs
                 )
-                if join_is_foreach and node_in_nested_foreach:
+
+                if join_is_foreach and not_first_in_foreach:
                     # we need to use the split index in case this is the last step in a nested foreach
                     task_idx = "{{inputs.parameters.split-index}}"
                     root_input = "{{inputs.parameters.root-input-path}}"
@@ -1481,17 +1475,11 @@ class ArgoWorkflows(object):
                     for parent in join_node.split_parents
                     if self.graph[parent].type == "foreach"
                 )
-                node_in_nested_foreach = (
-                    len(
-                        [
-                            parent
-                            for parent in node.split_parents
-                            if self.graph[parent].type == "foreach"
-                        ]
-                    )
-                    > 1
+                not_first_in_foreach = any(
+                    not self.graph[f].type == "foreach" for f in node.in_funcs
                 )
-                if join_is_foreach and node_in_nested_foreach:
+
+                if join_is_foreach and not_first_in_foreach:
                     # we need to carry the split-index and root-input-path info for the last step inside a foreach
                     # for correctly joining nested foreaches
                     if not has_split_index:
