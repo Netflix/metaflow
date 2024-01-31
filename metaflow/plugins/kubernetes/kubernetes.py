@@ -130,7 +130,7 @@ class Kubernetes(object):
         # We lose the last logs in this scenario.
         #
         # TODO: Capture hard exit logs in Kubernetes.
-        cmd_str += "c=$?; %s; exit $c" % _get_bash_capture_log()
+        cmd_str += "c=$?; %s; exit $c" % " ".join(_get_bash_capture_log())
         # For supporting sandboxes, ensure that a custom script is executed before
         # anything else is executed. The script is passed in as an env var.
         cmd_str = (

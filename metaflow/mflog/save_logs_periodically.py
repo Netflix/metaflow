@@ -38,7 +38,7 @@ class SaveLogsPeriodicallySidecar(object):
             if new_sizes != sizes:
                 sizes = new_sizes
                 try:
-                    subprocess.call(_get_bash_capture_log()[0])
+                    subprocess.call(_get_bash_capture_log())
                 except:
                     pass
             time.sleep(update_delay(time.time() - start_time))
