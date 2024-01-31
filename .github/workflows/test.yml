@@ -44,7 +44,7 @@ jobs:
     - name: Install Python ${{ matrix.ver }} dependencies
       run: |
         python3 -m pip install --upgrade pip setuptools
-        python3 -m pip install tox numpy black
+        python3 -m pip install tox==3.25.1 numpy black==21.12b "click<8.1.0"
 
     - name: Python Code Format Check
       run: black --target-version py39 --diff --check ./metaflow/plugins/aip/*.py
