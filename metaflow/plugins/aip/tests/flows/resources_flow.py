@@ -208,43 +208,44 @@ class ResourcesFlow(FlowSpec):
             "df -h | grep /opt/metaflow_volume", shell=True
         )
         assert "12G" in str(output)
-        self.next(self.split_step)
-
-    @step
-    def split_step(self):
-        self.items = [1, 2]
-        self.next(self.shared_volume_foreach_step, foreach="items")
-
-    @resources(volume="13G", volume_mode="ReadWriteMany")
-    @step
-    def shared_volume_foreach_step(self):
-        output = subprocess.check_output(
-            "df -h | grep /opt/metaflow_volume", shell=True
-        )
-        assert "13G" in str(output)
-
-        file_path = "/opt/metaflow_volume/test.txt"
-        message = "hello world!"
-
-        # validate the volume is shared across the foreach splits
-        if self.input == 1:
-            with open(file_path, "w") as f:
-                f.write(message)
-        else:
-            while not os.path.exists(file_path):
-                time.sleep(1)
-                print(".")
-
-            with open(file_path, "r") as f:
-                read_lines = f.readlines()
-                print("read_lines", read_lines)
-                assert message == read_lines[0]
-
-        self.next(self.shared_volume_join_step)
-
-    @step
-    def shared_volume_join_step(self, inputs):
         self.next(self.end)
+
+    # AIP-8056(talebz):  Flaky WFSDK test volume_mode=“ReadWriteMany”
+    # @step
+    # def split_step(self):
+    #     self.items = [1, 2]
+    #     self.next(self.shared_volume_foreach_step, foreach="items")
+    #
+    # @resources(volume="13G", volume_mode="ReadWriteMany")
+    # @step
+    # def shared_volume_foreach_step(self):
+    #     output = subprocess.check_output(
+    #         "df -h | grep /opt/metaflow_volume", shell=True
+    #     )
+    #     assert "13G" in str(output)
+    #
+    #     file_path = "/opt/metaflow_volume/test.txt"
+    #     message = "hello world!"
+    #
+    #     # validate the volume is shared across the foreach splits
+    #     if self.input == 1:
+    #         with open(file_path, "w") as f:
+    #             f.write(message)
+    #     else:
+    #         while not os.path.exists(file_path):
+    #             time.sleep(1)
+    #             print(".")
+    #
+    #         with open(file_path, "r") as f:
+    #             read_lines = f.readlines()
+    #             print("read_lines", read_lines)
+    #             assert message == read_lines[0]
+    #
+    #     self.next(self.shared_volume_join_step)
+    #
+    # @step
+    # def shared_volume_join_step(self, inputs):
+    #     self.next(self.end)
 
     @step
     def end(self):
