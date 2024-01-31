@@ -1415,11 +1415,7 @@ class ArgoWorkflows(object):
                     medium="Memory",
                     size_limit=tmpfs_size if tmpfs_enabled else 0,
                 )
-                .empty_dir_volume(
-                    "dhsm",
-                    medium="Memory",
-                    size_limit = shared_memory
-                )
+                .empty_dir_volume("dhsm", medium="Memory", size_limit=shared_memory)
                 .pvc_volumes(resources.get("persistent_volume_claims"))
                 # Set node selectors
                 .node_selectors(resources.get("node_selector"))
