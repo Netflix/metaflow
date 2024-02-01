@@ -73,6 +73,15 @@ def kubernetes():
 @click.option("--memory", help="Memory requirement for Kubernetes pod.")
 @click.option("--gpu", help="GPU requirement for Kubernetes pod.")
 @click.option("--gpu-vendor", help="GPU vendor requirement for Kubernetes pod.")
+@click.option("--resource-limits-memory", help="Memory limits for Kubernetes pod.")
+@click.option("--resource-limits-cpu", help="CPU limits for Kubernetes pod.")
+@click.option(
+    "--security-context",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=False,
+    help="Security context Kubernetes pod.",
+)
 @click.option("--run-id", help="Passed to the top-level 'step'.")
 @click.option("--task-id", help="Passed to the top-level 'step'.")
 @click.option("--input-paths", help="Passed to the top-level 'step'.")
@@ -132,6 +141,9 @@ def step(
     run_time_limit=None,
     persistent_volume_claims=None,
     tolerations=None,
+    security_context=None,
+    resource_limits_memory=None,
+    resource_limits_cpu=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None, **kwargs):
@@ -245,6 +257,9 @@ def step(
                 env=env,
                 persistent_volume_claims=persistent_volume_claims,
                 tolerations=tolerations,
+                security_context=security_context,
+                resource_limits_memory=resource_limits_memory,
+                resource_limits_cpu=resource_limits_cpu,
             )
     except Exception as e:
         traceback.print_exc(chain=False)

@@ -3,11 +3,13 @@ import math
 import random
 import time
 
-from metaflow.tracing import inject_tracing_vars
-
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_SECRETS
+from metaflow.plugins.kubernetes.kuberenetes_utils import (
+    make_kubernetes_container,
+    compute_tempfs_enabled,
+)
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
@@ -73,11 +75,6 @@ class KubernetesJob(object):
         # (unique UID) per Metaflow task attempt.
         client = self._client.get()
 
-        # tmpfs variables
-        use_tmpfs = self._kwargs["use_tmpfs"]
-        tmpfs_size = self._kwargs["tmpfs_size"]
-        tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
-
         self._job = client.V1Job(
             api_version="batch/v1",
             kind="Job",
@@ -111,92 +108,13 @@ class KubernetesJob(object):
                         # TODO (savin): Enable affinities for GPU scheduling.
                         # affinity=?,
                         containers=[
-                            client.V1Container(
-                                command=self._kwargs["command"],
-                                env=[
-                                    client.V1EnvVar(name=k, value=str(v))
-                                    for k, v in self._kwargs.get(
-                                        "environment_variables", {}
-                                    ).items()
-                                ]
-                                # And some downward API magic. Add (key, value)
-                                # pairs below to make pod metadata available
-                                # within Kubernetes container.
-                                + [
-                                    client.V1EnvVar(
-                                        name=k,
-                                        value_from=client.V1EnvVarSource(
-                                            field_ref=client.V1ObjectFieldSelector(
-                                                field_path=str(v)
-                                            )
-                                        ),
-                                    )
-                                    for k, v in {
-                                        "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
-                                        "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
-                                        "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
-                                        "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME": "spec.serviceAccountName",
-                                        "METAFLOW_KUBERNETES_NODE_IP": "status.hostIP",
-                                    }.items()
-                                ]
-                                + [
-                                    client.V1EnvVar(name=k, value=str(v))
-                                    for k, v in inject_tracing_vars({}).items()
-                                ],
-                                env_from=[
-                                    client.V1EnvFromSource(
-                                        secret_ref=client.V1SecretEnvSource(
-                                            name=str(k),
-                                            # optional=True
-                                        )
-                                    )
-                                    for k in list(self._kwargs.get("secrets", []))
-                                    + KUBERNETES_SECRETS.split(",")
-                                    if k
-                                ],
-                                image=self._kwargs["image"],
-                                image_pull_policy=self._kwargs["image_pull_policy"],
-                                name=self._kwargs["step_name"].replace("_", "-"),
-                                resources=client.V1ResourceRequirements(
-                                    requests={
-                                        "cpu": str(self._kwargs["cpu"]),
-                                        "memory": "%sM" % str(self._kwargs["memory"]),
-                                        "ephemeral-storage": "%sM"
-                                        % str(self._kwargs["disk"]),
-                                    },
-                                    limits={
-                                        "%s.com/gpu".lower()
-                                        % self._kwargs["gpu_vendor"]: str(
-                                            self._kwargs["gpu"]
-                                        )
-                                        for k in [0]
-                                        # Don't set GPU limits if gpu isn't specified.
-                                        if self._kwargs["gpu"] is not None
-                                    },
-                                ),
-                                volume_mounts=(
-                                    [
-                                        client.V1VolumeMount(
-                                            mount_path=self._kwargs.get("tmpfs_path"),
-                                            name="tmpfs-ephemeral-volume",
-                                        )
-                                    ]
-                                    if tmpfs_enabled
-                                    else []
-                                )
-                                + (
-                                    [
-                                        client.V1VolumeMount(
-                                            mount_path=path, name=claim
-                                        )
-                                        for claim, path in self._kwargs[
-                                            "persistent_volume_claims"
-                                        ].items()
-                                    ]
-                                    if self._kwargs["persistent_volume_claims"]
-                                    is not None
-                                    else []
-                                ),
+                            make_kubernetes_container(
+                                client,
+                                self._kwargs["step_name"].replace("_", "-"),
+                                self._kwargs["command"],
+                                self._kwargs,
+                                self._kwargs.get("environment_variables", {}),
+                                additional_secrets=KUBERNETES_SECRETS.split(","),
                             )
                         ],
                         node_selector=self._kwargs.get("node_selector"),
@@ -225,11 +143,13 @@ class KubernetesJob(object):
                                     empty_dir=client.V1EmptyDirVolumeSource(
                                         medium="Memory",
                                         # Add default unit as ours differs from Kubernetes default.
-                                        size_limit="{}Mi".format(tmpfs_size),
+                                        size_limit="{}Mi".format(
+                                            self._kwargs["tmpfs_size"]
+                                        ),
                                     ),
                                 )
                             ]
-                            if tmpfs_enabled
+                            if compute_tempfs_enabled(self._kwargs)
                             else []
                         )
                         + (
@@ -330,7 +250,6 @@ class KubernetesJob(object):
 
 
 class RunningJob(object):
-
     # State Machine implementation for the lifecycle behavior documented in
     # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
     #
@@ -450,7 +369,6 @@ class RunningJob(object):
         client = self._client.get()
         if not self.is_done:
             if self.is_running:
-
                 # Case 1.
                 from kubernetes.stream import stream
 
