@@ -496,17 +496,18 @@ class KubeflowPipelines(object):
         recurring_run_policy: Optional[str] = None,
         max_run_concurrency: Optional[int] = 10,
     ) -> str:
+        sanitized_name = sanitize_k8s_name(name if name else self.name)
         if kind in ["Workflow", "WorkflowTemplate"]:
             workflow: Dict[str, Any] = self._create_workflow_yaml(
                 flow_parameters,
                 kind,
                 max_run_concurrency,
-                name,
+                sanitized_name,
             )
             kfp.compiler.Compiler()._write_workflow(workflow, output_path)
         elif kind == "CronWorkflow":
             cron_workflow: Dict[str, Any] = KubeflowPipelines._cron_workflow(
-                sanitize_k8s_name(name if name else self.name),
+                sanitized_name,
                 flow_parameters=flow_parameters,
                 schedule=recurring_run_cron,
                 concurrency=recurring_run_policy,
@@ -516,7 +517,7 @@ class KubeflowPipelines(object):
                 yaml.safe_dump(cron_workflow, yaml_file, default_flow_style=False)
         elif kind == "ConfigMap":
             config_map = KubeflowPipelines._config_map(
-                sanitize_k8s_name(name if name else self.name), max_run_concurrency
+                sanitized_name, max_run_concurrency
             )
             with open(output_path, "w") as yaml_file:
                 yaml.safe_dump(config_map, yaml_file, default_flow_style=False)
