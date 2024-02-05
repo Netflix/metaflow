@@ -168,6 +168,7 @@ class NativeRuntime(object):
             decos = []
         else:
             decos = getattr(self._flow, step).decorators
+
         return Task(
             self._flow_datastore,
             self._flow,
@@ -577,6 +578,7 @@ class NativeRuntime(object):
         for task in finished_tasks:
             self._finished[task.finished_id] = task.path
             self._is_cloned[task.path] = task.is_cloned
+
             # CHECK: ensure that runtime transitions match with
             # statically inferred transitions. Make an exception for control
             # tasks, where we just rely on static analysis since we don't
@@ -605,6 +607,7 @@ class NativeRuntime(object):
                         actual=", ".join(next_steps),
                     )
                 )
+
             # Different transition types require different treatment
             if any(self._graph[f].type == "join" for f in next_steps):
                 # Next step is a join
@@ -776,7 +779,6 @@ class Task(object):
 
         # Only used in clone-only resume.
         self._is_resume_leader = None
-        self._resume_leader = None
         self._resume_done = None
         self._resume_identifier = resume_identifier
 
@@ -827,8 +829,9 @@ class Task(object):
                 except ValueError:
                     pass
 
-                # If _get_task_id returns False it means we created a new task_id.
-                new_task_id_created = not self._get_task_id(clone_task_id)
+                # If _get_task_id returns True it means the task already existed, so
+                # we wait for it.
+                already_existed = self._get_task_id(clone_task_id)
                 task_completed = False
                 # We may not have access to task datastore on first resume attempt, but
                 # on later resume attempt, we should check if the resume task is complete
@@ -838,9 +841,9 @@ class Task(object):
                     task_completed = self.results["_task_ok"]
                 except DataException as e:
                     pass
-                self._wait_for_clone = (not new_task_id_created) and task_completed
+                self._should_skip_cloning = already_existed and task_completed
             else:
-                self._wait_for_clone = False
+                self._should_skip_cloning = False
                 self._get_task_id(task_id)
 
             # Store the mapping from current_pathspec -> origin_pathspec which
@@ -849,7 +852,7 @@ class Task(object):
             if self.step == "_parameters":
                 # We don't put _parameters on the queue so we either clone it or wait
                 # for it.
-                if not self._wait_for_clone:
+                if not self._should_skip_cloning:
                     self.log(
                         "Selected as the reentrant clone leader.",
                         system_msg=True,
@@ -872,6 +875,7 @@ class Task(object):
                         system_msg=True,
                     )
                     self._resume_done = False
+                    resume_leader = None
                     while True:
                         try:
                             ds = self._flow_datastore.get_task_datastore(
@@ -883,14 +887,14 @@ class Task(object):
                                 )
 
                             # Check if we are the resume leader (and only check once).
-                            if (not self._resume_leader) and ds.has_metadata(
+                            if (not resume_leader) and ds.has_metadata(
                                 "_resume_leader", add_attempt=False
                             ):
-                                self._resume_leader = ds.load_metadata(
+                                resume_leader = ds.load_metadata(
                                     ["_resume_leader"], add_attempt=False
                                 )["_resume_leader"]
                                 self._is_resume_leader = (
-                                    self._resume_leader == resume_identifier
+                                    resume_leader == resume_identifier
                                 )
 
                             # Check if resume is complete. Resume leader will write the done file.
@@ -924,11 +928,10 @@ class Task(object):
                 self.clone_origin = origin.pathspec
                 # Save a call to creating the results_ds since its same as origin.
                 self._results_ds = origin
-                if self._wait_for_clone:
+
+                if self._should_skip_cloning:
                     self.log(
-                        "Waiting for the successful cloning of results "
-                        "of a previously run task %s (this may take some time)"
-                        % self.clone_origin,
+                        "Skip cloning of previously run task %s" % self.clone_origin,
                         system_msg=True,
                     )
                 else:
@@ -1133,8 +1136,8 @@ class Task(object):
         return self._is_cloned
 
     @property
-    def wait_for_clone(self):
-        return self._wait_for_clone
+    def should_skip_cloning(self):
+        return self._should_skip_cloning
 
     def persist(self, flow):
         # this is used to persist parameters before the start step
@@ -1322,6 +1325,8 @@ class Worker(object):
             # disabling sidecars for cloned tasks due to perf reasons
             args.top_level_options["event-logger"] = "nullSidecarLogger"
             args.top_level_options["monitor"] = "nullSidecarMonitor"
+            if self.task.should_skip_cloning:
+                args.command_options["clone-wait-only"] = True
         else:
             # decorators may modify the CLIArgs object in-place
             for deco in self.task.decos:
