@@ -34,6 +34,11 @@ class KubernetesClient(object):
         from kubernetes import client, config
 
         if os.getenv("KUBECONFIG"):
+            # There are cases where we're running inside a pod, but can't use
+            # the kubernetes client for that pod's cluster: for example when
+            # running in Bitbucket Cloud or other CI system.
+            # In this scenario, the user can set a KUBECONFIG environment variable
+            # to load the kubeconfig, regardless of whether we're in a pod or not.
             config.load_kube_config()
         elif os.getenv("KUBERNETES_SERVICE_HOST"):
             # We are inside a pod, authenticate via ServiceAccount assigned to us
