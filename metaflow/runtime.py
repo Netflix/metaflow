@@ -78,9 +78,6 @@ class NativeRuntime(object):
         max_log_size=MAX_LOG_SIZE,
         resume_identifier=None,
     ):
-        print("runetime init!!")
-        print("resume_identifier: ", resume_identifier)
-
         if run_id is None:
             self._run_id = metadata.new_run_id()
         else:
@@ -171,9 +168,6 @@ class NativeRuntime(object):
             decos = []
         else:
             decos = getattr(self._flow, step).decorators
-        print("_new_task: ", step)
-        print(step, " may_clone: ", may_clone)
-        print(step, " input_paths: ", input_paths)
         return Task(
             self._flow_datastore,
             self._flow,
@@ -259,8 +253,6 @@ class NativeRuntime(object):
         try:
             # main scheduling loop
             exception = None
-            print("self._run_queue: ", self._run_queue)
-            print("self._active_tasks ", self._active_tasks)
             while self._run_queue or self._active_tasks[0] > 0:
 
                 # 1. are any of the current workers finished?
@@ -613,7 +605,6 @@ class NativeRuntime(object):
                         actual=", ".join(next_steps),
                     )
                 )
-            print("next_steps: ", next_steps)
             # Different transition types require different treatment
             if any(self._graph[f].type == "join" for f in next_steps):
                 # Next step is a join
@@ -677,7 +668,6 @@ class NativeRuntime(object):
             # before launching the worker so that cost is amortized over time, instead
             # of doing it during _queue_push.
             task = self._new_task(step, **task_kwargs)
-            print("launch worker for step: ", step)
             self._launch_worker(task)
 
     def _retry_worker(self, worker):
@@ -695,7 +685,6 @@ class NativeRuntime(object):
         self._launch_worker(worker.task)
 
     def _launch_worker(self, task):
-        print("_launch worker ", [task.flow_name, task.run_id, task.step])
         if self._clone_only and not task.is_cloned:
             # We don't launch a worker here
             self._logger(
@@ -790,14 +779,11 @@ class Task(object):
         self._resume_leader = None
         self._resume_done = None
         self._resume_identifier = resume_identifier
-        print("within task, resume_identifier: ", resume_identifier)
 
         origin = None
         if clone_run_id and may_clone:
             origin = self._find_origin_task(clone_run_id, join_type)
-        print("origin is None: ", (origin is None))
         if origin and origin["_task_ok"]:
-            print("going to clone!", origin.task_id)
             # At this point, we know we are going to clone
             self._is_cloned = True
             if reentrant:
@@ -841,21 +827,21 @@ class Task(object):
                 except ValueError:
                     pass
 
-                print("clone_task_id: ", clone_task_id)
                 # If _get_task_id returns False it means we created a new task_id.
                 new_task_id_created = not self._get_task_id(clone_task_id)
                 task_completed = False
+                # We may not have access to task datastore on first resume attempt, but
+                # on later resume attempt, we should check if the resume task is complete
+                # or not. This is to fix the issue where the resume leader was killed
+                # unexpectedly during cloning and never mark task complete.
                 try:
-                    print("self._path: ", self._path)
-                    print("task_ok? ", self.results["_task_ok"])
                     task_completed = self.results["_task_ok"]
                 except DataException as e:
-                    print("exception: ", str(e))
+                    pass
                 self._wait_for_clone = (not new_task_id_created) and task_completed
             else:
                 self._wait_for_clone = False
                 self._get_task_id(task_id)
-            print("self._wait_for_clone", self._wait_for_clone)
 
             # Store the mapping from current_pathspec -> origin_pathspec which
             # will be useful for looking up origin_ds_set in find_origin_task.
@@ -891,25 +877,18 @@ class Task(object):
                             ds = self._flow_datastore.get_task_datastore(
                                 self.run_id, self.step, self.task_id
                             )
-                            print("at least we have ds?")
                             if not ds["_task_ok"]:
                                 raise MetaflowInternalError(
                                     "Externally cloned _parameters task did not succeed"
                                 )
 
-                            print("checking resume leader")
-
                             # Check if we are the resume leader (and only check once).
                             if (not self._resume_leader) and ds.has_metadata(
                                 "_resume_leader", add_attempt=False
                             ):
-                                resume_leader_map = ds.load_metadata(
+                                self._resume_leader = ds.load_metadata(
                                     ["_resume_leader"], add_attempt=False
-                                )
-                                print("resume_leader: ", resume_leader_map)
-                                self._resume_leader = resume_leader_map[
-                                    "_resume_leader"
-                                ]
+                                )["_resume_leader"]
                                 self._is_resume_leader = (
                                     self._resume_leader == resume_identifier
                                 )
@@ -1133,7 +1112,6 @@ class Task(object):
         if self._results_ds:
             return self._results_ds
         else:
-            print("retrieving task datastore for ", self.run_id, "/", self.step)
             self._results_ds = self._flow_datastore.get_task_datastore(
                 self.run_id, self.step, self.task_id
             )

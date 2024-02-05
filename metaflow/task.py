@@ -285,7 +285,6 @@ class MetaflowTask(object):
         clone_origin_task,
         retry_count,
     ):
-        print(step_name, ": clone only start")
         if not clone_origin_task:
             raise MetaflowInternalError(
                 "task.clone_only needs a valid clone_origin_task value."
@@ -331,7 +330,6 @@ class MetaflowTask(object):
             ],
         )
         output.done()
-        print(step_name, ": clone only end")
 
     def _finalize_control_task(self):
         # Update `_transition` which is expected by the NativeRuntime.

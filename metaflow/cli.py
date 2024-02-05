@@ -560,8 +560,6 @@ def step(
         ctx.obj.monitor,
         ubf_context,
     )
-    print("step!!!")
-    print("step_name", step_name)
     if clone_only:
         task.clone_only(
             step_name,
@@ -759,8 +757,6 @@ def resume(
                 )
             )
         clone_steps = {step_to_rerun}
-    if resume_identifier:
-        print("resume_identifier: ", resume_identifier)
     if run_id:
         # Run-ids that are provided by the metadata service are always integers.
         # External providers or run-ids (like external schedulers) always need to
