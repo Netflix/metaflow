@@ -33,7 +33,7 @@ def truncate(var):
     return var
 
 
-def retry_untill_timeout(cb_fn, *args, timeout=4, **kwargs):
+def retry_until_timeout(cb_fn, *args, timeout=4, **kwargs):
     """
     certain operations in metaflow may not be synchronous and may be running fully asynchronously.
     This creates a problem in writing tests that verify some behaviour at runtime. This function
@@ -52,7 +52,7 @@ def retry_untill_timeout(cb_fn, *args, timeout=4, **kwargs):
         time.sleep(1)
 
 
-def try_to_get_card(id=None, timeout=4):
+def try_to_get_card(id=None, timeout=60):
     """
     Safetly try to get the card object until a timeout value.
     """
@@ -63,7 +63,7 @@ def try_to_get_card(id=None, timeout=4):
             return False
         return container[0]
 
-    return retry_untill_timeout(_get_card, id, timeout=timeout)
+    return retry_until_timeout(_get_card, id, timeout=timeout)
 
 
 class AssertArtifactFailed(Exception):

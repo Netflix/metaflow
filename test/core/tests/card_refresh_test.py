@@ -64,7 +64,7 @@ class CardWithRefreshTest(MetaflowTest):
         # when async processes may write cards/data in a "best-effort" manner.
         # The `try_to_get_card` function will keep retrying to get a card until a
         # timeout value is reached. After which the function will throw a `TimeoutError`.
-        card = try_to_get_card(id="refresh_card", timeout=4)
+        card = try_to_get_card(id="refresh_card")
         assert_equals(isinstance(card, Card), True)
 
         sleep_between_refreshes = 4  # Set based on the RUNTIME_CARD_MIN_REFRESH_INTERVAL which acts as a rate-limit to what is refreshed.

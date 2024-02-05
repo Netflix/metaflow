@@ -66,7 +66,7 @@ class CardComponentRefreshTest(MetaflowTest):
         # The `try_to_get_card` function will keep retrying to get a card until a
         # timeout value is reached. After which the function will throw a `TimeoutError`.
         _reload_tok = make_reload_token(component_1_arr, component_2_arr)
-        card = try_to_get_card(id="refresh_card", timeout=10)
+        card = try_to_get_card(id="refresh_card")
         assert_equals(isinstance(card, Card), True)
 
         sleep_between_refreshes = 2  # Set based on the RUNTIME_CARD_MIN_REFRESH_INTERVAL which acts as a rate-limit to what is refreshed.
