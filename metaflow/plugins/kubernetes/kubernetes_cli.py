@@ -1,4 +1,5 @@
 import os
+
 import sys
 import time
 import traceback
@@ -108,6 +109,15 @@ def kubernetes():
     multiple=False,
 )
 @click.option("--shared-memory", default=None, help="Size of shared memory in MiB")
+@click.option(
+    "--kueue-enabled",
+    is_flag=True,
+    default=None,
+    help="Whether to use Kueue for scheduling Kubernetes jobs/pods",
+)
+@click.option(
+    "--kueue-localqueue-name", help="Name of the LocalQueue configured with kueue"
+)
 @click.pass_context
 def step(
     ctx,
@@ -134,6 +144,8 @@ def step(
     persistent_volume_claims=None,
     tolerations=None,
     shared_memory=None,
+    kueue_enabled=None,
+    kueue_localqueue_name=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None, **kwargs):
@@ -248,6 +260,8 @@ def step(
                 persistent_volume_claims=persistent_volume_claims,
                 tolerations=tolerations,
                 shared_memory=shared_memory,
+                kueue_enabled=kueue_enabled,
+                kueue_localqueue_name=kueue_localqueue_name,
             )
     except Exception as e:
         traceback.print_exc(chain=False)

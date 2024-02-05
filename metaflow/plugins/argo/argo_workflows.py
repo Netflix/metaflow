@@ -1368,15 +1368,34 @@ class ArgoWorkflows(object):
             tmpfs_size = resources["tmpfs_size"]
             tmpfs_path = resources["tmpfs_path"]
             tmpfs_tempdir = resources["tmpfs_tempdir"]
-            # Set shared_memory to 0 if it isn't specified. This results
-            # in Kubernetes using it's default value when the pod is created.
-            shared_memory = resources.get("shared_memory", 0)
 
             tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
 
             if tmpfs_enabled and tmpfs_tempdir:
                 env["METAFLOW_TEMPDIR"] = tmpfs_path
 
+            # Set shared_memory to 0 if it isn't specified. This results
+            # in Kubernetes using it's default value when the pod is created.
+            shared_memory = resources.get("shared_memory", 0)
+
+            kueue_enabled = resources["kueue_enabled"]
+            kueue_localqueue_name = resources["kueue_localqueue_name"]
+            kueue_annotations = {}
+            kueue_labels = {}
+            if kueue_enabled:
+                kueue_annotations["kueue.x-k8s.io/retriable-in-group"] = "false"
+                kueue_annotations["kueue.x-k8s.io/pod-group-total-count"] = str(
+                    1
+                )  # For now, might change with @parallel support
+                kueue_labels["kueue.x-k8s.io/queue-name"] = kueue_localqueue_name
+                kueue_labels["kueue.x-k8s.io/managed"] = "true"
+                kueue_labels["kueue.x-k8s.io/pod-group-name"] = (
+                    "{{workflow.name}}-" + node.name
+                )
+                if node.is_inside_foreach:
+                    kueue_labels["kueue.x-k8s.io/pod-group-name"] = \
+                    kueue_labels["kueue.x-k8s.io/pod-group-name"] + \
+                      "-{{inputs.parameters.split-index}}"
             # Create a ContainerTemplate for this node. Ideally, we would have
             # liked to inline this ContainerTemplate and avoid scanning the workflow
             # twice, but due to issues with variable substitution, we will have to
@@ -1399,13 +1418,16 @@ class ArgoWorkflows(object):
                     minutes_between_retries=minutes_between_retries,
                 )
                 .metadata(
-                    ObjectMeta().annotation("metaflow/step_name", node.name)
+                    ObjectMeta()
+                    .annotation("metaflow/step_name", node.name)
                     # Unfortunately, we can't set the task_id since it is generated
                     # inside the pod. However, it can be inferred from the annotation
                     # set by argo-workflows - `workflows.argoproj.io/outputs` - refer
                     # the field 'task-id' in 'parameters'
                     # .annotation("metaflow/task_id", ...)
                     .annotation("metaflow/attempt", retry_count)
+                    .annotations(kueue_annotations)
+                    .labels(kueue_labels)
                 )
                 # Set emptyDir volume for state management
                 .empty_dir_volume("out")

@@ -83,14 +83,31 @@ class KubernetesJob(object):
             else None
         )
 
+        annotations = self._kwargs.get("annotations", {})
+        labels = self._kwargs.get("labels", {})
+
+        kueue_enabled = bool(self._kwargs["kueue_enabled"])
+        localqueue_name = self._kwargs["kueue_localqueue_name"]
+        if kueue_enabled:
+            labels["kueue.x-k8s.io/queue-name"] = localqueue_name
+            labels["kueue.x-k8s.io/pod-group-name"] = (
+                self._kwargs["run_id"]
+                + "-"
+                + self._kwargs["step_name"]
+                + "-"
+                + self._kwargs["task_id"]
+            )
+            annotations["kueue.x-k8s.io/retriable-in-group"] = "false"
+            annotations["kueue.x-k8s.io/pod-group-total-count"] = str(1)
+
         self._job = client.V1Job(
             api_version="batch/v1",
             kind="Job",
             metadata=client.V1ObjectMeta(
                 # Annotations are for humans
-                annotations=self._kwargs.get("annotations", {}),
+                annotations=annotations,
                 # While labels are for Kubernetes
-                labels=self._kwargs.get("labels", {}),
+                labels=labels,
                 generate_name=self._kwargs["generate_name"],
                 namespace=self._kwargs["namespace"],  # Defaults to `default`
             ),
