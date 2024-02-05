@@ -474,13 +474,6 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     "not execute anything.",
 )
 @click.option(
-    "--clone-wait-only/--no-clone-wait-only",
-    default=False,
-    show_default=True,
-    help="If specified, waits for an external process to clone the task",
-    hidden=True,
-)
-@click.option(
     "--clone-run-id",
     default=None,
     help="Run id of the origin flow, if this task is part of a flow being resumed.",
@@ -519,7 +512,6 @@ def step(
     retry_count=None,
     max_user_code_retries=None,
     clone_only=None,
-    clone_wait_only=False,
     clone_run_id=None,
     decospecs=None,
     ubf_context="none",
@@ -568,6 +560,8 @@ def step(
         ctx.obj.monitor,
         ubf_context,
     )
+    print("step!!!")
+    print("step_name", step_name)
     if clone_only:
         task.clone_only(
             step_name,
@@ -575,7 +569,6 @@ def step(
             task_id,
             clone_only,
             retry_count,
-            wait_only=clone_wait_only,
         )
     else:
         task.run_step(
@@ -719,6 +712,13 @@ def common_run_options(func):
     hidden=True,
     help="If specified, allows this call to be called in parallel",
 )
+@click.option(
+    "--resume-identifier",
+    default=None,
+    show_default=True,
+    hidden=True,
+    help="If specified, it identifies the task that started this resume call",
+)
 @click.argument("step-to-rerun", required=False)
 @cli.command(help="Resume execution of a previous run of this flow.")
 @common_run_options
@@ -736,6 +736,7 @@ def resume(
     max_log_size=None,
     decospecs=None,
     run_id_file=None,
+    resume_identifier=None,
 ):
     before_run(obj, tags, decospecs + obj.environment.decospecs())
 
@@ -758,7 +759,8 @@ def resume(
                 )
             )
         clone_steps = {step_to_rerun}
-
+    if resume_identifier:
+        print("resume_identifier: ", resume_identifier)
     if run_id:
         # Run-ids that are provided by the metadata service are always integers.
         # External providers or run-ids (like external schedulers) always need to
@@ -789,6 +791,7 @@ def resume(
         max_workers=max_workers,
         max_num_splits=max_num_splits,
         max_log_size=max_log_size * 1024 * 1024,
+        resume_identifier=resume_identifier,
     )
     write_run_id(run_id_file, runtime.run_id)
     runtime.print_workflow_info()
