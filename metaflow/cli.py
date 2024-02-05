@@ -791,6 +791,7 @@ def resume(
         max_log_size=max_log_size * 1024 * 1024,
     )
     write_run_id(run_id_file, runtime.run_id)
+    runtime.print_workflow_info()
     runtime.persist_constants()
     runtime.execute()
 
@@ -845,6 +846,7 @@ def run(
     write_run_id(run_id_file, runtime.run_id)
 
     obj.flow._set_constants(obj.graph, kwargs)
+    runtime.print_workflow_info()
     runtime.persist_constants()
     runtime.execute()
 

@@ -46,6 +46,7 @@ PROGRESS_INTERVAL = 300  # s
 # executing a flow. These are prefetched during the resume operation by
 # leveraging the TaskDataStoreSet.
 PREFETCH_DATA_ARTIFACTS = ["_foreach_stack", "_task_ok", "_transition"]
+RESUME_POLL_SECONDS = 60
 
 # Runtime must use logsource=RUNTIME_LOG_SOURCE for all loglines that it
 # formats according to mflog. See a comment in mflog.__init__
@@ -76,7 +77,7 @@ class NativeRuntime(object):
         max_num_splits=MAX_NUM_SPLITS,
         max_log_size=MAX_LOG_SIZE,
     ):
-
+        print("runetime init!!")
         if run_id is None:
             self._run_id = metadata.new_run_id()
         else:
@@ -165,7 +166,9 @@ class NativeRuntime(object):
             decos = []
         else:
             decos = getattr(self._flow, step).decorators
-
+        print("_new_task: ", step)
+        print(step, " may_clone: ", may_clone)
+        print(step, " input_paths: ", input_paths)
         return Task(
             self._flow_datastore,
             self._flow,
@@ -192,13 +195,37 @@ class NativeRuntime(object):
         return self._run_id
 
     def persist_constants(self, task_id=None):
-        task = self._new_task("_parameters", task_id=task_id)
-        if not task.is_cloned:
-            task.persist(self._flow)
-        self._params_task = task.path
-        self._is_cloned[task.path] = task.is_cloned
+        print("persist_constants")
+        self._params_task = self._new_task("_parameters", task_id=task_id)
+        print("persist_constants done new task")
+        try:
+            if self._clone_only:
+                assert (
+                    len(self._clone_steps) == 1
+                ), "Clone-only resume can only clone one step at a time"
+                resume_step = list(self._clone_steps)[0]
+                print("self._clone_steps: ", self._clone_steps)
+                #     if self._params_task._is_newly_created:
+                if not self._params_task._wait_for_clone:
+                    print("1")
+                    #         self._flow.set_leader((self._clone_steps))
+                    self._params_task._ds._dangerous_save_metadata_post_done(
+                        {"_resume_leader": resume_step}, add_attempt=False
+                    )
 
-    def execute(self):
+                    self._params_task.set_as_resume_leader()
+                    print("2")
+                else:
+                    self._params_task.check_and_set_resume_leader(resume_step)
+        except Exception as e:
+            print("exception: ", str(e))
+        print(4)
+        if not self._params_task.is_cloned:
+            self._params_task.persist(self._flow)
+
+        self._is_cloned[self._params_task.path] = self._params_task.is_cloned
+
+    def print_workflow_info(self):
         run_url = (
             "%s/%s/%s" % (UI_URL.rstrip("/"), self._flow.name, self._run_id)
             if UI_URL
@@ -219,10 +246,26 @@ class NativeRuntime(object):
                 "Workflow starting (run-id %s):" % self._run_id, system_msg=True
             )
 
+    def _should_skip_execution(self):
+        if self._clone_only and self._params_task:
+            if not self._params_task.is_resume_leader():
+                return (
+                    True,
+                    "Not resume leader under resume execution. Skip clone-only execution.",
+                )
+            if self._params_task.resume_done():
+                return True, "Resume already complete. Skip clone-only execution."
+        return False, ""
+
+    def execute(self):
+        should_skip_execution, skip_reason = self._should_skip_execution()
+        if should_skip_execution:
+            self._logger(skip_reason, system_msg=True)
+            return
         self._metadata.start_run_heartbeat(self._flow.name, self._run_id)
 
         if self._params_task:
-            self._queue_push("start", {"input_paths": [self._params_task]})
+            self._queue_push("start", {"input_paths": [self._params_task.path]})
         else:
             self._queue_push("start", {})
 
@@ -230,6 +273,8 @@ class NativeRuntime(object):
         try:
             # main scheduling loop
             exception = None
+            print("self._run_queue: ", self._run_queue)
+            print("self._active_tasks ", self._active_tasks)
             while self._run_queue or self._active_tasks[0] > 0:
 
                 # 1. are any of the current workers finished?
@@ -315,6 +360,9 @@ class NativeRuntime(object):
                 "Clone-only resume complete -- only previously successful steps were "
                 "cloned; no new tasks executed!",
                 system_msg=True,
+            )
+            self._params_task._ds._dangerous_save_metadata_post_done(
+                {"_resume_done": True}, add_attempt=False
             )
         else:
             raise MetaflowInternalError(
@@ -551,7 +599,6 @@ class NativeRuntime(object):
         for task in finished_tasks:
             self._finished[task.finished_id] = task.path
             self._is_cloned[task.path] = task.is_cloned
-
             # CHECK: ensure that runtime transitions match with
             # statically inferred transitions. Make an exception for control
             # tasks, where we just rely on static analysis since we don't
@@ -580,7 +627,7 @@ class NativeRuntime(object):
                         actual=", ".join(next_steps),
                     )
                 )
-
+            print("next_steps: ", next_steps)
             # Different transition types require different treatment
             if any(self._graph[f].type == "join" for f in next_steps):
                 # Next step is a join
@@ -644,6 +691,7 @@ class NativeRuntime(object):
             # before launching the worker so that cost is amortized over time, instead
             # of doing it during _queue_push.
             task = self._new_task(step, **task_kwargs)
+            print("launch worker for step: ", step)
             self._launch_worker(task)
 
     def _retry_worker(self, worker):
@@ -661,6 +709,7 @@ class NativeRuntime(object):
         self._launch_worker(worker.task)
 
     def _launch_worker(self, task):
+        print("_launch worker ", [task.flow_name, task.run_id, task.step])
         if self._clone_only and not task.is_cloned:
             # We don't launch a worker here
             self._logger(
@@ -749,10 +798,17 @@ class Task(object):
         self.datastore_sysroot = flow_datastore.datastore_root
         self._results_ds = None
 
+        # Only used in clone-only resume.
+        self._is_resume_leader = None
+        self._resume_leader = None
+        self._resume_done = None
+
         origin = None
         if clone_run_id and may_clone:
             origin = self._find_origin_task(clone_run_id, join_type)
+        print("origin is None: ", (origin is None))
         if origin and origin["_task_ok"]:
+            print("going to clone!", origin.task_id)
             # At this point, we know we are going to clone
             self._is_cloned = True
             if reentrant:
@@ -796,12 +852,21 @@ class Task(object):
                 except ValueError:
                     pass
 
-                # If _get_task_id returns True it means the task already existed, so
-                # we wait for it.
-                self._wait_for_clone = self._get_task_id(clone_task_id)
+                print("clone_task_id: ", clone_task_id)
+                # If _get_task_id returns False it means we created a new task_id.
+                new_task_id_created = not self._get_task_id(clone_task_id)
+                task_completed = False
+                try:
+                    print("self._path: ", self._path)
+                    print("task_ok? ", self.results["_task_ok"])
+                    task_completed = self.results["_task_ok"]
+                except DataException as e:
+                    print("exception: ", str(e))
+                self._wait_for_clone = (not new_task_id_created) and task_completed
             else:
                 self._wait_for_clone = False
                 self._get_task_id(task_id)
+            print("self._wait_for_clone", self._wait_for_clone)
 
             # Store the mapping from current_pathspec -> origin_pathspec which
             # will be useful for looking up origin_ds_set in find_origin_task.
@@ -810,6 +875,10 @@ class Task(object):
                 # We don't put _parameters on the queue so we either clone it or wait
                 # for it.
                 if not self._wait_for_clone:
+                    self.log(
+                        "Selected as the reentrant clone leader.",
+                        system_msg=True,
+                    )
                     # Clone in place without relying on run_queue.
                     self.new_attempt()
                     self._ds.clone(origin)
@@ -826,15 +895,42 @@ class Task(object):
                             ds = self._flow_datastore.get_task_datastore(
                                 self.run_id, self.step, self.task_id
                             )
+                            print("at least we have ds?")
                             if not ds["_task_ok"]:
                                 raise MetaflowInternalError(
                                     "Externally cloned _parameters task did not succeed"
                                 )
+
+                            # Check if we are the resume leader
+                            print("checking resume leader")
+
+                            if ds.has_metadata("_resume_leader", add_attempt=False):
+                                resume_leader_map = ds.load_metadata(
+                                    ["_resume_leader"], add_attempt=False
+                                )
+                                print("resume_leader: ", resume_leader_map)
+                                self._resume_leader = resume_leader_map[
+                                    "_resume_leader"
+                                ]
+
+                            if not ds.has_metadata("_resume_done", add_attempt=False):
+                                self.log(
+                                    "Waiting for resume leader to complete. Sleeping for %ds..."
+                                    % RESUME_POLL_SECONDS,
+                                    system_msg=True,
+                                )
+                                time.sleep(RESUME_POLL_SECONDS)
+                                continue
+                            self._resume_done = True
+
                             break
                         except DataException:
-                            self.log("Sleeping for 5s...", system_msg=True)
+                            self.log(
+                                "Sleeping for %ds..." % RESUME_POLL_SECONDS,
+                                system_msg=True,
+                            )
                             # No need to get fancy with the sleep here.
-                            time.sleep(5)
+                            time.sleep(RESUME_POLL_SECONDS)
                     self.log("_parameters clone successful", system_msg=True)
             else:
                 # For non parameter steps
@@ -915,6 +1011,30 @@ class Task(object):
 
         self._logger(msg, head=prefix, system_msg=system_msg, timestamp=timestamp)
         sys.stdout.flush()
+
+    def set_as_resume_leader(self):
+        assert (
+            self.step == "_parameters"
+        ), "Only _parameters step can set resume leader."
+        self._is_resume_leader = True
+
+    def check_and_set_resume_leader(self, resume_step):
+        assert (
+            self.step == "_parameters"
+        ), "Only _parameters step can check and set resume leader."
+        self._is_resume_leader = self._resume_leader == resume_step
+
+    def is_resume_leader(self):
+        assert (
+            self.step == "_parameters"
+        ), "Only _parameters step can check resume leader."
+        return self._is_resume_leader
+
+    def resume_done(self):
+        assert (
+            self.step == "_parameters"
+        ), "Only _parameters step can check wheather resume is complete."
+        return self._resume_done
 
     def _get_task_id(self, task_id):
         already_existed = True
@@ -1019,6 +1139,7 @@ class Task(object):
         if self._results_ds:
             return self._results_ds
         else:
+            print("retrieving task datastore for ", self.run_id, "/", self.step)
             self._results_ds = self._flow_datastore.get_task_datastore(
                 self.run_id, self.step, self.task_id
             )
