@@ -284,11 +284,16 @@ class MetaflowTask(object):
         task_id,
         clone_origin_task,
         retry_count,
+        wait_only=False,
     ):
         if not clone_origin_task:
             raise MetaflowInternalError(
                 "task.clone_only needs a valid clone_origin_task value."
             )
+        if wait_only:
+            print("Not cloning anything in wait_only mode.")
+            return
+
         # If we actually have to do the clone ourselves, proceed...
         # 1. initialize output datastore
         output = self.flow_datastore.get_task_datastore(

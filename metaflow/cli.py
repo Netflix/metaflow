@@ -474,6 +474,13 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     "not execute anything.",
 )
 @click.option(
+    "--clone-wait-only/--no-clone-wait-only",
+    default=False,
+    show_default=True,
+    help="If specified, waits for an external process to clone the task",
+    hidden=True,
+)
+@click.option(
     "--clone-run-id",
     default=None,
     help="Run id of the origin flow, if this task is part of a flow being resumed.",
@@ -512,6 +519,7 @@ def step(
     retry_count=None,
     max_user_code_retries=None,
     clone_only=None,
+    clone_wait_only=False,
     clone_run_id=None,
     decospecs=None,
     ubf_context="none",
@@ -567,6 +575,7 @@ def step(
             task_id,
             clone_only,
             retry_count,
+            wait_only=clone_wait_only,
         )
     else:
         task.run_step(
@@ -757,6 +766,7 @@ def resume(
                 )
             )
         clone_steps = {step_to_rerun}
+
     if run_id:
         # Run-ids that are provided by the metadata service are always integers.
         # External providers or run-ids (like external schedulers) always need to
