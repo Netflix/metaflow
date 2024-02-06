@@ -340,9 +340,7 @@ class NativeRuntime(object):
                 "cloned; no new tasks executed!",
                 system_msg=True,
             )
-            self._params_task._ds._dangerous_save_metadata_post_done(
-                {"_resume_done": True}, add_attempt=False
-            )
+            self._params_task.mark_resume_done()
         else:
             raise MetaflowInternalError(
                 "The *end* step was not successful by the end of flow."
@@ -1011,6 +1009,19 @@ class Task(object):
             self.step == "_parameters"
         ), "Only _parameters step can check wheather resume is complete."
         return self._resume_done
+
+    def mark_resume_done(self):
+        assert (
+            self.step == "_parameters"
+        ), "Only _parameters step can mark resume as done."
+        assert self.is_resume_leader(), "Only resume leader can mark resume as done."
+
+        # Mark the resume as done. This is called at the end of the resume flow and after
+        # the _parameters step was successfully cloned, so we need to 'dangerously' save
+        # this done file, but the risk should be minimum.
+        self._ds._dangerous_save_metadata_post_done(
+            {"_resume_done": True}, add_attempt=False
+        )
 
     def _get_task_id(self, task_id):
         already_existed = True
