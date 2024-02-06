@@ -452,7 +452,6 @@ class StepFunctions(object):
             "metaflow.owner": self.username,
             "metaflow.flow_name": self.flow.name,
             "metaflow.step_name": node.name,
-            # "metaflow.run_id.$": "$$.Execution.Name",
             # Unfortunately we can't set the task id here since AWS Step
             # Functions lacks any notion of run-scoped task identifiers. We
             # instead co-opt the AWS Batch job id as the task id. This also
@@ -464,6 +463,10 @@ class StepFunctions(object):
             # `$$.State.RetryCount` resolves to an int dynamically and
             # AWS Batch job specification only accepts strings. We handle
             # retries/catch within AWS Batch to get around this limitation.
+            # And, we also cannot set the run id here since the run id maps to
+            # the execution name of the AWS Step Functions State Machine, which
+            # is different when executing inside a distributed map. We set it once
+            # in the start step and move it along to be consumed by all the children.
             "metaflow.version": self.environment.get_environment_info()[
                 "metaflow_version"
             ],
@@ -482,11 +485,6 @@ class StepFunctions(object):
             # specification that allows us to set key-values.
             "step_name": node.name,
         }
-        # # metaflow.run_id maps to AWS Step Functions State Machine Execution in all
-        # # cases except for when within a for-each construct that relies on Distributed
-        # # Map. To work around this issue, within a for-each, we lean on reading off of
-        # # AWS DynamoDb to get the run id.
-        # attrs["metaflow.run_id.$"] = "$$.Execution.Name"
 
         # Store production token within the `start` step, so that subsequent
         # `step-functions create` calls can perform a rudimentary authorization
