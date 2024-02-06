@@ -544,9 +544,11 @@ class StepFunctions(object):
                 raise StepFunctionsException(
                     "Parallel steps are not supported yet with AWS step functions."
                 )
+
             # Inherit the run id from the parent and pass it along to children.
             attrs["metaflow.run_id.$"] = "$.Parameters.run_id"
             attrs["run_id.$"] = "$.Parameters.run_id"
+
             # Handle foreach join.
             if (
                 node.type == "join"
@@ -970,6 +972,10 @@ class State(object):
         # This is needed to support AWS Gov Cloud and AWS CN regions
         return SFN_IAM_ROLE.split(":")[1]
 
+    def retry_strategy(self, retry_strategy):
+        self.payload["Retry"] = [retry_strategy]
+        return self
+
     def batch(self, job):
         self.resource(
             "arn:%s:states:::batch:submitJob.sync" % self._partition()
@@ -989,6 +995,19 @@ class State(object):
         # tags may not be present in all scenarios
         if "tags" in job.payload:
             self.parameter("Tags", job.payload["tags"])
+        # set retry strategy for AWS Batch job submission to account for the
+        # measily 50 jobs / second queue admission limit which people can
+        # run into very quickly.
+        self.retry_strategy(
+            {
+                "ErrorEquals": ["Batch.AWSBatchException"],
+                "BackoffRate": 2,
+                "IntervalSeconds": 2,
+                "MaxDelaySeconds": 60,
+                "MaxAttempts": 10,
+                "JitterStrategy": "FULL",
+            }
+        )
         return self
 
     def dynamo_db(self, table_name, primary_key, values):
