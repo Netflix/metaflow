@@ -1,23 +1,23 @@
 import base64
-from metaflow._vendor import click
-from hashlib import sha1
 import json
 import re
+from hashlib import sha1
 
-from metaflow import current, decorators, parameters, JSONType
+from metaflow import JSONType, current, decorators, parameters
+from metaflow._vendor import click
+from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import (
     SERVICE_VERSION_CHECK,
     SFN_STATE_MACHINE_PREFIX,
     UI_URL,
 )
-from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.package import MetaflowPackage
 from metaflow.plugins.aws.batch.batch_decorator import BatchDecorator
 from metaflow.tagging_util import validate_tags
 from metaflow.util import get_username, to_bytes, to_unicode, version_parse
 
+from .production_token import load_token, new_token, store_token
 from .step_functions import StepFunctions
-from .production_token import load_token, store_token, new_token
 
 VALID_NAME = re.compile(r"[^a-zA-Z0-9_\-\.]")
 
@@ -124,6 +124,12 @@ def step_functions(obj, name=None):
     help="Log AWS Step Functions execution history to AWS CloudWatch "
     "Logs log group.",
 )
+@click.option(
+    "--use-distributed-map/--no-use-distributed-map",
+    is_flag=True,
+    help="Use AWS Step Functions Distributed Map instead of Inline Map for "
+    "defining foreach tasks in Amazon State Language.",
+)
 @click.pass_obj
 def create(
     obj,
@@ -136,6 +142,7 @@ def create(
     max_workers=None,
     workflow_timeout=None,
     log_execution_history=False,
+    use_distributed_map=False,
 ):
     validate_tags(tags)
 
@@ -165,6 +172,7 @@ def create(
         max_workers,
         workflow_timeout,
         obj.is_project,
+        use_distributed_map,
     )
 
     if only_json:
@@ -273,7 +281,15 @@ def resolve_state_machine_name(obj, name):
 
 
 def make_flow(
-    obj, token, name, tags, namespace, max_workers, workflow_timeout, is_project
+    obj,
+    token,
+    name,
+    tags,
+    namespace,
+    max_workers,
+    workflow_timeout,
+    is_project,
+    use_distributed_map,
 ):
     if obj.flow_datastore.TYPE != "s3":
         raise MetaflowException("AWS Step Functions requires --datastore=s3.")
@@ -309,6 +325,7 @@ def make_flow(
         username=get_username(),
         workflow_timeout=workflow_timeout,
         is_project=is_project,
+        use_distributed_map=use_distributed_map,
     )
 
 

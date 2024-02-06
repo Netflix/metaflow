@@ -52,6 +52,7 @@ class StepFunctions(object):
         max_workers=None,
         workflow_timeout=None,
         is_project=False,
+        use_distributed_map=False,
     ):
         self.name = name
         self.graph = graph
@@ -69,6 +70,9 @@ class StepFunctions(object):
         self.username = username
         self.max_workers = max_workers
         self.workflow_timeout = workflow_timeout
+
+        # https://aws.amazon.com/blogs/aws/step-functions-distributed-map-a-serverless-solution-for-large-scale-parallel-data-processing/
+        self.use_distributed_map = use_distributed_map
 
         self._client = StepFunctionsClient()
         self._workflow = self._compile()
@@ -369,7 +373,11 @@ class StepFunctions(object):
                     .iterator(
                         _visit(
                             self.graph[node.out_funcs[0]],
-                            Workflow(node.out_funcs[0]).start_at(node.out_funcs[0]),
+                            Workflow(node.out_funcs[0])
+                            .start_at(node.out_funcs[0])
+                            .mode(
+                                "DISTRIBUTED" if self.use_distributed_map else "INLINE"
+                            ),
                             node.matching_join,
                         )
                     )
@@ -444,7 +452,7 @@ class StepFunctions(object):
             "metaflow.owner": self.username,
             "metaflow.flow_name": self.flow.name,
             "metaflow.step_name": node.name,
-            "metaflow.run_id.$": "$$.Execution.Name",
+            # "metaflow.run_id.$": "$$.Execution.Name",
             # Unfortunately we can't set the task id here since AWS Step
             # Functions lacks any notion of run-scoped task identifiers. We
             # instead co-opt the AWS Batch job id as the task id. This also
@@ -474,6 +482,11 @@ class StepFunctions(object):
             # specification that allows us to set key-values.
             "step_name": node.name,
         }
+        # # metaflow.run_id maps to AWS Step Functions State Machine Execution in all
+        # # cases except for when within a for-each construct that relies on Distributed
+        # # Map. To work around this issue, within a for-each, we lean on reading off of
+        # # AWS DynamoDb to get the run id.
+        # attrs["metaflow.run_id.$"] = "$$.Execution.Name"
 
         # Store production token within the `start` step, so that subsequent
         # `step-functions create` calls can perform a rudimentary authorization
@@ -492,6 +505,13 @@ class StepFunctions(object):
             env["METAFLOW_S3_ENDPOINT_URL"] = S3_ENDPOINT_URL
 
         if node.name == "start":
+            # metaflow.run_id maps to AWS Step Functions State Machine Execution in all
+            # cases except for when within a for-each construct that relies on
+            # Distributed Map. To work around this issue, we pass the run id from the
+            # start step to all subsequent tasks.
+            attrs["metaflow.run_id.$"] = "$$.Execution.Name"
+            attrs["run_id.$"] = "$$.Execution.Name"
+
             # Initialize parameters for the flow in the `start` step.
             parameters = self._process_parameters()
             if parameters:
@@ -526,7 +546,9 @@ class StepFunctions(object):
                 raise StepFunctionsException(
                     "Parallel steps are not supported yet with AWS step functions."
                 )
-
+            # Inherit the run id from the parent and pass it along to children.
+            attrs["metaflow.run_id.$"] = "$.Parameters.run_id"
+            attrs["run_id.$"] = "$.Parameters.run_id"
             # Handle foreach join.
             if (
                 node.type == "join"
@@ -892,6 +914,12 @@ class Workflow(object):
         self.name = name
         tree = lambda: defaultdict(tree)
         self.payload = tree()
+
+    def mode(self, mode):
+        self.payload["ProcessorConfig"] = {"Mode": mode}
+        if mode == "DISTRIBUTED":
+            self.payload["ProcessorConfig"]["ExecutionType"] = "STANDARD"
+        return self
 
     def start_at(self, start_at):
         self.payload["StartAt"] = start_at
