@@ -107,7 +107,7 @@ def kubernetes():
     type=JSONTypeClass(),
     multiple=False,
 )
-@click.option("--shared-memory", default=None, help="Size of shared memory in MB")
+@click.option("--shared-memory", default=None, help="Size of shared memory in MiB")
 @click.pass_context
 def step(
     ctx,
