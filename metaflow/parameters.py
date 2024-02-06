@@ -332,10 +332,10 @@ class Parameter(object):
             )
 
     def __repr__(self):
-        return f"metaflow.Parameter(name={self.name}, " f"kwargs={self.kwargs})"
+        return "metaflow.Parameter(name=%s, kwargs=%s)" % (name, kwargs)
 
     def __str__(self):
-        return f"metaflow.Parameter(name={self.name}, " f"kwargs={self.kwargs})"
+        return "metaflow.Parameter(name=%s, kwargs=%s)" % (name, kwargs)
 
     def option_kwargs(self, deploy_mode):
         kwargs = self.kwargs
