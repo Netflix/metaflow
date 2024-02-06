@@ -545,10 +545,6 @@ class StepFunctions(object):
                     "Parallel steps are not supported yet with AWS step functions."
                 )
 
-            # Inherit the run id from the parent and pass it along to children.
-            attrs["metaflow.run_id.$"] = "$.Parameters.run_id"
-            attrs["run_id.$"] = "$.Parameters.run_id"
-
             # Handle foreach join.
             if (
                 node.type == "join"
@@ -572,6 +568,9 @@ class StepFunctions(object):
                 env["METAFLOW_SPLIT_PARENT_TASK_ID"] = (
                     "$.Parameters.split_parent_task_id_%s" % node.split_parents[-1]
                 )
+                # Inherit the run id from the parent and pass it along to children.
+                attrs["metaflow.run_id.$"] = "$.Parameters.run_id"
+                attrs["run_id.$"] = "$.Parameters.run_id"
             else:
                 # Set appropriate environment variables for runtime replacement.
                 if len(node.in_funcs) == 1:
@@ -580,6 +579,9 @@ class StepFunctions(object):
                         % node.in_funcs[0]
                     )
                     env["METAFLOW_PARENT_TASK_ID"] = "$.JobId"
+                    # Inherit the run id from the parent and pass it along to children.
+                    attrs["metaflow.run_id.$"] = "$.Parameters.run_id"
+                    attrs["run_id.$"] = "$.Parameters.run_id"
                 else:
                     # Generate the input paths in a quasi-compressed format.
                     # See util.decompress_list for why this is written the way
@@ -589,6 +591,9 @@ class StepFunctions(object):
                         "${METAFLOW_PARENT_%s_TASK_ID}" % (idx, idx)
                         for idx, _ in enumerate(node.in_funcs)
                     )
+                    # Inherit the run id from the parent and pass it along to children.
+                    attrs["metaflow.run_id.$"] = "$.[0].Parameters.run_id"
+                    attrs["run_id.$"] = "$.[0].Parameters.run_id"
                     for idx, _ in enumerate(node.in_funcs):
                         env["METAFLOW_PARENT_%s_TASK_ID" % idx] = "$.[%s].JobId" % idx
                         env["METAFLOW_PARENT_%s_STEP" % idx] = (
