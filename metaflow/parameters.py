@@ -273,7 +273,7 @@ class Parameter(object):
         help: Optional[str] = None,
         required: bool = False,
         show_default: bool = True,
-        **kwargs: Dict[str, Any],
+        **kwargs: Dict[str, Any]
     ):
         self.name = name
         self.kwargs = kwargs
