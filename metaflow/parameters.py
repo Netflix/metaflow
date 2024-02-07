@@ -273,7 +273,7 @@ class Parameter(object):
         help: Optional[str] = None,
         required: bool = False,
         show_default: bool = True,
-        **kwargs: Dict[str, Any]
+        **kwargs: Dict[str, Any],
     ):
         self.name = name
         self.kwargs = kwargs
@@ -330,6 +330,12 @@ class Parameter(object):
                 "Parameter *%s*: Separator is only allowed "
                 "for string parameters." % name
             )
+
+    def __repr__(self):
+        return "metaflow.Parameter(name=%s, kwargs=%s)" % (name, kwargs)
+
+    def __str__(self):
+        return "metaflow.Parameter(name=%s, kwargs=%s)" % (name, kwargs)
 
     def option_kwargs(self, deploy_mode):
         kwargs = self.kwargs
