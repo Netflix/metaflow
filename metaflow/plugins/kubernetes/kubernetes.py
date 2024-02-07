@@ -27,6 +27,7 @@ from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_S3,
     DATATOOLS_S3ROOT,
     DEFAULT_AWS_CLIENT_PROVIDER,
+    DEFAULT_GCP_CLIENT_PROVIDER,
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
     KUBERNETES_FETCH_EC2_METADATA,
@@ -242,6 +243,9 @@ class Kubernetes(object):
             .environment_variable("METAFLOW_CARD_S3ROOT", CARD_S3ROOT)
             .environment_variable(
                 "METAFLOW_DEFAULT_AWS_CLIENT_PROVIDER", DEFAULT_AWS_CLIENT_PROVIDER
+            )
+            .environment_variable(
+                "METAFLOW_DEFAULT_GCP_CLIENT_PROVIDER", DEFAULT_GCP_CLIENT_PROVIDER
             )
             .environment_variable(
                 "METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION",

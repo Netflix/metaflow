@@ -123,6 +123,10 @@ SECRETS_PROVIDERS_DESC = [
     ),
 ]
 
+GCP_CLIENT_PROVIDERS_DESC = [
+    ("gcp-default", ".gcp.gs_storage_client_factory.GcpDefaultClientProvider")
+]
+
 process_plugins(globals())
 
 
@@ -144,6 +148,11 @@ SIDECARS.update(MONITOR_SIDECARS)
 
 AWS_CLIENT_PROVIDERS = resolve_plugins("aws_client_provider")
 SECRETS_PROVIDERS = resolve_plugins("secrets_provider")
+<<<<<<< /metaflow/plugins/__init__.py (new parent): add url unquoting to fix issue with nonstandard package names (#1643)
+=======
+AZURE_CLIENT_PROVIDERS = resolve_plugins("azure_client_provider")
+GCP_CLIENT_PROVIDERS = resolve_plugins("gcp_client_provider")
+>>>>>>> /metaflow/plugins/__init__.py (current): [gcp-plugin] pluggable gcp auth
 
 from .cards.card_modules import MF_EXTERNAL_CARDS
 
