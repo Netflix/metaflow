@@ -1368,6 +1368,9 @@ class ArgoWorkflows(object):
             tmpfs_size = resources["tmpfs_size"]
             tmpfs_path = resources["tmpfs_path"]
             tmpfs_tempdir = resources["tmpfs_tempdir"]
+            # Set shared_memory to 0 if it isn't specified. This results
+            # in Kubernetes using it's default value when the pod is created.
+            shared_memory = resources.get("shared_memory", 0)
 
             tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
 
@@ -1412,6 +1415,7 @@ class ArgoWorkflows(object):
                     medium="Memory",
                     size_limit=tmpfs_size if tmpfs_enabled else 0,
                 )
+                .empty_dir_volume("dhsm", medium="Memory", size_limit=shared_memory)
                 .pvc_volumes(resources.get("persistent_volume_claims"))
                 # Set node selectors
                 .node_selectors(resources.get("node_selector"))
@@ -1503,6 +1507,17 @@ class ArgoWorkflows(object):
                                     )
                                 ]
                                 if tmpfs_enabled
+                                else []
+                            )
+                            # Support shared_memory
+                            + (
+                                [
+                                    kubernetes_sdk.V1VolumeMount(
+                                        name="dhsm",
+                                        mount_path="/dev/shm",
+                                    )
+                                ]
+                                if shared_memory
                                 else []
                             )
                             # Support persistent volume claims.

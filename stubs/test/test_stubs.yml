@@ -501,18 +501,14 @@
         ...
   out: |
     main:3: error: .*incompatible type.*\[arg-type\]
+    main:4: error: .*Too many positional arguments for "kubernetes"\s+\[misc\]
     main:7: error: .*incompatible type.*\[arg-type\]
-    main:12: error: No overload variant of "kubernetes" matches argument.*\[call-overload\]
-    main:12: note: Possible overload variants
-    main:12: note: .*def.*kubernetes.*
-    main:12: note: .*def.*kubernetes.*
-    main:12: note: .*def.*kubernetes.*
-    main:17: error: No overload variant of "kubernetes" matches argument.*\[call-overload\]
-    main:17: note: Possible overload variants
-    main:17: note: .*def.*kubernetes.*
-    main:17: note: .*def.*kubernetes.*
-    main:17: note: .*def.*kubernetes.*
+    main:12: error: .*Too many positional arguments for "kubernetes"\s+\[misc\]
+    main:17: error: .*Unexpected keyword argument "foo" for "kubernetes"\s+\[call-arg\]
+    main:22: error: .*Too many positional arguments for "kubernetes"\s+\[misc\]
     main:22: error: .*incompatible type.*\[arg-type\]
+    main:26: error: .*Too many positional arguments for "kubernetes"\s+\[misc\]
+    main:26: error: .*incompatible type.*\[arg-type\]
 
 - case: environment_decorator_validity
   regex: yes

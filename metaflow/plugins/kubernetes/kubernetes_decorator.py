@@ -20,6 +20,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_PERSISTENT_VOLUME_CLAIMS,
     KUBERNETES_TOLERATIONS,
     KUBERNETES_SERVICE_ACCOUNT,
+    KUBERNETES_SHARED_MEMORY,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -87,6 +88,8 @@ class KubernetesDecorator(StepDecorator):
     persistent_volume_claims : Dict[str, str], optional, default None
         A map (dictionary) of persistent volumes to be mounted to the pod for this step. The map is from persistent
         volumes to the path to which the volume is to be mounted, e.g., `{'pvc-name': '/path/to/mount/on'}`.
+    shared_memory: int, optional
+        Shared memory size (in MiB) required for this step
     """
 
     name = "kubernetes"
@@ -109,6 +112,7 @@ class KubernetesDecorator(StepDecorator):
         "tmpfs_size": None,
         "tmpfs_path": "/metaflow_temp",
         "persistent_volume_claims": None,  # e.g., {"pvc-name": "/mnt/vol", "another-pvc": "/mnt/vol2"}
+        "shared_memory": None,
     }
     package_url = None
     package_sha = None
@@ -194,6 +198,8 @@ class KubernetesDecorator(StepDecorator):
             if not self.attributes["tmpfs_size"]:
                 # default tmpfs behavior - https://man7.org/linux/man-pages/man5/tmpfs.5.html
                 self.attributes["tmpfs_size"] = int(self.attributes["memory"]) // 2
+        if not self.attributes["shared_memory"]:
+            self.attributes["shared_memory"] = KUBERNETES_SHARED_MEMORY
 
     # Refer https://github.com/Netflix/metaflow/blob/master/docs/lifecycle.png
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
@@ -286,6 +292,17 @@ class KubernetesDecorator(StepDecorator):
                 raise KubernetesException(
                     "Invalid tmpfs_size value: *{size}* for step *{step}* (should be an integer greater than 0)".format(
                         size=self.attributes["tmpfs_size"], step=step
+                    )
+                )
+
+        if self.attributes["shared_memory"]:
+            if not (
+                isinstance(self.attributes["shared_memory"], int)
+                and int(self.attributes["shared_memory"]) > 0
+            ):
+                raise KubernetesException(
+                    "Invalid shared_memory value: *{size}* for step *{step}* (should be an integer greater than 0)".format(
+                        size=self.attributes["shared_memory"], step=step
                     )
                 )
 

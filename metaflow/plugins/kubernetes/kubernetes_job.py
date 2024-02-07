@@ -77,6 +77,11 @@ class KubernetesJob(object):
         use_tmpfs = self._kwargs["use_tmpfs"]
         tmpfs_size = self._kwargs["tmpfs_size"]
         tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
+        shared_memory = (
+            int(self._kwargs["shared_memory"])
+            if self._kwargs["shared_memory"]
+            else None
+        )
 
         self._job = client.V1Job(
             api_version="batch/v1",
@@ -187,6 +192,15 @@ class KubernetesJob(object):
                                 + (
                                     [
                                         client.V1VolumeMount(
+                                            mount_path="/dev/shm", name="dhsm"
+                                        )
+                                    ]
+                                    if shared_memory
+                                    else []
+                                )
+                                + (
+                                    [
+                                        client.V1VolumeMount(
                                             mount_path=path, name=claim
                                         )
                                         for claim, path in self._kwargs[
@@ -230,6 +244,19 @@ class KubernetesJob(object):
                                 )
                             ]
                             if tmpfs_enabled
+                            else []
+                        )
+                        + (
+                            [
+                                client.V1Volume(
+                                    name="dhsm",
+                                    empty_dir=client.V1EmptyDirVolumeSource(
+                                        medium="Memory",
+                                        size_limit="{}Mi".format(shared_memory),
+                                    ),
+                                )
+                            ]
+                            if shared_memory
                             else []
                         )
                         + (
