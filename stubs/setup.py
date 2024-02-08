@@ -8,7 +8,7 @@ setup(
     name="metaflow-stubs",
     version=version,
     description="Metaflow Stubs: Stubs for the metaflow package",
-    long_description="Metaflow Stubs: Stubs for the metaflow package",
+    long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     author="Metaflow Developers",
     author_email="help@metaflow.org",
