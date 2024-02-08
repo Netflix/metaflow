@@ -66,12 +66,12 @@ def test_s3_sensor_flow(pytestconfig) -> None:
     file_name_for_formatter_test: str = f"s3-sensor-file-{uuid.uuid1()}.txt"
 
     s3_sensor_flow_cmd: str = (
-        f"{_python()} flows/s3_sensor_flow.py --datastore=s3 --with retry  aip run "
+        f"{_python()} flows/s3_sensor_flow.py --datastore=s3 {WITH_RETRY}  aip run "
         f"--file_name {file_name} --notify "
         f"--tag {pytestconfig.getoption('pipeline_tag')} "
     )
     s3_sensor_with_formatter_flow_cmd: str = (
-        f"{_python()} flows/s3_sensor_with_formatter_flow.py --datastore=s3 --with retry aip run "
+        f"{_python()} flows/s3_sensor_with_formatter_flow.py --datastore=s3 {WITH_RETRY} aip run "
         f"--file_name_for_formatter_test {file_name_for_formatter_test} --notify "
         f"--tag {pytestconfig.getoption('pipeline_tag')} "
     )
@@ -111,7 +111,7 @@ def test_s3_sensor_flow(pytestconfig) -> None:
     )
 
     validate_s3_sensor_flow_cmd: str = (
-        f"{_python()} flows/validate_s3_sensor_flows.py --datastore=s3 --with retry aip run "
+        f"{_python()} flows/validate_s3_sensor_flows.py --datastore=s3 {WITH_RETRY} aip run "
         f"--file_name {file_name} --file_name_for_formatter_test {file_name_for_formatter_test} "
         f"--s3_sensor_argo_workflow_name {s3_sensor_argo_workflow_name} --s3_sensor_with_formatter_argo_workflow_name {s3_sensor_with_formatter_argo_workflow_name} "
         f"--argo-wait "
@@ -186,7 +186,7 @@ def test_error_and_opsgenie_alert(pytestconfig) -> None:
     # Test logging of raise_error_flow
     check_error_handling_flow_cmd: str = (
         f"{_python()} flows/check_error_handling_flow.py "
-        f"--datastore=s3 --with retry aip run "
+        f"--datastore=s3 {WITH_RETRY} aip run "
         f"--argo-wait --workflow-timeout 1800 "
         f"--experiment metaflow_test --tag test_t1 "
         f"--error_flow_id={error_flow_id} "
@@ -209,7 +209,7 @@ def test_flows(pytestconfig, flow_file_path: str) -> None:
     full_path: str = os.path.join("flows", flow_file_path)
 
     test_cmd: str = (
-        f"{_python()} {full_path} --datastore=s3 --with retry aip run "
+        f"{_python()} {full_path} --datastore=s3 {WITH_RETRY} aip run "
         f"--argo-wait --workflow-timeout 1800 "
         f"--max-parallelism 3 --experiment metaflow_test --tag test_t1 "
         f"--sys-tag test_sys_t1:sys_tag_value "
@@ -448,7 +448,7 @@ def test_toleration_and_affinity_compile_only(pytestconfig) -> None:
         )
 
         compile_to_yaml_cmd: str = (
-            f"{_python()} flows/toleration_and_affinity_flow.py --datastore=s3 --with retry aip run"
+            f"{_python()} flows/toleration_and_affinity_flow.py --datastore=s3 {WITH_RETRY} aip run"
             f" --no-s3-code-package --yaml-only --pipeline-path {yaml_file_path} "
             f"--tag {pytestconfig.getoption('pipeline_tag')} "
         )
