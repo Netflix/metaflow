@@ -34,7 +34,7 @@ jobs:
       uses: pypa/gh-action-pypi-publish@2f6f737ca5f74c637829c0f5c3acd0e29ea5e8bf #v1.8.11
       with:
         user: __token__
-        password: ${{ secrets.pypi_password }}
+        password: ${{ secrets.pypi_stubs_token }}
         packages-dir: ./stubs/dist
     - name: Publish metaflow package
       uses: pypa/gh-action-pypi-publish@2f6f737ca5f74c637829c0f5c3acd0e29ea5e8bf #v1.8.11
