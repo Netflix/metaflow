@@ -547,7 +547,10 @@ class KubeflowPipelines(object):
         retry_deco = [deco for deco in node.decorators if deco.name == "retry"]
         if retry_deco:
             val = retry_deco[0].attributes.get("minutes_between_retries")
-            return f"{val}m" if isinstance(val, numbers.Number) else val
+            is_number = isinstance(val, numbers.Number) or (
+                isinstance(val, str) and val.isdecimal()
+            )
+            return f"{val}m" if is_number else val
         return None
 
     @staticmethod
