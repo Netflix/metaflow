@@ -18,6 +18,9 @@ from metaflow import (
 from metaflow.exception import MetaflowExceptionWrapper
 
 
+MINUTES_BETWEEN_RETRIES = 0
+
+
 def validate_checkpoint_dir(checkpoint_dir: str):
     key = f"{current.run_id}/checkpoints/{current.step_name}/{current.task_id}"
     assert checkpoint_dir.endswith(key)
@@ -27,7 +30,7 @@ def validate_checkpoint_dir(checkpoint_dir: str):
 class ResilientFlow(FlowSpec):
     retry_log = "Retry count = {retry_count}"
 
-    @retry
+    @retry(minutes_between_retries=MINUTES_BETWEEN_RETRIES)
     @step
     def start(self):
         self.start_retry_count = current.retry_count
@@ -79,7 +82,7 @@ class ResilientFlow(FlowSpec):
         print(str(output))
         subprocess.check_output("chmod u+x ./kubectl", shell=True)
 
-    @retry
+    @retry(minutes_between_retries=MINUTES_BETWEEN_RETRIES)
     @step
     def user_failure(self):
         if self.start_retry_count < 1:
@@ -93,7 +96,7 @@ class ResilientFlow(FlowSpec):
             print("let's succeed")
         self.next(self.no_retry)
 
-    @retry(times=0)
+    @retry(times=0, minutes_between_retries=MINUTES_BETWEEN_RETRIES)
     @step
     def no_retry(self):
         print("Testing logging for retries")
@@ -113,14 +116,14 @@ class ResilientFlow(FlowSpec):
         self.next(self.compute)
 
     @catch(var="compute_failed")
-    @retry(times=0)
+    @retry(times=0, minutes_between_retries=MINUTES_BETWEEN_RETRIES)
     @step
     def compute(self):
         self.x = 1 / 0
         self.next(self.platform_exception)
 
     @catch(var="platform_exception_failed")
-    @retry(times=1)
+    @retry(times=1, minutes_between_retries=MINUTES_BETWEEN_RETRIES)
     @step
     def platform_exception(self):
         assert type(self.compute_failed) == MetaflowExceptionWrapper

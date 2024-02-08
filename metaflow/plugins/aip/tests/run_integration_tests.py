@@ -57,6 +57,8 @@ disabled_test_flows = [
     "nested_foreach_with_branching.py",
 ]
 
+WITH_RETRY = "--with retry:minutes_between_retries=0"
+
 
 def test_s3_sensor_flow(pytestconfig) -> None:
     # ensure the s3_sensor waits for some time before the key exists
