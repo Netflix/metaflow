@@ -4,7 +4,7 @@ This package contains stub files for `metaflow` and thus offers type hints for v
 
 ## Installation
 
-To install Metaflow Stubs in your local environment, you can install from [PyPi](https://pypi.org/project/metaflow/):
+To install Metaflow Stubs in your local environment, you can install from [PyPi](https://pypi.org/project/metaflow-stubs/):
 
 ```sh
 pip install metaflow-stubs
