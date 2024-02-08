@@ -17,6 +17,7 @@ import random
 from contextlib import contextmanager
 from functools import wraps
 from metaflow.exception import MetaflowNamespaceMismatch
+
 from .card_datastore import CardDatastore, NUM_SHORT_HASH_CHARS
 from .exception import (
     CardClassFoundException,
@@ -736,8 +737,7 @@ def create(
 
     if error_stack_trace is not None and mode != "refresh":
         rendered_content = error_card().render(task, stack_trace=error_stack_trace)
-
-    if (
+    elif (
         rendered_info.is_implemented
         and rendered_info.timed_out
         and mode != "refresh"
