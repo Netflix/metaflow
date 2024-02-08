@@ -336,6 +336,28 @@ def test_kfp_pod_default(pytestconfig) -> None:
             )
 
 
+def test_retry_strategy(pytestconfig) -> None:
+    with tempfile.TemporaryDirectory() as yaml_tmp_dir:
+        yaml_file_path: str = os.path.join(yaml_tmp_dir, "flow_triggering_flow.yaml")
+
+        compile_to_yaml_cmd: str = (
+            f" {_python()} flows/flow_triggering_flow.py --no-pylint --with retry aip run"
+            f" --no-s3-code-package --yaml-only --pipeline-path {yaml_file_path} "
+            f"--tag {pytestconfig.getoption('pipeline_tag')} --notify"
+        )
+        flow_yaml = get_compiled_yaml(compile_to_yaml_cmd, yaml_file_path)
+
+    for step in flow_yaml["spec"]["templates"]:
+        if step.get("container"):
+            # AIP-8067(talebz): regression test to ensure duration is "2m" and not "2"
+            assert step["retryStrategy"]["limit"] == (
+                7 if step["name"] == "notify-email-exit-handler" else 3
+            )
+            assert step["retryStrategy"]["retryPolicy"] == "Always"
+            assert step["retryStrategy"]["backoff"]["duration"] == "2m"
+            assert step["retryStrategy"]["backoff"]["factor"] == 3
+
+
 def test_user_defined_exit_handler(pytestconfig) -> None:
     with tempfile.TemporaryDirectory() as yaml_tmp_dir:
         yaml_file_path: str = os.path.join(yaml_tmp_dir, "s3_sensor_flow.yaml")
