@@ -15,6 +15,7 @@ from metaflow.metaflow_config import (
     SFN_DYNAMO_DB_TABLE,
     SFN_EXECUTION_LOG_GROUP_ARN,
     SFN_IAM_ROLE,
+    SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH,
 )
 from metaflow.parameters import deploy_time_eval
 from metaflow.util import dict_to_cli_options, to_pascalcase
@@ -369,7 +370,11 @@ class StepFunctions(object):
                     .parameter("SplitParentTaskId.$", "$.JobId")
                     .parameter("Parameters.$", "$.Parameters")
                     .parameter("Index.$", "$$.Map.Item.Value")
-                    .next(node.matching_join)
+                    .next(
+                        "%s_*GetManifest" % iterator_name
+                        if self.use_distributed_map
+                        else node.matching_join
+                    )
                     .iterator(
                         _visit(
                             self.graph[node.out_funcs[0]],
@@ -382,8 +387,54 @@ class StepFunctions(object):
                         )
                     )
                     .max_concurrency(self.max_workers)
-                    .output_path("$.[0]")
+                    # AWS Step Functions has a short coming for DistributedMap at the
+                    # moment that does not allow us to subset the output of for-each
+                    # to just a single element. We have to rely on a rather terrible
+                    # hack and resort to using ResultWriter to write the state to
+                    # Amazon S3 and process it in another task. But, well what can we
+                    # do...
+                    .result_writer(
+                        *(
+                            SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH.rsplit("/", 1)
+                            if self.use_distributed_map
+                            else ()
+                        )
+                    )
+                    .output_path("$" if self.use_distributed_map else "$.[0]")
                 )
+                if self.use_distributed_map:
+                    workflow.add_state(
+                        State("%s_*GetManifest" % iterator_name)
+                        .resource("arn:aws:states:::aws-sdk:s3:getObject")
+                        .parameter("Bucket.$", "$.ResultWriterDetails.Bucket")
+                        .parameter("Key.$", "$.ResultWriterDetails.Key")
+                        .next("%s_*Map" % iterator_name)
+                        .result_selector("Body.$", "States.StringToJson($.Body)")
+                    )
+                    workflow.add_state(
+                        Map("%s_*Map" % iterator_name)
+                        .iterator(
+                            Workflow("%s_*PassWorkflow" % iterator_name)
+                            .mode("DISTRIBUTED")
+                            .start_at("%s_*Pass" % iterator_name)
+                            .add_state(
+                                Pass("%s_*Pass" % iterator_name)
+                                .end()
+                                .parameter("Output.$", "States.StringToJson($.Output)")
+                                .output_path("$.Output")
+                            )
+                        )
+                        .next(node.matching_join)
+                        .max_concurrency(1000)
+                        .item_reader(
+                            JSONItemReader()
+                            .resource("arn:aws:states:::s3:getObject")
+                            .parameter("Bucket.$", "$.Body.DestinationBucket")
+                            .parameter("Key.$", "$.Body.ResultFiles.SUCCEEDED.[0].Key")
+                        )
+                        .output_path("$.[0]")
+                    )
+
                 # Continue the traversal from the matching_join.
                 _visit(self.graph[node.matching_join], workflow, exit_node)
             # We shouldn't ideally ever get here.
@@ -508,7 +559,6 @@ class StepFunctions(object):
             # Distributed Map. To work around this issue, we pass the run id from the
             # start step to all subsequent tasks.
             attrs["metaflow.run_id.$"] = "$$.Execution.Name"
-            attrs["run_id.$"] = "$$.Execution.Name"
 
             # Initialize parameters for the flow in the `start` step.
             parameters = self._process_parameters()
@@ -569,8 +619,7 @@ class StepFunctions(object):
                     "$.Parameters.split_parent_task_id_%s" % node.split_parents[-1]
                 )
                 # Inherit the run id from the parent and pass it along to children.
-                attrs["metaflow.run_id.$"] = "$.Parameters.run_id"
-                attrs["run_id.$"] = "$.Parameters.run_id"
+                attrs["metaflow.run_id.$"] = "$.Parameters.['metaflow.run_id']"
             else:
                 # Set appropriate environment variables for runtime replacement.
                 if len(node.in_funcs) == 1:
@@ -580,8 +629,7 @@ class StepFunctions(object):
                     )
                     env["METAFLOW_PARENT_TASK_ID"] = "$.JobId"
                     # Inherit the run id from the parent and pass it along to children.
-                    attrs["metaflow.run_id.$"] = "$.Parameters.run_id"
-                    attrs["run_id.$"] = "$.Parameters.run_id"
+                    attrs["metaflow.run_id.$"] = "$.Parameters.['metaflow.run_id']"
                 else:
                     # Generate the input paths in a quasi-compressed format.
                     # See util.decompress_list for why this is written the way
@@ -592,8 +640,7 @@ class StepFunctions(object):
                         for idx, _ in enumerate(node.in_funcs)
                     )
                     # Inherit the run id from the parent and pass it along to children.
-                    attrs["metaflow.run_id.$"] = "$.[0].Parameters.run_id"
-                    attrs["run_id.$"] = "$.[0].Parameters.run_id"
+                    attrs["metaflow.run_id.$"] = "$.[0].Parameters.['metaflow.run_id']"
                     for idx, _ in enumerate(node.in_funcs):
                         env["METAFLOW_PARENT_%s_TASK_ID" % idx] = "$.[%s].JobId" % idx
                         env["METAFLOW_PARENT_%s_STEP" % idx] = (
@@ -973,6 +1020,10 @@ class State(object):
         self.payload["ResultPath"] = result_path
         return self
 
+    def result_selector(self, name, value):
+        self.payload["ResultSelector"][name] = value
+        return self
+
     def _partition(self):
         # This is needed to support AWS Gov Cloud and AWS CN regions
         return SFN_IAM_ROLE.split(":")[1]
@@ -1023,6 +1074,26 @@ class State(object):
         ).parameter(
             "ProjectionExpression", values
         )
+        return self
+
+
+class Pass(object):
+    def __init__(self, name):
+        self.name = name
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+        self.payload["Type"] = "Pass"
+
+    def end(self):
+        self.payload["End"] = True
+        return self
+
+    def parameter(self, name, value):
+        self.payload["Parameters"][name] = value
+        return self
+
+    def output_path(self, output_path):
+        self.payload["OutputPath"] = output_path
         return self
 
 
@@ -1086,4 +1157,38 @@ class Map(object):
 
     def result_path(self, result_path):
         self.payload["ResultPath"] = result_path
+        return self
+
+    def item_reader(self, item_reader):
+        self.payload["ItemReader"] = item_reader.payload
+        return self
+
+    def result_writer(self, bucket, prefix):
+        if bucket is not None and prefix is not None:
+            self.payload["ResultWriter"] = {
+                "Resource": "arn:aws:states:::s3:putObject",
+                "Parameters": {
+                    "Bucket": bucket,
+                    "Prefix": prefix,
+                },
+            }
+        return self
+
+
+class JSONItemReader(object):
+    def __init__(self):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+        self.payload["ReaderConfig"] = {"InputType": "JSON", "MaxItems": 1}
+
+    def resource(self, resource):
+        self.payload["Resource"] = resource
+        return self
+
+    def parameter(self, name, value):
+        self.payload["Parameters"][name] = value
+        return self
+
+    def output_path(self, output_path):
+        self.payload["OutputPath"] = output_path
         return self

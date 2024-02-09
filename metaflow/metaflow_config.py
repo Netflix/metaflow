@@ -268,7 +268,13 @@ SFN_STATE_MACHINE_PREFIX = from_conf("SFN_STATE_MACHINE_PREFIX")
 # machine execution logs. This needs to be available when using the
 # `step-functions create --log-execution-history` command.
 SFN_EXECUTION_LOG_GROUP_ARN = from_conf("SFN_EXECUTION_LOG_GROUP_ARN")
-
+# Amazon S3 path for storing the results of AWS Step Functions Distributed Map
+SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH = from_conf(
+    "SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH",
+    os.path.join(DATASTORE_SYSROOT_S3, "sfn_distributed_map_output")
+    if DATASTORE_SYSROOT_S3
+    else None,
+)
 ###
 # Kubernetes configuration
 ###
