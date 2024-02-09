@@ -395,9 +395,11 @@ class StepFunctions(object):
                     # do...
                     .result_writer(
                         *(
-                            SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH.rsplit("/", 1)
+                            "s3://"
+                            + SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH[5:].split("/", 1)[0],
+                            SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH[5:].split("/", 1)[1]
                             if self.use_distributed_map
-                            else ()
+                            else (),
                         )
                     )
                     .output_path("$" if self.use_distributed_map else "$.[0]")
