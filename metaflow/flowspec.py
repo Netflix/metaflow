@@ -419,6 +419,8 @@ class FlowSpec(object):
             This exception is thrown in case an artifact specified in `include` cannot
             be found.
         """
+        INTERNAL_ARTIFACTS_SET = set(["_foreach_values"])
+
         include = include or []
         exclude = exclude or []
         node = self._graph[self._current_step]
@@ -446,7 +448,9 @@ class FlowSpec(object):
                 available_vars = (
                     (var, sha)
                     for var, sha in inp._datastore.items()
-                    if (var not in exclude) and (not hasattr(self, var))
+                    if (var not in exclude)
+                    and (not hasattr(self, var))
+                    and (var not in INTERNAL_ARTIFACTS_SET)
                 )
             for var, sha in available_vars:
                 _, previous_sha = to_merge.setdefault(var, (inp, sha))
