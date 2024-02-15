@@ -75,7 +75,7 @@ def exit_handler(
         body = (
             f"status = {status} <br/>\n"
             f"{argo_ui_url} <br/>\n"
-            f"Metaflow RunId = argo-{run_id} <br/>\n"
+            f"Metaflow RunId = {run_id} <br/>\n"
             f"argo -n {k8s_namespace} get {argo_workflow_name} <br/>"
             "<br/>"
             f"{email_body}"
