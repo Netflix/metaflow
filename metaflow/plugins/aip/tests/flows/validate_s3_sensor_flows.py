@@ -59,6 +59,7 @@ def delete_pod(pod_name: str) -> None:
     pod_api: ResourceInstance = dynamic_client.resources.get(
         api_version="v1", kind="Pod"
     )
+    print(f"deleting pod {pod_name=}")
     pod_api.delete(
         name=pod_name,
         namespace=namespace,
@@ -85,8 +86,9 @@ def delete_s3_sensor_pod_to_test_retry(argo_workflow_name: str) -> None:
     for node in argo_workflow["status"]["nodes"]:
         node_name: str = node[0]
         node_info: dict = node[1]
-        if node_info["type"] == "Pod" and "s3sensor" in node_name:
+        if node_info["type"] == "Pod" and "s3-sensor" in node_info["displayName"]:
             s3_sensor_pod_name = node_name
+            print(f'found {node_info["displayName"]=} {s3_sensor_pod_name=} to delete')
             break
     else:
         raise Exception("s3_sensor pod not found.")

@@ -417,14 +417,14 @@ def _echo_workflow_run(
     flow_name: str, kubernetes_namespace: str, obj, workflow_manifest: Dict[str, Any]
 ):
     argo_workflow_name = workflow_manifest["metadata"]["name"]
-    metaflow_run_id = to_metaflow_run_id(argo_workflow_name)
-    metaflow_ui_url = run_id_to_metaflow_url(flow_name, argo_workflow_name)
+    argo_workflow_uid = workflow_manifest["metadata"]["uid"]
+    metaflow_run_id = to_metaflow_run_id(argo_workflow_uid)
+    metaflow_ui_url = run_id_to_metaflow_url(flow_name, argo_workflow_uid)
     argo_ui_url = run_id_to_url(argo_workflow_name, kubernetes_namespace)
     obj.echo(f"Metaflow run_id=*{metaflow_run_id}*\n", fg="magenta")
     obj.echo(f"*Argo UI:* {argo_ui_url}", fg="cyan")
     if AIP_SHOW_METAFLOW_UI_URL:
         obj.echo(f"*Metaflow UI:* {metaflow_ui_url}", fg="cyan")
-    argo_workflow_name = workflow_manifest["metadata"]["name"]
     if shutil.which("argo"):
         # only print this to the console if `argo` is in the path
         obj.echo(

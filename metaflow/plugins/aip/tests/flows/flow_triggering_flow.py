@@ -99,7 +99,7 @@ class FlowTriggeringFlow(FlowSpec):
         """Trigger downstream pipeline and test triggering behaviors"""
         if self.trigger_enabled:
             logger.info("\nTesting run_kubeflow_pipeline")
-            run_id: str = run_argo_workflow(
+            run_id, run_uid = run_argo_workflow(
                 KUBERNETES_NAMESPACE,
                 self.template_name,
                 parameters={
@@ -107,7 +107,7 @@ class FlowTriggeringFlow(FlowSpec):
                     "triggered_by": current.run_id,
                 },
             )
-            logger.info(f"{run_id=}")
+            logger.info(f"{run_id=}, {run_uid=}")
             logger.info(f"{run_id_to_url(run_id, KUBERNETES_NAMESPACE)=}")
 
             logger.info("Testing timeout exception for wait_for_kfp_run_completion")
@@ -129,7 +129,7 @@ class FlowTriggeringFlow(FlowSpec):
 
             logger.info(f"Run Status of {run_id}: {status=}")
 
-            metaflow_run_id: str = to_metaflow_run_id(run_id)
+            metaflow_run_id: str = to_metaflow_run_id(run_uid)
             logger.info(f"Test triggered_by is passed correctly")
             metaflow_path = f"{current.flow_name}/{metaflow_run_id}/start"
 

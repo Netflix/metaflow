@@ -12,6 +12,7 @@ def my_exit_handler(
     argo_ui_url: str,
     retries: int,
 ) -> None:
+    print(f"{argo_workflow_run_name=} {metaflow_run_id=} {argo_ui_url=} {retries=}")
     if status == "Succeeded":
         print("Congratulations! The flow succeeded.")
     else:
@@ -32,7 +33,7 @@ class RaiseErrorFlow(FlowSpec):
 
     @step
     def start(self):
-        print("This step should complete successfuly!")
+        print("This step should complete successfully!")
         self.next(self.error_step)
 
     @step

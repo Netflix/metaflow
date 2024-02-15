@@ -69,11 +69,13 @@ def exit_handler(
         argo_url_prefix = get_env("ARGO_RUN_URL_PREFIX", "")
         k8s_namespace = get_env("POD_NAMESPACE", "")
 
-        argo_ui_url = f"{argo_url_prefix}/argo-ui/workflows/{k8s_namespace}/{run_id}"
+        argo_ui_url = (
+            f"{argo_url_prefix}/argo-ui/workflows/{k8s_namespace}/{argo_workflow_name}"
+        )
         body = (
             f"status = {status} <br/>\n"
             f"{argo_ui_url} <br/>\n"
-            f"Metaflow RunId = argo-{run_id} <br/>\n"
+            f"Metaflow RunId = {run_id} <br/>\n"
             f"argo -n {k8s_namespace} get {argo_workflow_name} <br/>"
             "<br/>"
             f"{email_body}"
