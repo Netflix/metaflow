@@ -110,18 +110,18 @@ def remote_setattr_override(obj_mapping):
     return _wrapped
 
 
-class LocalException(object):
-    def __init__(self, class_path, wrapped_class):
+class LocalExceptionDeserializer(object):
+    def __init__(self, class_path, deserializer):
         self._class_path = class_path
-        self._class = wrapped_class
+        self._deserializer = deserializer
 
     @property
     def class_path(self):
         return self._class_path
 
     @property
-    def wrapped_class(self):
-        return self._class
+    def deserializer(self):
+        return self._deserializer
 
 
 class RemoteExceptionSerializer(object):
@@ -138,9 +138,9 @@ class RemoteExceptionSerializer(object):
         return self._serializer
 
 
-def local_exception(class_path):
-    def _wrapped(cls):
-        return LocalException(class_path, cls)
+def local_exception_deserialize(class_path):
+    def _wrapped(func):
+        return LocalExceptionDeserializer(class_path, func)
 
     return _wrapped
 

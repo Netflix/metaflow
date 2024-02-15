@@ -28,41 +28,47 @@ def run_test(through_escape=False):
 
     import test_lib as test
 
+    print("-- Test aliasing --")
     if through_escape:
         # This tests package aliasing
-        from test_lib.package import TestClass3
-    else:
-        from test_lib import TestClass3
+        from test_lib.alias import TestClass1
 
-    o1 = test.TestClass1(123)
-    print("-- Test print_value --")
+    o1 = test.TestClass1(10)
+    print("-- Test normal method with overrides --")
     if through_escape:
-        # The server_mapping should add 5 here
-        assert o1.print_value() == 128
+        expected_value = 10 + 8
     else:
-        assert o1.print_value() == 123
-    print("-- Test property --")
-    assert o1.value == 123
-    print("-- Test value override (get) --")
-    assert o1.override_value == 123
-    print("-- Test value override (set) --")
-    o1.override_value = 456
-    assert o1.override_value == 456
+        expected_value = 10
+    assert o1.print_value() == expected_value
+
+    print("-- Test property (no override) --")
+    assert o1.value == 10
+    o1.value = 15
+    assert o1.value == 15
+    if through_escape:
+        expected_value = 15 + 8
+    else:
+        expected_value = 15
+    assert o1.print_value() == expected_value
+
+    print("-- Test property (with override) --")
+    if through_escape:
+        expected_value = 123 + 8
+        expected_value2 = 200 + 16
+    else:
+        expected_value = 123
+        expected_value2 = 200
+    assert o1.override_value == expected_value
+    o1.override_value = 200
+    assert o1.override_value == expected_value2
 
     print("-- Test static method --")
-    assert test.TestClass1.somethingstatic(5) == 47
-    assert o1.somethingstatic(5) == 47
-    print("-- Test class method --")
-    assert test.TestClass1.somethingclass() == 25
-    assert o1.somethingclass() == 25
+    assert test.TestClass1.static_method(5) == 47
+    assert o1.static_method(5) == 47
 
-    print("-- Test set and get --")
-    o1.value = 2
-    if through_escape:
-        # The server_mapping should add 5 here
-        assert o1.print_value() == 7
-    else:
-        assert o1.print_value() == 2
+    print("-- Test class method --")
+    assert test.TestClass1.class_method() == 25
+    assert o1.class_method() == 25
 
     print("-- Test function --")
     assert test.test_func() == "In test func"
@@ -74,21 +80,65 @@ def run_test(through_escape=False):
 
     print("-- Test chaining of exported classes --")
     o2 = o1.to_class2(5)
-    assert o2.something("foo") == "In Test2 with foo"
+    assert o2.something("foo") == "Test2:Something:foo"
+
     print("-- Test Iterating --")
-    for i in o2:
-        print("Got %d" % i)
+    for idx, i in enumerate(o2):
+        assert idx == i - 15
+    assert i == 19
 
-    print("-- Test exception --")
-    o3 = TestClass3()
+    print("-- Test weird indirection --")
+    o1.weird_indirection("foo")(10)
+    assert o1.foo == 10
+    o1.weird_indirection("_value")(20)
+    assert o1.value == 20
+
+    print("-- Test exceptions --")
+
+    # Non proxied exceptions can't be returned as objects
     try:
-        o3.raiseSomething()
-    except test.SomeException as e:
-        print("Caught the local exception: %s" % str(e))
+        vexc = o1.raiseOrReturnValueError()
+        assert not through_escape, "Should have raised through escape"
+        assert isinstance(vexc, ValueError)
+    except RuntimeError as e:
+        assert (
+            through_escape
+            and "Cannot proxy value of type <class 'ValueError'>" in str(e)
+        )
 
-    print("-- Test returning proxied object --")
-    o3.weird_indirection("foo")(10)
-    assert o3.foo == 10
+    try:
+        excclass = o1.raiseOrReturnSomeException()
+        assert not through_escape, "Should have raised through escape"
+        assert isinstance(excclass, test.SomeException)
+    except RuntimeError as e:
+        assert (
+            through_escape
+            and "Cannot proxy value of type <class 'test_lib.SomeException'>" in str(e)
+        )
+
+    exception_and_class = o1.raiseOrReturnExceptionAndClass()
+    assert isinstance(exception_and_class, test.ExceptionAndClass)
+    assert exception_and_class.method_on_exception() == "method_on_exception"
+    assert str(exception_and_class).startswith("ExceptionAndClass Str:")
+
+    try:
+        o1.raiseOrReturnValueError(True)
+        assert False, "Should have raised"
+    except ValueError as e:
+        assert True
+    except Exception as e:
+        assert False, "Should have been ValueError"
+
+    try:
+        o1.raiseOrReturnSomeException(True)
+        assert False, "Should have raised"
+    except test.SomeException as e:
+        assert True
+        if through_escape:
+            assert e.user_value == 42
+            assert "Remote (on server) traceback" in str(e)
+    except Exception as e:
+        assert False, "Should have been SomeException"
 
 
 class EscapeTest(FlowSpec):

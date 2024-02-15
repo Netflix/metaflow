@@ -17,6 +17,8 @@ from .consts import (
     OP_INIT,
 )
 
+from .exception_transferer import ExceptionMetaClass
+
 DELETED_ATTRS = frozenset(["__array_struct__", "__array_interface__"])
 
 # These attributes are accessed directly on the stub (not directly forwarded)
@@ -26,7 +28,10 @@ LOCAL_ATTRS = (
             "___remote_class_name___",
             "___identifier___",
             "___connection___",
-            "___local_overrides___" "__class__",
+            "___local_overrides___",
+            "___is_returned_exception___",
+            "___exception_attributes___",
+            "__class__",
             "__init__",
             "__del__",
             "__delattr__",
@@ -66,8 +71,6 @@ def fwd_request(stub, request_type, *args, **kwargs):
 
 
 class StubMetaClass(type):
-    __slots__ = ()
-
     def __repr__(self):
         if self.__module__:
             return "<stub class '%s.%s'>" % (self.__module__, self.__name__)
@@ -94,24 +97,25 @@ class Stub(with_metaclass(StubMetaClass, object)):
     happen on the remote side (server).
     """
 
-    __slots__ = [
-        "___remote_class_name___",
-        "___identifier___",
-        "___connection___",
-        "__weakref__",
-    ]
-
+    __slots__ = ()
     # def __iter__(self):  # FIXME: Keep debugger QUIET!!
     #    raise AttributeError
 
-    def __init__(self, connection, remote_class_name, identifier):
+    def __init__(
+        self, connection, remote_class_name, identifier, is_returned_exception=False
+    ):
         self.___remote_class_name___ = remote_class_name
         self.___identifier___ = identifier
         self.___connection___ = connection
+        # If it is a returned exception (ie: it was raised by the server), it behaves
+        # a bit differently for methods like __str__ and __repr__ (we try not to get
+        # stuff from the server)
+        self.___is_returned_exception___ = is_returned_exception
 
     def __del__(self):
         try:
-            fwd_request(self, OP_DEL)
+            if not self.___is_returned_exception___:
+                fwd_request(self, OP_DEL)
         except Exception:
             # raised in a destructor, most likely on program termination,
             # when the connection might have already been closed.
@@ -144,10 +148,16 @@ class Stub(with_metaclass(StubMetaClass, object)):
         if name in LOCAL_ATTRS:
             object.__delattr__(self, name)
         else:
+            if self.___is_returned_exception___:
+                raise AttributeError()
             return fwd_request(self, OP_DELATTR, name)
 
     def __setattr__(self, name, value):
-        if name in LOCAL_ATTRS or name in self.___local_overrides___:
+        if (
+            name in LOCAL_ATTRS
+            or name in self.___local_overrides___
+            or self.___is_returned_exception___
+        ):
             object.__setattr__(self, name, value)
         else:
             fwd_request(self, OP_SETATTR, name, value)
@@ -159,9 +169,13 @@ class Stub(with_metaclass(StubMetaClass, object)):
         return fwd_request(self, OP_HASH)
 
     def __repr__(self):
+        if self.___is_returned_exception___:
+            return self.__exception_repr__()
         return fwd_request(self, OP_REPR)
 
     def __str__(self):
+        if self.___is_returned_exception___:
+            return self.__exception_str__()
         return fwd_request(self, OP_STR)
 
     def __exit__(self, exc, typ, tb):
@@ -249,6 +263,33 @@ class MetaWithConnection(StubMetaClass):
             )
 
 
+class MetaExceptionWithConnection(StubMetaClass, ExceptionMetaClass):
+    def __new__(cls, class_name, base_classes, class_dict, connection):
+        return type.__new__(cls, class_name, base_classes, class_dict)
+
+    def __init__(cls, class_name, base_classes, class_dict, connection):
+        cls.___class_remote_class_name___ = class_name
+        cls.___class_connection___ = connection
+
+        # We call the one on ExceptionMetaClass which does everything needed (StubMetaClass
+        # does not do anything special for init)
+        ExceptionMetaClass.__init__(cls, class_name, base_classes, class_dict)
+
+        # Restore __str__ and __repr__ to the original ones because we need to determine
+        # if we call them depending on whether or not the object is a returned exception
+        # or not
+        cls.__str__ = cls.__orig_str__
+        cls.__repr__ = cls.__orig_repr__
+
+    def __call__(cls, *args, **kwargs):
+        if len(args) > 0 and id(args[0]) == id(cls.___class_connection___):
+            return super(MetaExceptionWithConnection, cls).__call__(*args, **kwargs)
+        else:
+            return cls.___class_connection___.stub_request(
+                None, OP_INIT, cls.___class_remote_class_name___, *args, **kwargs
+            )
+
+
 def create_class(
     connection,
     class_name,
@@ -256,8 +297,16 @@ def create_class(
     getattr_overrides,
     setattr_overrides,
     class_methods,
+    parents,
 ):
-    class_dict = {"__slots__": ()}
+    class_dict = {
+        "__slots__": [
+            "___remote_class_name___",
+            "___identifier___",
+            "___connection___",
+            "___is_returned_exception___",
+        ]
+    }
     for name, doc in class_methods.items():
         method_type = NORMAL_METHOD
         if name.startswith("___s___"):
@@ -318,5 +367,33 @@ def create_class(
             )
             overriden_attrs.add(attr)
         class_dict[attr] = property(getter, setter)
+    if parents:
+        # This means this is also an exception so we add a few more things to it
+        # so that it
+        # This is copied from ExceptionMetaClass in exception_transferer.py
+        for n in ("_exception_str", "_exception_repr", "_exception_tb"):
+            class_dict[n] = property(
+                lambda self, n=n: getattr(self, "%s_val" % n, "<missing>"),
+                lambda self, v, n=n: setattr(self, "%s_val" % n, v),
+            )
+
+        def _do_str(self):
+            text = self._exception_str
+            text += "\n\n===== Remote (on server) traceback =====\n"
+            text += self._exception_tb
+            text += "========================================\n"
+            return text
+
+        class_dict["__exception_str__"] = _do_str
+        class_dict["__exception_repr__"] = lambda self: self._exception_repr
+    else:
+        # If we are based on an exception, we already have __weakref__ so we don't add
+        # it but not the case if we are not.
+        class_dict["__slots__"].append("__weakref__")
+
     class_dict["___local_overrides___"] = overriden_attrs
+    if parents:
+        return MetaExceptionWithConnection(
+            class_name, (Stub, *parents), class_dict, connection
+        )
     return MetaWithConnection(class_name, (Stub,), class_dict, connection)
