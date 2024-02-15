@@ -302,6 +302,7 @@ class Parameter(object):
             "namespace",
             "obj",
             "decospecs",
+            "max-log-size",
             "max_log_size",
             "tags",
             "user_namespace",
