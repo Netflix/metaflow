@@ -293,10 +293,18 @@ class Parameter(object):
             "params",
             "with",
             "max-num-splits",
+            "max_num_splits",
             "max-workers",
+            "max_workers",
             "tag",
             "run-id-file",
+            "run_id_file",
             "namespace",
+            "obj",
+            "decospecs",
+            "max_log_size",
+            "tags",
+            "user_namespace",
         ]
 
         if self.name in reserved_params:
