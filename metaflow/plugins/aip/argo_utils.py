@@ -1,7 +1,7 @@
 import math
 import time
 import datetime
-from typing import Optional, Union, Dict, Any
+from typing import Optional, Union, Dict, Any, Tuple
 
 from metaflow.metaflow_config import ARGO_RUN_URL_PREFIX, METAFLOW_RUN_URL_PREFIX
 from metaflow.plugins.aip.argo_client import ArgoClient
@@ -18,7 +18,7 @@ def run_argo_workflow(
     parameters: Optional[dict] = None,
     wait_timeout: Union[int, float, datetime.timedelta] = 0,
     **kwarg,  # Other parameters for wait function
-) -> str:
+) -> Tuple[str, str]:
     try:
         # TODO(talebz): add tag of origin-run-id to correlate parent flow
         workflow_manifest: Dict[str, Any] = ArgoClient(
@@ -28,6 +28,7 @@ def run_argo_workflow(
         raise AIPException(str(e))
 
     argo_run_id = workflow_manifest["metadata"]["name"]
+    argo_run_uid = workflow_manifest["metadata"]["uid"]
 
     if wait_timeout:  # int, float and datetime.timedelta all evaluates to False when 0
         wait_for_argo_run_completion(
@@ -37,7 +38,7 @@ def run_argo_workflow(
             **kwarg,
         )
 
-    return argo_run_id
+    return argo_run_id, argo_run_uid
 
 
 def delete_argo_workflow(
@@ -52,9 +53,11 @@ def delete_argo_workflow(
         raise AIPException(str(e))
 
 
-def to_metaflow_run_id(run_id: str):
+def to_metaflow_run_id(argo_run_uid: str):
     """Return metaflow run id useful for querying metadata, datastore, log etc."""
-    return f"argo-{run_id}" if not run_id.startswith("argo-") else run_id
+    return (
+        f"argo-{argo_run_uid}" if not argo_run_uid.startswith("argo-") else argo_run_uid
+    )
 
 
 def run_id_to_url(argo_run_id: str, kubernetes_namespace: str):

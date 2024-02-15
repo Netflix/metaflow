@@ -93,12 +93,9 @@ def test_s3_sensor_flow(pytestconfig) -> None:
     s3_sensor_flow_cmd += image_cmds
     s3_sensor_with_formatter_flow_cmd += image_cmds
 
-    kfp_run_id: str
+    run_id: str
     s3_sensor_argo_workflow_name: str
-    (
-        kfp_run_id,
-        s3_sensor_argo_workflow_name,
-    ) = run_cmd_with_backoff_from_platform_errors(
+    (run_id, s3_sensor_argo_workflow_name,) = run_cmd_with_backoff_from_platform_errors(
         s3_sensor_flow_cmd, correct_return_code=0
     )
     kfp_run_id_formatter_flow: str
@@ -151,7 +148,7 @@ def test_error_and_opsgenie_alert(pytestconfig) -> None:
         "Authorization": f"GenieKey {pytestconfig.getoption('opsgenie_api_token')}",
     }
 
-    # Look for the alert with the correct kfp_run_id in the description.
+    # Look for the alert with the correct run_id in the description.
     list_alerts_endpoint: str = f"https://api.opsgenie.com/v2/alerts?query=description:{error_flow_id}&limit=1&sort=createdAt&order=des"
     list_alerts_response: Response = requests.get(
         list_alerts_endpoint, headers=opsgenie_auth_headers
@@ -159,7 +156,7 @@ def test_error_and_opsgenie_alert(pytestconfig) -> None:
     assert list_alerts_response.status_code == 200
 
     list_alerts_response_json: dict = json.loads(list_alerts_response.text)
-    # assert we have found the alert (there should only be one alert with that kfp_run_id)
+    # assert we have found the alert (there should only be one alert with that run_id)
     assert len(list_alerts_response_json["data"]) == 1
     alert_alias = list_alerts_response_json["data"][0]["alias"]
 
@@ -266,7 +263,7 @@ def run_cmd_with_backoff_from_platform_errors(
             "KFAM issues not resolved after successive backoff attempts."
         )
 
-    kfp_run_id: str = re.search(
+    run_id: str = re.search(
         "Metaflow run_id=(.*)\n", run_and_wait_process.stderr
     ).group(1)
     argo_workflow_output_string: str = re.search(
@@ -274,7 +271,7 @@ def run_cmd_with_backoff_from_platform_errors(
     ).group(1)
     argo_workflow_name: str = argo_workflow_output_string.split(" ")[-1]
 
-    return kfp_run_id, argo_workflow_name
+    return run_id, argo_workflow_name
 
 
 def exists_nvidia_accelerator(node_selector_term: Dict) -> bool:

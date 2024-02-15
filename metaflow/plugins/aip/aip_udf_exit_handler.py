@@ -44,7 +44,9 @@ def invoke_user_defined_exit_handler(
     argo_workflow_name = get_env("MF_ARGO_WORKFLOW_NAME", "")
     argo_url_prefix = get_env("ARGO_RUN_URL_PREFIX", "")
     k8s_namespace = get_env("POD_NAMESPACE", "")
-    argo_ui_url = f"{argo_url_prefix}/argo-ui/workflows/{k8s_namespace}/{run_id}"
+    argo_ui_url = (
+        f"{argo_url_prefix}/argo-ui/workflows/{k8s_namespace}/{argo_workflow_name}"
+    )
 
     metaflow_configs: Dict[str, str] = json.loads(metaflow_configs_json)
     metaflow_configs_new: Dict[str, str] = {

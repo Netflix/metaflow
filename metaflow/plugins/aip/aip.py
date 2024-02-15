@@ -94,7 +94,8 @@ class StepVariables:
     user_code_retries: int
 
 
-METAFLOW_RUN_ID = "argo-{{workflow.name}}"
+ARGO_WORKFLOW_UID = "{{workflow.uid}}"
+METAFLOW_RUN_ID = f"argo-{ARGO_WORKFLOW_UID}"
 FLOW_PARAMETERS_JSON = "{{workflow.parameters}}"
 
 
@@ -270,7 +271,9 @@ class KubeflowPipelines(object):
             # self.name is typically CamelCase as it's python class name.
             # generateName contains a sanitized version of self.name from aip.compiler
             workflow["metadata"]["name"] = (
-                name if name else workflow["metadata"].pop("generateName").rstrip("-")
+                sanitize_k8s_name(name)
+                if name
+                else workflow["metadata"].pop("generateName").rstrip("-")
             )
 
             # Service account is added through webhooks.
@@ -814,7 +817,7 @@ class KubeflowPipelines(object):
                 (resource_op, volume) = self._create_volume(
                     step_name=aip_component.step_name,
                     size=resource_requirements["volume"],
-                    workflow_uid=workflow_uid,
+                    workflow_uid=ARGO_WORKFLOW_UID,
                     mode=mode,
                     volume_type=resource_requirements.get("volume_type"),
                 )
@@ -927,7 +930,7 @@ class KubeflowPipelines(object):
             affinity = V1Affinity(node_affinity=node_affinity)
             container_op.add_affinity(affinity)
 
-    # used by the workflow_uid_op and the s3_sensor_op to tighten resources
+    # used by the s3_sensor_op to tighten resources
     # to ensure customers don't bear unnecesarily large costs
     @staticmethod
     def _set_minimal_container_resources(
@@ -964,7 +967,7 @@ class KubeflowPipelines(object):
             controller=True,
             kind="Workflow",
             name="{{workflow.name}}",
-            uid=workflow_uid,
+            uid="{{workflow.uid}}",
         )
         owner_references = [owner_reference]
         pvc_metadata = V1ObjectMeta(
@@ -1334,15 +1337,6 @@ class KubeflowPipelines(object):
                                 shared_volumes=shared_volumes,
                             )
 
-            def call_build_kfp_dag(workflow_uid_op: ContainerOp):
-                build_kfp_dag(
-                    self.graph["start"],
-                    workflow_uid=workflow_uid_op.output if workflow_uid_op else None,
-                    shared_volumes=self.create_shared_volumes(
-                        step_name_to_aip_component, workflow_uid_op
-                    ),
-                )
-
             # The following exit handlers get created and added as a ContainerOp
             # and also as a parallel task to the Flow dag
             # We remove them and introduce a new dag invoked by Argo onExit
@@ -1362,12 +1356,11 @@ class KubeflowPipelines(object):
             s3_sensor_op: Optional[ContainerOp] = self.create_s3_sensor_op(
                 flow_variables,
             )
-            workflow_uid_op: Optional[ContainerOp] = self._create_workflow_uid_op(
-                s3_sensor_op.output if s3_sensor_op else "",
-                step_name_to_aip_component,
-                flow_variables.package_commands,
+            build_kfp_dag(
+                self.graph["start"],
+                workflow_uid=ARGO_WORKFLOW_UID,
+                shared_volumes=self.create_shared_volumes(step_name_to_aip_component),
             )
-            call_build_kfp_dag(workflow_uid_op)
 
             # Instruct KFP of the DAG order by iterating over the Metaflow
             # graph nodes.  Each Metaflow graph node has in_funcs (nodes that
@@ -1414,7 +1407,6 @@ class KubeflowPipelines(object):
     def create_shared_volumes(
         self,
         step_name_to_aip_component: Dict[str, AIPComponent],
-        workflow_uid_op: ContainerOp,
     ) -> Dict[str, Dict[str, Tuple[ResourceOp, PipelineVolume]]]:
         """
         A volume to be shared across foreach split nodes, but not downstream steps.
@@ -1434,7 +1426,7 @@ class KubeflowPipelines(object):
                 (resource_op, volume) = self._create_volume(
                     step_name=f"{aip_component.step_name}-shared",
                     size=resources["volume"],
-                    workflow_uid=workflow_uid_op.output,
+                    workflow_uid=ARGO_WORKFLOW_UID,
                     mode=resources["volume_mode"],
                     volume_type=resources.get("volume_type"),
                 )
@@ -1544,43 +1536,6 @@ class KubeflowPipelines(object):
         ).set_display_name(node.name)
         return container_op
 
-    def _create_workflow_uid_op(
-        self,
-        s3_sensor_path: str,
-        step_name_to_aip_component: Dict[str, AIPComponent],
-        package_commands: str,
-    ) -> Optional[ContainerOp]:
-        if any(
-            "volume" in s.resource_requirements
-            for s in step_name_to_aip_component.values()
-        ):
-            get_workflow_uid_command = [
-                "bash",
-                "-ec",
-                (
-                    f"{package_commands}"
-                    " && python -m metaflow.plugins.aip.aip_get_workflow_uid"
-                    f" --s3_sensor_path '{s3_sensor_path}'"
-                    " --workflow_name {{workflow.name}}"
-                ),
-            ]
-            workflow_uid_op: ContainerOp = dsl.ContainerOp(
-                name="get_workflow_uid",
-                image=self.base_image,
-                command=get_workflow_uid_command,
-                file_outputs={"Output": "/tmp/outputs/Output/data"},
-            ).set_display_name("get_workflow_uid")
-            KubeflowPipelines._set_minimal_container_resources(workflow_uid_op)
-            workflow_uid_op.set_retry(
-                S3_SENSOR_RETRY_COUNT,
-                policy="Always",
-                backoff_duration=BACKOFF_DURATION,
-                backoff_factor=RETRY_BACKOFF_FACTOR,
-            )
-            return workflow_uid_op
-        else:
-            return None
-
     def create_s3_sensor_op(
         self,
         flow_variables: FlowVariables,
@@ -1627,7 +1582,7 @@ class KubeflowPipelines(object):
             (
                 f"{package_commands}"
                 " && python -m metaflow.plugins.aip.aip_s3_sensor"
-                " --run_id argo-{{workflow.name}}"
+                f" --run_id {METAFLOW_RUN_ID}"
                 f" --flow_name {self.name}"
                 f" --flow_parameters_json '{FLOW_PARAMETERS_JSON}'"
                 f" --path {path}"
@@ -1762,7 +1717,7 @@ class KubeflowPipelines(object):
                 f"{package_commands}"
                 " && python -m metaflow.plugins.aip.aip_exit_handler"
                 f" --flow_name {self.name}"
-                " --run_id {{workflow.name}}"
+                f" --run_id {METAFLOW_RUN_ID}"
                 f" --env_variables_json {json.dumps(json.dumps(env_variables))}"
                 f" --flow_parameters_json {flow_parameters_json if flow_parameters else '{}'}"
                 "  --status {{workflow.status}}"
@@ -1813,7 +1768,7 @@ class KubeflowPipelines(object):
                 f"{package_commands}"
                 f" && METAFLOW_USER=aip-user python {os.path.basename(sys.argv[0])} {top_level} aip user-defined-exit-handler"
                 f" --flow_name {self.name}"
-                " --run_id {{workflow.name}}"
+                f" --run_id {METAFLOW_RUN_ID}"
                 f" --env_variables_json {json.dumps(json.dumps(env_variables))}"
                 f" --flow_parameters_json {flow_parameters_json if flow_parameters else '{}'}"
                 "  --status {{workflow.status}}"
