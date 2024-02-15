@@ -519,6 +519,7 @@ class FlowSpec(object):
         str
             The value to use for the item.
         """
+        MAXIMUM_VALUE_CHARACTERS = 30
 
         def _is_primitive_type(item):
             return (
@@ -529,7 +530,7 @@ class FlowSpec(object):
             )
 
         value = item if _is_primitive_type(item) else reprlib.Repr().repr(item)
-        return basestring(value)
+        return basestring(value)[:MAXIMUM_VALUE_CHARACTERS]
 
     def next(self, *dsts: Callable[..., None], **kwargs) -> None:
         """
