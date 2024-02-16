@@ -155,6 +155,12 @@ def kill(ctx, run_id, user, my_runs):
 @click.option("--host-volumes", multiple=True)
 @click.option("--efs-volumes", multiple=True)
 @click.option(
+    "--ephemeral-storage",
+    default=None,
+    type=int,
+    help="Ephemeral storage (for AWS Batch only)",
+)
+@click.option(
     "--num-parallel",
     default=0,
     type=int,
@@ -186,6 +192,7 @@ def step(
     tmpfs_path=None,
     host_volumes=None,
     efs_volumes=None,
+    ephemeral_storage=None,
     num_parallel=None,
     **kwargs
 ):
@@ -317,6 +324,7 @@ def step(
                 tmpfs_tempdir=tmpfs_tempdir,
                 tmpfs_size=tmpfs_size,
                 tmpfs_path=tmpfs_path,
+                ephemeral_storage=ephemeral_storage,
                 num_parallel=num_parallel,
             )
     except Exception as e:
