@@ -28,6 +28,8 @@ except NameError:
 
 from .datastore.inputs import Inputs
 
+INTERNAL_ARTIFACTS_SET = set(["_foreach_values"])
+
 
 class InvalidNextException(MetaflowException):
     headline = "Invalid self.next() transition detected"
@@ -419,8 +421,6 @@ class FlowSpec(object):
             This exception is thrown in case an artifact specified in `include` cannot
             be found.
         """
-        INTERNAL_ARTIFACTS_SET = set(["_foreach_values"])
-
         include = include or []
         exclude = exclude or []
         node = self._graph[self._current_step]
