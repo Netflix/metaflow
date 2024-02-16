@@ -327,6 +327,9 @@ class BatchJob(object):
                 # default tmpfs behavior - https://man7.org/linux/man-pages/man5/tmpfs.5.html
                 tmpfs_size = int(float(memory)) / 2
 
+            if "linuxParameters" not in job_definition["containerProperties"]:
+                job_definition["containerProperties"]["linuxParameters"] = {}
+
             job_definition["containerProperties"]["linuxParameters"]["tmpfs"] = [
                 {
                     "containerPath": tmpfs_path,
