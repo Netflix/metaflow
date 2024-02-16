@@ -15,6 +15,7 @@ from metaflow.metaflow_config import (
     SFN_DYNAMO_DB_TABLE,
     SFN_EXECUTION_LOG_GROUP_ARN,
     SFN_IAM_ROLE,
+    SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH,
 )
 from metaflow.parameters import deploy_time_eval
 from metaflow.util import dict_to_cli_options, to_pascalcase
@@ -52,6 +53,7 @@ class StepFunctions(object):
         max_workers=None,
         workflow_timeout=None,
         is_project=False,
+        use_distributed_map=False,
     ):
         self.name = name
         self.graph = graph
@@ -69,6 +71,9 @@ class StepFunctions(object):
         self.username = username
         self.max_workers = max_workers
         self.workflow_timeout = workflow_timeout
+
+        # https://aws.amazon.com/blogs/aws/step-functions-distributed-map-a-serverless-solution-for-large-scale-parallel-data-processing/
+        self.use_distributed_map = use_distributed_map
 
         self._client = StepFunctionsClient()
         self._workflow = self._compile()
@@ -365,17 +370,80 @@ class StepFunctions(object):
                     .parameter("SplitParentTaskId.$", "$.JobId")
                     .parameter("Parameters.$", "$.Parameters")
                     .parameter("Index.$", "$$.Map.Item.Value")
-                    .next(node.matching_join)
+                    .next(
+                        "%s_*GetManifest" % iterator_name
+                        if self.use_distributed_map
+                        else node.matching_join
+                    )
                     .iterator(
                         _visit(
                             self.graph[node.out_funcs[0]],
-                            Workflow(node.out_funcs[0]).start_at(node.out_funcs[0]),
+                            Workflow(node.out_funcs[0])
+                            .start_at(node.out_funcs[0])
+                            .mode(
+                                "DISTRIBUTED" if self.use_distributed_map else "INLINE"
+                            ),
                             node.matching_join,
                         )
                     )
                     .max_concurrency(self.max_workers)
-                    .output_path("$.[0]")
+                    # AWS Step Functions has a short coming for DistributedMap at the
+                    # moment that does not allow us to subset the output of for-each
+                    # to just a single element. We have to rely on a rather terrible
+                    # hack and resort to using ResultWriter to write the state to
+                    # Amazon S3 and process it in another task. But, well what can we
+                    # do...
+                    .result_writer(
+                        *(
+                            (
+                                (
+                                    SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH[len("s3://") :]
+                                    if SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH.startswith(
+                                        "s3://"
+                                    )
+                                    else SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH
+                                ).split("/", 1)
+                                + [""]
+                            )[:2]
+                            if self.use_distributed_map
+                            else (None, None)
+                        )
+                    )
+                    .output_path("$" if self.use_distributed_map else "$.[0]")
                 )
+                if self.use_distributed_map:
+                    workflow.add_state(
+                        State("%s_*GetManifest" % iterator_name)
+                        .resource("arn:aws:states:::aws-sdk:s3:getObject")
+                        .parameter("Bucket.$", "$.ResultWriterDetails.Bucket")
+                        .parameter("Key.$", "$.ResultWriterDetails.Key")
+                        .next("%s_*Map" % iterator_name)
+                        .result_selector("Body.$", "States.StringToJson($.Body)")
+                    )
+                    workflow.add_state(
+                        Map("%s_*Map" % iterator_name)
+                        .iterator(
+                            Workflow("%s_*PassWorkflow" % iterator_name)
+                            .mode("DISTRIBUTED")
+                            .start_at("%s_*Pass" % iterator_name)
+                            .add_state(
+                                Pass("%s_*Pass" % iterator_name)
+                                .end()
+                                .parameter("Output.$", "States.StringToJson($.Output)")
+                                .output_path("$.Output")
+                            )
+                        )
+                        .next(node.matching_join)
+                        .max_concurrency(1000)
+                        .item_reader(
+                            JSONItemReader()
+                            .resource("arn:aws:states:::s3:getObject")
+                            .parameter("Bucket.$", "$.Body.DestinationBucket")
+                            .parameter("Key.$", "$.Body.ResultFiles.SUCCEEDED.[0].Key")
+                        )
+                        .output_path("$.[0]")
+                    )
+
                 # Continue the traversal from the matching_join.
                 _visit(self.graph[node.matching_join], workflow, exit_node)
             # We shouldn't ideally ever get here.
@@ -444,7 +512,6 @@ class StepFunctions(object):
             "metaflow.owner": self.username,
             "metaflow.flow_name": self.flow.name,
             "metaflow.step_name": node.name,
-            "metaflow.run_id.$": "$$.Execution.Name",
             # Unfortunately we can't set the task id here since AWS Step
             # Functions lacks any notion of run-scoped task identifiers. We
             # instead co-opt the AWS Batch job id as the task id. This also
@@ -456,6 +523,10 @@ class StepFunctions(object):
             # `$$.State.RetryCount` resolves to an int dynamically and
             # AWS Batch job specification only accepts strings. We handle
             # retries/catch within AWS Batch to get around this limitation.
+            # And, we also cannot set the run id here since the run id maps to
+            # the execution name of the AWS Step Functions State Machine, which
+            # is different when executing inside a distributed map. We set it once
+            # in the start step and move it along to be consumed by all the children.
             "metaflow.version": self.environment.get_environment_info()[
                 "metaflow_version"
             ],
@@ -492,6 +563,12 @@ class StepFunctions(object):
             env["METAFLOW_S3_ENDPOINT_URL"] = S3_ENDPOINT_URL
 
         if node.name == "start":
+            # metaflow.run_id maps to AWS Step Functions State Machine Execution in all
+            # cases except for when within a for-each construct that relies on
+            # Distributed Map. To work around this issue, we pass the run id from the
+            # start step to all subsequent tasks.
+            attrs["metaflow.run_id.$"] = "$$.Execution.Name"
+
             # Initialize parameters for the flow in the `start` step.
             parameters = self._process_parameters()
             if parameters:
@@ -550,6 +627,8 @@ class StepFunctions(object):
                 env["METAFLOW_SPLIT_PARENT_TASK_ID"] = (
                     "$.Parameters.split_parent_task_id_%s" % node.split_parents[-1]
                 )
+                # Inherit the run id from the parent and pass it along to children.
+                attrs["metaflow.run_id.$"] = "$.Parameters.['metaflow.run_id']"
             else:
                 # Set appropriate environment variables for runtime replacement.
                 if len(node.in_funcs) == 1:
@@ -558,6 +637,8 @@ class StepFunctions(object):
                         % node.in_funcs[0]
                     )
                     env["METAFLOW_PARENT_TASK_ID"] = "$.JobId"
+                    # Inherit the run id from the parent and pass it along to children.
+                    attrs["metaflow.run_id.$"] = "$.Parameters.['metaflow.run_id']"
                 else:
                     # Generate the input paths in a quasi-compressed format.
                     # See util.decompress_list for why this is written the way
@@ -567,6 +648,8 @@ class StepFunctions(object):
                         "${METAFLOW_PARENT_%s_TASK_ID}" % (idx, idx)
                         for idx, _ in enumerate(node.in_funcs)
                     )
+                    # Inherit the run id from the parent and pass it along to children.
+                    attrs["metaflow.run_id.$"] = "$.[0].Parameters.['metaflow.run_id']"
                     for idx, _ in enumerate(node.in_funcs):
                         env["METAFLOW_PARENT_%s_TASK_ID" % idx] = "$.[%s].JobId" % idx
                         env["METAFLOW_PARENT_%s_STEP" % idx] = (
@@ -893,6 +976,12 @@ class Workflow(object):
         tree = lambda: defaultdict(tree)
         self.payload = tree()
 
+    def mode(self, mode):
+        self.payload["ProcessorConfig"] = {"Mode": mode}
+        if mode == "DISTRIBUTED":
+            self.payload["ProcessorConfig"]["ExecutionType"] = "STANDARD"
+        return self
+
     def start_at(self, start_at):
         self.payload["StartAt"] = start_at
         return self
@@ -940,9 +1029,17 @@ class State(object):
         self.payload["ResultPath"] = result_path
         return self
 
+    def result_selector(self, name, value):
+        self.payload["ResultSelector"][name] = value
+        return self
+
     def _partition(self):
         # This is needed to support AWS Gov Cloud and AWS CN regions
         return SFN_IAM_ROLE.split(":")[1]
+
+    def retry_strategy(self, retry_strategy):
+        self.payload["Retry"] = [retry_strategy]
+        return self
 
     def batch(self, job):
         self.resource(
@@ -963,6 +1060,19 @@ class State(object):
         # tags may not be present in all scenarios
         if "tags" in job.payload:
             self.parameter("Tags", job.payload["tags"])
+        # set retry strategy for AWS Batch job submission to account for the
+        # measily 50 jobs / second queue admission limit which people can
+        # run into very quickly.
+        self.retry_strategy(
+            {
+                "ErrorEquals": ["Batch.AWSBatchException"],
+                "BackoffRate": 2,
+                "IntervalSeconds": 2,
+                "MaxDelaySeconds": 60,
+                "MaxAttempts": 10,
+                "JitterStrategy": "FULL",
+            }
+        )
         return self
 
     def dynamo_db(self, table_name, primary_key, values):
@@ -973,6 +1083,26 @@ class State(object):
         ).parameter(
             "ProjectionExpression", values
         )
+        return self
+
+
+class Pass(object):
+    def __init__(self, name):
+        self.name = name
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+        self.payload["Type"] = "Pass"
+
+    def end(self):
+        self.payload["End"] = True
+        return self
+
+    def parameter(self, name, value):
+        self.payload["Parameters"][name] = value
+        return self
+
+    def output_path(self, output_path):
+        self.payload["OutputPath"] = output_path
         return self
 
 
@@ -1036,4 +1166,38 @@ class Map(object):
 
     def result_path(self, result_path):
         self.payload["ResultPath"] = result_path
+        return self
+
+    def item_reader(self, item_reader):
+        self.payload["ItemReader"] = item_reader.payload
+        return self
+
+    def result_writer(self, bucket, prefix):
+        if bucket is not None and prefix is not None:
+            self.payload["ResultWriter"] = {
+                "Resource": "arn:aws:states:::s3:putObject",
+                "Parameters": {
+                    "Bucket": bucket,
+                    "Prefix": prefix,
+                },
+            }
+        return self
+
+
+class JSONItemReader(object):
+    def __init__(self):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+        self.payload["ReaderConfig"] = {"InputType": "JSON", "MaxItems": 1}
+
+    def resource(self, resource):
+        self.payload["Resource"] = resource
+        return self
+
+    def parameter(self, name, value):
+        self.payload["Parameters"][name] = value
+        return self
+
+    def output_path(self, output_path):
+        self.payload["OutputPath"] = output_path
         return self
