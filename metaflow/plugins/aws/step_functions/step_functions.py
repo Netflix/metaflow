@@ -406,7 +406,7 @@ class StepFunctions(object):
                                 + [""]
                             )[:2]
                             if self.use_distributed_map
-                            else ()
+                            else (None, None)
                         )
                     )
                     .output_path("$" if self.use_distributed_map else "$.[0]")
