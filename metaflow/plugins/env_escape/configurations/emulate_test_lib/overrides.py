@@ -52,10 +52,30 @@ def unsupported_method(stub, func, *args, **kwargs):
 
 
 @local_exception_deserialize("test_lib.SomeException")
-def deserialize_user(ex, json_obj):
+def some_exception_deserialize(ex, json_obj):
     ex.user_value = json_obj
 
 
 @remote_exception_serialize("test_lib.SomeException")
 def some_exception_serialize(ex):
     return 42
+
+
+@local_exception_deserialize("test_lib.ExceptionAndClass")
+def exception_and_class_deserialize(ex, json_obj):
+    ex.user_value = json_obj
+
+
+@remote_exception_serialize("test_lib.ExceptionAndClass")
+def exception_and_class_serialize(ex):
+    return 43
+
+
+@local_exception_deserialize("test_lib.ExceptionAndClassChild")
+def exception_and_class_child_deserialize(ex, json_obj):
+    ex.user_value = json_obj
+
+
+@remote_exception_serialize("test_lib.ExceptionAndClassChild")
+def exception_and_class_child_serialize(ex):
+    return 44

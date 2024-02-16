@@ -1,5 +1,6 @@
 import functools
 import pickle
+from typing import Any
 
 from .consts import (
     OP_GETATTR,
@@ -15,6 +16,7 @@ from .consts import (
     OP_PICKLE,
     OP_DIR,
     OP_INIT,
+    OP_SUBCLASSCHECK,
 )
 
 from .exception_transferer import ExceptionMetaClass
@@ -41,6 +43,7 @@ LOCAL_ATTRS = (
             "__getattribute__",
             "__hash__",
             "__instancecheck__",
+            "__subclasscheck__",
             "__init__",
             "__metaclass__",
             "__module__",
@@ -67,7 +70,11 @@ CLASS_METHOD = 2
 
 def fwd_request(stub, request_type, *args, **kwargs):
     connection = object.__getattribute__(stub, "___connection___")
-    return connection.stub_request(stub, request_type, *args, **kwargs)
+    if connection:
+        return connection.stub_request(stub, request_type, *args, **kwargs)
+    raise RuntimeError(
+        "Returned exception stub cannot be used to make further remote requests"
+    )
 
 
 class StubMetaClass(type):
@@ -102,7 +109,7 @@ class Stub(with_metaclass(StubMetaClass, object)):
     #    raise AttributeError
 
     def __init__(
-        self, connection, remote_class_name, identifier, is_returned_exception=False
+        self, connection, remote_class_name, identifier, _is_returned_exception=False
     ):
         self.___remote_class_name___ = remote_class_name
         self.___identifier___ = identifier
@@ -110,7 +117,7 @@ class Stub(with_metaclass(StubMetaClass, object)):
         # If it is a returned exception (ie: it was raised by the server), it behaves
         # a bit differently for methods like __str__ and __repr__ (we try not to get
         # stuff from the server)
-        self.___is_returned_exception___ = is_returned_exception
+        self.___is_returned_exception___ = _is_returned_exception
 
     def __del__(self):
         try:
@@ -187,6 +194,16 @@ class Stub(with_metaclass(StubMetaClass, object)):
         # support for pickling
         return pickle.loads, (fwd_request(self, OP_PICKLE, proto),)
 
+    @classmethod
+    def __subclasshook__(cls, parent):
+        if parent.__bases__[0] == Stub:
+            raise NotImplementedError  # Follow the usual mechanism
+        # If this is not a stub, we go over to the other side
+        parent_name = "%s.%s" % (parent.__module__, parent.__name__)
+        return cls.___class_connection___.stub_request(
+            None, OP_SUBCLASSCHECK, cls.___class_remote_class_name___, parent_name, True
+        )
+
 
 def _make_method(method_type, connection, class_name, name, doc):
     if name == "__call__":
@@ -262,6 +279,24 @@ class MetaWithConnection(StubMetaClass):
                 None, OP_INIT, cls.___class_remote_class_name___, *args, **kwargs
             )
 
+    def __subclasscheck__(cls, subclass):
+        subclass_name = "%s.%s" % (subclass.__module__, subclass.__name__)
+        if subclass.__bases__[0] == Stub:
+            subclass_name = subclass.___class_remote_class_name___
+        return cls.___class_connection___.stub_request(
+            None,
+            OP_SUBCLASSCHECK,
+            cls.___class_remote_class_name___,
+            subclass_name,
+        )
+
+    def __instancecheck__(cls, instance):
+        if type(instance) == cls:
+            # Fast path if it's just an object of this class
+            return True
+        # Goes to __subclasscheck__ above
+        return cls.__subclasscheck__(type(instance))
+
 
 class MetaExceptionWithConnection(StubMetaClass, ExceptionMetaClass):
     def __new__(cls, class_name, base_classes, class_dict, connection):
@@ -278,16 +313,45 @@ class MetaExceptionWithConnection(StubMetaClass, ExceptionMetaClass):
         # Restore __str__ and __repr__ to the original ones because we need to determine
         # if we call them depending on whether or not the object is a returned exception
         # or not
+        cls.__exception_str__ = cls.__str__
+        cls.__exception_repr__ = cls.__repr__
         cls.__str__ = cls.__orig_str__
         cls.__repr__ = cls.__orig_repr__
 
     def __call__(cls, *args, **kwargs):
+        # Very similar to the other case but we also need to be able to detect
+        # local instantiation of an exception so that we can set the __is_returned_exception__
         if len(args) > 0 and id(args[0]) == id(cls.___class_connection___):
             return super(MetaExceptionWithConnection, cls).__call__(*args, **kwargs)
+        elif kwargs and kwargs.get("_is_returned_exception", False):
+            return super(MetaExceptionWithConnection, cls).__call__(
+                None, None, None, _is_returned_exception=True
+            )
         else:
             return cls.___class_connection___.stub_request(
                 None, OP_INIT, cls.___class_remote_class_name___, *args, **kwargs
             )
+
+    # The issue is that for a proxied object that is also an exception, we now have
+    # two classes representing it, one that includes the Stub class and one that doesn't
+    # Concretely:
+    #  - test.MyException would return a class that derives from Stub
+    #  - test.MySubException would return a class that derives from Stub and test.MyException
+    #    but WITHOUT the Stub portion (see get_local_class).
+    #  - we want issubclass(test.MySubException, test.MyException) to return True and
+    #    the same with instance checks.
+    def __instancecheck__(cls, instance):
+        return cls.__subclasscheck__(type(instance))
+
+    def __subclasscheck__(cls, subclass):
+        # __mro__[0] is this class itself
+        # __mro__[1] is the stub so we start checking at 2
+        return any(
+            [
+                subclass.__mro__[i] in cls.__mro__[2:]
+                for i in range(2, len(subclass.__mro__))
+            ]
+        )
 
 
 def create_class(

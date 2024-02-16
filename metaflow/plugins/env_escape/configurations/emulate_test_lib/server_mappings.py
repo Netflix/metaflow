@@ -13,7 +13,10 @@ EXPORTED_CLASSES = {
     ("test_lib", "test_lib.alias"): {
         "TestClass1": lib.TestClass1,
         "TestClass2": lib.TestClass2,
+        "BaseClass": lib.BaseClass,
+        "ChildClass": lib.ChildClass,
         "ExceptionAndClass": lib.ExceptionAndClass,
+        "ExceptionAndClassChild": lib.ExceptionAndClassChild,
     }
 }
 
@@ -22,6 +25,7 @@ EXPORTED_EXCEPTIONS = {
         "SomeException": lib.SomeException,
         "MyBaseException": lib.MyBaseException,
         "ExceptionAndClass": lib.ExceptionAndClass,
+        "ExceptionAndClassChild": lib.ExceptionAndClassChild,
     }
 }
 

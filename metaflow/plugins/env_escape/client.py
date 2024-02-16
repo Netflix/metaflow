@@ -357,7 +357,9 @@ class Client(object):
         # this connection will be converted to a local stub.
         return self._datatransferer.load(json_obj)
 
-    def get_local_class(self, name, obj_id=None, is_returned_exception=False):
+    def get_local_class(
+        self, name, obj_id=None, is_returned_exception=False, is_parent=False
+    ):
         # Gets (and creates if needed), the class mapping to the remote
         # class of name 'name'.
 
@@ -367,6 +369,15 @@ class Client(object):
         # - classes that are proxied regular classes AND NOT proxied exceptions
         # - clases that are NOT proxied regular classes AND are proxied exceptions
         name = get_canonical_name(name, self._aliases)
+
+        def name_to_parent_name(name):
+            return "parent:%s" % name
+
+        if is_parent:
+            lookup_name = name_to_parent_name(name)
+        else:
+            lookup_name = name
+
         if name == "function":
             # Special handling of pickled functions. We create a new class that
             # simply has a __call__ method that will forward things back to
@@ -378,7 +389,7 @@ class Client(object):
                     self, "__function_%s" % obj_id, {}, {}, {}, {"__call__": ""}, []
                 )
             return self._proxied_standalone_functions[obj_id]
-        local_class = self._proxied_classes.get(name, None)
+        local_class = self._proxied_classes.get(lookup_name, None)
         if local_class is not None:
             return local_class
 
@@ -386,7 +397,7 @@ class Client(object):
         is_proxied_non_exception = name in self._proxied_classnames
 
         if not is_proxied_exception and not is_proxied_non_exception:
-            if is_returned_exception:
+            if is_returned_exception or is_parent:
                 # In this case, it may be a local exception that we need to
                 # recreate
                 try:
@@ -405,7 +416,7 @@ class Client(object):
                         dict(getattr(local_exception, "__dict__", {})),
                     )
                     wrapped_exception.__module__ = ex_module
-                    self._proxied_classes[name] = wrapped_exception
+                    self._proxied_classes[lookup_name] = wrapped_exception
                     return wrapped_exception
 
             raise ValueError("Class '%s' is not known" % name)
@@ -422,20 +433,34 @@ class Client(object):
             for parent in ex_parents:
                 # We always consider it to be an exception so that we wrap even non
                 # proxied builtins exceptions
-                parents.append(self.get_local_class(parent, is_returned_exception=True))
+                parents.append(self.get_local_class(parent, is_parent=True))
         # For regular classes, we get what it exposes from the server
         if is_proxied_non_exception:
             remote_methods = self.stub_request(None, OP_GETMETHODS, name)
         else:
             remote_methods = {}
 
-        if is_proxied_exception and not is_proxied_non_exception:
-            # This is a pure exception
+        parent_local_class = None
+        local_class = None
+        if is_proxied_exception:
+            # If we are a proxied exception AND a proxied class, we create two classes:
+            # actually:
+            #  - the class itself (which is a stub)
+            #  - the class in the capacity of a parent class (to another exception
+            #    presumably). The reason for this is that if we have a exception/proxied
+            #    class A and another B and B inherits from A, the MRO order would be all
+            #    wrong since both A and B would also inherit from `Stub`. Here what we
+            #    do is:
+            #      - A_parent inherits from the actual parents of A (let's assume a
+            #        builtin exception)
+            #      - A inherits from (Stub, A_parent)
+            #      - B_parent inherints from A_parent and the builtin Exception
+            #      - B inherits from (Stub, B_parent)
             ex_module, ex_name = name.rsplit(".", 1)
-            local_class = ExceptionMetaClass(ex_name, (*parents,), {})
-            local_class.__module__ = ex_module
-        else:
-            # This method creates either a pure stub or a stub that is also an exception
+            parent_local_class = ExceptionMetaClass(ex_name, (*parents,), {})
+            parent_local_class.__module__ = ex_module
+
+        if is_proxied_non_exception:
             local_class = create_class(
                 self,
                 name,
@@ -443,10 +468,26 @@ class Client(object):
                 self._getattr_overrides.get(name, {}),
                 self._setattr_overrides.get(name, {}),
                 remote_methods,
-                parents,
+                (parent_local_class,) if parent_local_class else None,
             )
-        self._proxied_classes[name] = local_class
-        return local_class
+        if parent_local_class:
+            self._proxied_classes[name_to_parent_name(name)] = parent_local_class
+        if local_class:
+            self._proxied_classes[name] = local_class
+        else:
+            # This is for the case of pure proxied exceptions -- we want the lookup of
+            # foo.MyException to be the same class as looking of foo.MyException as a parent
+            # of another exception so `isinstance` works properly
+            self._proxied_classes[name] = parent_local_class
+
+        if is_parent:
+            # This should never happen but making sure
+            if not parent_local_class:
+                raise RuntimeError(
+                    "Exception parent class %s is not a proxied exception" % name
+                )
+            return parent_local_class
+        return self._proxied_classes[name]
 
     def can_pickle(self, obj):
         return getattr(obj, "___connection___", None) == self

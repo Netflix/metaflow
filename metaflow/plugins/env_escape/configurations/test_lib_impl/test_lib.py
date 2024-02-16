@@ -1,4 +1,5 @@
 import functools
+from html.parser import HTMLParser
 
 
 class MyBaseException(Exception):
@@ -18,6 +19,36 @@ class ExceptionAndClass(MyBaseException):
 
     def __str__(self):
         return "ExceptionAndClass Str: %s" % super().__str__()
+
+
+class ExceptionAndClassChild(ExceptionAndClass):
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def method_on_child_exception(self):
+        return "method_on_child_exception"
+
+    def __str__(self):
+        return "ExceptionAndClassChild Str: %s" % super().__str__()
+
+
+class BaseClass(HTMLParser):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._output = []
+
+    def handle_starttag(self, tag, attrs):
+        self._output.append(tag)
+        return super().handle_starttag(tag, attrs)
+
+    def get_output(self):
+        return self._output
+
+
+class ChildClass(BaseClass):
+    def handle_endtag(self, tag):
+        self._output.append(tag)
+        return super().handle_endtag(tag)
 
 
 class TestClass1(object):
@@ -72,6 +103,9 @@ class TestClass1(object):
     def weird_indirection(self, name):
         return functools.partial(self.__hidden, name)
 
+    def returnChild(self):
+        return ChildClass()
+
     def raiseOrReturnValueError(self, doRaise=False):
         if doRaise:
             raise ValueError("I raised")
@@ -86,6 +120,11 @@ class TestClass1(object):
         if doRaise:
             raise ExceptionAndClass("I raised")
         return ExceptionAndClass("I returned")
+
+    def raiseOrReturnExceptionAndClassChild(self, doRaise=False):
+        if doRaise:
+            raise ExceptionAndClassChild("I raised")
+        return ExceptionAndClassChild("I returned")
 
 
 class TestClass2(object):

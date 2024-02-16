@@ -85,6 +85,8 @@ def dump_exception(data_transferer, exception_type, exception_val, tb, user_data
 
 
 def load_exception(client, json_obj):
+    from .stub import Stub
+
     json_obj = client.decode(json_obj)
 
     if json_obj.get(FIELD_EXC_SI) is not None:
@@ -93,11 +95,16 @@ def load_exception(client, json_obj):
     exception_module = json_obj.get(FIELD_EXC_MODULE)
     exception_name = json_obj.get(FIELD_EXC_NAME)
     exception_class = None
+    # This name is already cannonical since we cannonicalize it on the server side
     full_name = "%s.%s" % (exception_module, exception_name)
 
     exception_class = client.get_local_class(full_name, is_returned_exception=True)
 
-    raised_exception = exception_class(*json_obj.get(FIELD_EXC_ARGS))
+    if issubclass(exception_class, Stub):
+        raised_exception = exception_class(_is_returned_exception=True)
+        raised_exception.args = tuple(json_obj.get(FIELD_EXC_ARGS))
+    else:
+        raised_exception = exception_class(*json_obj.get(FIELD_EXC_ARGS))
     raised_exception._exception_str = json_obj.get(FIELD_EXC_STR, None)
     raised_exception._exception_repr = json_obj.get(FIELD_EXC_REPR, None)
     raised_exception._exception_tb = json_obj.get(FIELD_EXC_TB, None)

@@ -36,6 +36,7 @@ from .consts import (
     OP_GETVAL,
     OP_SETVAL,
     OP_INIT,
+    OP_SUBCLASSCHECK,
     VALUE_LOCAL,
     VALUE_REMOTE,
     CONTROL_GETEXPORTS,
@@ -255,6 +256,7 @@ class Server(object):
             OP_GETVAL: self._handle_getval,
             OP_SETVAL: self._handle_setval,
             OP_INIT: self._handle_init,
+            OP_SUBCLASSCHECK: self._handle_subclasscheck,
         }
 
         self._local_objects = {}
@@ -292,6 +294,7 @@ class Server(object):
     def encode_exception(self, ex_type, ex, trace_back):
         try:
             full_name = "%s.%s" % (ex_type.__module__, ex_type.__name__)
+            get_canonical_name(full_name, self._aliases)
             serializer = self._exception_serializers.get(full_name)
         except AttributeError:
             # Ignore if no __module__ for example -- definitely not something we built
@@ -501,6 +504,21 @@ class Server(object):
         if class_type is None:
             raise ValueError("Unknown class %s" % class_name)
         return class_type(*args, **kwargs)
+
+    def _handle_subclasscheck(self, target, class_name, otherclass_name, reverse=False):
+        class_type = self._known_classes.get(class_name)
+        if class_type is None:
+            raise ValueError("Unknown class %s" % class_name)
+        try:
+            sub_module, sub_name = otherclass_name.rsplit(".", 1)
+            __import__(sub_module, None, None, "*")
+        except Exception:
+            sub_module = None
+        if sub_module is None:
+            return False
+        if reverse:
+            return issubclass(class_type, getattr(sys.modules[sub_module], sub_name))
+        return issubclass(getattr(sys.modules[sub_module], sub_name), class_type)
 
 
 if __name__ == "__main__":

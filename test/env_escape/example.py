@@ -1,6 +1,8 @@
 import os
 import sys
 
+from html.parser import HTMLParser
+
 from metaflow import FlowSpec, step, conda
 
 
@@ -93,8 +95,45 @@ def run_test(through_escape=False):
     o1.weird_indirection("_value")(20)
     assert o1.value == 20
 
-    print("-- Test exceptions --")
+    print("-- Test subclasses --")
+    child_obj = test.ChildClass()
+    child_obj_returned = o1.returnChild()
+    for o in (child_obj, child_obj_returned):
+        o.feed("<html>Hello<p>World!</p></html>")
+        assert o.get_output() == ["html", "p", "p", "html"]
 
+    print("-- Test isinstance/issubclass --")
+    ex_child = test.ExceptionAndClassChild("I am a child")
+    assert isinstance(ex_child, test.ExceptionAndClassChild)
+    assert isinstance(ex_child, test.ExceptionAndClass)
+    assert isinstance(ex_child, Exception)
+    assert isinstance(ex_child, object)
+
+    assert issubclass(type(ex_child), test.ExceptionAndClass)
+    assert issubclass(test.ExceptionAndClassChild, test.ExceptionAndClass)
+    assert issubclass(type(ex_child), Exception)
+    assert issubclass(test.ExceptionAndClassChild, Exception)
+    assert issubclass(type(ex_child), object)
+    assert issubclass(test.ExceptionAndClassChild, object)
+
+    child_obj = test.ChildClass()
+    child_obj_returned = o1.returnChild()
+
+    # I can't find an easy way (yet) to test support for subclasses based on non
+    # proxied types. It seems more minor for now so ignoring.
+    for o in (child_obj, child_obj_returned):
+        assert isinstance(o, test.ChildClass)
+        assert isinstance(o, test.BaseClass)
+        # assert isinstance(o, HTMLParser)
+        assert isinstance(o, object)
+        assert issubclass(type(o), test.BaseClass)
+        # assert issubclass(type(o), HTMLParser)
+        assert issubclass(type(o), object)
+    assert issubclass(test.ChildClass, test.BaseClass)
+    # assert issubclass(test.ChildClass, HTMLParser)
+    assert issubclass(test.ChildClass, object)
+
+    print("-- Test exceptions --")
     # Non proxied exceptions can't be returned as objects
     try:
         vexc = o1.raiseOrReturnValueError()
@@ -118,8 +157,22 @@ def run_test(through_escape=False):
 
     exception_and_class = o1.raiseOrReturnExceptionAndClass()
     assert isinstance(exception_and_class, test.ExceptionAndClass)
+    assert isinstance(exception_and_class, test.MyBaseException)
+    assert isinstance(exception_and_class, Exception)
     assert exception_and_class.method_on_exception() == "method_on_exception"
     assert str(exception_and_class).startswith("ExceptionAndClass Str:")
+
+    exception_and_class_child = o1.raiseOrReturnExceptionAndClassChild()
+    assert isinstance(exception_and_class_child, test.ExceptionAndClassChild)
+    assert isinstance(exception_and_class_child, test.ExceptionAndClass)
+    assert isinstance(exception_and_class_child, test.MyBaseException)
+    assert isinstance(exception_and_class_child, Exception)
+    assert exception_and_class_child.method_on_exception() == "method_on_exception"
+    assert (
+        exception_and_class_child.method_on_child_exception()
+        == "method_on_child_exception"
+    )
+    assert str(exception_and_class_child).startswith("ExceptionAndClassChild Str:")
 
     try:
         o1.raiseOrReturnValueError(True)
@@ -139,6 +192,28 @@ def run_test(through_escape=False):
             assert "Remote (on server) traceback" in str(e)
     except Exception as e:
         assert False, "Should have been SomeException"
+
+    try:
+        o1.raiseOrReturnExceptionAndClass(True)
+        assert False, "Should have raised"
+    except test.ExceptionAndClass as e:
+        assert True
+        if through_escape:
+            assert e.user_value == 43
+            assert "Remote (on server) traceback" in str(e)
+    except Exception as e:
+        assert False, "Should have been ExceptionAndClass"
+
+    try:
+        o1.raiseOrReturnExceptionAndClassChild(True)
+        assert False, "Should have raised"
+    except test.ExceptionAndClassChild as e:
+        assert True
+        if through_escape:
+            assert e.user_value == 44
+            assert "Remote (on server) traceback" in str(e)
+    except Exception as e:
+        assert False, "Should have been ExceptionAndClassChild"
 
 
 class EscapeTest(FlowSpec):
