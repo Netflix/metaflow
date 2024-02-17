@@ -84,8 +84,8 @@ class Nvcf(object):
 
         # TODO: remove this before committing code
         access_creds = {
-            "AWS_ACCESS_KEY_ID": "foo",
-            "AWS_SECRET_ACCESS_KEY": "bar",
+            "AWS_ACCESS_KEY_ID": os.environ["NVCF_AWS_ACCESS_KEY_ID"],
+            "AWS_SECRET_ACCESS_KEY": os.environ["NVCF_AWS_SECRET_ACCESS_KEY"],
         }
         env.update(access_creds)
         self.job = Job(function_id, 'bash -c "%s"' % cmd_str, env)
@@ -132,7 +132,7 @@ class JobStatus(object):
     FAILED = "FAILED"
 
 
-bearer_token = "baz"
+bearer_token = os.environ["NVCF_BEARER_TOKEN"]
 
 nvcf_url = "https://api.nvcf.nvidia.com"
 submit_endpoint = f"{nvcf_url}/v2/nvcf/pexec/functions"
