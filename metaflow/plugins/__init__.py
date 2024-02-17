@@ -8,6 +8,7 @@ from metaflow.extension_support.plugins import (
 CLIS_DESC = [
     ("package", ".package_cli.cli"),
     ("batch", ".aws.batch.batch_cli.cli"),
+    ("nvcf", ".nvcf.nvcf_cli.cli"),
     ("kubernetes", ".kubernetes.kubernetes_cli.cli"),
     ("step-functions", ".aws.step_functions.step_functions_cli.cli"),
     ("airflow", ".airflow.airflow_cli.cli"),
@@ -28,6 +29,7 @@ STEP_DECORATORS_DESC = [
     ("retry", ".retry_decorator.RetryDecorator"),
     ("resources", ".resources_decorator.ResourcesDecorator"),
     ("batch", ".aws.batch.batch_decorator.BatchDecorator"),
+    ("nvcf", ".nvcf.nvcf_decorator.NvcfDecorator"),
     ("kubernetes", ".kubernetes.kubernetes_decorator.KubernetesDecorator"),
     (
         "argo_workflows_internal",
