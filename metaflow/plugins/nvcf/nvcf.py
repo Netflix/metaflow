@@ -132,7 +132,7 @@ class JobStatus(object):
     FAILED = "FAILED"
 
 
-bearer_token = os.environ["NVCF_BEARER_TOKEN"]
+
 
 nvcf_url = "https://api.nvcf.nvidia.com"
 submit_endpoint = f"{nvcf_url}/v2/nvcf/pexec/functions"
@@ -147,6 +147,7 @@ class Job(object):
 
     def submit(self):
         try:
+            bearer_token = os.environ["NVCF_BEARER_TOKEN"]
             headers = {
                 "Authorization": f"Bearer {bearer_token}",
                 "Content-Type": "application/json",
@@ -200,6 +201,7 @@ class Job(object):
     def _poll(self):
         try:
             invocation_id = self._invocation_id
+            bearer_token = os.environ["NVCF_BEARER_TOKEN"]
             headers = {
                 "Authorization": f"Bearer {bearer_token}",
                 "Content-Type": "application/json",
