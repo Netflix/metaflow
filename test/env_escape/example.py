@@ -83,6 +83,8 @@ def run_test(through_escape=False):
     print("-- Test chaining of exported classes --")
     o2 = o1.to_class2(5)
     assert o2.something("foo") == "Test2:Something:foo"
+    assert o2.__class__.__name__ == "TestClass2"
+    assert o2.__class__.__module__ == "test_lib"
 
     print("-- Test Iterating --")
     for idx, i in enumerate(o2):
@@ -108,6 +110,8 @@ def run_test(through_escape=False):
     assert isinstance(ex_child, test.ExceptionAndClass)
     assert isinstance(ex_child, Exception)
     assert isinstance(ex_child, object)
+    assert ex_child.__class__.__name__ == "ExceptionAndClassChild"
+    assert ex_child.__class__.__module__ == "test_lib"
 
     assert issubclass(type(ex_child), test.ExceptionAndClass)
     assert issubclass(test.ExceptionAndClassChild, test.ExceptionAndClass)
@@ -149,6 +153,8 @@ def run_test(through_escape=False):
         excclass = o1.raiseOrReturnSomeException()
         assert not through_escape, "Should have raised through escape"
         assert isinstance(excclass, test.SomeException)
+        assert excclass.__class__.__name__ == "SomeException"
+        assert excclass.__class__.__module__ == "test_lib"
     except RuntimeError as e:
         assert (
             through_escape

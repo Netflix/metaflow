@@ -47,6 +47,7 @@ LOCAL_ATTRS = (
             "__init__",
             "__metaclass__",
             "__module__",
+            "__name__",
             "__new__",
             "__reduce__",
             "__reduce_ex__",
@@ -78,11 +79,11 @@ def fwd_request(stub, request_type, *args, **kwargs):
 
 
 class StubMetaClass(type):
-    def __repr__(self):
-        if self.__module__:
-            return "<stub class '%s.%s'>" % (self.__module__, self.__name__)
+    def __repr__(cls):
+        if cls.__module__:
+            return "<stub class '%s.%s'>" % (cls.__module__, cls.__name__)
         else:
-            return "<stub class '%s'>" % (self.__name__,)
+            return "<stub class '%s'>" % (cls.__name__,)
 
 
 def with_metaclass(meta, *bases):
@@ -131,9 +132,7 @@ class Stub(with_metaclass(StubMetaClass, object)):
 
     def __getattribute__(self, name):
         if name in LOCAL_ATTRS:
-            if name == "__class__":
-                return None
-            elif name == "__doc__":
+            if name == "__doc__":
                 return self.__getattr__("__doc__")
             elif name in DELETED_ATTRS:
                 raise AttributeError()
@@ -455,9 +454,14 @@ def create_class(
         # it but not the case if we are not.
         class_dict["__slots__"].append("__weakref__")
 
+    class_module, class_name_only = class_name.rsplit(".", 1)
     class_dict["___local_overrides___"] = overriden_attrs
+    class_dict["__module__"] = class_module
     if parents:
-        return MetaExceptionWithConnection(
+        to_return = MetaExceptionWithConnection(
             class_name, (Stub, *parents), class_dict, connection
         )
-    return MetaWithConnection(class_name, (Stub,), class_dict, connection)
+    else:
+        to_return = MetaWithConnection(class_name, (Stub,), class_dict, connection)
+    to_return.__name__ = class_name_only
+    return to_return
