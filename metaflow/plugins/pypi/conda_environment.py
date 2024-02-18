@@ -6,10 +6,11 @@ import io
 import json
 import os
 import sys
+import tarfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from hashlib import sha256
-from io import BufferedIOBase
+from io import BufferedIOBase, BytesIO
 from itertools import chain
 from urllib.parse import unquote, urlparse
 
@@ -33,6 +34,7 @@ class CondaEnvironmentException(MetaflowException):
 
 class CondaEnvironment(MetaflowEnvironment):
     TYPE = "conda"
+    _filecache = None
 
     def __init__(self, flow):
         self.flow = flow
@@ -188,7 +190,7 @@ class CondaEnvironment(MetaflowEnvironment):
         if id_:
             # bootstrap.py is responsible for ensuring the validity of this executable.
             # -s is important! Can otherwise leak packages to other environments.
-            return os.path.join(id_, "bin/python -s")
+            return os.path.join("linux-64", id_, "bin/python -s")
         else:
             # for @conda/@pypi(disabled=True).
             return super().executable(step_name, default)
@@ -320,8 +322,23 @@ class CondaEnvironment(MetaflowEnvironment):
 
     @classmethod
     def get_client_info(cls, flow_name, metadata):
-        # TODO: Decide this method's fate
-        return None
+        if cls._filecache is None:
+            from metaflow.client.filecache import FileCache
+
+            cls._filecache = FileCache()
+
+        info = metadata.get("code-package")
+        prefix = metadata.get("conda_env_prefix")
+        if info is None or prefix is None:
+            return {}
+        info = json.loads(info)
+        _, blobdata = cls._filecache.get_data(
+            info["ds_type"], flow_name, info["location"], info["sha"]
+        )
+        with tarfile.open(fileobj=BytesIO(blobdata), mode="r:gz") as tar:
+            manifest = tar.extractfile(MAGIC_FILE)
+            info = json.loads(manifest.read().decode("utf-8"))
+            return info[prefix.split("/")[2]][prefix.split("/")[1]]
 
     def add_to_package(self):
         # Add manifest file to job package at the top level.

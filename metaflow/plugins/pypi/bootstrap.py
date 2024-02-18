@@ -45,7 +45,7 @@ if __name__ == "__main__":
     #     fi
     # fi
 
-    prefix = os.path.join(os.getcwd(), id_)
+    prefix = os.path.join(os.getcwd(), architecture, id_)
     pkgs_dir = os.path.join(os.getcwd(), ".pkgs")
     manifest_dir = os.path.join(os.getcwd(), DATASTORE_LOCAL_DIR, flow_name)
 
