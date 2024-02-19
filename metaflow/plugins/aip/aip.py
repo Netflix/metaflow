@@ -408,7 +408,7 @@ class KubeflowPipelines(object):
         for template in workflow["spec"]["templates"]:
             if "outputs" in template and "artifacts" in template["outputs"]:
                 for artifact in template["outputs"]["artifacts"]:
-                    if "-cards" in artifact["name"]:
+                    if "-card" in artifact["name"]:
                         artifact["archive"] = {"none": {}}
 
     @staticmethod
@@ -1518,8 +1518,14 @@ class KubeflowPipelines(object):
         )
 
         file_outputs: Dict[str, str] = {
-            "cards_default": "/tmp/outputs/cards/default_card.html",
+            "card": "/tmp/outputs/cards/card.html",
         }
+        i = 1  # the default card would be i == 0
+        for deco in node.decorators:
+            if deco.name == "card":
+                file_outputs[f"card{i}"] = f"/tmp/outputs/cards/card{i}.html"
+                i = i + 1
+
         if node.type == "foreach":
             file_outputs["foreach_splits"] = "/tmp/outputs/foreach_splits/data"
         for preceding_component_input in preceding_component_inputs:
