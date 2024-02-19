@@ -88,8 +88,6 @@ class MetaflowPackage(object):
             # if path and (path[0] == '.' or './' in path):
             #    continue
             for fname in files:
-                if fname[0] == ".":
-                    continue
                 if any(fname.endswith(suffix) for suffix in suffixes):
                     p = os.path.join(path, fname)
                     yield p, p[prefixlen:]
