@@ -5,6 +5,7 @@ import uuid
 import base64
 from typing import Callable
 
+from kfp.compiler._k8s_helper import sanitize_k8s_name
 from metaflow import FlowSpec, Parameter, Step, current, step
 from metaflow.metaflow_config import KUBERNETES_NAMESPACE
 from metaflow.plugins.aip import (
@@ -56,7 +57,11 @@ class FlowTriggeringFlow(FlowSpec):
             logger.info(f"This flow is triggered by run {self.triggered_by}")
 
         if self.trigger_enabled:  # Upload pipeline
-            self.template_name = (
+            # for the case where generate_base64_uuid returns a string starting with '-'
+            # and template_name == 'wfdsk-ftf-test-he5d4--6rhai0z0wiysuew'
+            # where aip _create_workflow_yaml() calls sanitize_k8s_name() which returns
+            # 'wfdsk-ftf-test-he5d4-6rhai0z0wiysuew' without the double --
+            self.template_name = sanitize_k8s_name(
                 f"{TEST_TEMPLATE_NAME}-{generate_base64_uuid()}".lower()
             )
             logger.info(f"Creating workflow: {self.template_name}")

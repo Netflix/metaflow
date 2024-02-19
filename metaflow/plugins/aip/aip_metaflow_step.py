@@ -24,43 +24,34 @@ from metaflow.plugins.aip.aip_constants import (
     TASK_ID_ENV_NAME,
     AIP_JOIN_METAFLOW_S3OP_NUM_WORKERS,
 )
-
+from metaflow.plugins.cards.card_client import get_cards, Card
 from ... import R
 
 
-def _get_cards_cli(
+def _write_card_artifacts(
+    flow_name: str,
     step_name: str,
     task_id: str,
     passed_in_split_indexes: str,
     run_id: str,
-    script_name: str,
-) -> str:
-    cmds: List[str] = []
-    executable: str = "python3" if R.use_r() else "python"
-    entrypoint = [executable, script_name]
-
-    top_level: List[str] = [
-        "--quiet",
-        "--datastore=s3",
-        "--no-pylint",
-    ]
-
+):
     task_id_template: str = f"{task_id}.{passed_in_split_indexes}".strip(".")
-    run_pathspec = f"{run_id}/{step_name}/{task_id_template}"
+    pathspec = f"{flow_name}/{run_id}/{step_name}/{task_id_template}"
 
-    cards: List[str] = [
-        "card",
-        "get",
-        run_pathspec,
-        "--id default",  # the default card id is also default
-    ]
+    cards: List[Card] = list(get_cards(pathspec))
+    # sort such that the default card is first
+    sorted_cards = sorted(
+        cards, key=lambda card: (card.type != "default", cards.index(card))
+    )
 
-    # load environment variables set in STEP_ENVIRONMENT_VARIABLES
-    cmds.append(f". {STEP_ENVIRONMENT_VARIABLES}")
-
-    cmds.append(" ".join(entrypoint + top_level + cards))
-    cards_cli_string = " && ".join(cmds)
-    return cards_cli_string
+    i = 0
+    pathlib.Path("/tmp/outputs/cards/").mkdir(parents=True, exist_ok=True)
+    for card in sorted_cards:
+        iter_name = "" if i == 0 else i
+        file_name = f"/tmp/outputs/cards/card{iter_name}.html"
+        with open(file_name, "w") as card_file:
+            card_file.write(card.get())
+        i = i + 1
 
 
 def _step_cli(
@@ -444,27 +435,13 @@ def aip_metaflow_step(
             f.write(str(values[idx]))
 
     # get card and write to output file
-    card_cli: str = _get_cards_cli(
+    _write_card_artifacts(
+        flow_name,
         step_name,
         task_id,
         passed_in_split_indexes,
         metaflow_run_id,
-        script_name,
     )
-    cmd: str = card_cli.format(run_id=metaflow_run_id)
-    cmd = f"{cmd} > /tmp/outputs/cards/default_card.html"
-
-    pathlib.Path("/tmp/outputs/cards/").mkdir(parents=True, exist_ok=True)
-    with Popen(
-        cmd, shell=True, universal_newlines=True, executable="/bin/bash", env=env
-    ) as process:
-        pass
-
-    if process.returncode != 0:
-        logging.info(f"---- Following command returned: {process.returncode}")
-        logging.info(cmd.replace(" && ", "\n"))
-        logging.info("----")
-        raise Exception("Returned: %s" % process.returncode)
 
 
 if __name__ == "__main__":
