@@ -140,9 +140,84 @@ class Kubernetes(object):
         return shlex.split('bash -c "%s"' % cmd_str)
 
     def launch_job(self, **kwargs):
-        self._job = self.create_job(**kwargs).execute()
+        if (
+            "num_parallel" in kwargs
+            and kwargs["num_parallel"]
+            and int(kwargs["num_parallel"]) > 0
+        ):
+            job = self.create_job_object(**kwargs)
+            spec = job.create_job_spec()
 
-    def create_job(
+            self._job = self.create_jobset(
+                spec,
+                kwargs["flow_name"],
+                kwargs["run_id"],
+                kwargs["step_name"],
+                kwargs["task_id"],
+                kwargs["attempt"],
+                kwargs["code_package_url"],
+                kwargs["step_cli"],
+                kwargs["namespace"],
+                kwargs["use_tmpfs"],
+                kwargs.get("tmpfs_dir", None),
+                kwargs.get("tmpfs_size", None),
+                kwargs.get("tmpfs_path", None),
+                kwargs.get("env", None),
+                kwargs.get("labels", None),
+                kwargs["num_parallel"],
+            ).execute()
+        else:
+            kwargs["name_pattern"] = "t-{uid}-".format(uid=str(uuid4())[:8])
+            self._job = self.create_job_object(**kwargs).k8screate().execute()
+
+    def create_jobset(
+        self,
+        job_spec,
+        flow_name,
+        run_id,
+        step_name,
+        task_id,
+        attempt,
+        code_package_url,
+        step_cli,
+        namespace=None,
+        use_tmpfs=None,
+        tmpfs_tempdir=None,
+        tmpfs_size=None,
+        tmpfs_path=None,
+        env=None,
+        labels=None,
+        num_parallel=None,
+    ):
+        if env is None:
+            env = {}
+
+        js = KubernetesClient().jobset(
+            name="js-%s" % task_id.split("-")[-1],
+            run_id=run_id,
+            task_id=task_id,
+            step_name=step_name,
+            namespace=namespace,
+            command=self._command(
+                flow_name=flow_name,
+                run_id=run_id,
+                step_name=step_name,
+                task_id=task_id,
+                attempt=attempt,
+                code_package_url=code_package_url,
+                step_cmds=[step_cli],
+            ),
+            labels=self._get_labels(labels),
+            use_tmpfs=use_tmpfs,
+            tmpfs_tempdir=tmpfs_tempdir,
+            tmpfs_size=tmpfs_size,
+            tmpfs_path=tmpfs_path,
+            num_parallel=num_parallel,
+            job_spec=job_spec,
+        )
+        return js
+
+    def create_job_object(
         self,
         flow_name,
         run_id,
@@ -175,14 +250,15 @@ class Kubernetes(object):
         tolerations=None,
         labels=None,
         shared_memory=None,
+        name_pattern=None,
+        num_parallel=None,
     ):
         if env is None:
             env = {}
-
         job = (
             KubernetesClient()
             .job(
-                generate_name="t-{uid}-".format(uid=str(uuid4())[:8]),
+                generate_name=name_pattern,
                 namespace=namespace,
                 service_account=service_account,
                 secrets=secrets,
@@ -215,6 +291,7 @@ class Kubernetes(object):
                 tmpfs_path=tmpfs_path,
                 persistent_volume_claims=persistent_volume_claims,
                 shared_memory=shared_memory,
+                num_parallel=num_parallel,
             )
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
@@ -330,6 +407,9 @@ class Kubernetes(object):
             .label("app.kubernetes.io/part-of", "metaflow")
         )
 
+        return job
+
+    def create_k8sjob(self, job):
         return job.create()
 
     def wait(self, stdout_location, stderr_location, echo=None):
