@@ -28,6 +28,8 @@ except NameError:
 
 from .datastore.inputs import Inputs
 
+INTERNAL_ARTIFACTS_SET = set(["_foreach_values"])
+
 
 class InvalidNextException(MetaflowException):
     headline = "Invalid self.next() transition detected"
@@ -446,7 +448,9 @@ class FlowSpec(object):
                 available_vars = (
                     (var, sha)
                     for var, sha in inp._datastore.items()
-                    if (var not in exclude) and (not hasattr(self, var))
+                    if (var not in exclude)
+                    and (not hasattr(self, var))
+                    and (var not in INTERNAL_ARTIFACTS_SET)
                 )
             for var, sha in available_vars:
                 _, previous_sha = to_merge.setdefault(var, (inp, sha))
