@@ -47,6 +47,7 @@ class Card:
         self._created_on = created_on
         self._card_ds = card_ds
         self._card_id = id
+        self._data_path = None
 
         # public attributes
         self.hash = hash
@@ -59,12 +60,14 @@ class Card:
 
     def get_data(self) -> Optional[dict]:
         # currently an internal method to retrieve a card's data.
-        data_paths = self._card_ds.extract_data_paths(
-            card_type=self.type, card_hash=self.hash, card_id=self._card_id
-        )
-        if len(data_paths) == 0:
-            return None
-        return self._card_ds.get_card_data(data_paths[0])
+        if self._data_path is None:
+            data_paths = self._card_ds.extract_data_paths(
+                card_type=self.type, card_hash=self.hash, card_id=self._card_id
+            )
+            if len(data_paths) == 0:
+                return None
+            self._data_path = data_paths[0]
+        return self._card_ds.get_card_data(self._data_path)
 
     def get(self) -> str:
         """
