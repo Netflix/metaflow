@@ -11,6 +11,7 @@ from metaflow.plugins.datatools.s3.s3tail import S3Tail
 from metaflow.plugins.aws.aws_utils import sanitize_batch_tag
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
+    OTEL_ENDPOINT,
     SERVICE_INTERNAL_URL,
     DATATOOLS_S3ROOT,
     DATASTORE_SYSROOT_S3,
@@ -255,6 +256,7 @@ class Batch(object):
             .environment_variable("METAFLOW_DEFAULT_DATASTORE", "s3")
             .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
             .environment_variable("METAFLOW_CARD_S3ROOT", CARD_S3ROOT)
+            .environment_variable("METAFLOW_OTEL_ENDPOINT", OTEL_ENDPOINT)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "aws-batch")
         )
 
