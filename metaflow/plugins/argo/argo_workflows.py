@@ -1540,7 +1540,6 @@ class ArgoWorkflows(object):
 
     # Return exit hook templates for workflow execution notifications.
     def _exit_hook_templates(self):
-        # TODO: Add details to slack message
         templates = []
         if self.notify_on_error:
             templates.append(self._slack_error_template())
@@ -1648,37 +1647,108 @@ class ArgoWorkflows(object):
             )
 
         return links
+    
+    def _get_slack_blocks(self, message):
+        """
+        Use Slack's Block Kit to add general information about the environment and
+        execution metadata, including a link to the UI and an optional message.
+        """
+        ui_link = f"{UI_URL}{self.flow.name}/argo-{{{{workflow.name}}}}"
+        # fmt: off
+        if getattr(current, "project_name", None):
+            # Add @project metadata when available.
+            environment_details_block = {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": ":metaflow: Environment details"
+                },
+                "fields": [
+                    # Add @project metadata when available.
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*Project:* {current.project_name}"
+                    },
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*Project Branch:* {current.branch_name}"
+                    }
+                ]
+            }
+        else:
+            environment_details_block = {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": ":metaflow: Environment details"
+                }
+            }
+
+        blocks = [
+            environment_details_block,
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": f" :information_source: *<{ui_link}>*",
+                    }
+                ],
+            },
+            {
+                "type": "divider"
+            },
+        ]
+    
+        if message:
+            blocks += [
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": message
+                    }
+                }
+            ]
+        # fmt: on
+        return blocks
 
     def _slack_error_template(self):
         if self.notify_slack_webhook_url is None:
             return None
+        
+        message =  f":rotating_light: _{self.flow.name}/argo-{{{{workflow.name}}}}_ failed!"
+        payload = {"text": message}
+        if UI_URL:
+            blocks = self._get_slack_blocks(message)
+            payload = {
+                "text": message,
+                "blocks": blocks
+            }
+
         return Template("notify-slack-on-error").http(
             Http("POST")
             .url(self.notify_slack_webhook_url)
-            .body(
-                json.dumps(
-                    {
-                        "text": ":rotating_light: _%s/argo-{{workflow.name}}_ failed!"
-                        % self.flow.name
-                    }
-                )
-            )
+            .body(json.dumps(payload))
         )
 
     def _slack_success_template(self):
         if self.notify_slack_webhook_url is None:
             return None
+        
+        message =  f":white_check_mark: _{self.flow.name}/argo-{{{{workflow.name}}}}_ succeeded!"
+        payload = {"text": message}
+        if UI_URL:
+            blocks = self._get_slack_blocks(message)
+            payload = {
+                "text": message,
+                "blocks": blocks
+            }
+        
         return Template("notify-slack-on-success").http(
             Http("POST")
             .url(self.notify_slack_webhook_url)
-            .body(
-                json.dumps(
-                    {
-                        "text": ":white_check_mark: _%s/argo-{{workflow.name}}_ succeeded!"
-                        % self.flow.name
-                    }
-                )
-            )
+            .body(json.dumps(payload))
         )
 
     def _compile_sensor(self):
