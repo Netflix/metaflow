@@ -205,6 +205,8 @@ DEFAULT_CONTAINER_REGISTRY = from_conf("DEFAULT_CONTAINER_REGISTRY")
 # Controls whether to include foreach stack information in metadata.
 # TODO(Darin, 05/01/24): Remove this flag once we are confident with this feature.
 INCLUDE_FOREACH_STACK = from_conf("INCLUDE_FOREACH_STACK", False)
+# Maximum length of the foreach value string to be stored in each ForeachFrame.
+MAXIMUM_FOREACH_VALUE_CHARS = from_conf("MAXIMUM_FOREACH_VALUE_CHARS", 30)
 
 ###
 # Organization customizations

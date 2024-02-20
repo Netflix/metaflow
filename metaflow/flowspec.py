@@ -17,7 +17,7 @@ from .exception import (
 )
 from .graph import FlowGraph
 from .unbounded_foreach import UnboundedForeachInput
-from .metaflow_config import INCLUDE_FOREACH_STACK
+from .metaflow_config import INCLUDE_FOREACH_STACK, MAXIMUM_FOREACH_VALUE_CHARS
 
 # For Python 3 compatibility
 try:
@@ -529,7 +529,7 @@ class FlowSpec(object):
             )
 
         value = item if _is_primitive_type(item) else reprlib.Repr().repr(item)
-        return basestring(value)
+        return basestring(value)[:MAXIMUM_FOREACH_VALUE_CHARS]
 
     def next(self, *dsts: Callable[..., None], **kwargs) -> None:
         """
