@@ -1,6 +1,14 @@
+import os
+import shutil
 from setuptools import setup
 
-with open("../metaflow/version.py", mode="r") as f:
+source_file = "../metaflow/version.py"
+destination_file = "./version.py"
+
+if not os.path.exists(destination_file):
+    shutil.copy(source_file, destination_file)
+
+with open(destination_file, mode="r") as f:
     version = f.read().splitlines()[0].split("=")[1].strip(" \"'")
 
 setup(
