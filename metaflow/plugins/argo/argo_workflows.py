@@ -1135,7 +1135,8 @@ class ArgoWorkflows(object):
                 )
 
                 if join_is_foreach and not_first_in_foreach:
-                    # we need to use the split index in case this is the last step in a nested foreach
+                    # Task ids inside a foreach that are meant for joining results need deterministic id generation.
+                    # we need to use the split index and root-input-path in case this is the last step in a nested foreach
                     task_idx = "{{inputs.parameters.split-index}}"
                     root_input = "{{inputs.parameters.root-input-path}}"
 
