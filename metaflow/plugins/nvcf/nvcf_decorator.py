@@ -74,7 +74,7 @@ class NvcfDecorator(StepDecorator):
         # task_pre_step may run locally if fallback is activated for @catch
         # decorator.
 
-        if "NVCF_REQUEST_ID" in os.environ:
+        if "NVCF_CONTEXT" in os.environ:
             self._save_logs_sidecar = Sidecar("save_logs_periodically")
             self._save_logs_sidecar.start()
 
@@ -83,7 +83,7 @@ class NvcfDecorator(StepDecorator):
     ):
         # task_finished may run locally if fallback is activated for @catch
         # decorator.
-        if "NVCF_REQUEST_ID" in os.environ:
+        if "NVCF_CONTEXT" in os.environ:
             # If `local` metadata is configured, we would need to copy task
             # execution metadata from the NVCF container to user's
             # local file system after the user code has finished execution.
