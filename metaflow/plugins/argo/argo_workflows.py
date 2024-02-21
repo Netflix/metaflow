@@ -1647,7 +1647,7 @@ class ArgoWorkflows(object):
             )
 
         return links
-    
+
     def _get_slack_blocks(self, message):
         """
         Use Slack's Block Kit to add general information about the environment and
@@ -1664,7 +1664,6 @@ class ArgoWorkflows(object):
                     "text": ":metaflow: Environment details"
                 },
                 "fields": [
-                    # Add @project metadata when available.
                     {
                         "type": "mrkdwn",
                         "text": f"*Project:* {current.project_name}"
@@ -1699,7 +1698,7 @@ class ArgoWorkflows(object):
                 "type": "divider"
             },
         ]
-    
+
         if message:
             blocks += [
                 {
@@ -1716,39 +1715,31 @@ class ArgoWorkflows(object):
     def _slack_error_template(self):
         if self.notify_slack_webhook_url is None:
             return None
-        
-        message =  f":rotating_light: _{self.flow.name}/argo-{{{{workflow.name}}}}_ failed!"
+
+        message = (
+            f":rotating_light: _{self.flow.name}/argo-{{{{workflow.name}}}}_ failed!"
+        )
         payload = {"text": message}
         if UI_URL:
             blocks = self._get_slack_blocks(message)
-            payload = {
-                "text": message,
-                "blocks": blocks
-            }
+            payload = {"text": message, "blocks": blocks}
 
         return Template("notify-slack-on-error").http(
-            Http("POST")
-            .url(self.notify_slack_webhook_url)
-            .body(json.dumps(payload))
+            Http("POST").url(self.notify_slack_webhook_url).body(json.dumps(payload))
         )
 
     def _slack_success_template(self):
         if self.notify_slack_webhook_url is None:
             return None
-        
-        message =  f":white_check_mark: _{self.flow.name}/argo-{{{{workflow.name}}}}_ succeeded!"
+
+        message = f":white_check_mark: _{self.flow.name}/argo-{{{{workflow.name}}}}_ succeeded!"
         payload = {"text": message}
         if UI_URL:
             blocks = self._get_slack_blocks(message)
-            payload = {
-                "text": message,
-                "blocks": blocks
-            }
-        
+            payload = {"text": message, "blocks": blocks}
+
         return Template("notify-slack-on-success").http(
-            Http("POST")
-            .url(self.notify_slack_webhook_url)
-            .body(json.dumps(payload))
+            Http("POST").url(self.notify_slack_webhook_url).body(json.dumps(payload))
         )
 
     def _compile_sensor(self):
