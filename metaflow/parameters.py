@@ -290,7 +290,26 @@ class Parameter(object):
         # TODO: check that the type is one of the supported types
         param_type = self.kwargs["type"] = self._get_type(kwargs)
 
-        if self.name in _reserved_params():
+        reserved_params = [
+            "params",
+            "with",
+            "tag",
+            "namespace",
+            "obj",
+            "tags",
+            "decospecs",
+            "run-id-file",
+            "max-num-splits",
+            "max-workers",
+            "max-log-size",
+            "user-namespace",
+        ]
+        reserved = set(reserved_params)
+        # due to the way Click maps cli args to function args we also want to add underscored params to the set
+        for param in reserved_params:
+            reserved.add(param.replace("-", "_"))
+
+        if self.name in reserved:
             raise MetaflowException(
                 "Parameter name '%s' is a reserved "
                 "word. Please use a different "
@@ -363,28 +382,6 @@ class Parameter(object):
     # which may do self.param['foobar']
     def __getitem__(self, x):
         pass
-
-
-def _reserved_params():
-    reserved_params = [
-        "params",
-        "with",
-        "tag",
-        "namespace",
-        "obj",
-        "tags",
-        "decospecs",
-        "run-id-file",
-        "max-num-splits",
-        "max-workers",
-        "max-log-size",
-        "user-namespace",
-    ]
-    reserved = set(reserved_params)
-    # due to the way Click maps cli args to function args we also want to add underscored params to the set
-    for param in reserved_params:
-        reserved.add(param.replace("-", "_"))
-    return reserved
 
 
 def add_custom_parameters(deploy_mode=False):
