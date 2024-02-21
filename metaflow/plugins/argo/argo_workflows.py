@@ -1032,8 +1032,8 @@ class ArgoWorkflows(object):
                                     "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
                                     % (node.name, self._sanitize(node.name))
                                 ),
-                                Parameter("max-split").value(
-                                    "{{tasks.%s.outputs.parameters.max-split}}"
+                                Parameter("split-cardinality").value(
+                                    "{{tasks.%s.outputs.parameters.split-cardinality}}"
                                     % self._sanitize(node.name)
                                 ),
                             ]
@@ -1282,7 +1282,7 @@ class ArgoWorkflows(object):
                     n for n in node.in_funcs if self.graph[n].is_inside_foreach
                 )
                 creation_timestamp = "{{workflow.creationTimestamp}}"
-                foreach_max_split = "{{inputs.parameters.max-split}}"
+                foreach_max_split = "{{inputs.parameters.split-cardinality}}"
                 input_paths = (
                     "$(python -m metaflow.plugins.argo.generate_input_paths %s %s %s %s)"
                     % (
@@ -1470,7 +1470,7 @@ class ArgoWorkflows(object):
                 and self.graph[node.split_parents[-1]].type == "foreach"
             ):
                 # append this only for joins of foreaches, not static splits
-                inputs.append(Parameter("max-split"))
+                inputs.append(Parameter("split-cardinality"))
             if node.is_inside_foreach and self.graph[node.out_funcs[0]].type == "join":
                 join_node = self.graph[node.out_funcs[0]]
                 join_is_foreach = any(
@@ -1501,7 +1501,9 @@ class ArgoWorkflows(object):
                 )
                 # maximum of the splits
                 outputs.append(
-                    Parameter("max-split").valueFrom({"path": "/mnt/out/max_split"})
+                    Parameter("split-cardinality").valueFrom(
+                        {"path": "/mnt/out/split_cardinality"}
+                    )
                 )
 
             # It makes no sense to set env vars to None (shows up as "None" string)
