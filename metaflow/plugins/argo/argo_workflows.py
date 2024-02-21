@@ -885,8 +885,11 @@ class ArgoWorkflows(object):
                         )
                     )
                 ]
-                # We need to add the split-index and root-input-path for the last step in any foreach to be able to generate
-                # task id's for the last step more deterministically.
+                # NOTE: Due to limitations with the Argo Workflows Parameter size we can not pass arbitrarily large lists of task id's to foreach joins.
+                # We deterministically generate the task id's of the steps inside foreaches that will be required to join the results.
+                #
+                # We need to add the split-index and root-input-path for the last step in any foreach and use these to generate the task id,
+                # as the join step uses the root and the cardinality of the foreach to generate the required id's.
                 if (
                     node.is_inside_foreach
                     and self.graph[node.out_funcs[0]].type == "join"
