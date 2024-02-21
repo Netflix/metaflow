@@ -1653,7 +1653,7 @@ class ArgoWorkflows(object):
         Use Slack's Block Kit to add general information about the environment and
         execution metadata, including a link to the UI and an optional message.
         """
-        ui_link = f"{UI_URL}{self.flow.name}/argo-{{{{workflow.name}}}}"
+        ui_link = "%s%s/argo-{{workflow.name}}" % (UI_URL, self.flow.name)
         # fmt: off
         if getattr(current, "project_name", None):
             # Add @project metadata when available.
@@ -1666,11 +1666,11 @@ class ArgoWorkflows(object):
                 "fields": [
                     {
                         "type": "mrkdwn",
-                        "text": f"*Project:* {current.project_name}"
+                        "text": "*Project:* %s" % current.project_name 
                     },
                     {
                         "type": "mrkdwn",
-                        "text": f"*Project Branch:* {current.branch_name}"
+                        "text": "*Project Branch:* %s" % current.branch_name
                     }
                 ]
             }
@@ -1690,7 +1690,7 @@ class ArgoWorkflows(object):
                 "elements": [
                     {
                         "type": "mrkdwn",
-                        "text": f" :information_source: *<{ui_link}>*",
+                        "text": " :information_source: *<%s>*" % ui_link,
                     }
                 ],
             },
@@ -1717,7 +1717,7 @@ class ArgoWorkflows(object):
             return None
 
         message = (
-            f":rotating_light: _{self.flow.name}/argo-{{{{workflow.name}}}}_ failed!"
+            ":rotating_light: _%s/argo-{{workflow.name}}_ failed!" % self.flow.name
         )
         payload = {"text": message}
         if UI_URL:
@@ -1732,7 +1732,9 @@ class ArgoWorkflows(object):
         if self.notify_slack_webhook_url is None:
             return None
 
-        message = f":white_check_mark: _{self.flow.name}/argo-{{{{workflow.name}}}}_ succeeded!"
+        message = (
+            ":white_check_mark: _%s/argo-{{workflow.name}}_ succeeded!" % self.flow.name
+        )
         payload = {"text": message}
         if UI_URL:
             blocks = self._get_slack_blocks(message)
