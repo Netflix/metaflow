@@ -677,6 +677,13 @@ def common_run_options(func):
         type=str,
         help="Write the ID of this run to the file specified.",
     )
+    @click.option(
+        "--flow-name-file",
+        default=None,
+        show_default=True,
+        type=str,
+        help="Write the flow name of this run to the file specified.",
+    )
     @wraps(func)
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
@@ -735,6 +742,7 @@ def resume(
     decospecs=None,
     run_id_file=None,
     resume_identifier=None,
+    flow_name_file=None,
 ):
     before_run(obj, tags, decospecs + obj.environment.decospecs())
 
@@ -790,8 +798,10 @@ def resume(
         max_log_size=max_log_size * 1024 * 1024,
         resume_identifier=resume_identifier,
     )
-    write_run_id(run_id_file, runtime.run_id)
+    write_file(run_id_file, runtime.run_id)
+    write_file(flow_name_file, obj.flow.name)
     runtime.print_workflow_info()
+
     runtime.persist_constants()
     if clone_only:
         runtime.clone_original_run()
@@ -823,6 +833,7 @@ def run(
     max_log_size=None,
     decospecs=None,
     run_id_file=None,
+    flow_name_file=None,
     user_namespace=None,
     **kwargs
 ):
@@ -846,7 +857,8 @@ def run(
         max_log_size=max_log_size * 1024 * 1024,
     )
     write_latest_run_id(obj, runtime.run_id)
-    write_run_id(run_id_file, runtime.run_id)
+    write_file(run_id_file, runtime.run_id)
+    write_file(flow_name_file, obj.flow.name)
 
     obj.flow._set_constants(obj.graph, kwargs)
     runtime.print_workflow_info()
@@ -854,10 +866,11 @@ def run(
     runtime.execute()
 
 
-def write_run_id(run_id_file, run_id):
-    if run_id_file is not None:
-        with open(run_id_file, "w") as f:
-            f.write(str(run_id))
+def write_file(file_path, content):
+    if file_path is not None:
+        with open(file_path, "w") as f:
+            f.write(str(content))
+            f.close()
 
 
 def before_run(obj, tags, decospecs):
