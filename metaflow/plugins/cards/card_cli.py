@@ -10,6 +10,7 @@ import webbrowser
 import re
 from metaflow._vendor import click
 import os
+import time
 import json
 import uuid
 import signal
@@ -454,7 +455,11 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
     def _add_token_json(json_msg):
         if json_msg is None:
             return None
-        return {"reload_token": _reload_token(), "data": json_msg}
+        return {
+            "reload_token": _reload_token(),
+            "data": json_msg,
+            "created_on": time.time(),
+        }
 
     def _safe_call_function(func, *args, **kwargs):
         """
