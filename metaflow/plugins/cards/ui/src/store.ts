@@ -14,8 +14,6 @@ export const cardData: Writable<types.CardResponse | undefined> =
 (window as any).metaflow_card_update = (
   dataChanges: Record<string, types.CardComponent>
 ) => {
-  console.log("metaflow_card_update", dataChanges, cardData?.update);
-
   cardData?.update((d: any) => {
     const newData: types.CardResponse = { ...d };
 
