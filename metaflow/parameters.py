@@ -289,17 +289,27 @@ class Parameter(object):
 
         # TODO: check that the type is one of the supported types
         param_type = self.kwargs["type"] = self._get_type(kwargs)
+
         reserved_params = [
             "params",
             "with",
+            "tag",
+            "namespace",
+            "obj",
+            "tags",
+            "decospecs",
+            "run-id-file",
             "max-num-splits",
             "max-workers",
-            "tag",
-            "run-id-file",
-            "namespace",
+            "max-log-size",
+            "user-namespace",
         ]
+        reserved = set(reserved_params)
+        # due to the way Click maps cli args to function args we also want to add underscored params to the set
+        for param in reserved_params:
+            reserved.add(param.replace("-", "_"))
 
-        if self.name in reserved_params:
+        if self.name in reserved:
             raise MetaflowException(
                 "Parameter name '%s' is a reserved "
                 "word. Please use a different "
