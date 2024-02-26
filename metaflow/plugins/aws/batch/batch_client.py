@@ -325,7 +325,9 @@ class BatchJob(object):
                     )
 
         if use_tmpfs and (platform == "FARGATE" or platform == "FARGATE_SPOT"):
-            raise BatchJobException("tmpfs is not available for Fargate compute resources")
+            raise BatchJobException(
+                "tmpfs is not available for Fargate compute resources"
+            )
         if use_tmpfs or (tmpfs_size and not use_tmpfs):
             if tmpfs_size:
                 if not (isinstance(tmpfs_size, (int, unicode, basestring))):
