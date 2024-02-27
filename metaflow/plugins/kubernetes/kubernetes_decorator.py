@@ -92,7 +92,7 @@ class KubernetesDecorator(StepDecorator):
     shared_memory: int, optional
         Shared memory size (in MiB) required for this step
     port: int, optional
-        Number of the port to specify in the Kubernetes job object
+        Port number to specify in the Kubernetes job object
     """
 
     name = "kubernetes"
