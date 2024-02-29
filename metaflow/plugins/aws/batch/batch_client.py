@@ -158,6 +158,7 @@ class BatchJob(object):
         tmpfs_size,
         tmpfs_path,
         num_parallel,
+        ephemeral_storage,
     ):
         # identify platform from any compute environment associated with the
         # queue
@@ -210,6 +211,10 @@ class BatchJob(object):
             job_definition["containerProperties"]["networkConfiguration"] = {
                 "assignPublicIp": "ENABLED"
             }
+            if ephemeral_storage:
+                job_definition["containerProperties"]["ephemeralStorage"] = {
+                    "sizeInGiB": ephemeral_storage
+                }
 
         if platform == "EC2" or platform == "SPOT":
             if "linuxParameters" not in job_definition["containerProperties"]:
@@ -254,6 +259,10 @@ class BatchJob(object):
                     job_definition["containerProperties"]["linuxParameters"][
                         "maxSwap"
                     ] = int(max_swap)
+            if ephemeral_storage:
+                raise BatchJobException(
+                    "The ephemeral_storage parameter is only available for FARGATE compute environments"
+                )
 
         if inferentia:
             if not (isinstance(inferentia, (int, unicode, basestring))):
@@ -315,6 +324,10 @@ class BatchJob(object):
                         {"sourceVolume": name, "containerPath": container_path}
                     )
 
+        if use_tmpfs and (platform == "FARGATE" or platform == "FARGATE_SPOT"):
+            raise BatchJobException(
+                "tmpfs is not available for Fargate compute resources"
+            )
         if use_tmpfs or (tmpfs_size and not use_tmpfs):
             if tmpfs_size:
                 if not (isinstance(tmpfs_size, (int, unicode, basestring))):
@@ -442,6 +455,7 @@ class BatchJob(object):
         tmpfs_size,
         tmpfs_path,
         num_parallel,
+        ephemeral_storage,
     ):
         self.payload["jobDefinition"] = self._register_job_definition(
             image,
@@ -461,6 +475,7 @@ class BatchJob(object):
             tmpfs_size,
             tmpfs_path,
             num_parallel,
+            ephemeral_storage,
         )
         return self
 

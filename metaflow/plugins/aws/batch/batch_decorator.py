@@ -72,7 +72,8 @@ class BatchDecorator(StepDecorator):
         necessary. A swappiness value of 100 causes pages to be swapped very
         aggressively. Accepted values are whole numbers between 0 and 100.
     use_tmpfs : bool, default False
-        This enables an explicit tmpfs mount for this step.
+        This enables an explicit tmpfs mount for this step. Note that tmpfs is
+        not available on Fargate compute environments
     tmpfs_tempdir : bool, default True
         sets METAFLOW_TEMPDIR to tmpfs_path if set for this step.
     tmpfs_size : int, optional, default None
@@ -85,6 +86,9 @@ class BatchDecorator(StepDecorator):
         Number of Inferentia chips required for this step.
     efa : int, default 0
         Number of elastic fabric adapter network devices to attach to container
+    ephemeral_storage: int, default None
+        The total amount, in GiB, of ephemeral storage to set for the task (21-200)
+        This is only relevant for Fargate compute environments
     """
 
     name = "batch"
@@ -107,6 +111,7 @@ class BatchDecorator(StepDecorator):
         "tmpfs_tempdir": True,
         "tmpfs_size": None,
         "tmpfs_path": "/metaflow_temp",
+        "ephemeral_storage": None,
     }
     resource_defaults = {
         "cpu": "1",
