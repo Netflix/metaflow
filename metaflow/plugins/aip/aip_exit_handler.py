@@ -143,10 +143,12 @@ def exit_handler(
         notify_on_error = get_env("METAFLOW_NOTIFY_ON_ERROR")
         notify_on_success = get_env("METAFLOW_NOTIFY_ON_SUCCESS")
 
-        if notify_on_error and status == "Failed":
-            email_notify(notify_on_error)
-        elif notify_on_success and status == "Succeeded":
+        # AIP-8098 ExitHandler and Ops notification NOT called on Workflow.status == Error
+        #   available statuses of Succeeded, Failed, Error
+        if notify_on_success and status == "Succeeded":
             email_notify(notify_on_success)
+        elif notify_on_error:
+            email_notify(notify_on_error)
         else:
             print("No notification is necessary!")
 
@@ -155,7 +157,9 @@ def exit_handler(
         metaflow_sqs_url_on_error = get_env("METAFLOW_SQS_URL_ON_ERROR")
 
         if metaflow_sqs_url_on_error:
-            if status == "Failed":
+            if status == "Succeeded":
+                print("Workflow succeeded, thus no SQS message is sent to SQS!")
+            else:
                 message_body = flow_parameters_json
                 metaflow_sqs_role_arn_on_error = get_env(
                     "METAFLOW_SQS_ROLE_ARN_ON_ERROR"
@@ -166,8 +170,6 @@ def exit_handler(
                     role_arn=metaflow_sqs_role_arn_on_error,
                 )
                 print(f"message was sent to: {metaflow_sqs_url_on_error} successfully")
-            else:
-                print("Workflow succeeded, thus no SQS message is sent to SQS!")
         else:
             print("SQS is not configured!")
 
