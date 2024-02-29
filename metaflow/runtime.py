@@ -787,12 +787,6 @@ class Task(object):
             # At this point, we know we are going to clone
             self._is_cloned = True
 
-            if resume_identifier:
-                self.log(
-                    "Resume identifier is %s." % resume_identifier,
-                    system_msg=True,
-                )
-
             task_id_exists_already = False
             task_completed = False
             if reentrant:
@@ -821,6 +815,15 @@ class Task(object):
                         "Reentrant clone-only resume does not allow for explicit task-id"
                     )
 
+                if resume_identifier:
+                    self.log(
+                        "Resume identifier is %s." % resume_identifier,
+                        system_msg=True,
+                    )
+                else:
+                    raise MetaflowInternalError(
+                        "Reentrant clone-only resume needs a resume identifier."
+                    )
                 # We will use the same task_id as the original task
                 # to use it effectively as a synchronization key
                 clone_task_id = origin.task_id
@@ -1028,7 +1031,7 @@ class Task(object):
 
         # Mark the resume as done. This is called at the end of the resume flow and after
         # the _parameters step was successfully cloned, so we need to 'dangerously' save
-        # this done file, but the risk should be minimum.
+        # this done file, but the risk should be minimal.
         self._ds._dangerous_save_metadata_post_done(
             {"_resume_done": True}, add_attempt=False
         )

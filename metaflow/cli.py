@@ -724,7 +724,7 @@ def common_run_options(func):
     default=None,
     show_default=True,
     hidden=True,
-    help="If specified, it identifies the task that started this resume call",
+    help="If specified, it identifies the task that started this resume call. It is in the form of {step_name}-{task_id}",
 )
 @click.argument("step-to-rerun", required=False)
 @cli.command(help="Resume execution of a previous run of this flow.")
