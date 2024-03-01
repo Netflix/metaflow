@@ -2,6 +2,7 @@ from typing import Dict
 from metaflow._vendor import click
 import logging
 
+from metaflow.plugins.aip import run_id_to_url
 
 _logger = logging.getLogger(__name__)
 
@@ -10,6 +11,7 @@ _logger = logging.getLogger(__name__)
 @click.option("--flow_name")
 @click.option("--status")
 @click.option("--run_id")
+@click.option("--argo_workflow_uid")
 @click.option("--env_variables_json")
 @click.option("--flow_parameters_json")
 @click.option("--run_email_notify", is_flag=True, default=False)
@@ -18,6 +20,7 @@ def exit_handler(
     flow_name: str,
     status: str,
     run_id: str,
+    argo_workflow_uid: str,
     env_variables_json: str,
     flow_parameters_json: str,
     run_email_notify: bool = False,
@@ -66,11 +69,10 @@ def exit_handler(
 
         argo_workflow_name = get_env("MF_ARGO_WORKFLOW_NAME", "")
         email_body = get_env("METAFLOW_NOTIFY_EMAIL_BODY", "")
-        argo_url_prefix = get_env("ARGO_RUN_URL_PREFIX", "")
         k8s_namespace = get_env("POD_NAMESPACE", "")
 
-        argo_ui_url = (
-            f"{argo_url_prefix}/argo-ui/workflows/{k8s_namespace}/{argo_workflow_name}"
+        argo_ui_url = run_id_to_url(
+            argo_workflow_name, k8s_namespace, argo_workflow_uid
         )
         body = (
             f"status = {status} <br/>\n"

@@ -51,6 +51,7 @@ def kubeflow_pipelines(obj):
 @click.option("--flow_name")
 @click.option("--status")
 @click.option("--run_id")
+@click.option("--argo_workflow_uid")
 @click.option("--env_variables_json")
 @click.option("--flow_parameters_json")
 @click.option("--metaflow_configs_json")
@@ -61,6 +62,7 @@ def user_defined_exit_handler(
     flow_name: str,
     status: str,
     run_id: str,
+    argo_workflow_uid: str,
     env_variables_json: str,
     flow_parameters_json: str,
     metaflow_configs_json: str,
@@ -72,6 +74,7 @@ def user_defined_exit_handler(
         flow_name,
         status,
         run_id,
+        argo_workflow_uid,
         env_variables_json,
         flow_parameters_json,
         metaflow_configs_json,
@@ -420,7 +423,9 @@ def _echo_workflow_run(
     argo_workflow_uid = workflow_manifest["metadata"]["uid"]
     metaflow_run_id = to_metaflow_run_id(argo_workflow_uid)
     metaflow_ui_url = run_id_to_metaflow_url(flow_name, argo_workflow_uid)
-    argo_ui_url = run_id_to_url(argo_workflow_name, kubernetes_namespace)
+    argo_ui_url = run_id_to_url(
+        argo_workflow_name, kubernetes_namespace, argo_workflow_uid
+    )
     obj.echo(f"Metaflow run_id=*{metaflow_run_id}*\n", fg="magenta")
     obj.echo(f"*Argo UI:* {argo_ui_url}", fg="cyan")
     if AIP_SHOW_METAFLOW_UI_URL:
