@@ -304,6 +304,6 @@ if __name__ == "__main__":
     command = (
         api(metadata="local")
         .kubernetes()
-        .step(step_name="kk", code_package_sha="pp", code_package_url="ii")
+        .step(step_name="kk", code_package_sha="pp", code_package_url="nn")
     )
     print(command)
