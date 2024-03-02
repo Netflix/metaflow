@@ -183,7 +183,6 @@ def extract_group(cmd_obj):
         if isinstance(sub_cmd_obj, Group):
             # TODO: recursion / nesting to be done here
             ...
-            # print("aaa", cmd_obj.name, sub_cmd_obj.name, sub_cmd_obj)
         elif isinstance(sub_cmd_obj, Command):
             class_dict[sub_cmd_obj.name] = extract_command(sub_cmd_obj)
         else:
