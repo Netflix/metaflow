@@ -35,8 +35,14 @@ click_to_python_types = {
 }
 
 
-def _method_sanity_check(possible_params, annotations, defaults, **kwargs):
-    method_params = {}
+def _method_sanity_check(
+    possible_arg_params, possible_opt_params, annotations, defaults, **kwargs
+):
+    method_params = {"args": {}, "options": {}}
+
+    possible_params = OrderedDict()
+    possible_params.update(possible_arg_params)
+    possible_params.update(possible_opt_params)
 
     # supplied kwargs
     for supplied_k, supplied_v in kwargs.items():
@@ -55,11 +61,17 @@ def _method_sanity_check(possible_params, annotations, defaults, **kwargs):
                 f"default is '{defaults[supplied_k]}'"
             )
 
-        method_params[supplied_k] = supplied_v
+        if supplied_k in possible_arg_params:
+            method_params["args"][supplied_k] = supplied_v
+        elif supplied_k in possible_opt_params:
+            method_params["options"][supplied_k] = supplied_v
 
     # possible kwargs
     for possible_k, possible_v in possible_params.items():
-        if possible_k not in method_params and possible_v.required:
+        if (
+            (possible_k not in method_params["args"])
+            and (possible_k not in method_params["options"])
+        ) and possible_v.required:
             raise ValueError(f"Missing argument: {possible_k} is required.")
 
     return method_params
@@ -139,50 +151,59 @@ class MetaflowAPI(object):
         for each_cmd in final_chain:
             for cmd, params in each_cmd.items():
                 components.append(cmd)
-                components.extend([f"--{k} {v}" for k, v in params.items()])
+                args = params.pop("args", {})
+                options = params.pop("options", {})
+                for k, v in params.items():
+                    components.append(f"--{k} {v}")
+                for _, v in args.items():
+                    components.append(v)
+                for k, v in options.items():
+                    components.append(f"--{k} {v}")
 
         return " ".join(components)
 
 
 def extract_all_params(cmd_obj):
-    arg_params = OrderedDict()
-    opt_params = OrderedDict()
-
+    arg_params_sigs = OrderedDict()
+    opt_params_sigs = OrderedDict()
     params_sigs = OrderedDict()
-    parameters = OrderedDict()
+
+    arg_parameters = OrderedDict()
+    opt_parameters = OrderedDict()
     annotations = OrderedDict()
     defaults = OrderedDict()
 
     for each_param in cmd_obj.params:
         if isinstance(each_param, Argument):
-            arg_params[each_param.name] = get_inspect_param_obj(
+            arg_params_sigs[each_param.name] = get_inspect_param_obj(
                 each_param, inspect.Parameter.POSITIONAL_ONLY
             )
+            arg_parameters[each_param.name] = each_param
         elif isinstance(each_param, Option):
-            opt_params[each_param.name] = get_inspect_param_obj(
+            opt_params_sigs[each_param.name] = get_inspect_param_obj(
                 each_param, inspect.Parameter.KEYWORD_ONLY
             )
+            opt_parameters[each_param.name] = each_param
 
-        parameters[each_param.name] = each_param
         annotations[each_param.name] = get_annotation(each_param)
         defaults[each_param.name] = each_param.default
 
     # first, fill in positional arguments
-    for name, each_arg_param in arg_params.items():
+    for name, each_arg_param in arg_params_sigs.items():
         params_sigs[name] = each_arg_param
     # then, fill in keyword arguments
-    for name, each_opt_param in opt_params.items():
+    for name, each_opt_param in opt_params_sigs.items():
         params_sigs[name] = each_opt_param
 
-    return params_sigs, parameters, annotations, defaults
+    return params_sigs, arg_parameters, opt_parameters, annotations, defaults
 
 
 def extract_group(cmd_obj):
     class_dict = {"__module__": "metaflow", "_API_NAME": cmd_obj.name}
     for _, sub_cmd_obj in cmd_obj.commands.items():
         if isinstance(sub_cmd_obj, Group):
-            # TODO: recursion / nesting to be done here
-            ...
+            # recursion
+            class_dict[sub_cmd_obj.name] = extract_group(sub_cmd_obj)
         elif isinstance(sub_cmd_obj, Command):
             class_dict[sub_cmd_obj.name] = extract_command(sub_cmd_obj)
         else:
@@ -193,11 +214,17 @@ def extract_group(cmd_obj):
     resulting_class = type(cmd_obj.name, (MetaflowAPI,), class_dict)
     resulting_class.__name__ = cmd_obj.name
 
-    params_sigs, possible_params, annotations, defaults = extract_all_params(cmd_obj)
+    (
+        params_sigs,
+        possible_arg_params,
+        possible_opt_params,
+        annotations,
+        defaults,
+    ) = extract_all_params(cmd_obj)
 
     def _method(_self, **kwargs):
         method_params = _method_sanity_check(
-            possible_params, annotations, defaults, **kwargs
+            possible_arg_params, possible_opt_params, annotations, defaults, **kwargs
         )
         return resulting_class(parent=_self, **method_params)
 
@@ -214,11 +241,17 @@ def extract_group(cmd_obj):
 
 
 def extract_command(cmd_obj):
-    params_sigs, possible_params, annotations, defaults = extract_all_params(cmd_obj)
+    (
+        params_sigs,
+        possible_arg_params,
+        possible_opt_params,
+        annotations,
+        defaults,
+    ) = extract_all_params(cmd_obj)
 
     def _method(_self, **kwargs):
         method_params = _method_sanity_check(
-            possible_params, annotations, defaults, **kwargs
+            possible_arg_params, possible_opt_params, annotations, defaults, **kwargs
         )
         _self._chain.append({cmd_obj.name: method_params})
         return _self.execute()
