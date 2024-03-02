@@ -133,7 +133,35 @@ class MetaflowAPI(object):
 
         to_return = type(flow_file, (MetaflowAPI,), class_dict)
         to_return.__name__ = flow_file
-        return to_return
+
+        (
+            params_sigs,
+            possible_arg_params,
+            possible_opt_params,
+            annotations,
+            defaults,
+        ) = extract_all_params(cli_collection)
+
+        def _method(_self, **kwargs):
+            method_params = _method_sanity_check(
+                possible_arg_params,
+                possible_opt_params,
+                annotations,
+                defaults,
+                **kwargs,
+            )
+            return to_return(parent=None, **method_params)
+
+        m = _method
+        m.__name__ = cmd_obj.name
+        m.__doc__ = getattr(cmd_obj, "help", None)
+        m.__signature__ = inspect.signature(_method).replace(
+            parameters=params_sigs.values()
+        )
+        m.__annotations__ = annotations
+        m.__defaults__ = tuple(defaults.values())
+
+        return m
 
     def execute(self):
         parents = []
@@ -153,8 +181,7 @@ class MetaflowAPI(object):
                 components.append(cmd)
                 args = params.pop("args", {})
                 options = params.pop("options", {})
-                for k, v in params.items():
-                    components.append(f"--{k} {v}")
+                assert len(params) == 0
                 for _, v in args.items():
                     components.append(v)
                 for k, v in options.items():
