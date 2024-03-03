@@ -1,10 +1,13 @@
 import inspect
+import importlib
 import itertools
 from collections import OrderedDict
 from typeguard import check_type, TypeCheckError
 import uuid, datetime
 from typing import Optional, List
+from metaflow import FlowSpec, Parameter
 from metaflow.cli import start
+from metaflow._vendor import click
 from metaflow._vendor.click import Command, Group, Argument, Option
 from metaflow.parameters import JSONTypeClass
 from metaflow._vendor.click.types import (
@@ -103,6 +106,22 @@ def get_inspect_param_obj(p, kind):
     )
 
 
+def extract_flowspec_params(flow_file):
+    spec = importlib.util.spec_from_file_location("module", flow_file)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    classes = inspect.getmembers(module, inspect.isclass)
+
+    parameters = []
+    for _, kls in classes:
+        if kls != FlowSpec and issubclass(kls, FlowSpec):
+            for _, obj in inspect.getmembers(kls):
+                if isinstance(obj, Parameter):
+                    parameters.append(obj)
+
+    return parameters
+
+
 class MetaflowAPI(object):
     def __init__(self, parent=None, **kwargs):
         self._parent = parent
@@ -120,15 +139,16 @@ class MetaflowAPI(object):
 
     @classmethod
     def from_cli(cls, flow_file, cli_collection):
+        flow_parameters = extract_flowspec_params(flow_file)
         class_dict = {"__module__": "metaflow", "_API_NAME": flow_file}
         command_groups = cli_collection.sources
         for each_group in command_groups:
             for _, cmd_obj in each_group.commands.items():
                 if isinstance(cmd_obj, Group):
                     # TODO: possibly check for fake groups with cmd_obj.name in ["cli", "main"]
-                    class_dict[cmd_obj.name] = extract_group(cmd_obj)
+                    class_dict[cmd_obj.name] = extract_group(cmd_obj, flow_parameters)
                 elif isinstance(cmd_obj, Command):
-                    class_dict[cmd_obj.name] = extract_command(cmd_obj)
+                    class_dict[cmd_obj.name] = extract_command(cmd_obj, flow_parameters)
                 else:
                     raise RuntimeError(
                         f"Cannot handle {cmd_obj.name} of type {type(cmd_obj)}"
@@ -236,14 +256,14 @@ def extract_all_params(cmd_obj):
     return params_sigs, arg_parameters, opt_parameters, annotations, defaults
 
 
-def extract_group(cmd_obj):
+def extract_group(cmd_obj, flow_parameters):
     class_dict = {"__module__": "metaflow", "_API_NAME": cmd_obj.name}
     for _, sub_cmd_obj in cmd_obj.commands.items():
         if isinstance(sub_cmd_obj, Group):
             # recursion
-            class_dict[sub_cmd_obj.name] = extract_group(sub_cmd_obj)
+            class_dict[sub_cmd_obj.name] = extract_group(sub_cmd_obj, flow_parameters)
         elif isinstance(sub_cmd_obj, Command):
-            class_dict[sub_cmd_obj.name] = extract_command(sub_cmd_obj)
+            class_dict[sub_cmd_obj.name] = extract_command(sub_cmd_obj, flow_parameters)
         else:
             raise RuntimeError(
                 f"Cannot handle {sub_cmd_obj.name} of type {type(sub_cmd_obj)}"
@@ -278,7 +298,11 @@ def extract_group(cmd_obj):
     return m
 
 
-def extract_command(cmd_obj):
+def extract_command(cmd_obj, flow_parameters):
+    if getattr(cmd_obj, "has_flow_params", False):
+        for p in flow_parameters[::-1]:
+            cmd_obj.params.insert(0, click.Option(("--" + p.name,), **p.kwargs))
+
     (
         params_sigs,
         possible_arg_params,
@@ -310,16 +334,20 @@ if __name__ == "__main__":
     api = MetaflowAPI.from_cli("../try.py", start)
 
     command = api(metadata="local").run(
-        tags=["ll", "mm"], decospecs=["kubernetes"], max_workers=5
+        tags=["abc", "def"], decospecs=["kubernetes"], max_workers=5, alpha=3
     )
     print(command)
 
     command = (
         api(metadata="local")
         .kubernetes()
-        .step(step_name="kk", code_package_sha="pp", code_package_url="nn")
+        .step(
+            step_name="process",
+            code_package_sha="some_sha",
+            code_package_url="some_url",
+        )
     )
     print(command)
 
-    command = api().tag().add(tags=["kkk", "iii"])
+    command = api().tag().add(tags=["abc", "def"])
     print(command)
