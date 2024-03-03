@@ -69,12 +69,13 @@ def _method_sanity_check(
             method_params["options"][cli_name] = supplied_v
 
     # possible kwargs
-    for possible_k, possible_v in possible_params.items():
+    for _, possible_v in possible_params.items():
+        cli_name = possible_v.opts[0].strip("-")
         if (
-            (possible_k not in method_params["args"])
-            and (possible_k not in method_params["options"])
+            (cli_name not in method_params["args"])
+            and (cli_name not in method_params["options"])
         ) and possible_v.required:
-            raise ValueError(f"Missing argument: {possible_k} is required.")
+            raise ValueError(f"Missing argument: {cli_name} is required.")
 
     return method_params
 
@@ -308,7 +309,9 @@ def extract_command(cmd_obj):
 if __name__ == "__main__":
     api = MetaflowAPI.from_cli("../try.py", start)
 
-    command = api(metadata="local").run(max_workers=5)
+    command = api(metadata="local").run(
+        tags=["ll", "mm"], decospecs=["kubernetes"], max_workers=5
+    )
     print(command)
 
     command = (
@@ -316,4 +319,7 @@ if __name__ == "__main__":
         .kubernetes()
         .step(step_name="kk", code_package_sha="pp", code_package_url="nn")
     )
+    print(command)
+
+    command = api().tag().add(tags=["kkk", "iii"])
     print(command)
