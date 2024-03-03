@@ -10,6 +10,7 @@ from metaflow.cli import start
 from metaflow._vendor import click
 from metaflow._vendor.click import Command, Group, Argument, Option
 from metaflow.parameters import JSONTypeClass
+from metaflow.includefile import FilePathClass
 from metaflow._vendor.click.types import (
     StringParamType,
     IntParamType,
@@ -35,6 +36,7 @@ click_to_python_types = {
     Choice: str,
     File: str,
     JSONTypeClass: str,
+    FilePathClass: str,
 }
 
 
@@ -334,7 +336,11 @@ if __name__ == "__main__":
     api = MetaflowAPI.from_cli("../try.py", start)
 
     command = api(metadata="local").run(
-        tags=["abc", "def"], decospecs=["kubernetes"], max_workers=5, alpha=3
+        tags=["abc", "def"],
+        decospecs=["kubernetes"],
+        max_workers=5,
+        alpha=3,
+        myfile="path/to/file",
     )
     print(command)
 
