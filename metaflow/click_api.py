@@ -64,7 +64,8 @@ def _method_sanity_check(
         if supplied_k in possible_arg_params:
             method_params["args"][supplied_k] = supplied_v
         elif supplied_k in possible_opt_params:
-            method_params["options"][supplied_k] = supplied_v
+            cli_name = possible_opt_params[supplied_k].opts[0].strip("-")
+            method_params["options"][cli_name] = supplied_v
 
     # possible kwargs
     for possible_k, possible_v in possible_params.items():
@@ -185,7 +186,11 @@ class MetaflowAPI(object):
                 for _, v in args.items():
                     components.append(v)
                 for k, v in options.items():
-                    components.append(f"--{k} {v}")
+                    if isinstance(v, list):
+                        for i in v:
+                            components.append(f"--{k} {i}")
+                    else:
+                        components.append(f"--{k} {v}")
 
         return " ".join(components)
 
