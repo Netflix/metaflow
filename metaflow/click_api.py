@@ -62,7 +62,8 @@ def _method_sanity_check(
             )
 
         if supplied_k in possible_arg_params:
-            method_params["args"][supplied_k] = supplied_v
+            cli_name = possible_arg_params[supplied_k].opts[0].strip("-")
+            method_params["args"][cli_name] = supplied_v
         elif supplied_k in possible_opt_params:
             cli_name = possible_opt_params[supplied_k].opts[0].strip("-")
             method_params["options"][cli_name] = supplied_v
@@ -81,12 +82,12 @@ def _method_sanity_check(
 def get_annotation(param):
     py_type = click_to_python_types[type(param.type)]
     if not param.required:
-        if param.multiple:
+        if param.multiple or param.nargs == -1:
             return Optional[List[py_type]]
         else:
             return Optional[py_type]
     else:
-        if param.multiple:
+        if param.multiple or param.nargs == -1:
             return List[py_type]
         else:
             return py_type
@@ -184,7 +185,11 @@ class MetaflowAPI(object):
                 options = params.pop("options", {})
                 assert len(params) == 0
                 for _, v in args.items():
-                    components.append(v)
+                    if isinstance(v, list):
+                        for i in v:
+                            components.append(i)
+                    else:
+                        components.append(v)
                 for k, v in options.items():
                     if isinstance(v, list):
                         for i in v:
