@@ -113,7 +113,7 @@ class FlowTriggeringFlow(FlowSpec):
                 },
             )
             logger.info(f"{run_id=}, {run_uid=}")
-            logger.info(f"{run_id_to_url(run_id, KUBERNETES_NAMESPACE)=}")
+            logger.info(f"{run_id_to_url(run_id, KUBERNETES_NAMESPACE, run_uid)=}")
 
             logger.info("Testing timeout exception for wait_for_kfp_run_completion")
             try:

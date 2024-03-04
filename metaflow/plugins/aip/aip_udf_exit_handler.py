@@ -4,6 +4,7 @@ import logging
 
 from metaflow.decorators import flow_decorators, FlowDecorator
 from metaflow.graph import FlowGraph
+from metaflow.plugins.aip import run_id_to_url
 
 _logger = logging.getLogger(__name__)
 
@@ -13,6 +14,7 @@ def invoke_user_defined_exit_handler(
     flow_name: str,
     status: str,
     run_id: str,
+    argo_workflow_uid: str,
     env_variables_json: str,
     flow_parameters_json: str,
     metaflow_configs_json: str,
@@ -40,13 +42,9 @@ def invoke_user_defined_exit_handler(
     def get_env(name, default=None) -> str:
         return env_variables.get(name, os.environ.get(name, default=default))
 
-    cluster_env = get_env("K8S_CLUSTER_ENV", "")
     argo_workflow_name = get_env("MF_ARGO_WORKFLOW_NAME", "")
-    argo_url_prefix = get_env("ARGO_RUN_URL_PREFIX", "")
     k8s_namespace = get_env("POD_NAMESPACE", "")
-    argo_ui_url = (
-        f"{argo_url_prefix}/argo-ui/workflows/{k8s_namespace}/{argo_workflow_name}"
-    )
+    argo_ui_url = run_id_to_url(argo_workflow_name, k8s_namespace, argo_workflow_uid)
 
     metaflow_configs: Dict[str, str] = json.loads(metaflow_configs_json)
     metaflow_configs_new: Dict[str, str] = {

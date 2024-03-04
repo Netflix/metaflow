@@ -60,10 +60,8 @@ def to_metaflow_run_id(argo_run_uid: str):
     )
 
 
-def run_id_to_url(argo_run_id: str, kubernetes_namespace: str):
-    argo_ui_url = (
-        f"{ARGO_RUN_URL_PREFIX}/argo-ui/workflows/{kubernetes_namespace}/{argo_run_id}"
-    )
+def run_id_to_url(argo_run_id: str, kubernetes_namespace: str, argo_workflow_uid: str):
+    argo_ui_url = f"{ARGO_RUN_URL_PREFIX}/argo-ui/workflows/{kubernetes_namespace}/{argo_run_id}?uid={argo_workflow_uid}"
     return argo_ui_url
 
 
