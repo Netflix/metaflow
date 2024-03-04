@@ -187,6 +187,7 @@ class NativeRuntime(object):
             origin_ds_set=self._origin_ds_set,
             decos=decos,
             logger=self._logger,
+            resume_identifier=self._resume_identifier,
             **kwargs
         )
 
@@ -195,9 +196,7 @@ class NativeRuntime(object):
         return self._run_id
 
     def persist_constants(self, task_id=None):
-        self._params_task = self._new_task(
-            "_parameters", task_id=task_id, resume_identifier=self._resume_identifier
-        )
+        self._params_task = self._new_task("_parameters", task_id=task_id)
         if not self._params_task.is_cloned:
             self._params_task.persist(self._flow)
 
@@ -870,21 +869,38 @@ class Task(object):
                             "Externally cloned _parameters task did not succeed"
                         )
 
-                    # Check if we should be the resume leader (maybe from previous attempt)
-                    if ds.has_metadata("_resume_leader", add_attempt=False):
-                        resume_leader = ds.load_metadata(
-                            ["_resume_leader"], add_attempt=False
-                        )["_resume_leader"]
-                        self._is_resume_leader = resume_leader == resume_identifier
+                    # Check if we should be the resume leader (maybe from previous attempt).
+                    # To avoid the edge case where the resume leader is selected but has not
+                    # yet written the _resume_leader metadata, we will wait for a few seconds.
+                    # We will wait for resume leader for at most 3 times.
+                    for resume_leader_wait_retry in range(3):
+
+                        if ds.has_metadata("_resume_leader", add_attempt=False):
+                            resume_leader = ds.load_metadata(
+                                ["_resume_leader"], add_attempt=False
+                            )["_resume_leader"]
+                            self._is_resume_leader = resume_leader == resume_identifier
+                        else:
+                            self.log(
+                                "Waiting for resume leader to be selected. Sleeping ...",
+                                system_msg=True,
+                            )
+                            time.sleep(3)
                 else:
                     # If the task id does not exist, current task is the resume leader.
                     resume_leader = resume_identifier
                     self._is_resume_leader = True
 
-                self.log(
-                    "Resume leader is %s." % resume_leader,
-                    system_msg=True,
-                )
+                if reentrant:
+                    if resume_leader:
+                        self.log(
+                            "Resume leader is %s." % resume_leader,
+                            system_msg=True,
+                        )
+                    else:
+                        raise MetaflowInternalError(
+                            "Can not determine the resume leader in distributed resume mode."
+                        )
 
                 if self._is_resume_leader:
                     self.log(
@@ -895,6 +911,7 @@ class Task(object):
                     self.new_attempt()
                     self._ds.clone(origin)
                     # Set the resume leader be the task that calls the resume (first task to clone _parameters task).
+                    # We will always set resume leader regardless whether we are in distributed resume case or not.
                     if resume_identifier:
                         self._ds.save_metadata(
                             {"_resume_leader": resume_identifier}, add_attempt=False
@@ -907,10 +924,6 @@ class Task(object):
                         ds = self._flow_datastore.get_task_datastore(
                             self.run_id, self.step, self.task_id
                         )
-                        if not ds["_task_ok"]:
-                            raise MetaflowInternalError(
-                                "Externally cloned _parameters task did not succeed"
-                            )
 
                         # Check if resume is complete. Resume leader will write the done file.
                         self._resume_done = ds.has_metadata(
