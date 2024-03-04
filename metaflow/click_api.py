@@ -357,3 +357,6 @@ if __name__ == "__main__":
 
     command = api().tag().add(tags=["abc", "def"])
     print(command)
+
+    command = getattr(api(decospecs=["retry"]), "argo-workflows")().create()
+    print(command)
