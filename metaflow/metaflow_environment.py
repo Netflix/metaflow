@@ -129,7 +129,7 @@ class MetaflowEnvironment(object):
             )
         elif datastore_type == "gs":
             cmds.append(
-                "%s -m pip install google-cloud-storage google-auth simple-gcp-object-downloader -qqq"
+                "%s -m pip install google-cloud-storage google-auth simple-gcp-object-downloader google-cloud-secret-manager -qqq"
                 % self._python()
             )
         else:

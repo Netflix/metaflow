@@ -121,6 +121,10 @@ SECRETS_PROVIDERS_DESC = [
         "aws-secrets-manager",
         ".aws.secrets_manager.aws_secrets_manager_secrets_provider.AwsSecretsManagerSecretsProvider",
     ),
+    (
+        "gcp-secret-manager",
+        ".gcp.gcp_secret_manager_secrets_provider.GcpSecretManagerSecretsProvider",
+    ),
 ]
 
 process_plugins(globals())
