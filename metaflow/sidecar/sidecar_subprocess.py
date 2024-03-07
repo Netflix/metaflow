@@ -123,7 +123,7 @@ class SidecarSubProcess(object):
             # message has to be properly sent before any of the other best effort messages.
             self._cached_mustsend = msg.payload
             self._send_mustsend_remaining_tries = MUST_SEND_RETRY_TIMES
-            self._send_mustsend(retries)
+            self._send_mustsend(retries, thread_safe_send)
         else:
             # Ignore return code for send.
             self._send_internal(msg, retries=retries, thread_safe_send=thread_safe_send)
@@ -161,7 +161,7 @@ class SidecarSubProcess(object):
                     # restart sidecar so use the PipeUnavailableError caught below
                     raise PipeUnavailableError()
                 elif self._send_mustsend_remaining_tries > 0:
-                    self._send_mustsend()
+                    self._send_mustsend(thread_safe_send=thread_safe_send)
                 if self._send_mustsend_remaining_tries == 0:
                     self._emit_msg(msg, thread_safe_send)
                     self._prev_message_error = False
@@ -195,7 +195,7 @@ class SidecarSubProcess(object):
                 )
         return False
 
-    def _send_mustsend(self, retries=3):
+    def _send_mustsend(self, retries=3, thread_safe_send=False):
         if (
             self._cached_mustsend is not None
             and self._send_mustsend_remaining_tries > 0
@@ -203,7 +203,9 @@ class SidecarSubProcess(object):
             # If we don't succeed in sending the must-send, we will try again
             # next time.
             if self._send_internal(
-                Message(MessageTypes.MUST_SEND, self._cached_mustsend), retries
+                Message(MessageTypes.MUST_SEND, self._cached_mustsend),
+                retries,
+                thread_safe_send,
             ):
                 self._cached_mustsend = None
                 self._send_mustsend_remaining_tries = 0
