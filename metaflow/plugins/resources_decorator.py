@@ -61,14 +61,6 @@ class ResourcesDecorator(StepDecorator):
             Defaults None - relying on Kubernetes defaults.
             **Note:** The volume persists state across step (container) retries.
             Default unit is MB - see notes above for more units.
-    volume_mode: str
-        Not for AWS batch.
-        [ReadWriteOnce, ReadWriteMany]
-        ReadWriteOnce: can be used by this step only
-        ReadWriteMany:
-            A volume to be shared across foreach split nodes, but not downstream steps.
-            An example use case is PyTorch distributed training where gradients are communicated
-            via the shared volume.
     volume_dir: str
         Default "/opt/metaflow_volume"
     volume_type: str
@@ -90,7 +82,6 @@ class ResourcesDecorator(StepDecorator):
         # Only AIP supported attributes
         "gpu_vendor": None,
         "volume": None,
-        "volume_mode": "ReadWriteOnce",
         "volume_dir": "/opt/metaflow_volume",
         "volume_type": None,
         # Deprecated - kept only to show a meaningful error message
