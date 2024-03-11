@@ -6,7 +6,7 @@ from metaflow.metadata.util import sync_local_metadata_to_datastore
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.sidecar import Sidecar
 
-from .snowpark import SnowparkException
+from metaflow.exception import MetaflowException
 
 
 class SnowparkDecorator(StepDecorator):
@@ -21,7 +21,9 @@ class SnowparkDecorator(StepDecorator):
     # Metaflow flow.
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         if flow_datastore.TYPE != "s3":
-            raise SnowparkException("The *@snowpark* decorator requires --datastore=s3.")
+            raise MetaflowException(
+                "The *@snowpark* decorator requires --datastore=s3."
+            )
         # Set internal state.
         self.logger = logger
         self.environment = environment
@@ -46,7 +48,7 @@ class SnowparkDecorator(StepDecorator):
     ):
         if retry_count <= max_user_code_retries:
             # after all attempts to run the user code have failed, we don't need
-            # to execute on NVCF anymore. We can execute possible fallback
+            # to execute on Snowpark anymore. We can execute possible fallback
             # code locally.
             cli_args.commands = ["snowpark", "step"]
             cli_args.command_args.append(self.package_sha)
