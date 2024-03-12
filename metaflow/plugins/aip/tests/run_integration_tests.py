@@ -26,17 +26,17 @@ each aip run, waits for the run to fully complete, and prints whether
 or not the run was successful. It also checks to make sure the logging
 functionality works.
 
-More specifically, the tests spawn KFP runs and ensure the spawning processes
-have a returncode of 0. If any test fails within KFP, an exception
+More specifically, the tests spawn Argo runs and ensure the spawning processes
+have a returncode of 0. If any test fails within Argo, an exception
 is raised, the test fails, and the user can access the run link to the failed
-KFP run.
+Argo run.
 
 Parameters:
 -n: specifies the number of parallel processes used by PyTest.
 
-Sometimes, the tests may fail on KFP due to resource quota issues. If they do,
+Sometimes, the tests may fail on Argo due to resource quota issues. If they do,
 try reducing -n (number of parallel processes) so less simultaneous
-KFP runs will be scheduled.
+Argo runs will be scheduled.
 
 """
 
@@ -314,6 +314,20 @@ def get_compiled_yaml(compile_to_yaml_cmd, yaml_file_path) -> Dict[str, str]:
             print(exc)
 
     return flow_yaml
+
+
+def test_kfp_labels(pytestconfig) -> None:
+    with tempfile.TemporaryDirectory() as yaml_tmp_dir:
+        yaml_file_path: str = os.path.join(yaml_tmp_dir, "s3_sensor_flow_labels.yaml")
+
+        compile_to_yaml_cmd: str = (
+            f" {_python()} flows/s3_sensor_flow.py --no-pylint --datastore s3 aip run"
+            f" --no-s3-code-package --yaml-only --notify --pipeline-path {yaml_file_path} "
+            f"--tag {pytestconfig.getoption('pipeline_tag')} "
+        )
+        flow_yaml = get_compiled_yaml(compile_to_yaml_cmd, yaml_file_path)
+
+    assert "pipelines.kubeflow.org" not in json.dumps(flow_yaml)
 
 
 def test_kfp_pod_default(pytestconfig) -> None:

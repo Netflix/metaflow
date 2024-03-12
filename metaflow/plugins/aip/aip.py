@@ -229,6 +229,24 @@ class KubeflowPipelines(object):
         except Exception as e:
             raise AIPException(str(e))
 
+    @staticmethod
+    def _remove_kfp_annotations_labels(workflow: Dict[Text, Any]):
+        def remove_keys(d: dict):
+            kf_prefix = "pipelines.kubeflow.org/"
+            for k in list(d):
+                if k.startswith(kf_prefix):
+                    del d[k]
+
+        def remove_annotations_labels(d: dict):
+            remove_keys(d["metadata"]["annotations"])
+            remove_keys(d["metadata"]["labels"])
+
+        remove_annotations_labels(workflow)
+
+        for template in workflow["spec"]["templates"]:
+            if "metadata" in template:
+                remove_annotations_labels(template)
+
     def _create_workflow_yaml(
         self,
         flow_parameters: Dict,
@@ -247,6 +265,9 @@ class KubeflowPipelines(object):
             pipeline_func=pipeline_func,
             pipeline_conf=pipeline_conf,
         )
+
+        # mutates and removes kubeflow labels and annotations
+        KubeflowPipelines._remove_kfp_annotations_labels(workflow)
 
         workflow["spec"]["arguments"]["parameters"] = [
             dict(name=k, value=json.dumps(v) if isinstance(v, dict) else v)
