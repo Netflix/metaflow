@@ -37,16 +37,6 @@ class S3SensorWithFormatterFlow(FlowSpec):
     @step
     def start(self):
         print("S3SensorWithFormatterFlow is starting.")
-        self.items = [1, 2]
-        self.next(self.shared_volume_foreach_step, foreach="items")
-
-    @resources(volume="13G", volume_mode="ReadWriteMany")
-    @step
-    def shared_volume_foreach_step(self):
-        self.next(self.shared_volume_join_step)
-
-    @step
-    def shared_volume_join_step(self, inputs):
         self.next(self.end)
 
     @step

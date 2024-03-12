@@ -799,29 +799,19 @@ class KubeflowPipelines(object):
         self,
         container_op: ContainerOp,
         aip_component: AIPComponent,
-        workflow_uid: str,
-        shared_volumes: Dict[str, Dict[str, Tuple[ResourceOp, PipelineVolume]]],
     ) -> ResourceOp:
         resource_requirements: Dict[str, Any] = aip_component.resource_requirements
         resource_op: Optional[ResourceOp] = None
 
         if "volume" in resource_requirements:
-            mode = resource_requirements["volume_mode"]
             volume_dir = resource_requirements["volume_dir"]
 
-            if mode == "ReadWriteMany":
-                # ReadWriteMany shared volumes are created way before
-                (resource_op, volume) = shared_volumes[aip_component.step_name]
-                container_op.add_pvolumes(volume)
-            else:
-                (resource_op, volume) = self._create_volume(
-                    step_name=aip_component.step_name,
-                    size=resource_requirements["volume"],
-                    workflow_uid=ARGO_WORKFLOW_UID,
-                    mode=mode,
-                    volume_type=resource_requirements.get("volume_type"),
-                )
-                container_op.add_pvolumes({volume_dir: volume})
+            (resource_op, volume) = self._create_volume(
+                step_name=aip_component.step_name,
+                size=resource_requirements["volume"],
+                volume_type=resource_requirements.get("volume_type"),
+            )
+            container_op.add_pvolumes({volume_dir: volume})
 
         return resource_op
 
@@ -945,13 +935,9 @@ class KubeflowPipelines(object):
         self,
         step_name: str,
         size: str,
-        workflow_uid: str,
-        mode: str,
         volume_type: Optional[str],
     ) -> Tuple[ResourceOp, PipelineVolume]:
-        volume_name = (
-            sanitize_k8s_name(step_name) if mode == "ReadWriteMany" else "{{pod.name}}"
-        )
+        volume_name = "{{pod.name}}"
         attribute_outputs = {"size": "{.status.capacity.storage}"}
         requested_resources = V1ResourceRequirements(requests={"storage": size})
 
@@ -967,7 +953,7 @@ class KubeflowPipelines(object):
             controller=True,
             kind="Workflow",
             name="{{workflow.name}}",
-            uid="{{workflow.uid}}",
+            uid=ARGO_WORKFLOW_UID,
         )
         owner_references = [owner_reference]
         pvc_metadata = V1ObjectMeta(
@@ -1180,19 +1166,12 @@ class KubeflowPipelines(object):
                 passed_in_split_indexes: str = "",
                 preceding_kfp_component_op: ContainerOp = None,
                 preceding_component_outputs_dict: Dict[str, dsl.PipelineParam] = None,
-                workflow_uid: str = None,
-                shared_volumes: Dict[
-                    str, Dict[str, Tuple[ResourceOp, PipelineVolume]]
-                ] = None,
             ):
                 if node.name in visited:
                     return
 
                 if preceding_component_outputs_dict is None:
                     preceding_component_outputs_dict = {}
-
-                if shared_volumes is None:
-                    shared_volumes = {}
 
                 # If any of this node's children has a preceding_kfp_func then
                 # create (kfp_decorator_component, preceding_component_inputs)
@@ -1281,7 +1260,7 @@ class KubeflowPipelines(object):
                     metaflow_step_op, aip_component
                 )
                 resource_op: ResourceOp = self._set_container_volume(
-                    metaflow_step_op, aip_component, workflow_uid, shared_volumes
+                    metaflow_step_op, aip_component
                 )
                 if resource_op:
                     visited_resource_ops[node.name] = resource_op
@@ -1301,8 +1280,6 @@ class KubeflowPipelines(object):
                             split_index,
                             preceding_kfp_component_op=next_aip_component_op,
                             preceding_component_outputs_dict=next_preceding_component_outputs_dict,
-                            workflow_uid=workflow_uid,
-                            shared_volumes=shared_volumes,
                         )
 
                     # Handle the ParallelFor join step, and pass in
@@ -1312,8 +1289,6 @@ class KubeflowPipelines(object):
                         passed_in_split_indexes,
                         preceding_kfp_component_op=next_aip_component_op,
                         preceding_component_outputs_dict=next_preceding_component_outputs_dict,
-                        workflow_uid=workflow_uid,
-                        shared_volumes=shared_volumes,
                     )
                 else:
                     for step in node.out_funcs:
@@ -1333,8 +1308,6 @@ class KubeflowPipelines(object):
                                 passed_in_split_indexes,
                                 preceding_kfp_component_op=next_aip_component_op,
                                 preceding_component_outputs_dict=next_preceding_component_outputs_dict,
-                                workflow_uid=workflow_uid,
-                                shared_volumes=shared_volumes,
                             )
 
             # The following exit handlers get created and added as a ContainerOp
@@ -1358,8 +1331,6 @@ class KubeflowPipelines(object):
             )
             build_kfp_dag(
                 self.graph["start"],
-                workflow_uid=ARGO_WORKFLOW_UID,
-                shared_volumes=self.create_shared_volumes(step_name_to_aip_component),
             )
 
             # Instruct KFP of the DAG order by iterating over the Metaflow
@@ -1403,39 +1374,6 @@ class KubeflowPipelines(object):
             ]
         )
         return kfp_pipeline_from_flow, pipeline_conf
-
-    def create_shared_volumes(
-        self,
-        step_name_to_aip_component: Dict[str, AIPComponent],
-    ) -> Dict[str, Dict[str, Tuple[ResourceOp, PipelineVolume]]]:
-        """
-        A volume to be shared across foreach split nodes, but not downstream steps.
-        An example use case is PyTorch distributed training where gradients are communicated
-        via the shared volume.
-        Returns: Dict[step_name, Dict[volume_dir, PipelineVolume]]
-        """
-        shared_volumes: Dict[str, Dict[str, Tuple[ResourceOp, PipelineVolume]]] = {}
-
-        for aip_component in step_name_to_aip_component.values():
-            resources = aip_component.resource_requirements
-            if (
-                "volume_mode" in resources
-                and resources["volume_mode"] == "ReadWriteMany"
-            ):
-                volume_dir = resources["volume_dir"]
-                (resource_op, volume) = self._create_volume(
-                    step_name=f"{aip_component.step_name}-shared",
-                    size=resources["volume"],
-                    workflow_uid=ARGO_WORKFLOW_UID,
-                    mode=resources["volume_mode"],
-                    volume_type=resources.get("volume_type"),
-                )
-                shared_volumes[aip_component.step_name] = (
-                    resource_op,
-                    {volume_dir: volume},
-                )
-
-        return shared_volumes
 
     def _create_metaflow_step_op(
         self,
