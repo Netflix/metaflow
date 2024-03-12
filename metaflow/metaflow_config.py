@@ -81,7 +81,7 @@ S3_SERVER_SIDE_ENCRYPTION = from_conf("S3_SERVER_SIDE_ENCRYPTION")
 # so setting it to 0 means each operation will be tried once.
 S3_RETRY_COUNT = from_conf("S3_RETRY_COUNT", 7)
 
-# S3 worker configuration. Number of concurrent S3 connections.
+# Number of concurrent S3 processes for parallel operations.
 S3_WORKER_COUNT = from_conf("S3_WORKER_COUNT", 64)
 
 # Number of retries on *transient* failures (such as SlowDown errors). Note
