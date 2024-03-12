@@ -13,7 +13,7 @@ class Sidecar(object):
         if t is not None and t.get_worker() is not None:
             self._has_valid_worker = True
         self.sidecar_process = None
-        # Whether to send msg in a thread-safe fasion.
+        # Whether to send msg in a thread-safe fashion.
         self._threadsafe_send_enabled = False
 
     def start(self):
