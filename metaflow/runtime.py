@@ -46,6 +46,7 @@ PROGRESS_INTERVAL = 300  # s
 # executing a flow. These are prefetched during the resume operation by
 # leveraging the TaskDataStoreSet.
 PREFETCH_DATA_ARTIFACTS = ["_foreach_stack", "_task_ok", "_transition"]
+RESUME_POLL_SECONDS = 60
 
 # Runtime must use logsource=RUNTIME_LOG_SOURCE for all loglines that it
 # formats according to mflog. See a comment in mflog.__init__
@@ -75,8 +76,8 @@ class NativeRuntime(object):
         max_workers=MAX_WORKERS,
         max_num_splits=MAX_NUM_SPLITS,
         max_log_size=MAX_LOG_SIZE,
+        resume_identifier=None,
     ):
-
         if run_id is None:
             self._run_id = metadata.new_run_id()
         else:
@@ -101,11 +102,13 @@ class NativeRuntime(object):
         self._entrypoint = entrypoint
         self.event_logger = event_logger
         self._monitor = monitor
+        self._resume_identifier = resume_identifier
 
         self._clone_run_id = clone_run_id
         self._clone_only = clone_only
         self._clone_steps = {} if clone_steps is None else clone_steps
         self._reentrant = reentrant
+        self._run_url = None
 
         self._origin_ds_set = None
         if clone_run_id:
@@ -184,6 +187,7 @@ class NativeRuntime(object):
             origin_ds_set=self._origin_ds_set,
             decos=decos,
             logger=self._logger,
+            resume_identifier=self._resume_identifier,
             **kwargs
         )
 
@@ -192,25 +196,25 @@ class NativeRuntime(object):
         return self._run_id
 
     def persist_constants(self, task_id=None):
-        task = self._new_task("_parameters", task_id=task_id)
-        if not task.is_cloned:
-            task.persist(self._flow)
-        self._params_task = task.path
-        self._is_cloned[task.path] = task.is_cloned
+        self._params_task = self._new_task("_parameters", task_id=task_id)
+        if not self._params_task.is_cloned:
+            self._params_task.persist(self._flow)
 
-    def execute(self):
-        run_url = (
+        self._is_cloned[self._params_task.path] = self._params_task.is_cloned
+
+    def print_workflow_info(self):
+        self._run_url = (
             "%s/%s/%s" % (UI_URL.rstrip("/"), self._flow.name, self._run_id)
             if UI_URL
             else None
         )
 
-        if run_url:
+        if self._run_url:
             self._logger(
                 "Workflow starting (run-id %s), see it in the UI at %s"
                 % (
                     self._run_id,
-                    run_url,
+                    self._run_url,
                 ),
                 system_msg=True,
             )
@@ -219,10 +223,29 @@ class NativeRuntime(object):
                 "Workflow starting (run-id %s):" % self._run_id, system_msg=True
             )
 
+    def _should_skip_clone_only_execution(self):
+        if self._clone_only and self._params_task:
+            if self._params_task.resume_done():
+                return True, "Resume already complete. Skip clone-only execution."
+            if not self._params_task.is_resume_leader():
+                return (
+                    True,
+                    "Not resume leader under resume execution. Skip clone-only execution.",
+                )
+        return False, None
+
+    def execute(self):
+        (
+            should_skip_clone_only_execution,
+            skip_reason,
+        ) = self._should_skip_clone_only_execution()
+        if should_skip_clone_only_execution:
+            self._logger(skip_reason, system_msg=True)
+            return
         self._metadata.start_run_heartbeat(self._flow.name, self._run_id)
 
         if self._params_task:
-            self._queue_push("start", {"input_paths": [self._params_task]})
+            self._queue_push("start", {"input_paths": [self._params_task.path]})
         else:
             self._queue_push("start", {})
 
@@ -303,9 +326,9 @@ class NativeRuntime(object):
 
         # assert that end was executed and it was successful
         if ("end", ()) in self._finished:
-            if run_url:
+            if self._run_url:
                 self._logger(
-                    "Done! See the run in the UI at %s" % run_url,
+                    "Done! See the run in the UI at %s" % self._run_url,
                     system_msg=True,
                 )
             else:
@@ -316,6 +339,7 @@ class NativeRuntime(object):
                 "cloned; no new tasks executed!",
                 system_msg=True,
             )
+            self._params_task.mark_resume_done()
         else:
             raise MetaflowInternalError(
                 "The *end* step was not successful by the end of flow."
@@ -711,6 +735,7 @@ class Task(object):
         ubf_iter=None,
         join_type=None,
         task_id=None,
+        resume_identifier=None,
     ):
 
         self.step = step
@@ -749,32 +774,38 @@ class Task(object):
         self.datastore_sysroot = flow_datastore.datastore_root
         self._results_ds = None
 
+        # Only used in clone-only resume.
+        self._is_resume_leader = None
+        self._resume_done = None
+        self._resume_identifier = resume_identifier
+
         origin = None
         if clone_run_id and may_clone:
             origin = self._find_origin_task(clone_run_id, join_type)
         if origin and origin["_task_ok"]:
             # At this point, we know we are going to clone
             self._is_cloned = True
+
+            task_id_exists_already = False
+            task_completed = False
             if reentrant:
                 # A re-entrant clone basically allows multiple concurrent processes
                 # to perform the clone at the same time to the same new run id. Let's
                 # assume two processes A and B both simultaneously calling
                 # `resume --reentrant --run-id XX`.
-                # For each task that is cloned, we want to guarantee that:
-                #   - one and only one of A or B will do the actual cloning
-                #   - the other process (or other processes) will block until the cloning
-                #     is complete.
-                # This ensures that the rest of the clone algorithm can proceed as normal
-                # and also guarantees that we only write once to the datastore and
-                # metadata.
+                # We want to guarantee that:
+                #   - All incomplete tasks are cloned exactly once.
+                # To achieve this, we will select a resume leader and let it clone the
+                # entire execution graph. This ensures that we only write once to the
+                # datastore and metadata.
                 #
-                # To accomplish this, we use the cloned task's task-id as the "key" to
-                # synchronize on. We then try to "register" this new task-id (or rather
-                # the full pathspec <run>/<step>/<taskid>) with the metadata service
-                # which will indicate if we actually registered it or if it existed
-                # already. If we did manage to register it, we are the "elected cloner"
+                # We use the cloned _parameter task's task-id as the "key" to synchronize
+                # on. We try to "register" this new task-id (or rather the full pathspec
+                # <run>/<step>/<taskid>) with the metadata service which will indicate
+                # if we actually registered it or if it existed already. If we did manage
+                # to register it (_parameter task), we are the "elected resume leader"
                 # in essence and proceed to clone. If we didn't, we just wait to make
-                # sure the task is fully done (ie: the clone is finished).
+                # sure the entire clone execution is fully done (ie: the clone is finished).
                 if task_id is not None:
                     # Sanity check -- this should never happen. We cannot allow
                     # for explicit task-ids because in the reentrant case, we use the
@@ -783,6 +814,15 @@ class Task(object):
                         "Reentrant clone-only resume does not allow for explicit task-id"
                     )
 
+                if resume_identifier:
+                    self.log(
+                        "Resume identifier is %s." % resume_identifier,
+                        system_msg=True,
+                    )
+                else:
+                    raise MetaflowInternalError(
+                        "Reentrant clone-only resume needs a resume identifier."
+                    )
                 # We will use the same task_id as the original task
                 # to use it effectively as a synchronization key
                 clone_task_id = origin.task_id
@@ -798,56 +838,124 @@ class Task(object):
 
                 # If _get_task_id returns True it means the task already existed, so
                 # we wait for it.
-                self._wait_for_clone = self._get_task_id(clone_task_id)
+                task_id_exists_already = self._get_task_id(clone_task_id)
+
+                # We may not have access to task datastore on first resume attempt, but
+                # on later resume attempt, we should check if the resume task is complete
+                # or not. This is to fix the issue where the resume leader was killed
+                # unexpectedly during cloning and never mark task complete.
+                try:
+                    task_completed = self.results["_task_ok"]
+                except DataException as e:
+                    pass
             else:
-                self._wait_for_clone = False
                 self._get_task_id(task_id)
 
             # Store the mapping from current_pathspec -> origin_pathspec which
             # will be useful for looking up origin_ds_set in find_origin_task.
             self.clone_pathspec_mapping[self._path] = origin.pathspec
             if self.step == "_parameters":
-                # We don't put _parameters on the queue so we either clone it or wait
-                # for it.
-                if not self._wait_for_clone:
+                # In the _parameters task, we need to resolve who is the resume leader.
+                self._is_resume_leader = False
+                resume_leader = None
+
+                if task_id_exists_already:
+                    # If the task id already exists, we need to check if current task is the resume leader in previous attempt.
+                    ds = self._flow_datastore.get_task_datastore(
+                        self.run_id, self.step, self.task_id
+                    )
+                    if not ds["_task_ok"]:
+                        raise MetaflowInternalError(
+                            "Externally cloned _parameters task did not succeed"
+                        )
+
+                    # Check if we should be the resume leader (maybe from previous attempt).
+                    # To avoid the edge case where the resume leader is selected but has not
+                    # yet written the _resume_leader metadata, we will wait for a few seconds.
+                    # We will wait for resume leader for at most 3 times.
+                    for resume_leader_wait_retry in range(3):
+
+                        if ds.has_metadata("_resume_leader", add_attempt=False):
+                            resume_leader = ds.load_metadata(
+                                ["_resume_leader"], add_attempt=False
+                            )["_resume_leader"]
+                            self._is_resume_leader = resume_leader == resume_identifier
+                        else:
+                            self.log(
+                                "Waiting for resume leader to be selected. Sleeping ...",
+                                system_msg=True,
+                            )
+                            time.sleep(3)
+                else:
+                    # If the task id does not exist, current task is the resume leader.
+                    resume_leader = resume_identifier
+                    self._is_resume_leader = True
+
+                if reentrant:
+                    if resume_leader:
+                        self.log(
+                            "Resume leader is %s." % resume_leader,
+                            system_msg=True,
+                        )
+                    else:
+                        raise MetaflowInternalError(
+                            "Can not determine the resume leader in distributed resume mode."
+                        )
+
+                if self._is_resume_leader:
+                    self.log(
+                        "Selected as the reentrant clone leader.",
+                        system_msg=True,
+                    )
                     # Clone in place without relying on run_queue.
                     self.new_attempt()
                     self._ds.clone(origin)
+                    # Set the resume leader be the task that calls the resume (first task to clone _parameters task).
+                    # We will always set resume leader regardless whether we are in distributed resume case or not.
+                    if resume_identifier:
+                        self._ds.save_metadata(
+                            {"_resume_leader": resume_identifier}, add_attempt=False
+                        )
+
                     self._ds.done()
                 else:
-                    # TODO: There is a bit of a duplication with the task.py
-                    # clone_only function here
-                    self.log(
-                        "Waiting for clone of _parameters step to occur...",
-                        system_msg=True,
-                    )
+                    # Wait for the resume leader to complete
                     while True:
-                        try:
-                            ds = self._flow_datastore.get_task_datastore(
-                                self.run_id, self.step, self.task_id
-                            )
-                            if not ds["_task_ok"]:
-                                raise MetaflowInternalError(
-                                    "Externally cloned _parameters task did not succeed"
-                                )
+                        ds = self._flow_datastore.get_task_datastore(
+                            self.run_id, self.step, self.task_id
+                        )
+
+                        # Check if resume is complete. Resume leader will write the done file.
+                        self._resume_done = ds.has_metadata(
+                            "_resume_done", add_attempt=False
+                        )
+
+                        if self._resume_done:
                             break
-                        except DataException:
-                            self.log("Sleeping for 5s...", system_msg=True)
-                            # No need to get fancy with the sleep here.
-                            time.sleep(5)
-                    self.log("_parameters clone successful", system_msg=True)
+
+                        self.log(
+                            "Waiting for resume leader to complete. Sleeping for %ds..."
+                            % RESUME_POLL_SECONDS,
+                            system_msg=True,
+                        )
+                        time.sleep(RESUME_POLL_SECONDS)
+                    self.log(
+                        "_parameters clone completed by resume leader", system_msg=True
+                    )
             else:
-                # For non parameter steps
+                # Only leader can reach non-parameter steps in resume.
+
                 # Store the origin pathspec in clone_origin so this can be run
                 # as a task by the runtime.
                 self.clone_origin = origin.pathspec
                 # Save a call to creating the results_ds since its same as origin.
                 self._results_ds = origin
-                if self._wait_for_clone:
+
+                # If the task is already completed in new run, we don't need to clone it.
+                self._should_skip_cloning = task_completed
+                if self._should_skip_cloning:
                     self.log(
-                        "Waiting for the successful cloning of results "
-                        "of a previously run task %s (this may take some time)"
-                        % self.clone_origin,
+                        "Skip cloning of previously run task %s" % self.clone_origin,
                         system_msg=True,
                     )
                 else:
@@ -915,6 +1023,31 @@ class Task(object):
 
         self._logger(msg, head=prefix, system_msg=system_msg, timestamp=timestamp)
         sys.stdout.flush()
+
+    def is_resume_leader(self):
+        assert (
+            self.step == "_parameters"
+        ), "Only _parameters step can check resume leader."
+        return self._is_resume_leader
+
+    def resume_done(self):
+        assert (
+            self.step == "_parameters"
+        ), "Only _parameters step can check wheather resume is complete."
+        return self._resume_done
+
+    def mark_resume_done(self):
+        assert (
+            self.step == "_parameters"
+        ), "Only _parameters step can mark resume as done."
+        assert self.is_resume_leader(), "Only resume leader can mark resume as done."
+
+        # Mark the resume as done. This is called at the end of the resume flow and after
+        # the _parameters step was successfully cloned, so we need to 'dangerously' save
+        # this done file, but the risk should be minimal.
+        self._ds._dangerous_save_metadata_post_done(
+            {"_resume_done": True}, add_attempt=False
+        )
 
     def _get_task_id(self, task_id):
         already_existed = True
@@ -1040,8 +1173,8 @@ class Task(object):
         return self._is_cloned
 
     @property
-    def wait_for_clone(self):
-        return self._wait_for_clone
+    def should_skip_cloning(self):
+        return self._should_skip_cloning
 
     def persist(self, flow):
         # this is used to persist parameters before the start step
@@ -1185,7 +1318,6 @@ class CLIArgs(object):
 
 class Worker(object):
     def __init__(self, task, max_logs_size):
-
         self.task = task
         self._proc = self._launch()
 
@@ -1229,7 +1361,7 @@ class Worker(object):
             # disabling sidecars for cloned tasks due to perf reasons
             args.top_level_options["event-logger"] = "nullSidecarLogger"
             args.top_level_options["monitor"] = "nullSidecarMonitor"
-            if self.task.wait_for_clone:
+            if self.task.should_skip_cloning:
                 args.command_options["clone-wait-only"] = True
         else:
             # decorators may modify the CLIArgs object in-place

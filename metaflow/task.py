@@ -291,22 +291,9 @@ class MetaflowTask(object):
                 "task.clone_only needs a valid clone_origin_task value."
             )
         if wait_only:
-            # In this case, we are actually going to wait for the clone to be done
-            # by someone else. To do this, we just get the task_datastore in "r" mode
-            while True:
-                try:
-                    ds = self.flow_datastore.get_task_datastore(
-                        run_id, step_name, task_id
-                    )
-                    if not ds["_task_ok"]:
-                        raise MetaflowInternalError(
-                            "Externally cloned task did not succeed"
-                        )
-                    break
-                except DataException:
-                    # No need to get fancy with the sleep here.
-                    time.sleep(5)
+            print("Not cloning anything in wait_only mode.")
             return
+
         # If we actually have to do the clone ourselves, proceed...
         # 1. initialize output datastore
         output = self.flow_datastore.get_task_datastore(

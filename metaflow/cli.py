@@ -719,6 +719,13 @@ def common_run_options(func):
     hidden=True,
     help="If specified, allows this call to be called in parallel",
 )
+@click.option(
+    "--resume-identifier",
+    default=None,
+    show_default=True,
+    hidden=True,
+    help="If specified, it identifies the task that started this resume call. It is in the form of {step_name}-{task_id}",
+)
 @click.argument("step-to-rerun", required=False)
 @cli.command(help="Resume execution of a previous run of this flow.")
 @common_run_options
@@ -736,6 +743,7 @@ def resume(
     max_log_size=None,
     decospecs=None,
     run_id_file=None,
+    resume_identifier=None,
 ):
     before_run(obj, tags, decospecs + obj.environment.decospecs())
 
@@ -789,8 +797,10 @@ def resume(
         max_workers=max_workers,
         max_num_splits=max_num_splits,
         max_log_size=max_log_size * 1024 * 1024,
+        resume_identifier=resume_identifier,
     )
     write_run_id(run_id_file, runtime.run_id)
+    runtime.print_workflow_info()
     runtime.persist_constants()
     runtime.execute()
 
@@ -845,6 +855,7 @@ def run(
     write_run_id(run_id_file, runtime.run_id)
 
     obj.flow._set_constants(obj.graph, kwargs)
+    runtime.print_workflow_info()
     runtime.persist_constants()
     runtime.execute()
 
