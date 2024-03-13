@@ -31,7 +31,7 @@ jobs:
     - name: Install Python ${{ matrix.ver }} dependencies
       run: |
         python3 -m pip install --upgrade pip setuptools
-        python3 -m pip install pytest build mypy pytest-mypy-plugins
+        python3 -m pip install pytest build "mypy<1.9" pytest-mypy-plugins
 
     - name: Install metaflow
       run: pip install .
