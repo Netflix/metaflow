@@ -25,7 +25,7 @@ from metaflow.plugins.aip.aip_constants import (
     AIP_JOIN_METAFLOW_S3OP_NUM_WORKERS,
 )
 from metaflow.plugins.cards.card_client import get_cards, Card
-from ... import R
+from ... import R, metaflow_version
 
 
 def _write_card_artifacts(
@@ -379,6 +379,7 @@ def aip_metaflow_step(
         "PRECEDING_COMPONENT_INPUTS": json.dumps(preceding_component_inputs),
         "PRECEDING_COMPONENT_OUTPUTS": json.dumps(preceding_component_outputs),
         **preceding_component_outputs_env,
+        "METAFLOW_VERSION": metaflow_version.get_version(),
     }
     if flow_parameters_json is not None:
         env["METAFLOW_PARAMETERS"] = flow_parameters_json

@@ -2,6 +2,7 @@ import os
 from random import random
 
 from metaflow import FlowSpec, Step, current, step
+from metaflow.metaflow_version import get_version
 
 
 class MetadataFlow(FlowSpec):
@@ -40,6 +41,7 @@ class MetadataFlow(FlowSpec):
         assert f"zodiac_team:{os.environ['ZODIAC_TEAM']}" in start_step_tags
         assert f"zodiac_owner:{os.environ['ZODIAC_OWNER']}" in start_step_tags
         assert f"k8s_namespace:{os.environ['MF_POD_NAMESPACE']}" in start_step_tags
+        assert get_version() is not None
 
         print("MetadataFlow is all done.")
 
