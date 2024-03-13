@@ -4,6 +4,8 @@
 See the documentation of get_version for more information
 
 """
+from importlib import metadata
+from importlib.metadata import PackageNotFoundError
 
 # This file is adapted from https://github.com/aebrahim/python-git-version
 
@@ -131,6 +133,12 @@ def get_version(pep440=False):
 
     version = format_git_describe(call_git_describe(), pep440=pep440)
     version_addl = None
+    if version is None:
+        # version is of format 2.1.2647+2.5.4
+        try:
+            version = metadata.version("zillow-metaflow")
+        except PackageNotFoundError:
+            pass
     if version is None:  # not a git repository
         import metaflow
 
