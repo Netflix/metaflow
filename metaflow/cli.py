@@ -474,13 +474,6 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     "not execute anything.",
 )
 @click.option(
-    "--clone-wait-only/--no-clone-wait-only",
-    default=False,
-    show_default=True,
-    help="If specified, waits for an external process to clone the task",
-    hidden=True,
-)
-@click.option(
     "--clone-run-id",
     default=None,
     help="Run id of the origin flow, if this task is part of a flow being resumed.",
@@ -519,7 +512,6 @@ def step(
     retry_count=None,
     max_user_code_retries=None,
     clone_only=None,
-    clone_wait_only=False,
     clone_run_id=None,
     decospecs=None,
     ubf_context="none",
@@ -575,7 +567,6 @@ def step(
             task_id,
             clone_only,
             retry_count,
-            wait_only=clone_wait_only,
         )
     else:
         task.run_step(
@@ -802,7 +793,10 @@ def resume(
     write_run_id(run_id_file, runtime.run_id)
     runtime.print_workflow_info()
     runtime.persist_constants()
-    runtime.execute()
+    if clone_only:
+        runtime.clone_original_run()
+    else:
+        runtime.execute()
 
 
 @tracing.cli_entrypoint("cli/run")
@@ -830,7 +824,7 @@ def run(
     decospecs=None,
     run_id_file=None,
     user_namespace=None,
-    **kwargs
+    **kwargs,
 ):
     if user_namespace is not None:
         namespace(user_namespace or None)
@@ -985,7 +979,7 @@ def start(
     pylint=None,
     event_logger=None,
     monitor=None,
-    **deco_options
+    **deco_options,
 ):
     global echo
     if quiet:

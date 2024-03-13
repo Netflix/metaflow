@@ -13,6 +13,7 @@ import subprocess
 from datetime import datetime
 from io import BytesIO
 from functools import partial
+from concurrent import futures
 
 from metaflow.datastore.exceptions import DataException
 
@@ -30,6 +31,7 @@ from .debug import debug
 from .decorators import flow_decorators
 from .mflog import mflog, RUNTIME_LOG_SOURCE
 from .util import to_unicode, compress_list, unicode_type
+from .clone_util import clone_task_helper
 from .unbounded_foreach import (
     CONTROL_TASK_TAG,
     UBF_CONTROL,
@@ -188,7 +190,7 @@ class NativeRuntime(object):
             decos=decos,
             logger=self._logger,
             resume_identifier=self._resume_identifier,
-            **kwargs
+            **kwargs,
         )
 
     @property
@@ -233,6 +235,65 @@ class NativeRuntime(object):
                     "Not resume leader under resume execution. Skip clone-only execution.",
                 )
         return False, None
+
+    def clone_task(self, step_name, task_id):
+        self._logger(
+            "Cloning task from {}/{}/{}/{} to {}/{}/{}/{}".format(
+                self._flow.name,
+                self._clone_run_id,
+                step_name,
+                task_id,
+                self._flow.name,
+                self._run_id,
+                step_name,
+                task_id,
+            ),
+            system_msg=True,
+        )
+        clone_task_helper(
+            self._flow.name,
+            self._clone_run_id,
+            self._run_id,
+            step_name,
+            task_id,  # origin_task_id
+            task_id,
+            self._flow_datastore,
+            self._metadata,
+            origin_ds_set=self._origin_ds_set,
+        )
+
+    def clone_original_run(self):
+        (
+            should_skip_clone_only_execution,
+            skip_reason,
+        ) = self._should_skip_clone_only_execution()
+        if should_skip_clone_only_execution:
+            self._logger(skip_reason, system_msg=True)
+            return
+        self._metadata.start_run_heartbeat(self._flow.name, self._run_id)
+        self._logger(
+            "Start cloning original run: {}/{}".format(
+                self._flow.name, self._clone_run_id
+            ),
+            system_msg=True,
+        )
+
+        inputs = []
+
+        for task_ds in self._origin_ds_set:
+            _, step_name, task_id = task_ds.pathspec.split("/")
+            if task_ds["_task_ok"] and step_name != "_parameters":
+                inputs.append((step_name, task_id))
+
+        with futures.ThreadPoolExecutor(max_workers=self._max_workers) as executor:
+            all_tasks = [
+                executor.submit(self.clone_task, step_name, task_id)
+                for (step_name, task_id) in inputs
+            ]
+            _, _ = futures.wait(all_tasks)
+        self._logger("Cloning original run is done", system_msg=True)
+        self._params_task.mark_resume_done()
+        self._metadata.stop_heartbeat()
 
     def execute(self):
         (
@@ -1361,8 +1422,6 @@ class Worker(object):
             # disabling sidecars for cloned tasks due to perf reasons
             args.top_level_options["event-logger"] = "nullSidecarLogger"
             args.top_level_options["monitor"] = "nullSidecarMonitor"
-            if self.task.should_skip_cloning:
-                args.command_options["clone-wait-only"] = True
         else:
             # decorators may modify the CLIArgs object in-place
             for deco in self.task.decos:
