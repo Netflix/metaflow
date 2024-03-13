@@ -25,6 +25,10 @@ try:
 except:
     blockingError = OSError
 
+import threading
+
+lock = threading.Lock()
+
 
 class PipeUnavailableError(Exception):
     """raised when unable to write to pipe given allotted time"""
@@ -113,16 +117,16 @@ class SidecarSubProcess(object):
         except:
             pass
 
-    def send(self, msg, retries=3):
+    def send(self, msg, retries=3, thread_safe_send=False):
         if msg.msg_type == MessageTypes.MUST_SEND:
             # If this is a must-send message, we treat it a bit differently. A must-send
             # message has to be properly sent before any of the other best effort messages.
             self._cached_mustsend = msg.payload
             self._send_mustsend_remaining_tries = MUST_SEND_RETRY_TIMES
-            self._send_mustsend(retries)
+            self._send_mustsend(retries, thread_safe_send)
         else:
             # Ignore return code for send.
-            self._send_internal(msg, retries=retries)
+            self._send_internal(msg, retries=retries, thread_safe_send=thread_safe_send)
 
     def _start_subprocess(self, cmdline):
         for _ in range(3):
@@ -145,7 +149,7 @@ class SidecarSubProcess(object):
                 self._logger("Unknown popen error: %s" % repr(e))
                 break
 
-    def _send_internal(self, msg, retries=3):
+    def _send_internal(self, msg, retries=3, thread_safe_send=False):
         if self._process is None:
             return False
         try:
@@ -157,13 +161,13 @@ class SidecarSubProcess(object):
                     # restart sidecar so use the PipeUnavailableError caught below
                     raise PipeUnavailableError()
                 elif self._send_mustsend_remaining_tries > 0:
-                    self._send_mustsend()
+                    self._send_mustsend(thread_safe_send=thread_safe_send)
                 if self._send_mustsend_remaining_tries == 0:
-                    self._emit_msg(msg)
+                    self._emit_msg(msg, thread_safe_send)
                     self._prev_message_error = False
                     return True
             else:
-                self._emit_msg(msg)
+                self._emit_msg(msg, thread_safe_send)
                 self._prev_message_error = False
                 return True
             return False
@@ -184,14 +188,14 @@ class SidecarSubProcess(object):
                 self._prev_message_error = True
             if retries > 0:
                 self._logger("Retrying msg send to sidecar (due to %s)" % repr(ex))
-                return self._send_internal(msg, retries - 1)
+                return self._send_internal(msg, retries - 1, thread_safe_send)
             else:
                 self._logger(
                     "Error sending log message (exhausted retries): %s" % repr(ex)
                 )
         return False
 
-    def _send_mustsend(self, retries=3):
+    def _send_mustsend(self, retries=3, thread_safe_send=False):
         if (
             self._cached_mustsend is not None
             and self._send_mustsend_remaining_tries > 0
@@ -199,7 +203,9 @@ class SidecarSubProcess(object):
             # If we don't succeed in sending the must-send, we will try again
             # next time.
             if self._send_internal(
-                Message(MessageTypes.MUST_SEND, self._cached_mustsend), retries
+                Message(MessageTypes.MUST_SEND, self._cached_mustsend),
+                retries,
+                thread_safe_send,
             ):
                 self._cached_mustsend = None
                 self._send_mustsend_remaining_tries = 0
@@ -211,14 +217,7 @@ class SidecarSubProcess(object):
                     self._send_mustsend_remaining_tries = -1
                 return False
 
-    def _emit_msg(self, msg):
-        # If the previous message had an error, we want to prepend a "\n" to this message
-        # to maximize the chance of this message being valid (for example, if the
-        # previous message only partially sent for whatever reason, we want to "clear" it)
-        msg = msg.serialize()
-        if self._prev_message_error:
-            msg = "\n" + msg
-        msg_ser = msg.encode("utf-8")
+    def _write_bytes(self, msg_ser):
         written_bytes = 0
         while written_bytes < len(msg_ser):
             # self._logger("Sent %d out of %d bytes" % (written_bytes, len(msg_ser)))
@@ -234,6 +233,23 @@ class SidecarSubProcess(object):
             except NullSidecarError:
                 # sidecar is disabled, ignore all messages
                 break
+
+    def _emit_msg(self, msg, thread_safe_send=False):
+        # If the previous message had an error, we want to prepend a "\n" to this message
+        # to maximize the chance of this message being valid (for example, if the
+        # previous message only partially sent for whatever reason, we want to "clear" it)
+        msg = msg.serialize()
+        if self._prev_message_error:
+            msg = "\n" + msg
+        msg_ser = msg.encode("utf-8")
+
+        # If threadsafe send is enabled, we will use a lock to ensure that only one thread
+        # can send a message at a time. This is to avoid interleaving of messages.
+        if thread_safe_send:
+            with lock:
+                self._write_bytes(msg_ser)
+        else:
+            self._write_bytes(msg_ser)
 
     def _logger(self, msg):
         if debug.sidecar:
