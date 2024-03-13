@@ -84,6 +84,8 @@ class BatchDecorator(StepDecorator):
         Path to tmpfs mount for this step. Defaults to /metaflow_temp.
     inferentia : int, default 0
         Number of Inferentia chips required for this step.
+    trainium : int, default None
+        Alias for inferentia. Use only one of the two.
     efa : int, default 0
         Number of elastic fabric adapter network devices to attach to container
     ephemeral_storage: int, default None
@@ -104,6 +106,7 @@ class BatchDecorator(StepDecorator):
         "max_swap": None,
         "swappiness": None,
         "inferentia": None,
+        "trainium": None,  # alias for inferentia
         "efa": None,
         "host_volumes": None,
         "efs_volumes": None,
@@ -150,6 +153,21 @@ class BatchDecorator(StepDecorator):
                     BATCH_CONTAINER_REGISTRY.rstrip("/"),
                     self.attributes["image"],
                 )
+
+        # Alias trainium to inferentia and check that both are not in use.
+        if (
+            self.attributes["inferentia"] is not None
+            and self.attributes["trainium"] is not None
+        ):
+            raise BatchException(
+                "only specify a value for 'inferentia' or 'trainium', not both."
+            )
+
+        if self.attributes["trainium"] is not None:
+            self.attributes["inferentia"] = self.attributes["trainium"]
+
+        # clean up the alias attribute so it is not passed on.
+        self.attributes.pop("trainium", None)
 
     # Refer https://github.com/Netflix/metaflow/blob/master/docs/lifecycle.png
     # to understand where these functions are invoked in the lifecycle of a
