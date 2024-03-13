@@ -39,6 +39,8 @@ from metaflow.decorators import FlowDecorator, flow_decorators
 from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_S3,
     AIP_TTL_SECONDS_AFTER_FINISHED,
+    AIP_PVC_CREATE_RETRY_COUNT,
+    AIP_S3_SENSOR_RETRY_COUNT,
     KUBERNETES_SERVICE_ACCOUNT,
     METAFLOW_USER,
     ZILLOW_INDIVIDUAL_NAMESPACE,
@@ -48,8 +50,6 @@ from metaflow.metaflow_config import (
 )
 from metaflow.plugins import EnvironmentDecorator, AIPInternalDecorator
 from metaflow.plugins.aip.aip_constants import (
-    S3_SENSOR_RETRY_COUNT,
-    PVC_CREATE_RETRY_COUNT,
     EXIT_HANDLER_RETRY_COUNT,
     BACKOFF_DURATION,
     BACKOFF_DURATION_INT,
@@ -993,7 +993,7 @@ class KubeflowPipelines(object):
             attribute_outputs=attribute_outputs,
         )
         resource.set_retry(
-            PVC_CREATE_RETRY_COUNT,
+            AIP_PVC_CREATE_RETRY_COUNT,
             policy="Always",
             backoff_duration=BACKOFF_DURATION,
             backoff_factor=RETRY_BACKOFF_FACTOR,
@@ -1568,7 +1568,7 @@ class KubeflowPipelines(object):
 
         KubeflowPipelines._set_minimal_container_resources(s3_sensor_op)
         s3_sensor_op.set_retry(
-            S3_SENSOR_RETRY_COUNT,
+            AIP_S3_SENSOR_RETRY_COUNT,
             policy="Always",
             backoff_duration=BACKOFF_DURATION,
             backoff_factor=RETRY_BACKOFF_FACTOR,
