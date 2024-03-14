@@ -367,7 +367,7 @@ class Client(object):
         # - proxied functions
         # - classes that are proxied regular classes AND proxied exceptions
         # - classes that are proxied regular classes AND NOT proxied exceptions
-        # - clases that are NOT proxied regular classes AND are proxied exceptions
+        # - classes that are NOT proxied regular classes AND are proxied exceptions
         name = get_canonical_name(name, self._aliases)
 
         def name_to_parent_name(name):
@@ -447,14 +447,14 @@ class Client(object):
             # actually:
             #  - the class itself (which is a stub)
             #  - the class in the capacity of a parent class (to another exception
-            #    presumably). The reason for this is that if we have a exception/proxied
+            #    presumably). The reason for this is that if we have an exception/proxied
             #    class A and another B and B inherits from A, the MRO order would be all
             #    wrong since both A and B would also inherit from `Stub`. Here what we
             #    do is:
             #      - A_parent inherits from the actual parents of A (let's assume a
             #        builtin exception)
             #      - A inherits from (Stub, A_parent)
-            #      - B_parent inherints from A_parent and the builtin Exception
+            #      - B_parent inherits from A_parent and the builtin Exception
             #      - B inherits from (Stub, B_parent)
             ex_module, ex_name = name.rsplit(".", 1)
             parent_local_class = ExceptionMetaClass(ex_name, (*parents,), {})

@@ -118,7 +118,7 @@ class Server(object):
                         "are listed in the same order" % (alias, base_name, a)
                     )
 
-        # Detect circular aliaes. If a user lists ("a", "b") and then ("b", "a"), we
+        # Detect circular aliases. If a user lists ("a", "b") and then ("b", "a"), we
         # will have an entry in aliases saying b is an alias for a and a is an alias
         # for b which is a recipe for disaster since we no longer have a cannonical name
         # for things.
