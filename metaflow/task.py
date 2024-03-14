@@ -23,18 +23,7 @@ from .util import all_equal, get_username, resolve_identity, unicode_type
 from .clone_util import clone_task_helper
 from .metaflow_current import current
 from metaflow.tracing import get_trace_id
-from metaflow.util import namedtuple_with_defaults
-
-foreach_frame_field_list = [
-    ("step", str),
-    ("var", str),
-    ("num_splits", int),
-    ("index", int),
-    ("value", str),
-]
-ForeachFrame = namedtuple_with_defaults(
-    "ForeachFrame", foreach_frame_field_list, (None,) * (len(foreach_frame_field_list))
-)
+from metaflow.tuple_util import ForeachFrame
 
 # Maximum number of characters of the foreach path that we store in the metadata.
 MAX_FOREACH_PATH_LENGTH = 256

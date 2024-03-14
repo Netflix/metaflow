@@ -143,6 +143,9 @@ from .client import (
     DataArtifact,
 )
 
+# Data class needed for Client.
+from .tuple_util import ForeachFrame
+
 __version_addl__ = []
 _ext_debug("Loading top-level modules")
 for m in _tl_modules:
