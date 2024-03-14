@@ -191,7 +191,7 @@ def step(ctx, step_name, code_package_sha, code_package_url, **kwargs):
         "METAFLOW_CODE_URL": code_package_url,
         "METAFLOW_CODE_DS": ctx.obj.flow_datastore.TYPE,
         "METAFLOW_SERVICE_URL": SERVICE_URL,
-        # "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
+        "METAFLOW_SERVICE_HEADERS": json.dumps(json.dumps(SERVICE_HEADERS)),
         "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
         "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
         "METAFLOW_DEFAULT_DATASTORE": ctx.obj.flow_datastore.TYPE,
@@ -199,7 +199,14 @@ def step(ctx, step_name, code_package_sha, code_package_url, **kwargs):
         "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
         "METAFLOW_CARD_S3ROOT": CARD_S3ROOT,
         "METAFLOW_RUNTIME_ENVIRONMENT": "snowpark",
+        "SNOWPARK_CONTEXT": "1"
     }
+    # TODO: remove this before committing code
+    access_creds = {
+            "AWS_ACCESS_KEY_ID": os.environ["SNOWFLAKE_AWS_ACCESS_KEY_ID"],
+            "AWS_SECRET_ACCESS_KEY": os.environ["SNOWFLAKE_AWS_SECRET_ACCESS_KEY"],
+    }
+    env.update(access_creds)
 
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
@@ -281,7 +288,7 @@ def step(ctx, step_name, code_package_sha, code_package_url, **kwargs):
                 # Kill the job if it is still running by throwing an exception.
                 raise SnowparkException("Task failed!")
             echo(
-                "Task finished with exit code %s." % -1, # snowpark_job.status_code,
+                "Task finished", # with exit code %s." % -1, # snowpark_job.status_code,
                 "stderr",
                 _id=query_id,
             )
