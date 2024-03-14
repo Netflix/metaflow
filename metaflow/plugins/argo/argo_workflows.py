@@ -1297,14 +1297,14 @@ class ArgoWorkflows(object):
 
             # support for @secret
             env["METAFLOW_DEFAULT_SECRETS_BACKEND_TYPE"] = DEFAULT_SECRETS_BACKEND_TYPE
-            env["METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION"] = (
-                AWS_SECRETS_MANAGER_DEFAULT_REGION
-            )
+            env[
+                "METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION"
+            ] = AWS_SECRETS_MANAGER_DEFAULT_REGION
 
             # support for Azure
-            env["METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"] = (
-                AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
-            )
+            env[
+                "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
+            ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
             env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
             env["METAFLOW_CARD_AZUREROOT"] = CARD_AZUREROOT
 
@@ -1484,11 +1484,9 @@ class ArgoWorkflows(object):
                                 for k in list(
                                     []
                                     if not resources.get("secrets")
-                                    else (
-                                        [resources.get("secrets")]
-                                        if isinstance(resources.get("secrets"), str)
-                                        else resources.get("secrets")
-                                    )
+                                    else [resources.get("secrets")]
+                                    if isinstance(resources.get("secrets"), str)
+                                    else resources.get("secrets")
                                 )
                                 + KUBERNETES_SECRETS.split(",")
                                 + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")

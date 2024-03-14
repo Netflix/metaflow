@@ -10,16 +10,16 @@ class Message(email.message.Message):
         map(
             FoldedCase,
             [
-                "Classifier",
-                "Obsoletes-Dist",
-                "Platform",
-                "Project-URL",
-                "Provides-Dist",
-                "Provides-Extra",
-                "Requires-Dist",
-                "Requires-External",
-                "Supported-Platform",
-                "Dynamic",
+                'Classifier',
+                'Obsoletes-Dist',
+                'Platform',
+                'Project-URL',
+                'Provides-Dist',
+                'Provides-Extra',
+                'Requires-Dist',
+                'Requires-External',
+                'Supported-Platform',
+                'Dynamic',
             ],
         )
     )
@@ -42,13 +42,13 @@ class Message(email.message.Message):
     def _repair_headers(self):
         def redent(value):
             "Correct for RFC822 indentation"
-            if not value or "\n" not in value:
+            if not value or '\n' not in value:
                 return value
-            return textwrap.dedent(" " * 8 + value)
+            return textwrap.dedent(' ' * 8 + value)
 
-        headers = [(key, redent(value)) for key, value in vars(self)["_headers"]]
+        headers = [(key, redent(value)) for key, value in vars(self)['_headers']]
         if self._payload:
-            headers.append(("Description", self.get_payload()))
+            headers.append(('Description', self.get_payload()))
         return headers
 
     @property
@@ -60,9 +60,9 @@ class Message(email.message.Message):
 
         def transform(key):
             value = self.get_all(key) if key in self.multiple_use_keys else self[key]
-            if key == "Keywords":
-                value = re.split(r"\s+", value)
-            tk = key.lower().replace("-", "_")
+            if key == 'Keywords':
+                value = re.split(r'\s+', value)
+            tk = key.lower().replace('-', '_')
             return tk, value
 
         return dict(map(transform, map(FoldedCase, self)))

@@ -270,6 +270,7 @@ if PY2:
             value = value.decode(get_filesystem_encoding(), "replace")
         return value
 
+
 else:
     import io
 
@@ -723,6 +724,7 @@ if WIN:
                 colorama.win32.STDOUT
             ).srWindow
             return win.Right - win.Left, win.Bottom - win.Top
+
 
 else:
 
