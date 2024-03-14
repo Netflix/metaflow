@@ -824,7 +824,7 @@ def run(
     decospecs=None,
     run_id_file=None,
     user_namespace=None,
-    **kwargs,
+    **kwargs
 ):
     if user_namespace is not None:
         namespace(user_namespace or None)
