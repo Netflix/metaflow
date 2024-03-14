@@ -1,6 +1,8 @@
 import os
 import sys
 
+from html.parser import HTMLParser
+
 from metaflow import FlowSpec, step, conda
 
 
@@ -28,41 +30,47 @@ def run_test(through_escape=False):
 
     import test_lib as test
 
+    print("-- Test aliasing --")
     if through_escape:
         # This tests package aliasing
-        from test_lib.package import TestClass3
-    else:
-        from test_lib import TestClass3
+        from test_lib.alias import TestClass1
 
-    o1 = test.TestClass1(123)
-    print("-- Test print_value --")
+    o1 = test.TestClass1(10)
+    print("-- Test normal method with overrides --")
     if through_escape:
-        # The server_mapping should add 5 here
-        assert o1.print_value() == 128
+        expected_value = 10 + 8
     else:
-        assert o1.print_value() == 123
-    print("-- Test property --")
-    assert o1.value == 123
-    print("-- Test value override (get) --")
-    assert o1.override_value == 123
-    print("-- Test value override (set) --")
-    o1.override_value = 456
-    assert o1.override_value == 456
+        expected_value = 10
+    assert o1.print_value() == expected_value
+
+    print("-- Test property (no override) --")
+    assert o1.value == 10
+    o1.value = 15
+    assert o1.value == 15
+    if through_escape:
+        expected_value = 15 + 8
+    else:
+        expected_value = 15
+    assert o1.print_value() == expected_value
+
+    print("-- Test property (with override) --")
+    if through_escape:
+        expected_value = 123 + 8
+        expected_value2 = 200 + 16
+    else:
+        expected_value = 123
+        expected_value2 = 200
+    assert o1.override_value == expected_value
+    o1.override_value = 200
+    assert o1.override_value == expected_value2
 
     print("-- Test static method --")
-    assert test.TestClass1.somethingstatic(5) == 47
-    assert o1.somethingstatic(5) == 47
-    print("-- Test class method --")
-    assert test.TestClass1.somethingclass() == 25
-    assert o1.somethingclass() == 25
+    assert test.TestClass1.static_method(5) == 47
+    assert o1.static_method(5) == 47
 
-    print("-- Test set and get --")
-    o1.value = 2
-    if through_escape:
-        # The server_mapping should add 5 here
-        assert o1.print_value() == 7
-    else:
-        assert o1.print_value() == 2
+    print("-- Test class method --")
+    assert test.TestClass1.class_method() == 25
+    assert o1.class_method() == 25
 
     print("-- Test function --")
     assert test.test_func() == "In test func"
@@ -74,21 +82,144 @@ def run_test(through_escape=False):
 
     print("-- Test chaining of exported classes --")
     o2 = o1.to_class2(5)
-    assert o2.something("foo") == "In Test2 with foo"
+    assert o2.something("foo") == "Test2:Something:foo"
+    assert o2.__class__.__name__ == "TestClass2"
+    assert o2.__class__.__module__ == "test_lib"
+
     print("-- Test Iterating --")
-    for i in o2:
-        print("Got %d" % i)
+    for idx, i in enumerate(o2):
+        assert idx == i - 15
+    assert i == 19
 
-    print("-- Test exception --")
-    o3 = TestClass3()
+    print("-- Test weird indirection --")
+    o1.weird_indirection("foo")(10)
+    assert o1.foo == 10
+    o1.weird_indirection("_value")(20)
+    assert o1.value == 20
+
+    print("-- Test subclasses --")
+    child_obj = test.ChildClass()
+    child_obj_returned = o1.returnChild()
+    for o in (child_obj, child_obj_returned):
+        o.feed("<html>Hello<p>World!</p></html>")
+        assert o.get_output() == ["html", "p", "p", "html"]
+
+    print("-- Test isinstance/issubclass --")
+    ex_child = test.ExceptionAndClassChild("I am a child")
+    assert isinstance(ex_child, test.ExceptionAndClassChild)
+    assert isinstance(ex_child, test.ExceptionAndClass)
+    assert isinstance(ex_child, Exception)
+    assert isinstance(ex_child, object)
+    assert ex_child.__class__.__name__ == "ExceptionAndClassChild"
+    assert ex_child.__class__.__module__ == "test_lib"
+
+    assert issubclass(type(ex_child), test.ExceptionAndClass)
+    assert issubclass(test.ExceptionAndClassChild, test.ExceptionAndClass)
+    assert issubclass(type(ex_child), Exception)
+    assert issubclass(test.ExceptionAndClassChild, Exception)
+    assert issubclass(type(ex_child), object)
+    assert issubclass(test.ExceptionAndClassChild, object)
+
+    child_obj = test.ChildClass()
+    child_obj_returned = o1.returnChild()
+
+    # I can't find an easy way (yet) to test support for subclasses based on non
+    # proxied types. It seems more minor for now so ignoring.
+    for o in (child_obj, child_obj_returned):
+        assert isinstance(o, test.ChildClass)
+        assert isinstance(o, test.BaseClass)
+        # assert isinstance(o, HTMLParser)
+        assert isinstance(o, object)
+        assert issubclass(type(o), test.BaseClass)
+        # assert issubclass(type(o), HTMLParser)
+        assert issubclass(type(o), object)
+    assert issubclass(test.ChildClass, test.BaseClass)
+    # assert issubclass(test.ChildClass, HTMLParser)
+    assert issubclass(test.ChildClass, object)
+
+    print("-- Test exceptions --")
+    # Non proxied exceptions can't be returned as objects
     try:
-        o3.raiseSomething()
-    except test.SomeException as e:
-        print("Caught the local exception: %s" % str(e))
+        vexc = o1.raiseOrReturnValueError()
+        assert not through_escape, "Should have raised through escape"
+        assert isinstance(vexc, ValueError)
+    except RuntimeError as e:
+        assert (
+            through_escape
+            and "Cannot proxy value of type <class 'ValueError'>" in str(e)
+        )
 
-    print("-- Test returning proxied object --")
-    o3.weird_indirection("foo")(10)
-    assert o3.foo == 10
+    try:
+        excclass = o1.raiseOrReturnSomeException()
+        assert not through_escape, "Should have raised through escape"
+        assert isinstance(excclass, test.SomeException)
+        assert excclass.__class__.__name__ == "SomeException"
+        assert excclass.__class__.__module__ == "test_lib"
+    except RuntimeError as e:
+        assert (
+            through_escape
+            and "Cannot proxy value of type <class 'test_lib.SomeException'>" in str(e)
+        )
+
+    exception_and_class = o1.raiseOrReturnExceptionAndClass()
+    assert isinstance(exception_and_class, test.ExceptionAndClass)
+    assert isinstance(exception_and_class, test.MyBaseException)
+    assert isinstance(exception_and_class, Exception)
+    assert exception_and_class.method_on_exception() == "method_on_exception"
+    assert str(exception_and_class).startswith("ExceptionAndClass Str:")
+
+    exception_and_class_child = o1.raiseOrReturnExceptionAndClassChild()
+    assert isinstance(exception_and_class_child, test.ExceptionAndClassChild)
+    assert isinstance(exception_and_class_child, test.ExceptionAndClass)
+    assert isinstance(exception_and_class_child, test.MyBaseException)
+    assert isinstance(exception_and_class_child, Exception)
+    assert exception_and_class_child.method_on_exception() == "method_on_exception"
+    assert (
+        exception_and_class_child.method_on_child_exception()
+        == "method_on_child_exception"
+    )
+    assert str(exception_and_class_child).startswith("ExceptionAndClassChild Str:")
+
+    try:
+        o1.raiseOrReturnValueError(True)
+        assert False, "Should have raised"
+    except ValueError as e:
+        assert True
+    except Exception as e:
+        assert False, "Should have been ValueError"
+
+    try:
+        o1.raiseOrReturnSomeException(True)
+        assert False, "Should have raised"
+    except test.SomeException as e:
+        assert True
+        if through_escape:
+            assert e.user_value == 42
+            assert "Remote (on server) traceback" in str(e)
+    except Exception as e:
+        assert False, "Should have been SomeException"
+
+    try:
+        o1.raiseOrReturnExceptionAndClass(True)
+        assert False, "Should have raised"
+    except test.ExceptionAndClass as e:
+        assert True
+        if through_escape:
+            assert e.user_value == 43
+            assert "Remote (on server) traceback" in str(e)
+    except Exception as e:
+        assert False, "Should have been ExceptionAndClass"
+
+    try:
+        o1.raiseOrReturnExceptionAndClassChild(True)
+        assert False, "Should have raised"
+    except test.ExceptionAndClassChild as e:
+        assert True
+        if through_escape:
+            assert e.user_value == 44
+            assert "Remote (on server) traceback" in str(e)
+    except Exception as e:
+        assert False, "Should have been ExceptionAndClassChild"
 
 
 class EscapeTest(FlowSpec):

@@ -34,8 +34,12 @@ from .communication.channel import Channel
 from .communication.socket_bytestream import SocketByteStream
 
 from .data_transferer import DataTransferer, ObjReference
-from .exception_transferer import load_exception
-from .override_decorators import LocalAttrOverride, LocalException, LocalOverride
+from .exception_transferer import ExceptionMetaClass, load_exception
+from .override_decorators import (
+    LocalAttrOverride,
+    LocalExceptionDeserializer,
+    LocalOverride,
+)
 from .stub import create_class
 from .utils import get_canonical_name
 
@@ -193,28 +197,41 @@ class Client(object):
         self._proxied_classes = {
             k: None
             for k in itertools.chain(
-                response[FIELD_CONTENT]["classes"], response[FIELD_CONTENT]["proxied"]
+                response[FIELD_CONTENT]["classes"],
+                response[FIELD_CONTENT]["proxied"],
+                (e[0] for e in response[FIELD_CONTENT]["exceptions"]),
             )
         }
+
+        self._exception_hierarchy = dict(response[FIELD_CONTENT]["exceptions"])
+        self._proxied_classnames = set(response[FIELD_CONTENT]["classes"]).union(
+            response[FIELD_CONTENT]["proxied"]
+        )
+        self._aliases = response[FIELD_CONTENT]["aliases"]
 
         # Determine all overrides
         self._overrides = {}
         self._getattr_overrides = {}
         self._setattr_overrides = {}
-        self._exception_overrides = {}
+        self._exception_deserializers = {}
         for override in override_values:
             if isinstance(override, (LocalOverride, LocalAttrOverride)):
                 for obj_name, obj_funcs in override.obj_mapping.items():
-                    if obj_name not in self._proxied_classes:
+                    canonical_name = get_canonical_name(obj_name, self._aliases)
+                    if canonical_name not in self._proxied_classes:
                         raise ValueError(
                             "%s does not refer to a proxied or override type" % obj_name
                         )
                     if isinstance(override, LocalOverride):
-                        override_dict = self._overrides.setdefault(obj_name, {})
+                        override_dict = self._overrides.setdefault(canonical_name, {})
                     elif override.is_setattr:
-                        override_dict = self._setattr_overrides.setdefault(obj_name, {})
+                        override_dict = self._setattr_overrides.setdefault(
+                            canonical_name, {}
+                        )
                     else:
-                        override_dict = self._getattr_overrides.setdefault(obj_name, {})
+                        override_dict = self._getattr_overrides.setdefault(
+                            canonical_name, {}
+                        )
                     if isinstance(obj_funcs, str):
                         obj_funcs = (obj_funcs,)
                     for name in obj_funcs:
@@ -223,11 +240,18 @@ class Client(object):
                                 "%s was already overridden for %s" % (name, obj_name)
                             )
                         override_dict[name] = override.func
-            if isinstance(override, LocalException):
-                cur_ex = self._exception_overrides.get(override.class_path, None)
-                if cur_ex is not None:
-                    raise ValueError("Exception %s redefined" % override.class_path)
-                self._exception_overrides[override.class_path] = override.wrapped_class
+            if isinstance(override, LocalExceptionDeserializer):
+                canonical_name = get_canonical_name(override.class_path, self._aliases)
+                if canonical_name not in self._exception_hierarchy:
+                    raise ValueError(
+                        "%s does not refer to an exception type" % override.class_path
+                    )
+                cur_des = self._exception_deserializers.get(canonical_name, None)
+                if cur_des is not None:
+                    raise ValueError(
+                        "Exception %s has multiple deserializers" % override.class_path
+                    )
+                self._exception_deserializers[canonical_name] = override.deserializer
 
         # Proxied standalone functions are functions that are proxied
         # as part of other objects like defaultdict for which we create a
@@ -242,8 +266,6 @@ class Client(object):
             "exceptions": response[FIELD_CONTENT]["exceptions"],
             "aliases": response[FIELD_CONTENT]["aliases"],
         }
-
-        self._aliases = response[FIELD_CONTENT]["aliases"]
 
     def __del__(self):
         self.cleanup()
@@ -288,8 +310,9 @@ class Client(object):
     def get_exports(self):
         return self._export_info
 
-    def get_local_exception_overrides(self):
-        return self._exception_overrides
+    def get_exception_deserializer(self, name):
+        cannonical_name = get_canonical_name(name, self._aliases)
+        return self._exception_deserializers.get(cannonical_name)
 
     def stub_request(self, stub, request_type, *args, **kwargs):
         # Encode the operation to send over the wire and wait for the response
@@ -313,7 +336,7 @@ class Client(object):
         if response_type == MSG_REPLY:
             return self.decode(response[FIELD_CONTENT])
         elif response_type == MSG_EXCEPTION:
-            raise load_exception(self._datatransferer, response[FIELD_CONTENT])
+            raise load_exception(self, response[FIELD_CONTENT])
         elif response_type == MSG_INTERNAL_ERROR:
             raise RuntimeError(
                 "Error in the server runtime:\n\n===== SERVER TRACEBACK =====\n%s"
@@ -334,10 +357,27 @@ class Client(object):
         # this connection will be converted to a local stub.
         return self._datatransferer.load(json_obj)
 
-    def get_local_class(self, name, obj_id=None):
+    def get_local_class(
+        self, name, obj_id=None, is_returned_exception=False, is_parent=False
+    ):
         # Gets (and creates if needed), the class mapping to the remote
         # class of name 'name'.
+
+        # We actually deal with four types of classes:
+        # - proxied functions
+        # - classes that are proxied regular classes AND proxied exceptions
+        # - classes that are proxied regular classes AND NOT proxied exceptions
+        # - classes that are NOT proxied regular classes AND are proxied exceptions
         name = get_canonical_name(name, self._aliases)
+
+        def name_to_parent_name(name):
+            return "parent:%s" % name
+
+        if is_parent:
+            lookup_name = name_to_parent_name(name)
+        else:
+            lookup_name = name
+
         if name == "function":
             # Special handling of pickled functions. We create a new class that
             # simply has a __call__ method that will forward things back to
@@ -346,17 +386,81 @@ class Client(object):
                 raise RuntimeError("Local function unpickling without an object ID")
             if obj_id not in self._proxied_standalone_functions:
                 self._proxied_standalone_functions[obj_id] = create_class(
-                    self, "__function_%s" % obj_id, {}, {}, {}, {"__call__": ""}
+                    self, "__function_%s" % obj_id, {}, {}, {}, {"__call__": ""}, []
                 )
             return self._proxied_standalone_functions[obj_id]
+        local_class = self._proxied_classes.get(lookup_name, None)
+        if local_class is not None:
+            return local_class
 
-        if name not in self._proxied_classes:
+        is_proxied_exception = name in self._exception_hierarchy
+        is_proxied_non_exception = name in self._proxied_classnames
+
+        if not is_proxied_exception and not is_proxied_non_exception:
+            if is_returned_exception or is_parent:
+                # In this case, it may be a local exception that we need to
+                # recreate
+                try:
+                    ex_module, ex_name = name.rsplit(".", 1)
+                    __import__(ex_module, None, None, "*")
+                except Exception:
+                    pass
+                if ex_module in sys.modules and issubclass(
+                    getattr(sys.modules[ex_module], ex_name), BaseException
+                ):
+                    # This is a local exception that we can recreate
+                    local_exception = getattr(sys.modules[ex_module], ex_name)
+                    wrapped_exception = ExceptionMetaClass(
+                        ex_name,
+                        (local_exception,),
+                        dict(getattr(local_exception, "__dict__", {})),
+                    )
+                    wrapped_exception.__module__ = ex_module
+                    self._proxied_classes[lookup_name] = wrapped_exception
+                    return wrapped_exception
+
             raise ValueError("Class '%s' is not known" % name)
-        local_class = self._proxied_classes[name]
-        if local_class is None:
-            # We need to build up this class. To do so, we take everything that the
-            # remote class has and remove UNSUPPORTED things and overridden things
+
+        # At this stage:
+        # - we don't have a local_class for this
+        # - it is not an inbuilt exception so it is either a proxied exception, a
+        #   proxied class or a proxied object that is both an exception and a class.
+
+        parents = []
+        if is_proxied_exception:
+            # If exception, we need to get the parents from the exception
+            ex_parents = self._exception_hierarchy[name]
+            for parent in ex_parents:
+                # We always consider it to be an exception so that we wrap even non
+                # proxied builtins exceptions
+                parents.append(self.get_local_class(parent, is_parent=True))
+        # For regular classes, we get what it exposes from the server
+        if is_proxied_non_exception:
             remote_methods = self.stub_request(None, OP_GETMETHODS, name)
+        else:
+            remote_methods = {}
+
+        parent_local_class = None
+        local_class = None
+        if is_proxied_exception:
+            # If we are a proxied exception AND a proxied class, we create two classes:
+            # actually:
+            #  - the class itself (which is a stub)
+            #  - the class in the capacity of a parent class (to another exception
+            #    presumably). The reason for this is that if we have an exception/proxied
+            #    class A and another B and B inherits from A, the MRO order would be all
+            #    wrong since both A and B would also inherit from `Stub`. Here what we
+            #    do is:
+            #      - A_parent inherits from the actual parents of A (let's assume a
+            #        builtin exception)
+            #      - A inherits from (Stub, A_parent)
+            #      - B_parent inherits from A_parent and the builtin Exception
+            #      - B inherits from (Stub, B_parent)
+            ex_module, ex_name = name.rsplit(".", 1)
+            parent_local_class = ExceptionMetaClass(ex_name, (*parents,), {})
+            parent_local_class.__module__ = ex_module
+
+        if is_proxied_non_exception:
             local_class = create_class(
                 self,
                 name,
@@ -364,9 +468,26 @@ class Client(object):
                 self._getattr_overrides.get(name, {}),
                 self._setattr_overrides.get(name, {}),
                 remote_methods,
+                (parent_local_class,) if parent_local_class else None,
             )
+        if parent_local_class:
+            self._proxied_classes[name_to_parent_name(name)] = parent_local_class
+        if local_class:
             self._proxied_classes[name] = local_class
-        return local_class
+        else:
+            # This is for the case of pure proxied exceptions -- we want the lookup of
+            # foo.MyException to be the same class as looking of foo.MyException as a parent
+            # of another exception so `isinstance` works properly
+            self._proxied_classes[name] = parent_local_class
+
+        if is_parent:
+            # This should never happen but making sure
+            if not parent_local_class:
+                raise RuntimeError(
+                    "Exception parent class %s is not a proxied exception" % name
+                )
+            return parent_local_class
+        return self._proxied_classes[name]
 
     def can_pickle(self, obj):
         return getattr(obj, "___connection___", None) == self
@@ -395,7 +516,7 @@ class Client(object):
         obj_id = obj.identifier
         local_instance = self._proxied_objects.get(obj_id)
         if not local_instance:
-            local_class = self.get_local_class(remote_class_name, obj_id)
+            local_class = self.get_local_class(remote_class_name, obj_id=obj_id)
             local_instance = local_class(self, remote_class_name, obj_id)
         return local_instance
 

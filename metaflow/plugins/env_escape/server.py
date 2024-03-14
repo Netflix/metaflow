@@ -36,6 +36,7 @@ from .consts import (
     OP_GETVAL,
     OP_SETVAL,
     OP_INIT,
+    OP_SUBCLASSCHECK,
     VALUE_LOCAL,
     VALUE_REMOTE,
     CONTROL_GETEXPORTS,
@@ -113,8 +114,20 @@ class Server(object):
                     # this by listing aliases in the same order so we don't support
                     # it for now.
                     raise ValueError(
-                        "%s is an alias to both %s and %s" % (alias, base_name, a)
+                        "%s is an alias to both %s and %s -- make sure all aliases "
+                        "are listed in the same order" % (alias, base_name, a)
                     )
+
+        # Detect circular aliases. If a user lists ("a", "b") and then ("b", "a"), we
+        # will have an entry in aliases saying b is an alias for a and a is an alias
+        # for b which is a recipe for disaster since we no longer have a cannonical name
+        # for things.
+        for alias, base_name in self._aliases.items():
+            if base_name in self._aliases:
+                raise ValueError(
+                    "%s and %s are circular aliases -- make sure all aliases "
+                    "are listed in the same order" % (alias, base_name)
+                )
 
         # Determine if we have any overrides
         self._overrides = {}
@@ -124,8 +137,9 @@ class Server(object):
         for override in override_values:
             if isinstance(override, (RemoteAttrOverride, RemoteOverride)):
                 for obj_name, obj_funcs in override.obj_mapping.items():
+                    canonical_name = get_canonical_name(obj_name, self._aliases)
                     obj_type = self._known_classes.get(
-                        obj_name, self._proxied_types.get(obj_name)
+                        canonical_name, self._proxied_types.get(obj_name)
                     )
                     if obj_type is None:
                         raise ValueError(
@@ -146,11 +160,17 @@ class Server(object):
                             )
                         override_dict[name] = override.func
             elif isinstance(override, RemoteExceptionSerializer):
+                canonical_name = get_canonical_name(override.class_path, self._aliases)
+                if canonical_name not in self._known_exceptions:
+                    raise ValueError(
+                        "%s does not refer to an exported exception"
+                        % override.class_path
+                    )
                 if override.class_path in self._exception_serializers:
                     raise ValueError(
                         "%s exception serializer already defined" % override.class_path
                     )
-                self._exception_serializers[override.class_path] = override.serializer
+                self._exception_serializers[canonical_name] = override.serializer
 
         # Process the exceptions making sure we have all the ones we need and building a
         # topologically sorted list for the client to instantiate
@@ -181,8 +201,8 @@ class Server(object):
                     else:
                         raise ValueError(
                             "Exported exception %s has non exported and non builtin parent "
-                            "exception: %s. Known exceptions: %s"
-                            % (ex_name, fqn, str(self._known_exceptions))
+                            "exception: %s (%s). Known exceptions: %s."
+                            % (ex_name, fqn, canonical_fqn, str(self._known_exceptions))
                         )
             name_to_parent_count[ex_name_canonical] = len(parents) - 1
             name_to_parents[ex_name_canonical] = parents
@@ -236,6 +256,7 @@ class Server(object):
             OP_GETVAL: self._handle_getval,
             OP_SETVAL: self._handle_setval,
             OP_INIT: self._handle_init,
+            OP_SUBCLASSCHECK: self._handle_subclasscheck,
         }
 
         self._local_objects = {}
@@ -273,6 +294,7 @@ class Server(object):
     def encode_exception(self, ex_type, ex, trace_back):
         try:
             full_name = "%s.%s" % (ex_type.__module__, ex_type.__name__)
+            get_canonical_name(full_name, self._aliases)
             serializer = self._exception_serializers.get(full_name)
         except AttributeError:
             # Ignore if no __module__ for example -- definitely not something we built
@@ -482,6 +504,21 @@ class Server(object):
         if class_type is None:
             raise ValueError("Unknown class %s" % class_name)
         return class_type(*args, **kwargs)
+
+    def _handle_subclasscheck(self, target, class_name, otherclass_name, reverse=False):
+        class_type = self._known_classes.get(class_name)
+        if class_type is None:
+            raise ValueError("Unknown class %s" % class_name)
+        try:
+            sub_module, sub_name = otherclass_name.rsplit(".", 1)
+            __import__(sub_module, None, None, "*")
+        except Exception:
+            sub_module = None
+        if sub_module is None:
+            return False
+        if reverse:
+            return issubclass(class_type, getattr(sys.modules[sub_module], sub_name))
+        return issubclass(getattr(sys.modules[sub_module], sub_name), class_type)
 
 
 if __name__ == "__main__":

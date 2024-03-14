@@ -7,7 +7,6 @@ import sys
 
 from .consts import OP_CALLFUNC, OP_GETVAL, OP_SETVAL
 from .client import Client
-from .override_decorators import LocalException
 from .utils import get_canonical_name
 
 
@@ -16,7 +15,7 @@ def _clean_client(client):
 
 
 class _WrappedModule(object):
-    def __init__(self, loader, prefix, exports, exception_classes, client):
+    def __init__(self, loader, prefix, exports, client):
         self._loader = loader
         self._prefix = prefix
         self._client = client
@@ -24,19 +23,20 @@ class _WrappedModule(object):
             r"^%s\.([a-zA-Z_][a-zA-Z0-9_]*)$" % prefix.replace(".", r"\.")  # noqa W605
         )
         self._exports = {}
-        self._aliases = exports["aliases"]
+        self._aliases = exports.get("aliases", [])
         for k in ("classes", "functions", "values"):
             result = []
-            for item in exports[k]:
+            for item in exports.get(k, []):
                 m = is_match.match(item)
                 if m:
                     result.append(m.group(1))
             self._exports[k] = result
-        self._exception_classes = {}
-        for k, v in exception_classes.items():
-            m = is_match.match(k)
+        result = []
+        for item, _ in exports.get("exceptions", []):
+            m = is_match.match(item)
             if m:
-                self._exception_classes[m.group(1)] = v
+                result.append(m.group(1))
+        self._exports["exceptions"] = result
 
     def __getattr__(self, name):
         if name == "__loader__":
@@ -50,8 +50,8 @@ class _WrappedModule(object):
         name = get_canonical_name(self._prefix + "." + name, self._aliases)[
             len(self._prefix) + 1 :
         ]
-        if name in self._exports["classes"]:
-            # We load classes lazily
+        if name in self._exports["classes"] or name in self._exports["exceptions"]:
+            # We load classes and exceptions lazily
             return self._client.get_local_class("%s.%s" % (self._prefix, name))
         elif name in self._exports["functions"]:
             # TODO: Grab doc back from the remote side like in _make_method
@@ -67,8 +67,6 @@ class _WrappedModule(object):
             return self._client.stub_request(
                 None, OP_GETVAL, "%s.%s" % (self._prefix, name)
             )
-        elif name in self._exception_classes:
-            return self._exception_classes[name]
         else:
             # Try to see if this is a submodule that we can load
             m = None
@@ -173,7 +171,6 @@ class ModuleImporter(object):
 
             # Get information about overrides and what the server knows about
             exports = self._client.get_exports()
-            ex_overrides = self._client.get_local_exception_overrides()
 
             prefixes = set()
             export_classes = exports.get("classes", [])
@@ -182,42 +179,13 @@ class ModuleImporter(object):
             export_exceptions = exports.get("exceptions", [])
             self._aliases = exports.get("aliases", {})
             for name in itertools.chain(
-                export_classes, export_functions, export_values
+                export_classes,
+                export_functions,
+                export_values,
+                (e[0] for e in export_exceptions),
             ):
                 splits = name.rsplit(".", 1)
                 prefixes.add(splits[0])
-
-            # Now look at the exceptions coming from the server
-            formed_exception_classes = {}
-            for ex_name, ex_parents in export_exceptions:
-                # Exception is a tuple (name, (parents,))
-                # Exceptions are also given in order of instantiation (ie: the
-                # server already topologically sorted them)
-                ex_class_dict = ex_overrides.get(ex_name, None)
-                if ex_class_dict is None:
-                    ex_class_dict = {}
-                else:
-                    ex_class_dict = dict(ex_class_dict.__dict__)
-                parents = []
-                for fake_base in ex_parents:
-                    if fake_base.startswith("builtins."):
-                        # This is something we know of here
-                        parents.append(eval(fake_base[9:]))
-                    else:
-                        # It's in formed_classes
-                        parents.append(formed_exception_classes[fake_base])
-                splits = ex_name.rsplit(".", 1)
-                ex_class_dict["__user_defined__"] = set(ex_class_dict.keys())
-                new_class = type(splits[1], tuple(parents), ex_class_dict)
-                new_class.__module__ = splits[0]
-                new_class.__name__ = splits[1]
-                formed_exception_classes[ex_name] = new_class
-
-            # Now update prefixes as needed
-            for name in formed_exception_classes:
-                splits = name.rsplit(".", 1)
-                prefixes.add(splits[0])
-
             # We will make sure that we create modules even for "empty" prefixes
             # because packages are always loaded hierarchically so if we have
             # something in `a.b.c` but nothing directly in `a`, we still need to
@@ -235,7 +203,7 @@ class ModuleImporter(object):
             self._handled_modules = {}
             for prefix in prefixes:
                 self._handled_modules[prefix] = _WrappedModule(
-                    self, prefix, exports, formed_exception_classes, self._client
+                    self, prefix, exports, self._client
                 )
         canonical_fullname = get_canonical_name(fullname, self._aliases)
         # Modules are created canonically but we need to return something for any
