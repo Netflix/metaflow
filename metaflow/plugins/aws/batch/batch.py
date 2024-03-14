@@ -64,7 +64,7 @@ class Batch(object):
             datastore_type="s3",
             stdout_path=STDOUT_PATH,
             stderr_path=STDERR_PATH,
-            **task_spec,
+            **task_spec
         )
         init_cmds = environment.get_package_commands(code_package_url, "s3")
         init_expr = " && ".join(init_cmds)

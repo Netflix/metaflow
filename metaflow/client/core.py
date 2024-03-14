@@ -373,7 +373,7 @@ class MetaflowObject(object):
             _CLASSES[self._CHILD_CLASS]._NAME,
             query_filter,
             self._attempt,
-            *self.path_components,
+            *self.path_components
         )
         unfiltered_children = unfiltered_children if unfiltered_children else []
         children = filter(

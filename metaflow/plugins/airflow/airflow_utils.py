@@ -547,7 +547,7 @@ class AirflowTask(object):
         TaskSensor = _get_sensor(self._operator_type)
         return TaskSensor(
             task_id=self.name,
-            **_parse_sensor_args(self._operator_type, self._operator_args),
+            **_parse_sensor_args(self._operator_type, self._operator_args)
         )
 
     def to_dict(self):
@@ -580,7 +580,7 @@ class AirflowTask(object):
         return MetaflowKubernetesOperator(
             flow_name=self._flow_name,
             flow_contains_foreach=self._flow_contains_foreach,
-            **k8s_args,
+            **k8s_args
         )
 
     def _kubernetes_mapper_task(self):
@@ -589,7 +589,7 @@ class AirflowTask(object):
         return MetaflowKubernetesOperator.partial(
             flow_name=self._flow_name,
             flow_contains_foreach=self._flow_contains_foreach,
-            **k8s_args,
+            **k8s_args
         )
 
     def to_task(self):
