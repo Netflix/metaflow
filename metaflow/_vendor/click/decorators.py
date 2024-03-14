@@ -99,7 +99,7 @@ def _make_command(f, name, attrs, cls):
         name=name or f.__name__.lower().replace("_", "-"),
         callback=f,
         params=params,
-        **attrs
+        **attrs,
     )
 
 

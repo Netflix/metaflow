@@ -26,9 +26,11 @@ def transform_flow_graph(step_info):
         graph_dict[stepname] = {
             "type": node_to_type(step_info[stepname]["type"]),
             "box_next": step_info[stepname]["type"] not in ("linear", "join"),
-            "box_ends": None
-            if "matching_join" not in step_info[stepname]
-            else step_info[stepname]["matching_join"],
+            "box_ends": (
+                None
+                if "matching_join" not in step_info[stepname]
+                else step_info[stepname]["matching_join"]
+            ),
             "next": step_info[stepname]["next"],
             "doc": step_info[stepname]["doc"],
         }

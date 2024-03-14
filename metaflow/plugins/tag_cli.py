@@ -507,9 +507,9 @@ def tag_list(
 
     if not group_by_run and not group_by_tag:
         # We list all the runs that match to print them out if needed.
-        system_tags_by_some_grouping[
-            ",".join(pathspecs)
-        ] = system_tags_by_some_grouping.get("_", set())
+        system_tags_by_some_grouping[",".join(pathspecs)] = (
+            system_tags_by_some_grouping.get("_", set())
+        )
         all_tags_by_some_grouping[",".join(pathspecs)] = all_tags_by_some_grouping.get(
             "_", set()
         )
