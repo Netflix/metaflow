@@ -729,7 +729,7 @@ class Airflow(object):
             metadata=dict(
                 contains_foreach=self.contains_foreach, flow_name=self.flow.name
             ),
-            **airflow_dag_args
+            **airflow_dag_args,
         )
         workflow = _visit(self.graph["start"], workflow)
 
