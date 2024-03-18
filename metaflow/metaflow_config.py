@@ -281,6 +281,11 @@ SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH = from_conf(
     else None,
 )
 ###
+# On Demand Docker image build configuration
+###
+# Image builder service url
+DOCKER_IMAGE_BAKERY_URL = from_conf("DOCKER_IMAGE_BAKERY_URL", None)
+###
 # Kubernetes configuration
 ###
 # Kubernetes namespace to use for all objects created by Metaflow
