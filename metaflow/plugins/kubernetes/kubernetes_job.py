@@ -7,7 +7,7 @@ from metaflow.tracing import inject_tracing_vars
 
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import KUBERNETES_SECRETS
+from metaflow.metaflow_config import KUBERNETES_SECRETS, _USE_BAKERY
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
@@ -147,6 +147,11 @@ class KubernetesJob(object):
                                 + [
                                     client.V1EnvVar(name=k, value=str(v))
                                     for k, v in inject_tracing_vars({}).items()
+                                ]
+                                + [
+                                    client.V1EnvVar(
+                                        name="USE_BAKERY", value=str(_USE_BAKERY)
+                                    )
                                 ],
                                 env_from=[
                                     client.V1EnvFromSource(

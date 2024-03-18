@@ -14,7 +14,7 @@ from urllib.parse import unquote, urlparse
 import requests
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import get_pinned_conda_libs, DOCKER_IMAGE_BAKERY_URL
+from metaflow.metaflow_config import get_pinned_conda_libs, _USE_BAKERY
 from metaflow.metaflow_environment import MetaflowEnvironment
 
 from . import MAGIC_FILE, _datastore_packageroot
@@ -58,15 +58,17 @@ class CondaEnvironment(MetaflowEnvironment):
         from .micromamba import Micromamba
         from .pip import Pip
 
-        micromamba = Micromamba()
-        self.solvers = {"conda": micromamba, "pypi": Pip(micromamba)}
-
         # Use remote image bakery for conda environments if configured.
-        if DOCKER_IMAGE_BAKERY_URL:
+        if _USE_BAKERY:
+            print("Using bakery")
             from .bakery import Bakery
 
             baker = Bakery()
-        self.solvers["conda"] = baker
+            self.solvers = {"conda": baker}
+        else:
+            print("Not using bakery")
+            micromamba = Micromamba()
+            self.solvers = {"conda": micromamba, "pypi": Pip(micromamba)}
 
     def init_environment(self, echo):
         # The implementation optimizes for latency to ensure as many operations can
@@ -190,7 +192,10 @@ class CondaEnvironment(MetaflowEnvironment):
     def executable(self, step_name, default=None):
         step = next(step for step in self.flow if step.name == step_name)
         id_ = self.get_environment(step).get("id_")
-        if id_:
+        if _USE_BAKERY:
+            print("conda prefix python executable")
+            return os.path.join("/conda-prefix", "bin/python")
+        elif id_:
             # bootstrap.py is responsible for ensuring the validity of this executable.
             # -s is important! Can otherwise leak packages to other environments.
             return os.path.join("linux-64", id_, "bin/python -s")
@@ -355,7 +360,7 @@ class CondaEnvironment(MetaflowEnvironment):
         # Bootstrap conda and execution environment for step
         step = next(step for step in self.flow if step.name == step_name)
         id_ = self.get_environment(step).get("id_")
-        if id_:
+        if id_ and not _USE_BAKERY:
             return [
                 "echo 'Bootstrapping virtual environment...'",
                 # We have to prevent the tracing module from loading,

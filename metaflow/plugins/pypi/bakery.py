@@ -2,7 +2,7 @@ import os
 import requests
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import DOCKER_IMAGE_BAKERY_URL
+from metaflow.metaflow_config import DOCKER_IMAGE_BAKERY_URL, get_pinned_conda_libs
 
 
 class BakeryException(MetaflowException):
@@ -50,19 +50,32 @@ class Bakery(object):
         return self.info()["platform"]
 
 
-def bake_image(packages={}):
+def bake_image(python=None, packages={}, datastore_type=None):
     if DOCKER_IMAGE_BAKERY_URL is None:
         raise BakeryException("Image bakery URL is not set.")
+    # Gather base deps
+    deps = {}
+    if datastore_type is not None:
+        deps = get_pinned_conda_libs(python, datastore_type)
+    deps.update(packages)
+    if python is not None:
+        deps.update({"python": python})
 
-    package_matchspecs = ["%s%s" % (pkg, ver) for pkg, ver in packages.items()]
+    def _format(pkg, ver):
+        if any(ver.startswith(c) for c in [">", "<", "~", "@", "="]):
+            return "%s%s" % (pkg, ver)
+        return "%s==%s" % (pkg, ver)
+
+    package_matchspecs = [_format(pkg, ver) for pkg, ver in deps.items()]
 
     headers = {"Content-Type": "application/json"}
-    data = {"conda_matchspecs": ["python"] + package_matchspecs}
+    data = {"conda_matchspecs": package_matchspecs}
+    print("data:", data)
     response = requests.post(DOCKER_IMAGE_BAKERY_URL, json=data, headers=headers)
 
-    body = response.json()
     if response.status_code > 400:
-        raise BakeryException(body)
+        raise BakeryException(response.json())
+    body = response.json()
     image = body["container_image"]
 
     return image

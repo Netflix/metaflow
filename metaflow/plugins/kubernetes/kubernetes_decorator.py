@@ -9,6 +9,7 @@ from metaflow.exception import MetaflowException
 from metaflow.metadata import MetaDatum
 from metaflow.metadata.util import sync_local_metadata_to_datastore
 from metaflow.metaflow_config import (
+    _USE_BAKERY,
     DATASTORE_LOCAL_DIR,
     KUBERNETES_CONTAINER_IMAGE,
     KUBERNETES_CONTAINER_REGISTRY,
@@ -256,9 +257,14 @@ class KubernetesDecorator(StepDecorator):
                             self.attributes[k] = str(
                                 max(float(my_val or 0), float(v or 0))
                             )
-            if isinstance(deco, CondaStepDecorator):
+            if (
+                isinstance(deco, CondaStepDecorator)
+                and _USE_BAKERY
+                and DOCKER_IMAGE_BAKERY_URL
+            ):
                 pkgs = deco.attributes["packages"]
-                image = bake_image(pkgs)
+                python = deco.attributes["python"]
+                image = bake_image(python, pkgs, flow_datastore.TYPE)
                 self.attributes["image"] = image
                 print("successfully set image to: ", image)
 
