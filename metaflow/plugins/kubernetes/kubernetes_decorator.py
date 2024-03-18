@@ -21,9 +21,12 @@ from metaflow.metaflow_config import (
     KUBERNETES_TOLERATIONS,
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SHARED_MEMORY,
+    DOCKER_IMAGE_BAKERY_URL,
 )
+from metaflow.plugins.pypi.conda_decorator import CondaStepDecorator
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
+from metaflow.plugins.pypi.bakery import bake_image
 from metaflow.sidecar import Sidecar
 
 from ..aws.aws_utils import get_docker_registry, get_ec2_instance_metadata
@@ -253,6 +256,11 @@ class KubernetesDecorator(StepDecorator):
                             self.attributes[k] = str(
                                 max(float(my_val or 0), float(v or 0))
                             )
+            if isinstance(deco, CondaStepDecorator):
+                pkgs = deco.attributes["packages"]
+                image = bake_image(pkgs)
+                self.attributes["image"] = image
+                print("successfully set image to: ", image)
 
         # Check GPU vendor.
         if self.attributes["gpu_vendor"].lower() not in ("amd", "nvidia"):

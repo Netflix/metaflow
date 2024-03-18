@@ -5,21 +5,17 @@ import functools
 import io
 import json
 import os
-import sys
 import tarfile
-import time
 from concurrent.futures import ThreadPoolExecutor
 from hashlib import sha256
 from io import BufferedIOBase, BytesIO
-from itertools import chain
 from urllib.parse import unquote, urlparse
 
 import requests
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import get_pinned_conda_libs
+from metaflow.metaflow_config import get_pinned_conda_libs, DOCKER_IMAGE_BAKERY_URL
 from metaflow.metaflow_environment import MetaflowEnvironment
-from metaflow.metaflow_profile import profile
 
 from . import MAGIC_FILE, _datastore_packageroot
 from .utils import conda_platform
@@ -64,6 +60,13 @@ class CondaEnvironment(MetaflowEnvironment):
 
         micromamba = Micromamba()
         self.solvers = {"conda": micromamba, "pypi": Pip(micromamba)}
+
+        # Use remote image bakery for conda environments if configured.
+        if DOCKER_IMAGE_BAKERY_URL:
+            from .bakery import Bakery
+
+            baker = Bakery()
+        self.solvers["conda"] = baker
 
     def init_environment(self, echo):
         # The implementation optimizes for latency to ensure as many operations can
