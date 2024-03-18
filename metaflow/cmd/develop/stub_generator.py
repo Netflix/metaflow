@@ -30,6 +30,7 @@ from typing import (
 from metaflow import FlowSpec, step
 from metaflow.debug import debug
 from metaflow.decorators import Decorator, FlowDecorator
+from metaflow.extension_support import get_aliased_modules
 from metaflow.graph import deindent_docstring
 from metaflow.metaflow_version import get_version
 
@@ -116,6 +117,7 @@ class StubGenerator:
 
         self._write_generated_for = include_generated_for
         self._pending_modules = ["metaflow"]  # type: List[str]
+        self._pending_modules.extend(get_aliased_modules())
         self._root_module = "metaflow."
         self._safe_modules = ["metaflow.", "metaflow_extensions."]
 
