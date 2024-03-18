@@ -322,6 +322,7 @@ class ArgoWorkflows(object):
         Append Argo specific annotations that are unavailable at the decorator level.
         """
         from datetime import datetime, timezone
+
         resources = dict(
             [
                 deco
