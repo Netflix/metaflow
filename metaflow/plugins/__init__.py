@@ -16,6 +16,7 @@ CLIS_DESC = [
     ("argo-workflows", ".argo.argo_workflows_cli.cli"),
     ("card", ".cards.card_cli.cli"),
     ("tag", ".tag_cli.cli"),
+    ("docker", ".docker.docker_cli.cli"),
     ("logs", ".logs_cli.cli"),
 ]
 
@@ -69,6 +70,7 @@ FLOW_DECORATORS_DESC = [
 ENVIRONMENTS_DESC = [
     ("conda", ".pypi.conda_environment.CondaEnvironment"),
     ("pypi", ".pypi.pypi_environment.PyPIEnvironment"),
+    ("docker", ".docker.docker_environment.DockerEnvironment"),
 ]
 
 # Add metadata providers here
