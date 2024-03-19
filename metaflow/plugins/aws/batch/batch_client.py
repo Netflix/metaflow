@@ -159,6 +159,8 @@ class BatchJob(object):
         tmpfs_path,
         num_parallel,
         ephemeral_storage,
+        log_driver,
+        log_options,
     ):
         # identify platform from any compute environment associated with the
         # queue
@@ -194,6 +196,23 @@ class BatchJob(object):
             # This propagates the AWS Batch resource tags to the underlying
             # ECS tasks.
             "propagateTags": True,
+        }
+
+        log_options_dict = {}
+        if log_options:
+            if isinstance(log_options, str):
+                log_options = [log_options]
+            for each_log_option in log_options:
+                k, v = each_log_option.split(":", 1)
+                log_options_dict[k] = v
+
+        job_definition["containerProperties"]["logConfiguration"] = {
+            "logDriver": log_driver if log_driver is not None else "awslogs",
+            "options": log_options_dict
+            if log_options is not None
+            else {
+                "awslogs-group": "aws/batch/job",
+            },
         }
 
         if platform == "FARGATE" or platform == "FARGATE_SPOT":
@@ -456,6 +475,8 @@ class BatchJob(object):
         tmpfs_path,
         num_parallel,
         ephemeral_storage,
+        log_driver,
+        log_options,
     ):
         self.payload["jobDefinition"] = self._register_job_definition(
             image,
@@ -476,6 +497,8 @@ class BatchJob(object):
             tmpfs_path,
             num_parallel,
             ephemeral_storage,
+            log_driver,
+            log_options,
         )
         return self
 
