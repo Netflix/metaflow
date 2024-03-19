@@ -266,8 +266,6 @@ class KubernetesDecorator(StepDecorator):
                 python = deco.attributes["python"]
                 image = bake_image(python, pkgs, flow_datastore.TYPE)
                 self.attributes["image"] = image
-                print(DOCKER_IMAGE_BAKERY_URL, _USE_BAKERY)
-                print("successfully set image to: ", image)
 
         # Check GPU vendor.
         if self.attributes["gpu_vendor"].lower() not in ("amd", "nvidia"):

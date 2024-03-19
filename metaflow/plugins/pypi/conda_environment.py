@@ -60,13 +60,11 @@ class CondaEnvironment(MetaflowEnvironment):
 
         # Use remote image bakery for conda environments if configured.
         if _USE_BAKERY:
-            print("Using bakery")
             from .bakery import Bakery
 
             baker = Bakery()
             self.solvers = {"conda": baker}
         else:
-            print("Not using bakery")
             micromamba = Micromamba()
             self.solvers = {"conda": micromamba, "pypi": Pip(micromamba)}
 
@@ -193,7 +191,6 @@ class CondaEnvironment(MetaflowEnvironment):
         step = next(step for step in self.flow if step.name == step_name)
         id_ = self.get_environment(step).get("id_")
         if _USE_BAKERY:
-            print("conda prefix python executable")
             return os.path.join("/conda-prefix", "bin/python")
         elif id_:
             # bootstrap.py is responsible for ensuring the validity of this executable.

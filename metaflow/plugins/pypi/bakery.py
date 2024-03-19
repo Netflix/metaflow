@@ -70,7 +70,6 @@ def bake_image(python=None, packages={}, datastore_type=None):
 
     headers = {"Content-Type": "application/json"}
     data = {"conda_matchspecs": package_matchspecs}
-    print("data:", data)
     response = requests.post(DOCKER_IMAGE_BAKERY_URL, json=data, headers=headers)
 
     if response.status_code > 400:
