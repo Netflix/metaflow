@@ -260,12 +260,13 @@ class KubernetesDecorator(StepDecorator):
             if (
                 isinstance(deco, CondaStepDecorator)
                 and _USE_BAKERY
-                and DOCKER_IMAGE_BAKERY_URL
+                and DOCKER_IMAGE_BAKERY_URL is not None
             ):
                 pkgs = deco.attributes["packages"]
                 python = deco.attributes["python"]
                 image = bake_image(python, pkgs, flow_datastore.TYPE)
                 self.attributes["image"] = image
+                print(DOCKER_IMAGE_BAKERY_URL, _USE_BAKERY)
                 print("successfully set image to: ", image)
 
         # Check GPU vendor.

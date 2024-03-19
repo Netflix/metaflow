@@ -372,6 +372,11 @@ class CondaEnvironment(MetaflowEnvironment):
                 "echo 'Environment bootstrapped.'",
                 "export PATH=$PATH:$(pwd)/micromamba",
             ]
+        elif id_ and _USE_BAKERY:
+            # we need the internal flag in order to skip re-requesting images on an executing decorator.
+            return ["export USE_BAKERY=1"] + super().bootstrap_commands(
+                step_name, datastore_type
+            )
         else:
             # for @conda/@pypi(disabled=True).
             return super().bootstrap_commands(step_name, datastore_type)

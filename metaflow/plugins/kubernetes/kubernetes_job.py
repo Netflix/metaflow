@@ -147,11 +147,6 @@ class KubernetesJob(object):
                                 + [
                                     client.V1EnvVar(name=k, value=str(v))
                                     for k, v in inject_tracing_vars({}).items()
-                                ]
-                                + [
-                                    client.V1EnvVar(
-                                        name="USE_BAKERY", value=str(_USE_BAKERY)
-                                    )
                                 ],
                                 env_from=[
                                     client.V1EnvFromSource(
