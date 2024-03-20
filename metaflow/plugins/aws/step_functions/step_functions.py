@@ -840,6 +840,8 @@ class StepFunctions(object):
                 host_volumes=resources["host_volumes"],
                 efs_volumes=resources["efs_volumes"],
                 ephemeral_storage=resources["ephemeral_storage"],
+                log_driver=resources["log_driver"],
+                log_options=resources["log_options"],
             )
             .attempts(total_retries + 1)
         )

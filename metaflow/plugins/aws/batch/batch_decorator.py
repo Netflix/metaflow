@@ -91,6 +91,12 @@ class BatchDecorator(StepDecorator):
     ephemeral_storage: int, default None
         The total amount, in GiB, of ephemeral storage to set for the task (21-200)
         This is only relevant for Fargate compute environments
+    log_driver: str, optional, default None
+        The log driver to use for the Amazon ECS container.
+    log_options: List[str], optional, default None
+        List of strings containing options for the chosen log driver. The configurable values
+        depend on the `log driver` chosen. Validation of these options is not supported yet.
+        Example usage: ["awslogs-group:aws/batch/job"]
     """
 
     name = "batch"
@@ -115,6 +121,8 @@ class BatchDecorator(StepDecorator):
         "tmpfs_size": None,
         "tmpfs_path": "/metaflow_temp",
         "ephemeral_storage": None,
+        "log_driver": None,
+        "log_options": None,
     }
     resource_defaults = {
         "cpu": "1",
