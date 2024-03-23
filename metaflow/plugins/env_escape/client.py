@@ -386,7 +386,13 @@ class Client(object):
                 raise RuntimeError("Local function unpickling without an object ID")
             if obj_id not in self._proxied_standalone_functions:
                 self._proxied_standalone_functions[obj_id] = create_class(
-                    self, "__function_%s" % obj_id, {}, {}, {}, {"__call__": ""}, []
+                    self,
+                    "__main__.__function_%s" % obj_id,
+                    {},
+                    {},
+                    {},
+                    {"__call__": ""},
+                    [],
                 )
             return self._proxied_standalone_functions[obj_id]
         local_class = self._proxied_classes.get(lookup_name, None)
