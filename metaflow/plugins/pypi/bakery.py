@@ -72,9 +72,11 @@ def bake_image(python=None, packages={}, datastore_type=None):
     data = {"conda_matchspecs": package_matchspecs}
     response = requests.post(DOCKER_IMAGE_BAKERY_URL, json=data, headers=headers)
 
-    if response.status_code > 400:
-        raise BakeryException(response.json())
     body = response.json()
+    if response.status_code >= 400:
+        kind = body["kind"]
+        msg = body["message"]
+        raise BakeryException("*%s*\n%s" % (kind, msg))
     image = body["container_image"]
 
     return image
