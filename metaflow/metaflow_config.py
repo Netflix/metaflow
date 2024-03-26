@@ -439,8 +439,6 @@ def get_pinned_conda_libs(python_version, datastore_type):
     pins = {
         "requests": ">=2.21.0",
     }
-    if os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
-        pins["keyrings.google-artifactregistry-auth"] = ">=1.1.1"
     if datastore_type == "s3":
         pins["boto3"] = ">=1.14.0"
     elif datastore_type == "azure":
