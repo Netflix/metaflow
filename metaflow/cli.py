@@ -790,9 +790,20 @@ def resume(
         max_log_size=max_log_size * 1024 * 1024,
         resume_identifier=resume_identifier,
     )
-    write_run_id(run_id_file, runtime.run_id)
+    run_id = runtime.run_id
+    write_run_id(run_id_file, run_id)
     runtime.print_workflow_info()
     runtime.persist_constants()
+
+    if origin_run_id and run_id:
+        # Copy run tags from the origin run to the current run
+        from metaflow import Run
+
+        origin_run = Run("{}/{}".format(obj.flow.name, origin_run_id))
+        current_run = Run("{}/{}".format(obj.flow.name, run_id))
+        tags = origin_run.tags
+        current_run.add_tags(tags)
+
     if clone_only:
         runtime.clone_original_run()
     else:
