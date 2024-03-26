@@ -835,7 +835,9 @@ class ArgoWorkflows(object):
 
     # Visit every node and yield the uber DAGTemplate(s).
     def _dag_templates(self):
-        def _visit(node, exit_node=None, templates=None, dag_tasks=None):
+        def _visit(
+            node, exit_node=None, templates=None, dag_tasks=None, parent_foreach=None
+        ):
             # Every for-each node results in a separate subDAG and an equivalent
             # DAGTemplate rooted at the child of the for-each node. Each DAGTemplate
             # has a unique name - the top-level DAGTemplate is named as the name of
@@ -883,6 +885,37 @@ class ArgoWorkflows(object):
                         )
                     )
                 ]
+                # NOTE: Due to limitations with the Argo Workflows Parameter size we can not pass arbitrarily large lists of task id's to foreach joins.
+                # We deterministically generate the task id's of the steps inside foreaches that will be required to join the results.
+                #
+                # We need to add the split-index and root-input-path for the last step in any foreach and use these to generate the task id,
+                # as the join step uses the root and the cardinality of the foreach to generate the required id's.
+                if (
+                    node.is_inside_foreach
+                    and self.graph[node.out_funcs[0]].type == "join"
+                ):
+                    join = self.graph[node.out_funcs[0]]
+                    matching_foreach = next(
+                        (
+                            parent
+                            for parent in join.split_parents
+                            if self.graph[parent].matching_join == join.name
+                            and self.graph[parent].type == "foreach"
+                        ),
+                        False,
+                    )
+                    if matching_foreach:
+                        parameters.extend(
+                            [
+                                Parameter("split-index").value(
+                                    "{{inputs.parameters.split-index}}"
+                                ),
+                                Parameter("root-input-path").value(
+                                    "{{inputs.parameters.input-paths}}"
+                                ),
+                            ]
+                        )
+
                 dag_task = (
                     DAGTask(self._sanitize(node.name))
                     .dependencies(
@@ -903,9 +936,19 @@ class ArgoWorkflows(object):
             # For split nodes traverse all the children
             if node.type == "split":
                 for n in node.out_funcs:
-                    _visit(self.graph[n], node.matching_join, templates, dag_tasks)
+                    _visit(
+                        self.graph[n],
+                        node.matching_join,
+                        templates,
+                        dag_tasks,
+                        parent_foreach,
+                    )
                 return _visit(
-                    self.graph[node.matching_join], exit_node, templates, dag_tasks
+                    self.graph[node.matching_join],
+                    exit_node,
+                    templates,
+                    dag_tasks,
+                    parent_foreach,
                 )
             # For foreach nodes generate a new sub DAGTemplate
             elif node.type == "foreach":
@@ -929,6 +972,16 @@ class ArgoWorkflows(object):
                                 ),
                                 Parameter("split-index").value("{{item}}"),
                             ]
+                            + (
+                                [
+                                    Parameter("root-input-path").value(
+                                        "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
+                                        % (node.name, self._sanitize(node.name))
+                                    ),
+                                ]
+                                if parent_foreach
+                                else []
+                            )
                         )
                     )
                     .with_param(
@@ -938,13 +991,18 @@ class ArgoWorkflows(object):
                 )
                 dag_tasks.append(foreach_task)
                 templates, dag_tasks_1 = _visit(
-                    self.graph[node.out_funcs[0]], node.matching_join, templates, []
+                    self.graph[node.out_funcs[0]],
+                    node.matching_join,
+                    templates,
+                    [],
+                    node.name,
                 )
                 templates.append(
                     Template(foreach_template_name)
                     .inputs(
                         Inputs().parameters(
                             [Parameter("input-paths"), Parameter("split-index")]
+                            + ([Parameter("root-input-path")] if parent_foreach else [])
                         )
                     )
                     .outputs(
@@ -971,13 +1029,26 @@ class ArgoWorkflows(object):
                         Arguments().parameters(
                             [
                                 Parameter("input-paths").value(
-                                    "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters}}"
-                                    % (
-                                        self.graph[node.matching_join].in_funcs[-1],
-                                        foreach_template_name,
-                                    )
-                                )
+                                    "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
+                                    % (node.name, self._sanitize(node.name))
+                                ),
+                                Parameter("split-cardinality").value(
+                                    "{{tasks.%s.outputs.parameters.split-cardinality}}"
+                                    % self._sanitize(node.name)
+                                ),
                             ]
+                            + (
+                                [
+                                    Parameter("split-index").value(
+                                        "{{inputs.parameters.split-index}}"
+                                    ),
+                                    Parameter("root-input-path").value(
+                                        "{{inputs.parameters.input-paths}}"
+                                    ),
+                                ]
+                                if parent_foreach
+                                else []
+                            )
                         )
                     )
                 )
@@ -987,11 +1058,16 @@ class ArgoWorkflows(object):
                     exit_node,
                     templates,
                     dag_tasks,
+                    parent_foreach,
                 )
             # For linear nodes continue traversing to the next node
             if node.type in ("linear", "join", "start"):
                 return _visit(
-                    self.graph[node.out_funcs[0]], exit_node, templates, dag_tasks
+                    self.graph[node.out_funcs[0]],
+                    exit_node,
+                    templates,
+                    dag_tasks,
+                    parent_foreach,
                 )
             else:
                 raise ArgoWorkflowsException(
@@ -1034,11 +1110,46 @@ class ArgoWorkflows(object):
             # Ideally, we would like these task ids to be the same as node name
             # (modulo retry suffix) on Argo Workflows but that doesn't seem feasible
             # right now.
-            task_str = node.name + "-{{workflow.creationTimestamp}}"
+
+            task_idx = ""
+            input_paths = ""
+            root_input = None
+            # export input_paths as it is used multiple times in the container script and we do not want to repeat the values.
+            input_paths_expr = "export INPUT_PATHS=''"
             if node.name != "start":
-                task_str += "-{{inputs.parameters.input-paths}}"
+                input_paths_expr = (
+                    "export INPUT_PATHS={{inputs.parameters.input-paths}}"
+                )
+                input_paths = "$(echo $INPUT_PATHS)"
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
-                task_str += "-{{inputs.parameters.split-index}}"
+                task_idx = "{{inputs.parameters.split-index}}"
+            if node.is_inside_foreach and self.graph[node.out_funcs[0]].type == "join":
+                join_node = self.graph[node.out_funcs[0]]
+                join_is_foreach = any(
+                    self.graph[parent].matching_join == join_node.name
+                    for parent in join_node.split_parents
+                    if self.graph[parent].type == "foreach"
+                )
+                not_first_in_foreach = any(
+                    not self.graph[f].type == "foreach" for f in node.in_funcs
+                )
+
+                if join_is_foreach and not_first_in_foreach:
+                    # Task ids inside a foreach that are meant for joining results need deterministic id generation.
+                    # we need to use the split index and root-input-path in case this is the last step in a nested foreach
+                    task_idx = "{{inputs.parameters.split-index}}"
+                    root_input = "{{inputs.parameters.root-input-path}}"
+
+            # Task string to be hashed into an ID
+            task_str = "-".join(
+                [
+                    node.name,
+                    "{{workflow.creationTimestamp}}",
+                    root_input or input_paths,
+                    task_idx,
+                ]
+            )
+
             # Generated task_ids need to be non-numeric - see register_task_id in
             # service.py. We do so by prefixing `t-`
             task_id_expr = (
@@ -1087,6 +1198,7 @@ class ArgoWorkflows(object):
                     # env var.
                     '${METAFLOW_INIT_SCRIPT:+eval \\"${METAFLOW_INIT_SCRIPT}\\"}',
                     "mkdir -p $PWD/.logs",
+                    input_paths_expr,
                     task_id_expr,
                     mflog_expr,
                 ]
@@ -1097,8 +1209,6 @@ class ArgoWorkflows(object):
             step_cmds = self.environment.bootstrap_commands(
                 node.name, self.flow_datastore.TYPE
             )
-
-            input_paths = "{{inputs.parameters.input-paths}}"
 
             top_opts_dict = {
                 "with": [
@@ -1169,9 +1279,19 @@ class ArgoWorkflows(object):
                 and self.graph[node.split_parents[-1]].type == "foreach"
             ):
                 # Set aggregated input-paths for a foreach-join
+                foreach_step_name = next(
+                    n for n in node.in_funcs if self.graph[n].is_inside_foreach
+                )
+                creation_timestamp = "{{workflow.creationTimestamp}}"
+                foreach_max_split = "{{inputs.parameters.split-cardinality}}"
                 input_paths = (
-                    "$(python -m metaflow.plugins.argo.process_input_paths %s)"
-                    % input_paths
+                    "$(python -m metaflow.plugins.argo.generate_input_paths %s %s %s %s)"
+                    % (
+                        foreach_step_name,
+                        creation_timestamp,
+                        input_paths,
+                        foreach_max_split,
+                    )
                 )
             step = [
                 "step",
@@ -1339,19 +1459,52 @@ class ArgoWorkflows(object):
             # to thank the designers of Argo Workflows for making this so
             # straightforward!
             inputs = []
+            has_split_index = False
             if node.name != "start":
                 inputs.append(Parameter("input-paths"))
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 # Fetch split-index from parent
                 inputs.append(Parameter("split-index"))
+                has_split_index = True
+            if (
+                node.type == "join"
+                and self.graph[node.split_parents[-1]].type == "foreach"
+            ):
+                # append this only for joins of foreaches, not static splits
+                inputs.append(Parameter("split-cardinality"))
+            if node.is_inside_foreach and self.graph[node.out_funcs[0]].type == "join":
+                join_node = self.graph[node.out_funcs[0]]
+                join_is_foreach = any(
+                    self.graph[parent].matching_join == join_node.name
+                    for parent in join_node.split_parents
+                    if self.graph[parent].type == "foreach"
+                )
+                not_first_in_foreach = any(
+                    not self.graph[f].type == "foreach" for f in node.in_funcs
+                )
+
+                if join_is_foreach and not_first_in_foreach:
+                    # we need to carry the split-index and root-input-path info for the last step inside a foreach
+                    # for correctly joining nested foreaches
+                    if not has_split_index:
+                        # Don't add duplicate split index parameters.
+                        inputs.append(Parameter("split-index"))
+                    inputs.append(Parameter("root-input-path"))
 
             outputs = []
             if node.name != "end":
                 outputs = [Parameter("task-id").valueFrom({"path": "/mnt/out/task_id"})]
             if node.type == "foreach":
                 # Emit split cardinality from foreach task
+                # list of split indices
                 outputs.append(
                     Parameter("num-splits").valueFrom({"path": "/mnt/out/splits"})
+                )
+                # maximum of the splits
+                outputs.append(
+                    Parameter("split-cardinality").valueFrom(
+                        {"path": "/mnt/out/split_cardinality"}
+                    )
                 )
 
             # It makes no sense to set env vars to None (shows up as "None" string)
