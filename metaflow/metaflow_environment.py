@@ -42,7 +42,7 @@ class MetaflowEnvironment(object):
         """
         return ()
 
-    def bootstrap_commands(self, step_name, datastore_type):
+    def bootstrap_commands(self, step_name, datastore_type, default_executable_path=None):
         """
         A list of shell commands to bootstrap this environment in a remote runtime.
         """
