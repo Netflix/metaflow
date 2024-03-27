@@ -97,13 +97,14 @@ class MetaflowEnvironment(object):
             # through pypi).
             # Instead, just use boto3 which we already have installed.
             return (
-                "%s -c \"import boto3; import os; "
+                '%s -c "import boto3; import os; '
                 "boto3.client('s3', endpoint_url=os.getenv(METAFLOW_S3_ENDPOINT_URL))"
-                ".download_file('%s', '%s', 'job.tar')\"") % (
-                    self._python,
-                    bucket,
-                    s3_object,
-                )
+                ".download_file('%s', '%s', 'job.tar')\""
+            ) % (
+                self._python,
+                bucket,
+                s3_object,
+            )
         elif datastore_type == "azure":
             from .plugins.azure.azure_utils import parse_azure_full_path
 

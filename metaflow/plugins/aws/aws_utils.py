@@ -4,7 +4,6 @@ import requests
 from metaflow.exception import MetaflowException
 
 
-
 def parse_s3_full_path(s3_uri):
     from urllib.parse import urlparse
 
