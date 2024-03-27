@@ -258,15 +258,6 @@ class Pip(object):
         return index, extras
 
     def _call(self, prefix, args, env=None, isolated=True):
-        # `--no-input` flag should not be passed when credentials
-        # are being determined for the index-url and are not a
-        # part of it..
-        # TODO: we need a better way to handle this
-        if os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
-            no_input = False
-        else:
-            no_input = True
-
         if env is None:
             env = {}
         try:
@@ -279,9 +270,9 @@ class Pip(object):
                         prefix,
                         "pip3",
                         "--disable-pip-version-check",
+                        "--no-input",
                         "--no-color",
                     ]
-                    + (["--no-input"] if no_input else [])
                     + (["--isolated"] if isolated else [])
                     + args,
                     stderr=subprocess.PIPE,
