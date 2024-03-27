@@ -8,15 +8,11 @@ from metaflow import util
 from metaflow import R, current
 
 from metaflow.decorators import StepDecorator
-from metaflow.plugins.pypi.bakery import bake_image
-from metaflow.plugins.pypi.conda_decorator import CondaStepDecorator
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.metadata import MetaDatum
 from metaflow.metadata.util import sync_local_metadata_to_datastore
 from metaflow.metaflow_config import (
-    _USE_BAKERY,
-    DOCKER_IMAGE_BAKERY_URL,
     ECS_S3_ACCESS_IAM_ROLE,
     BATCH_JOB_QUEUE,
     BATCH_CONTAINER_IMAGE,
@@ -95,6 +91,12 @@ class BatchDecorator(StepDecorator):
     ephemeral_storage: int, default None
         The total amount, in GiB, of ephemeral storage to set for the task (21-200)
         This is only relevant for Fargate compute environments
+    log_driver: str, optional, default None
+        The log driver to use for the Amazon ECS container.
+    log_options: List[str], optional, default None
+        List of strings containing options for the chosen log driver. The configurable values
+        depend on the `log driver` chosen. Validation of these options is not supported yet.
+        Example usage: ["awslogs-group:aws/batch/job"]
     """
 
     name = "batch"
@@ -119,6 +121,8 @@ class BatchDecorator(StepDecorator):
         "tmpfs_size": None,
         "tmpfs_path": "/metaflow_temp",
         "ephemeral_storage": None,
+        "log_driver": None,
+        "log_options": None,
     }
     resource_defaults = {
         "cpu": "1",
@@ -201,17 +205,6 @@ class BatchDecorator(StepDecorator):
         # Validate tmpfs_path. Batch requires this to be an absolute path
         if self.attributes["tmpfs_path"] and self.attributes["tmpfs_path"][0] != "/":
             raise BatchException("'tmpfs_path' needs to be an absolute path")
-
-        for deco in decos:
-            if (
-                isinstance(deco, CondaStepDecorator)
-                and _USE_BAKERY
-                and DOCKER_IMAGE_BAKERY_URL is not None
-            ):
-                pkgs = deco.attributes["packages"]
-                python = deco.attributes["python"]
-                image = bake_image(python, pkgs, flow_datastore.TYPE)
-                self.attributes["image"] = image
 
     def runtime_init(self, flow, graph, package, run_id):
         # Set some more internal state.

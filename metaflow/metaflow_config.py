@@ -287,6 +287,9 @@ SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH = from_conf(
 DOCKER_IMAGE_BAKERY_URL = from_conf("DOCKER_IMAGE_BAKERY_URL", None)
 # internal env for skipping bakery related processes.
 _USE_BAKERY = bool(os.environ.get("USE_BAKERY", bool(DOCKER_IMAGE_BAKERY_URL)))
+_SKIP_BAKERY_SETUP = bool(
+    os.environ.get("SKIP_BAKERY_SETUP", not bool(DOCKER_IMAGE_BAKERY_URL))
+)
 ###
 # Kubernetes configuration
 ###

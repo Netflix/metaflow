@@ -1,4 +1,3 @@
-import os
 import requests
 
 from metaflow.exception import MetaflowException
@@ -13,41 +12,6 @@ class BakeryException(MetaflowException):
             error = "\n".join(error)
         msg = "{error}".format(error=error)
         super(BakeryException, self).__init__(msg)
-
-
-class Bakery(object):
-    # Mostly a no-op class to support prebaked images for conda environments.
-    def __init__(self):
-        pass
-
-    def solve(self, id_, packages, python, platform):
-        # Solve the environment
-        return {}
-
-    def download(self, id_, packages, python, platform):
-        # nothing to download due to image being built remotely.
-        return
-
-    def create(self, id_, packages, python, platform):
-        # create environment
-        # raise Exception("not ready to execute yet, still testing.")
-        pass
-
-    def info(self):
-        return "no info"
-
-    def path_to_environment(self, id_, platform=None):
-        return "/conda-prefix"
-
-    def metadata(self, id_, packages, python, platform):
-        # environment metadata
-        return {}
-
-    def interpreter(self, id_):
-        return os.path.join(self.path_to_environment(id_), "bin/python")
-
-    def platform(self):
-        return self.info()["platform"]
 
 
 def bake_image(python=None, packages={}, datastore_type=None):
