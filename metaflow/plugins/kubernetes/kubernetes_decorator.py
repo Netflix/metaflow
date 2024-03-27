@@ -28,6 +28,7 @@ from metaflow.sidecar import Sidecar
 
 from ..aws.aws_utils import get_docker_registry, get_ec2_instance_metadata
 from .kubernetes import KubernetesException, parse_kube_keyvalue_list
+from metaflow.unbounded_foreach import UBF_CONTROL
 
 try:
     unicode
@@ -220,12 +221,6 @@ class KubernetesDecorator(StepDecorator):
                 "Step *{step}* is marked for execution both on AWS Batch and "
                 "Kubernetes. Please use one or the other.".format(step=step)
             )
-
-        for deco in decos:
-            if getattr(deco, "IS_PARALLEL", False):
-                raise KubernetesException(
-                    "@kubernetes does not support parallel execution currently."
-                )
 
         # Set run time limit for the Kubernetes job.
         self.run_time_limit = get_run_time_limit_for_task(decos)
@@ -434,6 +429,22 @@ class KubernetesDecorator(StepDecorator):
             # Start MFLog sidecar to collect task logs.
             self._save_logs_sidecar = Sidecar("save_logs_periodically")
             self._save_logs_sidecar.start()
+
+        num_parallel = None
+        if hasattr(flow, "_parallel_ubf_iter"):
+            num_parallel = flow._parallel_ubf_iter.num_parallel
+        if num_parallel and num_parallel >= 1 and ubf_context == UBF_CONTROL:
+            control_task_id = current.task_id
+            top_task_id = control_task_id.replace("control-", "")
+            mapper_task_ids = [control_task_id] + [
+                "worker-%s-%d" % (top_task_id, node_idx)
+                for node_idx in range(1, num_parallel)
+            ]
+            flow._control_mapper_tasks = [
+                "%s/%s/%s" % (run_id, step_name, mapper_task_id)
+                for mapper_task_id in mapper_task_ids
+            ]
+            flow._control_task_is_mapper_zero = True
 
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_retries

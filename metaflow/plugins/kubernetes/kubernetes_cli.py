@@ -108,6 +108,13 @@ def kubernetes():
     multiple=False,
 )
 @click.option("--shared-memory", default=None, help="Size of shared memory in MiB")
+@click.option("--ubf-context", default=None, type=click.Choice([None, "ubf_control"]))
+@click.option(
+    "--num-parallel",
+    default=None,
+    type=int,
+    help="Number of parallel nodes to run as a multi-node job.",
+)
 @click.pass_context
 def step(
     ctx,
@@ -134,6 +141,7 @@ def step(
     persistent_volume_claims=None,
     tolerations=None,
     shared_memory=None,
+    num_parallel=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None, **kwargs):
@@ -248,6 +256,7 @@ def step(
                 persistent_volume_claims=persistent_volume_claims,
                 tolerations=tolerations,
                 shared_memory=shared_memory,
+                num_parallel=num_parallel,
             )
     except Exception as e:
         traceback.print_exc(chain=False)

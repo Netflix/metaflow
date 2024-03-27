@@ -2,9 +2,11 @@ import json
 import math
 import random
 import time
+import jobset
+import copy
 
 from metaflow.tracing import inject_tracing_vars
-
+from kubernetes.client.models.v1_object_meta import V1ObjectMeta
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_SECRETS
@@ -53,12 +55,370 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
     return decorator
 
 
+class KubernetesJobSet(object):
+    def __init__(self, client, **kwargs):
+        self._client = client
+        self._kwargs = kwargs
+        self._group = "jobset.x-k8s.io"
+        self._version = "v1alpha2"
+        self.name = kwargs.get("name")
+
+        use_tmpfs = self._kwargs["use_tmpfs"]
+        tmpfs_size = self._kwargs["tmpfs_size"]
+        tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
+
+        jobset_name = self.name
+        main_job_name = "control"
+        main_job_index = 0
+        main_pod_index = 0
+        subdomain = jobset_name
+        num_parallel = int(self._kwargs.get("num_parallel", 1))
+
+        fqdn_suffix = "%s.svc.cluster.local" % self._kwargs["namespace"]
+        jobset_main_addr = "%s-%s-%s-%s.%s.%s" % (
+            jobset_name,
+            main_job_name,
+            main_job_index,
+            main_pod_index,
+            subdomain,
+            fqdn_suffix,
+        )
+
+        control_job = self.get_replicated_job(
+            "control",
+            jobset_main_addr,
+            subdomain,
+        )
+
+        worker_jobs = []
+        for i in range(1, num_parallel):
+            worker_job = self.get_replicated_job(
+                "worker-{}".format(str(i)),
+                jobset_main_addr,
+                subdomain,
+                task_id_override=self._kwargs["task_id"].replace("control", "worker")
+                + "-"
+                + str(i),
+            )
+
+            worker_jobs.append(worker_job)
+
+        self._jobset = jobset.models.jobset_v1alpha2_job_set.JobsetV1alpha2JobSet(
+            api_version=self._group + "/" + self._version,
+            kind="JobSet",
+            metadata=V1ObjectMeta(name=self.name),
+            spec=jobset.models.jobset_v1alpha2_job_set_spec.JobsetV1alpha2JobSetSpec(
+                replicated_jobs=[control_job] + worker_jobs,
+                suspend=False,
+            ),
+        )
+
+    def get_replicated_job(
+        self, job_name, jobset_main_addr, subdomain, task_id_override=None
+    ):
+        client = self._client.get()
+
+        master_port = (
+            int(self._kwargs["port"])
+            if "port" in self._kwargs and self._kwargs["port"]
+            else None
+        )
+
+        job_spec = copy.deepcopy(self._kwargs["job_spec"])
+        job_spec.parallelism = 1
+        job_spec.completions = 1
+
+        job_spec.template.spec.set_hostname_as_fqdn = True
+        job_spec.template.spec.subdomain = subdomain
+        annotations = self._kwargs.get("annotations", {})
+        labels = self._kwargs.get("labels", {})
+        if task_id_override:
+            labels["metaflow/task_id"] = task_id_override
+            job_spec.template.metadata.labels["metaflow/task_id"] = task_id_override
+
+            for idx in range(len(job_spec.template.spec.containers[0].command)):
+                if (
+                    self._kwargs["task_id"]
+                    in job_spec.template.spec.containers[0].command[idx]
+                ):
+                    job_spec.template.spec.containers[0].command[idx] = (
+                        job_spec.template.spec.containers[0]
+                        .command[idx]
+                        .replace(self._kwargs["task_id"], task_id_override)
+                    )
+        job_spec.template.spec.containers[0].env = job_spec.template.spec.containers[
+            0
+        ].env + [
+            client.V1EnvVar(
+                name="MASTER_ADDR",
+                value=jobset_main_addr,
+            ),
+            client.V1EnvVar(
+                name="MASTER_PORT",
+                value=str(master_port),
+            ),
+            client.V1EnvVar(
+                name="RANK",
+                value_from=client.V1EnvVarSource(
+                    field_ref=client.V1ObjectFieldSelector(
+                        field_path="metadata.annotations['batch.kubernetes.io/job-completion-index']"
+                    )
+                ),
+            ),
+            client.V1EnvVar(
+                name="WORLD_SIZE",
+                value=str(self._kwargs["num_parallel"]),
+            ),
+            client.V1EnvVar(
+                name="PYTHONUNBUFFERED",
+                value="0",
+            ),
+        ]
+
+        return jobset.models.jobset_v1alpha2_replicated_job.JobsetV1alpha2ReplicatedJob(
+            name=job_name,
+            template=client.V1JobTemplateSpec(
+                metadata=client.V1ObjectMeta(
+                    annotations=annotations,
+                    labels=labels,
+                    namespace=self._kwargs["namespace"],
+                ),
+                spec=job_spec,
+            ),
+        )
+
+    def execute(self):
+        client = self._client.get()
+        api_instance = client.CoreV1Api()
+
+        with client.ApiClient() as api_client:
+            api_instance = client.CustomObjectsApi(api_client)
+            try:
+                jobset_obj = api_instance.create_namespaced_custom_object(
+                    self._group,
+                    self._version,
+                    self._kwargs["namespace"],
+                    "jobsets",
+                    self._jobset,
+                )
+            except Exception as e:
+                raise KubernetesJobException(
+                    "Exception when calling CustomObjectsApi->create_namespaced_custom_object: %s\n"
+                    % e
+                )
+
+        job_name = self.name + "-control-0"
+        # Retry a few times since it takes time for the job to be created
+        job_creation_timeout_sec = 60
+        start_time = time.time()
+        while True:
+            try:
+                job = (
+                    client.BatchV1Api()
+                    .read_namespaced_job(
+                        name=job_name, namespace=self._kwargs["namespace"]
+                    )
+                    .to_dict()
+                )
+                break
+            except client.rest.ApiException as e:
+                if e.status == 404:
+                    # Job hasn't been created yet.
+                    if time.time() - start_time > job_creation_timeout_sec:
+                        raise KubernetesJobException(
+                            "Unable to locate Kubernetes batch/v1 job %s" % job_name
+                        )
+                    else:
+                        time.sleep(3)
+                        continue
+                else:
+                    raise
+
+        return RunningJob(
+            client=self._client,
+            name=job["metadata"]["name"],
+            uid=job["metadata"]["uid"],
+            namespace=job["metadata"]["namespace"],
+        )
+
+
 class KubernetesJob(object):
     def __init__(self, client, **kwargs):
         self._client = client
         self._kwargs = kwargs
 
-    def create(self):
+    def create_job_spec(self):
+        client = self._client.get()
+
+        # tmpfs variables
+        use_tmpfs = self._kwargs["use_tmpfs"]
+        tmpfs_size = self._kwargs["tmpfs_size"]
+        tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
+        shared_memory = (
+            int(self._kwargs["shared_memory"])
+            if self._kwargs["shared_memory"]
+            else None
+        )
+
+        return client.V1JobSpec(
+            # Retries are handled by Metaflow when it is responsible for
+            # executing the flow. The responsibility is moved to Kubernetes
+            # when Argo Workflows is responsible for the execution.
+            backoff_limit=self._kwargs.get("retries", 0),
+            completions=self._kwargs.get("completions", 1),
+            ttl_seconds_after_finished=7
+            * 60
+            * 60  # Remove job after a week. TODO: Make this configurable
+            * 24,
+            template=client.V1PodTemplateSpec(
+                metadata=client.V1ObjectMeta(
+                    annotations=self._kwargs.get("annotations", {}),
+                    labels=self._kwargs.get("labels", {}),
+                    namespace=self._kwargs["namespace"],
+                ),
+                spec=client.V1PodSpec(
+                    # Timeout is set on the pod and not the job (important!)
+                    active_deadline_seconds=self._kwargs["timeout_in_seconds"],
+                    # TODO (savin): Enable affinities for GPU scheduling.
+                    # affinity=?,
+                    containers=[
+                        client.V1Container(
+                            command=self._kwargs["command"],
+                            env=[
+                                client.V1EnvVar(name=k, value=str(v))
+                                for k, v in self._kwargs.get(
+                                    "environment_variables", {}
+                                ).items()
+                            ]
+                            # And some downward API magic. Add (key, value)
+                            # pairs below to make pod metadata available
+                            # within Kubernetes container.
+                            + [
+                                client.V1EnvVar(
+                                    name=k,
+                                    value_from=client.V1EnvVarSource(
+                                        field_ref=client.V1ObjectFieldSelector(
+                                            field_path=str(v)
+                                        )
+                                    ),
+                                )
+                                for k, v in {
+                                    "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
+                                    "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
+                                    "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
+                                    "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME": "spec.serviceAccountName",
+                                    "METAFLOW_KUBERNETES_NODE_IP": "status.hostIP",
+                                }.items()
+                            ]
+                            + [
+                                client.V1EnvVar(name=k, value=str(v))
+                                for k, v in inject_tracing_vars({}).items()
+                            ],
+                            env_from=[
+                                client.V1EnvFromSource(
+                                    secret_ref=client.V1SecretEnvSource(
+                                        name=str(k),
+                                        # optional=True
+                                    )
+                                )
+                                for k in list(self._kwargs.get("secrets", []))
+                                + KUBERNETES_SECRETS.split(",")
+                                if k
+                            ],
+                            image=self._kwargs["image"],
+                            image_pull_policy=self._kwargs["image_pull_policy"],
+                            name=self._kwargs["step_name"].replace("_", "-"),
+                            resources=client.V1ResourceRequirements(
+                                requests={
+                                    "cpu": str(self._kwargs["cpu"]),
+                                    "memory": "%sM" % str(self._kwargs["memory"]),
+                                    "ephemeral-storage": "%sM"
+                                    % str(self._kwargs["disk"]),
+                                },
+                                limits={
+                                    "%s.com/gpu".lower()
+                                    % self._kwargs["gpu_vendor"]: str(
+                                        self._kwargs["gpu"]
+                                    )
+                                    for k in [0]
+                                    # Don't set GPU limits if gpu isn't specified.
+                                    if self._kwargs["gpu"] is not None
+                                },
+                            ),
+                            volume_mounts=(
+                                [
+                                    client.V1VolumeMount(
+                                        mount_path=self._kwargs.get("tmpfs_path"),
+                                        name="tmpfs-ephemeral-volume",
+                                    )
+                                ]
+                                if tmpfs_enabled
+                                else []
+                            )
+                            + (
+                                [
+                                    client.V1VolumeMount(mount_path=path, name=claim)
+                                    for claim, path in self._kwargs[
+                                        "persistent_volume_claims"
+                                    ].items()
+                                ]
+                                if self._kwargs["persistent_volume_claims"] is not None
+                                else []
+                            ),
+                        )
+                    ],
+                    node_selector=self._kwargs.get("node_selector"),
+                    # TODO (savin): Support image_pull_secrets
+                    # image_pull_secrets=?,
+                    # TODO (savin): Support preemption policies
+                    # preemption_policy=?,
+                    #
+                    # A Container in a Pod may fail for a number of
+                    # reasons, such as because the process in it exited
+                    # with a non-zero exit code, or the Container was
+                    # killed due to OOM etc. If this happens, fail the pod
+                    # and let Metaflow handle the retries.
+                    restart_policy="Never",
+                    service_account_name=self._kwargs["service_account"],
+                    # Terminate the container immediately on SIGTERM
+                    termination_grace_period_seconds=0,
+                    tolerations=[
+                        client.V1Toleration(**toleration)
+                        for toleration in self._kwargs.get("tolerations") or []
+                    ],
+                    volumes=(
+                        [
+                            client.V1Volume(
+                                name="tmpfs-ephemeral-volume",
+                                empty_dir=client.V1EmptyDirVolumeSource(
+                                    medium="Memory",
+                                    # Add default unit as ours differs from Kubernetes default.
+                                    size_limit="{}Mi".format(tmpfs_size),
+                                ),
+                            )
+                        ]
+                        if tmpfs_enabled
+                        else []
+                    )
+                    + (
+                        [
+                            client.V1Volume(
+                                name=claim,
+                                persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
+                                    claim_name=claim
+                                ),
+                            )
+                            for claim in self._kwargs["persistent_volume_claims"].keys()
+                        ]
+                        if self._kwargs["persistent_volume_claims"] is not None
+                        else []
+                    ),
+                    # TODO (savin): Set termination_message_policy
+                ),
+            ),
+        )
+
+    def k8screate(self):
         # A discerning eye would notice and question the choice of using the
         # V1Job construct over the V1Pod construct given that we don't rely much
         # on any of the V1Job semantics. The major reasons at the moment are -
@@ -77,11 +437,6 @@ class KubernetesJob(object):
         use_tmpfs = self._kwargs["use_tmpfs"]
         tmpfs_size = self._kwargs["tmpfs_size"]
         tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
-        shared_memory = (
-            int(self._kwargs["shared_memory"])
-            if self._kwargs["shared_memory"]
-            else None
-        )
 
         self._job = client.V1Job(
             api_version="batch/v1",
@@ -94,190 +449,7 @@ class KubernetesJob(object):
                 generate_name=self._kwargs["generate_name"],
                 namespace=self._kwargs["namespace"],  # Defaults to `default`
             ),
-            spec=client.V1JobSpec(
-                # Retries are handled by Metaflow when it is responsible for
-                # executing the flow. The responsibility is moved to Kubernetes
-                # when Argo Workflows is responsible for the execution.
-                backoff_limit=self._kwargs.get("retries", 0),
-                completions=1,  # A single non-indexed pod job
-                ttl_seconds_after_finished=7
-                * 60
-                * 60  # Remove job after a week. TODO: Make this configurable
-                * 24,
-                template=client.V1PodTemplateSpec(
-                    metadata=client.V1ObjectMeta(
-                        annotations=self._kwargs.get("annotations", {}),
-                        labels=self._kwargs.get("labels", {}),
-                        namespace=self._kwargs["namespace"],
-                    ),
-                    spec=client.V1PodSpec(
-                        # Timeout is set on the pod and not the job (important!)
-                        active_deadline_seconds=self._kwargs["timeout_in_seconds"],
-                        # TODO (savin): Enable affinities for GPU scheduling.
-                        # affinity=?,
-                        containers=[
-                            client.V1Container(
-                                command=self._kwargs["command"],
-                                env=[
-                                    client.V1EnvVar(name=k, value=str(v))
-                                    for k, v in self._kwargs.get(
-                                        "environment_variables", {}
-                                    ).items()
-                                ]
-                                # And some downward API magic. Add (key, value)
-                                # pairs below to make pod metadata available
-                                # within Kubernetes container.
-                                + [
-                                    client.V1EnvVar(
-                                        name=k,
-                                        value_from=client.V1EnvVarSource(
-                                            field_ref=client.V1ObjectFieldSelector(
-                                                field_path=str(v)
-                                            )
-                                        ),
-                                    )
-                                    for k, v in {
-                                        "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
-                                        "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
-                                        "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
-                                        "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME": "spec.serviceAccountName",
-                                        "METAFLOW_KUBERNETES_NODE_IP": "status.hostIP",
-                                    }.items()
-                                ]
-                                + [
-                                    client.V1EnvVar(name=k, value=str(v))
-                                    for k, v in inject_tracing_vars({}).items()
-                                ],
-                                env_from=[
-                                    client.V1EnvFromSource(
-                                        secret_ref=client.V1SecretEnvSource(
-                                            name=str(k),
-                                            # optional=True
-                                        )
-                                    )
-                                    for k in list(self._kwargs.get("secrets", []))
-                                    + KUBERNETES_SECRETS.split(",")
-                                    if k
-                                ],
-                                image=self._kwargs["image"],
-                                image_pull_policy=self._kwargs["image_pull_policy"],
-                                name=self._kwargs["step_name"].replace("_", "-"),
-                                resources=client.V1ResourceRequirements(
-                                    requests={
-                                        "cpu": str(self._kwargs["cpu"]),
-                                        "memory": "%sM" % str(self._kwargs["memory"]),
-                                        "ephemeral-storage": "%sM"
-                                        % str(self._kwargs["disk"]),
-                                    },
-                                    limits={
-                                        "%s.com/gpu".lower()
-                                        % self._kwargs["gpu_vendor"]: str(
-                                            self._kwargs["gpu"]
-                                        )
-                                        for k in [0]
-                                        # Don't set GPU limits if gpu isn't specified.
-                                        if self._kwargs["gpu"] is not None
-                                    },
-                                ),
-                                volume_mounts=(
-                                    [
-                                        client.V1VolumeMount(
-                                            mount_path=self._kwargs.get("tmpfs_path"),
-                                            name="tmpfs-ephemeral-volume",
-                                        )
-                                    ]
-                                    if tmpfs_enabled
-                                    else []
-                                )
-                                + (
-                                    [
-                                        client.V1VolumeMount(
-                                            mount_path="/dev/shm", name="dhsm"
-                                        )
-                                    ]
-                                    if shared_memory
-                                    else []
-                                )
-                                + (
-                                    [
-                                        client.V1VolumeMount(
-                                            mount_path=path, name=claim
-                                        )
-                                        for claim, path in self._kwargs[
-                                            "persistent_volume_claims"
-                                        ].items()
-                                    ]
-                                    if self._kwargs["persistent_volume_claims"]
-                                    is not None
-                                    else []
-                                ),
-                            )
-                        ],
-                        node_selector=self._kwargs.get("node_selector"),
-                        # TODO (savin): Support image_pull_secrets
-                        # image_pull_secrets=?,
-                        # TODO (savin): Support preemption policies
-                        # preemption_policy=?,
-                        #
-                        # A Container in a Pod may fail for a number of
-                        # reasons, such as because the process in it exited
-                        # with a non-zero exit code, or the Container was
-                        # killed due to OOM etc. If this happens, fail the pod
-                        # and let Metaflow handle the retries.
-                        restart_policy="Never",
-                        service_account_name=self._kwargs["service_account"],
-                        # Terminate the container immediately on SIGTERM
-                        termination_grace_period_seconds=0,
-                        tolerations=[
-                            client.V1Toleration(**toleration)
-                            for toleration in self._kwargs.get("tolerations") or []
-                        ],
-                        volumes=(
-                            [
-                                client.V1Volume(
-                                    name="tmpfs-ephemeral-volume",
-                                    empty_dir=client.V1EmptyDirVolumeSource(
-                                        medium="Memory",
-                                        # Add default unit as ours differs from Kubernetes default.
-                                        size_limit="{}Mi".format(tmpfs_size),
-                                    ),
-                                )
-                            ]
-                            if tmpfs_enabled
-                            else []
-                        )
-                        + (
-                            [
-                                client.V1Volume(
-                                    name="dhsm",
-                                    empty_dir=client.V1EmptyDirVolumeSource(
-                                        medium="Memory",
-                                        size_limit="{}Mi".format(shared_memory),
-                                    ),
-                                )
-                            ]
-                            if shared_memory
-                            else []
-                        )
-                        + (
-                            [
-                                client.V1Volume(
-                                    name=claim,
-                                    persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
-                                        claim_name=claim
-                                    ),
-                                )
-                                for claim in self._kwargs[
-                                    "persistent_volume_claims"
-                                ].keys()
-                            ]
-                            if self._kwargs["persistent_volume_claims"] is not None
-                            else []
-                        ),
-                        # TODO (savin): Set termination_message_policy
-                    ),
-                ),
-            ),
+            spec=self.create_job_spec(),
         )
         return self
 
@@ -408,10 +580,11 @@ class RunningJob(object):
 
         import atexit
 
+        # TODO: If the running object is a jobset, set the jobset parallelism to 0.
         def best_effort_kill():
             try:
                 self.kill()
-            except:
+            except Exception as ex:
                 pass
 
         atexit.register(best_effort_kill)
@@ -453,6 +626,40 @@ class RunningJob(object):
             return pods[0]
         return {}
 
+    def killjobset(self, namespace, jobset_name):
+        group = "jobset.x-k8s.io"
+        version = "v1alpha2"
+        plural = "jobsets"
+        client = self._client.get()
+        # Get the jobset
+        with client.ApiClient() as api_client:
+            api_instance = client.CustomObjectsApi(api_client)
+            try:
+                jobset = api_instance.get_namespaced_custom_object(
+                    group, version, namespace, plural, jobset_name
+                )
+
+                # Suspend the jobset
+                # Also need to set the status of the jobset object to None. Setting the status
+                # requires special RBAC which we may not have.
+                jobset["spec"]["suspend"] = True
+                jobset["status"] = None
+                for replicated_job in jobset["spec"]["replicatedJobs"]:
+                    replicated_job["replicas"] = 0
+
+                api_instance.replace_namespaced_custom_object(
+                    group,
+                    version,
+                    namespace,
+                    plural,
+                    jobset["metadata"]["name"],
+                    jobset,
+                )
+            except Exception as e:
+                raise KubernetesJobException(
+                    "Exception when suspending existing jobset: %s\n" % e
+                )
+
     def kill(self):
         # Terminating a Kubernetes job is a bit tricky. Issuing a
         # `BatchV1Api.delete_namespaced_job` will also remove all traces of the
@@ -475,8 +682,21 @@ class RunningJob(object):
         # 3. If the pod object hasn't shown up yet, we set the parallelism to 0
         #    to preempt it.
         client = self._client.get()
+
+        # If the job has a label called "jobset.sigs.k8s.io/jobset-name"
+        # it is managed by the jobset controller. Set the parallelism
+        # to 0
         if not self.is_done:
             if self.is_running:
+
+                # Get the job object
+                self._job = self._fetch_job()
+                labels = self._job["metadata"]["labels"]
+                if "jobset.sigs.k8s.io/jobset-name" in labels:
+                    jobset_name = labels["jobset.sigs.k8s.io/jobset-name"]
+                    # This is part of a jobset.
+                    self.killjobset(self._job["metadata"]["namespace"], jobset_name)
+                    return
 
                 # Case 1.
                 from kubernetes.stream import stream

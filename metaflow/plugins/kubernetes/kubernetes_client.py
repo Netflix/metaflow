@@ -4,7 +4,7 @@ import time
 
 from metaflow.exception import MetaflowException
 
-from .kubernetes_job import KubernetesJob
+from .kubernetes_job import KubernetesJob, KubernetesJobSet
 
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
@@ -60,6 +60,9 @@ class KubernetesClient(object):
             self._refresh_client()
 
         return self._client
+
+    def jobset(self, **kwargs):
+        return KubernetesJobSet(self, **kwargs)
 
     def job(self, **kwargs):
         return KubernetesJob(self, **kwargs)
