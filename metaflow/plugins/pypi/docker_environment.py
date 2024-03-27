@@ -12,7 +12,7 @@ from metaflow.plugins.pypi.conda_decorator import CondaStepDecorator
 
 
 class DockerEnvironmentException(MetaflowException):
-    headline = "Ran into an error while setting up the environment."
+    headline = "Ran into an error while setting up the environment"
 
     def __init__(self, msg):
         super(DockerEnvironmentException, self).__init__(msg)
@@ -56,6 +56,18 @@ class DockerEnvironment(MetaflowEnvironment):
         echo("Environments are ready!")
 
     def bake_image_for_step(self, step):
+        def _is_remote_deco(deco):
+            return isinstance(deco, BatchDecorator) or isinstance(
+                deco, KubernetesDecorator
+            )
+
+        # At the moment we only support ImageBakery for fully remotely executing flows
+        if not any(_is_remote_deco(deco) for deco in step.decorators):
+            raise DockerEnvironmentException(
+                "Docker images are not supported for local steps. "
+                "Step **%s** is not set too execute remotely" % step.name
+            )
+
         image = None
         for deco in step.decorators:
             if isinstance(deco, CondaStepDecorator):
@@ -65,11 +77,8 @@ class DockerEnvironment(MetaflowEnvironment):
 
         if image is not None:
             # we have an image that we need to set to a kubernetes or batch decorator.
-            # TODO: Check that a batch or kubernetes deco was found. error out if not!
             for deco in step.decorators:
-                if isinstance(deco, BatchDecorator) or isinstance(
-                    deco, KubernetesDecorator
-                ):
+                if _is_remote_deco(deco):
                     deco.attributes["image"] = image
 
     def executable(self, step_name, default=None):
