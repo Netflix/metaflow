@@ -518,7 +518,8 @@ def _init_flow_decorators(
         else:
             # Each "non-multiple" flow decorator is only allowed to have one set of options
             deco_flow_init_options = {
-                option: deco_options[option] for option in deco.options
+                option: deco_options[option.replace("-", "_")]
+                for option in deco.options
             }
         for deco in decorators:
             deco.flow_init(
