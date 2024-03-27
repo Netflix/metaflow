@@ -49,11 +49,11 @@ class DockerEnvironment(MetaflowEnvironment):
 
     def init_environment(self, echo):
         # First resolve environments through Conda, before PyPI.
-        echo("Bootstrapping virtual environment(s) ...")
+        echo("Baking Docker images for environment(s) ...")
         # do the magic
         for step in self.flow:
             self.bake_image_for_step(step)
-        echo("Virtual environment(s) bootstrapped!")
+        echo("Environments are ready!")
 
     def bake_image_for_step(self, step):
         image = None
