@@ -1,13 +1,8 @@
-import json
 import os
-import tarfile
-from io import BytesIO
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    get_pinned_conda_libs,
     _USE_BAKERY,
-    _SKIP_BAKERY_SETUP,
 )
 from metaflow.metaflow_environment import MetaflowEnvironment
 from .bakery import bake_image
@@ -55,29 +50,20 @@ class DockerEnvironment(MetaflowEnvironment):
     def init_environment(self, echo):
         # First resolve environments through Conda, before PyPI.
         echo("Bootstrapping virtual environment(s) ...")
-        print("DEBUGGING:")
-        print("use bakery env:", os.environ.get("USE_BAKERY"))
-        print("skip bakery setup env:", os.environ.get("SKIP_BAKERY_SETUP"))
         # do the magic
         for step in self.flow:
             self.bake_image_for_step(step)
-            print(step)
         echo("Virtual environment(s) bootstrapped!")
 
     def bake_image_for_step(self, step):
         image = None
         for deco in step.decorators:
-            if (
-                isinstance(deco, CondaStepDecorator)
-                and _USE_BAKERY
-                and not _SKIP_BAKERY_SETUP
-            ):
+            if isinstance(deco, CondaStepDecorator):
                 pkgs = deco.attributes["packages"]
                 python = deco.attributes["python"]
                 image = bake_image(python, pkgs, self.datastore.TYPE)
 
         if image is not None:
-            print("got image", image)
             # we have an image that we need to set to a kubernetes or batch decorator.
             # TODO: Check that a batch or kubernetes deco was found. error out if not!
             for deco in step.decorators:
@@ -109,8 +95,8 @@ class DockerEnvironment(MetaflowEnvironment):
 
     def bootstrap_commands(self, step_name, datastore_type):
         # Bootstrap conda and execution environment for step
-        # we need the internal flag in order to skip re-requesting images on an executing decorator.
+        # we use an internal boolean flag so we do not have to pass the image bakery endpoint url
+        # in order to denote that a bakery has been configured.
         return [
             "export USE_BAKERY=1",
-            "export SKIP_BAKERY_SETUP=1",
         ] + super().bootstrap_commands(step_name, datastore_type)

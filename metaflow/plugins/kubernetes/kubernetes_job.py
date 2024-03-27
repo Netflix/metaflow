@@ -7,7 +7,7 @@ from metaflow.tracing import inject_tracing_vars
 
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import KUBERNETES_SECRETS, _USE_BAKERY
+from metaflow.metaflow_config import KUBERNETES_SECRETS
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
