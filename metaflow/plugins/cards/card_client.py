@@ -2,10 +2,10 @@ from typing import Optional, Union, TYPE_CHECKING
 from metaflow.datastore import FlowDataStore
 from metaflow.metaflow_config import CARD_SUFFIX
 from .card_resolver import resolve_paths_from_task, resumed_info
-from .card_datastore import CardDatastore
+from .card_datastore import CardDatastore, CardNameSuffix
 from .exception import (
     UnresolvableDatastoreException,
-    IncorrectArguementException,
+    IncorrectArgumentException,
     IncorrectPathspecException,
 )
 import os
@@ -13,7 +13,7 @@ import tempfile
 import uuid
 
 if TYPE_CHECKING:
-    from metaflow.client.core import Task
+    import metaflow
 
 _TYPE = type
 _ID_FUNC = id
@@ -47,6 +47,7 @@ class Card:
         self._created_on = created_on
         self._card_ds = card_ds
         self._card_id = id
+        self._data_path = None
 
         # public attributes
         self.hash = hash
@@ -56,6 +57,17 @@ class Card:
 
         # Tempfile to open stuff in browser
         self._temp_file = None
+
+    def get_data(self) -> Optional[dict]:
+        # currently an internal method to retrieve a card's data.
+        if self._data_path is None:
+            data_paths = self._card_ds.extract_data_paths(
+                card_type=self.type, card_hash=self.hash, card_id=self._card_id
+            )
+            if len(data_paths) == 0:
+                return None
+            self._data_path = data_paths[0]
+        return self._card_ds.get_card_data(self._data_path)
 
     def get(self) -> str:
         """
@@ -89,6 +101,11 @@ class Card:
     def id(self) -> Optional[str]:
         """
         The ID of the card, if specified with `@card(id=ID)`.
+
+        Returns
+        -------
+        Optional[str]
+            ID of the card
         """
         return self._card_id
 
@@ -150,12 +167,12 @@ class CardContainer:
     ```
     """
 
-    def __init__(self, card_paths, card_ds, from_resumed=False, origin_pathspec=None):
+    def __init__(self, card_paths, card_ds, origin_pathspec=None):
         self._card_paths = card_paths
         self._card_ds = card_ds
         self._current = 0
         self._high = len(card_paths)
-        self.from_resumed = from_resumed
+        self.from_resumed = origin_pathspec is not None
         self.origin_pathspec = origin_pathspec
 
     def __len__(self):
@@ -172,7 +189,7 @@ class CardContainer:
         if index >= self._high:
             raise IndexError
         path = self._card_paths[index]
-        card_info = self._card_ds.card_info_from_path(path)
+        card_info = self._card_ds.info_from_path(path, suffix=CardNameSuffix.CARD)
         # todo : find card creation date and put it in client.
         return Card(
             self._card_ds,
@@ -205,7 +222,7 @@ class CardContainer:
 
 
 def get_cards(
-    task: Union[str, "Task"],
+    task: Union[str, "metaflow.Task"],
     id: Optional[str] = None,
     type: Optional[str] = None,
     follow_resumed: bool = True,
@@ -220,14 +237,14 @@ def get_cards(
 
     Parameters
     ----------
-    task : str or `Task`
+    task : Union[str, `Task`]
         A `Task` object or pathspec `{flow_name}/{run_id}/{step_name}/{task_id}` that
         uniquely identifies a task.
-    id : str, optional
+    id : str, optional, default None
         The ID of card to retrieve if multiple cards are present.
-    type : str, optional
+    type : str, optional, default None
         The type of card to retrieve if multiple cards are present.
-    follow_resumed : bool, default: True
+    follow_resumed : bool, default True
         If the task has been resumed, then setting this flag will resolve the card for
         the origin task.
 
@@ -250,8 +267,9 @@ def get_cards(
         task = Task(task_str)
     elif not isinstance(task, Task):
         # Exception that the task argument should be of form `Task` or `str`
-        raise IncorrectArguementException(_TYPE(task))
+        raise IncorrectArgumentException(_TYPE(task))
 
+    origin_taskpathspec = None
     if follow_resumed:
         origin_taskpathspec = resumed_info(task)
         if origin_taskpathspec:
@@ -263,7 +281,6 @@ def get_cards(
     return CardContainer(
         card_paths,
         card_ds,
-        from_resumed=origin_taskpathspec is not None,
         origin_pathspec=origin_taskpathspec,
     )
 

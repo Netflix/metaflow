@@ -13,7 +13,7 @@ from . import parameters
 from . import decorators
 from . import metaflow_version
 from . import namespace
-from . import current
+from .metaflow_current import current
 from .cli_args import cli_args
 from .tagging_util import validate_tags
 from .util import (
@@ -235,7 +235,6 @@ def output_dot(obj):
 )
 @click.pass_obj
 def dump(obj, input_path, private=None, max_value_size=None, include=None, file=None):
-
     output = {}
     kwargs = {
         "show_private": private,
@@ -475,13 +474,6 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     "not execute anything.",
 )
 @click.option(
-    "--clone-wait-only/--no-clone-wait-only",
-    default=False,
-    show_default=True,
-    help="If specified, waits for an external process to clone the task",
-    hidden=True,
-)
-@click.option(
     "--clone-run-id",
     default=None,
     help="Run id of the origin flow, if this task is part of a flow being resumed.",
@@ -520,7 +512,6 @@ def step(
     retry_count=None,
     max_user_code_retries=None,
     clone_only=None,
-    clone_wait_only=False,
     clone_run_id=None,
     decospecs=None,
     ubf_context="none",
@@ -576,7 +567,6 @@ def step(
             task_id,
             clone_only,
             retry_count,
-            wait_only=clone_wait_only,
         )
     else:
         task.run_step(
@@ -720,6 +710,13 @@ def common_run_options(func):
     hidden=True,
     help="If specified, allows this call to be called in parallel",
 )
+@click.option(
+    "--resume-identifier",
+    default=None,
+    show_default=True,
+    hidden=True,
+    help="If specified, it identifies the task that started this resume call. It is in the form of {step_name}-{task_id}",
+)
 @click.argument("step-to-rerun", required=False)
 @cli.command(help="Resume execution of a previous run of this flow.")
 @common_run_options
@@ -737,8 +734,8 @@ def resume(
     max_log_size=None,
     decospecs=None,
     run_id_file=None,
+    resume_identifier=None,
 ):
-
     before_run(obj, tags, decospecs + obj.environment.decospecs())
 
     if origin_run_id is None:
@@ -791,10 +788,15 @@ def resume(
         max_workers=max_workers,
         max_num_splits=max_num_splits,
         max_log_size=max_log_size * 1024 * 1024,
+        resume_identifier=resume_identifier,
     )
     write_run_id(run_id_file, runtime.run_id)
+    runtime.print_workflow_info()
     runtime.persist_constants()
-    runtime.execute()
+    if clone_only:
+        runtime.clone_original_run()
+    else:
+        runtime.execute()
 
 
 @tracing.cli_entrypoint("cli/run")
@@ -824,7 +826,6 @@ def run(
     user_namespace=None,
     **kwargs
 ):
-
     if user_namespace is not None:
         namespace(user_namespace or None)
     before_run(obj, tags, decospecs + obj.environment.decospecs())
@@ -848,6 +849,7 @@ def run(
     write_run_id(run_id_file, runtime.run_id)
 
     obj.flow._set_constants(obj.graph, kwargs)
+    runtime.print_workflow_info()
     runtime.persist_constants()
     runtime.execute()
 

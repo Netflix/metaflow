@@ -28,27 +28,27 @@ class ExternalTaskSensorDecorator(AirflowSensorDecorator):
         Time, in seconds before the task times out and fails. (Default: 3600)
     poke_interval : int
         Time in seconds that the job should wait in between each try. (Default: 60)
-    mode : string
+    mode : str
         How the sensor operates. Options are: { poke | reschedule }. (Default: "poke")
     exponential_backoff : bool
         allow progressive longer waits between pokes by using exponential backoff algorithm. (Default: True)
-    pool : string
+    pool : str
         the slot pool this task should run in,
         slot pools are a way to limit concurrency for certain tasks. (Default:None)
     soft_fail : bool
         Set to true to mark the task as SKIPPED on failure. (Default: False)
-    name : string
+    name : str
         Name of the sensor on Airflow
-    description : string
+    description : str
         Description of sensor in the Airflow UI
-    external_dag_id : string
+    external_dag_id : str
         The dag_id that contains the task you want to wait for.
-    external_task_ids : List[string]
+    external_task_ids : List[str]
         The list of task_ids that you want to wait for.
         If None (default value) the sensor waits for the DAG. (Default: None)
-    allowed_states : List[string]
+    allowed_states : List[str]
         Iterable of allowed states, (Default: ['success'])
-    failed_states : List[string]
+    failed_states : List[str]
         Iterable of failed or dis-allowed states. (Default: None)
     execution_delta : datetime.timedelta
         time difference with the previous execution to look at,

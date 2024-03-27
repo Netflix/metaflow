@@ -14,7 +14,7 @@ class MergeArtifactsTest(MetaflowTest):
     @steps(2, ["linear"])
     def modify_things(self):
         # Set to different things
-        from metaflow.current import current
+        from metaflow.metaflow_current import current
 
         self.manual_merge_required = current.task_id
         self.ignore_me = current.task_id
@@ -23,7 +23,7 @@ class MergeArtifactsTest(MetaflowTest):
 
     @steps(0, ["join"], required=True)
     def merge_things(self, inputs):
-        from metaflow.current import current
+        from metaflow.metaflow_current import current
         from metaflow.exception import (
             UnhandledInMergeArtifactsException,
             MetaflowException,

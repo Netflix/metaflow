@@ -11,6 +11,7 @@ from metaflow.plugins.datatools.s3.s3tail import S3Tail
 from metaflow.plugins.aws.aws_utils import sanitize_batch_tag
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
+    OTEL_ENDPOINT,
     SERVICE_INTERNAL_URL,
     DATATOOLS_S3ROOT,
     DATASTORE_SYSROOT_S3,
@@ -185,11 +186,15 @@ class Batch(object):
         env={},
         attrs={},
         host_volumes=None,
+        efs_volumes=None,
         use_tmpfs=None,
         tmpfs_tempdir=None,
         tmpfs_size=None,
         tmpfs_path=None,
         num_parallel=0,
+        ephemeral_storage=None,
+        log_driver=None,
+        log_options=None,
     ):
         job_name = self._job_name(
             attrs.get("metaflow.user"),
@@ -232,11 +237,15 @@ class Batch(object):
                 efa,
                 memory=memory,
                 host_volumes=host_volumes,
+                efs_volumes=efs_volumes,
                 use_tmpfs=use_tmpfs,
                 tmpfs_tempdir=tmpfs_tempdir,
                 tmpfs_size=tmpfs_size,
                 tmpfs_path=tmpfs_path,
                 num_parallel=num_parallel,
+                ephemeral_storage=ephemeral_storage,
+                log_driver=log_driver,
+                log_options=log_options,
             )
             .task_id(attrs.get("metaflow.task_id"))
             .environment_variable("AWS_DEFAULT_REGION", self._client.region())
@@ -253,6 +262,7 @@ class Batch(object):
             .environment_variable("METAFLOW_DEFAULT_DATASTORE", "s3")
             .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
             .environment_variable("METAFLOW_CARD_S3ROOT", CARD_S3ROOT)
+            .environment_variable("METAFLOW_OTEL_ENDPOINT", OTEL_ENDPOINT)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "aws-batch")
         )
 
@@ -341,6 +351,7 @@ class Batch(object):
         inferentia=None,
         efa=None,
         host_volumes=None,
+        efs_volumes=None,
         use_tmpfs=None,
         tmpfs_tempdir=None,
         tmpfs_size=None,
@@ -348,6 +359,9 @@ class Batch(object):
         num_parallel=0,
         env={},
         attrs={},
+        ephemeral_storage=None,
+        log_driver=None,
+        log_options=None,
     ):
         if queue is None:
             queue = next(self._client.active_job_queues(), None)
@@ -379,11 +393,15 @@ class Batch(object):
             env=env,
             attrs=attrs,
             host_volumes=host_volumes,
+            efs_volumes=efs_volumes,
             use_tmpfs=use_tmpfs,
             tmpfs_tempdir=tmpfs_tempdir,
             tmpfs_size=tmpfs_size,
             tmpfs_path=tmpfs_path,
             num_parallel=num_parallel,
+            ephemeral_storage=ephemeral_storage,
+            log_driver=log_driver,
+            log_options=log_options,
         )
         self.num_parallel = num_parallel
         self.job = job.execute()

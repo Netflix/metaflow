@@ -1,0 +1,1145 @@
+- case: project_decorator_validity
+  regex: yes
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, project
+
+    @project
+    class MyFlow(FlowSpec):
+      ...
+
+    @project("project_name")
+    class MyFlow2(FlowSpec):
+      ...
+
+    @project(foo="bar")
+    class MyFlow3(FlowSpec):
+      ...
+
+    @project(name="project_name")
+    class NotAFlow(object):
+      ...
+
+    @project(name="project_name")
+    def not_a_flow_function():
+      ...
+
+    @project(name="project_name")
+    class CorrectFlow(FlowSpec):
+      ...
+  out: |
+    main:3: error: .*incompatible type.*expected "str"\s+\[arg-type\]
+    main:4: error: .*Too many positional arguments for "project"\s+\[misc\]
+    main:7: error: .*Too many positional arguments for "project"\s+\[misc\]
+    main:11: error: .*Unexpected keyword argument "foo" for "project"\s+\[call-arg\]
+    main:16: error: .*cannot be "NotAFlow".*\[type-var\]
+    main:19: error: .*incompatible type.*\[arg-type\]
+
+- case: pypi_base_decorator_validity
+  regex: yes
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, pypi_base
+
+    @pypi_base
+    class MyFlow(FlowSpec):
+      ...
+
+    @pypi_base({'scikit-learn': '1.3.1'})
+    class MyFlow2(FlowSpec):
+      ...
+
+    @pypi_base(foo={'scikit-learn': '1.3.1'})
+    class MyFlow3(FlowSpec):
+      ...
+
+    @pypi_base(packages={'scikit-learn': '1.3.1'})
+    class NotAFlow(object):
+      ...
+
+    @pypi_base(packages={'scikit-learn': '1.3.1'})
+    def not_a_flow_function():
+      ...
+
+    @pypi_base(packages={'scikit-learn': '1.3.1'})
+    class CorrectFlow(FlowSpec):
+      ...
+  out: |
+    main:7: error: No overload variant of "pypi_base" matches argument.*\[call-overload\]
+    main:7: note: Possible overload variants
+    main:7: note: .*def.*pypi_base.*
+    main:7: note: .*def.*pypi_base.*
+    main:11: error: No overload variant of "pypi_base" matches argument.*\[call-overload\]
+    main:11: note: Possible overload variants
+    main:11: note: .*def.*pypi_base.*
+    main:11: note: .*def.*pypi_base.*
+    main:16: error: .*cannot be "NotAFlow".*\[type-var\]
+    main:19: error: .*incompatible type.*\[arg-type\]
+
+- case: conda_base_decorator_validity
+  regex: yes
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, conda_base
+
+    @conda_base
+    class MyFlow(FlowSpec):
+      ...
+
+    @conda_base({'scikit-learn': '1.3.1'})
+    class MyFlow2(FlowSpec):
+      ...
+
+    @conda_base(foo={'scikit-learn': '1.3.1'})
+    class MyFlow3(FlowSpec):
+      ...
+
+    @conda_base(libraries={'scikit-learn': '1.3.1'})
+    class NotAFlow(object):
+      ...
+
+    @conda_base(libraries={'scikit-learn': '1.3.1'})
+    def not_a_flow_function():
+      ...
+
+    @conda_base(libraries={'scikit-learn': '1.3.1'})
+    class CorrectFlow(FlowSpec):
+      ...
+  out: |
+    main:7: error: No overload variant of "conda_base" matches argument.*\[call-overload\]
+    main:7: note: Possible overload variants
+    main:7: note: .*def.*conda_base.*
+    main:7: note: .*def.*conda_base.*
+    main:11: error: No overload variant of "conda_base" matches argument.*\[call-overload\]
+    main:11: note: Possible overload variants
+    main:11: note: .*def.*conda_base.*
+    main:11: note: .*def.*conda_base.*
+    main:16: error: .*cannot be "NotAFlow".*\[type-var\]
+    main:19: error: .*incompatible type.*\[arg-type\]
+
+- case: schedule_decorator_validity
+  regex: yes
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, schedule
+
+    @schedule
+    class MyFlow(FlowSpec):
+      ...
+
+    @schedule(True)
+    class MyFlow2(FlowSpec):
+      ...
+
+    @schedule(foo=True)
+    class MyFlow3(FlowSpec):
+      ...
+
+    @schedule(daily=True)
+    class NotAFlow(object):
+      ...
+
+    @schedule(daily=True)
+    def not_a_flow_function():
+      ...
+
+    @schedule(daily=True)
+    class CorrectFlow(FlowSpec):
+      ...
+  out: |
+    main:7: error: No overload variant of "schedule" matches argument.*\[call-overload\]
+    main:7: note: Possible overload variants
+    main:7: note: .*def.*schedule.*
+    main:7: note: .*def.*schedule.*
+    main:11: error: No overload variant of "schedule" matches argument.*\[call-overload\]
+    main:11: note: Possible overload variants
+    main:11: note: .*def.*schedule.*
+    main:11: note: .*def.*schedule.*
+    main:16: error: .*cannot be "NotAFlow".*\[type-var\]
+    main:19: error: .*incompatible type.*\[arg-type\]
+
+- case: trigger_decorator_validity
+  regex: yes
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, trigger
+
+    @trigger
+    class MyFlow(FlowSpec):
+      ...
+
+    @trigger('bar')
+    class MyFlow2(FlowSpec):
+      ...
+
+    @trigger(foo='bar')
+    class MyFlow3(FlowSpec):
+      ...
+
+    @trigger(event='bar')
+    class NotAFlow(object):
+      ...
+
+    @trigger(event='bar')
+    def not_a_flow_function():
+      ...
+
+    @trigger(event='bar')
+    class CorrectFlow(FlowSpec):
+      ...
+  out: |
+    main:7: error: No overload variant of "trigger" matches argument.*\[call-overload\]
+    main:7: note: Possible overload variants
+    main:7: note: .*def.*trigger.*
+    main:7: note: .*def.*trigger.*
+    main:11: error: No overload variant of "trigger" matches argument.*\[call-overload\]
+    main:11: note: Possible overload variants
+    main:11: note: .*def.*trigger.*
+    main:11: note: .*def.*trigger.*
+    main:16: error: .*cannot be "NotAFlow".*\[type-var\]
+    main:19: error: .*incompatible type.*\[arg-type\]
+
+- case: trigger_on_finish_decorator_validity
+  regex: yes
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, trigger_on_finish
+
+    @trigger_on_finish
+    class MyFlow(FlowSpec):
+      ...
+
+    @trigger_on_finish('bar')
+    class MyFlow2(FlowSpec):
+      ...
+
+    @trigger_on_finish(foo='bar')
+    class MyFlow3(FlowSpec):
+      ...
+
+    @trigger_on_finish(flow='bar')
+    class NotAFlow(object):
+      ...
+
+    @trigger_on_finish(flow='bar')
+    def not_a_flow_function():
+      ...
+
+    @trigger_on_finish(flow='bar')
+    class CorrectFlow(FlowSpec):
+      ...
+  out: |
+    main:7: error: No overload variant of "trigger_on_finish" matches argument.*\[call-overload\]
+    main:7: note: Possible overload variants
+    main:7: note: .*def.*trigger_on_finish.*
+    main:7: note: .*def.*trigger_on_finish.*
+    main:11: error: No overload variant of "trigger_on_finish" matches argument.*\[call-overload\]
+    main:11: note: Possible overload variants
+    main:11: note: .*def.*trigger_on_finish.*
+    main:11: note: .*def.*trigger_on_finish.*
+    main:16: error: .*cannot be "NotAFlow".*\[type-var\]
+    main:19: error: .*incompatible type.*\[arg-type\]
+
+- case: step_decorator_validity
+  regex: yes
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, step
+
+    @step
+    class MyFlow(FlowSpec):
+      ...
+
+    class MyFlow2(FlowSpec):
+      @step()
+      def no_arg_for_step(self):
+        ...
+
+      @step
+      def too_many_args(self, a, b):
+        ...
+
+      @step
+      def too_few_args():
+        ...
+
+      @step
+      @staticmethod
+      def static_method_not_ok(a: int):
+        ...
+
+      @step
+      @classmethod
+      def class_method_not_ok(cls):
+        ...
+
+      @step
+      def linear_step_ok(self):
+        ...
+
+      @step
+      def join_step_ok(self, inputs):
+        ...
+
+    @step
+    def typed_func_not_ok(a: int):
+      ...
+  out: |
+    main:3: error: .*incompatible type.*\[arg-type\]
+    main:8: error: All overload variants of "step" require at least one argument\s+\[call-overload\]
+    main:8: note: Possible overload variants
+    main:8: note: .*def.*step.*
+    main:8: note: .*def.*step.*
+    main:12: error: .*incompatible type.*\[arg-type\]
+    main:16: error: .*incompatible type.*\[arg-type\]
+    main:17: error: Method must have at least one argument. Did you forget the "self" argument\?\s+\[misc\]
+    main:20: error: Value of type variable "FlowSpecDerived" of "step" cannot be "int"\s+\[type-var\]
+    main:25: error: Value of type variable "FlowSpecDerived" of "step" cannot be ".*\[MyFlow2\]"\s+\[type-var\]
+    main:38: error: Value of type variable "FlowSpecDerived" of "step" cannot be "int"\s+\[type-var\]
+
+- case: decorator_order
+  regex: yes
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, step, retry, catch
+
+    class MyFlow(FlowSpec):
+      @retry(times=3)
+      def missing_step(self):
+        ...
+
+      @step
+      @retry(times=3)
+      def wrong_order(self):
+        ...
+
+      @retry(times=3)
+      @step
+      def ok_step(self):
+        ...
+
+      @catch
+      @retry(times=3)
+      @step
+      def ok_stack(self):
+        ...
+  out: |
+    main:4: error: .*incompatible type.*\[arg-type\]
+    main:8: error: .*incompatible type.*\[arg-type\]
+    main:8: error: .*incompatible type.*\[arg-type\]
+
+- case: batch_decorator_validity
+  regex: yes
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, step, batch
+
+    @batch
+    class NonFlowDecorator(FlowSpec):
+      ...
+
+    @batch(cpu=1)
+    class NonFlowDecorator2(FlowSpec):
+      ...
+
+    class MyFlow(FlowSpec):
+      @batch(1)
+      @step
+      def need_kwarg(self):
+        ...
+
+      @batch(foo=1)
+      @step
+      def wrong_kwarg(self):
+        ...
+
+      @batch
+      def wrong_without_step(self):
+        ...
+
+      @batch
+      @step
+      def ok_no_arg(self):
+        ...
+
+      @batch(cpu=1)
+      @step
+      def ok_with_arg(self):
+        ...
+  out: |
+    main:3: error: .*incompatible type.*\[arg-type\]
+    main:7: error: .*incompatible type.*\[arg-type\]
+    main:12: error: No overload variant of "batch" matches argument.*\[call-overload\]
+    main:12: note: Possible overload variants
+    main:12: note: .*def.*batch.*
+    main:12: note: .*def.*batch.*
+    main:12: note: .*def.*batch.*
+    main:17: error: No overload variant of "batch" matches argument.*\[call-overload\]
+    main:17: note: Possible overload variants
+    main:17: note: .*def.*batch.*
+    main:17: note: .*def.*batch.*
+    main:17: note: .*def.*batch.*
+    main:22: error: .*incompatible type.*\[arg-type\]
+
+- case: kubernetes_decorator_validity
+  regex: yes
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, step, kubernetes
+
+    @kubernetes
+    class NonFlowDecorator(FlowSpec):
+      ...
+
+    @kubernetes(cpu=1)
+    class NonFlowDecorator2(FlowSpec):
+      ...
+
+    class MyFlow(FlowSpec):
+      @kubernetes(1)
+      @step
+      def need_kwarg(self):
+        ...
+
+      @kubernetes(foo=1)
+      @step
+      def wrong_kwarg(self):
+        ...
+
+      @kubernetes
+      def wrong_without_step(self):
+        ...
+
+      @kubernetes
+      @step
+      def ok_no_arg(self):
+        ...
+
+      @kubernetes(cpu=1)
+      @step
+      def ok_with_arg(self):
+        ...
+  out: |
+    main:3: error: .*incompatible type.*\[arg-type\]
+    main:4: error: .*Too many positional arguments for "kubernetes"\s+\[misc\]
+    main:7: error: .*incompatible type.*\[arg-type\]
+    main:12: error: .*Too many positional arguments for "kubernetes"\s+\[misc\]
+    main:17: error: .*Unexpected keyword argument "foo" for "kubernetes"\s+\[call-arg\]
+    main:22: error: .*Too many positional arguments for "kubernetes"\s+\[misc\]
+    main:22: error: .*incompatible type.*\[arg-type\]
+    main:26: error: .*Too many positional arguments for "kubernetes"\s+\[misc\]
+    main:26: error: .*incompatible type.*\[arg-type\]
+
+- case: environment_decorator_validity
+  regex: yes
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, step, environment
+
+    @environment
+    class NonFlowDecorator(FlowSpec):
+      ...
+
+    @environment(vars={"LOG_LEVEL": "info"})
+    class NonFlowDecorator2(FlowSpec):
+      ...
+
+    class MyFlow(FlowSpec):
+      @environment({"LOG_LEVEL": "info"})
+      @step
+      def need_kwarg(self):
+        ...
+
+      @environment(foo={"LOG_LEVEL": "info"})
+      @step
+      def wrong_kwarg(self):
+        ...
+
+      @environment
+      def wrong_without_step(self):
+        ...
+
+      @environment
+      @step
+      def ok_no_arg(self):
+        ...
+
+      @environment(vars={"LOG_LEVEL": "info"})
+      @step
+      def ok_with_arg(self):
+        ...
+  out: |
+    main:3: error: .*incompatible type.*\[arg-type\]
+    main:7: error: .*incompatible type.*\[arg-type\]
+    main:12: error: No overload variant of "environment" matches argument.*\[call-overload\]
+    main:12: note: Possible overload variants
+    main:12: note: .*def.*environment.*
+    main:12: note: .*def.*environment.*
+    main:12: note: .*def.*environment.*
+    main:17: error: No overload variant of "environment" matches argument.*\[call-overload\]
+    main:17: note: Possible overload variants
+    main:17: note: .*def.*environment.*
+    main:17: note: .*def.*environment.*
+    main:17: note: .*def.*environment.*
+    main:22: error: .*incompatible type.*\[arg-type\]
+
+- case: card_decorator_validity
+  regex: yes
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, step, card
+
+    @card
+    class NonFlowDecorator(FlowSpec):
+      ...
+
+    @card(type='blank')
+    class NonFlowDecorator2(FlowSpec):
+      ...
+
+    class MyFlow(FlowSpec):
+      @card('blank')
+      @step
+      def need_kwarg(self):
+        ...
+
+      @card(foo='blank')
+      @step
+      def wrong_kwarg(self):
+        ...
+
+      @card
+      def wrong_without_step(self):
+        ...
+
+      @card
+      @step
+      def ok_no_arg(self):
+        ...
+
+      @card(type='blank')
+      @step
+      def ok_with_arg(self):
+        ...
+  out: |
+    main:3: error: .*incompatible type.*\[arg-type\]
+    main:7: error: .*incompatible type.*\[arg-type\]
+    main:12: error: No overload variant of "card" matches argument.*\[call-overload\]
+    main:12: note: Possible overload variants
+    main:12: note: .*def.*card.*
+    main:12: note: .*def.*card.*
+    main:12: note: .*def.*card.*
+    main:17: error: No overload variant of "card" matches argument.*\[call-overload\]
+    main:17: note: Possible overload variants
+    main:17: note: .*def.*card.*
+    main:17: note: .*def.*card.*
+    main:17: note: .*def.*card.*
+    main:22: error: .*incompatible type.*\[arg-type\]
+
+- case: catch_decorator_validity
+  regex: yes
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, step, catch
+
+    @catch
+    class NonFlowDecorator(FlowSpec):
+      ...
+
+    @catch(var='divide_failed')
+    class NonFlowDecorator2(FlowSpec):
+      ...
+
+    class MyFlow(FlowSpec):
+      @catch('divide_failed')
+      @step
+      def need_kwarg(self):
+        ...
+
+      @catch(foo='divide_failed')
+      @step
+      def wrong_kwarg(self):
+        ...
+
+      @catch
+      def wrong_without_step(self):
+        ...
+
+      @catch
+      @step
+      def ok_no_arg(self):
+        ...
+
+      @catch(var='divide_failed')
+      @step
+      def ok_with_arg(self):
+        ...
+  out: |
+    main:3: error: .*incompatible type.*\[arg-type\]
+    main:7: error: .*incompatible type.*\[arg-type\]
+    main:12: error: No overload variant of "catch" matches argument.*\[call-overload\]
+    main:12: note: Possible overload variants
+    main:12: note: .*def.*catch.*
+    main:12: note: .*def.*catch.*
+    main:12: note: .*def.*catch.*
+    main:17: error: No overload variant of "catch" matches argument.*\[call-overload\]
+    main:17: note: Possible overload variants
+    main:17: note: .*def.*catch.*
+    main:17: note: .*def.*catch.*
+    main:17: note: .*def.*catch.*
+    main:22: error: .*incompatible type.*\[arg-type\]
+
+- case: pypi_decorator_validity
+  regex: yes
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, step, pypi
+
+    @pypi
+    class NonFlowDecorator(FlowSpec):
+      ...
+
+    @pypi(packages={'scikit-learn': '1.3.1'})
+    class NonFlowDecorator2(FlowSpec):
+      ...
+
+    class MyFlow(FlowSpec):
+      @pypi({'scikit-learn': '1.3.1'})
+      @step
+      def need_kwarg(self):
+        ...
+
+      @pypi(foo={'scikit-learn': '1.3.1'})
+      @step
+      def wrong_kwarg(self):
+        ...
+
+      @pypi
+      @step
+      def ok_no_arg(self):
+        ...
+
+      @pypi
+      def wrong_without_step(self):
+        ...
+
+      @pypi(packages={'scikit-learn': '1.3.1'})
+      @step
+      def ok_with_arg(self):
+        ...
+  out: |
+    main:3: error: .*incompatible type.*\[arg-type\]
+    main:7: error: .*incompatible type.*\[arg-type\]
+    main:12: error: No overload variant of "pypi" matches argument.*\[call-overload\]
+    main:12: note: Possible overload variants
+    main:12: note: .*def.*pypi.*
+    main:12: note: .*def.*pypi.*
+    main:12: note: .*def.*pypi.*
+    main:17: error: No overload variant of "pypi" matches argument.*\[call-overload\]
+    main:17: note: Possible overload variants
+    main:17: note: .*def.*pypi.*
+    main:17: note: .*def.*pypi.*
+    main:17: note: .*def.*pypi.*
+    main:27: error: .*incompatible type.*\[arg-type\]
+
+- case: conda_decorator_validity
+  regex: yes
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, step, conda
+
+    @conda
+    class NonFlowDecorator(FlowSpec):
+      ...
+
+    @conda(libraries={'scikit-learn': '1.3.1'})
+    class NonFlowDecorator2(FlowSpec):
+      ...
+
+    class MyFlow(FlowSpec):
+      @conda({'scikit-learn': '1.3.1'})
+      @step
+      def need_kwarg(self):
+        ...
+
+      @conda(foo={'scikit-learn': '1.3.1'})
+      @step
+      def wrong_kwarg(self):
+        ...
+
+      @conda
+      @step
+      def ok_no_arg(self):
+        ...
+
+      @conda
+      def wrong_without_step(self):
+        ...
+
+      @conda(libraries={'scikit-learn': '1.3.1'})
+      @step
+      def ok_with_arg(self):
+        ...
+  out: |
+    main:3: error: .*incompatible type.*\[arg-type\]
+    main:7: error: .*incompatible type.*\[arg-type\]
+    main:12: error: No overload variant of "conda" matches argument.*\[call-overload\]
+    main:12: note: Possible overload variants
+    main:12: note: .*def.*conda.*
+    main:12: note: .*def.*conda.*
+    main:12: note: .*def.*conda.*
+    main:17: error: No overload variant of "conda" matches argument.*\[call-overload\]
+    main:17: note: Possible overload variants
+    main:17: note: .*def.*conda.*
+    main:17: note: .*def.*conda.*
+    main:17: note: .*def.*conda.*
+    main:27: error: .*incompatible type.*\[arg-type\]
+
+- case: resources_decorator_validity
+  regex: yes
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, step, resources
+
+    @resources
+    class NonFlowDecorator(FlowSpec):
+      ...
+
+    @resources(cpu=1)
+    class NonFlowDecorator2(FlowSpec):
+      ...
+
+    class MyFlow(FlowSpec):
+      @resources(1)
+      @step
+      def need_kwarg(self):
+        ...
+
+      @resources(foo=1)
+      @step
+      def wrong_kwarg(self):
+        ...
+
+      @resources
+      def wrong_without_step(self):
+        ...
+
+      @resources
+      @step
+      def ok_no_arg(self):
+        ...
+
+      @resources(cpu=1)
+      @step
+      def ok_with_arg(self):
+        ...
+  out: |
+    main:3: error: .*incompatible type.*\[arg-type\]
+    main:7: error: .*incompatible type.*\[arg-type\]
+    main:12: error: No overload variant of "resources" matches argument.*\[call-overload\]
+    main:12: note: Possible overload variants
+    main:12: note: .*def.*resources.*
+    main:12: note: .*def.*resources.*
+    main:12: note: .*def.*resources.*
+    main:17: error: No overload variant of "resources" matches argument.*\[call-overload\]
+    main:17: note: Possible overload variants
+    main:17: note: .*def.*resources.*
+    main:17: note: .*def.*resources.*
+    main:17: note: .*def.*resources.*
+    main:22: error: .*incompatible type.*\[arg-type\]
+
+- case: retry_decorator_validity
+  regex: yes
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, step, retry
+
+    @retry
+    class NonFlowDecorator(FlowSpec):
+      ...
+
+    @retry(times=1)
+    class NonFlowDecorator2(FlowSpec):
+      ...
+
+    class MyFlow(FlowSpec):
+      @retry(1)
+      @step
+      def need_kwarg(self):
+        ...
+
+      @retry(foo=1)
+      @step
+      def wrong_kwarg(self):
+        ...
+
+      @retry
+      def wrong_without_step(self):
+        ...
+
+      @retry
+      @step
+      def ok_no_arg(self):
+        ...
+
+      @retry(times=1)
+      @step
+      def ok_with_arg(self):
+        ...
+  out: |
+    main:3: error: .*incompatible type.*\[arg-type\]
+    main:7: error: .*incompatible type.*\[arg-type\]
+    main:12: error: No overload variant of "retry" matches argument.*\[call-overload\]
+    main:12: note: Possible overload variants
+    main:12: note: .*def.*retry.*
+    main:12: note: .*def.*retry.*
+    main:12: note: .*def.*retry.*
+    main:17: error: No overload variant of "retry" matches argument.*\[call-overload\]
+    main:17: note: Possible overload variants
+    main:17: note: .*def.*retry.*
+    main:17: note: .*def.*retry.*
+    main:17: note: .*def.*retry.*
+    main:22: error: .*incompatible type.*\[arg-type\]
+
+- case: secrets_decorator_validity
+  regex: yes
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, step, secrets
+
+    @secrets
+    class NonFlowDecorator(FlowSpec):
+      ...
+
+    @secrets(sources=['metaflow-example-password'])
+    class NonFlowDecorator2(FlowSpec):
+      ...
+
+    class MyFlow(FlowSpec):
+      @secrets(['metaflow-example-password'])
+      @step
+      def need_kwarg(self):
+        ...
+
+      @secrets(foo=['metaflow-example-password'])
+      @step
+      def wrong_kwarg(self):
+        ...
+
+      @secrets
+      def wrong_without_step(self):
+        ...
+
+      @secrets
+      @step
+      def ok_no_arg(self):
+        ...
+
+      @secrets(sources=['metaflow-example-password'])
+      @step
+      def ok_with_arg(self):
+        ...
+  out: |
+    main:3: error: .*incompatible type.*\[arg-type\]
+    main:7: error: .*incompatible type.*\[arg-type\]
+    main:12: error: No overload variant of "secrets" matches argument.*\[call-overload\]
+    main:12: note: Possible overload variants
+    main:12: note: .*def.*secrets.*
+    main:12: note: .*def.*secrets.*
+    main:12: note: .*def.*secrets.*
+    main:17: error: No overload variant of "secrets" matches argument.*\[call-overload\]
+    main:17: note: Possible overload variants
+    main:17: note: .*def.*secrets.*
+    main:17: note: .*def.*secrets.*
+    main:17: note: .*def.*secrets.*
+    main:22: error: .*incompatible type.*\[arg-type\]
+
+- case: timeout_decorator_validity
+  regex: yes
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, step, timeout
+
+    @timeout
+    class NonFlowDecorator(FlowSpec):
+      ...
+
+    @timeout(seconds=30)
+    class NonFlowDecorator2(FlowSpec):
+      ...
+
+    class MyFlow(FlowSpec):
+      @timeout(30)
+      @step
+      def need_kwarg(self):
+        ...
+
+      @timeout(foo=30)
+      @step
+      def wrong_kwarg(self):
+        ...
+
+      @timeout
+      def wrong_without_step(self):
+        ...
+
+      @timeout
+      @step
+      def ok_no_arg(self):
+        ...
+
+      @timeout(seconds=30)
+      @step
+      def ok_with_arg(self):
+        ...
+  out: |
+    main:3: error: .*incompatible type.*\[arg-type\]
+    main:7: error: .*incompatible type.*\[arg-type\]
+    main:12: error: No overload variant of "timeout" matches argument.*\[call-overload\]
+    main:12: note: Possible overload variants
+    main:12: note: .*def.*timeout.*
+    main:12: note: .*def.*timeout.*
+    main:12: note: .*def.*timeout.*
+    main:17: error: No overload variant of "timeout" matches argument.*\[call-overload\]
+    main:17: note: Possible overload variants
+    main:17: note: .*def.*timeout.*
+    main:17: note: .*def.*timeout.*
+    main:17: note: .*def.*timeout.*
+    main:22: error: .*incompatible type.*\[arg-type\]
+
+- case: client_types
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import Flow, Run, Step, Task, DataArtifact
+
+    reveal_type(Flow("flow_name"))
+    reveal_type(Flow("flow_name")["run_id"])
+    reveal_type(Flow("flow_name")["run_id"]["step_name"])
+    reveal_type(Flow("flow_name")["run_id"]["step_name"]["task_name"])
+    reveal_type(Flow("flow_name")["run_id"]["step_name"]["task_name"]["data_name"])
+
+    Flow("flow_name")[0]
+    Run("flow_name/run_id")[0]
+    Step("flow_name/run_id/step_name")[0]
+  out: |
+    main:3: note: Revealed type is "metaflow.Flow"
+    main:4: note: Revealed type is "metaflow.client.core.Run"
+    main:5: note: Revealed type is "metaflow.client.core.Step"
+    main:6: note: Revealed type is "metaflow.client.core.Task"
+    main:7: note: Revealed type is "metaflow.client.core.DataArtifact"
+    main:9: error: Invalid index type "int" for "Flow"; expected type "str"  [index]
+    main:10: error: Invalid index type "int" for "Run"; expected type "str"  [index]
+    main:11: error: Invalid index type "int" for "Step"; expected type "str"  [index]
+
+- case: current_object
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import current
+
+    current.project_name
+    current.flow_name
+
+    current.project_name = "foo"
+    current.flow_name = "bar"
+  out: |
+    main:6: error: Property "project_name" defined in "Current" is read-only  [misc]
+    main:7: error: Property "flow_name" defined in "Current" is read-only  [misc]
+
+- case: sample_flow
+  parametrized:
+    - python_version: "3.7"
+    - python_version: "3.8"
+    - python_version: "3.9"
+    - python_version: "3.10"
+    - python_version: "3.11"
+    - python_version: "3.12"
+  mypy_config:
+    python_version = {{ python_version }}
+  main: |
+    from metaflow import FlowSpec, step, batch, project, schedule
+
+    @project(name="my_project")
+    @schedule(weekly=True)
+    class MyFlow(FlowSpec):
+      @step
+      def start(self):
+        print("Hi")
+        self.next(self.batch_step)
+
+      @batch
+      @step
+      def batch_step(self):
+        self.next(self.end)
+
+      @step
+      def end(self):
+        print("Done")
+  out: |

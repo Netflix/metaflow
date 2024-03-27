@@ -13,14 +13,24 @@ class Sidecar(object):
         if t is not None and t.get_worker() is not None:
             self._has_valid_worker = True
         self.sidecar_process = None
+        # Whether to send msg in a thread-safe fashion.
+        self._threadsafe_send_enabled = False
 
     def start(self):
         if not self.is_active and self._has_valid_worker:
             self.sidecar_process = SidecarSubProcess(self._sidecar_type)
 
+    def enable_threadsafe_send(self):
+        self._threadsafe_send_enabled = True
+
+    def disable_threadsafe_send(self):
+        self._threadsafe_send_enabled = False
+
     def send(self, msg):
         if self.is_active:
-            self.sidecar_process.send(msg)
+            self.sidecar_process.send(
+                msg, thread_safe_send=self._threadsafe_send_enabled
+            )
 
     def terminate(self):
         if self.is_active:

@@ -12,3 +12,7 @@ repos:
         language_version: python3
         exclude: "^metaflow/_vendor/"
         additional_dependencies: ["click<8.1.0"]
+        # python3.12 is not supported in black 22.10.0
+        args: [-t, py34, -t, py35, -t, py36, -t, py37, -t, py38, -t, py39, -t, py310, -t, py311]
+
+

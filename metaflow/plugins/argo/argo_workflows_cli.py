@@ -29,7 +29,7 @@ from metaflow.util import get_username, to_bytes, to_unicode, version_parse
 
 from .argo_workflows import ArgoWorkflows
 
-VALID_NAME = re.compile("^[a-z0-9]([a-z0-9\.\-]*[a-z0-9])?$")
+VALID_NAME = re.compile(r"^[a-z0-9]([a-z0-9\.\-]*[a-z0-9])?$")
 
 
 class IncorrectProductionToken(MetaflowException):

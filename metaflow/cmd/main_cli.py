@@ -63,7 +63,11 @@ def status():
         echo("* %s" % flow, fg="cyan")
 
 
-CMDS_DESC = [("configure", ".configure_cmd.cli"), ("tutorials", ".tutorials_cmd.cli")]
+CMDS_DESC = [
+    ("configure", ".configure_cmd.cli"),
+    ("tutorials", ".tutorials_cmd.cli"),
+    ("develop", ".develop.cli"),
+]
 
 process_cmds(globals())
 

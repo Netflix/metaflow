@@ -1,3 +1,4 @@
+import os
 import platform
 import sys
 
@@ -9,8 +10,14 @@ if sys.version_info < (3, 6):
         )
 
     tags = Tags()
+    parse_wheel_filename = lambda: (_ for _ in ()).throw(
+        RuntimeError("packaging.utils is not avaliable for Python < 3.6")
+    )
 else:
     from metaflow._vendor.packaging import tags
+    from metaflow._vendor.packaging.utils import parse_wheel_filename
+
+from urllib.parse import unquote, urlparse
 
 from metaflow.exception import MetaflowException
 
@@ -30,6 +37,11 @@ def conda_platform():
             return "osx-32"
         else:
             return "osx-64"
+
+
+def wheel_tags(wheel):
+    _, _, _, tags = parse_wheel_filename(wheel)
+    return list(tags)
 
 
 def pip_tags(python_version, mamba_platform):
@@ -73,3 +85,9 @@ def pip_tags(python_version, mamba_platform):
     supported.extend(tags.cpython_tags(py_version, abis, platforms))
     supported.extend(tags.compatible_tags(py_version, interpreter, platforms))
     return supported
+
+
+def parse_filename_from_url(url):
+    # Separate method as it might require additional checks for the parsing.
+    filename = url.split("/")[-1]
+    return unquote(filename)

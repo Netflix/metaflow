@@ -1,3 +1,4 @@
+import copy
 import errno
 import fcntl
 import functools
@@ -5,17 +6,18 @@ import io
 import json
 import os
 import sys
+import tarfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from hashlib import sha256
-from io import BufferedIOBase
+from io import BufferedIOBase, BytesIO
 from itertools import chain
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 import requests
 
-from metaflow.metaflow_config import get_pinned_conda_libs
 from metaflow.exception import MetaflowException
+from metaflow.metaflow_config import get_pinned_conda_libs
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.metaflow_profile import profile
 
@@ -32,6 +34,7 @@ class CondaEnvironmentException(MetaflowException):
 
 class CondaEnvironment(MetaflowEnvironment):
     TYPE = "conda"
+    _filecache = None
 
     def __init__(self, flow):
         self.flow = flow
@@ -104,10 +107,24 @@ class CondaEnvironment(MetaflowEnvironment):
             )
 
         def cache(storage, results, type_):
+            def _path(url, local_path):
+                # Special handling for VCS packages
+                if url.startswith("git+"):
+                    base, _ = os.path.split(urlparse(url).path)
+                    _, file = os.path.split(local_path)
+                    prefix = url.split("@")[-1]
+                    return urlparse(url).netloc + os.path.join(
+                        unquote(base), prefix, file
+                    )
+                else:
+                    return urlparse(url).netloc + urlparse(url).path
+
             local_packages = {
                 url: {
                     # Path to package in datastore.
-                    "path": urlparse(url).netloc + urlparse(url).path,
+                    "path": _path(
+                        url, local_path
+                    ),  # urlparse(url).netloc + urlparse(url).path,
                     # Path to package on local disk.
                     "local_path": local_path,
                 }
@@ -116,23 +133,26 @@ class CondaEnvironment(MetaflowEnvironment):
             }
             dirty = set()
             # Prune list of packages to cache.
+
+            _meta = copy.deepcopy(local_packages)
             for id_, packages, _, _ in results:
                 for package in packages:
                     if package.get("path"):
                         # Cache only those packages that manifest is unaware of
                         local_packages.pop(package["url"], None)
                     else:
-                        package["path"] = (
-                            urlparse(package["url"]).netloc
-                            + urlparse(package["url"]).path
-                        )
+                        package["path"] = _meta[package["url"]]["path"]
                         dirty.add(id_)
 
             list_of_path_and_filehandle = [
                 (
                     package["path"],
                     # Lazily fetch package from the interweb if needed.
-                    LazyOpen(package["local_path"], "rb", url),
+                    LazyOpen(
+                        package["local_path"],
+                        "rb",
+                        url,
+                    ),
                 )
                 for url, package in local_packages.items()
             ]
@@ -170,7 +190,7 @@ class CondaEnvironment(MetaflowEnvironment):
         if id_:
             # bootstrap.py is responsible for ensuring the validity of this executable.
             # -s is important! Can otherwise leak packages to other environments.
-            return os.path.join(id_, "bin/python -s")
+            return os.path.join("linux-64", id_, "bin/python -s")
         else:
             # for @conda/@pypi(disabled=True).
             return super().executable(step_name, default)
@@ -187,7 +207,7 @@ class CondaEnvironment(MetaflowEnvironment):
             if decorator.name in ["conda", "pypi"]:
                 # handle @conda/@pypi(disabled=True)
                 disabled = decorator.attributes["disabled"]
-                return disabled or str(disabled).lower() != "false"
+                return str(disabled).lower() == "true"
         return False
 
     @functools.lru_cache(maxsize=None)
@@ -302,8 +322,23 @@ class CondaEnvironment(MetaflowEnvironment):
 
     @classmethod
     def get_client_info(cls, flow_name, metadata):
-        # TODO: Decide this method's fate
-        return None
+        if cls._filecache is None:
+            from metaflow.client.filecache import FileCache
+
+            cls._filecache = FileCache()
+
+        info = metadata.get("code-package")
+        prefix = metadata.get("conda_env_prefix")
+        if info is None or prefix is None:
+            return {}
+        info = json.loads(info)
+        _, blobdata = cls._filecache.get_data(
+            info["ds_type"], flow_name, info["location"], info["sha"]
+        )
+        with tarfile.open(fileobj=BytesIO(blobdata), mode="r:gz") as tar:
+            manifest = tar.extractfile(MAGIC_FILE)
+            info = json.loads(manifest.read().decode("utf-8"))
+            return info[prefix.split("/")[2]][prefix.split("/")[1]]
 
     def add_to_package(self):
         # Add manifest file to job package at the top level.
@@ -394,6 +429,10 @@ class LazyOpen(BufferedIOBase):
             if self.filename and os.path.exists(self.filename):
                 self._file = open(self.filename, self.mode)
             elif self.url:
+                if self.url.startswith("git+"):
+                    raise ValueError(
+                        "LazyOpen doesn't support VCS url %s yet!" % self.url
+                    )
                 self._buffer = self._download_to_buffer()
                 self._file = io.BytesIO(self._buffer)
             else:

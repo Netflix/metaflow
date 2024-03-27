@@ -1,29 +1,33 @@
 import base64
-from metaflow._vendor import click
-from hashlib import sha1
 import json
 import re
+from hashlib import sha1
 
-from metaflow import current, decorators, parameters, JSONType
+from metaflow import JSONType, current, decorators, parameters
+from metaflow._vendor import click
+from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import (
     SERVICE_VERSION_CHECK,
     SFN_STATE_MACHINE_PREFIX,
     UI_URL,
 )
-from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.package import MetaflowPackage
 from metaflow.plugins.aws.batch.batch_decorator import BatchDecorator
 from metaflow.tagging_util import validate_tags
 from metaflow.util import get_username, to_bytes, to_unicode, version_parse
 
+from .production_token import load_token, new_token, store_token
 from .step_functions import StepFunctions
-from .production_token import load_token, store_token, new_token
 
-VALID_NAME = re.compile("[^a-zA-Z0-9_\-\.]")
+VALID_NAME = re.compile(r"[^a-zA-Z0-9_\-\.]")
 
 
 class IncorrectProductionToken(MetaflowException):
     headline = "Incorrect production token"
+
+
+class RunIdMismatch(MetaflowException):
+    headline = "Run ID mismatch"
 
 
 class IncorrectMetadataServiceVersion(MetaflowException):
@@ -120,6 +124,12 @@ def step_functions(obj, name=None):
     help="Log AWS Step Functions execution history to AWS CloudWatch "
     "Logs log group.",
 )
+@click.option(
+    "--use-distributed-map/--no-use-distributed-map",
+    is_flag=True,
+    help="Use AWS Step Functions Distributed Map instead of Inline Map for "
+    "defining foreach tasks in Amazon State Language.",
+)
 @click.pass_obj
 def create(
     obj,
@@ -132,6 +142,7 @@ def create(
     max_workers=None,
     workflow_timeout=None,
     log_execution_history=False,
+    use_distributed_map=False,
 ):
     validate_tags(tags)
 
@@ -161,6 +172,7 @@ def create(
         max_workers,
         workflow_timeout,
         obj.is_project,
+        use_distributed_map,
     )
 
     if only_json:
@@ -269,7 +281,15 @@ def resolve_state_machine_name(obj, name):
 
 
 def make_flow(
-    obj, token, name, tags, namespace, max_workers, workflow_timeout, is_project
+    obj,
+    token,
+    name,
+    tags,
+    namespace,
+    max_workers,
+    workflow_timeout,
+    is_project,
+    use_distributed_map,
 ):
     if obj.flow_datastore.TYPE != "s3":
         raise MetaflowException("AWS Step Functions requires --datastore=s3.")
@@ -305,6 +325,7 @@ def make_flow(
         username=get_username(),
         workflow_timeout=workflow_timeout,
         is_project=is_project,
+        use_distributed_map=use_distributed_map,
     )
 
 
@@ -612,6 +633,83 @@ def delete(obj, authorize=None):
             "In-flight executions will not be affected. "
             "If necessary, terminate them manually."
         )
+
+
+@step_functions.command(help="Terminate flow execution on Step Functions.")
+@click.option(
+    "--authorize",
+    default=None,
+    type=str,
+    help="Authorize the termination with a production token",
+)
+@click.argument("run-id", required=True, type=str)
+@click.pass_obj
+def terminate(obj, run_id, authorize=None):
+    def _token_instructions(flow_name, prev_user):
+        obj.echo(
+            "There is an existing version of *%s* on AWS Step Functions which was "
+            "deployed by the user *%s*." % (flow_name, prev_user)
+        )
+        obj.echo(
+            "To terminate this flow, you need to use the same production token that they used."
+        )
+        obj.echo(
+            "Please reach out to them to get the token. Once you have it, call "
+            "this command:"
+        )
+        obj.echo("    step-functions terminate --authorize MY_TOKEN RUN_ID", fg="green")
+        obj.echo(
+            'See "Organizing Results" at docs.metaflow.org for more information '
+            "about production tokens."
+        )
+
+    validate_run_id(
+        obj.state_machine_name, obj.token_prefix, authorize, run_id, _token_instructions
+    )
+
+    # Trim prefix from run_id
+    name = run_id[4:]
+    obj.echo(
+        "Terminating run *{run_id}* for {flow_name} ...".format(
+            run_id=run_id, flow_name=obj.flow.name
+        ),
+        bold=True,
+    )
+
+    terminated = StepFunctions.terminate(obj.state_machine_name, name)
+    if terminated:
+        obj.echo("\nRun terminated at %s." % terminated.get("stopDate"))
+
+
+def validate_run_id(
+    state_machine_name, token_prefix, authorize, run_id, instructions_fn=None
+):
+    if not run_id.startswith("sfn-"):
+        raise RunIdMismatch(
+            "Run IDs for flows executed through AWS Step Functions begin with 'sfn-'"
+        )
+
+    name = run_id[4:]
+    execution = StepFunctions.get_execution(state_machine_name, name)
+    if execution is None:
+        raise MetaflowException(
+            "Could not find the execution *%s* (in RUNNING state) for the state machine *%s* on AWS Step Functions"
+            % (name, state_machine_name)
+        )
+
+    _, owner, token, _ = execution
+
+    if authorize is None:
+        authorize = load_token(token_prefix)
+    elif authorize.startswith("production:"):
+        authorize = authorize[11:]
+
+    if owner != get_username() and authorize != token:
+        if instructions_fn:
+            instructions_fn(flow_name=name, prev_user=owner)
+        raise IncorrectProductionToken("Try again with the correct production token.")
+
+    return True
 
 
 def validate_token(name, token_prefix, authorize, instruction_fn=None):

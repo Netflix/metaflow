@@ -107,6 +107,7 @@ def kubernetes():
     type=JSONTypeClass(),
     multiple=False,
 )
+@click.option("--shared-memory", default=None, help="Size of shared memory in MiB")
 @click.pass_context
 def step(
     ctx,
@@ -132,6 +133,7 @@ def step(
     run_time_limit=None,
     persistent_volume_claims=None,
     tolerations=None,
+    shared_memory=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None, **kwargs):
@@ -245,6 +247,7 @@ def step(
                 env=env,
                 persistent_volume_claims=persistent_volume_claims,
                 tolerations=tolerations,
+                shared_memory=shared_memory,
             )
     except Exception as e:
         traceback.print_exc(chain=False)

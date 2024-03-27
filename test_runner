@@ -5,7 +5,7 @@ set -o errexit -o nounset -o pipefail
 install_deps() {
   for version in 2 3;
   do
-    python$version -m pip install . 
+    python$version -m pip install .
   done
 }
 
@@ -16,7 +16,15 @@ install_extensions() {
 }
 
 run_tests() {
-  cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --num-parallel 8
+  cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --num-parallel 8 && cd ../../
 }
 
-install_deps && install_extensions && run_tests 
+# We run realtime cards tests separately because there these tests validate the asynchronous updates to the
+# information stored in the datastore. So if there are other processes starving resources then these tests will
+# surely fail since a lot of checks have timeouts. 
+run_runtime_card_tests() {
+  CARD_GRAPHS="small-foreach,small-parallel,nested-branches,single-linear-step,simple-foreach"
+  cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --num-parallel 8 --contexts python3-all-local-cards-realtime --graphs $CARD_GRAPHS && cd ../../
+}
+
+install_deps && install_extensions && run_tests && run_runtime_card_tests

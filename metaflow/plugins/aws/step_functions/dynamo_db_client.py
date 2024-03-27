@@ -1,5 +1,8 @@
 import os
+import time
+
 import requests
+
 from metaflow.metaflow_config import SFN_DYNAMO_DB_TABLE
 
 
@@ -25,12 +28,31 @@ class DynamoDbClient(object):
     def save_parent_task_id_for_foreach_join(
         self, foreach_split_task_id, foreach_join_parent_task_id
     ):
-        return self._client.update_item(
-            TableName=self.name,
-            Key={"pathspec": {"S": foreach_split_task_id}},
-            UpdateExpression="ADD parent_task_ids_for_foreach_join :val",
-            ExpressionAttributeValues={":val": {"SS": [foreach_join_parent_task_id]}},
-        )
+        ex = None
+        for attempt in range(10):
+            try:
+                return self._client.update_item(
+                    TableName=self.name,
+                    Key={"pathspec": {"S": foreach_split_task_id}},
+                    UpdateExpression="ADD parent_task_ids_for_foreach_join :val",
+                    ExpressionAttributeValues={
+                        ":val": {"SS": [foreach_join_parent_task_id]}
+                    },
+                )
+            except self._client.exceptions.ClientError as error:
+                ex = error
+                if (
+                    error.response["Error"]["Code"]
+                    == "ProvisionedThroughputExceededException"
+                ):
+                    # hopefully, enough time for AWS to scale up! otherwise
+                    # ensure sufficient on-demand throughput for dynamo db
+                    # is provisioned ahead of time
+                    sleep_time = min((2**attempt) * 10, 60)
+                    time.sleep(sleep_time)
+                else:
+                    raise
+        raise ex
 
     def get_parent_task_ids_for_foreach_join(self, foreach_split_task_id):
         response = self._client.get_item(

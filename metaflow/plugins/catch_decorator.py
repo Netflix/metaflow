@@ -30,10 +30,10 @@ class CatchDecorator(StepDecorator):
 
     Parameters
     ----------
-    var : str, optional
+    var : str, optional, default None
         Name of the artifact in which to store the caught exception.
         If not specified, the exception is not stored.
-    print_exception : bool, default: True
+    print_exception : bool, default True
         Determines whether or not the exception is printed to
         stdout when caught.
     """
@@ -65,7 +65,6 @@ class CatchDecorator(StepDecorator):
     def task_exception(
         self, exception, step, flow, graph, retry_count, max_user_code_retries
     ):
-
         # Only "catch" exceptions after all retries are exhausted
         if retry_count < max_user_code_retries:
             return False
@@ -100,7 +99,6 @@ class CatchDecorator(StepDecorator):
     def task_decorate(
         self, step_func, flow, graph, retry_count, max_user_code_retries, ubf_context
     ):
-
         # if the user code has failed max_user_code_retries times, @catch
         # runs a piece of fallback code instead. This way we can continue
         # running the flow downstream, as we have a proper entry for this task.

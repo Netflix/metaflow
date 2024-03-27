@@ -81,6 +81,9 @@ S3_SERVER_SIDE_ENCRYPTION = from_conf("S3_SERVER_SIDE_ENCRYPTION")
 # so setting it to 0 means each operation will be tried once.
 S3_RETRY_COUNT = from_conf("S3_RETRY_COUNT", 7)
 
+# Number of concurrent S3 processes for parallel operations.
+S3_WORKER_COUNT = from_conf("S3_WORKER_COUNT", 64)
+
 # Number of retries on *transient* failures (such as SlowDown errors). Note
 # that if after S3_TRANSIENT_RETRY_COUNT times, all operations haven't been done,
 # it will try up to S3_RETRY_COUNT again so the total number of tries can be up to
@@ -165,6 +168,8 @@ CARD_NO_WARNING = from_conf("CARD_NO_WARNING", False)
 
 SKIP_CARD_DUALWRITE = from_conf("SKIP_CARD_DUALWRITE", False)
 
+RUNTIME_CARD_RENDER_INTERVAL = from_conf("RUNTIME_CARD_RENDER_INTERVAL", 60)
+
 # Azure storage account URL
 AZURE_STORAGE_BLOB_SERVICE_ENDPOINT = from_conf("AZURE_STORAGE_BLOB_SERVICE_ENDPOINT")
 
@@ -200,6 +205,11 @@ SERVICE_VERSION_CHECK = from_conf("SERVICE_VERSION_CHECK", True)
 DEFAULT_CONTAINER_IMAGE = from_conf("DEFAULT_CONTAINER_IMAGE")
 # Default container registry
 DEFAULT_CONTAINER_REGISTRY = from_conf("DEFAULT_CONTAINER_REGISTRY")
+# Controls whether to include foreach stack information in metadata.
+# TODO(Darin, 05/01/24): Remove this flag once we are confident with this feature.
+INCLUDE_FOREACH_STACK = from_conf("INCLUDE_FOREACH_STACK", False)
+# Maximum length of the foreach value string to be stored in each ForeachFrame.
+MAXIMUM_FOREACH_VALUE_CHARS = from_conf("MAXIMUM_FOREACH_VALUE_CHARS", 30)
 
 ###
 # Organization customizations
@@ -263,7 +273,13 @@ SFN_STATE_MACHINE_PREFIX = from_conf("SFN_STATE_MACHINE_PREFIX")
 # machine execution logs. This needs to be available when using the
 # `step-functions create --log-execution-history` command.
 SFN_EXECUTION_LOG_GROUP_ARN = from_conf("SFN_EXECUTION_LOG_GROUP_ARN")
-
+# Amazon S3 path for storing the results of AWS Step Functions Distributed Map
+SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH = from_conf(
+    "SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH",
+    os.path.join(DATASTORE_SYSROOT_S3, "sfn_distributed_map_output")
+    if DATASTORE_SYSROOT_S3
+    else None,
+)
 ###
 # Kubernetes configuration
 ###
@@ -294,6 +310,8 @@ KUBERNETES_CONTAINER_REGISTRY = from_conf(
 )
 # Toggle for trying to fetch EC2 instance metadata
 KUBERNETES_FETCH_EC2_METADATA = from_conf("KUBERNETES_FETCH_EC2_METADATA", False)
+# Shared memory in MB to use for this step
+KUBERNETES_SHARED_MEMORY = from_conf("KUBERNETES_SHARED_MEMORY", None)
 
 ARGO_WORKFLOWS_KUBERNETES_SECRETS = from_conf("ARGO_WORKFLOWS_KUBERNETES_SECRETS", "")
 ARGO_WORKFLOWS_ENV_VARS_TO_SKIP = from_conf("ARGO_WORKFLOWS_ENV_VARS_TO_SKIP", "")
@@ -349,7 +367,7 @@ CONDA_DEPENDENCY_RESOLVER = from_conf("CONDA_DEPENDENCY_RESOLVER", "conda")
 ###
 # Debug configuration
 ###
-DEBUG_OPTIONS = ["subcommand", "sidecar", "s3client", "tracing"]
+DEBUG_OPTIONS = ["subcommand", "sidecar", "s3client", "tracing", "stubgen"]
 
 for typ in DEBUG_OPTIONS:
     vars()["DEBUG_%s" % typ.upper()] = from_conf("DEBUG_%s" % typ.upper(), False)

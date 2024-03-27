@@ -44,8 +44,9 @@ from metaflow.plugins.datatools.s3.s3util import (
     TRANSIENT_RETRY_START_LINE,
 )
 import metaflow.tracing as tracing
-
-NUM_WORKERS_DEFAULT = 64
+from metaflow.metaflow_config import (
+    S3_WORKER_COUNT,
+)
 
 DOWNLOAD_FILE_THRESHOLD = 2 * TransferConfig().multipart_threshold
 DOWNLOAD_MAX_CHUNK = 2 * 1024 * 1024 * 1024 - 1
@@ -656,7 +657,7 @@ def common_options(func):
     )
     @click.option(
         "--num-workers",
-        default=NUM_WORKERS_DEFAULT,
+        default=S3_WORKER_COUNT,
         show_default=True,
         help="Number of concurrent connections.",
     )

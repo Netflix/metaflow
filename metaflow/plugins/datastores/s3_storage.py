@@ -2,7 +2,7 @@ import os
 
 from itertools import starmap
 
-from metaflow.plugins.datatools.s3.s3 import S3, S3Client, S3PutObject
+from metaflow.plugins.datatools.s3.s3 import S3, S3Client, S3PutObject, check_s3_deps
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3, ARTIFACT_LOCALROOT
 from metaflow.datastore.datastore_storage import CloseAfterUse, DataStoreStorage
 
@@ -18,6 +18,7 @@ except:
 class S3Storage(DataStoreStorage):
     TYPE = "s3"
 
+    @check_s3_deps
     def __init__(self, root=None):
         super(S3Storage, self).__init__(root)
         self.s3_client = S3Client()

@@ -273,8 +273,8 @@ class ArgoWorkflows(object):
 
         return schedule_deleted, sensor_deleted, workflow_deleted
 
-    @staticmethod
-    def terminate(flow_name, name):
+    @classmethod
+    def terminate(cls, flow_name, name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
         response = client.terminate_workflow(name)
@@ -1417,6 +1417,9 @@ class ArgoWorkflows(object):
             tmpfs_size = resources["tmpfs_size"]
             tmpfs_path = resources["tmpfs_path"]
             tmpfs_tempdir = resources["tmpfs_tempdir"]
+            # Set shared_memory to 0 if it isn't specified. This results
+            # in Kubernetes using it's default value when the pod is created.
+            shared_memory = resources.get("shared_memory", 0)
 
             tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
 
@@ -1461,6 +1464,7 @@ class ArgoWorkflows(object):
                     medium="Memory",
                     size_limit=tmpfs_size if tmpfs_enabled else 0,
                 )
+                .empty_dir_volume("dhsm", medium="Memory", size_limit=shared_memory)
                 .pvc_volumes(resources.get("persistent_volume_claims"))
                 # Set node selectors
                 .node_selectors(resources.get("node_selector"))
@@ -1554,6 +1558,17 @@ class ArgoWorkflows(object):
                                 if tmpfs_enabled
                                 else []
                             )
+                            # Support shared_memory
+                            + (
+                                [
+                                    kubernetes_sdk.V1VolumeMount(
+                                        name="dhsm",
+                                        mount_path="/dev/shm",
+                                    )
+                                ]
+                                if shared_memory
+                                else []
+                            )
                             # Support persistent volume claims.
                             + (
                                 [
@@ -1574,7 +1589,6 @@ class ArgoWorkflows(object):
 
     # Return exit hook templates for workflow execution notifications.
     def _exit_hook_templates(self):
-        # TODO: Add details to slack message
         templates = []
         if self.notify_on_error:
             templates.append(self._slack_error_template())
@@ -1683,36 +1697,100 @@ class ArgoWorkflows(object):
 
         return links
 
+    def _get_slack_blocks(self, message):
+        """
+        Use Slack's Block Kit to add general information about the environment and
+        execution metadata, including a link to the UI and an optional message.
+        """
+        ui_link = "%s%s/argo-{{workflow.name}}" % (UI_URL, self.flow.name)
+        # fmt: off
+        if getattr(current, "project_name", None):
+            # Add @project metadata when available.
+            environment_details_block = {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": ":metaflow: Environment details"
+                },
+                "fields": [
+                    {
+                        "type": "mrkdwn",
+                        "text": "*Project:* %s" % current.project_name 
+                    },
+                    {
+                        "type": "mrkdwn",
+                        "text": "*Project Branch:* %s" % current.branch_name
+                    }
+                ]
+            }
+        else:
+            environment_details_block = {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": ":metaflow: Environment details"
+                }
+            }
+
+        blocks = [
+            environment_details_block,
+            {
+                "type": "context",
+                "elements": [
+                    {
+                        "type": "mrkdwn",
+                        "text": " :information_source: *<%s>*" % ui_link,
+                    }
+                ],
+            },
+            {
+                "type": "divider"
+            },
+        ]
+
+        if message:
+            blocks += [
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": message
+                    }
+                }
+            ]
+        # fmt: on
+        return blocks
+
     def _slack_error_template(self):
         if self.notify_slack_webhook_url is None:
             return None
+
+        message = (
+            ":rotating_light: _%s/argo-{{workflow.name}}_ failed!" % self.flow.name
+        )
+        payload = {"text": message}
+        if UI_URL:
+            blocks = self._get_slack_blocks(message)
+            payload = {"text": message, "blocks": blocks}
+
         return Template("notify-slack-on-error").http(
-            Http("POST")
-            .url(self.notify_slack_webhook_url)
-            .body(
-                json.dumps(
-                    {
-                        "text": ":rotating_light: _%s/argo-{{workflow.name}}_ failed!"
-                        % self.flow.name
-                    }
-                )
-            )
+            Http("POST").url(self.notify_slack_webhook_url).body(json.dumps(payload))
         )
 
     def _slack_success_template(self):
         if self.notify_slack_webhook_url is None:
             return None
+
+        message = (
+            ":white_check_mark: _%s/argo-{{workflow.name}}_ succeeded!" % self.flow.name
+        )
+        payload = {"text": message}
+        if UI_URL:
+            blocks = self._get_slack_blocks(message)
+            payload = {"text": message, "blocks": blocks}
+
         return Template("notify-slack-on-success").http(
-            Http("POST")
-            .url(self.notify_slack_webhook_url)
-            .body(
-                json.dumps(
-                    {
-                        "text": ":white_check_mark: _%s/argo-{{workflow.name}}_ succeeded!"
-                        % self.flow.name
-                    }
-                )
-            )
+            Http("POST").url(self.notify_slack_webhook_url).body(json.dumps(payload))
         )
 
     def _compile_sensor(self):

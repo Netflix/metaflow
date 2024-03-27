@@ -31,11 +31,7 @@ ParameterContext = NamedTuple(
     ],
 )
 
-# currently we execute only one flow per process, so we can treat
-# Parameters globally. If this was to change, it should/might be
-# possible to move these globals in a FlowSpec (instance) specific
-# closure.
-parameters = []
+parameters = []  # Set by FlowSpec.__init__()
 context_proto = None
 
 
@@ -77,7 +73,6 @@ class DeployTimeField(object):
         return_str=True,
         print_representation=None,
     ):
-
         self.fun = fun
         self.field = field
         self.parameter_name = parameter_name
@@ -246,16 +241,16 @@ class Parameter(object):
         indicate that the value must be a valid JSON object. A function
         implies that the parameter corresponds to a *deploy-time parameter*.
         The type of the default value is used as the parameter `type`.
-    type : Type, default: None
+    type : Type, default None
         If `default` is not specified, define the parameter type. Specify
         one of `str`, `float`, `int`, `bool`, or `JSONType`. If None, defaults
         to the type of `default` or `str` if none specified.
     help : str, optional
         Help text to show in `run --help`.
-    required : bool, default: False
+    required : bool, default False
         Require that the user specified a value for the parameter.
         `required=True` implies that the `default` is not used.
-    show_default : bool, default: True
+    show_default : bool, default True
         If True, show the default value in the help text.
     """
 
@@ -294,17 +289,27 @@ class Parameter(object):
 
         # TODO: check that the type is one of the supported types
         param_type = self.kwargs["type"] = self._get_type(kwargs)
+
         reserved_params = [
             "params",
             "with",
+            "tag",
+            "namespace",
+            "obj",
+            "tags",
+            "decospecs",
+            "run-id-file",
             "max-num-splits",
             "max-workers",
-            "tag",
-            "run-id-file",
-            "namespace",
+            "max-log-size",
+            "user-namespace",
         ]
+        reserved = set(reserved_params)
+        # due to the way Click maps cli args to function args we also want to add underscored params to the set
+        for param in reserved_params:
+            reserved.add(param.replace("-", "_"))
 
-        if self.name in reserved_params:
+        if self.name in reserved:
             raise MetaflowException(
                 "Parameter name '%s' is a reserved "
                 "word. Please use a different "
@@ -335,7 +340,12 @@ class Parameter(object):
                 "Parameter *%s*: Separator is only allowed "
                 "for string parameters." % name
             )
-        parameters.append(self)
+
+    def __repr__(self):
+        return "metaflow.Parameter(name=%s, kwargs=%s)" % (self.name, self.kwargs)
+
+    def __str__(self):
+        return "metaflow.Parameter(name=%s, kwargs=%s)" % (self.name, self.kwargs)
 
     def option_kwargs(self, deploy_mode):
         kwargs = self.kwargs

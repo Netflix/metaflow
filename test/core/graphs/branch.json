@@ -2,8 +2,8 @@
     "name": "single-and-branch",
     "graph": {
         "start": {"branch": ["a", "b"], "quals": ["split-and"]},
-        "a": {"linear": "join"},
-        "b": {"linear": "join"},
+        "a": {"linear": "join", "quals": ["single-branch-split"]},
+        "b": {"linear": "join", "quals": ["single-branch-split"]},
         "join": {"linear": "end", "join": true, "quals": ["join-and"]},
         "end": {}
     }

@@ -7,7 +7,7 @@ class EnvironmentDecorator(StepDecorator):
 
     Parameters
     ----------
-    vars : Dict[str, str], default: {}
+    vars : Dict[str, str], default {}
         Dictionary of environment variables to set.
     """
 

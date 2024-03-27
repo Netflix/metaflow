@@ -5,7 +5,7 @@
   import Subtitle from "./subtitle.svelte";
 
   export let componentData: types.HeadingComponent;
-  const { title, subtitle } = componentData;
+  $: ({ title, subtitle } = componentData);
 </script>
 
 <header class="container" data-component="heading">

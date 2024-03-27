@@ -2,11 +2,10 @@
 <script lang="ts">
   import type * as types from "../types";
   export let componentData: types.TitleComponent;
-  const { text } = componentData;
 </script>
 
 <h2 class="title" data-component="title">
-  {text}
+  {componentData?.text || ""}
 </h2>
 
 <style>

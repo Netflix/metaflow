@@ -1,5 +1,5 @@
-import os
 import json
+import os
 import time
 
 from metaflow.decorators import StepDecorator

@@ -12,7 +12,7 @@ from tempfile import mkdtemp, NamedTemporaryFile
 from typing import Dict, Iterable, List, Optional, Tuple, Union, TYPE_CHECKING
 
 from metaflow import FlowSpec
-from metaflow.current import current
+from metaflow.metaflow_current import current
 from metaflow.metaflow_config import (
     DATATOOLS_S3ROOT,
     S3_RETRY_COUNT,
@@ -49,17 +49,27 @@ from .s3util import (
 )
 
 if TYPE_CHECKING:
-    from metaflow.client import Run
+    import metaflow
 
-try:
-    import boto3
-    from boto3.s3.transfer import TransferConfig
 
-    DOWNLOAD_FILE_THRESHOLD = 2 * TransferConfig().multipart_threshold
-    DOWNLOAD_MAX_CHUNK = 2 * 1024 * 1024 * 1024 - 1
-    boto_found = True
-except:
-    boto_found = False
+def _check_and_init_s3_deps():
+    try:
+        import boto3
+        from boto3.s3.transfer import TransferConfig
+    except (ImportError, ModuleNotFoundError):
+        raise MetaflowException("You need to install 'boto3' in order to use S3.")
+
+
+def check_s3_deps(func):
+    """The decorated function checks S3 dependencies (as needed for AWS S3 storage backend).
+    This includes boto3.
+    """
+
+    def _inner_func(*args, **kwargs):
+        _check_and_init_s3_deps()
+        return func(*args, **kwargs)
+
+    return _inner_func
 
 
 TEST_INJECT_RETRYABLE_FAILURES = int(
@@ -144,7 +154,7 @@ class S3Object(object):
         content_type: Optional[str] = None,
         metadata: Optional[Dict[str, str]] = None,
         range_info: Optional[RangeInfo] = None,
-        last_modified: int = None,
+        last_modified: Optional[int] = None,
         encryption: Optional[str] = None,
     ):
         # all fields of S3Object should return a unicode object
@@ -498,19 +508,17 @@ class S3(object):
     def get_root_from_config(cls, echo, create_on_absent=True):
         return DATATOOLS_S3ROOT
 
+    @check_s3_deps
     def __init__(
         self,
         tmproot: str = TEMPDIR,
         bucket: Optional[str] = None,
         prefix: Optional[str] = None,
-        run: Optional[Union[FlowSpec, "Run"]] = None,
+        run: Optional[Union[FlowSpec, "metaflow.Run"]] = None,
         s3root: Optional[str] = None,
         encryption: Optional[str] = S3_SERVER_SIDE_ENCRYPTION,
         **kwargs
     ):
-        if not boto_found:
-            raise MetaflowException("You need to install 'boto3' in order to use S3.")
-
         if run:
             # 1. use a (current) run ID with optional customizations
             if DATATOOLS_S3ROOT is None:
@@ -663,12 +671,12 @@ class S3(object):
 
         Parameters
         ----------
-        keys : Iterable[str], optional
+        keys : Iterable[str], optional, default None
             List of paths.
 
         Returns
         -------
-        List[`S3Object`]
+        List[S3Object]
             S3Objects under the given paths, including prefixes (directories) that
             do not correspond to leaf objects.
         """
@@ -712,12 +720,12 @@ class S3(object):
 
         Parameters
         ----------
-        keys : Iterable[str], optional
+        keys : Iterable[str], optional, default None
             List of paths.
 
         Returns
         -------
-        List[`S3Object`]
+        List[S3Object]
             S3Objects under the given paths.
         """
 
@@ -741,15 +749,15 @@ class S3(object):
 
         Parameters
         ----------
-        key : str, optional
+        key : str, optional, default None
             Object to query. It can be an S3 url or a path suffix.
-        return_missing : bool, default: False
+        return_missing : bool, default False
             If set to True, do not raise an exception for a missing key but
             return it as an `S3Object` with `.exists == False`.
 
         Returns
         -------
-        `S3Object`
+        S3Object
             An S3Object corresponding to the object requested. The object
             will have `.downloaded == False`.
         """
@@ -801,14 +809,14 @@ class S3(object):
         ----------
         keys : Iterable[str]
             Objects to query. Each key can be an S3 url or a path suffix.
-        return_missing : bool, default: False
+        return_missing : bool, default False
             If set to True, do not raise an exception for a missing key but
             return it as an `S3Object` with `.exists == False`.
 
         Returns
         -------
-        List[`S3Object`]
-            A list of `S3Object`s corresponding to the paths requested. The
+        List[S3Object]
+            A list of S3Objects corresponding to the paths requested. The
             objects will have `.downloaded == False`.
         """
 
@@ -859,22 +867,27 @@ class S3(object):
 
         Parameters
         ----------
-        key : str or `S3GetObject`, optional
+        key : Union[str, S3GetObject], optional, default None
             Object to download. It can be an S3 url, a path suffix, or
-            an `S3GetObject` that defines a range of data to download. If None, or
+            an S3GetObject that defines a range of data to download. If None, or
             not provided, gets the S3 root.
-        return_missing : bool, default: False
+        return_missing : bool, default False
             If set to True, do not raise an exception for a missing key but
             return it as an `S3Object` with `.exists == False`.
-        return_info : bool, default: True
+        return_info : bool, default True
             If set to True, fetch the content-type and user metadata associated
             with the object at no extra cost, included for symmetry with `get_many`
 
         Returns
         -------
-        `S3Object`
+        S3Object
             An S3Object corresponding to the object requested.
         """
+        from boto3.s3.transfer import TransferConfig
+
+        DOWNLOAD_FILE_THRESHOLD = 2 * TransferConfig().multipart_threshold
+        DOWNLOAD_MAX_CHUNK = 2 * 1024 * 1024 * 1024 - 1
+
         url, r = self._url_and_range(key)
         src = urlparse(url)
 
@@ -959,19 +972,19 @@ class S3(object):
 
         Parameters
         ----------
-        keys : Iterable[str or `S3GetObject`]
+        keys : Iterable[Union[str, S3GetObject]]
             Objects to download. Each object can be an S3 url, a path suffix, or
-            an `S3GetObject` that defines a range of data to download.
-        return_missing : bool, default: False
+            an S3GetObject that defines a range of data to download.
+        return_missing : bool, default False
             If set to True, do not raise an exception for a missing key but
             return it as an `S3Object` with `.exists == False`.
-        return_info : bool, default: True
+        return_info : bool, default True
             If set to True, fetch the content-type and user metadata associated
             with the object at no extra cost, included for symmetry with `get_many`.
 
         Returns
         -------
-        List[`S3Object`]
+        List[S3Object]
             S3Objects corresponding to the objects requested.
         """
 
@@ -1034,13 +1047,13 @@ class S3(object):
         keys : Iterable[str]
             Prefixes to download recursively. Each prefix can be an S3 url or a path suffix
             which define the root prefix under which all objects are downloaded.
-        return_info : bool, default: False
+        return_info : bool, default False
             If set to True, fetch the content-type and user metadata associated
             with the object.
 
         Returns
         -------
-        List[`S3Object`]
+        List[S3Object]
             S3Objects stored under the given prefixes.
         """
 
@@ -1088,13 +1101,13 @@ class S3(object):
 
         Parameters
         ----------
-        return_info : bool, default: False
+        return_info : bool, default False
             If set to True, fetch the content-type and user metadata associated
             with the object.
 
         Returns
         -------
-        Iterable[`S3Object`]
+        Iterable[S3Object]
             S3Objects stored under the main prefix.
         """
 
@@ -1118,16 +1131,16 @@ class S3(object):
 
         Parameters
         ----------
-        key : str or `S3PutObject`
+        key : Union[str, S3PutObject]
             Object path. It can be an S3 url or a path suffix.
-        obj : bytes or str
+        obj : PutValue
             An object to store in S3. Strings are converted to UTF-8 encoding.
-        overwrite : bool, default: True
+        overwrite : bool, default True
             Overwrite the object if it exists. If set to False, the operation
             succeeds without uploading anything if the key already exists.
-        content_type : str, optional
+        content_type : str, optional, default None
             Optional MIME type for the object.
-        metadata : Dict, optional
+        metadata : Dict[str, str], optional, default None
             A JSON-encodable dictionary of additional headers to be stored
             as metadata with the object.
 
@@ -1218,15 +1231,15 @@ class S3(object):
 
         Parameters
         ----------
-        key_objs : List[(str, str) or `S3PutObject`]
+        key_objs : List[Union[Tuple[str, PutValue], S3PutObject]]
             List of key-object pairs to upload.
-        overwrite : bool, default : True
+        overwrite : bool, default True
             Overwrite the object if it exists. If set to False, the operation
             succeeds without uploading anything if the key already exists.
 
         Returns
         -------
-        List[(str, str)]
+        List[Tuple[str, str]]
             List of `(key, url)` pairs corresponding to the objects uploaded.
         """
 
@@ -1292,15 +1305,15 @@ class S3(object):
 
         Parameters
         ----------
-        key_paths : List[(str, str) or `S3PutObject`]
+        key_paths :  List[Union[Tuple[str, PutValue], S3PutObject]]
             List of files to upload.
-        overwrite : bool, default: True
+        overwrite : bool, default True
             Overwrite the object if it exists. If set to False, the operation
             succeeds without uploading anything if the key already exists.
 
         Returns
         -------
-        List[(str, str)]
+        List[Tuple[str, str]]
             List of `(key, url)` pairs corresponding to the files uploaded.
         """
 

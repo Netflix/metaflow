@@ -20,11 +20,24 @@ from .exception import (
 )
 from .unbounded_foreach import UBF_CONTROL
 from .util import all_equal, get_username, resolve_identity, unicode_type
-from .current import current
+from .clone_util import clone_task_helper
+from .metaflow_current import current
 from metaflow.tracing import get_trace_id
-from collections import namedtuple
+from metaflow.util import namedtuple_with_defaults
 
-ForeachFrame = namedtuple("ForeachFrame", ["step", "var", "num_splits", "index"])
+foreach_frame_field_list = [
+    ("step", str),
+    ("var", str),
+    ("num_splits", int),
+    ("index", int),
+    ("value", str),
+]
+ForeachFrame = namedtuple_with_defaults(
+    "ForeachFrame", foreach_frame_field_list, (None,) * (len(foreach_frame_field_list))
+)
+
+# Maximum number of characters of the foreach path that we store in the metadata.
+MAX_FOREACH_PATH_LENGTH = 256
 
 
 class MetaflowTask(object):
@@ -59,7 +72,6 @@ class MetaflowTask(object):
             step_function(input_obj)
 
     def _init_parameters(self, parameter_ds, passdown=True):
-
         cls = self.flow.__class__
 
         def _set_cls_var(_, __):
@@ -188,10 +200,10 @@ class MetaflowTask(object):
                     if join_type == "foreach":
                         top = i["_foreach_stack"][-1]
                         bottom = i["_foreach_stack"][:-1]
-                        # the topmost indices in the stack are all
-                        # different naturally, so ignore them in the
+                        # the topmost indices and values in the stack are
+                        # all different naturally, so ignore them in the
                         # assertion
-                        yield bottom + [top._replace(index=0)]
+                        yield bottom + [top._replace(index=0, value=0)]
                     else:
                         yield i["_foreach_stack"]
 
@@ -243,12 +255,18 @@ class MetaflowTask(object):
                     "specified." % step_name
                 )
 
+            split_value = (
+                inputs[0]["_foreach_values"][split_index]
+                if not inputs[0].is_none("_foreach_values")
+                else None
+            )
             # push a new index after a split to the stack
             frame = ForeachFrame(
                 step_name,
                 inputs[0]["_foreach_var"],
                 inputs[0]["_foreach_num_splits"],
                 split_index,
+                split_value,
             )
 
             stack = inputs[0]["_foreach_stack"]
@@ -267,70 +285,43 @@ class MetaflowTask(object):
         task_id,
         clone_origin_task,
         retry_count,
-        wait_only=False,
     ):
         if not clone_origin_task:
             raise MetaflowInternalError(
                 "task.clone_only needs a valid clone_origin_task value."
             )
-        if wait_only:
-            # In this case, we are actually going to wait for the clone to be done
-            # by someone else. To do this, we just get the task_datastore in "r" mode
-            while True:
-                try:
-                    ds = self.flow_datastore.get_task_datastore(
-                        run_id, step_name, task_id
-                    )
-                    if not ds["_task_ok"]:
-                        raise MetaflowInternalError(
-                            "Externally cloned task did not succeed"
-                        )
-                    break
-                except DataException:
-                    # No need to get fancy with the sleep here.
-                    time.sleep(5)
-            return
+        origin_run_id, _, origin_task_id = clone_origin_task.split("/")
+
+        msg = {
+            "task_id": task_id,
+            "msg": "Cloning task from {}/{}/{}/{} to {}/{}/{}/{}".format(
+                self.flow.name,
+                origin_run_id,
+                step_name,
+                origin_task_id,
+                self.flow.name,
+                run_id,
+                step_name,
+                task_id,
+            ),
+            "step_name": step_name,
+            "run_id": run_id,
+            "flow_name": self.flow.name,
+            "ts": round(time.time()),
+        }
+        self.event_logger.log(msg)
         # If we actually have to do the clone ourselves, proceed...
-        # 1. initialize output datastore
-        output = self.flow_datastore.get_task_datastore(
-            run_id, step_name, task_id, attempt=0, mode="w"
-        )
-
-        output.init_task()
-
-        origin_run_id, origin_step_name, origin_task_id = clone_origin_task.split("/")
-        # 2. initialize origin datastore
-        origin = self.flow_datastore.get_task_datastore(
-            origin_run_id, origin_step_name, origin_task_id
-        )
-        metadata_tags = ["attempt_id:{0}".format(retry_count)]
-        output.clone(origin)
-        self.metadata.register_metadata(
+        clone_task_helper(
+            self.flow.name,
+            origin_run_id,
             run_id,
             step_name,
+            origin_task_id,
             task_id,
-            [
-                MetaDatum(
-                    field="origin-task-id",
-                    value=str(origin_task_id),
-                    type="origin-task-id",
-                    tags=metadata_tags,
-                ),
-                MetaDatum(
-                    field="origin-run-id",
-                    value=str(origin_run_id),
-                    type="origin-run-id",
-                    tags=metadata_tags,
-                ),
-                MetaDatum(
-                    field="attempt",
-                    value=str(retry_count),
-                    type="attempt",
-                    tags=metadata_tags,
-                ),
-            ],
+            self.flow_datastore,
+            self.metadata,
+            attempt_id=retry_count,
         )
-        output.done()
 
     def _finalize_control_task(self):
         # Update `_transition` which is expected by the NativeRuntime.
@@ -378,7 +369,6 @@ class MetaflowTask(object):
         retry_count,
         max_user_code_retries,
     ):
-
         if run_id and task_id:
             self.metadata.register_run_id(run_id)
             self.metadata.register_task_id(run_id, step_name, task_id, retry_count)
@@ -434,13 +424,6 @@ class MetaflowTask(object):
                 )
             )
 
-        self.metadata.register_metadata(
-            run_id,
-            step_name,
-            task_id,
-            metadata,
-        )
-
         step_func = getattr(self.flow, step_name)
         decorators = step_func.decorators
 
@@ -462,6 +445,46 @@ class MetaflowTask(object):
 
             # 3. initialize foreach state
             self._init_foreach(step_name, join_type, inputs, split_index)
+
+            # Add foreach stack to metadata of the task
+
+            foreach_stack = (
+                self.flow._foreach_stack
+                if hasattr(self.flow, "_foreach_stack") and self.flow._foreach_stack
+                else []
+            )
+
+            foreach_stack_formatted = []
+            current_foreach_path_length = 0
+            for frame in foreach_stack:
+                if not (frame.var and frame.value):
+                    break
+
+                foreach_step = "%s=%s" % (frame.var, frame.value)
+                if (
+                    current_foreach_path_length + len(foreach_step)
+                    > MAX_FOREACH_PATH_LENGTH
+                ):
+                    break
+                current_foreach_path_length += len(foreach_step)
+                foreach_stack_formatted.append(foreach_step)
+
+            if foreach_stack_formatted:
+                metadata.append(
+                    MetaDatum(
+                        field="foreach-stack",
+                        value=foreach_stack_formatted,
+                        type="foreach-stack",
+                        tags=metadata_tags,
+                    )
+                )
+
+        self.metadata.register_metadata(
+            run_id,
+            step_name,
+            task_id,
+            metadata,
+        )
 
         # 4. initialize the current singleton
         current._set_env(
@@ -561,7 +584,6 @@ class MetaflowTask(object):
                     )
 
             for deco in decorators:
-
                 deco.task_pre_step(
                     step_name,
                     output,
@@ -576,6 +598,7 @@ class MetaflowTask(object):
                     inputs,
                 )
 
+            for deco in decorators:
                 # decorators can actually decorate the step function,
                 # or they can replace it altogether. This functionality
                 # is used e.g. by catch_decorator which switches to a

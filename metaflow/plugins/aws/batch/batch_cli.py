@@ -153,6 +153,26 @@ def kill(ctx, run_id, user, my_runs):
 # TODO: Maybe remove it altogether since it's not used here
 @click.option("--ubf-context", default=None, type=click.Choice([None, "ubf_control"]))
 @click.option("--host-volumes", multiple=True)
+@click.option("--efs-volumes", multiple=True)
+@click.option(
+    "--ephemeral-storage",
+    default=None,
+    type=int,
+    help="Ephemeral storage (for AWS Batch only)",
+)
+@click.option(
+    "--log-driver",
+    default=None,
+    type=str,
+    help="Log driver for AWS ECS container",
+)
+@click.option(
+    "--log-options",
+    default=None,
+    type=str,
+    multiple=True,
+    help="Log options for the chosen log driver",
+)
 @click.option(
     "--num-parallel",
     default=0,
@@ -184,6 +204,10 @@ def step(
     tmpfs_size=None,
     tmpfs_path=None,
     host_volumes=None,
+    efs_volumes=None,
+    ephemeral_storage=None,
+    log_driver=None,
+    log_options=None,
     num_parallel=None,
     **kwargs
 ):
@@ -310,10 +334,14 @@ def step(
                 env=env,
                 attrs=attrs,
                 host_volumes=host_volumes,
+                efs_volumes=efs_volumes,
                 use_tmpfs=use_tmpfs,
                 tmpfs_tempdir=tmpfs_tempdir,
                 tmpfs_size=tmpfs_size,
                 tmpfs_path=tmpfs_path,
+                ephemeral_storage=ephemeral_storage,
+                log_driver=log_driver,
+                log_options=log_options,
                 num_parallel=num_parallel,
             )
     except Exception as e:

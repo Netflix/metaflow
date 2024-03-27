@@ -6,7 +6,7 @@ import json
 import os
 
 from hashlib import sha1
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from metaflow._vendor import click
 
@@ -246,20 +246,20 @@ class IncludeFile(Parameter):
     ----------
     name : str
         User-visible parameter name.
-    default : str or a function
+    default : Union[str, Callable[ParameterContext, str]]
         Default path to a local file. A function
         implies that the parameter corresponds to a *deploy-time parameter*.
-    is_text : bool, default: True
+    is_text : bool, default True
         Convert the file contents to a string using the provided `encoding`.
         If False, the artifact is stored in `bytes`.
-    encoding : str, optional, default: 'utf-8'
+    encoding : str, optional, default 'utf-8'
         Use this encoding to decode the file contexts if `is_text=True`.
-    required : bool, default: False
+    required : bool, default False
         Require that the user specified a value for the parameter.
         `required=True` implies that the `default` is not used.
     help : str, optional
         Help text to show in `run --help`.
-    show_default : bool, default: True
+    show_default : bool, default True
         If True, show the default value in the help text.
     """
 

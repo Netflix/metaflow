@@ -19,7 +19,21 @@
       "contents": [
         {
           "type": "section",
-          "title": "Vertical Table",
+          "title": "Progress Bar",
+          "contents": [
+            {
+              "type": "progressBar",
+              "id": "progress1",
+              "max": 100,
+              "value": 55,
+              "label": "Epochs",
+              "details": "elapsed 00:35 left: 01:05, 1.00 iters/sec"
+            }
+          ]
+        },
+        {
+          "type": "section",
+          "title": "Table with Progress Bar",
           "contents": [
             {
               "type": "table",
@@ -36,7 +50,29 @@
                 [
                   2,
                   "start",
-                  "completed",
+                  {
+                    "type": "progressBar",
+                    "id": "progress1",
+                    "max": 100,
+                    "value": 55,
+                    "label": "Epochs",
+                    "details": "elapsed 00:35 left: 01:05, 1.00 iters/sec"
+                  },
+                  "10-20-2021 05:18:34",
+                  "10-20-2021 05:18:34",
+                  "0.5s"
+                ],
+                [
+                  3,
+                  "middle",
+                  {
+                    "type": "progressBar",
+                    "id": "progress1",
+                    "max": 100,
+                    "value": 35,
+                    "label": "Epochs",
+                    "details": "elapsed 00:35 left: 01:05, 1.00 iters/sec"
+                  },
                   "10-20-2021 05:18:34",
                   "10-20-2021 05:18:34",
                   "0.5s"
@@ -52,120 +88,120 @@
           "contents": [
             {
               "type": "artifacts",
-              
+
               "data": [
                 {
-                    "name":null,
-                    "type":"tuple",
-                    "data":"(1,2,3)"
+                  "name": null,
+                  "type": "tuple",
+                  "data": "(1,2,3)"
                 },
                 {
-                  "name":"file_param",
+                  "name": "file_param",
                   "type": "NoneType",
                   "data": "None"
                 },
                 {
-                  "name":"py_set",
+                  "name": "py_set",
                   "type": "set",
                   "data": "{1, 2, 3}"
                 },
                 {
-                  "name":"img_jpg",
+                  "name": "img_jpg",
                   "type": "bytes",
                   "data": "b'\\xff\\xd8\\xff\\xe0\\x00\\x10JFIF\\x00\\x01\\x02\\x01\\x...\\x80\\x80\\x80\\x80\\x80\\x80\\x80\\x80\\x80\\x83\\xff\\xd9'"
                 },
                 {
-                  "name":"py_frozenset",
+                  "name": "py_frozenset",
                   "type": "frozenset",
                   "data": "frozenset({4, 5, 6})"
                 },
                 {
-                  "name":"py_bytearray",
+                  "name": "py_bytearray",
                   "type": "bytearray",
                   "data": "bytearray(b'\\xf0\\xf1\\xf2')"
                 },
                 {
-                  "name":"custom_class",
+                  "name": "custom_class",
                   "type": "__main__.CustomClass",
                   "data": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa...aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
                 },
                 {
-                  "name":"py_dict",
+                  "name": "py_dict",
                   "type": "dict",
                   "data": "{'a': 1, 'null': None, True: False}"
                 },
                 {
-                  "name":"py_float",
+                  "name": "py_float",
                   "type": "float",
                   "data": "3.141592653589793"
                 },
                 {
-                  "name":"large_dict_large_val",
+                  "name": "large_dict_large_val",
                   "type": "dict",
                   "data": "{'constitution': 'Provided by USConstitution.net\\n---------------...ion of Representatives shall\\nhave intervened.\\n'}"
                 },
                 {
-                  "name":"name",
+                  "name": "name",
                   "type": "str",
                   "data": "'DefaultCardFlow'"
                 },
                 {
-                  "name":"large_dict",
+                  "name": "large_dict",
                   "type": "dict",
                   "data": "{'clubs': ['ace', 2, 3, 4, 5, 6, 7, 8, 9, 'jack', 'queen', 'king'], 'diamonds': ['ace', 2, 3, 4, 5, 6, 7, 8, 9, 'jack', 'queen', 'king'], 'hearts': ['ace', 2, 3, 4, 5, 6, 7, 8, 9, 'jack', 'queen', 'king'], 'spades': ['ace', 2, 3, 4, 5, 6, 7, 8, 9, 'jack', 'queen', 'king']}"
                 },
                 {
-                  "name":"np_array",
+                  "name": "np_array",
                   "type": "numpy.ndarray",
                   "data": "array([      0,       1,       2, ..., 9999997, 9999998, 9999999],\n      dtype=uint64)"
                 },
                 {
-                  "name":"large_dict_many_keys",
+                  "name": "large_dict_many_keys",
                   "type": "dict",
                   "data": "{'00001cdb-f3cf-4a80-9d50-a5685697a9c3': 1636352431.135456, '00007105-19d0-4c25-bd18-c4b9f0f72326': 1636352431.09861, '00007fe7-87f5-499a-84a0-95bc7829350f': 1636352430.95102, '00009603-ec57-42ac-8ae1-d190d75ec8fd': 1636352431.879671, ...}"
                 },
                 {
-                  "name":"py_str",
+                  "name": "py_str",
                   "type": "str",
                   "data": "'刺身は美味しい'"
                 },
                 {
-                  "name":"float_param",
+                  "name": "float_param",
                   "type": "float",
                   "data": "3.141592653589793"
                 },
                 {
-                  "name":"py_complex",
+                  "name": "py_complex",
                   "type": "complex",
                   "data": "(1+2j)"
                 },
                 {
-                  "name":"str_param",
+                  "name": "str_param",
                   "type": "str",
                   "data": "'刺身は美味しい'"
                 },
                 {
-                  "name":"json_param",
+                  "name": "json_param",
                   "type": "str",
                   "data": "'{\"states\": {[{\"CA\", 0}, {\"NY\", 1}]}'"
                 },
                 {
-                  "name":"large_int",
+                  "name": "large_int",
                   "type": "int",
                   "data": "36893488147419103232"
                 },
                 {
-                  "name":"large_str",
+                  "name": "large_str",
                   "type": "str",
                   "data": "'Provided by USConstitution.net\\n---------------...ion of Representatives shall\\nhave intervened.\\n'"
                 },
                 {
-                  "name":"exception",
+                  "name": "exception",
                   "type": "Exception",
                   "data": "Exception('This is an exception!')"
                 },
                 {
-                  "name":"py_list",
+                  "name": "py_list",
                   "type": "list",
                   "data": "[1, 2, 3]"
                 }

@@ -5,7 +5,7 @@
   import DataRenderer from "./table-data-renderer.svelte";
 
   export let componentData: types.TableComponent;
-  const { columns, data } = componentData;
+  $: ({ columns, data } = componentData);
 </script>
 
 {#if columns && data}

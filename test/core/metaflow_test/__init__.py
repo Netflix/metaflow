@@ -2,6 +2,8 @@ import sys
 import os
 from metaflow.exception import MetaflowException
 from metaflow import current
+from metaflow.cards import get_cards
+from metaflow.plugins.cards.exception import CardNotPresentException
 
 
 def steps(prio, quals, required=False):
@@ -29,6 +31,39 @@ def truncate(var):
     if len(var) > 500:
         var = "%s..." % var[:500]
     return var
+
+
+def retry_until_timeout(cb_fn, *args, timeout=4, **kwargs):
+    """
+    certain operations in metaflow may not be synchronous and may be running fully asynchronously.
+    This creates a problem in writing tests that verify some behaviour at runtime. This function
+    is a helper that allows us to wait for a certain amount of time for a callback function to
+    return a non-False value.
+    """
+    import time
+
+    start = time.time()
+    while True:
+        cb_val = cb_fn(*args, **kwargs)
+        if cb_val is not False:
+            return cb_val
+        if time.time() - start > timeout:
+            raise TimeoutError("Timeout waiting for callback to return non-False value")
+        time.sleep(1)
+
+
+def try_to_get_card(id=None, timeout=60):
+    """
+    Safetly try to get the card object until a timeout value.
+    """
+
+    def _get_card(card_id):
+        container = get_card_container(id=card_id)
+        if container is None:
+            return False
+        return container[0]
+
+    return retry_until_timeout(_get_card, id, timeout=timeout)
 
 
 class AssertArtifactFailed(Exception):
@@ -64,6 +99,16 @@ class TestRetry(MetaflowException):
 
     def __init__(self):
         super(TestRetry, self).__init__("This is not an error. " "Testing retry...")
+
+
+def get_card_container(id=None):
+    """
+    Safetly try to load the card_container object.
+    """
+    try:
+        return get_cards(current.pathspec, id=id)
+    except CardNotPresentException:
+        return None
 
 
 def is_resumed():
@@ -142,6 +187,12 @@ class MetaflowCheck(object):
         raise NotImplementedError()
 
     def get_card(self, step, task, card_type):
+        raise NotImplementedError()
+
+    def get_card_data(self, step, task, card_type, card_id=None):
+        """
+        returns : (card_present, card_data)
+        """
         raise NotImplementedError()
 
     def list_cards(self, step, task, card_type=None):

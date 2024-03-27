@@ -6,6 +6,8 @@ from metaflow.plugins.cards.card_modules.components import (
     Image,
     Error,
     Markdown,
+    VegaChart,
+    ProgressBar,
 )
 from metaflow.plugins.cards.card_modules.basic import (
     DefaultCard,

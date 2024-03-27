@@ -6,6 +6,8 @@ from tempfile import NamedTemporaryFile
 import time
 import metaflow.tracing as tracing
 
+from typing import Any, Callable, Iterable, Iterator, List, Optional
+
 try:
     # Python 2
     import cPickle as pickle
@@ -60,7 +62,32 @@ def _spawn(func, arg, dir):
                 os._exit(exit_code)
 
 
-def parallel_imap_unordered(func, iterable, max_parallel=None, dir=None):
+def parallel_imap_unordered(
+    func: Callable[[Any], Any],
+    iterable: Iterable[Any],
+    max_parallel: Optional[int] = None,
+    dir: Optional[str] = None,
+) -> Iterator[Any]:
+    """
+    Parallelizes execution of a function using multiprocessing. The result
+    order is not guaranteed.
+
+    Parameters
+    ----------
+    func : Callable[[Any], Any]
+        Function taking a single argument and returning a result
+    iterable : Iterable[Any]
+        Iterable over arguments to pass to fun
+    max_parallel int, optional, default None
+        Maximum parallelism. If not specified, uses the number of CPUs
+    dir : str, optional, default None
+        If specified, directory where temporary files are created
+
+    Yields
+    ------
+    Any
+        One result from calling func on one argument
+    """
     if max_parallel is None:
         # Lazy import to save on startup time for metaflow as a whole
         from multiprocessing import cpu_count
@@ -93,10 +120,39 @@ def parallel_imap_unordered(func, iterable, max_parallel=None, dir=None):
             pids.insert(0, _spawn(func, arg[0], dir))
 
 
-def parallel_map(func, iterable, **kwargs):
+def parallel_map(
+    func: Callable[[Any], Any],
+    iterable: Iterable[Any],
+    max_parallel: Optional[int] = None,
+    dir: Optional[str] = None,
+) -> List[Any]:
+    """
+    Parallelizes execution of a function using multiprocessing. The result
+    order is that of the arguments in `iterable`
+
+    Parameters
+    ----------
+    func : Callable[[Any], Any]
+        Function taking a single argument and returning a result
+    iterable : Iterable[Any]
+        Iterable over arguments to pass to fun
+    max_parallel int, optional, default None
+        Maximum parallelism. If not specified, uses the number of CPUs
+    dir : str, optional, default None
+        If specified, directory where temporary files are created
+
+    Returns
+    -------
+    List[Any]
+        Results. The items in the list are in the same order as the items
+        in `iterable`.
+    """
+
     def wrapper(arg_with_idx):
         idx, arg = arg_with_idx
         return idx, func(arg)
 
-    res = parallel_imap_unordered(wrapper, enumerate(iterable), **kwargs)
+    res = parallel_imap_unordered(
+        wrapper, enumerate(iterable), max_parallel=max_parallel, dir=dir
+    )
     return [r for idx, r in sorted(res)]

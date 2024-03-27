@@ -166,6 +166,8 @@ from .cards.card_modules.test_cards import (
     TestNonEditableCard,
     TestPathSpecCard,
     TestTimeoutCard,
+    TestRefreshCard,
+    TestRefreshComponentCard,
 )
 
 CARDS = [
@@ -182,5 +184,7 @@ CARDS = [
     TestNonEditableCard,
     BlankCard,
     DefaultCardJSON,
+    TestRefreshCard,
+    TestRefreshComponentCard,
 ]
 merge_lists(CARDS, MF_EXTERNAL_CARDS, "type")

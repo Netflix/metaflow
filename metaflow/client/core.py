@@ -7,9 +7,19 @@ from collections import namedtuple
 from datetime import datetime
 from io import BytesIO
 from itertools import chain
-from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Tuple
+from typing import (
+    Any,
+    Dict,
+    FrozenSet,
+    Iterable,
+    Iterator,
+    List,
+    NamedTuple,
+    Optional,
+    Tuple,
+)
 
-from metaflow.current import current
+from metaflow.metaflow_current import current
 from metaflow.events import Trigger
 from metaflow.exception import (
     MetaflowInternalError,
@@ -203,6 +213,9 @@ def default_namespace() -> str:
     return get_namespace()
 
 
+MetaflowArtifacts = NamedTuple
+
+
 class MetaflowObject(object):
     """
     Base class for all Metaflow objects.
@@ -337,17 +350,17 @@ class MetaflowObject(object):
             raise MetaflowNotFound("%s does not exist" % self)
         return result
 
-    def __iter__(self) -> Iterable["MetaflowObject"]:
+    def __iter__(self) -> Iterator["MetaflowObject"]:
         """
         Iterate over all child objects of this object if any.
 
-        Note that only children present in the current namespace are returned iff
-        _namespace_check is set.
+        Note that only children present in the current namespace are returned if and
+        only if _namespace_check is set.
 
-        Returns
-        -------
-        Iterable[MetaflowObject]
-            Iterator over all children
+        Yields
+        ------
+        MetaflowObject
+            Children of this object
         """
         query_filter = {}
 
@@ -703,50 +716,6 @@ class MetaflowObject(object):
         return list(self._path_components)
 
 
-class MetaflowData(object):
-    """
-    Container of data artifacts produced by a `Task`. This object is
-    instantiated through `Task.data`.
-
-    `MetaflowData` allows results to be retrieved by their name
-    through a convenient dot notation:
-
-    ```python
-    Task(...).data.my_object
-    ```
-
-    You can also test the existence of an object
-
-    ```python
-    if 'my_object' in Task(...).data:
-        print('my_object found')
-    ```
-
-    Note that this container relies on the local cache to load all data
-    artifacts. If your `Task` contains a lot of data, a more efficient
-    approach is to load artifacts individually like so
-
-    ```
-    Task(...)['my_object'].data
-    ```
-    """
-
-    def __init__(self, artifacts: Iterable["DataArtifact"]):
-        self._artifacts = dict((art.id, art) for art in artifacts)
-
-    def __getattr__(self, name: str):
-        return self._artifacts[name].data
-
-    def __contains__(self, var):
-        return var in self._artifacts
-
-    def __str__(self):
-        return "<MetaflowData: %s>" % ", ".join(self._artifacts)
-
-    def __repr__(self):
-        return str(self)
-
-
 class MetaflowCode(object):
     """
     Snapshot of the code used to execute this `Run`. Instantiate the object through
@@ -981,6 +950,50 @@ class DataArtifact(MetaflowObject):
         super(DataArtifact, self).__setstate__(state)
 
 
+class MetaflowData(object):
+    """
+    Container of data artifacts produced by a `Task`. This object is
+    instantiated through `Task.data`.
+
+    `MetaflowData` allows results to be retrieved by their name
+    through a convenient dot notation:
+
+    ```python
+    Task(...).data.my_object
+    ```
+
+    You can also test the existence of an object
+
+    ```python
+    if 'my_object' in Task(...).data:
+        print('my_object found')
+    ```
+
+    Note that this container relies on the local cache to load all data
+    artifacts. If your `Task` contains a lot of data, a more efficient
+    approach is to load artifacts individually like so
+
+    ```
+    Task(...)['my_object'].data
+    ```
+    """
+
+    def __init__(self, artifacts: Iterable[DataArtifact]):
+        self._artifacts = dict((art.id, art) for art in artifacts)
+
+    def __getattr__(self, name: str):
+        return self._artifacts[name].data
+
+    def __contains__(self, var):
+        return var in self._artifacts
+
+    def __str__(self):
+        return "<MetaflowData: %s>" % ", ".join(self._artifacts)
+
+    def __repr__(self):
+        return str(self)
+
+
 class Task(MetaflowObject):
     """
     A `Task` represents an execution of a `Step`.
@@ -1172,7 +1185,7 @@ class Task(MetaflowObject):
         return MetaflowData(self)
 
     @property
-    def artifacts(self) -> "MetaflowArtifacts":
+    def artifacts(self) -> MetaflowArtifacts:
         """
         Returns a container of DataArtifacts produced by this task.
 
@@ -1438,8 +1451,11 @@ class Task(MetaflowObject):
             return self._log_size(stream, meta_dict)
 
     def loglines(
-        self, stream: str, as_unicode: bool = True, meta_dict: Dict[str, Any] = None
-    ) -> Iterable[Tuple[datetime, str]]:
+        self,
+        stream: str,
+        as_unicode: bool = True,
+        meta_dict: Optional[Dict[str, Any]] = None,
+    ) -> Iterator[Tuple[datetime, str]]:
         """
         Return an iterator over (utc_timestamp, logline) tuples.
 
@@ -1451,10 +1467,10 @@ class Task(MetaflowObject):
             If as_unicode=False, each logline is returned as a byte object. Otherwise,
             it is returned as a (unicode) string.
 
-        Returns
-        -------
-        Iterable[(datetime, str)]
-            Iterator over timestamp, logline pairs.
+        Yields
+        ------
+        Tuple[datetime, str]
+            Tuple of timestamp, logline pairs.
         """
         from metaflow.mflog.mflog import merge_logs
 
@@ -1525,6 +1541,39 @@ class Task(MetaflowObject):
             ds_type, ds_root, stream, attempt, *self.path_components
         )
 
+    def __iter__(self) -> Iterator[DataArtifact]:
+        """
+        Iterate over all children DataArtifact of this Task
+
+        Yields
+        ------
+        DataArtifact
+            A DataArtifact in this Step
+        """
+        for d in super(Task, self).__iter__():
+            yield d
+
+    def __getitem__(self, name: str) -> DataArtifact:
+        """
+        Returns the DataArtifact object with the artifact name 'name'
+
+        Parameters
+        ----------
+        name : str
+            Data artifact name
+
+        Returns
+        -------
+        DataArtifact
+            DataArtifact for this artifact name in this task
+
+        Raises
+        ------
+        KeyError
+            If the name does not identify a valid DataArtifact object
+        """
+        return super(Task, self).__getitem__(name)
+
     def __getstate__(self):
         return super(Task, self).__getstate__()
 
@@ -1585,10 +1634,10 @@ class Step(MetaflowObject):
         tags : str
             No op (legacy functionality)
 
-        Returns
-        -------
-        Iterable[Task]
-            Iterator over all `Task` objects in this step.
+        Yields
+        ------
+        Task
+            `Task` objects in this step.
         """
         return self._filtered_children(*tags)
 
@@ -1607,7 +1656,7 @@ class Step(MetaflowObject):
         """
         return next(self.control_tasks(), None)
 
-    def control_tasks(self, *tags: str) -> Iterable[Task]:
+    def control_tasks(self, *tags: str) -> Iterator[Task]:
         """
         [Unpublished API - use with caution!]
 
@@ -1619,10 +1668,11 @@ class Step(MetaflowObject):
         ----------
         tags : str
             Tags to match
-        Returns
-        -------
-        Iterable[Task]
-            Iterator over Control Task objects in this step
+
+        Yields
+        ------
+        Task
+            Control Task objects for this step
         """
         children = super(Step, self).__iter__()
         for child in children:
@@ -1643,10 +1693,38 @@ class Step(MetaflowObject):
                     ):
                         yield child
 
-    def __iter__(self):
-        children = super(Step, self).__iter__()
-        for t in children:
+    def __iter__(self) -> Iterator[Task]:
+        """
+        Iterate over all children Task of this Step
+
+        Yields
+        ------
+        Task
+            A Task in this Step
+        """
+        for t in super(Step, self).__iter__():
             yield t
+
+    def __getitem__(self, task_id: str) -> Task:
+        """
+        Returns the Task object with the task ID 'task_id'
+
+        Parameters
+        ----------
+        task_id : str
+            Task ID
+
+        Returns
+        -------
+        Task
+            Task for this task ID in this Step
+
+        Raises
+        ------
+        KeyError
+            If the task_id does not identify a valid Task object
+        """
+        return super(Step, self).__getitem__(task_id)
 
     def __getstate__(self):
         return super(Step, self).__getstate__()
@@ -1723,7 +1801,7 @@ class Run(MetaflowObject):
         # exclude _parameters step
         return x.id[0] != "_"
 
-    def steps(self, *tags: str) -> Iterable[Step]:
+    def steps(self, *tags: str) -> Iterator[Step]:
         """
         [Legacy function - do not use]
 
@@ -1738,10 +1816,10 @@ class Run(MetaflowObject):
         tags : str
             No op (legacy functionality)
 
-        Returns
-        -------
-        Iterable[Step]
-            Iterator over `Step` objects in this run.
+        Yields
+        ------
+        Step
+            `Step` objects in this run.
         """
         return self._filtered_children(*tags)
 
@@ -1976,6 +2054,39 @@ class Run(MetaflowObject):
         self._user_tags = frozenset(final_user_tags)
         self._tags = frozenset([*self._user_tags, *self._system_tags])
 
+    def __iter__(self) -> Iterator[Step]:
+        """
+        Iterate over all children Step of this Run
+
+        Yields
+        ------
+        Step
+            A Step in this Run
+        """
+        for s in super(Run, self).__iter__():
+            yield s
+
+    def __getitem__(self, name: str) -> Step:
+        """
+        Returns the Step object with the step name 'name'
+
+        Parameters
+        ----------
+        name : str
+            Step name
+
+        Returns
+        -------
+        Step
+            Step for this step name in this Run
+
+        Raises
+        ------
+        KeyError
+            If the name does not identify a valid Step object
+        """
+        return super(Run, self).__getitem__(name)
+
     def __getstate__(self):
         return super(Run, self).__getstate__()
 
@@ -2051,7 +2162,7 @@ class Flow(MetaflowObject):
             if run.successful:
                 return run
 
-    def runs(self, *tags: str) -> Iterable[Run]:
+    def runs(self, *tags: str) -> Iterator[Run]:
         """
         Returns an iterator over all `Run`s of this flow.
 
@@ -2064,12 +2175,48 @@ class Flow(MetaflowObject):
         tags : str
             Tags to match.
 
-        Returns
-        -------
-        Iterable[Run]
-            Iterator over `Run` objects in this flow.
+        Yields
+        ------
+        Run
+            `Run` objects in this flow.
         """
         return self._filtered_children(*tags)
+
+    def __iter__(self) -> Iterator[Task]:
+        """
+        Iterate over all children Run of this Flow.
+
+        Note that only runs in the current namespace are returned unless
+        _namespace_check is False
+
+        Yields
+        ------
+        Run
+            A Run in this Flow
+        """
+        for r in super(Flow, self).__iter__():
+            yield r
+
+    def __getitem__(self, run_id: str) -> Run:
+        """
+        Returns the Run object with the run ID 'run_id'
+
+        Parameters
+        ----------
+        run_id : str
+            Run OD
+
+        Returns
+        -------
+        Run
+            Run for this run ID in this Flow
+
+        Raises
+        ------
+        KeyError
+            If the run_id does not identify a valid Run object
+        """
+        return super(Flow, self).__getitem__(run_id)
 
     def __getstate__(self):
         return super(Flow, self).__getstate__()
@@ -2120,12 +2267,12 @@ class Metaflow(object):
         """
         return list(self)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Flow]:
         """
         Iterator over all flows present.
 
-        Only flows present in the set namespace are returned. A flow is present in a namespace if
-        it has at least one run that is in the namespace.
+        Only flows present in the set namespace are returned. A flow is present in a
+        namespace if it has at least one run that is in the namespace.
 
         Yields
         -------
@@ -2145,10 +2292,10 @@ class Metaflow(object):
             except MetaflowNamespaceMismatch:
                 continue
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "Metaflow()"
 
-    def __getitem__(self, id: str) -> Flow:
+    def __getitem__(self, name: str) -> Flow:
         """
         Returns a specific flow by name.
 
@@ -2156,13 +2303,13 @@ class Metaflow(object):
 
         Parameters
         ----------
-        id : string
+        name : str
             Name of the Flow
 
         Returns
         -------
         Flow
-            Flow with the given ID.
+            Flow with the given name.
         """
         return Flow(id)
 
