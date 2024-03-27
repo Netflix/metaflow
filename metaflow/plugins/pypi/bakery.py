@@ -33,7 +33,7 @@ def bake_image(python=None, packages={}, datastore_type=None):
     package_matchspecs = [_format(pkg, ver) for pkg, ver in deps.items()]
 
     headers = {"Content-Type": "application/json"}
-    data = {"conda_matchspecs": package_matchspecs}
+    data = {"condaMatchspecs": package_matchspecs}
     response = requests.post(DOCKER_IMAGE_BAKERY_URL, json=data, headers=headers)
 
     body = response.json()
@@ -41,6 +41,6 @@ def bake_image(python=None, packages={}, datastore_type=None):
         kind = body["kind"]
         msg = body["message"]
         raise BakeryException("*%s*\n%s" % (kind, msg))
-    image = body["container_image"]
+    image = body["containerImage"]
 
     return image
