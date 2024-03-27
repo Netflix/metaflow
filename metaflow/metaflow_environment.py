@@ -89,10 +89,21 @@ class MetaflowEnvironment(object):
         It should work silently if everything goes well.
         """
         if datastore_type == "s3":
+            from .plugins.aws.aws_utils import parse_s3_full_path
+
+            bucket, s3_object = parse_s3_full_path(code_package_url)
+            # Explicitly _don't_ use awscli here, because of version incompatibilities
+            # between awscli v1 (installed via pypi) and awscli v2 (installed _not_
+            # through pypi).
+            # Instead, just use boto3 which we already have installed.
             return (
-                '%s -m awscli ${METAFLOW_S3_ENDPOINT_URL:+--endpoint-url=\\"${METAFLOW_S3_ENDPOINT_URL}\\"} '
-                + "s3 cp %s job.tar >/dev/null"
-            ) % (self._python(), code_package_url)
+                "%s -c \"import boto3; import os; "
+                "boto3.client('s3', endpoint_url=os.getenv(METAFLOW_S3_ENDPOINT_URL))"
+                ".download_file('%s', '%s', 'job.tar')\"") % (
+                    self._python,
+                    bucket,
+                    s3_object,
+                )
         elif datastore_type == "azure":
             from .plugins.azure.azure_utils import parse_azure_full_path
 
@@ -121,7 +132,7 @@ class MetaflowEnvironment(object):
     def _get_install_dependencies_cmd(self, datastore_type):
         cmds = ["%s -m pip install requests -qqq" % self._python()]
         if datastore_type == "s3":
-            cmds.append("%s -m pip install awscli boto3 -qqq" % self._python())
+            cmds.append("%s -m pip install boto3 -qqq" % self._python())
         elif datastore_type == "azure":
             cmds.append(
                 "%s -m pip install azure-identity azure-storage-blob azure-keyvault-secrets simple-azure-blob-downloader -qqq"
