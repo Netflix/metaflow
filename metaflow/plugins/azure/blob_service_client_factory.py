@@ -1,8 +1,10 @@
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
 from metaflow.plugins.azure.azure_utils import (
-    create_cacheable_default_azure_credentials,
     check_azure_deps,
+)
+from metaflow.plugins.azure.azure_credential import (
+    create_cacheable_azure_credential,
 )
 
 import os
@@ -125,7 +127,7 @@ def get_azure_blob_service_client(
     blob_service_endpoint = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
 
     if not credential:
-        credential = create_cacheable_default_azure_credentials()
+        credential = create_cacheable_azure_credential()
         credential_is_cacheable = True
 
     if not credential_is_cacheable:

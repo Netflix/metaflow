@@ -7,6 +7,7 @@ from metaflow.plugins.azure.azure_exceptions import (
     MetaflowAzurePackageError,
 )
 from metaflow.exception import MetaflowInternalError, MetaflowException
+from metaflow.plugins.azure.azure_credential import create_cacheable_azure_credential
 
 
 def _check_and_init_azure_deps():
@@ -139,38 +140,6 @@ def handle_exceptions(func):
 
 
 @check_azure_deps
-def create_cacheable_default_azure_credentials(*args, **kwargs):
-    """azure.identity.DefaultAzureCredential is not readily cacheable in a dictionary
-    because it does not have a content based hash and equality implementations.
-
-    We implement a subclass CacheableDefaultAzureCredential to add them.
-
-    We need this because credentials will be part of the cache key in _ClientCache.
-    """
-    from azure.identity import DefaultAzureCredential
-
-    class CacheableDefaultAzureCredential(DefaultAzureCredential):
-        def __init__(self, *args, **kwargs):
-            super(CacheableDefaultAzureCredential, self).__init__(*args, **kwargs)
-            # Just hashing all the kwargs works because they are all individually
-            # hashable as of 7/15/2022.
-            #
-            # What if Azure adds unhashable things to kwargs?
-            # - We will have CI to catch this (it will always install the latest Azure SDKs)
-            # - In Metaflow usage today we never specify any kwargs anyway. (see last line
-            #   of the outer function.
-            self._hash_code = hash((args, tuple(sorted(kwargs.items()))))
-
-        def __hash__(self):
-            return self._hash_code
-
-        def __eq__(self, other):
-            return hash(self) == hash(other)
-
-    return CacheableDefaultAzureCredential(*args, **kwargs)
-
-
-@check_azure_deps
 def create_static_token_credential(token_):
     from azure.core.credentials import TokenCredential
 
@@ -200,9 +169,7 @@ def create_static_token_credential(token_):
         def get_token(self, *_scopes, **_kwargs):
 
             if (self._cached_token.expires_on - time.time()) < 300:
-                from azure.identity import DefaultAzureCredential
-
-                self._credential = DefaultAzureCredential()
+                self._credential = create_cacheable_azure_credential()
             if self._credential:
                 return self._credential.get_token(*_scopes, **_kwargs)
             return self._cached_token
