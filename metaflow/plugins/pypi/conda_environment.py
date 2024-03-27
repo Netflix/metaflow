@@ -234,16 +234,7 @@ class CondaEnvironment(MetaflowEnvironment):
         )
         # TODO: Support dependencies for `--metadata`.
         # TODO: Introduce support for `--telemetry` as a follow up.
-        # Certain packages are required for metaflow runtime to function correctly.
-        # Ensure these packages are available both in Conda channels and PyPI
-        # repostories.
-        pinned_packages = get_pinned_conda_libs(env_python, self.datastore_type)
 
-        # PyPI dependencies are prioritized over Conda dependencies.
-        environment.get("pypi", environment["conda"])["packages"] = {
-            **pinned_packages,
-            **environment.get("pypi", environment["conda"])["packages"],
-        }
         # Disallow specifying both @conda and @pypi together for now. Mixing Conda
         # and PyPI packages comes with a lot of operational pain that we can handle
         # as follow-up work in the future.
@@ -253,6 +244,14 @@ class CondaEnvironment(MetaflowEnvironment):
             msg = "Mixing and matching PyPI packages and Conda packages within a\n"
             msg += "step is not yet supported. Use one of @pypi or @conda only."
             raise CondaEnvironmentException(msg)
+
+        # Certain packages are required for metaflow runtime to function correctly.
+        pinned_packages = get_pinned_conda_libs(env_python, self.datastore_type)
+
+        environment["conda"]["packages"] = {
+            **pinned_packages,
+            **environment["conda"]["packages"],
+        }
 
         # To support cross-platform environments, these invariants are maintained
         # 1. Conda packages are resolved for target platforms
@@ -281,6 +280,15 @@ class CondaEnvironment(MetaflowEnvironment):
             environment["pypi"]["platforms"] = [target_platform]
             # Match PyPI and Conda python versions with the resolved environment Python.
             environment["pypi"]["python"] = environment["conda"]["python"] = env_python
+
+            # we could have added `keyrings.google-artifactregistry-auth` in `get_pinned_conda_libs`
+            # but then, it would be applied to every step, while we only add it where the `pypi`
+            # decorator is being used..
+            if os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+                environment["conda"]["packages"] = {
+                    **environment["conda"]["packages"],
+                    "keyrings.google-artifactregistry-auth": ">=1.1.1",
+                }
 
         # Z combinator for a recursive lambda
         deep_sort = (lambda f: f(f))(
