@@ -206,14 +206,16 @@ class BatchJob(object):
                 k, v = each_log_option.split(":", 1)
                 log_options_dict[k] = v
 
-        job_definition["containerProperties"]["logConfiguration"] = {
-            "logDriver": log_driver if log_driver is not None else "awslogs",
-            "options": log_options_dict
-            if log_options is not None
-            else {
-                "awslogs-group": "aws/batch/job",
-            },
-        }
+        if log_driver is not None or log_options is not None:
+            job_definition["containerProperties"]["logConfiguration"] = {}
+        if log_driver is not None:
+            job_definition["containerProperties"]["logConfiguration"][
+                "logDriver"
+            ] = log_driver
+        if log_options is not None:
+            job_definition["containerProperties"]["logConfiguration"][
+                "options"
+            ] = log_options_dict
 
         if platform == "FARGATE" or platform == "FARGATE_SPOT":
             if num_parallel > 1:
