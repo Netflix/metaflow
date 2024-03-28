@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import signal
 import shutil
 import asyncio
 import tempfile
@@ -21,6 +22,12 @@ class SubprocessManager(object):
         self.run_command_called = False
         self.log_files = {}
         self.process_dict = {}
+
+        signal.signal(signal.SIGINT, self.handle_sigint)
+
+    def handle_sigint(self, signum, frame):
+        print("SIGINT received.")
+        asyncio.create_task(self.kill_process())
 
     async def run_command(self, command: List[str]):
         self.temp_dir = tempfile.mkdtemp()
@@ -86,7 +93,9 @@ class SubprocessManager(object):
                 except asyncio.TimeoutError:
                     self.process.kill()
             else:
-                print("Process has already terminated.")
+                print(
+                    f"Process has already terminated with return code {self.process.returncode}."
+                )
         else:
             print("No process to kill.")
 
