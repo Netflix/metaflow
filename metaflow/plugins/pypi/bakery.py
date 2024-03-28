@@ -1,7 +1,11 @@
 import requests
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import DOCKER_IMAGE_BAKERY_URL, get_pinned_conda_libs
+from metaflow.metaflow_config import (
+    DOCKER_IMAGE_BAKERY_TYPE,
+    DOCKER_IMAGE_BAKERY_URL,
+    get_pinned_conda_libs,
+)
 
 
 class BakeryException(MetaflowException):
@@ -33,7 +37,10 @@ def bake_image(python=None, packages={}, datastore_type=None):
     package_matchspecs = [_format(pkg, ver) for pkg, ver in deps.items()]
 
     headers = {"Content-Type": "application/json"}
-    data = {"condaMatchspecs": package_matchspecs}
+    data = {
+        "condaMatchspecs": package_matchspecs,
+        "imageKind": DOCKER_IMAGE_BAKERY_TYPE,
+    }
     response = requests.post(DOCKER_IMAGE_BAKERY_URL, json=data, headers=headers)
 
     body = response.json()

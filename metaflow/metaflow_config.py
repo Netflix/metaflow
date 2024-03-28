@@ -285,6 +285,9 @@ SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH = from_conf(
 ###
 # Image builder service url
 DOCKER_IMAGE_BAKERY_URL = from_conf("DOCKER_IMAGE_BAKERY_URL", None)
+# Image builder image compression type.
+# Available types for now are 'esgz-zstd' and 'oci-zstd'
+DOCKER_IMAGE_BAKERY_TYPE = from_conf("DOCKER_IMAGE_BAKERY_TYPE", "oci-zstd")
 # internal env for skipping bakery related processes.
 _USE_BAKERY = bool(os.environ.get("USE_BAKERY", bool(DOCKER_IMAGE_BAKERY_URL)))
 ###
