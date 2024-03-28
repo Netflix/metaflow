@@ -21,6 +21,8 @@ from metaflow.metaflow_config import (
     KUBERNETES_TOLERATIONS,
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SHARED_MEMORY,
+    KUEUE_ENABLED,
+    KUEUE_LOCALQUEUE_NAME,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -90,6 +92,10 @@ class KubernetesDecorator(StepDecorator):
         volumes to the path to which the volume is to be mounted, e.g., `{'pvc-name': '/path/to/mount/on'}`.
     shared_memory: int, optional
         Shared memory size (in MiB) required for this step
+    kueue_enabled: bool, optional
+        Whether Kubernetes job/Argo workflow pod should submitted using Kueue
+    kueue_localqueue_name: str, optional
+        The name of the localqueue object configured in Kueue to use for submitting jobs/pods
     """
 
     name = "kubernetes"
@@ -113,6 +119,8 @@ class KubernetesDecorator(StepDecorator):
         "tmpfs_path": "/metaflow_temp",
         "persistent_volume_claims": None,  # e.g., {"pvc-name": "/mnt/vol", "another-pvc": "/mnt/vol2"}
         "shared_memory": None,
+        "kueue_enabled": None,
+        "kueue_localqueue_name": None,
     }
     package_url = None
     package_sha = None
@@ -200,6 +208,15 @@ class KubernetesDecorator(StepDecorator):
                 self.attributes["tmpfs_size"] = int(self.attributes["memory"]) // 2
         if not self.attributes["shared_memory"]:
             self.attributes["shared_memory"] = KUBERNETES_SHARED_MEMORY
+
+        # Process config options related to KUEUE
+        if self.attributes["kueue_enabled"] is None:
+            self.attributes["kueue_enabled"] = KUEUE_ENABLED
+        if (
+            "kueue_localqueue_name" not in self.attributes
+            or self.attributes["kueue_localqueue_name"] is None
+        ):
+            self.attributes["kueue_localqueue_name"] = KUEUE_LOCALQUEUE_NAME
 
     # Refer https://github.com/Netflix/metaflow/blob/master/docs/lifecycle.png
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):

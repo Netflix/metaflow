@@ -175,6 +175,8 @@ class Kubernetes(object):
         tolerations=None,
         labels=None,
         shared_memory=None,
+        kueue_enabled=None,
+        kueue_localqueue_name=None,
     ):
         if env is None:
             env = {}
@@ -183,6 +185,8 @@ class Kubernetes(object):
             KubernetesClient()
             .job(
                 generate_name="t-{uid}-".format(uid=str(uuid4())[:8]),
+                run_id=run_id,
+                task_id=task_id,
                 namespace=namespace,
                 service_account=service_account,
                 secrets=secrets,
@@ -215,6 +219,8 @@ class Kubernetes(object):
                 tmpfs_path=tmpfs_path,
                 persistent_volume_claims=persistent_volume_claims,
                 shared_memory=shared_memory,
+                kueue_enabled=kueue_enabled,
+                kueue_localqueue_name=kueue_localqueue_name,
             )
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
