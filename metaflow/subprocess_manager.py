@@ -29,6 +29,23 @@ class SubprocessManager(object):
         print("SIGINT received.")
         asyncio.create_task(self.kill_process())
 
+    async def wait(self, timeout=None, stream=None):
+        if timeout is None:
+            if stream is None:
+                await self.process.wait()
+            else:
+                await self.get_logs(stream)
+        else:
+            tasks = [asyncio.create_task(asyncio.sleep(timeout))]
+            if stream is None:
+                tasks.append(asyncio.create_task(self.process.wait()))
+            else:
+                tasks.append(asyncio.create_task(self.get_logs(stream)))
+
+            await asyncio.wait(tasks, return_when="FIRST_COMPLETED")
+
+        await self.cleanup()
+
     async def run_command(self, command: List[str]):
         self.temp_dir = tempfile.mkdtemp()
         stdout_logfile = os.path.join(self.temp_dir, "stdout.log")
@@ -110,27 +127,23 @@ async def main():
     cmd = [sys.executable, *command.split()]
 
     spm = SubprocessManager()
+
+    # returns immediately
     process = await spm.run_command(cmd)
-    # await process.wait()
-    print(process.returncode)
-    print(process)
+    print(process.returncode)  # this is None since not completed yet..
 
-    # print("kill after 2 seconds...get logs upto the point of killing...")
-    # await asyncio.wait([
-    #     asyncio.create_task(spm.get_logs(stream="stdout")),
-    #     asyncio.create_task(asyncio.sleep(2)),
-    # ], return_when="FIRST_COMPLETED")
-    # await spm.kill_process()
-    # print("done...")
+    # wait for process to finish..
+    await spm.wait()
 
-    # print("will print logs after 15 secs, flow has ended by then...")
-    # time.sleep(15)
-    # print("done waiting...")
-    # await spm.get_logs(stream="stdout")
-    # await spm.cleanup()
+    # wait for process with a timeout, kill when timeout expires..
+    await spm.wait(timeout=2)
 
-    # await spm.get_logs(stream="stdout")
-    # await spm.cleanup()
+    # wait for process to finish but also stream logs..
+    await spm.wait(stream="stdout")
+
+    # wait for process to finish while streaming logs but with a timeout..
+    # kill when timeout expires..
+    await spm.wait(timeout=2, stream="stdout")
 
 
 if __name__ == "__main__":
