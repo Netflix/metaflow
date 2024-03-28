@@ -282,6 +282,11 @@ class CondaEnvironment(MetaflowEnvironment):
             # Match PyPI and Conda python versions with the resolved environment Python.
             environment["pypi"]["python"] = environment["conda"]["python"] = env_python
 
+            if os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+                environment["conda"]["packages"][
+                    "keyrings.google-artifactregistry-auth"
+                ] = ">=1.1.1"
+
         # Z combinator for a recursive lambda
         deep_sort = (lambda f: f(f))(
             lambda f: lambda obj: (
