@@ -750,7 +750,6 @@ def write_file(file_path, content):
     if file_path is not None:
         with open(file_path, "w") as f:
             f.write(str(content))
-            f.close()
 
 
 def before_run(obj, tags, decospecs):
