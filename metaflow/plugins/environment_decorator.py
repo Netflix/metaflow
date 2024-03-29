@@ -33,7 +33,9 @@ class EnvironmentDecorator(StepDecorator):
             for key, value in deco.attributes["vars"].items():
                 if key in dest and value != dest[key]:
                     deco.logger(
-                        f"Overwriting value {dest[key]} for environment variable {key} with new value {value}"
+                        "Overwriting value {} for environment variable {} with new value {}".format(
+                            dest[key], key, value
+                        )
                     )
                 dest[key] = value
             dest.update(deco.attributes["vars"])
