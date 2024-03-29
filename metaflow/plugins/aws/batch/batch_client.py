@@ -206,13 +206,13 @@ class BatchJob(object):
                 k, v = each_log_option.split(":", 1)
                 log_options_dict[k] = v
 
-        if log_driver is not None or log_options is not None:
+        if log_driver or log_options:
             job_definition["containerProperties"]["logConfiguration"] = {}
-        if log_driver is not None:
+        if log_driver:
             job_definition["containerProperties"]["logConfiguration"][
                 "logDriver"
             ] = log_driver
-        if log_options is not None:
+        if log_options:
             job_definition["containerProperties"]["logConfiguration"][
                 "options"
             ] = log_options_dict
