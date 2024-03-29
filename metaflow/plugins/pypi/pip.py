@@ -92,7 +92,14 @@ class Pip(object):
                 # so using @branch as a version acts as expected.
                 vcs_info = dl_info.get("vcs_info")
                 if vcs_info:
-                    res["url"] = "{vcs}+{url}@{commit_id}".format(**vcs_info, **res)
+                    subdirectory = dl_info.get("subdirectory")
+                    res["url"] = "{vcs}+{url}@{commit_id}{subdir_str}".format(
+                        **vcs_info,
+                        **res,
+                        subdir_str="#subdirectory=%s" % subdirectory
+                        if subdirectory
+                        else ""
+                    )
                     # used to deduplicate the storage location in case wheel does not
                     # build with enough unique identifiers.
                     res["hash"] = vcs_info["commit_id"]
