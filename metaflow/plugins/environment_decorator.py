@@ -1,4 +1,3 @@
-from metaflow.exception import MetaflowException
 from metaflow.decorators import StepDecorator
 
 
