@@ -282,7 +282,6 @@ class Airflow(object):
         # Add env vars from the optional @environment decorator.
         env_deco = [deco for deco in node.decorators if deco.name == "environment"]
         env = {}
-
         if env_deco:
             type(env_deco[0]).merge_vars(env_deco, env)
 
