@@ -1371,12 +1371,14 @@ class ArgoWorkflows(object):
             # Set shared_memory to 0 if it isn't specified. This results
             # in Kubernetes using it's default value when the pod is created.
             shared_memory = resources.get("shared_memory", 0)
+            port = resources.get("port", None)
+            if port:
+                port = int(port)
 
             tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
 
             if tmpfs_enabled and tmpfs_tempdir:
                 env["METAFLOW_TEMPDIR"] = tmpfs_path
-
             # Create a ContainerTemplate for this node. Ideally, we would have
             # liked to inline this ContainerTemplate and avoid scanning the workflow
             # twice, but due to issues with variable substitution, we will have to
@@ -1435,6 +1437,9 @@ class ArgoWorkflows(object):
                         kubernetes_sdk.V1Container(
                             name=self._sanitize(node.name),
                             command=cmds,
+                            ports=[kubernetes_sdk.V1ContainerPort(container_port=port)]
+                            if port
+                            else None,
                             env=[
                                 kubernetes_sdk.V1EnvVar(name=k, value=str(v))
                                 for k, v in env.items()
