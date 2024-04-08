@@ -118,6 +118,13 @@ class KubernetesJob(object):
                         containers=[
                             client.V1Container(
                                 command=self._kwargs["command"],
+                                ports=[
+                                    client.V1ContainerPort(
+                                        container_port=int(self._kwargs["port"])
+                                    )
+                                ]
+                                if "port" in self._kwargs and self._kwargs["port"]
+                                else None,
                                 env=[
                                     client.V1EnvVar(name=k, value=str(v))
                                     for k, v in self._kwargs.get(

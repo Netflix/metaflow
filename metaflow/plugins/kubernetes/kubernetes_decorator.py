@@ -21,6 +21,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_TOLERATIONS,
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SHARED_MEMORY,
+    KUBERNETES_PORT,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -90,6 +91,8 @@ class KubernetesDecorator(StepDecorator):
         volumes to the path to which the volume is to be mounted, e.g., `{'pvc-name': '/path/to/mount/on'}`.
     shared_memory: int, optional
         Shared memory size (in MiB) required for this step
+    port: int, optional
+        Port number to specify in the Kubernetes job object
     """
 
     name = "kubernetes"
@@ -113,6 +116,7 @@ class KubernetesDecorator(StepDecorator):
         "tmpfs_path": "/metaflow_temp",
         "persistent_volume_claims": None,  # e.g., {"pvc-name": "/mnt/vol", "another-pvc": "/mnt/vol2"}
         "shared_memory": None,
+        "port": None,
     }
     package_url = None
     package_sha = None
@@ -200,6 +204,8 @@ class KubernetesDecorator(StepDecorator):
                 self.attributes["tmpfs_size"] = int(self.attributes["memory"]) // 2
         if not self.attributes["shared_memory"]:
             self.attributes["shared_memory"] = KUBERNETES_SHARED_MEMORY
+        if not self.attributes["port"]:
+            self.attributes["port"] = KUBERNETES_PORT
 
     # Refer https://github.com/Netflix/metaflow/blob/master/docs/lifecycle.png
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
