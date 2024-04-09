@@ -29,6 +29,12 @@ class SubprocessManager(object):
 
         signal.signal(signal.SIGINT, self.handle_sigint)
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        await self.cleanup()
+
     def handle_sigint(self, signum, frame):
         print("SIGINT received.")
         asyncio.create_task(self.kill_process())
@@ -129,12 +135,12 @@ class SubprocessManager(object):
         if hasattr(self, "temp_dir"):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    async def kill_process(self, timeout=5):
+    async def kill_process(self, termination_timeout=5):
         if self.process is not None:
             if self.process.returncode is None:
                 self.process.terminate()
                 try:
-                    await asyncio.wait_for(self.process.wait(), timeout)
+                    await asyncio.wait_for(self.process.wait(), termination_timeout)
                 except asyncio.TimeoutError:
                     self.process.kill()
             else:
