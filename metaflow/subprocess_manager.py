@@ -1,10 +1,8 @@
 import os
 import sys
-import time
 import signal
 import shutil
 import asyncio
-import aiofiles
 import tempfile
 from typing import List
 
@@ -66,8 +64,8 @@ class SubprocessManager(object):
                 *command,
                 cwd=self.cwd,
                 env=self.env,
-                stdout=await aiofiles.open(stdout_logfile, "w"),
-                stderr=await aiofiles.open(stderr_logfile, "w"),
+                stdout=open(stdout_logfile, "w"),
+                stderr=open(stderr_logfile, "w"),
             )
 
             self.log_files["stdout"] = stdout_logfile
@@ -92,9 +90,9 @@ class SubprocessManager(object):
 
         log_file = self.log_files[stream]
 
-        async with aiofiles.open(log_file, mode="r") as f:
+        with open(log_file, mode="r") as f:
             if position is not None:
-                await f.seek(position)
+                f.seek(position)
 
             while True:
                 # wait for a small time for complete lines to be written to the file
@@ -104,7 +102,7 @@ class SubprocessManager(object):
 
                 try:
                     if timeout_per_line is None:
-                        line = await f.readline()
+                        line = f.readline()
                     else:
                         line = await asyncio.wait_for(f.readline(), timeout_per_line)
                 except asyncio.TimeoutError as e:
@@ -124,7 +122,7 @@ class SubprocessManager(object):
                     else:
                         continue
 
-                position = await f.tell()
+                position = f.tell()
                 yield line.strip(), position
 
     async def emit_logs(self, stream="stdout", custom_logger=print):
