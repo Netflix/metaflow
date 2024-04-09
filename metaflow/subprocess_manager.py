@@ -29,8 +29,7 @@ class SubprocessManager(object):
         return self
 
     async def __aexit__(self, exc_type, exc_value, traceback):
-        for _, v in self.commands.items():
-            await v.cleanup()
+        await self.cleanup()
 
     async def run_command(self, command: List[str], env=None, cwd=None):
         command_id = hash_command_invocation(command)
@@ -40,6 +39,10 @@ class SubprocessManager(object):
 
     def get(self, command_id: str) -> "CommandManager":
         return self.commands.get(command_id, None)
+
+    async def cleanup(self):
+        for _, v in self.commands.items():
+            await v.cleanup()
 
 
 class CommandManager(object):

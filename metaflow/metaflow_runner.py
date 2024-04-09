@@ -1,6 +1,5 @@
 import os
 import sys
-import shutil
 import asyncio
 import tempfile
 import aiofiles
@@ -8,7 +7,7 @@ from typing import Dict
 from metaflow import Run
 from metaflow.cli import start
 from metaflow.click_api import MetaflowAPI
-from metaflow.subprocess_manager import SubprocessManager
+from metaflow.subprocess_manager import SubprocessManager, CommandManager
 
 
 async def read_from_file_when_ready(file_path):
@@ -20,6 +19,28 @@ async def read_from_file_when_ready(file_path):
         return content
 
 
+class ExecutingRun(object):
+    def __init__(self, command_obj: CommandManager, run_obj: Run) -> None:
+        self.command_obj = command_obj
+        self.run_obj = run_obj
+
+    def __getattr__(self, name: str):
+        if hasattr(self.run_obj, name):
+            run_attr = getattr(self.run_obj, name)
+            if callable(run_attr):
+                return lambda *args, **kwargs: run_attr(*args, **kwargs)
+            else:
+                return run_attr
+        elif hasattr(self.command_obj, name):
+            command_attr = getattr(self.command_obj, name)
+            if callable(command_attr):
+                return lambda *args, **kwargs: command_attr(*args, **kwargs)
+            else:
+                return command_attr
+        else:
+            raise AttributeError(f"Invalid attribute {name}")
+
+
 class Runner(object):
     def __init__(
         self,
@@ -29,17 +50,14 @@ class Runner(object):
     ):
         self.flow_file = flow_file
         self.env_vars = os.environ.copy().update(env)
-        self.spm = SubprocessManager(env=self.env_vars)
+        self.spm = SubprocessManager()
         self.api = MetaflowAPI.from_cli(self.flow_file, start)
         self.runner = self.api(**kwargs).run
 
-    def __enter__(self):
+    async def __aenter__(self):
         return self
 
-    async def tail_logs(self, stream="stdout"):
-        await self.spm.get_logs(stream)
-
-    async def run(self, blocking: bool = False, **kwargs):
+    async def run(self, **kwargs):
         with tempfile.TemporaryDirectory() as temp_dir:
             tfp_flow = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
             tfp_run_id = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
@@ -48,10 +66,10 @@ class Runner(object):
                 run_id_file=tfp_run_id.name, flow_name_file=tfp_flow.name, **kwargs
             )
 
-            process = await self.spm.run_command([sys.executable, *command.split()])
-
-            if blocking:
-                await process.wait()
+            command_id = await self.spm.run_command(
+                [sys.executable, *command], env=self.env_vars
+            )
+            command_obj = self.spm.get(command_id)
 
             flow_name = await read_from_file_when_ready(tfp_flow.name)
             run_id = await read_from_file_when_ready(tfp_run_id.name)
@@ -59,9 +77,7 @@ class Runner(object):
             pathspec_components = (flow_name, run_id)
             run_object = Run("/".join(pathspec_components), _namespace_check=False)
 
-            self.run = run_object
+            return ExecutingRun(command_obj, run_object)
 
-            return run_object
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        shutil.rmtree(self.spm.temp_dir, ignore_errors=True)
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        await self.spm.cleanup()
