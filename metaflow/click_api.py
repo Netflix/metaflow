@@ -216,11 +216,13 @@ class MetaflowAPI(object):
                 for k, v in options.items():
                     if isinstance(v, list):
                         for i in v:
-                            components.append(f"--{k} {i}")
+                            components.append(f"--{k}")
+                            components.append(str(i))
                     else:
-                        components.append(f"--{k} {v}")
+                        components.append(f"--{k}")
+                        components.append(str(v))
 
-        return " ".join(components)
+        return components
 
 
 def extract_all_params(cmd_obj):

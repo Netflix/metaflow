@@ -189,7 +189,7 @@ async def main():
 
     api = MetaflowAPI.from_cli(flow_file, start)
     command = api().run(alpha=5)
-    cmd = [sys.executable, *command.split()]
+    cmd = [sys.executable, *command]
 
     async with SubprocessManager() as spm:
         # returns immediately
