@@ -4,8 +4,13 @@ import time
 import signal
 import shutil
 import asyncio
+import aiofiles
 import tempfile
 from typing import List
+
+
+class LogReadTimeoutError(Exception):
+    pass
 
 
 class SubprocessManager(object):
@@ -21,7 +26,6 @@ class SubprocessManager(object):
         self.process = None
         self.run_command_called = False
         self.log_files = {}
-        self.process_dict = {}
 
         signal.signal(signal.SIGINT, self.handle_sigint)
 
@@ -34,17 +38,15 @@ class SubprocessManager(object):
             if stream is None:
                 await self.process.wait()
             else:
-                await self.get_logs(stream)
+                await self.emit_logs(stream)
         else:
             tasks = [asyncio.create_task(asyncio.sleep(timeout))]
             if stream is None:
                 tasks.append(asyncio.create_task(self.process.wait()))
             else:
-                tasks.append(asyncio.create_task(self.get_logs(stream)))
+                tasks.append(asyncio.create_task(self.emit_logs(stream)))
 
             await asyncio.wait(tasks, return_when="FIRST_COMPLETED")
-
-        await self.cleanup()
 
     async def run_command(self, command: List[str]):
         self.temp_dir = tempfile.mkdtemp()
@@ -58,8 +60,8 @@ class SubprocessManager(object):
                 *command,
                 cwd=self.cwd,
                 env=self.env,
-                stdout=open(stdout_logfile, "w"),
-                stderr=open(stderr_logfile, "w"),
+                stdout=await aiofiles.open(stdout_logfile, "w"),
+                stderr=await aiofiles.open(stderr_logfile, "w"),
             )
 
             self.log_files["stdout"] = stdout_logfile
@@ -71,31 +73,57 @@ class SubprocessManager(object):
             print(f"Error starting subprocess: {e}")
             await self.cleanup()
 
-    async def stream_logs(self, stream):
+    async def stream_logs(
+        self, stream, position=None, timeout_per_line=None, log_write_delay=0.01
+    ):
         if self.run_command_called is False:
             raise ValueError("No command run yet to get the logs for...")
 
         if stream not in self.log_files:
-            raise ValueError(f"No log file found for {stream}")
+            raise ValueError(
+                f"No log file found for {stream}, valid values are: {list(self.log_files.keys())}"
+            )
 
         log_file = self.log_files[stream]
 
-        with open(log_file, mode="r") as f:
-            last_position = self.process_dict.get(stream, 0)
-            f.seek(last_position)
+        async with aiofiles.open(log_file, mode="r") as f:
+            if position is not None:
+                await f.seek(position)
 
             while True:
-                line = f.readline()
+                # wait for a small time for complete lines to be written to the file
+                # else, there's a possibility that a line may not be completely written when
+                # attempting to read it. This is not a problem, but improves readability.
+                await asyncio.sleep(log_write_delay)
+
+                try:
+                    if timeout_per_line is None:
+                        line = await f.readline()
+                    else:
+                        line = await asyncio.wait_for(f.readline(), timeout_per_line)
+                except asyncio.TimeoutError as e:
+                    raise LogReadTimeoutError(
+                        f"Timeout while reading a line from the log file for the stream: {stream}"
+                    ) from e
+
+                # when we encounter an empty line
                 if not line:
-                    break
-                print(line.strip())
+                    # either the process has terminated, in which case we want to break
+                    # and stop the reading process of the log file since no more logs
+                    # will be written to it
+                    if self.process.returncode is not None:
+                        break
+                    # or the process is still running and more logs could be written to
+                    # the file, in which case we continue reading the log file
+                    else:
+                        continue
 
-            self.process_dict[stream] = f.tell()
+                position = await f.tell()
+                yield line.strip(), position
 
-    async def get_logs(self, stream="stdout", delay=0.1):
-        while self.process.returncode is None:
-            await self.stream_logs(stream)
-            await asyncio.sleep(delay)
+    async def emit_logs(self, stream="stdout", custom_logger=print):
+        async for line, _ in self.stream_logs(stream):
+            custom_logger(line)
 
     async def cleanup(self):
         if hasattr(self, "temp_dir"):
