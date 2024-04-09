@@ -206,7 +206,7 @@ class MetaflowAPI(object):
                 components.append(cmd)
                 args = params.pop("args", {})
                 options = params.pop("options", {})
-                assert len(params) == 0
+
                 for _, v in args.items():
                     if isinstance(v, list):
                         for i in v:
