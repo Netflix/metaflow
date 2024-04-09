@@ -4,11 +4,18 @@ import itertools
 from collections import OrderedDict
 from typeguard import check_type, TypeCheckError
 import uuid, datetime
-from typing import Optional, List
+from typing import (
+    Optional,
+    List,
+    OrderedDict as TOrderedDict,
+    Any,
+    Union,
+    Dict,
+    Callable,
+)
 from metaflow import FlowSpec, Parameter
 from metaflow.cli import start
 from metaflow._vendor import click
-from metaflow._vendor.click import Command, Group, Argument, Option
 from metaflow.parameters import JSONTypeClass
 from metaflow.includefile import FilePathClass
 from metaflow._vendor.click.types import (
@@ -41,8 +48,12 @@ click_to_python_types = {
 
 
 def _method_sanity_check(
-    possible_arg_params, possible_opt_params, annotations, defaults, **kwargs
-):
+    possible_arg_params: TOrderedDict[str, click.Argument],
+    possible_opt_params: TOrderedDict[str, click.Option],
+    annotations: TOrderedDict[str, Any],
+    defaults: TOrderedDict[str, Any],
+    **kwargs
+) -> Dict[str, Any]:
     method_params = {"args": {}, "options": {}}
 
     possible_params = OrderedDict()
@@ -85,7 +96,7 @@ def _method_sanity_check(
     return method_params
 
 
-def get_annotation(param):
+def get_annotation(param: Union[click.Argument, click.Option]):
     py_type = click_to_python_types[type(param.type)]
     if not param.required:
         if param.multiple or param.nargs == -1:
@@ -99,7 +110,7 @@ def get_annotation(param):
             return py_type
 
 
-def get_inspect_param_obj(p, kind):
+def get_inspect_param_obj(p: Union[click.Argument, click.Option], kind: str):
     return inspect.Parameter(
         name=p.name,
         kind=kind,
@@ -108,7 +119,7 @@ def get_inspect_param_obj(p, kind):
     )
 
 
-def extract_flowspec_params(flow_file):
+def extract_flowspec_params(flow_file: str) -> List[Parameter]:
     spec = importlib.util.spec_from_file_location("module", flow_file)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -140,16 +151,16 @@ class MetaflowAPI(object):
         return self._chain
 
     @classmethod
-    def from_cli(cls, flow_file, cli_collection):
+    def from_cli(cls, flow_file: str, cli_collection: Callable) -> Callable:
         flow_parameters = extract_flowspec_params(flow_file)
         class_dict = {"__module__": "metaflow", "_API_NAME": flow_file}
         command_groups = cli_collection.sources
         for each_group in command_groups:
             for _, cmd_obj in each_group.commands.items():
-                if isinstance(cmd_obj, Group):
+                if isinstance(cmd_obj, click.Group):
                     # TODO: possibly check for fake groups with cmd_obj.name in ["cli", "main"]
                     class_dict[cmd_obj.name] = extract_group(cmd_obj, flow_parameters)
-                elif isinstance(cmd_obj, Command):
+                elif isinstance(cmd_obj, click.Command):
                     class_dict[cmd_obj.name] = extract_command(cmd_obj, flow_parameters)
                 else:
                     raise RuntimeError(
@@ -188,7 +199,7 @@ class MetaflowAPI(object):
 
         return m
 
-    def execute(self):
+    def execute(self) -> List[str]:
         parents = []
         current = self
         while current.parent:
@@ -225,7 +236,7 @@ class MetaflowAPI(object):
         return components
 
 
-def extract_all_params(cmd_obj):
+def extract_all_params(cmd_obj: Union[click.Command, click.Group]):
     arg_params_sigs = OrderedDict()
     opt_params_sigs = OrderedDict()
     params_sigs = OrderedDict()
@@ -236,12 +247,12 @@ def extract_all_params(cmd_obj):
     defaults = OrderedDict()
 
     for each_param in cmd_obj.params:
-        if isinstance(each_param, Argument):
+        if isinstance(each_param, click.Argument):
             arg_params_sigs[each_param.name] = get_inspect_param_obj(
                 each_param, inspect.Parameter.POSITIONAL_ONLY
             )
             arg_parameters[each_param.name] = each_param
-        elif isinstance(each_param, Option):
+        elif isinstance(each_param, click.Option):
             opt_params_sigs[each_param.name] = get_inspect_param_obj(
                 each_param, inspect.Parameter.KEYWORD_ONLY
             )
@@ -260,13 +271,13 @@ def extract_all_params(cmd_obj):
     return params_sigs, arg_parameters, opt_parameters, annotations, defaults
 
 
-def extract_group(cmd_obj, flow_parameters):
+def extract_group(cmd_obj: click.Group, flow_parameters: List[Parameter]) -> Callable:
     class_dict = {"__module__": "metaflow", "_API_NAME": cmd_obj.name}
     for _, sub_cmd_obj in cmd_obj.commands.items():
-        if isinstance(sub_cmd_obj, Group):
+        if isinstance(sub_cmd_obj, click.Group):
             # recursion
             class_dict[sub_cmd_obj.name] = extract_group(sub_cmd_obj, flow_parameters)
-        elif isinstance(sub_cmd_obj, Command):
+        elif isinstance(sub_cmd_obj, click.Command):
             class_dict[sub_cmd_obj.name] = extract_command(sub_cmd_obj, flow_parameters)
         else:
             raise RuntimeError(
@@ -302,7 +313,9 @@ def extract_group(cmd_obj, flow_parameters):
     return m
 
 
-def extract_command(cmd_obj, flow_parameters):
+def extract_command(
+    cmd_obj: click.Command, flow_parameters: List[Parameter]
+) -> Callable:
     if getattr(cmd_obj, "has_flow_params", False):
         for p in flow_parameters[::-1]:
             cmd_obj.params.insert(0, click.Option(("--" + p.name,), **p.kwargs))
