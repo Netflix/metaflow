@@ -1,10 +1,20 @@
 import os
 import sys
+import time
 import signal
 import shutil
+import hashlib
 import asyncio
 import tempfile
 from typing import List
+
+
+def hash_command_invocation(command: List[str]):
+    concatenated_string = "".join(command)
+    current_time = str(time.time())
+    concatenated_string += current_time
+    hash_object = hashlib.sha256(concatenated_string.encode())
+    return hash_object.hexdigest()
 
 
 class LogReadTimeoutError(Exception):
@@ -12,7 +22,30 @@ class LogReadTimeoutError(Exception):
 
 
 class SubprocessManager(object):
-    def __init__(self, env=None, cwd=None):
+    def __init__(self):
+        self.commands = {}
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        for _, v in self.commands.items():
+            await v.cleanup()
+
+    async def run_command(self, command: List[str], env=None, cwd=None):
+        command_id = hash_command_invocation(command)
+        self.commands[command_id] = CommandManager(command, env, cwd)
+        await self.commands[command_id].run()
+        return command_id
+
+    def get(self, command_id: str) -> "CommandManager":
+        return self.commands.get(command_id, None)
+
+
+class CommandManager(object):
+    def __init__(self, command: List[str], env=None, cwd=None):
+        self.command = command
+
         if env is None:
             env = os.environ.copy()
         self.env = env
@@ -22,7 +55,7 @@ class SubprocessManager(object):
         self.cwd = cwd
 
         self.process = None
-        self.run_command_called = False
+        self.run_called = False
         self.log_files = {}
 
         signal.signal(signal.SIGINT, self.handle_sigint)
@@ -35,7 +68,7 @@ class SubprocessManager(object):
 
     def handle_sigint(self, signum, frame):
         print("SIGINT received.")
-        asyncio.create_task(self.kill_process())
+        asyncio.create_task(self.kill())
 
     async def wait(self, timeout=None, stream=None):
         if timeout is None:
@@ -52,16 +85,16 @@ class SubprocessManager(object):
 
             await asyncio.wait(tasks, return_when="FIRST_COMPLETED")
 
-    async def run_command(self, command: List[str]):
+    async def run(self):
         self.temp_dir = tempfile.mkdtemp()
         stdout_logfile = os.path.join(self.temp_dir, "stdout.log")
         stderr_logfile = os.path.join(self.temp_dir, "stderr.log")
 
         try:
-            # returns when subprocess has been started, not
-            # when it is finished...
+            # returns when process has been started,
+            # not when it is finished...
             self.process = await asyncio.create_subprocess_exec(
-                *command,
+                *self.command,
                 cwd=self.cwd,
                 env=self.env,
                 stdout=open(stdout_logfile, "w"),
@@ -71,7 +104,7 @@ class SubprocessManager(object):
             self.log_files["stdout"] = stdout_logfile
             self.log_files["stderr"] = stderr_logfile
 
-            self.run_command_called = True
+            self.run_called = True
             return self.process
         except Exception as e:
             print(f"Error starting subprocess: {e}")
@@ -80,7 +113,7 @@ class SubprocessManager(object):
     async def stream_logs(
         self, stream, position=None, timeout_per_line=None, log_write_delay=0.01
     ):
-        if self.run_command_called is False:
+        if self.run_called is False:
             raise ValueError("No command run yet to get the logs for...")
 
         if stream not in self.log_files:
@@ -123,17 +156,17 @@ class SubprocessManager(object):
                         continue
 
                 position = f.tell()
-                yield line.strip(), position
+                yield position, line.strip()
 
     async def emit_logs(self, stream="stdout", custom_logger=print):
-        async for line, _ in self.stream_logs(stream):
+        async for _, line in self.stream_logs(stream):
             custom_logger(line)
 
     async def cleanup(self):
         if hasattr(self, "temp_dir"):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    async def kill_process(self, termination_timeout=5):
+    async def kill(self, termination_timeout=5):
         if self.process is not None:
             if self.process.returncode is None:
                 self.process.terminate()
@@ -143,7 +176,7 @@ class SubprocessManager(object):
                     self.process.kill()
             else:
                 print(
-                    f"Process has already terminated with return code {self.process.returncode}."
+                    f"Process has already terminated with return code: {self.process.returncode}"
                 )
         else:
             print("No process to kill.")
@@ -158,24 +191,84 @@ async def main():
     command = api().run(alpha=5)
     cmd = [sys.executable, *command.split()]
 
-    spm = SubprocessManager()
+    async with SubprocessManager() as spm:
+        # returns immediately
+        command_id = await spm.run_command(cmd)
+        command_obj = spm.get(command_id)
 
-    # returns immediately
-    process = await spm.run_command(cmd)
-    print(process.returncode)  # this is None since not completed yet..
+        print(command_id)
 
-    # wait for process to finish..
-    await spm.wait()
+        # this is None since the process has not completed yet
+        print(command_obj.process.returncode)
 
-    # wait for process with a timeout, kill when timeout expires..
-    await spm.wait(timeout=2)
+        # wait / do some other processing while the process runs in background.
+        # if the process finishes before this sleep period, the calls to `wait`
+        # below are instantaneous since it has already ended..
+        # time.sleep(10)
 
-    # wait for process to finish but also stream logs..
-    await spm.wait(stream="stdout")
+        # wait for process to finish
+        await command_obj.wait()
 
-    # wait for process to finish while streaming logs but with a timeout..
-    # kill when timeout expires..
-    await spm.wait(timeout=2, stream="stdout")
+        # wait for process to finish with a timeout, kill if timeout expires before completion
+        await command_obj.wait(timeout=2)
+
+        # wait for process to finish while streaming logs
+        await command_obj.wait(stream="stdout")
+
+        # wait for process to finish with a timeout while streaming logs
+        await command_obj.wait(stream="stdout", timeout=3)
+
+        # stream logs line by line and check for existence of a string, noting down the position
+        interesting_position = 0
+        async for position, line in command_obj.stream_logs(stream="stdout"):
+            print(line)
+            if "alpha is" in line:
+                interesting_position = position
+                break
+
+        print(f"ended streaming at: {interesting_position}")
+
+        # wait / do some other processing while the process runs in background
+        # if the process finishes before this sleep period, the streaming of logs
+        # below are instantaneous since it has already ended..
+        # time.sleep(10)
+
+        # this blocks till the process completes unless we uncomment the `time.sleep` above..
+        print(
+            f"resuming streaming from: {interesting_position} while process is still running..."
+        )
+        async for position, line in command_obj.stream_logs(
+            stream="stdout", position=interesting_position
+        ):
+            print(line)
+
+        # this will be instantaneous since the process has finished and we just read from the log file
+        print("process has ended by now... streaming again from scratch..")
+        async for position, line in command_obj.stream_logs(stream="stdout"):
+            print(line)
+
+        # this will be instantaneous since the process has finished and we just read from the log file
+        print(
+            "process has ended by now... streaming again but from position of choice.."
+        )
+        async for position, line in command_obj.stream_logs(
+            stream="stdout", position=interesting_position
+        ):
+            print(line)
+
+        # two parallel streams for stdout
+        tasks = [
+            command_obj.emit_logs(
+                stream="stdout", custom_logger=lambda x: print(f"[STREAM A]: {x}")
+            ),
+            command_obj.emit_logs(
+                stream="stdout", custom_logger=lambda x: print(f"[STREAM B]: {x}")
+            ),
+        ]
+        await asyncio.gather(*tasks)
+
+        # get the location of log files..
+        print(command_obj.log_files)
 
 
 if __name__ == "__main__":
