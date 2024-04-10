@@ -19,6 +19,7 @@ class BakeryException(MetaflowException):
 
 
 def bake_image(python=None, packages={}, datastore_type=None):
+    # TODO: Cache image tags locally and add cache revoke functionality
     if DOCKER_IMAGE_BAKERY_URL is None:
         raise BakeryException("Image bakery URL is not set.")
     # Gather base deps
@@ -41,6 +42,7 @@ def bake_image(python=None, packages={}, datastore_type=None):
         "condaMatchspecs": package_matchspecs,
         "imageKind": DOCKER_IMAGE_BAKERY_TYPE,
     }
+    # TODO: introduce auth
     response = requests.post(DOCKER_IMAGE_BAKERY_URL, json=data, headers=headers)
 
     body = response.json()
