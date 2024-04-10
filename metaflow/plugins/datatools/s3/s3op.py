@@ -267,6 +267,10 @@ def worker(result_file_name, queue, mode, s3config):
                             result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
                             continue
                         else:
+                            print(
+                                "s3op download failed with error code :\n%d"
+                                % error_code
+                            )
                             raise
                         # TODO specific error message for out of disk space
                     # If we need the metadata, get it and write it out
@@ -332,6 +336,10 @@ def worker(result_file_name, queue, mode, s3config):
                                 result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
                                 continue
                             else:
+                                print(
+                                    "s3op upload failed with error code :\n%d"
+                                    % error_code
+                                )
                                 raise
         except:
             traceback.print_exc()
@@ -486,6 +494,7 @@ class S3Ops(object):
                 return False, url, ERROR_URL_ACCESS_DENIED
             # Transient errors are going to be retried by the aws_retry decorator
             else:
+                print("s3op get_info failed with error code :\n%d" % error_code)
                 raise
 
     @aws_retry
@@ -534,6 +543,7 @@ class S3Ops(object):
                 return False, prefix_url, ERROR_URL_ACCESS_DENIED
             # Transient errors are going to be retried by the aws_retry decorator
             else:
+                print("s3op list_prefix failed with error code :\n%d" % error_code)
                 raise
 
 
@@ -574,7 +584,7 @@ def exit(exit_code, url):
     elif exit_code == ERROR_TRANSIENT:
         msg = "Transient error for url: %s" % url
     else:
-        msg = "Unknown error"
+        msg = "Unknown error, exit code: %d" % exit_code
     print("s3op failed:\n%s" % msg, file=sys.stderr)
     sys.exit(exit_code)
 
