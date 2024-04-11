@@ -22,6 +22,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SHARED_MEMORY,
     KUBERNETES_PORT,
+    KUBERNETES_RESOURCES,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -173,6 +174,16 @@ class KubernetesDecorator(StepDecorator):
                         )
             except (NameError, ImportError):
                 pass
+
+        # If CPU is not specified in KUBERNETES_RESOURCES, use the default value.
+        if KUBERNETES_RESOURCES.get("cpu"):
+            self.attributes["cpu"] = KUBERNETES_RESOURCES.get("cpu")
+        # If memory is not specified in KUBERNETES_RESOURCES, use the default value.
+        if KUBERNETES_RESOURCES.get("memory"):
+            self.attributes["memory"] = KUBERNETES_RESOURCES.get("memory")
+        # If disk is not specified in KUBERNETES_RESOURCES, use the default value.
+        if KUBERNETES_RESOURCES.get("disk"):
+            self.attributes["disk"] = KUBERNETES_RESOURCES.get("disk")
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
