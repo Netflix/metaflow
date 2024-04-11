@@ -14,6 +14,7 @@ CLIS_DESC = [
     ("argo-workflows", ".argo.argo_workflows_cli.cli"),
     ("card", ".cards.card_cli.cli"),
     ("tag", ".tag_cli.cli"),
+    ("armada", ".armada.armada_cli.cli"),
 ]
 
 from .test_unbounded_foreach_decorator import InternalTestUnboundedForeachInput
@@ -43,7 +44,10 @@ STEP_DECORATORS_DESC = [
     ),
     ("card", ".cards.card_decorator.CardDecorator"),
     ("pytorch_parallel", ".frameworks.pytorch.PytorchParallelDecorator"),
-    ("airflow_internal", ".airflow.airflow_decorator.AirflowInternalDecorator"),
+    (
+        "airflow_internal",
+        ".airflow.airflow_decorator.AirflowInternalDecorator",
+    ),
     ("pypi", ".pypi.pypi_decorator.PyPIStepDecorator"),
     ("conda", ".pypi.conda_decorator.CondaStepDecorator"),
 ]
@@ -108,7 +112,10 @@ AWS_CLIENT_PROVIDERS_DESC = [("boto3", ".aws.aws_client.Boto3ClientProvider")]
 
 # Add Airflow sensor related flow decorators
 SENSOR_FLOW_DECORATORS = [
-    ("airflow_external_task_sensor", ".airflow.sensors.ExternalTaskSensorDecorator"),
+    (
+        "airflow_external_task_sensor",
+        ".airflow.sensors.ExternalTaskSensorDecorator",
+    ),
     ("airflow_s3_key_sensor", ".airflow.sensors.S3KeySensorDecorator"),
 ]
 
@@ -165,9 +172,9 @@ from .cards.card_modules.test_cards import (
     TestMockCard,
     TestNonEditableCard,
     TestPathSpecCard,
-    TestTimeoutCard,
     TestRefreshCard,
     TestRefreshComponentCard,
+    TestTimeoutCard,
 )
 
 CARDS = [
