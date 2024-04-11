@@ -1988,13 +1988,9 @@ class ArgoWorkflows(object):
                                                 # Technically, we don't need to create
                                                 # a payload carry-on and can stuff
                                                 # everything within the body.
-                                                data_template="""
-                                                {{ if (hasKey $.Input.body.payload "%s") }}
-                                                {{- (.Input.body.payload.%s | toJson) -}}
-                                                {{- else -}}
-                                                {{ (fail "use-default-instead") }}
-                                                {{- end -}}
-                                                """
+                                                # NOTE: We need the conditional logic in order to successfully fall back to the default value
+                                                # when the event payload does not contain a key for a parameter.
+                                                data_template='{{ if (hasKey $.Input.body.payload "%s") }}{{- (.Input.body.payload.%s | toJson) -}}{{- else -}}{{ (fail "use-default-instead") }}{{- end -}}'
                                                 % (v, v),
                                                 # Unfortunately the sensor needs to
                                                 # record the default values for
