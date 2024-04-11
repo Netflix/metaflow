@@ -175,15 +175,13 @@ class KubernetesDecorator(StepDecorator):
             except (NameError, ImportError):
                 pass
 
-        # If CPU is not specified in KUBERNETES_RESOURCES, use the default value.
-        if KUBERNETES_RESOURCES.get("cpu"):
-            self.attributes["cpu"] = KUBERNETES_RESOURCES.get("cpu")
-        # If memory is not specified in KUBERNETES_RESOURCES, use the default value.
-        if KUBERNETES_RESOURCES.get("memory"):
-            self.attributes["memory"] = KUBERNETES_RESOURCES.get("memory")
-        # If disk is not specified in KUBERNETES_RESOURCES, use the default value.
-        if KUBERNETES_RESOURCES.get("disk"):
-            self.attributes["disk"] = KUBERNETES_RESOURCES.get("disk")
+        # parse the CPU, memory, disk, values from the KUBERNETES_RESOURCES environment variable (you would need to export the METAFLOW_KUBERNETES_RESOURCES environment variable with the desired values before running the flow)
+        # find the values in the format "cpu=1,memory=4096,disk=10240", if not set, the default values described above are used
+        if KUBERNETES_RESOURCES:
+            for resource in KUBERNETES_RESOURCES.split(","):
+                key, value = resource.split("=")
+                if key in self.attributes:
+                    self.attributes[key] = value
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
