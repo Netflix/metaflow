@@ -1,3 +1,5 @@
+import hashlib
+import json
 import requests
 
 from metaflow.exception import MetaflowException
@@ -6,6 +8,8 @@ from metaflow.metaflow_config import (
     DOCKER_IMAGE_BAKERY_URL,
     get_pinned_conda_libs,
 )
+
+BAKERY_METAFILE = ".imagebakery-cache"
 
 
 class BakeryException(MetaflowException):
@@ -18,8 +22,43 @@ class BakeryException(MetaflowException):
         super(BakeryException, self).__init__(msg)
 
 
+def read_metafile():
+    try:
+        with open(BAKERY_METAFILE, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def cache_image_tag(spec_hash, image, packages):
+    current_meta = read_metafile()
+    current_meta[spec_hash] = {
+        "kind": DOCKER_IMAGE_BAKERY_TYPE,
+        "packages": packages,
+        "image": image,
+    }
+
+    with open(BAKERY_METAFILE, "w") as f:
+        json.dump(current_meta, f)
+
+
+def get_cache_image_tag(spec_hash):
+    current_meta = read_metafile()
+
+    return current_meta.get(spec_hash, {}).get("image", None)
+
+
+def generate_spec_hash(packages={}):
+    sorted_keys = sorted(packages.keys())
+    sortspec = DOCKER_IMAGE_BAKERY_TYPE.join(
+        f"{k}{packages[k]}" for k in sorted_keys
+    ).encode("utf-8")
+    hash = hashlib.md5(sortspec).hexdigest()
+
+    return hash
+
+
 def bake_image(python=None, packages={}, datastore_type=None):
-    # TODO: Cache image tags locally and add cache revoke functionality
     if DOCKER_IMAGE_BAKERY_URL is None:
         raise BakeryException("Image bakery URL is not set.")
     # Gather base deps
@@ -29,6 +68,13 @@ def bake_image(python=None, packages={}, datastore_type=None):
     deps.update(packages)
     if python is not None:
         deps.update({"python": python})
+
+    # TODO: Cache image tags locally and add cache revoke functionality
+    # Try getting image tag from cache
+    spec_hash = generate_spec_hash(packages)
+    image = get_cache_image_tag(spec_hash)
+    if image:
+        return image
 
     def _format(pkg, ver):
         if any(ver.startswith(c) for c in [">", "<", "~", "@", "="]):
@@ -51,5 +97,8 @@ def bake_image(python=None, packages={}, datastore_type=None):
         msg = body["message"]
         raise BakeryException("*%s*\n%s" % (kind, msg))
     image = body["containerImage"]
+
+    # Cache tag
+    cache_image_tag(spec_hash, image, packages)
 
     return image
