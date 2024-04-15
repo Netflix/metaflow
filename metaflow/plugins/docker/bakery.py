@@ -71,7 +71,7 @@ def bake_image(python=None, packages={}, datastore_type=None):
 
     # TODO: Cache image tags locally and add cache revoke functionality
     # Try getting image tag from cache
-    spec_hash = generate_spec_hash(packages)
+    spec_hash = generate_spec_hash(deps)
     image = get_cache_image_tag(spec_hash)
     if image:
         return image
@@ -99,6 +99,6 @@ def bake_image(python=None, packages={}, datastore_type=None):
     image = body["containerImage"]
 
     # Cache tag
-    cache_image_tag(spec_hash, image, packages)
+    cache_image_tag(spec_hash, image, deps)
 
     return image
