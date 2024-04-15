@@ -66,7 +66,7 @@ FLOW_DECORATORS_DESC = [
 ENVIRONMENTS_DESC = [
     ("conda", ".pypi.conda_environment.CondaEnvironment"),
     ("pypi", ".pypi.pypi_environment.PyPIEnvironment"),
-    ("docker", ".pypi.docker_environment.DockerEnvironment"),
+    ("docker", ".docker.docker_environment.DockerEnvironment"),
 ]
 
 # Add metadata providers here
