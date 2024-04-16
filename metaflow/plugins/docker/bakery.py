@@ -30,12 +30,12 @@ def read_metafile():
         return {}
 
 
-def cache_image_tag(spec_hash, image, packages):
+def cache_image_tag(spec_hash, image, request):
     current_meta = read_metafile()
     current_meta[spec_hash] = {
         "kind": DOCKER_IMAGE_BAKERY_TYPE,
-        "packages": packages,
         "image": image,
+        "bakery_request": request,
     }
 
     with open(BAKERY_METAFILE, "w") as f:
@@ -48,17 +48,16 @@ def get_cache_image_tag(spec_hash):
     return current_meta.get(spec_hash, {}).get("image", None)
 
 
-def generate_spec_hash(packages={}):
+def generate_spec_hash(base_image=None, packages={}):
     sorted_keys = sorted(packages.keys())
-    sortspec = DOCKER_IMAGE_BAKERY_TYPE.join(
-        f"{k}{packages[k]}" for k in sorted_keys
-    ).encode("utf-8")
+    base_str = "%s%s" % (DOCKER_IMAGE_BAKERY_TYPE, base_image or "")
+    sortspec = base_str.join(f"{k}{packages[k]}" for k in sorted_keys).encode("utf-8")
     hash = hashlib.md5(sortspec).hexdigest()
 
     return hash
 
 
-def bake_image(python=None, packages={}, datastore_type=None):
+def bake_image(python=None, packages={}, datastore_type=None, base_image=None):
     if DOCKER_IMAGE_BAKERY_URL is None:
         raise BakeryException("Image bakery URL is not set.")
     # Gather base deps
@@ -71,7 +70,7 @@ def bake_image(python=None, packages={}, datastore_type=None):
 
     # TODO: Cache image tags locally and add cache revoke functionality
     # Try getting image tag from cache
-    spec_hash = generate_spec_hash(deps)
+    spec_hash = generate_spec_hash(base_image, deps)
     image = get_cache_image_tag(spec_hash)
     if image:
         return image
@@ -88,6 +87,8 @@ def bake_image(python=None, packages={}, datastore_type=None):
         "condaMatchspecs": package_matchspecs,
         "imageKind": DOCKER_IMAGE_BAKERY_TYPE,
     }
+    if base_image is not None:
+        data.update({"baseImage": {"imageReference": base_image}})
     # TODO: introduce auth
     response = requests.post(DOCKER_IMAGE_BAKERY_URL, json=data, headers=headers)
 
@@ -99,6 +100,6 @@ def bake_image(python=None, packages={}, datastore_type=None):
     image = body["containerImage"]
 
     # Cache tag
-    cache_image_tag(spec_hash, image, deps)
+    cache_image_tag(spec_hash, image, data)
 
     return image

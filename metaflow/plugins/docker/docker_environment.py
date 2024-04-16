@@ -67,13 +67,18 @@ class DockerEnvironment(MetaflowEnvironment):
                 "Docker images are not supported for local steps. "
                 "Step **%s** is not set too execute remotely" % step.name
             )
+        # map out if user is requesting a base image to build on top of
+        base_image = None
+        for deco in step.decorators:
+            if _is_remote_deco(deco):
+                base_image = deco.attributes.get("image", None)
 
         image = None
         for deco in step.decorators:
             if isinstance(deco, CondaStepDecorator):
                 pkgs = deco.attributes["packages"]
                 python = deco.attributes["python"]
-                image = bake_image(python, pkgs, self.datastore.TYPE)
+                image = bake_image(python, pkgs, self.datastore.TYPE, base_image)
 
         if image is not None:
             # we have an image that we need to set to a kubernetes or batch decorator.

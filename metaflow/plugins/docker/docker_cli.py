@@ -38,9 +38,17 @@ def list():
         echo("List of locally cached image tags:\n")
 
     for val in current_cache.values():
+        packages = val["bakery_request"]["condaMatchspecs"]
+        kind = val["kind"]
+        base_image = (
+            val["bakery_request"].get("baseImage", {}).get("imageReference", None)
+        )
+
         echo(f"{val['image']}")
-        echo(f"     image type: *{val['kind']}*")
-        echo(f"     packages requested: {val['packages']}\n")
+        echo(f"     image type: *{kind}*")
+        if base_image:
+            echo(f"     base image: *{base_image}*")
+        echo(f"     packages requested: {packages}\n")
 
     if current_cache:
         echo(
