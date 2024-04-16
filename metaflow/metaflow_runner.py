@@ -66,10 +66,10 @@ class Runner(object):
                 run_id_file=tfp_run_id.name, flow_name_file=tfp_flow.name, **kwargs
             )
 
-            command_id = await self.spm.run_command(
+            pid = await self.spm.run_command(
                 [sys.executable, *command], env=self.env_vars
             )
-            command_obj = self.spm.get(command_id)
+            command_obj = self.spm.get(pid)
 
             flow_name = await read_from_file_when_ready(tfp_flow.name)
             run_id = await read_from_file_when_ready(tfp_run_id.name)
