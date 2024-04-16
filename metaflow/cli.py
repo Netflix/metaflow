@@ -407,6 +407,88 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
         )
 
 
+@cli.command(
+    help="Delete stdout/stderr produced by a task or all tasks in a step. "
+    "The format for input-path is either <run_id>/<step_name> or "
+    "<run_id>/<step_name>/<task_id>."
+)
+@click.argument("input-path")
+@click.option(
+    "--stdout/--no-stdout",
+    default=False,
+    show_default=True,
+    help="Show stdout of the task.",
+)
+@click.option(
+    "--stderr/--no-stderr",
+    default=False,
+    show_default=True,
+    help="Show stderr of the task.",
+)
+@click.option(
+    "--both/--no-both",
+    default=True,
+    show_default=True,
+    help="Show both stdout and stderr of the task.",
+)
+@click.pass_obj
+def delete_logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False):
+    types = set()
+    if stdout:
+        types.add("stdout")
+        both = False
+    if stderr:
+        types.add("stderr")
+        both = False
+    if both:
+        types.update(("stdout", "stderr"))
+
+    streams = list(sorted(types, reverse=True))
+
+    # Pathspec can either be run_id/step_name or run_id/step_name/task_id.
+    parts = input_path.split("/")
+    if len(parts) == 2:
+        run_id, step_name = parts
+        task_id = None
+    elif len(parts) == 3:
+        run_id, step_name, task_id = parts
+    else:
+        raise CommandException(
+            "input_path should either be run_id/step_name "
+            "or run_id/step_name/task_id"
+        )
+
+    datastore_set = TaskDataStoreSet(
+        obj.flow_datastore, run_id, steps=[step_name], allow_not_done=True
+    )
+
+    if task_id:
+        ds_list = [
+            TaskDataStore(
+                obj.flow_datastore,
+                run_id=run_id,
+                step_name=step_name,
+                task_id=task_id,
+                mode="w",
+                allow_not_done=True,
+            )
+        ]
+    else:
+        ds_list = list(datastore_set)
+
+    if ds_list:
+        for ds in ds_list:
+            for stream in streams:
+                ds.delete_logs(LOG_SOURCES, stream)
+                # How do we handle legacy log deletion?
+                # log = ds.load_log_legacy(stream)
+    else:
+        raise CommandException(
+            "No Tasks found at the given path -- "
+            "either none exist or none have started yet"
+        )
+
+
 # TODO - move step and init under a separate 'internal' subcommand
 
 

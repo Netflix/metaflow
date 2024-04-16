@@ -155,8 +155,5 @@ class S3Storage(DataStoreStorage):
             external_client=self.s3_client,
         )
 
-        if len(paths) > 10:
-            s3.delete_many(paths)
-        else:
-            for path in paths:
-                s3.delete(path)
+        for path in paths:
+            s3.delete(path)

@@ -750,6 +750,24 @@ class TaskDataStore(object):
                 to_store_dict[n] = data
         self._save_file(to_store_dict)
 
+    @require_mode("w")
+    def delete_logs(self, logsources, stream, attempt_override=None):
+        paths = [
+            self._metadata_name_for_attempt(
+                self._get_log_location(s, stream),
+                attempt_override=attempt_override,
+            )
+            for s in logsources
+        ]
+
+        # Legacy log paths
+        legacy_log = self._metadata_name_for_attempt(
+            "%s.log" % stream, attempt_override
+        )
+        paths.append(legacy_log)
+
+        self._delete_file(paths, add_attempt=False)
+
     @require_mode("r")
     def load_log_legacy(self, stream, attempt_override=None):
         """
@@ -948,6 +966,7 @@ class TaskDataStore(object):
             else:
                 path = self._storage_impl.path_join(self._path, name)
             to_delete.append(path)
-        results = {}
-        with self._storage_impl.delete_bytes(to_delete) as results:
-            pass
+
+        print("deleting:", to_delete)
+
+        self._storage_impl.delete_bytes(to_delete)
