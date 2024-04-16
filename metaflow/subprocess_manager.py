@@ -226,10 +226,10 @@ async def main():
 
     async with SubprocessManager() as spm:
         # returns immediately
-        command_id = await spm.run_command(cmd)
-        command_obj = spm.get(command_id)
+        pid = await spm.run_command(cmd)
+        command_obj = spm.get(pid)
 
-        print(command_id)
+        print(pid)
 
         # this is None since the process has not completed yet
         print(command_obj.process.returncode)
@@ -294,6 +294,8 @@ async def main():
             command_obj.emit_logs(
                 stream="stdout", custom_logger=lambda x: print(f"[STREAM A]: {x}")
             ),
+            # this can be another 'command_obj' too, in which case
+            # we stream logs from 2 different subprocesses in parallel :)
             command_obj.emit_logs(
                 stream="stdout", custom_logger=lambda x: print(f"[STREAM B]: {x}")
             ),
