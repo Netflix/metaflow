@@ -144,3 +144,19 @@ class S3Storage(DataStoreStorage):
                         yield r.key, None, None
 
         return CloseAfterUse(iter_results(), closer=s3)
+
+    def delete_bytes(self, paths):
+        if len(paths) == 0:
+            return []
+
+        s3 = S3(
+            s3root=self.datastore_root,
+            tmproot=ARTIFACT_LOCALROOT,
+            external_client=self.s3_client,
+        )
+
+        if len(paths) > 10:
+            s3.delete_many(paths)
+        else:
+            for path in paths:
+                s3.delete(path)

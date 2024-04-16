@@ -934,3 +934,20 @@ class TaskDataStore(object):
                     with open(path, "rb") as f:
                         results[name] = f.read()
         return results
+
+    def _delete_file(self, names, add_attempt=True):
+        """
+        Deletes files from the TaskDataStore directory.
+        """
+        to_delete = []
+        for name in names:
+            if add_attempt:
+                path = self._storage_impl.path_join(
+                    self._path, self._metadata_name_for_attempt(name)
+                )
+            else:
+                path = self._storage_impl.path_join(self._path, name)
+            to_delete.append(path)
+        results = {}
+        with self._storage_impl.delete_bytes(to_delete) as results:
+            pass

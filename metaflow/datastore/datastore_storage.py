@@ -271,3 +271,18 @@ class DataStoreStorage(object):
             duplicate keys.
         """
         raise NotImplementedError
+
+    def delete_bytes(self, keys):
+        """
+        Deletes objects from the datastore
+
+        Parameters
+        ----------
+        keys : List[String]
+            Keys to delete
+
+        Returns
+        -------
+        None
+        """
+        raise NotImplementedError
