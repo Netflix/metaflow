@@ -357,7 +357,7 @@ if __name__ == "__main__":
         alpha=3,
         myfile="path/to/file",
     )
-    print(command)
+    print(" ".join(command))
 
     command = (
         api(metadata="local")
@@ -368,10 +368,10 @@ if __name__ == "__main__":
             code_package_url="some_url",
         )
     )
-    print(command)
+    print(" ".join(command))
 
     command = api().tag().add(tags=["abc", "def"])
-    print(command)
+    print(" ".join(command))
 
     command = getattr(api(decospecs=["retry"]), "argo-workflows")().create()
-    print(command)
+    print(" ".join(command))
