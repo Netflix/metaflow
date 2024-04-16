@@ -432,7 +432,7 @@ def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     help="Show both stdout and stderr of the task.",
 )
 @click.pass_obj
-def delete_logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False):
+def delete_logs(obj, input_path, stdout=None, stderr=None, both=None):
     types = set()
     if stdout:
         types.add("stdout")
@@ -469,7 +469,7 @@ def delete_logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps
                 run_id=run_id,
                 step_name=step_name,
                 task_id=task_id,
-                mode="w",
+                mode="d",
                 allow_not_done=True,
             )
         ]

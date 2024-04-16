@@ -173,6 +173,18 @@ class TaskDataStore(object):
                 if data_obj is not None:
                     self._objects = data_obj.get("objects", {})
                     self._info = data_obj.get("info", {})
+        elif self._mode == "d":
+            self._objects = {}
+            self._info = {}
+
+            if self._attempt is None:
+                for i in range(metaflow_config.MAX_ATTEMPTS):
+                    check_meta = self._metadata_name_for_attempt(
+                        self.METADATA_ATTEMPT_SUFFIX, i
+                    )
+                    if self.has_metadata(check_meta, add_attempt=False):
+                        self._attempt = i
+
         else:
             raise DataException("Unknown datastore mode: '%s'" % self._mode)
 
@@ -750,7 +762,7 @@ class TaskDataStore(object):
                 to_store_dict[n] = data
         self._save_file(to_store_dict)
 
-    @require_mode("w")
+    @require_mode("d")
     def delete_logs(self, logsources, stream, attempt_override=None):
         paths = [
             self._metadata_name_for_attempt(
