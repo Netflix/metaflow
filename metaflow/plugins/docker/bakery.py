@@ -6,6 +6,7 @@ from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     DOCKER_IMAGE_BAKERY_TYPE,
     DOCKER_IMAGE_BAKERY_URL,
+    DOCKER_IMAGE_BAKERY_AUTH,
     get_pinned_conda_libs,
 )
 
@@ -68,7 +69,6 @@ def bake_image(python=None, packages={}, datastore_type=None, base_image=None):
     if python is not None:
         deps.update({"python": python})
 
-    # TODO: Cache image tags locally and add cache revoke functionality
     # Try getting image tag from cache
     spec_hash = generate_spec_hash(base_image, deps)
     image = get_cache_image_tag(spec_hash)
@@ -82,24 +82,75 @@ def bake_image(python=None, packages={}, datastore_type=None, base_image=None):
 
     package_matchspecs = [_format(pkg, ver) for pkg, ver in deps.items()]
 
-    headers = {"Content-Type": "application/json"}
     data = {
         "condaMatchspecs": package_matchspecs,
         "imageKind": DOCKER_IMAGE_BAKERY_TYPE,
     }
     if base_image is not None:
         data.update({"baseImage": {"imageReference": base_image}})
-    # TODO: introduce auth
-    response = requests.post(DOCKER_IMAGE_BAKERY_URL, json=data, headers=headers)
 
-    body = response.json()
-    if response.status_code >= 400:
-        kind = body["kind"]
-        msg = body["message"]
-        raise BakeryException("*%s*\n%s" % (kind, msg))
-    image = body["containerImage"]
+    invoker = BAKERY_INVOKERS.get(DOCKER_IMAGE_BAKERY_AUTH)
+    if not invoker:
+        raise BakeryException(
+            "Selected Bakery Authentication method is not supported: %s",
+            DOCKER_IMAGE_BAKERY_AUTH,
+        )
 
+    image = invoker(data)
     # Cache tag
     cache_image_tag(spec_hash, image, data)
 
     return image
+
+
+def default_invoker(payload):
+    headers = {"Content-Type": "application/json"}
+    response = requests.post(DOCKER_IMAGE_BAKERY_URL, json=payload, headers=headers)
+
+    return _handle_bakery_response(response)
+
+
+def aws_iam_invoker(payload):
+    # AWS_IAM requires a signed request to be made
+    # ref: https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html
+    headers = {"Content-Type": "application/json"}
+    payload = json.dumps(payload)
+
+    import boto3
+    from botocore.auth import SigV4Auth
+    from botocore.awsrequest import AWSRequest
+
+    session = boto3.Session()
+    credentials = session.get_credentials().get_frozen_credentials()
+
+    # credits to https://github.com/boto/botocore/issues/1784#issuecomment-659132830,
+    # We need to jump through some hoops when calling the endpoint with IAM auth
+    # as botocore does not offer a direct utility for signing arbitrary requests
+    req = AWSRequest("POST", DOCKER_IMAGE_BAKERY_URL, headers, payload)
+    SigV4Auth(
+        credentials, service_name="lambda", region_name=session.region_name
+    ).add_auth(req)
+
+    response = requests.post(DOCKER_IMAGE_BAKERY_URL, data=payload, headers=req.headers)
+
+    return _handle_bakery_response(response)
+
+
+def _handle_bakery_response(response):
+    if response.status_code >= 500:
+        raise BakeryException(response.text)
+    body = response.json()
+    if response.status_code >= 400:
+        try:
+            kind = body["kind"]
+            msg = body["message"]
+            raise BakeryException("*%s*\n%s" % (kind, msg))
+        except KeyError:
+            # error body is not formatted by the imagebakery
+            raise BakeryException(body)
+    image = body["containerImage"]
+
+    return image
+
+
+BAKERY_INVOKERS = {"AWS_IAM": aws_iam_invoker, None: default_invoker}
