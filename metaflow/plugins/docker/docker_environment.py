@@ -5,6 +5,7 @@ from metaflow.metaflow_config import (
     _USE_BAKERY,
 )
 from metaflow.metaflow_environment import MetaflowEnvironment
+from metaflow.plugins.pypi.conda_environment import CondaEnvironment
 from .bakery import bake_image
 from metaflow.plugins.aws.batch.batch_decorator import BatchDecorator
 from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
@@ -47,7 +48,32 @@ class DockerEnvironment(MetaflowEnvironment):
         if not _USE_BAKERY:
             raise DockerEnvironmentException("Image Bakery is not configured.")
 
+    def _setup_conda_fallback(self):
+        # TODO: In the future we want to support executing with Docker even locally.
+        have_to_delegate = False
+        for step in self.flow:
+            if not any(_is_remote_deco(deco) for deco in step.decorators):
+                # We need to fall back to the Conda environmment for flows that are trying to execute anything locally.
+                have_to_delegate = True
+        if not have_to_delegate:
+            return False
+        # replace methods with the delegate class that we determined.
+        cls = CondaEnvironment
+        for k in cls.__dict__:
+            obj = getattr(cls, k)
+            if callable(obj):
+                setattr(self.__class__, k, obj)
+        return True
+
     def init_environment(self, echo):
+        if self._setup_conda_fallback():
+            print(
+                "Some steps would execute locally. Had to fallback to a conda environment"
+            )
+            # switched env instance methods to conda, need to re-validate and init the environment.
+            self.validate_environment(echo, self.datastore_type)
+            self.init_environment(echo)
+            return
         # First resolve environments through Conda, before PyPI.
         echo("Baking Docker images for environment(s) ...")
         # do the magic
@@ -56,17 +82,6 @@ class DockerEnvironment(MetaflowEnvironment):
         echo("Environments are ready!")
 
     def bake_image_for_step(self, step):
-        def _is_remote_deco(deco):
-            return isinstance(deco, BatchDecorator) or isinstance(
-                deco, KubernetesDecorator
-            )
-
-        # At the moment we only support ImageBakery for fully remotely executing flows
-        if not any(_is_remote_deco(deco) for deco in step.decorators):
-            raise DockerEnvironmentException(
-                "Docker images are not supported for local steps. "
-                "Step **%s** is not set too execute remotely" % step.name
-            )
         # map out if user is requesting a base image to build on top of
         base_image = None
         for deco in step.decorators:
@@ -114,3 +129,7 @@ class DockerEnvironment(MetaflowEnvironment):
         return [
             "export USE_BAKERY=1",
         ] + super().bootstrap_commands(step_name, datastore_type)
+
+
+def _is_remote_deco(deco):
+    return isinstance(deco, BatchDecorator) or isinstance(deco, KubernetesDecorator)
