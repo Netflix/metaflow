@@ -979,6 +979,4 @@ class TaskDataStore(object):
                 path = self._storage_impl.path_join(self._path, name)
             to_delete.append(path)
 
-        print("deleting:", to_delete)
-
         self._storage_impl.delete_bytes(to_delete)
