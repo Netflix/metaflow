@@ -14,6 +14,7 @@ CLIS_DESC = [
     ("argo-workflows", ".argo.argo_workflows_cli.cli"),
     ("card", ".cards.card_cli.cli"),
     ("tag", ".tag_cli.cli"),
+    ("logs", ".logs_cli.cli"),
 ]
 
 from .test_unbounded_foreach_decorator import InternalTestUnboundedForeachInput
