@@ -19,14 +19,29 @@ def get_ec2_instance_metadata():
     # access to this end-point might be blocked on AWS and not available
     # for non-AWS deployments.
     # https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-identity-documents.html
+    # Set a very aggressive timeout, as the communication is happening in the same subnet,
+    # there should not be any significant delay in the response.
+    # Having a long default timeout here introduces unnecessary delay in launching tasks when the
+    # instance is unreachable.
+    timeout = (1, 10)
     try:
-        # Set a very aggressive timeout, as the communication is happening in the same subnet,
-        # there should not be any significant delay in the response.
-        # Having a long default timeout here introduces unnecessary delay in launching tasks when the
-        # instance is unreachable.
+        # Try to get an IMDSv2 token.
+        token = requests.put(
+            url="http://169.254.169.254/latest/api/token",
+            headers={"X-aws-ec2-metadata-token-ttl-seconds": 100},
+            timeout=timeout,
+        ).text
+    except:
+        pass
+    try:
+        headers = {}
+        # Add IMDSv2 token if available, else fall back to IMDSv1.
+        if token:
+            headers["X-aws-ec2-metadata-token"] = token
         instance_meta = requests.get(
             url="http://169.254.169.254/latest/dynamic/instance-identity/document",
-            timeout=(1, 10),
+            headers=headers,
+            timeout=timeout,
         ).json()
         meta["ec2-instance-id"] = instance_meta.get("instanceId")
         meta["ec2-instance-type"] = instance_meta.get("instanceType")
