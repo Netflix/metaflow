@@ -24,6 +24,7 @@ def get_ec2_instance_metadata():
     # Having a long default timeout here introduces unnecessary delay in launching tasks when the
     # instance is unreachable.
     timeout = (1, 10)
+    token = None
     try:
         # Try to get an IMDSv2 token.
         token = requests.put(
