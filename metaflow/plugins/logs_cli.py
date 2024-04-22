@@ -1,14 +1,11 @@
-from typing import Any
 from metaflow._vendor import click
-from metaflow.cli import LOGGER_TIMESTAMP, echo_always
+from metaflow.cli import LOGGER_TIMESTAMP
 
 from ..exception import CommandException
 from ..datastore import TaskDataStoreSet, TaskDataStore
 
 
 from ..mflog import mflog, LOG_SOURCES
-
-echo = echo_always
 
 # main motivation from https://github.com/pallets/click/issues/430
 # in order to support a default command being called for a Click group.
@@ -68,8 +65,11 @@ def cli():
 
 
 @cli.group(cls=CustomGroup, help="Commands related to logs", default_cmd="show")
-def logs():
-    pass
+@click.pass_context
+def logs(ctx):
+    # the logger is configured in cli.py
+    global echo
+    echo = ctx.obj.echo
 
 
 @logs.command(
