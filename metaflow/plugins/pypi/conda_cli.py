@@ -110,10 +110,17 @@ def list_envs(ctx, show_all, jsonify):
     "--manifest",
     is_flag=True,
     default=False,
-    help="Delete the conda.manifest file as well.",
+    help="Delete the 'conda.manifest' file as well.",
+)
+@click.option(
+    "-y",
+    "--yes",
+    is_flag=True,
+    default=False,
+    help="Skip confirmations for deleting environments.",
 )
 @click.pass_context
-def remove_envs_and_delete_files(ctx, manifest):
+def remove_envs_and_delete_files(ctx, manifest, yes):
     manifest_path = os.path.join(
         ctx.obj.flow_datastore.datastore_root, ctx.obj.flow.name, MAGIC_FILE
     )
@@ -125,17 +132,21 @@ def remove_envs_and_delete_files(ctx, manifest):
             for env_id, _ in env_data.items():
                 path = micromamba.path_to_environment(env_id)
                 if os.path.exists(path):
-                    confirm = click.prompt(
-                        f"Do you want to delete the conda environment at {path}?",
-                        type=click.Choice(["y", "n"]),
-                    )
-                    if confirm == "y":
+                    if yes:
                         click.echo(f"Deleting the conda environment at {path}")
                         shutil.rmtree(path, ignore_errors=True)
                     else:
-                        click.echo(
-                            f"Skipping the deletion of conda environment at {path}"
+                        confirm = click.prompt(
+                            f"Do you want to delete the conda environment at {path}?",
+                            type=click.Choice(["y", "n"]),
                         )
+                        if confirm == "y":
+                            click.echo(f"Deleting the conda environment at {path}")
+                            shutil.rmtree(path, ignore_errors=True)
+                        else:
+                            click.echo(
+                                f"Skipping the deletion of conda environment at {path}"
+                            )
 
         if manifest:
             click.echo(f"Deleting the 'conda.manifest' file at: {manifest_path}")
