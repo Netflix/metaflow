@@ -30,15 +30,16 @@ class CustomGroup(click.Group):
         # We first try to parse args as is, to determine whether we need to fall back to the default commmand
         # if any options are supplied, the parse will fail, as the group does not support the options.
         # In this case we fallback to the default command, inserting that as the first arg and parsing again.
+        # copy args as trying to parse will destroy them.
+        original_args = list(args)
         try:
             super().parse_args(ctx, args)
             args_parseable = True
         except Exception:
             args_parseable = False
         if not args or not args_parseable:
-            args.insert(0, self.default_cmd)
-
-        return super().parse_args(ctx, args)
+            original_args.insert(0, self.default_cmd)
+        return super().parse_args(ctx, original_args)
 
     def resolve_command(self, ctx, args):
         cmd_name, cmd_obj, args = super(CustomGroup, self).resolve_command(ctx, args)
