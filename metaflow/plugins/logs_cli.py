@@ -280,6 +280,7 @@ def scrub(obj, input_path, stdout=None, stderr=None, both=None):
         for ds in ds_list:
             for stream in streams:
                 ds.scrub_logs(LOG_SOURCES, stream)
+        echo("Logs have been scrubbed.")
 
     else:
         raise CommandException(
