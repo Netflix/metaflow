@@ -283,6 +283,7 @@ class DataStoreStorage(object):
 
         Returns
         -------
-        None
+        List[str]
+            Keys that were deleted
         """
         raise NotImplementedError

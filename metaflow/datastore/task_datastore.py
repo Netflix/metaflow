@@ -763,22 +763,31 @@ class TaskDataStore(object):
         self._save_file(to_store_dict)
 
     @require_mode("d")
-    def delete_logs(self, logsources, stream, attempt_override=None):
-        paths = [
+    def scrub_logs(self, logsources, stream, attempt_override=None):
+        path_logsources = {
             self._metadata_name_for_attempt(
                 self._get_log_location(s, stream),
                 attempt_override=attempt_override,
-            )
+            ): s
             for s in logsources
-        ]
+        }
 
         # Legacy log paths
         legacy_log = self._metadata_name_for_attempt(
             "%s.log" % stream, attempt_override
         )
-        paths.append(legacy_log)
+        path_logsources[legacy_log] = stream
 
-        self._delete_file(paths, add_attempt=False)
+        paths = path_logsources.keys()
+
+        deleted_paths = self._delete_file(paths, add_attempt=False)
+        # Replace log contents with [REDACTED source stream]
+        to_store_dict = {
+            path: bytes("[REDACTED %s %s]" % (path_logsources[path], stream), "utf-8")
+            for path in deleted_paths
+        }
+
+        self._save_file(to_store_dict, add_attempt=False)
 
     @require_mode("r")
     def load_log_legacy(self, stream, attempt_override=None):
@@ -979,4 +988,6 @@ class TaskDataStore(object):
                 path = self._storage_impl.path_join(self._path, name)
             to_delete.append(path)
 
-        self._storage_impl.delete_bytes(to_delete)
+        deleted_paths = self._storage_impl.delete_bytes(to_delete)
+
+        return [self._storage_impl.basename(path) for path in deleted_paths]

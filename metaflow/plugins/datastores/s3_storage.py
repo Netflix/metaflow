@@ -155,5 +155,4 @@ class S3Storage(DataStoreStorage):
             external_client=self.s3_client,
         )
 
-        for path in paths:
-            s3.delete(path)
+        return [path for path in paths if s3.delete(path)]

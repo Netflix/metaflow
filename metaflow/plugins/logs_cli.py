@@ -11,7 +11,7 @@ from ..mflog import mflog, LOG_SOURCES
 # in order to support a default command being called for a Click group.
 #
 # NOTE: We need this in order to not introduce breaking changes to existing CLI, as we wanted to
-# nest both existing `logs` and the new `logs delete` under a shared group, but `logs` already has
+# nest both existing `logs` and the new `logs scrub` under a shared group, but `logs` already has
 # a well defined behavior of showing the logs.
 class CustomGroup(click.Group):
     def __init__(self, name=None, commands=None, default_cmd=None, **attrs):
@@ -208,7 +208,7 @@ def show(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
 
 
 @logs.command(
-    help="Delete stdout/stderr produced by a task or all tasks in a step. "
+    help="Scrub stdout/stderr produced by a task or all tasks in a step. "
     "The format for input-path is either <run_id>/<step_name> or "
     "<run_id>/<step_name>/<task_id>."
 )
@@ -232,7 +232,7 @@ def show(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     help="Show both stdout and stderr of the task.",
 )
 @click.pass_obj
-def delete(obj, input_path, stdout=None, stderr=None, both=None):
+def scrub(obj, input_path, stdout=None, stderr=None, both=None):
     types = set()
     if stdout:
         types.add("stdout")
@@ -279,9 +279,8 @@ def delete(obj, input_path, stdout=None, stderr=None, both=None):
     if ds_list:
         for ds in ds_list:
             for stream in streams:
-                ds.delete_logs(LOG_SOURCES, stream)
-                # How do we handle legacy log deletion?
-                # log = ds.load_log_legacy(stream)
+                ds.scrub_logs(LOG_SOURCES, stream)
+
     else:
         raise CommandException(
             "No Tasks found at the given path -- "

@@ -1349,6 +1349,11 @@ class S3(object):
         ----------
         key : str
             Object to delete. It can be an S3 url or a path suffix.
+
+        Returns
+        -------
+        Boolean
+            Success/Failure of deleting the key. Failure can be due to key not existing.
         """
 
         url = self._url(key)
@@ -1360,7 +1365,14 @@ class S3(object):
             else:
                 return s3.delete_object(Bucket=src.netloc, Key=src.path.lstrip("/"))
 
+        # Unfortunately AWS always returns 204 even when deleting non-existent keys, so we need to perform a check before the delete op
+        # in order to be able to provide info on deletion success/failure
+        obj = self.info(key, return_missing=True)
+        if not obj.exists:
+            return False
+
         self._one_boto_op(_delete, url, create_tmp_file=False)
+        return True
 
     def _one_boto_op(self, op, url, create_tmp_file=True):
         error = ""
