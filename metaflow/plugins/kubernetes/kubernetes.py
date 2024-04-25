@@ -345,6 +345,8 @@ class Kubernetes(object):
             sigmoid = 1.0 / (1.0 + math.exp(-0.01 * secs_since_start + 9.0))
             return 0.5 + sigmoid * 30.0
 
+        start_time = time.time()
+
         def wait_for_launch(job):
             status = job.status
             echo(
@@ -353,7 +355,6 @@ class Kubernetes(object):
                 job_id=job.id,
             )
             t = time.time()
-            start_time = time.time()
             while job.is_waiting:
                 new_status = job.status
                 if status != new_status or (time.time() - t) > 30:
@@ -393,7 +394,7 @@ class Kubernetes(object):
         #        truncated logs if it doesn't.
         # TODO : For hard crashes, we can fetch logs from the pod.
 
-        if self._job.has_failed:
+        def _handle_exit_code():
             exit_code, reason = self._job.reason
             msg = next(
                 msg
@@ -409,8 +410,7 @@ class Kubernetes(object):
                 if int(exit_code) == 137:
                     raise KubernetesException(
                         "Task ran out of memory. "
-                        "Increase the available memory by specifying "
-                        "@resource(memory=...) for the step. "
+                        "Increase the available memory for the step."
                     )
                 if int(exit_code) == 134:
                     raise KubernetesException("%s (exit code %s)" % (msg, exit_code))
@@ -420,7 +420,14 @@ class Kubernetes(object):
                 "%s. This could be a transient error. Use @retry to retry." % msg
             )
 
+        if self._job.has_failed:
+            _handle_exit_code()
+
         exit_code, _ = self._job.reason
+        if exit_code != 0:
+            # One more attempt to get the reason; after a small delay
+            time.sleep(time.time() - start_time)
+            _handle_exit_code()
         echo(
             "Task finished with exit code %s." % exit_code,
             "stderr",
