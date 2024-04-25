@@ -217,19 +217,19 @@ def show(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     "--stdout/--no-stdout",
     default=False,
     show_default=True,
-    help="Show stdout of the task.",
+    help="Scrub stdout of the task.",
 )
 @click.option(
     "--stderr/--no-stderr",
     default=False,
     show_default=True,
-    help="Show stderr of the task.",
+    help="Scrub stderr of the task.",
 )
 @click.option(
     "--both/--no-both",
     default=True,
     show_default=True,
-    help="Show both stdout and stderr of the task.",
+    help="Scrub both stdout and stderr of the task.",
 )
 @click.pass_obj
 def scrub(obj, input_path, stdout=None, stderr=None, both=None):
