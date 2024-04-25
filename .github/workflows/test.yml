@@ -24,8 +24,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, macos-latest]
+        os: [ubuntu-20.04]
         ver: ['3.5', '3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+        include:
+          - os: macos-latest
+            ver: "3.12"
+          - os: macos-latest
+            ver: "3.11"
+          - os: macos-latest
+            ver: "3.10"
 
     steps:
     - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
@@ -65,6 +72,8 @@ jobs:
 
     - name: Install R ${{ matrix.ver }} Rlang dependencies
       run: |
+        python3 -m venv path/to/venv
+        source path/to/venv/bin/activate
         python3 -m pip install . 
         Rscript -e 'install.packages("devtools", repos="https://cloud.r-project.org", Ncpus=8)'
         Rscript -e 'devtools::install_deps("R", dependencies=TRUE, repos="https://cloud.r-project.org", upgrade="default")'
