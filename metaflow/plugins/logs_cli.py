@@ -117,8 +117,17 @@ def logs(ctx):
     show_default=True,
     help="Show timestamps.",
 )
+@click.option(
+    "--attempt",
+    default=None,
+    type=int,
+    show_default=False,
+    help="Attempt number of a task to show, defaults to the latest attempt.",
+)
 @click.pass_obj
-def show(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False):
+def show(
+    obj, input_path, stdout=None, stderr=None, both=None, timestamps=False, attempt=None
+):
     types = set()
     if stdout:
         types.add("stdout")
@@ -179,7 +188,7 @@ def show(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
 
             for stream in streams:
                 echo(stream, bold=True)
-                logs = ds.load_logs(LOG_SOURCES, stream)
+                logs = ds.load_logs(LOG_SOURCES, stream, attempt_override=attempt)
                 if any(data for _, data in logs):
                     # attempt to read new, mflog-style logs
                     for line in mflog.merge_logs([blob for _, blob in logs]):
@@ -194,7 +203,7 @@ def show(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
                     # a legacy run (unless we have seen new-style data already
                     # for another stream). This return an empty string if
                     # nothing is found
-                    log = ds.load_log_legacy(stream)
+                    log = ds.load_log_legacy(stream, attempt_override=attempt)
                     if log and timestamps:
                         raise CommandException(
                             "We can't show --timestamps for old runs. Sorry!"
