@@ -26,8 +26,6 @@ jobs:
             ver: "3.11"
           - os: macos-latest
             ver: "3.10"
-          - os: macos-latest
-            ver: "3.9"
 
     steps:
     - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0

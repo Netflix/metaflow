@@ -33,8 +33,6 @@ jobs:
             ver: "3.11"
           - os: macos-latest
             ver: "3.10"
-          - os: macos-latest
-            ver: "3.9"
 
     steps:
     - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
@@ -58,7 +56,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04]
+        os: [macos-latest]
         ver: ['4.0']
    
     steps:
@@ -76,7 +74,6 @@ jobs:
       run: |
         python3 -m venv path/to/venv
         source path/to/venv/bin/activate
-        python3 -m pip install xyz
         python3 -m pip install . 
         Rscript -e 'install.packages("devtools", repos="https://cloud.r-project.org", Ncpus=8)'
         Rscript -e 'devtools::install_deps("R", dependencies=TRUE, repos="https://cloud.r-project.org", upgrade="default")'
