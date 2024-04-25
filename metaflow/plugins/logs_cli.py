@@ -231,8 +231,15 @@ def show(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False)
     show_default=True,
     help="Scrub both stdout and stderr of the task.",
 )
+@click.option(
+    "--attempt",
+    default=None,
+    type=int,
+    show_default=False,
+    help="Attempt number of a task to scrub, defaults to the latest attempt.",
+)
 @click.pass_obj
-def scrub(obj, input_path, stdout=None, stderr=None, both=None):
+def scrub(obj, input_path, stdout=None, stderr=None, both=None, attempt=None):
     types = set()
     if stdout:
         types.add("stdout")
@@ -279,7 +286,7 @@ def scrub(obj, input_path, stdout=None, stderr=None, both=None):
     if ds_list:
         for ds in ds_list:
             for stream in streams:
-                ds.scrub_logs(LOG_SOURCES, stream)
+                ds.scrub_logs(LOG_SOURCES, stream, attempt_override=attempt)
         echo("Logs have been scrubbed.")
 
     else:
