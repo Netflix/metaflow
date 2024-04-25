@@ -778,16 +778,19 @@ class TaskDataStore(object):
         )
         path_logsources[legacy_log] = stream
 
-        paths = path_logsources.keys()
+        existing_paths = [
+            path
+            for path in path_logsources.keys()
+            if self.has_metadata(path, add_attempt=False)
+        ]
 
-        deleted_paths = self._delete_file(paths, add_attempt=False)
         # Replace log contents with [REDACTED source stream]
         to_store_dict = {
             path: bytes("[REDACTED %s %s]" % (path_logsources[path], stream), "utf-8")
-            for path in deleted_paths
+            for path in existing_paths
         }
 
-        self._save_file(to_store_dict, add_attempt=False)
+        self._save_file(to_store_dict, add_attempt=False, allow_overwrite=True)
 
     @require_mode("r")
     def load_log_legacy(self, stream, attempt_override=None):
