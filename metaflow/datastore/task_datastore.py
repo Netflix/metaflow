@@ -185,6 +185,14 @@ class TaskDataStore(object):
                     if self.has_metadata(check_meta, add_attempt=False):
                         self._attempt = i
 
+            # Do not allow destructive operations on the datastore if attempt is still in flight
+            # and we explicitly did not allow operating on running tasks.
+            if not allow_not_done and not self.has_metadata(self.METADATA_DONE_SUFFIX):
+                raise DataException(
+                    "No completed attempts of the task was found for task '%s'"
+                    % self._path
+                )
+
         else:
             raise DataException("Unknown datastore mode: '%s'" % self._mode)
 
