@@ -68,7 +68,7 @@ class FlowDataStore(object):
         return self._storage_impl.datastore_root
 
     def get_latest_task_datastores(
-        self, run_id=None, steps=None, pathspecs=None, allow_not_done=False
+        self, run_id=None, steps=None, pathspecs=None, allow_not_done=False, mode="r"
     ):
         """
         Return a list of TaskDataStore for a subset of the tasks.
@@ -93,6 +93,8 @@ class FlowDataStore(object):
         allow_not_done : bool, optional
             If True, returns the latest attempt of a task even if that attempt
             wasn't marked as done, by default False
+        mode : str, optional
+            Mode to initialize the returned TaskDataStores in. Default "r"
 
         Returns
         -------
@@ -172,7 +174,7 @@ class FlowDataStore(object):
         else:
             latest_to_fetch = latest_started_attempts & done_attempts
         latest_to_fetch = [
-            (v[0], v[1], v[2], v[3], data_objs.get(v), "r", allow_not_done)
+            (v[0], v[1], v[2], v[3], data_objs.get(v), mode, allow_not_done)
             for v in latest_to_fetch
         ]
         return list(itertools.starmap(self.get_task_datastore, latest_to_fetch))

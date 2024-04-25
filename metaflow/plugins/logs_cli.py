@@ -274,10 +274,6 @@ def scrub(obj, input_path, stdout=None, stderr=None, both=None, attempt=None):
             "or run_id/step_name/task_id"
         )
 
-    datastore_set = TaskDataStoreSet(
-        obj.flow_datastore, run_id, steps=[step_name], allow_not_done=True
-    )
-
     if task_id:
         ds_list = [
             TaskDataStore(
@@ -290,7 +286,9 @@ def scrub(obj, input_path, stdout=None, stderr=None, both=None, attempt=None):
             )
         ]
     else:
-        ds_list = list(datastore_set)
+        ds_list = obj.flow_datastore.get_latest_task_datastores(
+            run_id=run_id, steps=[step_name], allow_not_done=True, mode="d"
+        )
 
     if ds_list:
         for ds in ds_list:
