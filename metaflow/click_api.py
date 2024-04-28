@@ -1,3 +1,4 @@
+import sys
 import inspect
 import importlib
 import itertools
@@ -133,10 +134,21 @@ def get_inspect_param_obj(p: Union[click.Argument, click.Option], kind: str):
     )
 
 
+# Cache to store already loaded modules
+loaded_modules = {}
+
+
 def extract_flowspec_params(flow_file: str) -> List[Parameter]:
-    spec = importlib.util.spec_from_file_location("module", flow_file)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    # Check if the module has already been loaded
+    if flow_file in loaded_modules:
+        module = loaded_modules[flow_file]
+    else:
+        # Load the module if it's not already loaded
+        spec = importlib.util.spec_from_file_location("module", flow_file)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        # Cache the loaded module
+        loaded_modules[flow_file] = module
     classes = inspect.getmembers(module, inspect.isclass)
 
     parameters = []
