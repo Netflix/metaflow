@@ -1,8 +1,7 @@
 import os
 import sys
-import asyncio
+import time
 import tempfile
-import aiofiles
 from typing import Dict
 from metaflow import Run
 from metaflow.cli import start
@@ -10,12 +9,12 @@ from metaflow.click_api import MetaflowAPI
 from metaflow.subprocess_manager import SubprocessManager, CommandManager
 
 
-async def read_from_file_when_ready(file_path):
-    async with aiofiles.open(file_path, "r") as file_pointer:
-        content = await file_pointer.read()
+def read_from_file_when_ready(file_path):
+    with open(file_path, "r") as file_pointer:
+        content = file_pointer.read()
         while not content:
-            await asyncio.sleep(0.1)
-            content = await file_pointer.read()
+            time.sleep(0.1)
+            content = file_pointer.read()
         return content
 
 
@@ -71,8 +70,8 @@ class Runner(object):
             )
             command_obj = self.spm.get(pid)
 
-            flow_name = await read_from_file_when_ready(tfp_flow.name)
-            run_id = await read_from_file_when_ready(tfp_run_id.name)
+            flow_name = read_from_file_when_ready(tfp_flow.name)
+            run_id = read_from_file_when_ready(tfp_run_id.name)
 
             pathspec_components = (flow_name, run_id)
             run_object = Run("/".join(pathspec_components), _namespace_check=False)
