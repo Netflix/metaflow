@@ -81,7 +81,21 @@ def _method_sanity_check(
             cli_name = possible_arg_params[supplied_k].opts[0].strip("-")
             method_params["args"][cli_name] = supplied_v
         elif supplied_k in possible_opt_params:
-            cli_name = possible_opt_params[supplied_k].opts[0].strip("-")
+            if possible_opt_params[supplied_k].is_flag:
+                # it is a flag..
+                default_value = possible_opt_params[supplied_k].default
+                if supplied_v != default_value:
+                    if possible_opt_params[supplied_k].secondary_opts:
+                        cli_name = (
+                            possible_opt_params[supplied_k].secondary_opts[0].strip("-")
+                        )
+                    else:
+                        cli_name = possible_opt_params[supplied_k].opts[0].strip("-")
+                    supplied_v = "flag"
+                else:
+                    continue
+            else:
+                cli_name = possible_opt_params[supplied_k].opts[0].strip("-")
             method_params["options"][cli_name] = supplied_v
 
     # possible kwargs
@@ -231,7 +245,8 @@ class MetaflowAPI(object):
                             components.append(str(i))
                     else:
                         components.append(f"--{k}")
-                        components.append(str(v))
+                        if v != "flag":
+                            components.append(str(v))
 
         return components
 
