@@ -101,7 +101,8 @@ class CommandManager(object):
             except asyncio.TimeoutError:
                 command_string = " ".join(self.command)
                 print(
-                    f"Timeout: The process: '{command_string}' didn't complete within {timeout} seconds."
+                    "Timeout: The process: '%s' didn't complete within %s seconds."
+                    % (command_string, timeout)
                 )
 
     async def run(self):
@@ -128,7 +129,7 @@ class CommandManager(object):
             self.run_called = True
             return self.process
         except Exception as e:
-            print(f"Error starting subprocess: {e}")
+            print("Error starting subprocess: %s" % e)
             await self.cleanup()
 
     async def stream_logs(
@@ -145,7 +146,8 @@ class CommandManager(object):
 
         if stream not in self.log_files:
             raise ValueError(
-                f"No log file found for '{stream}', valid values are: {list(self.log_files.keys())}"
+                "No log file found for '%s', valid values are: %s"
+                % (stream, list(self.log_files.keys()))
             )
 
         log_file = self.log_files[stream]
@@ -167,7 +169,8 @@ class CommandManager(object):
                         line = await asyncio.wait_for(f.readline(), timeout_per_line)
                 except asyncio.TimeoutError as e:
                     raise LogReadTimeoutError(
-                        f"Timeout while reading a line from the log file for the stream: {stream}"
+                        "Timeout while reading a line from the log file for the stream: %s"
+                        % stream
                     ) from e
 
                 # when we encounter an empty line
@@ -209,7 +212,8 @@ class CommandManager(object):
                     self.process.kill()
             else:
                 print(
-                    f"Process has already terminated with return code: {self.process.returncode}"
+                    "Process has already terminated with return code: %s"
+                    % self.process.returncode
                 )
         else:
             print("No process to kill.")
@@ -259,7 +263,7 @@ async def main():
                 interesting_position = position
                 break
 
-        print(f"ended streaming at: {interesting_position}")
+        print("ended streaming at: %s" % interesting_position)
 
         # wait / do some other processing while the process runs in background
         # if the process finishes before this sleep period, the streaming of logs
@@ -268,7 +272,8 @@ async def main():
 
         # this blocks till the process completes unless we uncomment the `time.sleep` above..
         print(
-            f"resuming streaming from: {interesting_position} while process is still running..."
+            "resuming streaming from: %s while process is still running..."
+            % interesting_position
         )
         async for position, line in command_obj.stream_logs(
             stream="stdout", position=interesting_position
@@ -292,12 +297,12 @@ async def main():
         # two parallel streams for stdout
         tasks = [
             command_obj.emit_logs(
-                stream="stdout", custom_logger=lambda x: print(f"[STREAM A]: {x}")
+                stream="stdout", custom_logger=lambda x: print("[STREAM A]: %s" % x)
             ),
             # this can be another 'command_obj' too, in which case
             # we stream logs from 2 different subprocesses in parallel :)
             command_obj.emit_logs(
-                stream="stdout", custom_logger=lambda x: print(f"[STREAM B]: {x}")
+                stream="stdout", custom_logger=lambda x: print("[STREAM B]: %s" % x)
             ),
         ]
         await asyncio.gather(*tasks)

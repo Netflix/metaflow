@@ -37,7 +37,7 @@ class ExecutingRun(object):
             else:
                 return command_attr
         else:
-            raise AttributeError(f"Invalid attribute {name}")
+            raise AttributeError("Invalid attribute %s" % name)
 
 
 class Runner(object):

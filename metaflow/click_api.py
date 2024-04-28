@@ -65,17 +65,16 @@ def _method_sanity_check(
     for supplied_k, supplied_v in kwargs.items():
         if supplied_k not in possible_params:
             raise ValueError(
-                f"Unknown argument: '{supplied_k}', "
-                f"possible args are: {list(possible_params.keys())}"
+                "Unknown argument: '%s', possible args are: %s"
+                % (supplied_k, list(possible_params.keys()))
             )
 
         try:
             check_type(supplied_v, annotations[supplied_k])
         except TypeCheckError:
             raise TypeError(
-                f"Invalid type for '{supplied_k}', "
-                f"expected: '{annotations[supplied_k]}', "
-                f"default is '{defaults[supplied_k]}'"
+                "Invalid type for '%s', expected: '%s', default is '%s'"
+                % (supplied_k, annotations[supplied_k], defaults[supplied_k])
             )
 
         if supplied_k in possible_arg_params:
@@ -105,7 +104,7 @@ def _method_sanity_check(
             (cli_name not in method_params["args"])
             and (cli_name not in method_params["options"])
         ) and possible_v.required:
-            raise ValueError(f"Missing argument: {cli_name} is required.")
+            raise ValueError("Missing argument: %s is required." % cli_name)
 
     return method_params
 
@@ -189,7 +188,7 @@ class MetaflowAPI(object):
                     class_dict[cmd_obj.name] = extract_command(cmd_obj, flow_parameters)
                 else:
                     raise RuntimeError(
-                        f"Cannot handle {cmd_obj.name} of type {type(cmd_obj)}"
+                        "Cannot handle %s of type %s" % (cmd_obj.name, type(cmd_obj))
                     )
 
         to_return = type(flow_file, (MetaflowAPI,), class_dict)
@@ -252,10 +251,10 @@ class MetaflowAPI(object):
                 for k, v in options.items():
                     if isinstance(v, list):
                         for i in v:
-                            components.append(f"--{k}")
+                            components.append("--%s" % k)
                             components.append(str(i))
                     else:
-                        components.append(f"--{k}")
+                        components.append("--%s" % k)
                         if v != "flag":
                             components.append(str(v))
 
@@ -307,7 +306,7 @@ def extract_group(cmd_obj: click.Group, flow_parameters: List[Parameter]) -> Cal
             class_dict[sub_cmd_obj.name] = extract_command(sub_cmd_obj, flow_parameters)
         else:
             raise RuntimeError(
-                f"Cannot handle {sub_cmd_obj.name} of type {type(sub_cmd_obj)}"
+                "Cannot handle %s of type %s" % (sub_cmd_obj.name, type(sub_cmd_obj))
             )
 
     resulting_class = type(cmd_obj.name, (MetaflowAPI,), class_dict)
