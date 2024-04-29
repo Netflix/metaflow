@@ -44,11 +44,11 @@ def list():
             val["bakery_request"].get("baseImage", {}).get("imageReference", None)
         )
 
-        echo(f"{val['image']}")
-        echo(f"     image type: *{kind}*")
+        echo(val["image"])
+        echo("     image type: *%s*" % kind)
         if base_image:
-            echo(f"     base image: *{base_image}*")
-        echo(f"     packages requested: {packages}\n")
+            echo("     base image: *%s*" % base_image)
+        echo("     packages requested: %s\n" % packages)
 
     if current_cache:
         echo(
