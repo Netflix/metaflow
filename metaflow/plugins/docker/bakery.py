@@ -52,7 +52,9 @@ def get_cache_image_tag(spec_hash):
 def generate_spec_hash(base_image=None, packages={}):
     sorted_keys = sorted(packages.keys())
     base_str = "%s%s" % (DOCKER_IMAGE_BAKERY_TYPE, base_image or "")
-    sortspec = base_str.join(f"{k}{packages[k]}" for k in sorted_keys).encode("utf-8")
+    sortspec = base_str.join("%s%s" % (k, packages[k]) for k in sorted_keys).encode(
+        "utf-8"
+    )
     hash = hashlib.md5(sortspec).hexdigest()
 
     return hash
