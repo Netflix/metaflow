@@ -115,6 +115,8 @@ def format_result_line(idx, prefix, url="", local=""):
 # with boto errors. This function can be replaced
 # with better error handling code.
 def normalize_client_error(err):
+    print("err before normalize:\n", err)
+    print("err code:\n", err.response["Error"]["Code"])
     error_code = err.response["Error"]["Code"]
     try:
         return int(error_code)
@@ -148,6 +150,7 @@ def normalize_client_error(err):
             "RequestThrottled",
             "EC2ThrottledException",
         ):
+            print("yesssss! error code recognize")
             return 503
     return error_code
 
@@ -343,8 +346,8 @@ def worker(result_file_name, queue, mode, s3config):
                                 raise
         except:
             traceback.print_exc()
-            sys.exit(ERROR_WORKER_EXCEPTION)
-
+            # sys.exit(ERROR_WORKER_EXCEPTION)
+            sys.exit(error_code)
 
 def start_workers(mode, urls, num_workers, inject_failure, s3config):
     # We start the minimum of len(urls) or num_workers to avoid starting
@@ -584,7 +587,7 @@ def exit(exit_code, url):
     elif exit_code == ERROR_TRANSIENT:
         msg = "Transient error for url: %s" % url
     else:
-        msg = "Unknown error, exit code: %d" % exit_code
+        msg = "Unknown error, exit code: %s" % exit_code
     print("s3op failed:\n%s" % msg, file=sys.stderr)
     sys.exit(exit_code)
 
