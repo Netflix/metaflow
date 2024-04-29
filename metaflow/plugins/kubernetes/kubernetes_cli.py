@@ -7,7 +7,7 @@ from metaflow import JSONTypeClass, util
 from metaflow._vendor import click
 from metaflow.exception import METAFLOW_EXIT_DISALLOW_RETRY, CommandException
 from metaflow.metadata.util import sync_local_metadata_from_datastore
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, KUBERNETES_LABELS
+from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.mflog import TASK_LOG_SOURCE
 import metaflow.tracing as tracing
 
@@ -109,6 +109,18 @@ def kubernetes():
 )
 @click.option("--shared-memory", default=None, help="Size of shared memory in MiB")
 @click.option("--port", default=None, help="Port number to expose from the container")
+@click.option(
+    "--labels",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=False,
+)
+@click.option(
+    "--annotations",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=False,
+)
 @click.pass_context
 def step(
     ctx,
@@ -136,6 +148,8 @@ def step(
     tolerations=None,
     shared_memory=None,
     port=None,
+    labels=None,
+    annotations=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None, **kwargs):
@@ -251,6 +265,8 @@ def step(
                 tolerations=tolerations,
                 shared_memory=shared_memory,
                 port=port,
+                labels=labels,
+                annotations=annotations,
             )
     except Exception as e:
         traceback.print_exc(chain=False)

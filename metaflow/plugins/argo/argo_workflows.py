@@ -33,7 +33,6 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
     KUBERNETES_FETCH_EC2_METADATA,
-    KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
@@ -47,10 +46,6 @@ from metaflow.metaflow_config import (
 from metaflow.metaflow_config_funcs import config_values
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
-from metaflow.plugins.kubernetes.kubernetes import (
-    parse_kube_keyvalue_list,
-    validate_kube_labels,
-)
 from metaflow.util import (
     compress_list,
     dict_to_cli_options,
@@ -160,6 +155,7 @@ class ArgoWorkflows(object):
         self._schedule, self._timezone = self._get_schedule()
 
         self.kubernetes_labels = self._get_kubernetes_labels()
+        self.kubernetes_annotations = self._get_kubernetes_annotations()
         self._workflow_template = self._compile_workflow_template()
         self._sensor = self._compile_sensor()
 
@@ -304,18 +300,104 @@ class ArgoWorkflows(object):
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
 
-    @staticmethod
-    def _get_kubernetes_labels():
+    def _get_kubernetes_labels(self):
         """
-        Get Kubernetes labels from environment variable.
-        Parses the string into a dict and validates that values adhere to Kubernetes restrictions.
+        Get Kubernetes labels from the start step decorator.
         """
-        if not KUBERNETES_LABELS:
-            return {}
-        env_labels = KUBERNETES_LABELS.split(",")
-        env_labels = parse_kube_keyvalue_list(env_labels, False)
-        validate_kube_labels(env_labels)
-        return env_labels
+
+        resources = dict(
+            [
+                deco
+                for node in self.graph
+                if node.name == "start"
+                for deco in node.decorators
+                if deco.name == "kubernetes"
+            ][0].attributes
+        )
+        return resources["labels"] or {}
+
+    def _get_kubernetes_annotations(self):
+        """
+        Get Kubernetes annotations from the start step decorator.
+        Append Argo specific annotations that are unavailable at the decorator level.
+        """
+        from datetime import datetime, timezone
+
+        resources = dict(
+            [
+                deco
+                for node in self.graph
+                if node.name == "start"
+                for deco in node.decorators
+                if deco.name == "kubernetes"
+            ][0].attributes
+        )
+        annotations = {}
+        if resources["annotations"] is not None:
+            # make a copy so we do not mess possible start-step specific annotations.
+            annotations = resources["annotations"].copy()
+
+        annotations.update(
+            {
+                "metaflow/production_token": self.production_token,
+                "metaflow/owner": self.username,
+                "metaflow/user": "argo-workflows",
+                "metaflow/flow_name": self.flow.name,
+                "metaflow/deployment_timestamp": str(
+                    datetime.now(timezone.utc).isoformat()
+                ),
+            }
+        )
+
+        if self.parameters:
+            annotations.update({"metaflow/parameters": json.dumps(self.parameters)})
+
+        if current.get("project_name"):
+            annotations.update(
+                {
+                    "metaflow/project_name": current.project_name,
+                    "metaflow/branch_name": current.branch_name,
+                    "metaflow/project_flow_name": current.project_flow_name,
+                }
+            )
+
+        # Some more annotations to populate the Argo UI nicely
+        if self.tags:
+            annotations.update({"metaflow/tags": json.dumps(self.tags)})
+        if self.triggers:
+            annotations.update(
+                {
+                    "metaflow/triggers": json.dumps(
+                        [
+                            {key: trigger.get(key) for key in ["name", "type"]}
+                            for trigger in self.triggers
+                        ]
+                    )
+                }
+            )
+        if self.notify_on_error:
+            annotations.update(
+                {
+                    "metaflow/notify_on_error": json.dumps(
+                        {
+                            "slack": bool(self.notify_slack_webhook_url),
+                            "pager_duty": bool(self.notify_pager_duty_integration_key),
+                        }
+                    )
+                }
+            )
+        if self.notify_on_success:
+            annotations.update(
+                {
+                    "metaflow/notify_on_success": json.dumps(
+                        {
+                            "slack": bool(self.notify_slack_webhook_url),
+                            "pager_duty": bool(self.notify_pager_duty_integration_key),
+                        }
+                    )
+                }
+            )
+        return annotations
 
     def _get_schedule(self):
         schedule = self.flow._flow_decorators.get("schedule")
@@ -615,67 +697,6 @@ class ArgoWorkflows(object):
         # generate container templates at the top level (in WorkflowSpec) and maintain
         # references to them within the DAGTask.
 
-        from datetime import datetime, timezone
-
-        annotations = {
-            "metaflow/production_token": self.production_token,
-            "metaflow/owner": self.username,
-            "metaflow/user": "argo-workflows",
-            "metaflow/flow_name": self.flow.name,
-            "metaflow/deployment_timestamp": str(
-                datetime.now(timezone.utc).isoformat()
-            ),
-        }
-
-        if self.parameters:
-            annotations.update({"metaflow/parameters": json.dumps(self.parameters)})
-
-        if current.get("project_name"):
-            annotations.update(
-                {
-                    "metaflow/project_name": current.project_name,
-                    "metaflow/branch_name": current.branch_name,
-                    "metaflow/project_flow_name": current.project_flow_name,
-                }
-            )
-
-        # Some more annotations to populate the Argo UI nicely
-        if self.tags:
-            annotations.update({"metaflow/tags": json.dumps(self.tags)})
-        if self.triggers:
-            annotations.update(
-                {
-                    "metaflow/triggers": json.dumps(
-                        [
-                            {key: trigger.get(key) for key in ["name", "type"]}
-                            for trigger in self.triggers
-                        ]
-                    )
-                }
-            )
-        if self.notify_on_error:
-            annotations.update(
-                {
-                    "metaflow/notify_on_error": json.dumps(
-                        {
-                            "slack": bool(self.notify_slack_webhook_url),
-                            "pager_duty": bool(self.notify_pager_duty_integration_key),
-                        }
-                    )
-                }
-            )
-        if self.notify_on_success:
-            annotations.update(
-                {
-                    "metaflow/notify_on_success": json.dumps(
-                        {
-                            "slack": bool(self.notify_slack_webhook_url),
-                            "pager_duty": bool(self.notify_pager_duty_integration_key),
-                        }
-                    )
-                }
-            )
-
         return (
             WorkflowTemplate()
             .metadata(
@@ -688,7 +709,7 @@ class ArgoWorkflows(object):
                 .namespace(KUBERNETES_NAMESPACE)
                 .label("app.kubernetes.io/name", "metaflow-flow")
                 .label("app.kubernetes.io/part-of", "metaflow")
-                .annotations(annotations)
+                .annotations(self.kubernetes_annotations)
             )
             .spec(
                 WorkflowSpec()
@@ -721,7 +742,10 @@ class ArgoWorkflows(object):
                     .label("app.kubernetes.io/name", "metaflow-run")
                     .label("app.kubernetes.io/part-of", "metaflow")
                     .annotations(
-                        {**annotations, **{"metaflow/run_id": "argo-{{workflow.name}}"}}
+                        {
+                            **self.kubernetes_annotations,
+                            **{"metaflow/run_id": "argo-{{workflow.name}}"},
+                        }
                     )
                     # TODO: Set dynamic labels using labels_from. Ideally, we would
                     #       want to expose run_id as a label. It's easy to add labels,
@@ -754,10 +778,10 @@ class ArgoWorkflows(object):
                 # Set common pod metadata.
                 .pod_metadata(
                     Metadata()
+                    .labels(self.kubernetes_labels)
                     .label("app.kubernetes.io/name", "metaflow-task")
                     .label("app.kubernetes.io/part-of", "metaflow")
-                    .annotations(annotations)
-                    .labels(self.kubernetes_labels)
+                    .annotations(self.kubernetes_annotations)
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
@@ -1401,13 +1425,15 @@ class ArgoWorkflows(object):
                     minutes_between_retries=minutes_between_retries,
                 )
                 .metadata(
-                    ObjectMeta().annotation("metaflow/step_name", node.name)
+                    ObjectMeta()
+                    .annotation("metaflow/step_name", node.name)
                     # Unfortunately, we can't set the task_id since it is generated
                     # inside the pod. However, it can be inferred from the annotation
                     # set by argo-workflows - `workflows.argoproj.io/outputs` - refer
                     # the field 'task-id' in 'parameters'
                     # .annotation("metaflow/task_id", ...)
                     .annotation("metaflow/attempt", retry_count)
+                    .labels(resources["labels"])
                 )
                 # Set emptyDir volume for state management
                 .empty_dir_volume("out")
@@ -1848,23 +1874,6 @@ class ArgoWorkflows(object):
                 "sdk (https://pypi.org/project/kubernetes/) first."
             )
 
-        labels = {"app.kubernetes.io/part-of": "metaflow"}
-
-        annotations = {
-            "metaflow/production_token": self.production_token,
-            "metaflow/owner": self.username,
-            "metaflow/user": "argo-workflows",
-            "metaflow/flow_name": self.flow.name,
-        }
-        if current.get("project_name"):
-            annotations.update(
-                {
-                    "metaflow/project_name": current.project_name,
-                    "metaflow/branch_name": current.branch_name,
-                    "metaflow/project_flow_name": current.project_flow_name,
-                }
-            )
-
         # Useful to paint the UI
         trigger_annotations = {
             "metaflow/triggered_by": json.dumps(
@@ -1882,10 +1891,10 @@ class ArgoWorkflows(object):
                 ObjectMeta()
                 .name(self.name.replace(".", "-"))
                 .namespace(KUBERNETES_NAMESPACE)
+                .labels(self.kubernetes_labels)
                 .label("app.kubernetes.io/name", "metaflow-sensor")
                 .label("app.kubernetes.io/part-of", "metaflow")
-                .labels(self.kubernetes_labels)
-                .annotations(annotations)
+                .annotations(self.kubernetes_annotations)
             )
             .spec(
                 SensorSpec().template(
@@ -1895,7 +1904,7 @@ class ArgoWorkflows(object):
                         ObjectMeta()
                         .label("app.kubernetes.io/name", "metaflow-sensor")
                         .label("app.kubernetes.io/part-of", "metaflow")
-                        .annotations(annotations)
+                        .annotations(self.kubernetes_annotations)
                     )
                     .container(
                         # Run sensor in guaranteed QoS. The sensor isn't doing a lot
