@@ -323,17 +323,26 @@ def get_packages_for_stubs() -> Tuple[List[Tuple[str, str]], List[str]]:
         return [], []
 
     dist_list = []
-    for dist in _metadata_package.distributions():
+
+    # We check the type because if the user has multiple importlib metadata, for
+    # some reason it shows up multiple times.
+    interesting_dists = [
+        d
+        for d in _metadata_package.distributions()
         if any(
             [
-                pkg == "metaflow-stubs"
-                for pkg in (dist.read_text("top_level.txt") or "").split()
+                p == "metaflow-stubs"
+                for p in (d.read_text("top_level.txt") or "").split()
             ]
-        ):
-            # This is a package we care about
-            root_path = dist.locate_file("metaflow-stubs").as_posix()
-            dist_list.append((dist.metadata["Name"], root_path))
-            all_paths.discard(root_path)
+        )
+        and isinstance(d, _metadata_package.PathDistribution)
+    ]
+
+    for dist in interesting_dists:
+        # This is a package we care about
+        root_path = dist.locate_file("metaflow-stubs").as_posix()
+        dist_list.append((dist.metadata["Name"], root_path))
+        all_paths.discard(root_path)
     return dist_list, list(all_paths)
 
 

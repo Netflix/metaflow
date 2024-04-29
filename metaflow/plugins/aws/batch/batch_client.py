@@ -159,6 +159,8 @@ class BatchJob(object):
         tmpfs_path,
         num_parallel,
         ephemeral_storage,
+        log_driver,
+        log_options,
     ):
         # identify platform from any compute environment associated with the
         # queue
@@ -195,6 +197,25 @@ class BatchJob(object):
             # ECS tasks.
             "propagateTags": True,
         }
+
+        log_options_dict = {}
+        if log_options:
+            if isinstance(log_options, str):
+                log_options = [log_options]
+            for each_log_option in log_options:
+                k, v = each_log_option.split(":", 1)
+                log_options_dict[k] = v
+
+        if log_driver or log_options:
+            job_definition["containerProperties"]["logConfiguration"] = {}
+        if log_driver:
+            job_definition["containerProperties"]["logConfiguration"][
+                "logDriver"
+            ] = log_driver
+        if log_options:
+            job_definition["containerProperties"]["logConfiguration"][
+                "options"
+            ] = log_options_dict
 
         if platform == "FARGATE" or platform == "FARGATE_SPOT":
             if num_parallel > 1:
@@ -456,6 +477,8 @@ class BatchJob(object):
         tmpfs_path,
         num_parallel,
         ephemeral_storage,
+        log_driver,
+        log_options,
     ):
         self.payload["jobDefinition"] = self._register_job_definition(
             image,
@@ -476,6 +499,8 @@ class BatchJob(object):
             tmpfs_path,
             num_parallel,
             ephemeral_storage,
+            log_driver,
+            log_options,
         )
         return self
 

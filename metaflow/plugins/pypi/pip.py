@@ -92,7 +92,14 @@ class Pip(object):
                 # so using @branch as a version acts as expected.
                 vcs_info = dl_info.get("vcs_info")
                 if vcs_info:
-                    res["url"] = "{vcs}+{url}@{commit_id}".format(**vcs_info, **res)
+                    subdirectory = dl_info.get("subdirectory")
+                    res["url"] = "{vcs}+{url}@{commit_id}{subdir_str}".format(
+                        **vcs_info,
+                        **res,
+                        subdir_str="#subdirectory=%s" % subdirectory
+                        if subdirectory
+                        else ""
+                    )
                     # used to deduplicate the storage location in case wheel does not
                     # build with enough unique identifiers.
                     res["hash"] = vcs_info["commit_id"]
@@ -270,9 +277,17 @@ class Pip(object):
                         prefix,
                         "pip3",
                         "--disable-pip-version-check",
-                        "--no-input",
                         "--no-color",
                     ]
+                    # credentials are being determined from the JSON file referenced by
+                    # the GOOGLE_APPLICATION_CREDENTIALS environment variable and are
+                    # probably injected dynamically via `keyrings.google-artifactregistry-auth`
+                    # Thus, we avoid passing `--no-input` in this case.
+                    + (
+                        ["--no-input"]
+                        if os.getenv("GOOGLE_APPLICATION_CREDENTIALS") is None
+                        else []
+                    )
                     + (["--isolated"] if isolated else [])
                     + args,
                     stderr=subprocess.PIPE,

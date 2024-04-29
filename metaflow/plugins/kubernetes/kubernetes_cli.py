@@ -108,6 +108,7 @@ def kubernetes():
     multiple=False,
 )
 @click.option("--shared-memory", default=None, help="Size of shared memory in MiB")
+@click.option("--port", default=None, help="Port number to expose from the container")
 @click.pass_context
 def step(
     ctx,
@@ -134,6 +135,7 @@ def step(
     persistent_volume_claims=None,
     tolerations=None,
     shared_memory=None,
+    port=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None, **kwargs):
@@ -248,6 +250,7 @@ def step(
                 persistent_volume_claims=persistent_volume_claims,
                 tolerations=tolerations,
                 shared_memory=shared_memory,
+                port=port,
             )
     except Exception as e:
         traceback.print_exc(chain=False)

@@ -266,7 +266,9 @@ class CondaEnvironment(MetaflowEnvironment):
         # Resolve `linux-64` Conda environments if @batch or @kubernetes are in play
         target_platform = conda_platform()
         for decorator in step.decorators:
-            if decorator.name in ["batch", "kubernetes"]:
+            # TODO: rather than relying on decorator names, rely on attributes
+            #       to make them extensible.
+            if decorator.name in ["batch", "kubernetes", "nvidia"]:
                 # TODO: Support arm architectures
                 target_platform = "linux-64"
                 break
@@ -281,6 +283,15 @@ class CondaEnvironment(MetaflowEnvironment):
             environment["pypi"]["platforms"] = [target_platform]
             # Match PyPI and Conda python versions with the resolved environment Python.
             environment["pypi"]["python"] = environment["conda"]["python"] = env_python
+
+            # When using `Application Default Credentials` for private GCP
+            # PyPI registries, the usage of environment variable `GOOGLE_APPLICATION_CREDENTIALS`
+            # demands that `keyrings.google-artifactregistry-auth` has to be installed
+            # and available in the underlying python environment.
+            if os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+                environment["conda"]["packages"][
+                    "keyrings.google-artifactregistry-auth"
+                ] = ">=1.1.1"
 
         # Z combinator for a recursive lambda
         deep_sort = (lambda f: f(f))(

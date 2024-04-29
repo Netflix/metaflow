@@ -193,6 +193,8 @@ class Batch(object):
         tmpfs_path=None,
         num_parallel=0,
         ephemeral_storage=None,
+        log_driver=None,
+        log_options=None,
     ):
         job_name = self._job_name(
             attrs.get("metaflow.user"),
@@ -242,6 +244,8 @@ class Batch(object):
                 tmpfs_path=tmpfs_path,
                 num_parallel=num_parallel,
                 ephemeral_storage=ephemeral_storage,
+                log_driver=log_driver,
+                log_options=log_options,
             )
             .task_id(attrs.get("metaflow.task_id"))
             .environment_variable("AWS_DEFAULT_REGION", self._client.region())
@@ -356,6 +360,8 @@ class Batch(object):
         env={},
         attrs={},
         ephemeral_storage=None,
+        log_driver=None,
+        log_options=None,
     ):
         if queue is None:
             queue = next(self._client.active_job_queues(), None)
@@ -394,6 +400,8 @@ class Batch(object):
             tmpfs_path=tmpfs_path,
             num_parallel=num_parallel,
             ephemeral_storage=ephemeral_storage,
+            log_driver=log_driver,
+            log_options=log_options,
         )
         self.num_parallel = num_parallel
         self.job = job.execute()

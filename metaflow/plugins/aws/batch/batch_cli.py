@@ -161,6 +161,19 @@ def kill(ctx, run_id, user, my_runs):
     help="Ephemeral storage (for AWS Batch only)",
 )
 @click.option(
+    "--log-driver",
+    default=None,
+    type=str,
+    help="Log driver for AWS ECS container",
+)
+@click.option(
+    "--log-options",
+    default=None,
+    type=str,
+    multiple=True,
+    help="Log options for the chosen log driver",
+)
+@click.option(
     "--num-parallel",
     default=0,
     type=int,
@@ -193,6 +206,8 @@ def step(
     host_volumes=None,
     efs_volumes=None,
     ephemeral_storage=None,
+    log_driver=None,
+    log_options=None,
     num_parallel=None,
     **kwargs
 ):
@@ -325,6 +340,8 @@ def step(
                 tmpfs_size=tmpfs_size,
                 tmpfs_path=tmpfs_path,
                 ephemeral_storage=ephemeral_storage,
+                log_driver=log_driver,
+                log_options=log_options,
                 num_parallel=num_parallel,
             )
     except Exception as e:
