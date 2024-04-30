@@ -287,14 +287,23 @@ def scrub(obj, input_path, stdout=None, stderr=None, both=None, attempt=None):
         ]
     else:
         ds_list = obj.flow_datastore.get_latest_task_datastores(
-            run_id=run_id, steps=[step_name], attempt=attempt, mode="d"
+            run_id=run_id, steps=[step_name], mode="d"
         )
 
     if ds_list:
         for ds in ds_list:
+            failures = []
             for stream in streams:
-                ds.scrub_logs(LOG_SOURCES, stream)
-        echo("Logs have been scrubbed.")
+                try:
+                    ds.scrub_logs(LOG_SOURCES, stream)
+                except Exception:
+                    failures.append(stream)
+            if failures:
+                obj.echo_always(
+                    "Failed to scrub %s : *%s*" % (ds.pathspec, ",".join(failures))
+                )
+            else:
+                echo("Logs have been scrubbed for %s" % ds.pathspec)
 
     else:
         raise CommandException(
