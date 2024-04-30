@@ -226,19 +226,19 @@ def show(
     "--stdout/--no-stdout",
     default=False,
     show_default=True,
-    help="Scrub stdout of the task.",
+    help="Scrub stdout of the step or task.",
 )
 @click.option(
     "--stderr/--no-stderr",
     default=False,
     show_default=True,
-    help="Scrub stderr of the task.",
+    help="Scrub stderr of the step or task.",
 )
 @click.option(
     "--both/--no-both",
     default=True,
     show_default=True,
-    help="Scrub both stdout and stderr of the task.",
+    help="Scrub both stdout and stderr of the step or task.",
 )
 @click.option(
     "--attempt",
@@ -299,8 +299,5 @@ def scrub(obj, input_path, stdout=None, stderr=None, both=None, attempt=None):
     else:
         raise CommandException(
             "No Tasks found at the given path -- "
-            "either none exist or none have started yet"
+            "either none exist or they have not finished yet"
         )
-
-
-# TODO - move step and init under a separate 'internal' subcommand
