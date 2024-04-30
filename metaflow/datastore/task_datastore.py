@@ -1,5 +1,6 @@
 from collections import defaultdict
 import json
+import os
 import pickle
 import sys
 import time
@@ -799,6 +800,27 @@ class TaskDataStore(object):
         }
 
         self._save_file(to_store_dict, add_attempt=False, allow_overwrite=True)
+
+        # If scrubbing succeeded, record metadata about the event and whodunnit
+        if self._metadata:
+            self._metadata.register_metadata(
+                self._run_id,
+                self._step_name,
+                self._task_id,
+                [
+                    MetaDatum(
+                        field="attempt-%s-scrub" % stream,
+                        value=json.dumps(
+                            {
+                                "attempt": self._attempt,
+                                "scrubber": os.environ.get("METAFLOW_USER", "unknown"),
+                            }
+                        ),
+                        type="log-scrub",
+                        tags=["attempt_id:{0}".format(self._attempt)],
+                    )
+                ],
+            )
 
     @require_mode("r")
     def load_log_legacy(self, stream, attempt_override=None):
