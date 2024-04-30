@@ -93,8 +93,8 @@ class FlowDataStore(object):
         allow_not_done : bool, optional
             If True, returns the latest attempt of a task even if that attempt
             wasn't marked as done, by default False
-        mode : str, optional
-            Mode to initialize the returned TaskDataStores in. Default "r"
+        mode : str, default "r"
+            Mode to initialize the returned TaskDataStores in.
 
         Returns
         -------
