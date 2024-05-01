@@ -21,23 +21,17 @@ def read_from_file_when_ready(file_path):
 class ExecutingRun(object):
     def __init__(self, command_obj: CommandManager, run_obj: Run) -> None:
         self.command_obj = command_obj
-        self.run_obj = run_obj
+        self.run = run_obj
 
     def __getattr__(self, name: str):
-        if hasattr(self.run_obj, name):
-            run_attr = getattr(self.run_obj, name)
-            if callable(run_attr):
-                return lambda *args, **kwargs: run_attr(*args, **kwargs)
-            else:
-                return run_attr
-        elif hasattr(self.command_obj, name):
+        if hasattr(self.command_obj, name):
             command_attr = getattr(self.command_obj, name)
             if callable(command_attr):
                 return lambda *args, **kwargs: command_attr(*args, **kwargs)
             else:
                 return command_attr
         else:
-            raise AttributeError("Invalid attribute %s" % name)
+            raise AttributeError("Invalid attribute '%s'" % name)
 
 
 class Runner(object):
