@@ -247,8 +247,20 @@ def show(
     show_default=False,
     help="Attempt number of a task to scrub, defaults to the latest attempt.",
 )
+@click.option(
+    "--latest/--all",
+    default=True,
+    show_default=False,
+    help="Scrub latest/all attempts of a step or task",
+)
 @click.pass_obj
-def scrub(obj, input_path, stdout=None, stderr=None, both=None, attempt=None):
+def scrub(
+    obj, input_path, stdout=None, stderr=None, both=None, attempt=None, latest=None
+):
+    if latest is not None and attempt is not None:
+        raise CommandException(
+            "Please only specify one of the options --latest/--all or --attempt, not both."
+        )
     types = set()
     if stdout:
         types.add("stdout")
@@ -275,20 +287,23 @@ def scrub(obj, input_path, stdout=None, stderr=None, both=None, attempt=None):
         )
 
     if task_id:
-        ds_list = [
-            TaskDataStore(
-                obj.flow_datastore,
-                run_id=run_id,
-                step_name=step_name,
-                task_id=task_id,
-                attempt=attempt,
-                mode="d",
+        if latest:
+            ds_list = obj.flow_datastore.get_latest_task_datastores(
+                pathspecs=[input_path], mode="d"
             )
-        ]
+        else:
+            ds_list = obj.flow_datastore.get_task_datastores(
+                pathspecs=[input_path], attempt=attempt, mode="d"
+            )
     else:
-        ds_list = obj.flow_datastore.get_latest_task_datastores(
-            run_id=run_id, steps=[step_name], mode="d"
-        )
+        if latest:
+            ds_list = obj.flow_datastore.get_latest_task_datastores(
+                run_id=run_id, steps=[step_name], mode="d"
+            )
+        else:
+            ds_list = obj.flow_datastore.get_task_datastores(
+                run_id=run_id, steps=[step_name], attempt=attempt, mode="d"
+            )
 
     if ds_list:
         for ds in ds_list:
@@ -300,10 +315,14 @@ def scrub(obj, input_path, stdout=None, stderr=None, both=None, attempt=None):
                     failures.append(stream)
             if failures:
                 obj.echo_always(
-                    "Failed to scrub %s : *%s*" % (ds.pathspec, ",".join(failures))
+                    "Failed to scrub %s - attempt %s : *%s*"
+                    % (ds.pathspec, ds.attempt, ",".join(failures))
                 )
             else:
-                echo("Logs have been scrubbed for %s" % ds.pathspec)
+                echo(
+                    "Logs have been scrubbed for %s - attempt %s"
+                    % (ds.pathspec, ds.attempt)
+                )
 
     else:
         raise CommandException(
