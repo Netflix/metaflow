@@ -253,9 +253,23 @@ def show(
     show_default=False,
     help="Scrub latest/all attempts of a step or task",
 )
+@click.option(
+    "--include-not-done",
+    default=False,
+    show_default=False,
+    is_flag=True,
+    help="Also scrub steps or tasks that are not done. Use this for tasks that did not finish correctly, and could not otherwise be scrubbed.",
+)
 @click.pass_obj
 def scrub(
-    obj, input_path, stdout=None, stderr=None, both=None, attempt=None, latest=None
+    obj,
+    input_path,
+    stdout=None,
+    stderr=None,
+    both=None,
+    attempt=None,
+    latest=None,
+    include_not_done=None,
 ):
     if latest is not None and attempt is not None:
         raise CommandException(
@@ -289,20 +303,30 @@ def scrub(
     if task_id:
         if latest:
             ds_list = obj.flow_datastore.get_latest_task_datastores(
-                pathspecs=[input_path], mode="d"
+                pathspecs=[input_path], mode="d", allow_not_done=include_not_done
             )
         else:
             ds_list = obj.flow_datastore.get_task_datastores(
-                pathspecs=[input_path], attempt=attempt, mode="d"
+                pathspecs=[input_path],
+                attempt=attempt,
+                mode="d",
+                allow_not_done=include_not_done,
             )
     else:
         if latest:
             ds_list = obj.flow_datastore.get_latest_task_datastores(
-                run_id=run_id, steps=[step_name], mode="d"
+                run_id=run_id,
+                steps=[step_name],
+                mode="d",
+                allow_not_done=include_not_done,
             )
         else:
             ds_list = obj.flow_datastore.get_task_datastores(
-                run_id=run_id, steps=[step_name], attempt=attempt, mode="d"
+                run_id=run_id,
+                steps=[step_name],
+                attempt=attempt,
+                mode="d",
+                allow_not_done=include_not_done,
             )
 
     if ds_list:
@@ -327,5 +351,6 @@ def scrub(
     else:
         raise CommandException(
             "No Tasks found at the given path -- "
-            "either none exist or they have not finished yet"
+            "either none exist or they have not finished yet.\n"
+            "If you know the task has finished, you can supply --include-not-done to force scrub it."
         )
