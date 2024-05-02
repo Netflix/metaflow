@@ -36,6 +36,7 @@ from metaflow.extension_support import get_modules
 
 from .exception_transferer import RemoteInterpreterException
 from .client_modules import create_modules
+from metaflow.metaflow_config import ESCAPE_HATCH_WARNING
 
 # Determine what is the python executable to use for the environment escape. To do this,
 # we look for ENV_ESCAPE_PY in the environment AND store it. When metaflow
@@ -146,7 +147,7 @@ def load():
             # print("Env escape using executable {python_executable}")
         else:
             # Inverse logic as above here.
-            if sys.executable != "{python_executable}":
+            if sys.executable != "{python_executable}" and ESCAPE_HATCH_WARNING:
                 # We use the package locally and warn user.
                 print("Not using environment escape for '%s' as module present" % prefix)
             # In both cases, we don't load our loader since
