@@ -22,7 +22,9 @@ from metaflow.metaflow_config import (
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SHARED_MEMORY,
     KUBERNETES_PORT,
-    KUBERNETES_RESOURCES,
+    KUBERNETES_CPU,
+    KUBERNETES_MEMORY,
+    KUBERNETES_DISK,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -175,13 +177,14 @@ class KubernetesDecorator(StepDecorator):
             except (NameError, ImportError):
                 pass
 
-        # parse the CPU, memory, disk, values from the KUBERNETES_RESOURCES environment variable (you would need to export the METAFLOW_KUBERNETES_RESOURCES environment variable with the desired values before running the flow)
-        # find the values in the format "cpu=1,memory=4096,disk=10240", if not set, the default values described above are used
-        if KUBERNETES_RESOURCES:
-            for resource in KUBERNETES_RESOURCES.split(","):
-                key, value = resource.split("=")
-                if key in self.attributes:
-                    self.attributes[key] = value
+        # parse the CPU, memory, disk, values from the KUBERNETES_ environment variable (you would need to export the METAFLOW_KUBERNETES_CPU, METAFLOW_KUBERNETES_MEMORY and/or METAFLOW_KUBERNTES_DISK environment variable with the desired values before running the flow)
+        # find the values from the environment variables, if not set, the default values as defined above are used
+        if KUBERNETES_CPU:
+            self.attributes["cpu"] = KUBERNETES_CPU
+        if KUBERNETES_MEMORY:
+            self.attributes["memory"] = KUBERNETES_MEMORY
+        if KUBERNETES_DISK:
+            self.attributes["disk"] = KUBERNETES_DISK
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
