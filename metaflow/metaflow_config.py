@@ -364,6 +364,12 @@ CONDA_PACKAGE_GSROOT = from_conf("CONDA_PACKAGE_GSROOT")
 CONDA_DEPENDENCY_RESOLVER = from_conf("CONDA_DEPENDENCY_RESOLVER", "conda")
 
 ###
+# Escape hatch configuration
+###
+# Print out warning if escape hatch is not used for the target packages
+ESCAPE_HATCH_WARNING = from_conf("ESCAPE_HATCH_WARNING", True)
+
+###
 # Debug configuration
 ###
 DEBUG_OPTIONS = ["subcommand", "sidecar", "s3client", "tracing", "stubgen"]
