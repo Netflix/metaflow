@@ -56,7 +56,7 @@ class Runner(object):
     def __init__(
         self,
         flow_file: str,
-        profile: str,
+        profile: Optional[str] = None,
         env: Dict = {},
         **kwargs,
     ):
