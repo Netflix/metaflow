@@ -1,8 +1,9 @@
 import os
 import sys
 import time
+import asyncio
 import tempfile
-from typing import Dict
+from typing import Dict, Optional
 from metaflow import Run
 from metaflow.cli import start
 from metaflow.click_api import MetaflowAPI
@@ -19,19 +20,36 @@ def read_from_file_when_ready(file_path):
 
 
 class ExecutingRun(object):
-    def __init__(self, command_obj: CommandManager, run_obj: Run) -> None:
+    def __init__(
+        self, runner: "Runner", command_obj: CommandManager, run_obj: Run
+    ) -> None:
+        self.runner = runner
         self.command_obj = command_obj
         self.run = run_obj
 
-    def __getattr__(self, name: str):
-        if hasattr(self.command_obj, name):
-            command_attr = getattr(self.command_obj, name)
-            if callable(command_attr):
-                return lambda *args, **kwargs: command_attr(*args, **kwargs)
-            else:
-                return command_attr
-        else:
-            raise AttributeError("Invalid attribute '%s'" % name)
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.runner.__exit__(exc_type, exc_value, traceback)
+
+    async def wait(self, timeout: Optional[float] = None, stream: Optional[str] = None):
+        await self.command_obj.wait(timeout, stream)
+        return self
+
+    @property
+    def stdout(self):
+        with open(self.command_obj.log_files.get("stdout"), "r") as fp:
+            return fp.read()
+
+    @property
+    def stderr(self):
+        with open(self.command_obj.log_files.get("stderr"), "r") as fp:
+            return fp.read()
+
+    async def stream_logs(self, stream: str, position: Optional[int] = None):
+        async for position, line in self.command_obj.stream_logs(stream, position):
+            yield position, line
 
 
 class Runner(object):
@@ -47,10 +65,24 @@ class Runner(object):
         self.api = MetaflowAPI.from_cli(self.flow_file, start)
         self.runner = self.api(**kwargs).run
 
+    def __enter__(self):
+        return self
+
     async def __aenter__(self):
         return self
 
-    async def run(self, **kwargs):
+    def run(self, **kwargs):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        try:
+            result = loop.run_until_complete(self.async_run(**kwargs))
+            result = loop.run_until_complete(result.wait())
+            return result
+        finally:
+            loop.close()
+
+    async def async_run(self, **kwargs):
         with tempfile.TemporaryDirectory() as temp_dir:
             tfp_flow = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
             tfp_run_id = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
@@ -70,7 +102,10 @@ class Runner(object):
             pathspec_components = (flow_name, run_id)
             run_object = Run("/".join(pathspec_components), _namespace_check=False)
 
-            return ExecutingRun(command_obj, run_object)
+            return ExecutingRun(self, command_obj, run_object)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.spm.cleanup()
 
     async def __aexit__(self, exc_type, exc_value, traceback):
-        await self.spm.cleanup()
+        self.spm.cleanup()

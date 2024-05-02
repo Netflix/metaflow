@@ -23,7 +23,7 @@ class SubprocessManager(object):
         return self
 
     async def __aexit__(self, exc_type, exc_value, traceback):
-        await self.cleanup()
+        self.cleanup()
 
     async def run_command(
         self,
@@ -43,11 +43,11 @@ class SubprocessManager(object):
 
         return self.commands.get(pid, None)
 
-    async def cleanup(self) -> None:
+    def cleanup(self) -> None:
         """Clean up log files for all running subprocesses."""
 
         for v in self.commands.values():
-            await v.cleanup()
+            v.cleanup()
 
 
 class CommandManager(object):
@@ -74,7 +74,7 @@ class CommandManager(object):
         return self
 
     async def __aexit__(self, exc_type, exc_value, traceback):
-        await self.cleanup()
+        self.cleanup()
 
     def handle_sigint(self, signum, frame):
         """Handle the SIGINT signal."""
@@ -130,7 +130,7 @@ class CommandManager(object):
             return self.process
         except Exception as e:
             print("Error starting subprocess: %s" % e)
-            await self.cleanup()
+            self.cleanup()
 
     async def stream_logs(
         self,
@@ -194,7 +194,7 @@ class CommandManager(object):
         async for _, line in self.stream_logs(stream):
             custom_logger(line)
 
-    async def cleanup(self):
+    def cleanup(self):
         """Clean up log files for a running subprocesses."""
 
         if hasattr(self, "temp_dir"):
