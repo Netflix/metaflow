@@ -885,11 +885,16 @@ class ArgoWorkflows(object):
                         )
                     )
                 ]
-                # NOTE: Due to limitations with the Argo Workflows Parameter size we can not pass arbitrarily large lists of task id's to foreach joins.
-                # We deterministically generate the task id's of the steps inside foreaches that will be required to join the results.
+                # NOTE: Due to limitations with Argo Workflows Parameter size we
+                #       can not pass arbitrarily large lists of task id's to join tasks.
+                #       Instead we ensure that task id's for foreach tasks can be 
+                #       deduced deterministically and pass the relevant information to
+                #       the join task.
                 #
-                # We need to add the split-index and root-input-path for the last step in any foreach and use these to generate the task id,
-                # as the join step uses the root and the cardinality of the foreach to generate the required id's.
+                #       We need to add the split-index and root-input-path for the last
+                #       step in any foreach scope and use these to generate the task id,
+                #       as the join step uses the root and the cardinality of the 
+                #       foreach scope to generate the required id's.
                 if (
                     node.is_inside_foreach
                     and self.graph[node.out_funcs[0]].type == "join"
@@ -1114,7 +1119,8 @@ class ArgoWorkflows(object):
             task_idx = ""
             input_paths = ""
             root_input = None
-            # export input_paths as it is used multiple times in the container script and we do not want to repeat the values.
+            # export input_paths as it is used multiple times in the container script 
+            # and we do not want to repeat the values.
             input_paths_expr = "export INPUT_PATHS=''"
             if node.name != "start":
                 input_paths_expr = (
@@ -1124,19 +1130,16 @@ class ArgoWorkflows(object):
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 task_idx = "{{inputs.parameters.split-index}}"
             if node.is_inside_foreach and self.graph[node.out_funcs[0]].type == "join":
-                join_node = self.graph[node.out_funcs[0]]
-                join_is_foreach = any(
-                    self.graph[parent].matching_join == join_node.name
-                    for parent in join_node.split_parents
+                if any(
+                    self.graph[parent].matching_join == self.graph[node.out_funcs[0]].name
+                    for parent in self.graph[node.out_funcs[0]].split_parents
                     if self.graph[parent].type == "foreach"
-                )
-                not_first_in_foreach = any(
+                ) and any(
                     not self.graph[f].type == "foreach" for f in node.in_funcs
-                )
-
-                if join_is_foreach and not_first_in_foreach:
-                    # Task ids inside a foreach that are meant for joining results need deterministic id generation.
-                    # we need to use the split index and root-input-path in case this is the last step in a nested foreach
+                ):
+                    # we need to propagate the split-index and root-input-path info for 
+                    # the last step inside a foreach for correctly joining nested 
+                    # foreaches
                     task_idx = "{{inputs.parameters.split-index}}"
                     root_input = "{{inputs.parameters.root-input-path}}"
 
@@ -1278,19 +1281,15 @@ class ArgoWorkflows(object):
                 node.type == "join"
                 and self.graph[node.split_parents[-1]].type == "foreach"
             ):
-                # Set aggregated input-paths for a foreach-join
-                foreach_step_name = next(
+                # Set aggregated input-paths for a for-each join
+                foreach_step = next(
                     n for n in node.in_funcs if self.graph[n].is_inside_foreach
                 )
-                creation_timestamp = "{{workflow.creationTimestamp}}"
-                foreach_max_split = "{{inputs.parameters.split-cardinality}}"
                 input_paths = (
-                    "$(python -m metaflow.plugins.argo.generate_input_paths %s %s %s %s)"
+                    "$(python -m metaflow.plugins.argo.generate_input_paths %s {{workflow.creationTimestamp}} %s {{inputs.parameters.split-cardinality}})"
                     % (
-                        foreach_step_name,
-                        creation_timestamp,
+                        foreach_step,
                         input_paths,
-                        foreach_max_split,
                     )
                 )
             step = [
@@ -1457,15 +1456,17 @@ class ArgoWorkflows(object):
             # input. Analogously, if the node under consideration is a foreach
             # node, then we emit split cardinality as an extra output. I would like
             # to thank the designers of Argo Workflows for making this so
-            # straightforward!
+            # straightforward! Things become a bit more complicated to support very
+            # wide foreaches where we have to resort to passing a root-input-path
+            # so that we can compute the task ids for each parent task of a for-each
+            # join task deterministically inside the join task without resorting to
+            # passing a rather long list of (albiet compressed)
             inputs = []
-            has_split_index = False
             if node.name != "start":
                 inputs.append(Parameter("input-paths"))
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 # Fetch split-index from parent
                 inputs.append(Parameter("split-index"))
-                has_split_index = True
             if (
                 node.type == "join"
                 and self.graph[node.split_parents[-1]].type == "foreach"
@@ -1473,20 +1474,17 @@ class ArgoWorkflows(object):
                 # append this only for joins of foreaches, not static splits
                 inputs.append(Parameter("split-cardinality"))
             if node.is_inside_foreach and self.graph[node.out_funcs[0]].type == "join":
-                join_node = self.graph[node.out_funcs[0]]
-                join_is_foreach = any(
-                    self.graph[parent].matching_join == join_node.name
-                    for parent in join_node.split_parents
+                if any(
+                    self.graph[parent].matching_join == self.graph[node.out_funcs[0]].name
+                    for parent in self.graph[node.out_funcs[0]].split_parents
                     if self.graph[parent].type == "foreach"
-                )
-                not_first_in_foreach = any(
+                ) and any(
                     not self.graph[f].type == "foreach" for f in node.in_funcs
-                )
-
-                if join_is_foreach and not_first_in_foreach:
-                    # we need to carry the split-index and root-input-path info for the last step inside a foreach
-                    # for correctly joining nested foreaches
-                    if not has_split_index:
+                ):
+                    # we need to propagate the split-index and root-input-path info for 
+                    # the last step inside a foreach for correctly joining nested 
+                    # foreaches
+                    if not any(self.graph[n].type == "foreach" for n in node.in_funcs):
                         # Don't add duplicate split index parameters.
                         inputs.append(Parameter("split-index"))
                     inputs.append(Parameter("root-input-path"))
@@ -1496,11 +1494,9 @@ class ArgoWorkflows(object):
                 outputs = [Parameter("task-id").valueFrom({"path": "/mnt/out/task_id"})]
             if node.type == "foreach":
                 # Emit split cardinality from foreach task
-                # list of split indices
                 outputs.append(
                     Parameter("num-splits").valueFrom({"path": "/mnt/out/splits"})
                 )
-                # maximum of the splits
                 outputs.append(
                     Parameter("split-cardinality").valueFrom(
                         {"path": "/mnt/out/split_cardinality"}
