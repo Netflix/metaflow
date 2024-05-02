@@ -367,7 +367,7 @@ CONDA_DEPENDENCY_RESOLVER = from_conf("CONDA_DEPENDENCY_RESOLVER", "conda")
 # Escape hatch configuration
 ###
 # Print out warning if escape hatch is not used for the target packages
-ESCAPE_HATCH_WARNING = from_conf("ESCAPE_HATCH_WARN", True)
+ESCAPE_HATCH_WARNING = from_conf("ESCAPE_HATCH_WARNING", True)
 
 ###
 # Debug configuration
