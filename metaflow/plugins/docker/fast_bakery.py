@@ -13,14 +13,14 @@ from metaflow.metaflow_config import (
 BAKERY_METAFILE = ".imagebakery-cache"
 
 
-class BakeryException(MetaflowException):
+class FastBakeryException(MetaflowException):
     headline = "Docker Image Bakery ran into an exception"
 
     def __init__(self, error):
         if isinstance(error, (list,)):
             error = "\n".join(error)
         msg = "{error}".format(error=error)
-        super(BakeryException, self).__init__(msg)
+        super(FastBakeryException, self).__init__(msg)
 
 
 def read_metafile():
@@ -62,7 +62,7 @@ def generate_spec_hash(base_image=None, packages={}):
 
 def bake_image(python=None, packages={}, datastore_type=None, base_image=None):
     if DOCKER_IMAGE_BAKERY_URL is None:
-        raise BakeryException("Image bakery URL is not set.")
+        raise FastBakeryException("Image bakery URL is not set.")
     # Gather base deps
     deps = {}
     if datastore_type is not None:
@@ -93,7 +93,7 @@ def bake_image(python=None, packages={}, datastore_type=None, base_image=None):
 
     invoker = BAKERY_INVOKERS.get(DOCKER_IMAGE_BAKERY_AUTH)
     if not invoker:
-        raise BakeryException(
+        raise FastBakeryException(
             "Selected Bakery Authentication method is not supported: %s",
             DOCKER_IMAGE_BAKERY_AUTH,
         )
@@ -140,16 +140,16 @@ def aws_iam_invoker(payload):
 
 def _handle_bakery_response(response):
     if response.status_code >= 500:
-        raise BakeryException(response.text)
+        raise FastBakeryException(response.text)
     body = response.json()
     if response.status_code >= 400:
         try:
             kind = body["kind"]
             msg = body["message"]
-            raise BakeryException("*%s*\n%s" % (kind, msg))
+            raise FastBakeryException("*%s*\n%s" % (kind, msg))
         except KeyError:
             # error body is not formatted by the imagebakery
-            raise BakeryException(body)
+            raise FastBakeryException(body)
     image = body["containerImage"]
 
     return image

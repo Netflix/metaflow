@@ -6,7 +6,7 @@ from metaflow.metaflow_config import (
 )
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.plugins.pypi.conda_environment import CondaEnvironment
-from .bakery import bake_image
+from .fast_bakery import bake_image
 from metaflow.plugins.aws.batch.batch_decorator import BatchDecorator
 from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
 from metaflow.plugins.pypi.conda_decorator import CondaStepDecorator
