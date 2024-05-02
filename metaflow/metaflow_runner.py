@@ -56,11 +56,14 @@ class Runner(object):
     def __init__(
         self,
         flow_file: str,
+        profile: str,
         env: Dict = {},
         **kwargs,
     ):
         self.flow_file = flow_file
         self.env_vars = os.environ.copy().update(env)
+        if profile:
+            self.env_vars["METAFLOW_PROFILE"] = profile
         self.spm = SubprocessManager()
         self.api = MetaflowAPI.from_cli(self.flow_file, start)
         self.runner = self.api(**kwargs).run

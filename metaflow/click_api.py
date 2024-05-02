@@ -2,7 +2,6 @@ import inspect
 import importlib
 import itertools
 from collections import OrderedDict
-from typeguard import check_type, TypeCheckError
 import uuid, datetime
 from typing import (
     Optional,
@@ -30,6 +29,17 @@ from metaflow._vendor.click.types import (
     Choice,
     File,
 )
+
+try:
+    from typeguard import check_type, TypeCheckError
+except ImportError:
+    raise ImportError(
+        """
+        The Metaflow Programmatic API requires 'typeguard', which is not installed or available.
+        Please try installing with `pip install typeguard`. This package and thus, the programmatic API
+        functionality is unavailable for python 3.5 and 3.6.
+    """
+    )
 
 click_to_python_types = {
     StringParamType: str,
