@@ -271,10 +271,6 @@ def scrub(
     latest=None,
     include_not_done=None,
 ):
-    if latest is not None and attempt is not None:
-        raise CommandException(
-            "Please only specify one of the options --latest/--all or --attempt, not both."
-        )
     types = set()
     if stdout:
         types.add("stdout")
@@ -303,30 +299,36 @@ def scrub(
     if task_id:
         if latest:
             ds_list = obj.flow_datastore.get_latest_task_datastores(
-                pathspecs=[input_path], mode="d", allow_not_done=include_not_done
-            )
-        else:
-            ds_list = obj.flow_datastore.get_task_datastores(
                 pathspecs=[input_path],
                 attempt=attempt,
                 mode="d",
                 allow_not_done=include_not_done,
+            )
+        else:
+            ds_list = obj.flow_datastore.get_latest_task_datastores(
+                pathspecs=[input_path],
+                attempt=attempt,
+                mode="d",
+                allow_not_done=include_not_done,
+                include_prior=True,
             )
     else:
         if latest:
             ds_list = obj.flow_datastore.get_latest_task_datastores(
                 run_id=run_id,
                 steps=[step_name],
+                attempt=attempt,
                 mode="d",
                 allow_not_done=include_not_done,
             )
         else:
-            ds_list = obj.flow_datastore.get_task_datastores(
+            ds_list = obj.flow_datastore.get_latest_task_datastores(
                 run_id=run_id,
                 steps=[step_name],
                 attempt=attempt,
                 mode="d",
                 allow_not_done=include_not_done,
+                include_prior=True,
             )
 
     if ds_list:
