@@ -439,7 +439,7 @@ class StepFunctions(object):
                             JSONItemReader()
                             .resource("arn:aws:states:::s3:getObject")
                             .parameter("Bucket.$", "$.Body.DestinationBucket")
-                            .parameter("Key.$", "$.Body.ResultFiles.SUCCEEDED.[0].Key")
+                            .parameter("Key.$", "$.Body.ResultFiles.SUCCEEDED[0].Key")
                         )
                         .output_path("$.[0]")
                     )
