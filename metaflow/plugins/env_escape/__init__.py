@@ -36,7 +36,6 @@ from metaflow.extension_support import get_modules
 
 from .exception_transferer import RemoteInterpreterException
 from .client_modules import create_modules
-from metaflow.metaflow_config import ESCAPE_HATCH_WARNING
 
 # Determine what is the python executable to use for the environment escape. To do this,
 # we look for ENV_ESCAPE_PY in the environment AND store it. When metaflow
@@ -111,6 +110,7 @@ import importlib
 import os
 import sys
 from metaflow.plugins.env_escape.client_modules import ModuleImporter
+from metaflow.metaflow_config import ESCAPE_HATCH_WARNING
 
 # This is a trampoline file to ensure that the ModuleImporter to handle the emulated
 # modules gets properly loaded. If multiple modules are emulated by a single configuration
