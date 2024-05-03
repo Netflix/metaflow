@@ -6,6 +6,7 @@ from metaflow._vendor import click
 import metaflow.tracing as tracing
 from metaflow.plugins.pypi import MAGIC_FILE
 from metaflow.plugins.pypi.micromamba import Micromamba
+from metaflow.plugins.datastores.local_storage import LocalStorage
 
 micromamba = Micromamba()
 
@@ -61,7 +62,9 @@ def conda():
 @click.pass_context
 def list_envs(ctx, show_all, jsonify):
     manifest_path = os.path.join(
-        ctx.obj.flow_datastore.datastore_root, ctx.obj.flow.name, MAGIC_FILE
+        LocalStorage.get_datastore_root_from_config(ctx.obj.echo),
+        ctx.obj.flow.name,
+        MAGIC_FILE,
     )
     if not os.path.exists(manifest_path):
         print(f"No conda environments for the flow: {ctx.obj.flow.name}")
@@ -122,7 +125,9 @@ def list_envs(ctx, show_all, jsonify):
 @click.pass_context
 def remove_envs_and_delete_files(ctx, manifest, yes):
     manifest_path = os.path.join(
-        ctx.obj.flow_datastore.datastore_root, ctx.obj.flow.name, MAGIC_FILE
+        LocalStorage.get_datastore_root_from_config(ctx.obj.echo),
+        ctx.obj.flow.name,
+        MAGIC_FILE,
     )
     if not os.path.exists(manifest_path):
         print(f"No conda environments for the flow: {ctx.obj.flow.name}")
