@@ -315,9 +315,9 @@ KUBERNETES_SHARED_MEMORY = from_conf("KUBERNETES_SHARED_MEMORY", None)
 # Default port number to open on the pods
 KUBERNETES_PORT = from_conf("KUBERNETES_PORT", None)
 # Default kubernetes resource requests for CPU, memory and disk
-KUBERNETES_CPU = from_conf("KUBERNETES_CPU", "")
-KUBERNETES_MEMORY = from_conf("KUBERNETES_MEMORY", "")
-KUBERNETES_DISK = from_conf("KUBERNETES_DISK", "")
+KUBERNETES_CPU = from_conf("KUBERNETES_CPU", None)
+KUBERNETES_MEMORY = from_conf("KUBERNETES_MEMORY", None)
+KUBERNETES_DISK = from_conf("KUBERNETES_DISK", None)
 
 ARGO_WORKFLOWS_KUBERNETES_SECRETS = from_conf("ARGO_WORKFLOWS_KUBERNETES_SECRETS", "")
 ARGO_WORKFLOWS_ENV_VARS_TO_SKIP = from_conf("ARGO_WORKFLOWS_ENV_VARS_TO_SKIP", "")
