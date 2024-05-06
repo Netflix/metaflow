@@ -1,10 +1,29 @@
 import os
 import sys
 import signal
+import psutil
 import shutil
 import asyncio
 import tempfile
 from typing import List, Dict, Optional, Callable
+
+
+def kill_process_and_descendants(pid, termination_timeout):
+    def on_terminate(proc):
+        print(f"process {proc} terminated")
+
+    try:
+        parent = psutil.Process(pid)
+        children = parent.children(recursive=True)
+        for p in children:
+            p.terminate()
+        _, alive = psutil.wait_procs(
+            children, timeout=termination_timeout, callback=on_terminate
+        )
+        for p in alive:
+            p.kill()
+    except psutil.NoSuchProcess:
+        pass
 
 
 class LogReadTimeoutError(Exception):
@@ -100,9 +119,10 @@ class CommandManager(object):
                     await asyncio.wait_for(self.emit_logs(stream), timeout)
             except asyncio.TimeoutError:
                 command_string = " ".join(self.command)
+                await self.kill()
                 print(
-                    "Timeout: The process: '%s' didn't complete within %s seconds."
-                    % (command_string, timeout)
+                    "Timeout: The process: %s with command: '%s' didn't complete within %s seconds."
+                    % (self.process.pid, command_string, timeout)
                 )
 
     async def run(self):
@@ -201,20 +221,15 @@ class CommandManager(object):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     async def kill(self, termination_timeout: float = 5):
-        """Kill the subprocess."""
+        """Kill the subprocess and its descendants."""
 
         if self.process is not None:
-            if self.process.returncode is None:
-                self.process.terminate()
-                try:
-                    await asyncio.wait_for(self.process.wait(), termination_timeout)
-                except asyncio.TimeoutError:
-                    self.process.kill()
-            else:
-                print(
-                    "Process has already terminated with return code: %s"
-                    % self.process.returncode
-                )
+            kill_process_and_descendants(self.process.pid, termination_timeout)
+            self.process.terminate()
+            try:
+                await asyncio.wait_for(self.process.wait(), termination_timeout)
+            except asyncio.TimeoutError:
+                self.process.kill()
         else:
             print("No process to kill.")
 
