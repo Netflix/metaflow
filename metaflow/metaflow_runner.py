@@ -99,13 +99,28 @@ class Runner(object):
             )
             command_obj = self.spm.get(pid)
 
-            flow_name = read_from_file_when_ready(tfp_flow.name)
-            run_id = read_from_file_when_ready(tfp_run_id.name)
+            # detect failures even before writing to the run_id and flow_name files
+            # the error (if any) must happen within the first 0.5 seconds
+            try:
+                await asyncio.wait_for(command_obj.process.wait(), timeout=0.5)
+            except asyncio.TimeoutError:
+                pass
 
-            pathspec_components = (flow_name, run_id)
-            run_object = Run("/".join(pathspec_components), _namespace_check=False)
+            # if the returncode is None, the process has encountered no error within the
+            # initial 0.5 seconds and we proceed to run it in the background
+            # during which it would have written to the run_id and flow_name files
+            if command_obj.process.returncode is not None:
+                stderr_log = open(command_obj.log_files["stderr"]).read()
+                command = " ".join(command_obj.command)
+                raise RuntimeError(f"Error executing: '{command}':\n\n{stderr_log}")
+            else:
+                flow_name = read_from_file_when_ready(tfp_flow.name)
+                run_id = read_from_file_when_ready(tfp_run_id.name)
 
-            return ExecutingRun(self, command_obj, run_object)
+                pathspec_components = (flow_name, run_id)
+                run_object = Run("/".join(pathspec_components), _namespace_check=False)
+
+                return ExecutingRun(self, command_obj, run_object)
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.spm.cleanup()
