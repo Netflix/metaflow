@@ -10,7 +10,7 @@ from typing import List, Dict, Optional, Callable
 
 def kill_process_and_descendants(pid, termination_timeout):
     def on_terminate(proc):
-        print(f"process {proc} terminated")
+        print("process %s terminated" % proc)
 
     try:
         parent = psutil.Process(pid)
