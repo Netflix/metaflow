@@ -1626,6 +1626,7 @@ class S3(object):
                         # Run the operation.
                         env = os.environ.copy()
                         tracing.inject_tracing_vars(env)
+                        env["METAFLOW_ESCAPE_HATCH_WARNING"] = "False"
                         stdout = subprocess.check_output(
                             cmdline + addl_cmdline,
                             cwd=self._tmpdir,
