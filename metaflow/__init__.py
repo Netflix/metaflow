@@ -146,6 +146,9 @@ from .client import (
 # Import data class within tuple_util but not introduce new symbols.
 from . import tuple_util
 
+# Runner API
+from .metaflow_runner import Runner
+
 __version_addl__ = []
 _ext_debug("Loading top-level modules")
 for m in _tl_modules:

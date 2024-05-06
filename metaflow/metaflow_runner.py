@@ -5,8 +5,6 @@ import asyncio
 import tempfile
 from typing import Dict, Optional
 from metaflow import Run
-from metaflow.cli import start
-from metaflow.click_api import MetaflowAPI
 from metaflow.subprocess_manager import SubprocessManager, CommandManager
 
 
@@ -60,6 +58,16 @@ class Runner(object):
         env: Dict = {},
         **kwargs,
     ):
+        # these imports are required here and not at the top
+        # since they interfere with the user defined Parameters
+        # in the flow file, this is related to the ability of
+        # importing 'Runner' directly i.e.
+        #    from metaflow import Runner
+        # This ability is made possible by the statement:
+        # 'from .metaflow_runner import Runner' in '__init__.py'
+        from metaflow.cli import start
+        from metaflow.click_api import MetaflowAPI
+
         self.flow_file = flow_file
         self.env_vars = os.environ.copy().update(env)
         if profile:
