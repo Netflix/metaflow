@@ -887,29 +887,24 @@ class ArgoWorkflows(object):
                 ]
                 # NOTE: Due to limitations with Argo Workflows Parameter size we
                 #       can not pass arbitrarily large lists of task id's to join tasks.
-                #       Instead we ensure that task id's for foreach tasks can be 
+                #       Instead we ensure that task id's for foreach tasks can be
                 #       deduced deterministically and pass the relevant information to
                 #       the join task.
                 #
                 #       We need to add the split-index and root-input-path for the last
                 #       step in any foreach scope and use these to generate the task id,
-                #       as the join step uses the root and the cardinality of the 
+                #       as the join step uses the root and the cardinality of the
                 #       foreach scope to generate the required id's.
                 if (
                     node.is_inside_foreach
                     and self.graph[node.out_funcs[0]].type == "join"
                 ):
-                    join = self.graph[node.out_funcs[0]]
-                    matching_foreach = next(
-                        (
-                            parent
-                            for parent in join.split_parents
-                            if self.graph[parent].matching_join == join.name
-                            and self.graph[parent].type == "foreach"
-                        ),
-                        False,
-                    )
-                    if matching_foreach:
+                    if any(
+                        self.graph[parent].matching_join
+                        == self.graph[node.out_funcs[0]].name
+                        and self.graph[parent].type == "foreach"
+                        for parent in self.graph[node.out_funcs[0]].split_parents
+                    ):
                         parameters.extend(
                             [
                                 Parameter("split-index").value(
@@ -1119,7 +1114,7 @@ class ArgoWorkflows(object):
             task_idx = ""
             input_paths = ""
             root_input = None
-            # export input_paths as it is used multiple times in the container script 
+            # export input_paths as it is used multiple times in the container script
             # and we do not want to repeat the values.
             input_paths_expr = "export INPUT_PATHS=''"
             if node.name != "start":
@@ -1131,14 +1126,13 @@ class ArgoWorkflows(object):
                 task_idx = "{{inputs.parameters.split-index}}"
             if node.is_inside_foreach and self.graph[node.out_funcs[0]].type == "join":
                 if any(
-                    self.graph[parent].matching_join == self.graph[node.out_funcs[0]].name
+                    self.graph[parent].matching_join
+                    == self.graph[node.out_funcs[0]].name
                     for parent in self.graph[node.out_funcs[0]].split_parents
                     if self.graph[parent].type == "foreach"
-                ) and any(
-                    not self.graph[f].type == "foreach" for f in node.in_funcs
-                ):
-                    # we need to propagate the split-index and root-input-path info for 
-                    # the last step inside a foreach for correctly joining nested 
+                ) and any(not self.graph[f].type == "foreach" for f in node.in_funcs):
+                    # we need to propagate the split-index and root-input-path info for
+                    # the last step inside a foreach for correctly joining nested
                     # foreaches
                     task_idx = "{{inputs.parameters.split-index}}"
                     root_input = "{{inputs.parameters.root-input-path}}"
@@ -1475,14 +1469,13 @@ class ArgoWorkflows(object):
                 inputs.append(Parameter("split-cardinality"))
             if node.is_inside_foreach and self.graph[node.out_funcs[0]].type == "join":
                 if any(
-                    self.graph[parent].matching_join == self.graph[node.out_funcs[0]].name
+                    self.graph[parent].matching_join
+                    == self.graph[node.out_funcs[0]].name
                     for parent in self.graph[node.out_funcs[0]].split_parents
                     if self.graph[parent].type == "foreach"
-                ) and any(
-                    not self.graph[f].type == "foreach" for f in node.in_funcs
-                ):
-                    # we need to propagate the split-index and root-input-path info for 
-                    # the last step inside a foreach for correctly joining nested 
+                ) and any(not self.graph[f].type == "foreach" for f in node.in_funcs):
+                    # we need to propagate the split-index and root-input-path info for
+                    # the last step inside a foreach for correctly joining nested
                     # foreaches
                     if not any(self.graph[n].type == "foreach" for n in node.in_funcs):
                         # Don't add duplicate split index parameters.
