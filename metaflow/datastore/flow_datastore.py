@@ -67,7 +67,7 @@ class FlowDataStore(object):
     def datastore_root(self):
         return self._storage_impl.datastore_root
 
-    def get_latest_task_datastores(
+    def get_task_datastores(
         self,
         run_id=None,
         steps=None,

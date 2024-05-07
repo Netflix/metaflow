@@ -298,14 +298,14 @@ def scrub(
 
     if task_id:
         if latest:
-            ds_list = obj.flow_datastore.get_latest_task_datastores(
+            ds_list = obj.flow_datastore.get_task_datastores(
                 pathspecs=[input_path],
                 attempt=attempt,
                 mode="d",
                 allow_not_done=include_not_done,
             )
         else:
-            ds_list = obj.flow_datastore.get_latest_task_datastores(
+            ds_list = obj.flow_datastore.get_task_datastores(
                 pathspecs=[input_path],
                 attempt=attempt,
                 mode="d",
@@ -314,7 +314,7 @@ def scrub(
             )
     else:
         if latest:
-            ds_list = obj.flow_datastore.get_latest_task_datastores(
+            ds_list = obj.flow_datastore.get_task_datastores(
                 run_id=run_id,
                 steps=[step_name],
                 attempt=attempt,
@@ -322,7 +322,7 @@ def scrub(
                 allow_not_done=include_not_done,
             )
         else:
-            ds_list = obj.flow_datastore.get_latest_task_datastores(
+            ds_list = obj.flow_datastore.get_task_datastores(
                 run_id=run_id,
                 steps=[step_name],
                 attempt=attempt,
