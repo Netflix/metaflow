@@ -146,7 +146,7 @@ class FlowDataStore(object):
             if attempt is not None and attempt <= metaflow_config.MAX_ATTEMPTS - 1:
                 attempt_range = range(attempt + 1) if include_prior else [attempt]
 
-            for attempt in attempt_range:
+            for att in attempt_range:
                 for suffix in [
                     TaskDataStore.METADATA_DATA_SUFFIX,
                     TaskDataStore.METADATA_ATTEMPT_SUFFIX,
@@ -155,7 +155,7 @@ class FlowDataStore(object):
                     urls.append(
                         self._storage_impl.path_join(
                             task_url,
-                            TaskDataStore.metadata_name_for_attempt(suffix, attempt),
+                            TaskDataStore.metadata_name_for_attempt(suffix, att),
                         )
                     )
 
