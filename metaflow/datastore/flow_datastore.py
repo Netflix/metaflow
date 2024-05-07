@@ -142,7 +142,8 @@ class FlowDataStore(object):
         for task_url in task_urls:
             # parse content urls for specific attempt only, or for all attempts in max range
             attempt_range = range(metaflow_config.MAX_ATTEMPTS)
-            if attempt is not None:
+            # we have no reason to check for attempts greater than MAX_ATTEMPTS, as they do not exist.
+            if attempt is not None and attempt <= metaflow_config.MAX_ATTEMPTS - 1:
                 attempt_range = range(attempt + 1) if include_prior else [attempt]
 
             for attempt in attempt_range:
