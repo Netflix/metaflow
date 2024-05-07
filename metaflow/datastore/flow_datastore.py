@@ -139,14 +139,13 @@ class FlowDataStore(object):
                 if task.is_file is False
             ]
         urls = []
+        # parse content urls for specific attempt only, or for all attempts in max range
+        attempt_range = range(metaflow_config.MAX_ATTEMPTS)
+        # we have no reason to check for attempts greater than MAX_ATTEMPTS, as they do not exist.
+        if attempt is not None and attempt <= metaflow_config.MAX_ATTEMPTS - 1:
+            attempt_range = range(attempt + 1) if include_prior else [attempt]
         for task_url in task_urls:
-            # parse content urls for specific attempt only, or for all attempts in max range
-            attempt_range = range(metaflow_config.MAX_ATTEMPTS)
-            # we have no reason to check for attempts greater than MAX_ATTEMPTS, as they do not exist.
-            if attempt is not None and attempt <= metaflow_config.MAX_ATTEMPTS - 1:
-                attempt_range = range(attempt + 1) if include_prior else [attempt]
-
-            for att in attempt_range:
+            for attempt in attempt_range:
                 for suffix in [
                     TaskDataStore.METADATA_DATA_SUFFIX,
                     TaskDataStore.METADATA_ATTEMPT_SUFFIX,
@@ -155,7 +154,7 @@ class FlowDataStore(object):
                     urls.append(
                         self._storage_impl.path_join(
                             task_url,
-                            TaskDataStore.metadata_name_for_attempt(suffix, att),
+                            TaskDataStore.metadata_name_for_attempt(suffix, attempt),
                         )
                     )
 
