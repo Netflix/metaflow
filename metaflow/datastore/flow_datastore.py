@@ -101,9 +101,9 @@ class FlowDataStore(object):
             If True, returns the latest attempt of a task even if that attempt
             wasn't marked as done, by default False
         attempt : int, optional
-            Attempt number of the tasks to return. Overrides returning the latest TaskDataStore.
+            Attempt number of the tasks to return.  If not provided, returns latest attempt.
         include_prior : boolean, default False
-            Flag to determine if previous attempts TaskDataStores should be returned along the latest one
+            If True, returns all attempts up to and including attempt.
         mode : str, default "r"
             Mode to initialize the returned TaskDataStores in.
 
