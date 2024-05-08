@@ -150,7 +150,7 @@ def kill(ctx, run_id, user, my_runs):
 @click.option("--tmpfs-tempdir", is_flag=True, help="tmpfs requirement for AWS Batch.")
 @click.option("--tmpfs-size", help="tmpfs requirement for AWS Batch.")
 @click.option("--tmpfs-path", help="tmpfs requirement for AWS Batch.")
-# TODO: Maybe remove it altogether since it's not used here
+# NOTE: ubf-context is not explicitly used, but @parallel decorator tries to pass this so keep it for now
 @click.option("--ubf-context", default=None, type=click.Choice(["none", "ubf_control"]))
 @click.option("--host-volumes", multiple=True)
 @click.option("--efs-volumes", multiple=True)
