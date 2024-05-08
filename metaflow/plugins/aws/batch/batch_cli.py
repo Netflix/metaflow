@@ -211,7 +211,7 @@ def step(
     log_driver=None,
     log_options=None,
     num_parallel=None,
-    **kwargs,
+    **kwargs
 ):
     def echo(msg, stream="stderr", batch_id=None, **kwargs):
         msg = util.to_unicode(msg)
