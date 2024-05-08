@@ -10,7 +10,7 @@ from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
 from metaflow.metadata.util import sync_local_metadata_from_datastore
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.mflog import TASK_LOG_SOURCE
-
+from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from .batch import Batch, BatchKilledException
 
 
@@ -150,8 +150,10 @@ def kill(ctx, run_id, user, my_runs):
 @click.option("--tmpfs-tempdir", is_flag=True, help="tmpfs requirement for AWS Batch.")
 @click.option("--tmpfs-size", help="tmpfs requirement for AWS Batch.")
 @click.option("--tmpfs-path", help="tmpfs requirement for AWS Batch.")
-# TODO: Maybe remove it altogether since it's not used here
-@click.option("--ubf-context", default=None, type=click.Choice([None, "ubf_control"]))
+# NOTE: ubf-context is not explicitly used, but @parallel decorator tries to pass this so keep it for now
+@click.option(
+    "--ubf-context", default=None, type=click.Choice(["none", UBF_CONTROL, UBF_TASK])
+)
 @click.option("--host-volumes", multiple=True)
 @click.option("--efs-volumes", multiple=True)
 @click.option(
@@ -344,7 +346,7 @@ def step(
                 log_options=log_options,
                 num_parallel=num_parallel,
             )
-    except Exception as e:
+    except Exception:
         traceback.print_exc()
         _sync_metadata()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
