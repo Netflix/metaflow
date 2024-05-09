@@ -142,7 +142,6 @@ class BatchJob(object):
     def _register_job_definition(
         self,
         image,
-        repo_creds_secret,
         job_role,
         job_queue,
         execution_role,
@@ -162,6 +161,7 @@ class BatchJob(object):
         ephemeral_storage,
         log_driver,
         log_options,
+        repo_creds_secret,
     ):
         # identify platform from any compute environment associated with the
         # queue
@@ -485,6 +485,7 @@ class BatchJob(object):
         ephemeral_storage,
         log_driver,
         log_options,
+        repo_creds_secret,
     ):
         self.payload["jobDefinition"] = self._register_job_definition(
             image,
@@ -507,6 +508,7 @@ class BatchJob(object):
             ephemeral_storage,
             log_driver,
             log_options,
+            repo_creds_secret,
         )
         return self
 

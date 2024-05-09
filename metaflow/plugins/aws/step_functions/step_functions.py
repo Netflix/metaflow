@@ -842,6 +842,7 @@ class StepFunctions(object):
                 ephemeral_storage=resources["ephemeral_storage"],
                 log_driver=resources["log_driver"],
                 log_options=resources["log_options"],
+                repo_creds_secret=resources["repo_creds_secret"],
             )
             .attempts(total_retries + 1)
         )

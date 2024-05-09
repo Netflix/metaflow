@@ -107,7 +107,10 @@ def kill(ctx, run_id, user, my_runs):
     "--image",
     help="Docker image requirement for AWS Batch. In name:version format.",
 )
-@click.option("--repo-creds", help="Credentials if using private image repository")
+@click.option(
+    "--repo-creds-secret",
+    help="Secret containing credentials if using a private image repository",
+)
 @click.option("--iam-role", help="IAM role requirement for AWS Batch.")
 @click.option(
     "--execution-role",
