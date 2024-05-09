@@ -107,6 +107,7 @@ def kill(ctx, run_id, user, my_runs):
     "--image",
     help="Docker image requirement for AWS Batch. In name:version format.",
 )
+@click.option("--repo-creds", help="Credentials if using private image repository")
 @click.option("--iam-role", help="IAM role requirement for AWS Batch.")
 @click.option(
     "--execution-role",
@@ -189,6 +190,7 @@ def step(
     code_package_url,
     executable=None,
     image=None,
+    repo_creds_secret=None,
     iam_role=None,
     execution_role=None,
     cpu=None,
@@ -321,6 +323,7 @@ def step(
                 code_package_url,
                 ctx.obj.flow_datastore.TYPE,
                 image=image,
+                repo_creds_secret=repo_creds_secret,
                 queue=queue,
                 iam_role=iam_role,
                 execution_role=execution_role,

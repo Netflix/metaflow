@@ -142,6 +142,7 @@ class BatchJob(object):
     def _register_job_definition(
         self,
         image,
+        repo_creds_secret,
         job_role,
         job_queue,
         execution_role,
@@ -197,6 +198,11 @@ class BatchJob(object):
             # ECS tasks.
             "propagateTags": True,
         }
+
+        if repo_creds_secret:
+            job_definition["containerProperties"]["repositoryCredentials"] = {
+                "credentialsParameter": repo_creds_secret
+            }
 
         log_options_dict = {}
         if log_options:
