@@ -326,7 +326,6 @@ def step(
                 code_package_url,
                 ctx.obj.flow_datastore.TYPE,
                 image=image,
-                repo_creds_secret=repo_creds_secret,
                 queue=queue,
                 iam_role=iam_role,
                 execution_role=execution_role,
@@ -351,6 +350,7 @@ def step(
                 log_driver=log_driver,
                 log_options=log_options,
                 num_parallel=num_parallel,
+                repo_creds_secret=repo_creds_secret,
             )
     except Exception:
         traceback.print_exc()
