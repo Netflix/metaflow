@@ -68,7 +68,7 @@ def clone_task_helper(
             ),
             MetaDatum(
                 field="attempt_ok",
-                value=True,  # During clone, the task is always considered successful.
+                value="True",  # During clone, the task is always considered successful.
                 type="internal_attempt_status",
                 tags=metadata_tags,
             ),
