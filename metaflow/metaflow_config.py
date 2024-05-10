@@ -210,6 +210,8 @@ DEFAULT_CONTAINER_REGISTRY = from_conf("DEFAULT_CONTAINER_REGISTRY")
 INCLUDE_FOREACH_STACK = from_conf("INCLUDE_FOREACH_STACK", False)
 # Maximum length of the foreach value string to be stored in each ForeachFrame.
 MAXIMUM_FOREACH_VALUE_CHARS = from_conf("MAXIMUM_FOREACH_VALUE_CHARS", 30)
+# The default runtime limit (In seconds) of jobs launched by any compute provider. Default of 5 days.
+DEFAULT_RUNTIME_LIMIT = from_conf("DEFAULT_RUNTIME_LIMIT", 5 * 24 * 60 * 60)
 
 ###
 # Organization customizations
