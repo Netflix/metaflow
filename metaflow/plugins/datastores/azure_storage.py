@@ -253,6 +253,33 @@ class _AzureRootClient(object):
         except Exception as e:
             process_exception(e)
 
+    def get_blob_properties(self, key):
+        from azure.core.exceptions import ResourceNotFoundError
+
+        blob_client = self.get_blob_client(key)
+        try:
+            return blob_client.get_blob_properties()
+        except ResourceNotFoundError as e:
+            return None
+
+    def stream_blob_data(self, key, chunk_size):
+        """
+        Stream data directly from a blob in chunks.
+
+        Parameters:
+            key (str): Key of the blob to stream.
+            chunk_size (int): Size of each chunk to read.
+
+        Yields:
+            bytes: Chunks of data read from the blob.
+        """
+        blob_client = self.get_blob_client(key)
+        stream = blob_client.download_blob()
+        chunk = stream.read(chunk_size)
+        while chunk:
+            yield chunk
+            chunk = stream.read(chunk_size)
+
 
 class AzureStorage(DataStoreStorage):
     TYPE = "azure"
@@ -401,3 +428,53 @@ class AzureStorage(DataStoreStorage):
                     shutil.rmtree(tmpdir)
 
         return CloseAfterUse(iter(items), closer=_Closer)
+
+    def stream_bytes(self, keys, chunk_size=1024):
+        """
+        Stream data for objects in the Azure datastore, writing each chunk to a uniquely named temporary file.
+
+        Parameters:
+            keys : List[str]
+                Keys to fetch
+            chunk_size : int
+                Number of bytes to stream at a time.
+
+        Returns:
+            CloseAfterUse :
+                An iterator over streamed chunks of (key, file_path, metadata)
+        """
+        tmpdir = mkdtemp(dir=self._tmproot, prefix="metaflow.azure.stream_bytes.")
+
+        def _mf_metadata_from_props(props):
+            if props.metadata and "metaflow_user_attributes" in props.metadata:
+                return json.loads(props.metadata["metaflow_user_attributes"])
+            return None
+
+        def stream():
+            for key in keys:
+                props = self.root_client.get_blob_properties(key)
+                if not props:
+                    yield (key, None, None)
+                _props = _mf_metadata_from_props(props)
+                try:
+                    for chunk in self.root_client.stream_blob_data(key, chunk_size):
+                        file_path = os.path.join(tmpdir, f"{uuid.uuid4()}.tmp")
+                        with open(file_path, "wb") as f:
+                            f.write(chunk)
+                        yield (
+                            key,
+                            file_path,
+                            _props,
+                        )  # Metadata is typically None for direct blob streams
+                except Exception as e:
+                    # Log or handle exceptions as necessary
+                    _Closer.close()
+                    raise
+
+        class _Closer(object):
+            @staticmethod
+            def close():
+                if os.path.isdir(tmpdir):
+                    shutil.rmtree(tmpdir)
+
+        return CloseAfterUse(stream(), closer=_Closer)
