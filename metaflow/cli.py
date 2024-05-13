@@ -558,11 +558,11 @@ def common_run_options(func):
         help="Write the ID of this run to the file specified.",
     )
     @click.option(
-        "--flow-name-file",
+        "--pathspec-file",
         default=None,
         show_default=True,
         type=str,
-        help="Write the flow name of this run to the file specified.",
+        help="Write the pathspec of this run to the file specified.",
     )
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -622,7 +622,7 @@ def resume(
     decospecs=None,
     run_id_file=None,
     resume_identifier=None,
-    flow_name_file=None,
+    pathspec_file=None,
 ):
     before_run(obj, tags, decospecs + obj.environment.decospecs())
 
@@ -679,7 +679,7 @@ def resume(
         resume_identifier=resume_identifier,
     )
     write_file(run_id_file, runtime.run_id)
-    write_file(flow_name_file, obj.flow.name)
+    write_file(pathspec_file, "/".join((obj.flow.name, runtime.run_id)))
     runtime.print_workflow_info()
 
     runtime.persist_constants()
@@ -713,7 +713,7 @@ def run(
     max_log_size=None,
     decospecs=None,
     run_id_file=None,
-    flow_name_file=None,
+    pathspec_file=None,
     user_namespace=None,
     **kwargs
 ):
@@ -738,7 +738,7 @@ def run(
     )
     write_latest_run_id(obj, runtime.run_id)
     write_file(run_id_file, runtime.run_id)
-    write_file(flow_name_file, obj.flow.name)
+    write_file(pathspec_file, "/".join((obj.flow.name, runtime.run_id)))
 
     obj.flow._set_constants(obj.graph, kwargs)
     runtime.print_workflow_info()

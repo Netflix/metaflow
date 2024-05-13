@@ -75,7 +75,7 @@ def _method_sanity_check(
         if supplied_k not in possible_params:
             raise ValueError(
                 "Unknown argument: '%s', possible args are: %s"
-                % (supplied_k, list(possible_params.keys()))
+                % (supplied_k, ", ".join(possible_params.keys()))
             )
 
         try:
