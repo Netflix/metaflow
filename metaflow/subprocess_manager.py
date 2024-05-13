@@ -1,28 +1,25 @@
 import os
 import sys
+import time
 import signal
-import psutil
 import shutil
 import asyncio
 import tempfile
+import subprocess
 from typing import List, Dict, Optional, Callable
 
 
 def kill_process_and_descendants(pid, termination_timeout):
-    def on_terminate(proc):
-        print("process %s terminated" % proc)
+    try:
+        subprocess.check_call(["pkill", "-TERM", "-P", str(pid)])
+    except subprocess.CalledProcessError as e:
+        pass
+
+    time.sleep(termination_timeout)
 
     try:
-        parent = psutil.Process(pid)
-        children = parent.children(recursive=True)
-        for p in children:
-            p.terminate()
-        _, alive = psutil.wait_procs(
-            children, timeout=termination_timeout, callback=on_terminate
-        )
-        for p in alive:
-            p.kill()
-    except psutil.NoSuchProcess:
+        subprocess.check_call(["pkill", "-KILL", "-P", str(pid)])
+    except subprocess.CalledProcessError as e:
         pass
 
 
@@ -226,16 +223,11 @@ class CommandManager(object):
         if self.run_called:
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    async def kill(self, termination_timeout: float = 5):
+    async def kill(self, termination_timeout: float = 1):
         """Kill the subprocess and its descendants."""
 
         if self.process is not None:
             kill_process_and_descendants(self.process.pid, termination_timeout)
-            self.process.terminate()
-            try:
-                await asyncio.wait_for(self.process.wait(), termination_timeout)
-            except asyncio.TimeoutError:
-                self.process.kill()
         else:
             print("No process to kill.")
 
