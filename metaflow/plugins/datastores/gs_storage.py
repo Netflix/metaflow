@@ -5,7 +5,6 @@ import uuid
 from concurrent.futures import as_completed
 from tempfile import mkdtemp
 
-
 from metaflow.datastore.datastore_storage import DataStoreStorage, CloseAfterUse
 from metaflow.exception import MetaflowInternalError
 from metaflow.metaflow_config import (
@@ -141,6 +140,50 @@ class _GSRootClient(object):
             tmp_filename = None
         return key, tmp_filename, metaflow_user_attributes
 
+    def load_blob_metadata(self, key):
+        blob = self.get_blob_client(key)
+        import google.api_core.exceptions
+
+        metaflow_user_attributes = None
+        try:
+            blob.reload()
+            if blob.metadata and "metaflow-user-attributes" in blob.metadata:
+                metaflow_user_attributes = json.loads(
+                    blob.metadata["metaflow-user-attributes"]
+                )
+        except google.api_core.exceptions.NotFound:
+            metaflow_user_attributes = None
+        return metaflow_user_attributes
+
+    def stream_blob_data(self, key, chunk_size):
+        """
+        Generator to stream data directly from a blob in chunks.
+
+        Parameters:
+            key (str): Key of the blob to stream.
+            chunk_size (int): Size of each chunk to read.
+
+        Yields:
+            bytes: Chunks of data read from the blob.
+        """
+        blob = self.get_blob_client(key)
+        import google.api_core.exceptions
+
+        try:
+            blob.reload()
+            stream = blob.open("rb")
+        except google.api_core.exceptions.NotFound:
+            return iter([])
+
+        try:
+            while True:
+                chunk = stream.read(chunk_size)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            stream.close()
+
 
 class GSStorage(DataStoreStorage):
     TYPE = "gs"
@@ -272,3 +315,48 @@ class GSStorage(DataStoreStorage):
                     shutil.rmtree(tmpdir)
 
         return CloseAfterUse(iter(items), closer=_Closer)
+
+    def stream_bytes(self, keys, chunk_size=1024):
+        """
+        Stream data for objects in the datastore, writing each chunk to a uniquely named temporary file.
+
+        Parameters:
+            keys : List[str]
+                Keys to fetch
+            chunk_size : int
+                Number of bytes to stream at a time.
+
+        Returns:
+            CloseAfterUse :
+                An iterator over streamed chunks of (key, file_path, metadata)
+        """
+        tmpdir = mkdtemp(dir=self._tmproot, prefix="metaflow.gs.stream_bytes.")
+
+        def stream():
+            for key in keys:
+                try:
+                    blob_md = self.root_client.load_blob_metadata(key)
+                    for chunk in self.root_client.stream_blob_data(key, chunk_size):
+                        file_path = os.path.join(
+                            tmpdir, str(uuid.uuid4().hex[:6]) + ".tmp"
+                        )
+                        with open(file_path, "wb") as f:
+                            f.write(chunk)
+                        # *Future* improvement: We could clean up individual older tmp files as each chunk is written
+                        yield (
+                            key,
+                            file_path,
+                            blob_md,
+                        )
+                except Exception as e:
+                    # Log or handle exceptions as necessary
+                    _Closer.close()
+                    raise e
+
+        class _Closer(object):
+            @staticmethod
+            def close():
+                if os.path.isdir(tmpdir):
+                    shutil.rmtree(tmpdir)
+
+        return CloseAfterUse(stream(), closer=_Closer)
