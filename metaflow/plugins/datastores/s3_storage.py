@@ -2,7 +2,13 @@ import os
 
 from itertools import starmap
 
-from metaflow.plugins.datatools.s3.s3 import S3, S3Client, S3PutObject, check_s3_deps
+from metaflow.plugins.datatools.s3.s3 import (
+    S3,
+    S3Client,
+    S3GetObject,
+    S3PutObject,
+    check_s3_deps,
+)
 from metaflow.metaflow_config import DATASTORE_SYSROOT_S3, ARTIFACT_LOCALROOT
 from metaflow.datastore.datastore_storage import CloseAfterUse, DataStoreStorage
 
@@ -142,5 +148,36 @@ class S3Storage(DataStoreStorage):
                         yield r.key, r.path, r.metadata
                     else:
                         yield r.key, None, None
+
+        return CloseAfterUse(iter_results(), closer=s3)
+
+    def stream_bytes(self, paths, chunk_size=2**1024):
+        if len(paths) == 0:
+            return CloseAfterUse(iter([]))
+
+        s3 = S3(
+            s3root=self.datastore_root,
+            tmproot=ARTIFACT_LOCALROOT,
+            external_client=self.s3_client,
+        )
+
+        def iter_results():
+            for p in paths:
+                info = s3.info(p, return_missing=True)
+                if not info.exists:
+                    # file does not exist in S3 so we skip it
+                    # yield p, None, None
+                    continue
+                max_size = info.size
+                read_size = min(chunk_size, max_size)
+                splits = max_size // read_size if read_size < max_size else 1
+                for chunk in range(splits):
+                    g = S3GetObject(key=p, offset=chunk * read_size, length=read_size)
+                    r = s3.get(g, return_missing=True)
+                    if r.exists:
+                        yield r.key, r.path, r.metadata
+                    else:
+                        yield r.key, None, None
+                        break
 
         return CloseAfterUse(iter_results(), closer=s3)

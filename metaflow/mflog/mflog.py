@@ -121,30 +121,31 @@ def refine(line, prefix=None, suffix=None):
         return line
 
 
-def merge_logs(logs):
-    def line_iter(logblob):
-        # all valid timestamps are guaranteed to be smaller than
-        # MISSING_TIMESTAMP, hence this iterator maintains the
-        # ascending order even when corrupt loglines are present
-        missing = []
-        for line in to_fileobj(logblob):
-            res = parse(line)
-            if res:
-                yield res.utc_tstamp_str, res
-            else:
-                missing.append(line)
-        for line in missing:
-            res = MFLogline(
-                False,
-                None,
-                MISSING_TIMESTAMP_STR.encode("utf-8"),
-                None,
-                None,
-                line,
-                MISSING_TIMESTAMP,
-            )
+def line_iter(logblob):
+    # all valid timestamps are guaranteed to be smaller than
+    # MISSING_TIMESTAMP, hence this iterator maintains the
+    # ascending order even when corrupt loglines are present
+    missing = []
+    for line in to_fileobj(logblob):
+        res = parse(line)
+        if res:
             yield res.utc_tstamp_str, res
+        else:
+            missing.append(line)
+    for line in missing:
+        res = MFLogline(
+            False,
+            None,
+            MISSING_TIMESTAMP_STR.encode("utf-8"),
+            None,
+            None,
+            line,
+            MISSING_TIMESTAMP,
+        )
+        yield res.utc_tstamp_str, res
 
+
+def merge_logs(logs):
     # note that sorted() below should be a very cheap, often a O(n) operation
     # because Python's Timsort is very fast for already sorted data.
     for _, line in heapq.merge(*[sorted(line_iter(blob)) for blob in logs]):

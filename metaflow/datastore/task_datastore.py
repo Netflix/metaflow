@@ -826,6 +826,48 @@ class TaskDataStore(object):
         r = self._load_file(paths.keys(), add_attempt=False)
         return [(paths[k], v if v is not None else b"") for k, v in r.items()]
 
+    @require_mode("r")
+    def stream_logs(
+        self, logsources, stream, attempt_override=None, start=None, end=None
+    ):
+        paths = dict(
+            map(
+                lambda s: (
+                    self._metadata_name_for_attempt(
+                        self._get_log_location(s, stream),
+                        attempt_override=attempt_override,
+                    ),
+                    s,
+                ),
+                logsources,
+            )
+        )
+        buffer = {}
+        for res in self._stream_file(
+            paths.keys(),
+            add_attempt=False,
+        ):
+            if res is None:
+                # yield the last buffered line
+                yield [
+                    (paths[k], v if v is not None else b"") for k, v in buffer.items()
+                ]
+            output = {}
+            for k, v in res.items():
+                buffered = buffer.get(k, b"")
+                val = buffered + v if v is not None else buffered
+                lines = val.decode("utf-8").split("\n")
+                if len(lines) > 2:
+                    # more than two lines of logs,
+                    # buffer the last line in case it was not completely loaded.
+                    output[k] = ("\n".join(lines[:-1])).encode("utf-8")
+                    buffer[k] = lines[-1].encode("utf-8")
+                elif len(lines) == 1 and val:
+                    # the chunk did not contain a newline,
+                    # instead the bytes for the logline continue to the next chunk
+                    buffer[k] = val
+            yield [(paths[k], v if v is not None else b"") for k, v in output.items()]
+
     @require_mode(None)
     def items(self):
         if self._objects:
@@ -984,3 +1026,30 @@ class TaskDataStore(object):
                     with open(path, "rb") as f:
                         results[name] = f.read()
         return results
+
+    def _stream_file(self, names, add_attempt=True):
+        to_load = []
+        for name in names:
+            if add_attempt:
+                path = self._storage_impl.path_join(
+                    self._path, self._metadata_name_for_attempt(name)
+                )
+            else:
+                path = self._storage_impl.path_join(self._path, name)
+            to_load.append(path)
+        with self._storage_impl.stream_bytes(to_load) as log_streams:
+            for key, path, meta in log_streams:
+                results = {}
+                if add_attempt:
+                    _, name = self.parse_attempt_metadata(
+                        self._storage_impl.basename(key)
+                    )
+                else:
+                    name = self._storage_impl.basename(key)
+                if path is None:
+                    results[name] = None
+                else:
+                    with open(path, "rb") as f:
+                        results[name] = f.read()
+                yield results
+        return None

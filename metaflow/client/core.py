@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import heapq
 import json
 import os
 import tarfile
@@ -30,6 +31,7 @@ from metaflow.exception import (
 from metaflow.includefile import IncludedFile
 from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
 from metaflow.metaflow_environment import MetaflowEnvironment
+from metaflow.mflog.mflog import line_iter
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
 from metaflow.unbounded_foreach import CONTROL_TASK_TAG
 from metaflow.util import cached_property, is_stringish, resolve_identity, to_unicode
@@ -1449,6 +1451,74 @@ class Task(MetaflowObject):
             return self._legacy_log_size(log_location, stream)
         else:
             return self._log_size(stream, meta_dict)
+
+    def stream_loglines(
+        self,
+        stream: str,
+        as_unicode: bool = True,
+        meta_dict: Optional[Dict[str, Any]] = None,
+    ):
+        from metaflow.mflog.mflog import merge_logs
+
+        global filecache
+
+        if meta_dict is None:
+            meta_dict = self.metadata_dict
+        ds_type = meta_dict.get("ds-type")
+        ds_root = meta_dict.get("ds-root")
+        if ds_type is None or ds_root is None:
+            yield None, ""
+            return
+        if filecache is None:
+            filecache = FileCache()
+
+        attempt = self.current_attempt
+        logsource_iterators = filecache.logs_iterator(
+            ds_type, ds_root, stream, attempt, *self.path_components
+        )
+        logsources_linecache = {k: None for k in logsource_iterators.keys()}
+        # we keep pulling logblobs from the iterator and yielding the earliest line at every step,
+        # caching the rest for the next cycle.
+        while True:
+            if not logsource_iterators:
+                break
+            # fill cache first, if needed.
+            empty_caches = [k for k, v in logsources_linecache.items() if v is None]
+            if empty_caches:
+                for s in empty_caches:
+                    res = next(logsource_iterators[s], None)
+                    if res is None:
+                        # remove log source from further iterations.
+                        logsource_iterators.pop(s)
+                        if logsources_linecache[s] is None:
+                            logsources_linecache.pop(s)
+                        continue
+                    logsources_linecache[s] = [
+                        item
+                        for item in heapq.merge(
+                            *[sorted(line_iter(logblob)) for _, logblob in res]
+                        )
+                    ]
+
+            # yield the oldest line and only that line.
+            def _keysort(item):
+                return item[1][0]
+
+            first_lines = sorted(
+                [(source, lines[0]) for source, lines in logsources_linecache.items()],
+                key=_keysort,
+            )
+            if not first_lines:
+                break
+            first_source, first = first_lines[0]
+            _, line = first
+            msg = to_unicode(line.msg) if as_unicode else line.msg
+            yield line.utc_tstamp, msg
+            # cleanup after yielding.
+            logsources_linecache[first_source].pop(0)
+            # if we emptied the cache, set cache to default none.
+            if not logsources_linecache[first_source]:
+                logsources_linecache[first_source] = None
 
     def loglines(
         self,

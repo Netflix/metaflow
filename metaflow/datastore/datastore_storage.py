@@ -271,3 +271,23 @@ class DataStoreStorage(object):
             duplicate keys.
         """
         raise NotImplementedError
+
+    def stream_bytes(self, keys, chunk_size):
+        """
+        Stream data for objects in the datastore
+
+        Useful for big files that can be read in parts.
+
+        Parameters
+        ----------
+        keys : List[str]
+            Keys to fetch
+        chunk_size : int
+            number of bytes to stream at a time.
+
+        Returns
+        -------
+        CloseAfterUse :
+            An iterator over streamed chunks of (key, file_path, metadata)
+        """
+        raise NotImplementedError
