@@ -1,3 +1,12 @@
+import sys
+
+if sys.version_info < (3, 7):
+    raise RuntimeError(
+        """
+        The Metaflow Programmatic API requires 'typeguard', which is not supported for python 3.5 and 3.6.
+    """
+    )
+
 import inspect
 import importlib
 import itertools
@@ -17,6 +26,7 @@ from metaflow.cli import start
 from metaflow._vendor import click
 from metaflow.parameters import JSONTypeClass
 from metaflow.includefile import FilePathClass
+from metaflow._vendor.typeguard import check_type, TypeCheckError
 from metaflow._vendor.click.types import (
     StringParamType,
     IntParamType,
@@ -29,17 +39,6 @@ from metaflow._vendor.click.types import (
     Choice,
     File,
 )
-
-try:
-    from typeguard import check_type, TypeCheckError
-except ImportError:
-    raise ImportError(
-        """
-        The Metaflow Programmatic API requires 'typeguard', which is not installed or available.
-        Please try installing with `pip install typeguard`. This package and thus, the programmatic API
-        functionality is unavailable for python 3.5 and 3.6.
-    """
-    )
 
 click_to_python_types = {
     StringParamType: str,
