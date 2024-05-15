@@ -250,6 +250,11 @@ CONTACT_INFO = from_conf(
 )
 
 ###
+# Default decorator configuration
+###
+DEFAULT_STEP_DECORATORS = from_conf("DEFAULT_STEP_DECORATORS", "")
+
+###
 # AWS Batch configuration
 ###
 # IAM role for AWS Batch container with Amazon S3 access
@@ -496,6 +501,11 @@ def get_pinned_conda_libs(python_version, datastore_type):
 try:
     from metaflow.extension_support import get_modules
 
+    _TOGGLE_STEP_DECORATORS = []
+    DEFAULT_STEP_DECORATORS = [
+        (d, "user_default") for d in DEFAULT_STEP_DECORATORS.split(",")
+    ]
+
     ext_modules = get_modules("config")
     for m in ext_modules:
         # We load into globals whatever we have in extension_module
@@ -519,8 +529,17 @@ try:
                     return d1
 
                 globals()[n] = _new_get_pinned_conda_libs
+            elif n == "TOGGLE_STEP_DECORATORS":
+                _TOGGLE_STEP_DECORATORS.extend(o)
+            elif n == "DEFAULT_STEP_DECOATORS":
+                DEFAULT_STEP_DECORATORS = [(d, m.tl_package) for d in o.split(",")]
             elif not n.startswith("__") and not isinstance(o, types.ModuleType):
                 globals()[n] = o
+    # If DEFAULT_STEP_DECORATORS is set, use that, else extrapolate from extensions
+    if DEFAULT_STEP_DECORATORS:
+        DEFAULT_STEP_DECORATORS = DEFAULT_STEP_DECORATORS.split(",")
+    elif _TOGGLE_STEP_DECORATORS:
+        DEFAULT_STEP_DECORATORS = _TOGGLE_STEP_DECORATORS
 finally:
     # Erase all temporary names to avoid leaking things
     for _n in [
@@ -537,6 +556,7 @@ finally:
         "v",
         "f1",
         "f2",
+        "_TOGGLE_STEP_DECORATORS",
     ]:
         try:
             del globals()[_n]

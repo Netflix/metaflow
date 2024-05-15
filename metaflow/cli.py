@@ -20,6 +20,7 @@ from .metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_MONITOR,
     DEFAULT_PACKAGE_SUFFIXES,
+    DEFAULT_STEP_DECORATORS,
 )
 from .metaflow_current import current
 from .metaflow_environment import MetaflowEnvironment
@@ -406,7 +407,16 @@ def step(
     echo("Executing a step, *%s*" % step_name, fg="magenta", bold=False)
 
     if decospecs:
-        decorators._attach_decorators_to_step(func, decospecs)
+        if "__source" not in decospecs and DEFAULT_STEP_DECORATORS:
+            # Add the configured default step decorators.
+            # Note the first condition checks to see if we haven't already
+            # parsed the default decorators and added them to the command line
+            # (if that is the case, we are not going to re-parse them)
+            decorators._attach_decorators_to_step(
+                func, decospecs, DEFAULT_STEP_DECORATORS
+            )
+        else:
+            decorators._attach_decorators_to_step(func, decospecs)
 
     step_kwargs = ctx.params
     # Remove argument `step_name` from `step_kwargs`.

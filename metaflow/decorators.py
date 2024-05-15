@@ -49,15 +49,19 @@ class BadFlowDecoratorException(MetaflowException):
 class UnknownStepDecoratorException(MetaflowException):
     headline = "Unknown step decorator"
 
-    def __init__(self, deconame):
+    def __init__(self, deconame, source=None):
         from .plugins import STEP_DECORATORS
 
         decos = ", ".join(
             t.name for t in STEP_DECORATORS if not t.name.endswith("_internal")
         )
         msg = (
-            "Unknown step decorator *{deconame}*. The following decorators are "
-            "supported: *{decos}*".format(deconame=deconame, decos=decos)
+            "Unknown step decorator *{deconame}*{source}. The following decorators are "
+            "supported: *{decos}*".format(
+                deconame=deconame,
+                decos=decos,
+                source=" (requested by %s" % source if source else "",
+            )
         )
         super(UnknownStepDecoratorException, self).__init__(msg)
 
@@ -73,6 +77,19 @@ class DuplicateStepDecoratorException(MetaflowException):
             )
         )
         super(DuplicateStepDecoratorException, self).__init__(msg)
+
+
+class DuplicateDefaultStepDecoratorException(MetaflowException):
+    headline = "Duplicate default decorators"
+
+    def __init__(self, deco, src1, src2):
+        msg = (
+            "Default decorator '{deco}' is specified in both '{src1}' and '{src2}'. "
+            "You can specify this decorator only once.".format(
+                deco=deco, src1=src1, src2=src2
+            )
+        )
+        super(DuplicateDefaultStepDecoratorException, self).__init__(msg)
 
 
 class UnknownFlowDecoratorException(MetaflowException):
@@ -466,7 +483,19 @@ def _base_step_decorator(decotype, *args, **kwargs):
         return wrap
 
 
-def _attach_decorators(flow, decospecs):
+_all_step_decos = None
+
+
+def _get_all_step_decos():
+    global _all_step_decos
+    if _all_step_decos is None:
+        from .plugins import STEP_DECORATORS
+
+        _all_step_decos = {decotype.name: decotype for decotype in STEP_DECORATORS}
+    return _all_step_decos
+
+
+def _attach_decorators(flow, decospecs, default_decorators=None):
     """
     Attach decorators to all steps during runtime. This has the same
     effect as if you defined the decorators statically in the source for
@@ -478,8 +507,61 @@ def _attach_decorators(flow, decospecs):
     #
     # Note that each step gets its own instance of the decorator class,
     # so decorator can maintain step-specific state.
+
+    # First resolve the default_decorators -- this is a list of
+    # tuples of the form (decospec, source)
+
+    # - Special considerations regarding adding/removing decorators:
+    #   - If a decorator allows multiple instances, all instances are kept
+    #   - If not, an error is raised if there are multiple
+    #   - To remove a decorator:
+    #     - If it doesn't allow multiple instances "-<deco name>" is enough
+    #     - If it does allow multiple instances "-<deco name>:<deco str>" removes
+    #       the specific instance and "-<deco name>:*" removes all instances
+    extra_decospecs = []
+    if default_decorators:
+        decos = _get_all_step_decos()
+        extra_decos_per_name = {}
+        for deco, source in default_decorators:
+            is_remove = False
+            if deco[0] in ("+", "-"):
+                if deco[0] == "-":
+                    is_remove = True
+                splits = deco[1:].split(":", 1)
+            else:
+                splits = deco.split(":", 1)
+            deconame = splits[0]
+            decostr = splits[1] if len(splits) > 1 else ""
+            if deconame not in decos:
+                raise UnknownStepDecoratorException(deconame, source)
+            allow_multiple = decos[deconame].allow_multiple
+            if is_remove and deconame in extra_decos_per_name:
+                if allow_multiple:
+                    if decostr == "*":
+                        del extra_decos_per_name[deconame]
+                    else:
+                        extra_decos_per_name[deconame] = [
+                            x for x in extra_decos_per_name[deconame] if x[0] != decostr
+                        ]
+                else:
+                    del extra_decos_per_name[deconame]
+            elif not is_remove:
+                if deconame not in extra_decos_per_name:
+                    extra_decos_per_name[deconame] = [(decostr, source)]
+                elif allow_multiple:
+                    extra_decos_per_name[deconame].append((decostr, source))
+                else:
+                    raise DuplicateDefaultStepDecoratorException(
+                        deconame, extra_decos_per_name[deconame][1], source
+                    )
+        extra_decospecs = [
+            "%s:%s__source=%s" % (k, ("%s," % v[0]) if v[0] else "", v[1])
+            for k, all_vs in extra_decos_per_name.items()
+            for v in all_vs
+        ]
+    d = decospecs + extra_decospecs
     for step in flow:
-        _attach_decorators_to_step(step, decospecs)
+        _attach_decorators_to_step(step, d)
 
 
 def _attach_decorators_to_step(step, decospecs):
@@ -488,9 +570,8 @@ def _attach_decorators_to_step(step, decospecs):
     effect as if you defined the decorators statically in the source for
     the step.
     """
-    from .plugins import STEP_DECORATORS
 
-    decos = {decotype.name: decotype for decotype in STEP_DECORATORS}
+    decos = _get_all_step_decos()
 
     for decospec in decospecs:
         splits = decospec.split(":", 1)
