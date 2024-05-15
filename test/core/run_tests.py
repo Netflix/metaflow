@@ -11,6 +11,18 @@ from multiprocessing import Pool
 
 from metaflow._vendor import click
 
+skip_api_executor = False
+
+try:
+    from metaflow.click_api import (
+        MetaflowAPI,
+        extract_all_params,
+        click_to_python_types,
+    )
+    from metaflow.cli import start, run
+except RuntimeError:
+    skip_api_executor = True
+
 from metaflow_test import MetaflowTest
 from metaflow_test.formatter import FlowFormatter
 
