@@ -110,9 +110,17 @@ class Decorator(object):
     # `allow_multiple` allows setting many decorators of the same type to a step/flow.
     allow_multiple = False
 
-    def __init__(self, attributes=None, statically_defined=False):
+    def __init__(
+        self, attributes=None, statically_defined=False, decorator_source=None
+    ):
         self.attributes = self.defaults.copy()
         self.statically_defined = statically_defined
+        if self.statically_defined:
+            self.decorator_source = "static"
+        elif decorator_source:
+            self.decorator_source = decorator_source
+        else:
+            self.decorator_source = "cli"
 
         if attributes:
             for k, v in attributes.items():
@@ -127,6 +135,7 @@ class Decorator(object):
             return cls()
 
         attrs = {}
+        deco_source = None
         # TODO: Do we really want to allow spaces in the names of attributes?!?
         for a in re.split(r""",(?=[\s\w]+=)""", deco_spec):
             name, val = a.split("=", 1)
@@ -142,13 +151,15 @@ class Decorator(object):
                         val_parsed = float(val.strip())
                     except ValueError:
                         val_parsed = val.strip()
-
-            attrs[name.strip()] = val_parsed
-        return cls(attributes=attrs)
+            if name == "__source":
+                deco_source = val_parsed
+            else:
+                attrs[name.strip()] = val_parsed
+        return cls(attributes=attrs, decorator_source=deco_source)
 
     def make_decorator_spec(self):
         attrs = {k: v for k, v in self.attributes.items() if v is not None}
-        if attrs:
+        if attrs or self.decorator_source not in ("cli", "static"):
             attr_list = []
             # We dump simple types directly as string to get around the nightmare quote
             # escaping but for more complex types (typically dictionaries or lists),
@@ -158,13 +169,18 @@ class Decorator(object):
                     attr_list.append("%s=%s" % (k, str(v)))
                 else:
                     attr_list.append("%s=%s" % (k, json.dumps(v).replace('"', '\\"')))
+
+            # Encode the source of the decorator so we can properly send it through things
+            # like argo/airflow
+            if self.decorator_source:
+                attr_list.append("__source=%s" % self.decorator_source)
             attrstr = ",".join(attr_list)
             return "%s:%s" % (self.name, attrstr)
         else:
             return self.name
 
     def __str__(self):
-        mode = "decorated" if self.statically_defined else "cli"
+        mode = "decorated" if self.statically_defined else self.decorator_source
         attrs = " ".join("%s=%s" % x for x in self.attributes.items())
         if attrs:
             attrs = " " + attrs
