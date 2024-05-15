@@ -29,6 +29,7 @@ from metaflow.metaflow_config import (
     DEFAULT_AWS_CLIENT_PROVIDER,
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
+    AZURE_KEY_VAULT_PREFIX,
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_LABELS,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
@@ -246,6 +247,9 @@ class Kubernetes(object):
             .environment_variable(
                 "METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION",
                 AWS_SECRETS_MANAGER_DEFAULT_REGION,
+            )
+            .environment_variable(
+                "METAFLOW_AZURE_KEY_VAULT_PREFIX", AZURE_KEY_VAULT_PREFIX
             )
             .environment_variable("METAFLOW_S3_ENDPOINT_URL", S3_ENDPOINT_URL)
             .environment_variable(

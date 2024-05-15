@@ -144,6 +144,13 @@ DATATOOLS_LOCALROOT = from_conf(
 # Secrets Backend - AWS Secrets Manager configuration
 AWS_SECRETS_MANAGER_DEFAULT_REGION = from_conf("AWS_SECRETS_MANAGER_DEFAULT_REGION")
 
+# Secrets Backend - Azure Key Vault prefix. With this, users don't have to
+# specify the full https:// vault url in the @secret decorator.
+#
+# It does not make a difference if the prefix ends in a / or not. We will handle either
+# case correctly.
+AZURE_KEY_VAULT_PREFIX = from_conf("AZURE_KEY_VAULT_PREFIX")
+
 # The root directory to save artifact pulls in, when using S3 or Azure
 ARTIFACT_LOCALROOT = from_conf("ARTIFACT_LOCALROOT", os.getcwd())
 
@@ -458,6 +465,7 @@ def get_pinned_conda_libs(python_version, datastore_type):
     elif datastore_type == "azure":
         pins["azure-identity"] = ">=1.10.0"
         pins["azure-storage-blob"] = ">=12.12.0"
+        pins["azure-keyvault-secrets"] = ">=4.8.0"
     elif datastore_type == "gs":
         pins["google-cloud-storage"] = ">=2.5.0"
         pins["google-auth"] = ">=2.11.0"
