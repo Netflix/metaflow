@@ -123,6 +123,11 @@ SECRETS_PROVIDERS_DESC = [
     ),
 ]
 
+AZURE_CLIENT_PROVIDERS_DESC = [
+    ("azure-default", ".azure.azure_credential.AzureDefaultClientProvider")
+]
+
+
 process_plugins(globals())
 
 
@@ -144,6 +149,7 @@ SIDECARS.update(MONITOR_SIDECARS)
 
 AWS_CLIENT_PROVIDERS = resolve_plugins("aws_client_provider")
 SECRETS_PROVIDERS = resolve_plugins("secrets_provider")
+AZURE_CLIENT_PROVIDERS = resolve_plugins("azure_client_provider")
 
 from .cards.card_modules import MF_EXTERNAL_CARDS
 

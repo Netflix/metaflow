@@ -32,6 +32,8 @@ from metaflow.plugins.storage_executor import (
     handle_executor_exceptions,
 )
 
+from metaflow.plugins.azure.azure_credential import create_cacheable_azure_credential
+
 AZURE_STORAGE_DOWNLOAD_MAX_CONCURRENCY = 4
 AZURE_STORAGE_UPLOAD_MAX_CONCURRENCY = 16
 
@@ -272,12 +274,10 @@ class AzureStorage(DataStoreStorage):
         if not self._default_scope_token or (
             self._default_scope_token.expires_on - time.time() < 300
         ):
-            from azure.identity import DefaultAzureCredential
-
-            with DefaultAzureCredential() as credential:
-                self._default_scope_token = credential.get_token(
-                    AZURE_STORAGE_DEFAULT_SCOPE
-                )
+            credential = create_cacheable_azure_credential()
+            self._default_scope_token = credential.get_token(
+                AZURE_STORAGE_DEFAULT_SCOPE
+            )
         return self._default_scope_token
 
     @property
