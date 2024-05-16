@@ -66,6 +66,12 @@ def clone_task_helper(
                 type="attempt",
                 tags=metadata_tags,
             ),
+            MetaDatum(
+                field="attempt_ok",
+                value="True",  # During clone, the task is always considered successful.
+                type="internal_attempt_status",
+                tags=metadata_tags,
+            ),
         ],
     )
     output.done()
