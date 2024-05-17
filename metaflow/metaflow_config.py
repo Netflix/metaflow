@@ -465,7 +465,7 @@ def get_pinned_conda_libs(python_version, datastore_type):
     elif datastore_type == "azure":
         pins["azure-identity"] = ">=1.10.0"
         pins["azure-storage-blob"] = ">=12.12.0"
-        pins["azure-keyvault-secrets"] = ">=4.8.0"
+        pins["azure-keyvault-secrets"] = ">=4.7.0"
     elif datastore_type == "gs":
         pins["google-cloud-storage"] = ">=2.5.0"
         pins["google-auth"] = ">=2.11.0"
