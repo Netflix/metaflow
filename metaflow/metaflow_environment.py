@@ -124,7 +124,7 @@ class MetaflowEnvironment(object):
             cmds.append("%s -m pip install awscli boto3 -qqq" % self._python())
         elif datastore_type == "azure":
             cmds.append(
-                "%s -m pip install azure-identity azure-storage-blob simple-azure-blob-downloader -qqq"
+                "%s -m pip install azure-identity azure-storage-blob azure-keyvault-secrets simple-azure-blob-downloader -qqq"
                 % self._python()
             )
         elif datastore_type == "gs":
