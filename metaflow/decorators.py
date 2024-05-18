@@ -514,7 +514,7 @@ def _attach_decorators(flow, decospecs, default_decorators=None):
     # - Special considerations regarding adding/removing decorators:
     #   - If a decorator allows multiple instances, all instances are kept
     #   - If not, an error is raised if there are multiple
-    #   - To remove a decorator:
+    #   - To remove a decorator (NOT CURRENTLY SUPPORTED):
     #     - If it doesn't allow multiple instances "-<deco name>" is enough
     #     - If it does allow multiple instances "-<deco name>:<deco str>" removes
     #       the specific instance and "-<deco name>:*" removes all instances
@@ -535,25 +535,37 @@ def _attach_decorators(flow, decospecs, default_decorators=None):
             if deconame not in decos:
                 raise UnknownStepDecoratorException(deconame, source)
             allow_multiple = decos[deconame].allow_multiple
+
             if is_remove and deconame in extra_decos_per_name:
-                if allow_multiple:
-                    if decostr == "*":
-                        del extra_decos_per_name[deconame]
-                    else:
-                        extra_decos_per_name[deconame] = [
-                            x for x in extra_decos_per_name[deconame] if x[0] != decostr
-                        ]
-                else:
-                    del extra_decos_per_name[deconame]
+                raise RuntimeError("Removing default decorators is not supported")
+                # Keep the code in case we want to re-add again
+                # if allow_multiple:
+                #     if decostr == "*":
+                #         # Removes all instances of this decorator
+                #         del extra_decos_per_name[deconame]
+                #     else:
+                #         # Just remove a specific instance
+                #         extra_decos_per_name[deconame] = [
+                #             x for x in extra_decos_per_name[deconame] if x[0] != decostr
+                #         ]
+                # else:
+                #     # No multiple allowed so there is only one here -- remove it.
+                #     del extra_decos_per_name[deconame]
+
             elif not is_remove:
                 if deconame not in extra_decos_per_name:
+                    # If never added, safe to add.
                     extra_decos_per_name[deconame] = [(decostr, source)]
                 elif allow_multiple:
+                    # If added and multiple allowed, all good
                     extra_decos_per_name[deconame].append((decostr, source))
                 else:
+                    # Else: already added and not multiple allowed -- error
                     raise DuplicateDefaultStepDecoratorException(
                         deconame, extra_decos_per_name[deconame][1], source
                     )
+        # Encode __source in the decospecs so that we can continue to parse as
+        # usual.
         extra_decospecs = [
             "%s:%s__source=%s" % (k, ("%s," % v[0]) if v[0] else "", v[1])
             for k, all_vs in extra_decos_per_name.items()
