@@ -143,6 +143,9 @@ from .client import (
     DataArtifact,
 )
 
+# Import data class within tuple_util but not introduce new symbols.
+from . import tuple_util
+
 __version_addl__ = []
 _ext_debug("Loading top-level modules")
 for m in _tl_modules:

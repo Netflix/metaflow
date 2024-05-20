@@ -145,6 +145,13 @@ DATATOOLS_LOCALROOT = from_conf(
 # Secrets Backend - AWS Secrets Manager configuration
 AWS_SECRETS_MANAGER_DEFAULT_REGION = from_conf("AWS_SECRETS_MANAGER_DEFAULT_REGION")
 
+# Secrets Backend - Azure Key Vault prefix. With this, users don't have to
+# specify the full https:// vault url in the @secret decorator.
+#
+# It does not make a difference if the prefix ends in a / or not. We will handle either
+# case correctly.
+AZURE_KEY_VAULT_PREFIX = from_conf("AZURE_KEY_VAULT_PREFIX")
+
 # The root directory to save artifact pulls in, when using S3 or Azure
 ARTIFACT_LOCALROOT = from_conf("ARTIFACT_LOCALROOT", os.getcwd())
 
@@ -211,6 +218,8 @@ DEFAULT_CONTAINER_REGISTRY = from_conf("DEFAULT_CONTAINER_REGISTRY")
 INCLUDE_FOREACH_STACK = from_conf("INCLUDE_FOREACH_STACK", False)
 # Maximum length of the foreach value string to be stored in each ForeachFrame.
 MAXIMUM_FOREACH_VALUE_CHARS = from_conf("MAXIMUM_FOREACH_VALUE_CHARS", 30)
+# The default runtime limit (In seconds) of jobs launched by any compute provider. Default of 5 days.
+DEFAULT_RUNTIME_LIMIT = from_conf("DEFAULT_RUNTIME_LIMIT", 5 * 24 * 60 * 60)
 
 ###
 # Organization customizations
@@ -322,6 +331,9 @@ KUBERNETES_DISK = from_conf("KUBERNETES_DISK", None)
 
 ARGO_WORKFLOWS_KUBERNETES_SECRETS = from_conf("ARGO_WORKFLOWS_KUBERNETES_SECRETS", "")
 ARGO_WORKFLOWS_ENV_VARS_TO_SKIP = from_conf("ARGO_WORKFLOWS_ENV_VARS_TO_SKIP", "")
+
+KUBERNETES_JOBSET_GROUP = from_conf("KUBERNETES_JOBSET_GROUP", "jobset.x-k8s.io")
+KUBERNETES_JOBSET_VERSION = from_conf("KUBERNETES_JOBSET_VERSION", "v1alpha2")
 
 ##
 # Argo Events Configuration
@@ -457,6 +469,7 @@ def get_pinned_conda_libs(python_version, datastore_type):
     elif datastore_type == "azure":
         pins["azure-identity"] = ">=1.10.0"
         pins["azure-storage-blob"] = ">=12.12.0"
+        pins["azure-keyvault-secrets"] = ">=4.7.0"
     elif datastore_type == "gs":
         pins["google-cloud-storage"] = ">=2.5.0"
         pins["google-auth"] = ">=2.11.0"

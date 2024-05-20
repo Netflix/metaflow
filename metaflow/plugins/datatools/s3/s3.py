@@ -21,7 +21,6 @@ from metaflow.metaflow_config import (
     TEMPDIR,
 )
 from metaflow.util import (
-    namedtuple_with_defaults,
     is_stringish,
     to_bytes,
     to_unicode,
@@ -29,6 +28,7 @@ from metaflow.util import (
     url_quote,
     url_unquote,
 )
+from metaflow.tuple_util import namedtuple_with_defaults
 from metaflow.exception import MetaflowException
 from metaflow.debug import debug
 import metaflow.tracing as tracing

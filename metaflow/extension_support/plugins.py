@@ -180,6 +180,7 @@ _plugin_categories = {
     "datastore": lambda x: x.TYPE,
     "secrets_provider": lambda x: x.TYPE,
     "gcp_client_provider": lambda x: x.name,
+    "azure_client_provider": lambda x: x.name,
     "sidecar": None,
     "logging_sidecar": None,
     "monitor_sidecar": None,
