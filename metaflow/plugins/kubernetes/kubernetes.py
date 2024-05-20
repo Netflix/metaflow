@@ -3,9 +3,9 @@ import math
 import os
 import re
 import shlex
+import copy
 import time
 from typing import Dict, List, Optional
-import uuid
 from uuid import uuid4
 
 from metaflow import current, util
@@ -65,6 +65,12 @@ class KubernetesException(MetaflowException):
 
 class KubernetesKilledException(MetaflowException):
     headline = "Kubernetes Batch job killed"
+
+
+def _extract_labels_and_annotations_from_job_spec(job_spec):
+    annotations = job_spec.template.metadata.annotations
+    labels = job_spec.template.metadata.labels
+    return copy.copy(annotations), copy.copy(labels)
 
 
 class Kubernetes(object):
@@ -141,9 +147,64 @@ class Kubernetes(object):
         return shlex.split('bash -c "%s"' % cmd_str)
 
     def launch_job(self, **kwargs):
-        self._job = self.create_job(**kwargs).execute()
+        if (
+            "num_parallel" in kwargs
+            and kwargs["num_parallel"]
+            and int(kwargs["num_parallel"]) > 0
+        ):
+            job = self.create_job_object(**kwargs)
+            spec = job.create_job_spec()
+            # `kwargs["step_cli"]` is setting `ubf_context` as control to ALL pods.
+            # This will be modified by the KubernetesJobSet object
+            annotations, labels = _extract_labels_and_annotations_from_job_spec(spec)
+            self._job = self.create_jobset(
+                job_spec=spec,
+                run_id=kwargs["run_id"],
+                step_name=kwargs["step_name"],
+                task_id=kwargs["task_id"],
+                namespace=kwargs["namespace"],
+                env=kwargs["env"],
+                num_parallel=kwargs["num_parallel"],
+                port=kwargs["port"],
+                annotations=annotations,
+                labels=labels,
+            ).execute()
+        else:
+            kwargs["name_pattern"] = "t-{uid}-".format(uid=str(uuid4())[:8])
+            self._job = self.create_job_object(**kwargs).create().execute()
 
-    def create_job(
+    def create_jobset(
+        self,
+        job_spec=None,
+        run_id=None,
+        step_name=None,
+        task_id=None,
+        namespace=None,
+        env=None,
+        num_parallel=None,
+        port=None,
+        annotations=None,
+        labels=None,
+    ):
+        if env is None:
+            env = {}
+
+        _prefix = str(uuid4())[:6]
+        js = KubernetesClient().jobset(
+            name="js-%s" % _prefix,
+            run_id=run_id,
+            task_id=task_id,
+            step_name=step_name,
+            namespace=namespace,
+            labels=self._get_labels(labels),
+            annotations=annotations,
+            num_parallel=num_parallel,
+            job_spec=job_spec,
+            port=port,
+        )
+        return js
+
+    def create_job_object(
         self,
         flow_name,
         run_id,
@@ -177,14 +238,15 @@ class Kubernetes(object):
         labels=None,
         shared_memory=None,
         port=None,
+        name_pattern=None,
+        num_parallel=None,
     ):
         if env is None:
             env = {}
-
         job = (
             KubernetesClient()
             .job(
-                generate_name="t-{uid}-".format(uid=str(uuid4())[:8]),
+                generate_name=name_pattern,
                 namespace=namespace,
                 service_account=service_account,
                 secrets=secrets,
@@ -218,6 +280,7 @@ class Kubernetes(object):
                 persistent_volume_claims=persistent_volume_claims,
                 shared_memory=shared_memory,
                 port=port,
+                num_parallel=num_parallel,
             )
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
@@ -336,6 +399,9 @@ class Kubernetes(object):
             .label("app.kubernetes.io/part-of", "metaflow")
         )
 
+        return job
+
+    def create_k8sjob(self, job):
         return job.create()
 
     def wait(self, stdout_location, stderr_location, echo=None):
@@ -370,7 +436,7 @@ class Kubernetes(object):
                     t = time.time()
                 time.sleep(update_delay(time.time() - start_time))
 
-        prefix = b"[%s] " % util.to_bytes(self._job.id)
+        _make_prefix = lambda: b"[%s] " % util.to_bytes(self._job.id)
 
         stdout_tail = get_log_tailer(stdout_location, self._datastore.TYPE)
         stderr_tail = get_log_tailer(stderr_location, self._datastore.TYPE)
@@ -380,7 +446,7 @@ class Kubernetes(object):
 
         # 2) Tail logs until the job has finished
         tail_logs(
-            prefix=prefix,
+            prefix=_make_prefix(),
             stdout_tail=stdout_tail,
             stderr_tail=stderr_tail,
             echo=echo,
@@ -396,7 +462,6 @@ class Kubernetes(object):
         #        exists prior to calling S3Tail and note the user about
         #        truncated logs if it doesn't.
         # TODO : For hard crashes, we can fetch logs from the pod.
-
         if self._job.has_failed:
             exit_code, reason = self._job.reason
             msg = next(
