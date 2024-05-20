@@ -839,6 +839,11 @@ class ArgoWorkflows(object):
         def _visit(
             node, exit_node=None, templates=None, dag_tasks=None, parent_foreach=None
         ):
+            if node.parallel_foreach:
+                raise ArgoWorkflowsException(
+                    "Deploying flows with @parallel decorator(s) "
+                    "as Argo Workflows is not supported currently."
+                )
             # Every for-each node results in a separate subDAG and an equivalent
             # DAGTemplate rooted at the child of the for-each node. Each DAGTemplate
             # has a unique name - the top-level DAGTemplate is named as the name of
