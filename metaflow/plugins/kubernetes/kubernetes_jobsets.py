@@ -464,7 +464,7 @@ class TaskIdConstructor:
         """
         control_task_id = current.task_id
         worker_task_id_base = control_task_id.replace("control", "worker")
-        mapper = lambda idx: worker_task_id_base + f"-%s" % (str(idx))
+        mapper = lambda idx: worker_task_id_base + "-%s" % (str(idx))
         return control_task_id, [mapper(idx) for idx in range(0, num_parallel - 1)]
 
     @classmethod
