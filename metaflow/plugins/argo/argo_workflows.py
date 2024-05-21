@@ -629,6 +629,14 @@ class ArgoWorkflows(object):
             ),
         }
 
+        if self._schedule is not None:
+            # timezone is an optional field and json dumps on None will result in null
+            # hence configuring it to an empty string
+            if self._timezone is None:
+                self._timezone = ""
+            cron_info = {"schedule": self._schedule, "tz": self._timezone}
+            annotations.update({"metaflow/cron": json.dumps(cron_info)})
+
         if self.parameters:
             annotations.update({"metaflow/parameters": json.dumps(self.parameters)})
 
