@@ -47,6 +47,10 @@ class ResilientFlow(FlowSpec):
             validate_checkpoint_dir(checkpoint_paths.checkpoint_dir)
             assert checkpoint_paths.previous_checkpoint_path is None
 
+            # sleep to allow time for argo-wf-controller to know that this
+            # pod has started, this is related to the DEFAULT_REQUEUE_TIME=1m
+            time.sleep(60)
+
             # delete and terminate myself!!
             command = (
                 f"./kubectl delete pod {os.environ.get('POD_NAME')} "
