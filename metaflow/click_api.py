@@ -3,7 +3,7 @@ import sys
 if sys.version_info < (3, 7):
     raise RuntimeError(
         """
-        The Metaflow Programmatic API requires 'typeguard', which is not supported for python 3.5 and 3.6.
+        The Metaflow Programmatic API is not supported for versions of Python less than 3.7
     """
     )
 
