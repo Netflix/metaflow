@@ -11,6 +11,7 @@ from multiprocessing import Pool
 
 from metaflow.cli import start, run
 from metaflow._vendor import click
+from metaflow import Runner
 
 skip_api_executor = False
 
@@ -20,18 +21,6 @@ try:
         extract_all_params,
         click_to_python_types,
     )
-except RuntimeError:
-    skip_api_executor = True
-
-skip_api_executor = False
-
-try:
-    from metaflow.click_api import (
-        MetaflowAPI,
-        extract_all_params,
-        click_to_python_types,
-    )
-    from metaflow.cli import start, run
 except RuntimeError:
     skip_api_executor = True
 
@@ -135,8 +124,7 @@ def run_test(formatter, context, debug, checks, env_base, executor):
 
         return result_dict
 
-    def construct_cmd_from_click_api(mode):
-        api = MetaflowAPI.from_cli("test_flow.py", start)
+    def construct_arg_dicts_from_click_api():
         _, _, param_opts, _, _ = extract_all_params(start)
         top_level_options = context["top_options"]
         top_level_dict = construct_arg_dict(param_opts, top_level_options)
@@ -146,10 +134,7 @@ def run_test(formatter, context, debug, checks, env_base, executor):
         run_level_dict = construct_arg_dict(param_opts, run_level_options)
         run_level_dict["run_id_file"] = "run-id"
 
-        cmd = getattr(api(**top_level_dict), mode)(**run_level_dict)
-        command = [context["python"], "-B"]
-        command.extend(cmd)
-        return command
+        return top_level_dict, run_level_dict
 
     cwd = os.getcwd()
     tempdir = tempfile.mkdtemp("_metaflow_test")
@@ -208,7 +193,11 @@ def run_test(formatter, context, debug, checks, env_base, executor):
         if executor == "cli":
             flow_ret = subprocess.call(run_cmd("run"), env=env)
         elif executor == "api":
-            flow_ret = subprocess.call(construct_cmd_from_click_api("run"), env=env)
+            top_level_dict, run_level_dict = construct_arg_dicts_from_click_api()
+            result = Runner("test_flow.py", env=env, **top_level_dict).run(
+                **run_level_dict
+            )
+            flow_ret = result.command_obj.process.returncode
 
         if flow_ret:
             if formatter.should_fail:
@@ -218,9 +207,14 @@ def run_test(formatter, context, debug, checks, env_base, executor):
                 if executor == "cli":
                     flow_ret = subprocess.call(run_cmd("resume"), env=env)
                 elif executor == "api":
-                    flow_ret = subprocess.call(
-                        construct_cmd_from_click_api("resume"), env=env
+                    (
+                        top_level_dict,
+                        resume_level_dict,
+                    ) = construct_arg_dicts_from_click_api()
+                    result = Runner("test_flow.py", env=env, **top_level_dict).resume(
+                        **resume_level_dict
                     )
+                    flow_ret = result.command_obj.process.returncode
             else:
                 log("flow failed", formatter, context)
                 return flow_ret, path
