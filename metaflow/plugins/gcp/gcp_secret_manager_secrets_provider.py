@@ -107,20 +107,23 @@ class GcpSecretManagerSecretsProvider(SecretsProvider):
             env_var_name = secret_id
             if not GCP_SECRET_MANAGER_PREFIX:
                 raise ValueError(
-                    f"Cannot use simple secret_id without setting METAFLOW_GCP_SECRET_MANAGER_PREFIX. {GCP_SECRET_MANAGER_PREFIX}"
+                    "Cannot use simple secret_id without setting METAFLOW_GCP_SECRET_MANAGER_PREFIX. %s"
+                    % GCP_SECRET_MANAGER_PREFIX
                 )
             if match_partial.group(2):
                 # With version specified
-                full_secret_name = f"{GCP_SECRET_MANAGER_PREFIX}{secret_id}"
+                full_secret_name = "%s%s" % (GCP_SECRET_MANAGER_PREFIX, secret_id)
                 env_var_name = match_partial.group(1)
             else:
                 # No version specified, use latest
-                full_secret_name = (
-                    f"{GCP_SECRET_MANAGER_PREFIX}{secret_id}/versions/latest"
+                full_secret_name = "%s%s/versions/latest" % (
+                    GCP_SECRET_MANAGER_PREFIX,
+                    secret_id,
                 )
         else:
             raise ValueError(
-                f"Invalid secret_id: {secret_id}. Must be either a full path or a simple string."
+                "Invalid secret_id: %s. Must be either a full path or a simple string."
+                % secret_id
             )
 
         result = {}
