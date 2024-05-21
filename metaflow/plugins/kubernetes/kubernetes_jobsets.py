@@ -117,11 +117,12 @@ def _derive_pod_status_and_status_code(control_pod):
                         )
                     )
         if container_status is None:
-            overall_status = (
-                f"pod status: {pod_status} | container status: {container_status}"
+            overall_status = "pod status: %s | container status: %s" % (
+                pod_status,
+                container_status,
             )
         else:
-            overall_status = f"pod status: {pod_status}"
+            overall_status = "pod status: %s" % pod_status
         if pod_status == "Failed":
             control_pod_failed = True
     return overall_status, control_exit_code, control_pod_failed
@@ -383,7 +384,7 @@ class RunningJobSet(object):
             return "Jobset status is unknown"
         if status.control_started:
             if status.control_pod_status:
-                return f"Jobset is running: {status.control_pod_status}"
+                return "Jobset is running: %s" % status.control_pod_status
             return "Jobset is running"
         if status.all_jobs_are_suspended:
             return "Jobset is waiting to be unsuspended"
@@ -463,7 +464,7 @@ class TaskIdConstructor:
         """
         control_task_id = current.task_id
         worker_task_id_base = control_task_id.replace("control", "worker")
-        mapper = lambda idx: worker_task_id_base + f"-{idx}"
+        mapper = lambda idx: worker_task_id_base + f"-%s" % (str(idx))
         return control_task_id, [mapper(idx) for idx in range(0, num_parallel - 1)]
 
     @classmethod
