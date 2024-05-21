@@ -122,6 +122,10 @@ SECRETS_PROVIDERS_DESC = [
         ".aws.secrets_manager.aws_secrets_manager_secrets_provider.AwsSecretsManagerSecretsProvider",
     ),
     (
+        "gcp-secret-manager",
+        ".gcp.gcp_secret_manager_secrets_provider.GcpSecretManagerSecretsProvider",
+    ),
+    (
         "az-key-vault",
         ".azure.azure_secret_manager_secrets_provider.AzureKeyVaultSecretsProvider",
     ),

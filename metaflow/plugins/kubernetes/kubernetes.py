@@ -30,6 +30,7 @@ from metaflow.metaflow_config import (
     DEFAULT_GCP_CLIENT_PROVIDER,
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
+    GCP_SECRET_MANAGER_PREFIX,
     AZURE_KEY_VAULT_PREFIX,
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_LABELS,
@@ -314,6 +315,9 @@ class Kubernetes(object):
             .environment_variable(
                 "METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION",
                 AWS_SECRETS_MANAGER_DEFAULT_REGION,
+            )
+            .environment_variable(
+                "METAFLOW_GCP_SECRET_MANAGER_PREFIX", GCP_SECRET_MANAGER_PREFIX
             )
             .environment_variable(
                 "METAFLOW_AZURE_KEY_VAULT_PREFIX", AZURE_KEY_VAULT_PREFIX
