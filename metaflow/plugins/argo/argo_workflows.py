@@ -33,6 +33,7 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
     GCP_SECRET_MANAGER_PREFIX,
+    AZURE_KEY_VAULT_PREFIX,
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
@@ -839,6 +840,11 @@ class ArgoWorkflows(object):
         def _visit(
             node, exit_node=None, templates=None, dag_tasks=None, parent_foreach=None
         ):
+            if node.parallel_foreach:
+                raise ArgoWorkflowsException(
+                    "Deploying flows with @parallel decorator(s) "
+                    "as Argo Workflows is not supported currently."
+                )
             # Every for-each node results in a separate subDAG and an equivalent
             # DAGTemplate rooted at the child of the for-each node. Each DAGTemplate
             # has a unique name - the top-level DAGTemplate is named as the name of
@@ -1415,6 +1421,7 @@ class ArgoWorkflows(object):
                 "METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION"
             ] = AWS_SECRETS_MANAGER_DEFAULT_REGION
             env["METAFLOW_GCP_SECRET_MANAGER_PREFIX"] = GCP_SECRET_MANAGER_PREFIX
+            env["METAFLOW_AZURE_KEY_VAULT_PREFIX"] = AZURE_KEY_VAULT_PREFIX
 
             # support for Azure
             env[

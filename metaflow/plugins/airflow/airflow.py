@@ -32,6 +32,7 @@ from metaflow.metaflow_config import (
     S3_ENDPOINT_URL,
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
+    AZURE_KEY_VAULT_PREFIX,
 )
 
 from metaflow.metaflow_config_funcs import config_values
@@ -411,6 +412,9 @@ class Airflow(object):
             ] = AWS_SECRETS_MANAGER_DEFAULT_REGION
         if GCP_SECRET_MANAGER_PREFIX:
             env["METAFLOW_GCP_SECRET_MANAGER_PREFIX"] = GCP_SECRET_MANAGER_PREFIX
+
+        if AZURE_KEY_VAULT_PREFIX:
+            env["METAFLOW_AZURE_KEY_VAULT_PREFIX"] = AZURE_KEY_VAULT_PREFIX
 
         env.update(additional_mf_variables)
 
