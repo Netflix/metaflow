@@ -80,7 +80,7 @@ class AzureKeyVaultSecretsProvider(SecretsProvider):
         try:
             parsed_vault_url = urlparse(secret_id)
         except ValueError:
-            print(f"invalid vault url", file=sys.stderr)
+            print("invalid vault url", file=sys.stderr)
             return False
         hostname = parsed_vault_url.netloc
 
@@ -94,34 +94,34 @@ class AzureKeyVaultSecretsProvider(SecretsProvider):
         if not k_v_domain_found:
             # the secret_id started with https:// however the key_vault_domains
             # were not present in the secret_id which means
-            raise MetaflowAzureKeyVaultBadVault(f"bad key vault domain {secret_id}")
+            raise MetaflowAzureKeyVaultBadVault("bad key vault domain %s" % secret_id)
 
         # given the secret_id seems to have a valid key vault domain
         # lets verify that the vault name corresponds to its regex.
         vault_name = hostname[: -len(actual_k_v_domain)]
         # verify the vault name pattern
         if not self._is_valid_vault_name(vault_name):
-            raise MetaflowAzureKeyVaultBadVault(f"bad key vault name {vault_name}")
+            raise MetaflowAzureKeyVaultBadVault("bad key vault name %s" % vault_name)
 
         path_parts = parsed_vault_url.path.strip("/").split("/")
         total_path_parts = len(path_parts)
         if total_path_parts < 2 or total_path_parts > 3:
             raise MetaflowAzureKeyVaultBadSecretPath(
-                f"bad secret uri path {path_parts}"
+                "bad secret uri path %s" % path_parts
             )
 
         object_type = path_parts[0]
         if not self._is_valid_object_type(object_type):
-            raise MetaflowAzureKeyVaultBadSecretType(f"bad secret type {object_type}")
+            raise MetaflowAzureKeyVaultBadSecretType("bad secret type %s" % object_type)
 
         secret_name = path_parts[1]
         if not self._is_valid_secret_name(secret_name=secret_name):
-            raise MetaflowAzureKeyVaultBadSecretName(f"bad secret name {secret_name}")
+            raise MetaflowAzureKeyVaultBadSecretName("bad secret name %s" % secret_name)
 
         if total_path_parts == 3:
             if not self._is_valid_object_version(path_parts[2]):
                 raise MetaflowAzureKeyVaultBadSecretVersion(
-                    f"bad secret version {path_parts[2]}"
+                    "bad secret version %s" % path_parts[2]
                 )
 
         return True
@@ -139,10 +139,11 @@ class AzureKeyVaultSecretsProvider(SecretsProvider):
         # must be set.
         if not AZURE_KEY_VAULT_PREFIX:
             raise ValueError(
-                f"cannot use simple secret id without setting METAFLOW_AZURE_KEY_VAULT_PREFIX. {AZURE_KEY_VAULT_PREFIX}"
+                "cannot use simple secret id without setting METAFLOW_AZURE_KEY_VAULT_PREFIX. %s"
+                % AZURE_KEY_VAULT_PREFIX
             )
         domain = AZURE_KEY_VAULT_PREFIX.rstrip("/")
-        full_secret = f"{domain}/secrets/{secret_id}"
+        full_secret = "%s/secrets/%s" % (domain, secret_id)
         if not self._is_secret_id_fully_qualified_url(full_secret):
             return False
 
@@ -186,29 +187,32 @@ class AzureKeyVaultSecretsProvider(SecretsProvider):
 
         # if the secret_id is None/empty/does not start with https then return false
         if secret_id is None or secret_id == "":
-            raise MetaflowAzureKeyVaultBadSecret(f"empty secret id is not supported")
+            raise MetaflowAzureKeyVaultBadSecret("empty secret id is not supported")
 
         # check if the passed in secret is a short-form ( #3/#4 in the above comment)
         if not secret_id.startswith("https://"):
             # check if the secret_id is of form `secret_name` OR `secret_name/secret_version`
             if not self._is_partial_secret_valid(secret_id=secret_id):
                 raise MetaflowAzureKeyVaultBadSecret(
-                    f"unsupported partial secret {secret_id}"
+                    "unsupported partial secret %s" % secret_id
                 )
 
             domain = AZURE_KEY_VAULT_PREFIX.rstrip("/")
-            full_secret = f"{domain}/secrets/{secret_id}"
+            full_secret = "%s/secrets/%s" % (domain, secret_id)
 
         # if the secret id is passed as a URL - then check if the url is fully qualified
         if secret_id.startswith("https://"):
             if not self._is_secret_id_fully_qualified_url(secret_id=secret_id):
-                raise MetaflowException(f"unsupported secret {secret_id}")
+                raise MetaflowException("unsupported secret %s" % secret_id)
             full_secret = secret_id
 
         # at this point I know that the secret URL is good so we can start creating the Secret Client
         az_credentials = create_cacheable_azure_credential()
         res = urlparse(full_secret)
-        az_vault_url = f"{res.scheme}://{res.netloc}"  # https://myvault.vault.azure.net
+        az_vault_url = "%s://%s" % (
+            res.scheme,
+            res.netloc,
+        )  # https://myvault.vault.azure.net
         secret_data = res.path.strip("/").split("/")[1:]
         secret_name = secret_data[0]
         secret_version = None
