@@ -73,11 +73,7 @@ class ExecutingRun(object):
 
 class Runner(object):
     def __init__(
-        self,
-        flow_file: str,
-        profile: Optional[str] = None,
-        env: Dict = {},
-        **kwargs,
+        self, flow_file: str, profile: Optional[str] = None, env: Dict = {}, **kwargs
     ):
         """
         Metaflow's Runner API that presents a programmatic interface
