@@ -176,7 +176,12 @@ def test_error_and_opsgenie_alert(pytestconfig) -> None:
             data=json.dumps(close_alert_data),
             headers=opsgenie_auth_headers,
         )
-        if close_alert_response.status_code == 200:
+        # Sometimes the response status code is 202, signaling
+        # the request has been accepted and is being queued for processing.
+        if (
+            close_alert_response.status_code == 200
+            or close_alert_response.status_code == 202
+        ):
             break
         time.sleep(3)
 
