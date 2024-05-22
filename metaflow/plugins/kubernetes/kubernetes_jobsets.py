@@ -1,13 +1,14 @@
 import copy
+import json
 import math
 import random
 import time
-from metaflow.metaflow_current import current
-from metaflow.exception import MetaflowException
-from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
-import json
-from metaflow.metaflow_config import KUBERNETES_JOBSET_GROUP, KUBERNETES_JOBSET_VERSION
 from collections import namedtuple
+
+from metaflow.exception import MetaflowException
+from metaflow.metaflow_config import KUBERNETES_JOBSET_GROUP, KUBERNETES_JOBSET_VERSION
+from metaflow.metaflow_current import current
+from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 
 
 class KubernetesJobsetException(MetaflowException):
@@ -323,18 +324,18 @@ class RunningJobSet(object):
         with client.ApiClient() as api_client:
             api_instance = client.CustomObjectsApi(api_client)
             try:
-                jobset = api_instance.get_namespaced_custom_object(
+                obj = api_instance.get_namespaced_custom_object(
                     group=self._group,
                     version=self._version,
                     namespace=self._namespace,
-                    plural="jobsets",
+                    plural=plural,
                     name=self._name,
                 )
 
                 # Suspend the jobset and set the replica's to Zero.
                 #
-                jobset["spec"]["suspend"] = True
-                for replicated_job in jobset["spec"]["replicatedJobs"]:
+                obj["spec"]["suspend"] = True
+                for replicated_job in obj["spec"]["replicatedJobs"]:
                     replicated_job["replicas"] = 0
 
                 api_instance.replace_namespaced_custom_object(
@@ -342,8 +343,8 @@ class RunningJobSet(object):
                     version=self._version,
                     namespace=self._namespace,
                     plural=plural,
-                    name=jobset["metadata"]["name"],
-                    body=jobset,
+                    name=obj["metadata"]["name"],
+                    body=obj,
                 )
             except Exception as e:
                 raise KubernetesJobsetException(
@@ -451,21 +452,14 @@ class RunningJobSet(object):
 class TaskIdConstructor:
     @classmethod
     def jobset_worker_id(cls, control_task_id: str):
-        return "".join(
-            [control_task_id.replace("control", "worker"), "-", "$WORKER_REPLICA_INDEX"]
+        # FIXME: This fails when the step name is control
+        return "-".join(
+            [
+                control_task_id,
+                "wrkr",
+                "$MF_WORKER_REPLICA_INDEX",
+            ]
         )
-
-    @classmethod
-    def join_step_task_ids(cls, num_parallel):
-        """
-        Called within the step decorator to set the `flow._control_mapper_tasks`.
-        Setting these allows the flow to know which tasks are needed in the join step.
-        We set this in the `task_pre_step` method of the decorator.
-        """
-        control_task_id = current.task_id
-        worker_task_id_base = control_task_id.replace("control", "worker")
-        mapper = lambda idx: worker_task_id_base + "-%s" % (str(idx))
-        return control_task_id, [mapper(idx) for idx in range(0, num_parallel - 1)]
 
     @classmethod
     def argo(cls):
@@ -473,17 +467,18 @@ class TaskIdConstructor:
 
 
 def _jobset_specific_env_vars(client, jobset_main_addr, master_port, num_parallel):
+    # FIXME: these might be None
     return [
         client.V1EnvVar(
-            name="MASTER_ADDR",
+            name="MF_MASTER_ADDR",
             value=jobset_main_addr,
         ),
         client.V1EnvVar(
-            name="MASTER_PORT",
+            name="MF_MASTER_PORT",
             value=str(master_port),
         ),
         client.V1EnvVar(
-            name="WORLD_SIZE",
+            name="MF_WORLD_SIZE",
             value=str(num_parallel),
         ),
     ] + [
@@ -504,7 +499,7 @@ def _jobset_specific_env_vars(client, jobset_main_addr, master_port, num_paralle
             ),
         ),
         client.V1EnvVar(
-            name="WORKER_REPLICA_INDEX",
+            name="MF_WORKER_REPLICA_INDEX",
             value_from=client.V1EnvVarSource(
                 field_ref=client.V1ObjectFieldSelector(
                     field_path="metadata.annotations['jobset.sigs.k8s.io/job-index']"
@@ -551,7 +546,7 @@ def get_control_job(
         + _jobset_specific_env_vars(client, jobset_main_addr, master_port, num_parallel)
         + [
             client.V1EnvVar(
-                name="CONTROL_INDEX",
+                name="MF_CONTROL_INDEX",
                 value=str(0),
             )
         ]
@@ -614,7 +609,7 @@ def get_worker_job(
             # Since all command will have a UBF_CONTROL, we need to replace the UBF_CONTROL
             # with the actual UBF Context and also ensure that we are setting the correct
             # split-index for the worker jobs.
-            split_index_str = "--split-index `expr $[WORKER_REPLICA_INDEX] + 1`"  # This set in the environment variables below
+            split_index_str = "--split-index `expr $[MF_WORKER_REPLICA_INDEX] + 1`"  # This set in the environment variables below
             job_spec.template.spec.containers[0].command[idx] = (
                 job_spec.template.spec.containers[0]
                 .command[idx]

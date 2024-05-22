@@ -1,9 +1,9 @@
+import copy
 import json
 import math
 import os
 import re
 import shlex
-import copy
 import time
 from typing import Dict, List, Optional
 from uuid import uuid4
@@ -14,10 +14,11 @@ from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT,
     ARGO_EVENTS_EVENT_BUS,
     ARGO_EVENTS_EVENT_SOURCE,
-    ARGO_EVENTS_SERVICE_ACCOUNT,
     ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
-    AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    ARGO_EVENTS_SERVICE_ACCOUNT,
     ARGO_EVENTS_WEBHOOK_AUTH,
+    AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    AZURE_KEY_VAULT_PREFIX,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     CARD_AZUREROOT,
     CARD_GSROOT,
@@ -31,18 +32,16 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
     GCP_SECRET_MANAGER_PREFIX,
-    AZURE_KEY_VAULT_PREFIX,
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_LABELS,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
+    OTEL_ENDPOINT,
     S3_ENDPOINT_URL,
+    S3_SERVER_SIDE_ENCRYPTION,
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
-    S3_SERVER_SIDE_ENCRYPTION,
-    OTEL_ENDPOINT,
 )
 from metaflow.metaflow_config_funcs import config_values
-
 from metaflow.mflog import (
     BASH_SAVE_LOGS,
     bash_capture_logs,
