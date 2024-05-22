@@ -275,11 +275,6 @@ class KubernetesJob(object):
         # (unique UID) per Metaflow task attempt.
         client = self._client.get()
 
-        # tmpfs variables
-        use_tmpfs = self._kwargs["use_tmpfs"]
-        tmpfs_size = self._kwargs["tmpfs_size"]
-        tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
-
         self._job = client.V1Job(
             api_version="batch/v1",
             kind="Job",
