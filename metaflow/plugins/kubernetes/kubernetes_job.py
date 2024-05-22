@@ -371,7 +371,6 @@ class KubernetesJob(object):
 
 
 class RunningJob(object):
-
     # State Machine implementation for the lifecycle behavior documented in
     # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
     #

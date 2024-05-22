@@ -157,7 +157,6 @@ class NativeRuntime(object):
                 deco.runtime_init(flow, graph, package, self._run_id)
 
     def _new_task(self, step, input_paths=None, **kwargs):
-
         if input_paths is None:
             may_clone = True
         else:
@@ -315,7 +314,6 @@ class NativeRuntime(object):
             # main scheduling loop
             exception = None
             while self._run_queue or self._active_tasks[0] > 0:
-
                 # 1. are any of the current workers finished?
                 finished_tasks = list(self._poll_workers())
                 # 2. push new tasks triggered by the finished tasks to the queue
@@ -583,7 +581,6 @@ class NativeRuntime(object):
                 )
 
     def _queue_task_foreach(self, task, next_steps):
-
         # CHECK: this condition should be enforced by the linter but
         # let's assert that the assumption holds
         if len(next_steps) > 1:
@@ -798,7 +795,6 @@ class Task(object):
         task_id=None,
         resume_identifier=None,
     ):
-
         self.step = step
         self.flow_name = flow.name
         self.run_id = run_id
@@ -935,7 +931,6 @@ class Task(object):
                     # yet written the _resume_leader metadata, we will wait for a few seconds.
                     # We will wait for resume leader for at most 3 times.
                     for resume_leader_wait_retry in range(3):
-
                         if ds.has_metadata("_resume_leader", add_attempt=False):
                             resume_leader = ds.load_metadata(
                                 ["_resume_leader"], add_attempt=False
@@ -1112,56 +1107,45 @@ class Task(object):
 
     def _get_task_id(self, task_id):
         already_existed = True
+        tags = []
         if self.ubf_context == UBF_CONTROL:
-            [input_path] = self.input_paths
-            run, input_step, input_task = input_path.split("/")
-            # We associate the control task-id to be 1:1 with the split node
-            # where the unbounded-foreach was defined.
-            # We prefer encoding the corresponding split into the task_id of
-            # the control node; so it has access to this information quite
-            # easily. There is anyway a corresponding int id stored in the
-            # metadata backend - so this should be fine.
-            task_id = "control-%s-%s-%s" % (run, input_step, input_task)
-        # Register only regular Metaflow (non control) tasks.
+            tags = [CONTROL_TASK_TAG]
+        # Register Metaflow tasks.
         if task_id is None:
-            task_id = str(self.metadata.new_task_id(self.run_id, self.step))
+            task_id = str(
+                self.metadata.new_task_id(self.run_id, self.step, sys_tags=tags)
+            )
             already_existed = False
         else:
-            # task_id is preset only by persist_constants() or control tasks.
-            if self.ubf_context == UBF_CONTROL:
-                tags = [CONTROL_TASK_TAG]
-                attempt_id = 0
-                already_existed = not self.metadata.register_task_id(
-                    self.run_id,
-                    self.step,
-                    task_id,
-                    attempt_id,
-                    sys_tags=tags,
+            # task_id is preset only by persist_constants().
+            already_existed = not self.metadata.register_task_id(
+                self.run_id,
+                self.step,
+                task_id,
+                0,
+                sys_tags=tags,
+            )
+        if self.ubf_context == UBF_CONTROL:
+            # A Task's tags are now those of its ancestral Run, so we are not able
+            # to rely on a task's tags to indicate the presence of a control task
+            # so, on top of adding the tags above, we also add a task metadata
+            # entry indicating that this is a "control task".
+            #
+            # Here we will also add a task metadata entry to indicate "control
+            # task". Within the metaflow repo, the only dependency of such a
+            # "control task" indicator is in the integration test suite (see
+            # Step.control_tasks() in client API).
+            task_metadata_list = [
+                MetaDatum(
+                    field="internal_task_type",
+                    value=CONTROL_TASK_TAG,
+                    type="internal_task_type",
+                    tags=["attempt_id:{0}".format(0)],
                 )
-                # A Task's tags are now those of its ancestral Run, so we are not able
-                # to rely on a task's tags to indicate the presence of a control task
-                # so, on top of adding the tags above, we also add a task metadata
-                # entry indicating that this is a "control task".
-                #
-                # Here we will also add a task metadata entry to indicate "control task".
-                # Within the metaflow repo, the only dependency of such a "control task"
-                # indicator is in the integration test suite (see Step.control_tasks() in
-                # client API).
-                task_metadata_list = [
-                    MetaDatum(
-                        field="internal_task_type",
-                        value=CONTROL_TASK_TAG,
-                        type="internal_task_type",
-                        tags=["attempt_id:{0}".format(attempt_id)],
-                    )
-                ]
-                self.metadata.register_metadata(
-                    self.run_id, self.step, task_id, task_metadata_list
-                )
-            else:
-                already_existed = not self.metadata.register_task_id(
-                    self.run_id, self.step, task_id, 0
-                )
+            ]
+            self.metadata.register_metadata(
+                self.run_id, self.step, task_id, task_metadata_list
+            )
 
         self.task_id = task_id
         self._path = "%s/%s/%s" % (self.run_id, self.step, self.task_id)
@@ -1342,11 +1326,9 @@ class CLIArgs(object):
         self.env = {}
 
     def get_args(self):
-
         # TODO: Make one with dict_to_cli_options; see cli_args.py for more detail
         def _options(mapping):
             for k, v in mapping.items():
-
                 # None or False arguments are ignored
                 # v needs to be explicitly False, not falsy, e.g. 0 is an acceptable value
                 if v is None or v is False:

@@ -185,8 +185,8 @@ def step(
 
     if num_parallel is not None and num_parallel <= 1:
         raise KubernetesException(
-            "Using @parallel with `num_parallel` <= 1 is not supported with Kubernetes. "
-            "Please set the value of `num_parallel` to be greater than 1."
+            "Using @parallel with `num_parallel` <= 1 is not supported with "
+            "@kubernetes. Please set the value of `num_parallel` to be greater than 1."
         )
 
     # Set retry policy.

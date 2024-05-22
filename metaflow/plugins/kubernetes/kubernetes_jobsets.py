@@ -323,18 +323,18 @@ class RunningJobSet(object):
         with client.ApiClient() as api_client:
             api_instance = client.CustomObjectsApi(api_client)
             try:
-                jobset = api_instance.get_namespaced_custom_object(
+                obj = api_instance.get_namespaced_custom_object(
                     group=self._group,
                     version=self._version,
                     namespace=self._namespace,
-                    plural="jobsets",
+                    plural=plural,
                     name=self._name,
                 )
 
                 # Suspend the jobset and set the replica's to Zero.
                 #
-                jobset["spec"]["suspend"] = True
-                for replicated_job in jobset["spec"]["replicatedJobs"]:
+                obj["spec"]["suspend"] = True
+                for replicated_job in obj["spec"]["replicatedJobs"]:
                     replicated_job["replicas"] = 0
 
                 api_instance.replace_namespaced_custom_object(
@@ -342,8 +342,8 @@ class RunningJobSet(object):
                     version=self._version,
                     namespace=self._namespace,
                     plural=plural,
-                    name=jobset["metadata"]["name"],
-                    body=jobset,
+                    name=obj["metadata"]["name"],
+                    body=obj,
                 )
             except Exception as e:
                 raise KubernetesJobsetException(
@@ -451,21 +451,10 @@ class RunningJobSet(object):
 class TaskIdConstructor:
     @classmethod
     def jobset_worker_id(cls, control_task_id: str):
+        # FIXME: This fails when the step name is control
         return "".join(
             [control_task_id.replace("control", "worker"), "-", "$WORKER_REPLICA_INDEX"]
         )
-
-    @classmethod
-    def join_step_task_ids(cls, num_parallel):
-        """
-        Called within the step decorator to set the `flow._control_mapper_tasks`.
-        Setting these allows the flow to know which tasks are needed in the join step.
-        We set this in the `task_pre_step` method of the decorator.
-        """
-        control_task_id = current.task_id
-        worker_task_id_base = control_task_id.replace("control", "worker")
-        mapper = lambda idx: worker_task_id_base + "-%s" % (str(idx))
-        return control_task_id, [mapper(idx) for idx in range(0, num_parallel - 1)]
 
     @classmethod
     def argo(cls):
@@ -473,17 +462,18 @@ class TaskIdConstructor:
 
 
 def _jobset_specific_env_vars(client, jobset_main_addr, master_port, num_parallel):
+    # FIXME: these might be None
     return [
         client.V1EnvVar(
-            name="MASTER_ADDR",
+            name="MF_MASTER_ADDR",
             value=jobset_main_addr,
         ),
         client.V1EnvVar(
-            name="MASTER_PORT",
+            name="MF_MASTER_PORT",
             value=str(master_port),
         ),
         client.V1EnvVar(
-            name="WORLD_SIZE",
+            name="MF_WORLD_SIZE",
             value=str(num_parallel),
         ),
     ] + [
