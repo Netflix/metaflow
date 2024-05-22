@@ -71,7 +71,7 @@ stages:
         bash -c "
           set -x &&
           cd /home/zservice/metaflow/metaflow/plugins/aip/tests &&
-          python -m pytest -s -n 3 run_integration_tests.py --image ${IMAGE_REPOSITORY_TAG} --opsgenie-api-token ${OPSGENIE_API_TOKEN} --cov-config=setup.cfg --pipeline-tag pipeline_iid_${CI_PIPELINE_IID}
+          python -m pytest -s -n 7 run_integration_tests.py --image ${IMAGE_REPOSITORY_TAG} --opsgenie-api-token ${OPSGENIE_API_TOKEN} --cov-config=setup.cfg --pipeline-tag pipeline_iid_${CI_PIPELINE_IID}
         "
   artifacts:
     when: always
