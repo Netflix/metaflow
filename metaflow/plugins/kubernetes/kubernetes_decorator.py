@@ -12,27 +12,27 @@ from metaflow.metaflow_config import (
     DATASTORE_LOCAL_DIR,
     KUBERNETES_CONTAINER_IMAGE,
     KUBERNETES_CONTAINER_REGISTRY,
+    KUBERNETES_CPU,
+    KUBERNETES_DISK,
     KUBERNETES_FETCH_EC2_METADATA,
-    KUBERNETES_IMAGE_PULL_POLICY,
     KUBERNETES_GPU_VENDOR,
+    KUBERNETES_IMAGE_PULL_POLICY,
+    KUBERNETES_MEMORY,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_PERSISTENT_VOLUME_CLAIMS,
-    KUBERNETES_TOLERATIONS,
+    KUBERNETES_PORT,
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SHARED_MEMORY,
-    KUBERNETES_PORT,
-    KUBERNETES_CPU,
-    KUBERNETES_MEMORY,
-    KUBERNETES_DISK,
+    KUBERNETES_TOLERATIONS,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.sidecar import Sidecar
+from metaflow.unbounded_foreach import UBF_CONTROL
 
 from ..aws.aws_utils import get_docker_registry, get_ec2_instance_metadata
 from .kubernetes import KubernetesException, parse_kube_keyvalue_list
-from metaflow.unbounded_foreach import UBF_CONTROL
 
 try:
     unicode
@@ -513,6 +513,7 @@ class KubernetesDecorator(StepDecorator):
             cls.package_url, cls.package_sha = flow_datastore.save_data(
                 [package.blob], len_hint=1
             )[0]
+
 
 # TODO: Unify this method with the multi-node setup in @batch
 def _setup_multinode_environment():

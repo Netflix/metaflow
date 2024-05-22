@@ -1,13 +1,14 @@
 import copy
+import json
 import math
 import random
 import time
-from metaflow.metaflow_current import current
-from metaflow.exception import MetaflowException
-from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
-import json
-from metaflow.metaflow_config import KUBERNETES_JOBSET_GROUP, KUBERNETES_JOBSET_VERSION
 from collections import namedtuple
+
+from metaflow.exception import MetaflowException
+from metaflow.metaflow_config import KUBERNETES_JOBSET_GROUP, KUBERNETES_JOBSET_VERSION
+from metaflow.metaflow_current import current
+from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 
 
 class KubernetesJobsetException(MetaflowException):

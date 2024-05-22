@@ -3,20 +3,20 @@ import sys
 import time
 import traceback
 
+import metaflow.tracing as tracing
 from metaflow import JSONTypeClass, util
 from metaflow._vendor import click
 from metaflow.exception import METAFLOW_EXIT_DISALLOW_RETRY, CommandException
 from metaflow.metadata.util import sync_local_metadata_from_datastore
-from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, KUBERNETES_LABELS
 from metaflow.mflog import TASK_LOG_SOURCE
-import metaflow.tracing as tracing
+from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 
 from .kubernetes import (
     Kubernetes,
+    KubernetesException,
     KubernetesKilledException,
     parse_kube_keyvalue_list,
-    KubernetesException,
 )
 from .kubernetes_decorator import KubernetesDecorator
 
