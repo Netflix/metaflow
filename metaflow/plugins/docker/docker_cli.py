@@ -40,6 +40,7 @@ def list():
     for val in current_cache.values():
         packages = val["bakery_request"]["condaMatchspecs"]
         kind = val["kind"]
+        python_version = val["bakery_request"]["pythonVersion"]
         base_image = (
             val["bakery_request"].get("baseImage", {}).get("imageReference", None)
         )
@@ -48,6 +49,7 @@ def list():
         echo("     image type: *%s*" % kind)
         if base_image:
             echo("     base image: *%s*" % base_image)
+        echo("     Python version: *%s*" % python_version)
         echo("     packages requested: %s\n" % packages)
 
     if current_cache:

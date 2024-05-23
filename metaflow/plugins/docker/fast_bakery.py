@@ -49,9 +49,9 @@ def get_cache_image_tag(spec_hash):
     return current_meta.get(spec_hash, {}).get("image", None)
 
 
-def generate_spec_hash(base_image=None, packages={}):
+def generate_spec_hash(base_image=None, python_version=None, packages={}):
     sorted_keys = sorted(packages.keys())
-    base_str = "%s%s" % (DOCKER_IMAGE_BAKERY_TYPE, base_image or "")
+    base_str = "%s%s%s" % (DOCKER_IMAGE_BAKERY_TYPE, python_version, base_image or "")
     sortspec = base_str.join("%s%s" % (k, packages[k]) for k in sorted_keys).encode(
         "utf-8"
     )
@@ -68,11 +68,12 @@ def bake_image(python=None, packages={}, datastore_type=None, base_image=None):
     if datastore_type is not None:
         deps = get_pinned_conda_libs(python, datastore_type)
     deps.update(packages)
-    if python is not None:
-        deps.update({"python": python})
+
+    # Python version. Fallback to current local environment version if none specified.
+    python_version = python or python_version()
 
     # Try getting image tag from cache
-    spec_hash = generate_spec_hash(base_image, deps)
+    spec_hash = generate_spec_hash(base_image, python_version, deps)
     image = get_cache_image_tag(spec_hash)
     if image:
         return image
@@ -87,6 +88,7 @@ def bake_image(python=None, packages={}, datastore_type=None, base_image=None):
     data = {
         "condaMatchspecs": package_matchspecs,
         "imageKind": DOCKER_IMAGE_BAKERY_TYPE,
+        "pythonVersion": python_version,
     }
     if base_image is not None:
         data.update({"baseImage": {"imageReference": base_image}})
