@@ -88,6 +88,15 @@ class ExecutingRun(object):
 
     @property
     def status(self) -> str:
+        """
+        Returns the status of the underlying subprocess that is responsible
+        for executing the run.
+
+        Returns
+        -------
+        str
+            The current status of the run (one of 'running', 'failed', 'successful').
+        """
         if self.command_obj.process.returncode is None:
             return "running"
         elif self.command_obj.process.returncode != 0:
