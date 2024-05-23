@@ -213,7 +213,8 @@ class Runner(object):
         from metaflow.runner.click_api import MetaflowAPI
 
         self.flow_file = flow_file
-        self.env_vars = os.environ.copy().update(env or {})
+        self.env_vars = os.environ.copy()
+        self.env_vars.update(env or {})
         if profile:
             self.env_vars["METAFLOW_PROFILE"] = profile
         self.spm = SubprocessManager()
