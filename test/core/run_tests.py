@@ -11,7 +11,6 @@ from multiprocessing import Pool
 
 from metaflow.cli import start, run
 from metaflow._vendor import click
-from metaflow import Runner
 
 skip_api_executor = False
 
@@ -21,6 +20,7 @@ try:
         extract_all_params,
         click_to_python_types,
     )
+    from metaflow import Runner
 except RuntimeError:
     skip_api_executor = True
 
