@@ -349,7 +349,7 @@ class CommandManager(object):
 async def main():
     flow_file = "../try.py"
     from metaflow.cli import start
-    from metaflow.api.click_api import MetaflowAPI
+    from metaflow.runner.click_api import MetaflowAPI
 
     api = MetaflowAPI.from_cli(flow_file, start)
     command = api().run(alpha=5)

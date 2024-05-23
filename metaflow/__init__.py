@@ -148,7 +148,7 @@ from . import tuple_util
 
 # Runner API
 if sys.version_info >= (3, 7):
-    from .api.metaflow_runner import Runner
+    from .runner.metaflow_runner import Runner
 
 __version_addl__ = []
 _ext_debug("Loading top-level modules")
