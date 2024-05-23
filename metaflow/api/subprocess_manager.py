@@ -6,31 +6,32 @@ import shutil
 import asyncio
 import tempfile
 import subprocess
-from typing import List, Dict, Optional, Callable
+from typing import List, Dict, Optional, Callable, Iterator, Tuple
 
 
 def kill_process_and_descendants(pid, termination_timeout):
     try:
         subprocess.check_call(["pkill", "-TERM", "-P", str(pid)])
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         pass
 
     time.sleep(termination_timeout)
 
     try:
         subprocess.check_call(["pkill", "-KILL", "-P", str(pid)])
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         pass
 
 
 class LogReadTimeoutError(Exception):
     """Exception raised when reading logs times out."""
 
-    pass
-
 
 class SubprocessManager(object):
-    """A manager for subprocesses."""
+    """
+    A manager for subprocesses. The subprocess manager manages one or more
+    CommandManager objects, each of which manages an individual subprocess.
+    """
 
     def __init__(self):
         self.commands: Dict[int, CommandManager] = {}
@@ -47,16 +48,45 @@ class SubprocessManager(object):
         env: Optional[Dict[str, str]] = None,
         cwd: Optional[str] = None,
     ) -> int:
-        """Run a command asynchronously and return its process ID."""
+        """
+        Run a command asynchronously and return its process ID.
+
+        Parameters
+        ----------
+        command : List[str]
+            The command to run in List form.
+        env : Optional[Dict[str, str]], default None
+            Environment variables to set for the subprocess; if not specified,
+            the current enviornment variables are used.
+        cwd : Optional[str], default None
+            The directory to run the subprocess in; if not specified, the current
+            directory is used.
+
+        Returns
+        -------
+        int
+            The process ID of the subprocess.
+        """
 
         command_obj = CommandManager(command, env, cwd)
         pid = await command_obj.run()
         self.commands[pid] = command_obj
         return pid
 
-    def get(self, pid: int) -> "CommandManager":
-        """Get the CommandManager object for a given process ID."""
+    def get(self, pid: int) -> Optional["CommandManager"]:
+        """
+        Get one of the CommandManager managed by this SubprocessManager.
 
+        Parameters
+        ----------
+        pid : int
+            The process ID of the subprocess (returned by run_command).
+
+        Returns
+        -------
+        Optional[CommandManager]
+            The CommandManager object for the given process ID, or None if not found.
+        """
         return self.commands.get(pid, None)
 
     def cleanup(self) -> None:
@@ -75,6 +105,21 @@ class CommandManager(object):
         env: Optional[Dict[str, str]] = None,
         cwd: Optional[str] = None,
     ):
+        """
+        Create a new CommandManager object.
+        This does not run the process itself but sets it up.
+
+        Parameters
+        ----------
+        command : List[str]
+            The command to run in List form.
+        env : Optional[Dict[str, str]], default None
+            Environment variables to set for the subprocess; if not specified,
+            the current enviornment variables are used.
+        cwd : Optional[str], default None
+            The directory to run the subprocess in; if not specified, the current
+            directory is used.
+        """
         self.command = command
 
         self.env = env if env is not None else os.environ.copy()
@@ -84,7 +129,7 @@ class CommandManager(object):
         self.run_called: bool = False
         self.log_files: Dict[str, str] = {}
 
-        signal.signal(signal.SIGINT, self.handle_sigint)
+        signal.signal(signal.SIGINT, self._handle_sigint)
 
     async def __aenter__(self) -> "CommandManager":
         return self
@@ -92,15 +137,27 @@ class CommandManager(object):
     async def __aexit__(self, exc_type, exc_value, traceback):
         self.cleanup()
 
-    def handle_sigint(self, signum, frame):
-        """Handle the SIGINT signal."""
-
-        asyncio.create_task(self.kill())
-
     async def wait(
         self, timeout: Optional[float] = None, stream: Optional[str] = None
     ) -> None:
-        """Wait for the subprocess to finish, optionally with a timeout and optionally streaming its output."""
+        """
+        Wait for the subprocess to finish, optionally with a timeout
+        and optionally streaming its output.
+
+        You can only call `wait` if `run` has already been called.
+
+        Parameters
+        ----------
+        timeout : Optional[float], default None
+            The maximum time to wait for the subprocess to finish.
+            If the timeout is reached, the subprocess is killed.
+        stream : Optional[str], default None
+            If specified, the specified stream is printed to stdout. `stream` can
+            be one of `stdout` or `stderr`.
+        """
+
+        if not self.run_called:
+            raise RuntimeError("No command run yet to wait for...")
 
         if timeout is None:
             if stream is None:
@@ -117,12 +174,17 @@ class CommandManager(object):
                 command_string = " ".join(self.command)
                 await self.kill()
                 print(
-                    "Timeout: The process (PID %d; command: '%s') did not complete within %s seconds."
-                    % (self.process.pid, command_string, timeout)
+                    "Timeout: The process (PID %d; command: '%s') did not complete "
+                    "within %s seconds." % (self.process.pid, command_string, timeout)
                 )
 
     async def run(self):
-        """Run the subprocess, streaming the logs to temporary files"""
+        """
+        Run the subprocess asynchronously. This can only be called once.
+
+        Once this is called, you can then wait on the process (using `wait`), stream
+        logs (using `stream_logs`) or kill it (using `kill`).
+        """
 
         if not self.run_called:
             self.temp_dir = tempfile.mkdtemp()
@@ -136,8 +198,8 @@ class CommandManager(object):
                     *self.command,
                     cwd=self.cwd,
                     env=self.env,
-                    stdout=open(stdout_logfile, "w"),
-                    stderr=open(stderr_logfile, "w"),
+                    stdout=open(stdout_logfile, "w", encoding="utf-8"),
+                    stderr=open(stderr_logfile, "w", encoding="utf-8"),
                 )
 
                 self.log_files["stdout"] = stdout_logfile
@@ -151,8 +213,8 @@ class CommandManager(object):
         else:
             command_string = " ".join(self.command)
             print(
-                "Command '%s' has already been called. Please create another CommandManager object."
-                % command_string
+                "Command '%s' has already been called. Please create another "
+                "CommandManager object." % command_string
             )
 
     async def stream_log(
@@ -161,8 +223,34 @@ class CommandManager(object):
         position: Optional[int] = None,
         timeout_per_line: Optional[float] = None,
         log_write_delay: float = 0.01,
-    ):
-        """Stream logs from the subprocess using the log files"""
+    ) -> Iterator[Tuple[int, str]]:
+        """
+        Stream logs from the subprocess line by line.
+
+        Parameters
+        ----------
+        stream : str
+            The stream to stream logs from. Can be one of "stdout" or "stderr".
+        position : Optional[int], default None
+            The position in the log file to start streaming from. If None, it starts
+            from the beginning of the log file. This allows resuming streaming from
+            a previously known position
+        timeout_per_line : Optional[float], default None
+            The time to wait for a line to be read from the log file. If None, it
+            waits indefinitely. If the timeout is reached, a LogReadTimeoutError
+            is raised. Note that this timeout is *per line* and not cumulative so this
+            function may take significantly more time than `timeout_per_line`
+        log_write_delay : float, default 0.01
+            Improves the probability of getting whole lines. This setting is for
+            advanced use cases.
+
+        Yields
+        ------
+        Tuple[int, str]
+            A tuple containing the position in the log file and the line read. The
+            position returned can be used to feed into another `stream_logs` call
+            for example.
+        """
 
         if not self.run_called:
             raise RuntimeError("No command run yet to get the logs for...")
@@ -175,14 +263,15 @@ class CommandManager(object):
 
         log_file = self.log_files[stream]
 
-        with open(log_file, mode="r") as f:
+        with open(log_file, mode="r", encoding="utf-8") as f:
             if position is not None:
                 f.seek(position)
 
             while True:
                 # wait for a small time for complete lines to be written to the file
-                # else, there's a possibility that a line may not be completely written when
-                # attempting to read it. This is not a problem, but improves readability.
+                # else, there's a possibility that a line may not be completely
+                # written when attempting to read it.
+                # This is not a problem, but improves readability.
                 await asyncio.sleep(log_write_delay)
 
                 try:
@@ -192,8 +281,8 @@ class CommandManager(object):
                         line = await asyncio.wait_for(f.readline(), timeout_per_line)
                 except asyncio.TimeoutError as e:
                     raise LogReadTimeoutError(
-                        "Timeout while reading a line from the log file for the stream: %s"
-                        % stream
+                        "Timeout while reading a line from the log file for the "
+                        "stream: %s" % stream
                     ) from e
 
                 # when we encounter an empty line
@@ -211,8 +300,22 @@ class CommandManager(object):
                 position = f.tell()
                 yield position, line.rstrip()
 
-    async def emit_logs(self, stream: str = "stdout", custom_logger: Callable = print):
-        """Helper function to iterate over stream_log"""
+    async def emit_logs(
+        self, stream: str = "stdout", custom_logger: Callable[..., None] = print
+    ):
+        """
+        Helper function that can easily emit all the logs for a given stream.
+
+        This function will only terminate when all the log has been printed.
+
+        Parameters
+        ----------
+        stream : str, default "stdout"
+            The stream to emit logs for. Can be one of "stdout" or "stderr".
+        custom_logger : Callable[..., None], default print
+            A custom logger function that takes in a string and "emits" it. By default,
+            the log is printed to stdout.
+        """
 
         async for _, line in self.stream_log(stream):
             custom_logger(line)
@@ -224,18 +327,29 @@ class CommandManager(object):
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     async def kill(self, termination_timeout: float = 1):
-        """Kill the subprocess and its descendants."""
+        """
+        Kill the subprocess and its descendants.
+
+        Parameters
+        ----------
+        termination_timeout : float, default 1
+            The time to wait after sending a SIGTERM to the process and its descendants
+            before sending a SIGKILL.
+        """
 
         if self.process is not None:
             kill_process_and_descendants(self.process.pid, termination_timeout)
         else:
             print("No process to kill.")
 
+    def _handle_sigint(self, signum, frame):
+        asyncio.create_task(self.kill())
+
 
 async def main():
     flow_file = "../try.py"
     from metaflow.cli import start
-    from metaflow.click_api import MetaflowAPI
+    from metaflow.api.click_api import MetaflowAPI
 
     api = MetaflowAPI.from_cli(flow_file, start)
     command = api().run(alpha=5)
