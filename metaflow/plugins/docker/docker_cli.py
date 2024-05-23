@@ -54,5 +54,5 @@ def list():
 
     if current_cache:
         echo(
-            "In order to clear the cached images, you can use the commmand\n *docker cache clean*"
+            "In order to clear the cached images, you can use the command\n *docker cache clean*"
         )

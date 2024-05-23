@@ -69,11 +69,8 @@ def bake_image(python=None, packages={}, datastore_type=None, base_image=None):
         deps = get_pinned_conda_libs(python, datastore_type)
     deps.update(packages)
 
-    # Python version. Fallback to current local environment version if none specified.
-    python_version = python or python_version()
-
     # Try getting image tag from cache
-    spec_hash = generate_spec_hash(base_image, python_version, deps)
+    spec_hash = generate_spec_hash(base_image, python, deps)
     image = get_cache_image_tag(spec_hash)
     if image:
         return image
@@ -88,7 +85,7 @@ def bake_image(python=None, packages={}, datastore_type=None, base_image=None):
     data = {
         "condaMatchspecs": package_matchspecs,
         "imageKind": DOCKER_IMAGE_BAKERY_TYPE,
-        "pythonVersion": python_version,
+        "pythonVersion": python,
     }
     if base_image is not None:
         data.update({"baseImage": {"imageReference": base_image}})
