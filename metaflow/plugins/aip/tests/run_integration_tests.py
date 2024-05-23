@@ -168,17 +168,27 @@ def test_error_and_opsgenie_alert(pytestconfig) -> None:
     close_alert_endpoint: str = (
         f"https://api.opsgenie.com/v2/alerts/{alert_alias}/close?identifierType=alias"
     )
-    close_alert_response: Response = requests.post(
-        close_alert_endpoint,
-        data=json.dumps(close_alert_data),
-        headers=opsgenie_auth_headers,
-    )
-    # Sometimes the response status code is 202, signaling
-    # the request has been accepted and is being queued for processing.
-    assert (
-        close_alert_response.status_code == 200
-        or close_alert_response.status_code == 202
-    )
+
+    def is_valid_status_code(close_alert_response):
+        # Sometimes the response status code is 202, signaling
+        # the request has been accepted and is being queued for processing.
+        return (
+            close_alert_response.status_code == 200
+            or close_alert_response.status_code == 202
+        )
+
+    # retry 3 times with a sleep of 3s until the alert is closed
+    for _ in range(3):
+        close_alert_response: Response = requests.post(
+            close_alert_endpoint,
+            data=json.dumps(close_alert_data),
+            headers=opsgenie_auth_headers,
+        )
+        if is_valid_status_code(close_alert_response):
+            break
+        time.sleep(3)
+
+    assert is_valid_status_code(close_alert_response)
 
     # Test logging of raise_error_flow
     check_error_handling_flow_cmd: str = (
