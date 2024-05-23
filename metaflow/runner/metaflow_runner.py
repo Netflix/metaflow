@@ -87,6 +87,15 @@ class ExecutingRun(object):
         return self
 
     @property
+    def status(self) -> str:
+        if self.command_obj.process.returncode is None:
+            return "running"
+        elif self.command_obj.process.returncode != 0:
+            return "failed"
+        else:
+            return "successful"
+
+    @property
     def stdout(self) -> str:
         """
         Returns the current stdout of the run. If the run is finished, this will
