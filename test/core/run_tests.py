@@ -14,7 +14,7 @@ from metaflow._vendor import click
 skip_api_executor = False
 
 try:
-    from metaflow.api.click_api import (
+    from metaflow.runner.click_api import (
         MetaflowAPI,
         extract_all_params,
         click_to_python_types,
