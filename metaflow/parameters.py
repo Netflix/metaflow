@@ -388,6 +388,7 @@ def add_custom_parameters(deploy_mode=False):
     # deploy_mode determines whether deploy-time functions should or should
     # not be evaluated for this command
     def wrapper(cmd):
+        cmd.has_flow_params = True
         # Iterate over parameters in reverse order so cmd.params lists options
         # in the order they are defined in the FlowSpec subclass
         for arg in parameters[::-1]:

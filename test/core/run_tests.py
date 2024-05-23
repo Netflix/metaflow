@@ -11,6 +11,18 @@ from multiprocessing import Pool
 
 from metaflow._vendor import click
 
+skip_api_executor = False
+
+try:
+    from metaflow.runner.click_api import (
+        MetaflowAPI,
+        extract_all_params,
+        click_to_python_types,
+    )
+    from metaflow.cli import start, run
+except RuntimeError:
+    skip_api_executor = True
+
 from metaflow_test import MetaflowTest
 from metaflow_test.formatter import FlowFormatter
 
@@ -168,7 +180,6 @@ def run_test(formatter, context, debug, checks, env_base):
 
 
 def run_all(ok_tests, ok_contexts, ok_graphs, debug, num_parallel, inherit_env):
-
     tests = [
         test
         for test in sorted(iter_tests(), key=lambda x: x.PRIORITY)
@@ -207,7 +218,6 @@ def run_test_cases(args):
 
         formatter = FlowFormatter(graph, test)
         if formatter.valid:
-
             for context in contexts["contexts"]:
                 if context.get("disable_parallel", False) and any(
                     "num_parallel" in node for node in graph["graph"].values()
@@ -290,7 +300,6 @@ def cli(
     debug=False,
     inherit_env=False,
 ):
-
     parse = lambda x: {t.lower() for t in x.split(",") if t}
 
     failed = run_all(
