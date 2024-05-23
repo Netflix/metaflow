@@ -5,12 +5,10 @@ from metaflow import Runner
 
 try:
     from IPython import get_ipython
-except ModuleNotFoundError:
-    raise RuntimeError(
-        "'nbrun' requires an interactive python environment (such as Jupyter)"
-    )
 
-ipython = get_ipython()
+    ipython = get_ipython()
+except ModuleNotFoundError:
+    print("'nbrun' requires an interactive python environment (such as Jupyter)")
 
 
 def get_current_cell():
