@@ -193,7 +193,7 @@ class Runner(object):
         # This ability is made possible by the statement:
         # 'from .metaflow_runner import Runner' in '__init__.py'
         from metaflow.cli import start
-        from metaflow.api.click_api import MetaflowAPI
+        from metaflow.runner.click_api import MetaflowAPI
 
         self.flow_file = flow_file
         self.env_vars = os.environ.copy().update(env or {})
