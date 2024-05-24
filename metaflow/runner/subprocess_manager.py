@@ -5,6 +5,7 @@ import signal
 import shutil
 import asyncio
 import tempfile
+import threading
 import subprocess
 from typing import List, Dict, Optional, Callable, Iterator, Tuple
 
@@ -42,7 +43,44 @@ class SubprocessManager(object):
     async def __aexit__(self, exc_type, exc_value, traceback):
         self.cleanup()
 
-    async def run_command(
+    def run_command(
+        self,
+        command: List[str],
+        env: Optional[Dict[str, str]] = None,
+        cwd: Optional[str] = None,
+        show_output: bool = False,
+    ) -> int:
+        """
+        Run a command synchronously and return its process ID.
+
+        Parameters
+        ----------
+        command : List[str]
+            The command to run in List form.
+        env : Optional[Dict[str, str]], default None
+            Environment variables to set for the subprocess; if not specified,
+            the current enviornment variables are used.
+        cwd : Optional[str], default None
+            The directory to run the subprocess in; if not specified, the current
+            directory is used.
+        show_output : bool, default False
+            Suppress the 'stdout' and 'stderr' to the console by default.
+            They can be accessed later by reading the files present in the
+            CommandManager object:
+                - command_obj.log_files["stdout"]
+                - command_obj.log_files["stderr"]
+        Returns
+        -------
+        int
+            The process ID of the subprocess.
+        """
+
+        command_obj = CommandManager(command, env, cwd)
+        pid = command_obj.run(show_output=show_output)
+        self.commands[pid] = command_obj
+        return pid
+
+    async def async_run_command(
         self,
         command: List[str],
         env: Optional[Dict[str, str]] = None,
@@ -69,7 +107,7 @@ class SubprocessManager(object):
         """
 
         command_obj = CommandManager(command, env, cwd)
-        pid = await command_obj.run()
+        pid = await command_obj.async_run()
         self.commands[pid] = command_obj
         return pid
 
@@ -80,7 +118,7 @@ class SubprocessManager(object):
         Parameters
         ----------
         pid : int
-            The process ID of the subprocess (returned by run_command).
+            The process ID of the subprocess (returned by run_command or async_run_command).
 
         Returns
         -------
@@ -144,7 +182,7 @@ class CommandManager(object):
         Wait for the subprocess to finish, optionally with a timeout
         and optionally streaming its output.
 
-        You can only call `wait` if `run` has already been called.
+        You can only call `wait` if `async_run` has already been called.
 
         Parameters
         ----------
@@ -178,7 +216,79 @@ class CommandManager(object):
                     "within %s seconds." % (self.process.pid, command_string, timeout)
                 )
 
-    async def run(self):
+    def run(self, show_output: bool = False):
+        """
+        Run the subprocess synchronously. This can only be called once.
+
+        This also waits on the process implicitly.
+
+        Parameters
+        ----------
+        show_output : bool, default False
+            Suppress the 'stdout' and 'stderr' to the console by default.
+            They can be accessed later by reading the files present in:
+                - self.log_files["stdout"]
+                - self.log_files["stderr"]
+        """
+
+        if not self.run_called:
+            self.temp_dir = tempfile.mkdtemp()
+            stdout_logfile = os.path.join(self.temp_dir, "stdout.log")
+            stderr_logfile = os.path.join(self.temp_dir, "stderr.log")
+
+            def stream_to_stdout_and_file(pipe, log_file):
+                with open(log_file, "w") as file:
+                    for line in iter(pipe.readline, ""):
+                        if show_output:
+                            sys.stdout.write(line)
+                        file.write(line)
+                pipe.close()
+
+            try:
+                self.process = subprocess.Popen(
+                    self.command,
+                    cwd=self.cwd,
+                    env=self.env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    bufsize=1,
+                    universal_newlines=True,
+                )
+
+                self.log_files["stdout"] = stdout_logfile
+                self.log_files["stderr"] = stderr_logfile
+
+                self.run_called = True
+
+                stdout_thread = threading.Thread(
+                    target=stream_to_stdout_and_file,
+                    args=(self.process.stdout, stdout_logfile),
+                )
+                stderr_thread = threading.Thread(
+                    target=stream_to_stdout_and_file,
+                    args=(self.process.stderr, stderr_logfile),
+                )
+
+                stdout_thread.start()
+                stderr_thread.start()
+
+                self.process.wait()
+
+                stdout_thread.join()
+                stderr_thread.join()
+
+                return self.process.pid
+            except Exception as e:
+                print("Error starting subprocess: %s" % e)
+                self.cleanup()
+        else:
+            command_string = " ".join(self.command)
+            print(
+                "Command '%s' has already been called. Please create another "
+                "CommandManager object." % command_string
+            )
+
+    async def async_run(self):
         """
         Run the subprocess asynchronously. This can only be called once.
 
@@ -357,7 +467,7 @@ async def main():
 
     async with SubprocessManager() as spm:
         # returns immediately
-        pid = await spm.run_command(cmd)
+        pid = await spm.async_run_command(cmd)
         command_obj = spm.get(pid)
 
         print(pid)

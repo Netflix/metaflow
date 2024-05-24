@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-import asyncio
 import tempfile
 from typing import Dict, Iterator, Optional, Tuple
 from metaflow import Run
@@ -85,6 +84,20 @@ class ExecutingRun(object):
         """
         await self.command_obj.wait(timeout, stream)
         return self
+
+    @property
+    def returncode(self) -> Optional[int]:
+        """
+        Gets the returncode of the underlying subprocess that is responsible
+        for executing the run.
+
+        Returns
+        -------
+        Optional[int]
+            The returncode for the subprocess that executes the run.
+            (None if process is still running)
+        """
+        return self.command_obj.process.returncode
 
     @property
     def status(self) -> str:
@@ -214,12 +227,13 @@ class Runner(object):
         from metaflow.runner.click_api import MetaflowAPI
 
         self.flow_file = flow_file
-        self.env_vars = os.environ.copy().update(env or {})
+        self.env_vars = os.environ.copy()
+        self.env_vars.update(env or {})
         if profile:
             self.env_vars["METAFLOW_PROFILE"] = profile
         self.spm = SubprocessManager()
+        self.top_level_kwargs = kwargs
         self.api = MetaflowAPI.from_cli(self.flow_file, start)
-        self.runner = self.api(**kwargs).run
 
     def __enter__(self) -> "Runner":
         return self
@@ -227,19 +241,35 @@ class Runner(object):
     async def __aenter__(self) -> "Runner":
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.spm.cleanup()
+    def __get_executing_run(self, tfp_pathspec, command_obj):
+        try:
+            pathspec = read_from_file_when_ready(tfp_pathspec.name, timeout=10)
+            run_object = Run(pathspec, _namespace_check=False)
+            return ExecutingRun(self, command_obj, run_object)
+        except TimeoutError as e:
+            stdout_log = open(command_obj.log_files["stdout"]).read()
+            stderr_log = open(command_obj.log_files["stderr"]).read()
+            command = " ".join(command_obj.command)
+            error_message = "Error executing: '%s':\n" % command
+            if stdout_log.strip():
+                error_message += "\nStdout:\n%s\n" % stdout_log
+            if stderr_log.strip():
+                error_message += "\nStderr:\n%s\n" % stderr_log
+            raise RuntimeError(error_message) from e
 
-    async def __aexit__(self, exc_type, exc_value, traceback):
-        self.spm.cleanup()
-
-    def run(self, **kwargs) -> ExecutingRun:
+    def run(self, show_output: bool = False, **kwargs) -> ExecutingRun:
         """
         Synchronous execution of the run. This method will *block* until
         the run has completed execution.
 
         Parameters
         ----------
+        show_output : bool, default False
+            Suppress the 'stdout' and 'stderr' to the console by default.
+            They can be accessed later by reading the files present in the
+            ExecutingRun object (referenced as 'result' below) returned:
+                - result.stdout
+                - result.stderr
         **kwargs : Any
             Additional arguments that you would pass to `python ./myflow.py` after
             the `run` command.
@@ -249,15 +279,53 @@ class Runner(object):
         ExecutingRun
             ExecutingRun object for this run.
         """
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tfp_pathspec = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
+            command = self.api(**self.top_level_kwargs).run(
+                pathspec_file=tfp_pathspec.name, **kwargs
+            )
 
-        try:
-            result = loop.run_until_complete(self.async_run(**kwargs))
-            result = loop.run_until_complete(result.wait())
-            return result
-        finally:
-            loop.close()
+            pid = self.spm.run_command(
+                [sys.executable, *command], env=self.env_vars, show_output=show_output
+            )
+            command_obj = self.spm.get(pid)
+
+            return self.__get_executing_run(tfp_pathspec, command_obj)
+
+    def resume(self, show_output: bool = False, **kwargs):
+        """
+        Synchronous resume execution of the run.
+        This method will *block* until the resumed run has completed execution.
+
+        Parameters
+        ----------
+        show_output : bool, default False
+            Suppress the 'stdout' and 'stderr' to the console by default.
+            They can be accessed later by reading the files present in the
+            ExecutingRun object (referenced as 'result' below) returned:
+                - result.stdout
+                - result.stderr
+        **kwargs : Any
+            Additional arguments that you would pass to `python ./myflow.py` after
+            the `resume` command.
+
+        Returns
+        -------
+        ExecutingRun
+            ExecutingRun object for this resumed run.
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tfp_pathspec = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
+            command = self.api(**self.top_level_kwargs).resume(
+                pathspec_file=tfp_pathspec.name, **kwargs
+            )
+
+            pid = self.spm.run_command(
+                [sys.executable, *command], env=self.env_vars, show_output=show_output
+            )
+            command_obj = self.spm.get(pid)
+
+            return self.__get_executing_run(tfp_pathspec, command_obj)
 
     async def async_run(self, **kwargs) -> ExecutingRun:
         """
@@ -277,33 +345,48 @@ class Runner(object):
         """
         with tempfile.TemporaryDirectory() as temp_dir:
             tfp_pathspec = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
+            command = self.api(**self.top_level_kwargs).run(
+                pathspec_file=tfp_pathspec.name, **kwargs
+            )
 
-            command = self.runner(pathspec_file=tfp_pathspec.name, **kwargs)
-
-            pid = await self.spm.run_command(
+            pid = await self.spm.async_run_command(
                 [sys.executable, *command], env=self.env_vars
             )
             command_obj = self.spm.get(pid)
 
-            try:
-                pathspec = read_from_file_when_ready(tfp_pathspec.name, timeout=5)
-                run_object = Run(pathspec, _namespace_check=False)
-                return ExecutingRun(self, command_obj, run_object)
-            except TimeoutError as e:
-                stdout_log = open(
-                    command_obj.log_files["stdout"], encoding="utf-8"
-                ).read()
-                stderr_log = open(
-                    command_obj.log_files["stderr"], encoding="utf-8"
-                ).read()
-                command = " ".join(command_obj.command)
+            return self.__get_executing_run(tfp_pathspec, command_obj)
 
-                error_message = "Error executing: '%s':\n" % command
+    async def async_resume(self, **kwargs):
+        """
+        Asynchronous resume execution of the run.
+        This method will return as soon as the resume has launched.
 
-                if stdout_log.strip():
-                    error_message += "\nStdout:\n%s\n" % stdout_log
+        Parameters
+        ----------
+        **kwargs : Any
+            Additional arguments that you would pass to `python ./myflow.py` after
+            the `resume` command.
 
-                if stderr_log.strip():
-                    error_message += "\nStderr:\n%s\n" % stderr_log
+        Returns
+        -------
+        ExecutingRun
+            ExecutingRun object for this resumed run.
+        """
+        with tempfile.TemporaryDirectory() as temp_dir:
+            tfp_pathspec = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
+            command = self.api(**self.top_level_kwargs).resume(
+                pathspec_file=tfp_pathspec.name, **kwargs
+            )
 
-                raise RuntimeError(error_message) from e
+            pid = await self.spm.async_run_command(
+                [sys.executable, *command], env=self.env_vars
+            )
+            command_obj = self.spm.get(pid)
+
+            return self.__get_executing_run(tfp_pathspec, command_obj)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.spm.cleanup()
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        self.spm.cleanup()
