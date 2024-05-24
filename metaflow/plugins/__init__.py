@@ -29,6 +29,7 @@ STEP_DECORATORS_DESC = [
     ("resources", ".resources_decorator.ResourcesDecorator"),
     ("batch", ".aws.batch.batch_decorator.BatchDecorator"),
     ("kubernetes", ".kubernetes.kubernetes_decorator.KubernetesDecorator"),
+    ("local", ".local_decorator.LocalDecorator"),
     (
         "argo_workflows_internal",
         ".argo.argo_workflows_decorator.ArgoWorkflowsInternalDecorator",
