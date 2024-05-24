@@ -977,8 +977,6 @@ def start(
         deco_options,
     )
 
-    print("DECOSPECS are %s" % str(decospecs))
-    exit(0)
     if decospecs:
         decorators._attach_decorators(ctx.obj.flow, decospecs)
 

@@ -50,11 +50,9 @@ class InternalTestUnboundedForeachDecorator(StepDecorator):
     name = "unbounded_test_foreach_internal"
     results_dict = {}
 
-    def __init__(
-        self, attributes=None, statically_defined=False, decorator_source=None
-    ):
+    def __init__(self, attributes=None, statically_defined=False):
         super(InternalTestUnboundedForeachDecorator, self).__init__(
-            attributes, statically_defined, decorator_source
+            attributes, statically_defined
         )
 
     def step_init(
