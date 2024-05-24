@@ -86,6 +86,20 @@ class ExecutingRun(object):
         return self
 
     @property
+    def returncode(self) -> Optional[int]:
+        """
+        Gets the returncode of the underlying subprocess that is responsible
+        for executing the run.
+
+        Returns
+        -------
+        Optional[int]
+            The returncode for the subprocess that executes the run.
+            (None if process is still running)
+        """
+        return self.command_obj.process.returncode
+
+    @property
     def status(self) -> str:
         """
         Returns the status of the underlying subprocess that is responsible
@@ -229,7 +243,7 @@ class Runner(object):
 
     def __get_executing_run(self, tfp_pathspec, command_obj):
         try:
-            pathspec = read_from_file_when_ready(tfp_pathspec.name, timeout=5)
+            pathspec = read_from_file_when_ready(tfp_pathspec.name, timeout=10)
             run_object = Run(pathspec, _namespace_check=False)
             return ExecutingRun(self, command_obj, run_object)
         except TimeoutError as e:

@@ -1,6 +1,8 @@
+import os
 import ast
 import shutil
 import tempfile
+from typing import Optional, Dict
 from metaflow import Runner
 
 try:
@@ -42,19 +44,39 @@ class NBRunner(object):
     A class to run Metaflow flows from Jupyter notebook cells.
     """
 
-    def __init__(self, flow):
+    def __init__(
+        self,
+        flow,
+        profile: Optional[str] = None,
+        env: Optional[Dict] = None,
+        base_dir: Optional[str] = None,
+        **kwargs
+    ):
         self.cell = get_current_cell()
         self.flow = flow
-        self.temp_dir = tempfile.mkdtemp()
+
+        self.env_vars = os.environ.copy()
+        self.env_vars.update(env or {})
+        self.env_vars.update({"JPY_PARENT_PID": ""})
+        if profile:
+            self.env_vars["METAFLOW_PROFILE"] = profile
+
+        self.base_dir = base_dir
 
         if not self.cell:
-            raise ValueError("Couldn't find the cell which contains 'FlowSpec'")
+            raise ValueError("Couldn't find a cell.")
+
+        if self.base_dir is None:
+            # for some reason, using this is much faster
+            self.tempdir = tempfile.mkdtemp()
+        else:
+            self.tempdir = self.base_dir
 
         self.tmp_flow_file = tempfile.NamedTemporaryFile(
             prefix=self.flow.__name__,
             suffix=".py",
             mode="w",
-            dir=self.temp_dir,
+            dir=self.tempdir,
             delete=False,
         )
 
@@ -62,13 +84,27 @@ class NBRunner(object):
         self.tmp_flow_file.flush()
         self.tmp_flow_file.close()
 
-        self.runner = Runner(self.tmp_flow_file.name, env={"JPY_PARENT_PID": ""})
+        self.runner = Runner(
+            flow_file=self.tmp_flow_file.name,
+            profile=profile,
+            env=self.env_vars,
+            **kwargs
+        )
+
+    def nbrun(self, **kwargs):
+        result = self.runner.run(show_output=True, **kwargs)
+        self.runner.spm.cleanup()
+        return result.run
+
+    def nbresume(self, **kwargs):
+        result = self.runner.resume(show_output=True, **kwargs)
+        self.runner.spm.cleanup()
+        return result.run
 
     def cleanup(self):
-        """
-        Cleans up the temporary directory used to store the flow script.
-        """
-        shutil.rmtree(self.temp_dir, ignore_errors=True)
+        """Cleans up the temporary directory used to store the flow script"""
+        if self.base_dir is None:
+            shutil.rmtree(self.tempdir, ignore_errors=True)
 
     def run(self, **kwargs):
         """
