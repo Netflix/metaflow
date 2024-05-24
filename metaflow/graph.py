@@ -72,6 +72,7 @@ class DAGNode(object):
         return "%s.%s" % (expr.value.id, expr.attr)
 
     def _parse(self, func_ast):
+
         self.num_args = len(func_ast.args.args)
         tail = func_ast.body[-1]
 
@@ -261,6 +262,7 @@ class FlowGraph(object):
         )
 
     def output_steps(self):
+
         steps_info = {}
         graph_structure = []
 
@@ -286,7 +288,6 @@ class FlowGraph(object):
                         "name": deco.name,
                         "attributes": deco.attributes,
                         "statically_defined": deco.statically_defined,
-                        "decorator_source": deco.decorator_source,
                     }
                     for deco in node.decorators
                     if not deco.name.startswith("_")
