@@ -3,7 +3,7 @@ import sys
 import time
 import tempfile
 from typing import Dict, Iterator, Optional, Tuple
-from metaflow import Run
+from metaflow import Run, metadata
 from .subprocess_manager import SubprocessManager, CommandManager
 
 
@@ -241,9 +241,12 @@ class Runner(object):
     async def __aenter__(self) -> "Runner":
         return self
 
-    def __get_executing_run(self, tfp_pathspec, command_obj):
+    def __get_executing_run(self, tfp_metadata_pathspec, command_obj):
         try:
-            pathspec = read_from_file_when_ready(tfp_pathspec.name, timeout=10)
+            content = read_from_file_when_ready(tfp_metadata_pathspec.name, timeout=10)
+            metadata_for_flow, pathspec = content.split(":", maxsplit=1)
+            # set the current metadata from the metadata_pathspec file
+            metadata(metadata_for_flow)
             run_object = Run(pathspec, _namespace_check=False)
             return ExecutingRun(self, command_obj, run_object)
         except TimeoutError as e:
@@ -280,9 +283,11 @@ class Runner(object):
             ExecutingRun object for this run.
         """
         with tempfile.TemporaryDirectory() as temp_dir:
-            tfp_pathspec = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
+            tfp_metadata_pathspec = tempfile.NamedTemporaryFile(
+                dir=temp_dir, delete=False
+            )
             command = self.api(**self.top_level_kwargs).run(
-                pathspec_file=tfp_pathspec.name, **kwargs
+                metadata_pathspec_file=tfp_metadata_pathspec.name, **kwargs
             )
 
             pid = self.spm.run_command(
@@ -290,7 +295,7 @@ class Runner(object):
             )
             command_obj = self.spm.get(pid)
 
-            return self.__get_executing_run(tfp_pathspec, command_obj)
+            return self.__get_executing_run(tfp_metadata_pathspec, command_obj)
 
     def resume(self, show_output: bool = False, **kwargs):
         """
@@ -315,9 +320,11 @@ class Runner(object):
             ExecutingRun object for this resumed run.
         """
         with tempfile.TemporaryDirectory() as temp_dir:
-            tfp_pathspec = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
+            tfp_metadata_pathspec = tempfile.NamedTemporaryFile(
+                dir=temp_dir, delete=False
+            )
             command = self.api(**self.top_level_kwargs).resume(
-                pathspec_file=tfp_pathspec.name, **kwargs
+                metadata_pathspec_file=tfp_metadata_pathspec.name, **kwargs
             )
 
             pid = self.spm.run_command(
@@ -325,7 +332,7 @@ class Runner(object):
             )
             command_obj = self.spm.get(pid)
 
-            return self.__get_executing_run(tfp_pathspec, command_obj)
+            return self.__get_executing_run(tfp_metadata_pathspec, command_obj)
 
     async def async_run(self, **kwargs) -> ExecutingRun:
         """
@@ -344,17 +351,20 @@ class Runner(object):
             ExecutingRun object for this run.
         """
         with tempfile.TemporaryDirectory() as temp_dir:
-            tfp_pathspec = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
+            tfp_metadata_pathspec = tempfile.NamedTemporaryFile(
+                dir=temp_dir, delete=False
+            )
             command = self.api(**self.top_level_kwargs).run(
-                pathspec_file=tfp_pathspec.name, **kwargs
+                metadata_pathspec_file=tfp_metadata_pathspec.name, **kwargs
             )
 
             pid = await self.spm.async_run_command(
-                [sys.executable, *command], env=self.env_vars
+                [sys.executable, *command],
+                env=self.env_vars,
             )
             command_obj = self.spm.get(pid)
 
-            return self.__get_executing_run(tfp_pathspec, command_obj)
+            return self.__get_executing_run(tfp_metadata_pathspec, command_obj)
 
     async def async_resume(self, **kwargs):
         """
@@ -373,17 +383,20 @@ class Runner(object):
             ExecutingRun object for this resumed run.
         """
         with tempfile.TemporaryDirectory() as temp_dir:
-            tfp_pathspec = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
+            tfp_metadata_pathspec = tempfile.NamedTemporaryFile(
+                dir=temp_dir, delete=False
+            )
             command = self.api(**self.top_level_kwargs).resume(
-                pathspec_file=tfp_pathspec.name, **kwargs
+                metadata_pathspec_file=tfp_metadata_pathspec.name, **kwargs
             )
 
             pid = await self.spm.async_run_command(
-                [sys.executable, *command], env=self.env_vars
+                [sys.executable, *command],
+                env=self.env_vars,
             )
             command_obj = self.spm.get(pid)
 
-            return self.__get_executing_run(tfp_pathspec, command_obj)
+            return self.__get_executing_run(tfp_metadata_pathspec, command_obj)
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.spm.cleanup()
