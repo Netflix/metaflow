@@ -247,6 +247,7 @@ class Runner(object):
     async def __aenter__(self) -> "Runner":
         return self
 
+
     def __get_executing_run(self, tfp_runner_attribute, command_obj):
         # When two 'Runner' executions are done sequentially i.e. one after the other
         # the 2nd run kinda uses the 1st run's previously set metadata and
@@ -262,8 +263,6 @@ class Runner(object):
             content = read_from_file_when_ready(tfp_runner_attribute.name, timeout=10)
             metadata_for_flow, pathspec = content.split(":", maxsplit=1)
             metadata(metadata_for_flow)
-
-            # Finally, create the Run object.
             run_object = Run(pathspec, _namespace_check=False)
             return ExecutingRun(self, command_obj, run_object)
         except TimeoutError as e:
