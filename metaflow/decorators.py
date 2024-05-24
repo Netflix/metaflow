@@ -49,19 +49,15 @@ class BadFlowDecoratorException(MetaflowException):
 class UnknownStepDecoratorException(MetaflowException):
     headline = "Unknown step decorator"
 
-    def __init__(self, deconame, source=None):
+    def __init__(self, deconame):
         from .plugins import STEP_DECORATORS
 
         decos = ", ".join(
             t.name for t in STEP_DECORATORS if not t.name.endswith("_internal")
         )
         msg = (
-            "Unknown step decorator *{deconame}*{source}. The following decorators are "
-            "supported: *{decos}*".format(
-                deconame=deconame,
-                decos=decos,
-                source=" (requested by %s" % source if source else "",
-            )
+            "Unknown step decorator *{deconame}*. The following decorators are "
+            "supported: *{decos}*".format(deconame=deconame, decos=decos)
         )
         super(UnknownStepDecoratorException, self).__init__(msg)
 
@@ -77,19 +73,6 @@ class DuplicateStepDecoratorException(MetaflowException):
             )
         )
         super(DuplicateStepDecoratorException, self).__init__(msg)
-
-
-class DuplicateDefaultStepDecoratorException(MetaflowException):
-    headline = "Duplicate default decorators"
-
-    def __init__(self, deco, src1, src2):
-        msg = (
-            "Default decorator '{deco}' is specified in both '{src1}' and '{src2}'. "
-            "You can specify this decorator only once.".format(
-                deco=deco, src1=src1, src2=src2
-            )
-        )
-        super(DuplicateDefaultStepDecoratorException, self).__init__(msg)
 
 
 class UnknownFlowDecoratorException(MetaflowException):
@@ -127,17 +110,9 @@ class Decorator(object):
     # `allow_multiple` allows setting many decorators of the same type to a step/flow.
     allow_multiple = False
 
-    def __init__(
-        self, attributes=None, statically_defined=False, decorator_source=None
-    ):
+    def __init__(self, attributes=None, statically_defined=False):
         self.attributes = self.defaults.copy()
         self.statically_defined = statically_defined
-        if self.statically_defined:
-            self.decorator_source = "static"
-        elif decorator_source:
-            self.decorator_source = decorator_source
-        else:
-            self.decorator_source = "cli"
 
         if attributes:
             for k, v in attributes.items():
@@ -152,7 +127,6 @@ class Decorator(object):
             return cls()
 
         attrs = {}
-        deco_source = None
         # TODO: Do we really want to allow spaces in the names of attributes?!?
         for a in re.split(r""",(?=[\s\w]+=)""", deco_spec):
             name, val = a.split("=", 1)
@@ -168,15 +142,13 @@ class Decorator(object):
                         val_parsed = float(val.strip())
                     except ValueError:
                         val_parsed = val.strip()
-            if name == "__source":
-                deco_source = val_parsed
-            else:
-                attrs[name.strip()] = val_parsed
-        return cls(attributes=attrs, decorator_source=deco_source)
+
+            attrs[name.strip()] = val_parsed
+        return cls(attributes=attrs)
 
     def make_decorator_spec(self):
         attrs = {k: v for k, v in self.attributes.items() if v is not None}
-        if attrs or self.decorator_source not in ("cli", "static"):
+        if attrs:
             attr_list = []
             # We dump simple types directly as string to get around the nightmare quote
             # escaping but for more complex types (typically dictionaries or lists),
@@ -187,17 +159,13 @@ class Decorator(object):
                 else:
                     attr_list.append("%s=%s" % (k, json.dumps(v).replace('"', '\\"')))
 
-            # Encode the source of the decorator so we can properly send it through things
-            # like argo/airflow
-            if self.decorator_source:
-                attr_list.append("__source=%s" % self.decorator_source)
             attrstr = ",".join(attr_list)
             return "%s:%s" % (self.name, attrstr)
         else:
             return self.name
 
     def __str__(self):
-        mode = "decorated" if self.statically_defined else self.decorator_source
+        mode = "decorated" if self.statically_defined else "cli or configuration"
         attrs = " ".join("%s=%s" % x for x in self.attributes.items())
         if attrs:
             attrs = " " + attrs
@@ -495,7 +463,7 @@ def _get_all_step_decos():
     return _all_step_decos
 
 
-def _attach_decorators(flow, decospecs, default_decorators=None):
+def _attach_decorators(flow, decospecs):
     """
     Attach decorators to all steps during runtime. This has the same
     effect as if you defined the decorators statically in the source for
@@ -508,72 +476,8 @@ def _attach_decorators(flow, decospecs, default_decorators=None):
     # Note that each step gets its own instance of the decorator class,
     # so decorator can maintain step-specific state.
 
-    # First resolve the default_decorators -- this is a list of
-    # tuples of the form (decospec, source)
-
-    # - Special considerations regarding adding/removing decorators:
-    #   - If a decorator allows multiple instances, all instances are kept
-    #   - If not, an error is raised if there are multiple
-    #   - To remove a decorator (NOT CURRENTLY SUPPORTED):
-    #     - If it doesn't allow multiple instances "-<deco name>" is enough
-    #     - If it does allow multiple instances "-<deco name>:<deco str>" removes
-    #       the specific instance and "-<deco name>:*" removes all instances
-    extra_decospecs = []
-    if default_decorators:
-        decos = _get_all_step_decos()
-        extra_decos_per_name = {}
-        for deco, source in default_decorators:
-            is_remove = False
-            if deco[0] in ("+", "-"):
-                if deco[0] == "-":
-                    is_remove = True
-                splits = deco[1:].split(":", 1)
-            else:
-                splits = deco.split(":", 1)
-            deconame = splits[0]
-            decostr = splits[1] if len(splits) > 1 else ""
-            if deconame not in decos:
-                raise UnknownStepDecoratorException(deconame, source)
-            allow_multiple = decos[deconame].allow_multiple
-
-            if is_remove and deconame in extra_decos_per_name:
-                raise RuntimeError("Removing default decorators is not supported")
-                # Keep the code in case we want to re-add again
-                # if allow_multiple:
-                #     if decostr == "*":
-                #         # Removes all instances of this decorator
-                #         del extra_decos_per_name[deconame]
-                #     else:
-                #         # Just remove a specific instance
-                #         extra_decos_per_name[deconame] = [
-                #             x for x in extra_decos_per_name[deconame] if x[0] != decostr
-                #         ]
-                # else:
-                #     # No multiple allowed so there is only one here -- remove it.
-                #     del extra_decos_per_name[deconame]
-
-            elif not is_remove:
-                if deconame not in extra_decos_per_name:
-                    # If never added, safe to add.
-                    extra_decos_per_name[deconame] = [(decostr, source)]
-                elif allow_multiple:
-                    # If added and multiple allowed, all good
-                    extra_decos_per_name[deconame].append((decostr, source))
-                else:
-                    # Else: already added and not multiple allowed -- error
-                    raise DuplicateDefaultStepDecoratorException(
-                        deconame, extra_decos_per_name[deconame][1], source
-                    )
-        # Encode __source in the decospecs so that we can continue to parse as
-        # usual.
-        extra_decospecs = [
-            "%s:%s__source=%s" % (k, ("%s," % v[0]) if v[0] else "", v[1])
-            for k, all_vs in extra_decos_per_name.items()
-            for v in all_vs
-        ]
-    d = decospecs + extra_decospecs
     for step in flow:
-        _attach_decorators_to_step(step, d)
+        _attach_decorators_to_step(step, decospecs)
 
 
 def _attach_decorators_to_step(step, decospecs):

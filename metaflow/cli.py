@@ -1,4 +1,5 @@
 import inspect
+import os
 import sys
 import traceback
 from datetime import datetime
@@ -14,13 +15,13 @@ from .datastore import FlowDataStore, TaskDataStore, TaskDataStoreSet
 from .exception import CommandException, MetaflowException
 from .graph import FlowGraph
 from .metaflow_config import (
+    DECOSPECS,
     DEFAULT_DATASTORE,
     DEFAULT_ENVIRONMENT,
     DEFAULT_EVENT_LOGGER,
     DEFAULT_METADATA,
     DEFAULT_MONITOR,
-    DEFAULT_PACKAGE_SUFFIXES,
-    DEFAULT_STEP_DECORATORS,
+    DEFAULT_PACKAGE_SUFFIXES,   
 )
 from .metaflow_current import current
 from .metaflow_environment import MetaflowEnvironment
@@ -117,6 +118,26 @@ def logger(body="", system_msg=False, head="", bad=False, timestamp=True, nl=Tru
     if head:
         click.secho(head, fg=LOGGER_COLOR, nl=False)
     click.secho(body, bold=system_msg, fg=LOGGER_BAD_COLOR if bad else None, nl=nl)
+
+
+def use_conf_and_merge_cb(ctx, param, value):
+    # Callback to:
+    #  - read  the Click auto_envvar variable from both the
+    #    environment AND the configuration
+    #  - merge that value with the value passed in the command line (value)
+    #  - return the value as a tuple
+    # Note that this function gets called even if there is no option passed on the
+    # command line.
+    # NOTE: Assumes that ctx.auto_envvar_prefix is set to METAFLOW (same as in
+    # from_conf)
+
+    # Special case where DECOSPECS and value are the same. This happens
+    # when there is no --with option at the TL and DECOSPECS is read from
+    # the env var. In this case, click also passes it as value
+    splits = DECOSPECS.split()
+    if len(splits) == len(value) and all([a == b for (a, b) in zip(splits, value)]):
+        return value
+    return tuple(DECOSPECS.split() + list(value))
 
 
 @click.group()
@@ -837,6 +858,7 @@ def version(obj):
     multiple=True,
     help="Add a decorator to all steps. You can specify this option "
     "multiple times to attach multiple decorators in steps.",
+    callback=use_conf_and_merge_cb,
 )
 @click.option(
     "--pylint/--no-pylint",
@@ -955,8 +977,10 @@ def start(
         deco_options,
     )
 
-    if decospecs or DEFAULT_STEP_DECORATORS:
-        decorators._attach_decorators(ctx.obj.flow, decospecs, DEFAULT_STEP_DECORATORS)
+    print("DECOSPECS are %s" % str(decospecs))
+    exit(0)
+    if decospecs:
+        decorators._attach_decorators(ctx.obj.flow, decospecs)
 
     # initialize current and parameter context for deploy-time parameters
     current._set_env(flow=ctx.obj.flow, is_running=False)
