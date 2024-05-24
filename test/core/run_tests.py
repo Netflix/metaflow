@@ -21,7 +21,7 @@ try:
         click_to_python_types,
         extract_all_params,
     )
-except RuntimeError:
+except ImportError:
     skip_api_executor = True
 
 from metaflow_test import MetaflowTest
