@@ -7,6 +7,11 @@ from metaflow import Run, metadata
 from .subprocess_manager import SubprocessManager, CommandManager
 
 
+def clear_and_set_os_environ(env: Dict):
+    os.environ.clear()
+    os.environ.update(env)
+
+
 def read_from_file_when_ready(file_path: str, timeout: float = 5):
     start_time = time.time()
     with open(file_path, "r", encoding="utf-8") as file_pointer:
@@ -227,7 +232,8 @@ class Runner(object):
         from metaflow.runner.click_api import MetaflowAPI
 
         self.flow_file = flow_file
-        self.env_vars = os.environ.copy()
+        self.old_env = os.environ.copy()
+        self.env_vars = self.old_env.copy()
         self.env_vars.update(env or {})
         if profile:
             self.env_vars["METAFLOW_PROFILE"] = profile
@@ -243,6 +249,7 @@ class Runner(object):
 
     def __get_executing_run(self, tfp_metadata_pathspec, command_obj):
         try:
+            clear_and_set_os_environ(self.old_env)
             content = read_from_file_when_ready(tfp_metadata_pathspec.name, timeout=10)
             metadata_for_flow, pathspec = content.split(":", maxsplit=1)
             # set the current metadata from the metadata_pathspec file
