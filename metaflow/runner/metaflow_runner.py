@@ -247,7 +247,7 @@ class Runner(object):
     async def __aenter__(self) -> "Runner":
         return self
 
-    def __get_executing_run(self, tfp_metadata_pathspec, command_obj):
+    def __get_executing_run(self, tfp_runner_attribute, command_obj):
         # When two 'Runner' executions are done sequentially i.e. one after the other
         # the 2nd run kinda uses the 1st run's previously set metadata and
         # environment variables.
@@ -259,7 +259,7 @@ class Runner(object):
             clear_and_set_os_environ(self.old_env)
 
             # Set the correct metadata from the runner_attribute file corresponding to this run.
-            content = read_from_file_when_ready(tfp_metadata_pathspec.name, timeout=10)
+            content = read_from_file_when_ready(tfp_runner_attribute.name, timeout=10)
             metadata_for_flow, pathspec = content.split(":", maxsplit=1)
             metadata(metadata_for_flow)
 
