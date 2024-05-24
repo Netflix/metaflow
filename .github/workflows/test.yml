@@ -49,7 +49,7 @@ jobs:
         python3 -m pip install --upgrade pip setuptools
         python3 -m pip install tox numpy
 
-    - name: Execute Python tests with different executors
+    - name: Execute Python tests
       run: tox
 
   R:
