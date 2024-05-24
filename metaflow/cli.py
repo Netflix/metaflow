@@ -559,11 +559,11 @@ def common_run_options(func):
         help="Write the ID of this run to the file specified.",
     )
     @click.option(
-        "--metadata-pathspec-file",
+        "--runner-attribute-file",
         default=None,
         show_default=True,
         type=str,
-        help="Write the metadata and pathspec of this run to the file specified.",
+        help="Write the metadata and pathspec of this run to the file specified. Used internally for Metaflow's Runner API.",
     )
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -623,7 +623,7 @@ def resume(
     decospecs=None,
     run_id_file=None,
     resume_identifier=None,
-    metadata_pathspec_file=None,
+    runner_attribute_file=None,
 ):
     before_run(obj, tags, decospecs + obj.environment.decospecs())
 
@@ -684,7 +684,7 @@ def resume(
 
     runtime.persist_constants()
     write_file(
-        metadata_pathspec_file,
+        runner_attribute_file,
         "%s:%s" % (get_metadata(), "/".join((obj.flow.name, runtime.run_id))),
     )
     if clone_only:
@@ -717,7 +717,7 @@ def run(
     max_log_size=None,
     decospecs=None,
     run_id_file=None,
-    metadata_pathspec_file=None,
+    runner_attribute_file=None,
     user_namespace=None,
     **kwargs
 ):
@@ -747,7 +747,7 @@ def run(
     runtime.print_workflow_info()
     runtime.persist_constants()
     write_file(
-        metadata_pathspec_file,
+        runner_attribute_file,
         "%s:%s" % (get_metadata(), "/".join((obj.flow.name, runtime.run_id))),
     )
     runtime.execute()
