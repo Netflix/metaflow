@@ -1,8 +1,9 @@
-import os
 import ast
+import os
 import shutil
 import tempfile
-from typing import Optional, Dict
+from typing import Dict, Optional
+
 from metaflow import Runner
 
 try:
@@ -50,7 +51,7 @@ class NBRunner(object):
         profile: Optional[str] = None,
         env: Optional[Dict] = None,
         base_dir: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ):
         self.cell = get_current_cell()
         self.flow = flow
@@ -88,7 +89,7 @@ class NBRunner(object):
             flow_file=self.tmp_flow_file.name,
             profile=profile,
             env=self.env_vars,
-            **kwargs
+            **kwargs,
         )
 
     def nbrun(self, **kwargs):

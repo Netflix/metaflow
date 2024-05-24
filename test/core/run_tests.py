@@ -1,26 +1,26 @@
-import sys
-import os
-import json
-import uuid
 import glob
 import importlib
-import tempfile
+import json
+import os
 import shutil
 import subprocess
+import sys
+import tempfile
+import uuid
 from multiprocessing import Pool
 
-from metaflow.cli import start, run
 from metaflow._vendor import click
+from metaflow.cli import run, start
 
 skip_api_executor = False
 
 try:
+    from metaflow import Runner
     from metaflow.runner.click_api import (
         MetaflowAPI,
-        extract_all_params,
         click_to_python_types,
+        extract_all_params,
     )
-    from metaflow import Runner
 except RuntimeError:
     skip_api_executor = True
 

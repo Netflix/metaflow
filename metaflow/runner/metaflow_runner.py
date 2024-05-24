@@ -1,10 +1,12 @@
 import os
 import sys
-import time
 import tempfile
+import time
 from typing import Dict, Iterator, Optional, Tuple
+
 from metaflow import Run, metadata
-from .subprocess_manager import SubprocessManager, CommandManager
+
+from .subprocess_manager import CommandManager, SubprocessManager
 
 
 def clear_and_set_os_environ(env: Dict):
@@ -246,7 +248,6 @@ class Runner(object):
 
     async def __aenter__(self) -> "Runner":
         return self
-
 
     def __get_executing_run(self, tfp_runner_attribute, command_obj):
         # When two 'Runner' executions are done sequentially i.e. one after the other

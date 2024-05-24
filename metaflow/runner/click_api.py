@@ -7,38 +7,34 @@ if sys.version_info < (3, 7):
     """
     )
 
-import inspect
+import datetime
 import importlib
+import inspect
 import itertools
+import uuid
 from collections import OrderedDict
-import uuid, datetime
-from typing import (
-    Optional,
-    List,
-    OrderedDict as TOrderedDict,
-    Any,
-    Union,
-    Dict,
-    Callable,
-)
+from typing import Any, Callable, Dict, List, Optional
+from typing import OrderedDict as TOrderedDict
+from typing import Union
+
 from metaflow import FlowSpec, Parameter
-from metaflow.cli import start
 from metaflow._vendor import click
-from metaflow.parameters import JSONTypeClass
-from metaflow.includefile import FilePathClass
-from metaflow._vendor.typeguard import check_type, TypeCheckError
 from metaflow._vendor.click.types import (
-    StringParamType,
-    IntParamType,
-    FloatParamType,
     BoolParamType,
-    UUIDParameterType,
-    Path,
-    DateTime,
-    Tuple,
     Choice,
+    DateTime,
     File,
+    FloatParamType,
+    IntParamType,
+    Path,
+    StringParamType,
+    Tuple,
+    UUIDParameterType,
 )
+from metaflow._vendor.typeguard import TypeCheckError, check_type
+from metaflow.cli import start
+from metaflow.includefile import FilePathClass
+from metaflow.parameters import JSONTypeClass
 
 click_to_python_types = {
     StringParamType: str,
