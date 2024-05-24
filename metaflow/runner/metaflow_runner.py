@@ -248,12 +248,22 @@ class Runner(object):
         return self
 
     def __get_executing_run(self, tfp_metadata_pathspec, command_obj):
+        # When two 'Runner' executions are done sequentially i.e. one after the other
+        # the 2nd run kinda uses the 1st run's previously set metadata and
+        # environment variables.
+
+        # It is thus necessary to set them to correct values before we return
+        # the Run object.
         try:
+            # Set the environment variables to what they were before the run executed.
             clear_and_set_os_environ(self.old_env)
+
+            # Set the correct metadata from the runner_attribute file corresponding to this run.
             content = read_from_file_when_ready(tfp_metadata_pathspec.name, timeout=10)
             metadata_for_flow, pathspec = content.split(":", maxsplit=1)
-            # set the current metadata from the metadata_pathspec file
             metadata(metadata_for_flow)
+
+            # Finally, create the Run object.
             run_object = Run(pathspec, _namespace_check=False)
             return ExecutingRun(self, command_obj, run_object)
         except TimeoutError as e:
