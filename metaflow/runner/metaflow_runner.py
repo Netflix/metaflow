@@ -274,7 +274,7 @@ class Runner(object):
 
             # Set the correct metadata from the runner_attribute file corresponding to this run.
             content = read_from_file_when_ready(tfp_runner_attribute.name, timeout=10)
-            metadata_for_flow, pathspec = content.split(":", maxsplit=1)
+            metadata_for_flow, pathspec = content.rsplit(":", maxsplit=1)
             metadata(metadata_for_flow)
             run_object = Run(pathspec, _namespace_check=False)
             return ExecutingRun(self, command_obj, run_object)
