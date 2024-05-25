@@ -21,7 +21,7 @@ from .metaflow_config import (
     DEFAULT_EVENT_LOGGER,
     DEFAULT_METADATA,
     DEFAULT_MONITOR,
-    DEFAULT_PACKAGE_SUFFIXES,   
+    DEFAULT_PACKAGE_SUFFIXES,
 )
 from .metaflow_current import current
 from .metaflow_environment import MetaflowEnvironment
@@ -427,7 +427,8 @@ def step(
         raise CommandException("Function *%s* is not a step." % step_name)
     echo("Executing a step, *%s*" % step_name, fg="magenta", bold=False)
 
-    decorators._attach_decorators_to_step(func, decospecs)
+    if decospecs:
+        decorators._attach_decorators_to_step(func, decospecs)
 
     step_kwargs = ctx.params
     # Remove argument `step_name` from `step_kwargs`.
