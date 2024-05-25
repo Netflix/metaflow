@@ -60,9 +60,12 @@ def init_local_config():
 
 
 # Initialize defaults required to setup environment variables.
-METAFLOW_CONFIG = init_config()
+# (initialized lazily in from_conf since init_local_config requires
+# some configuration values
 
-METAFLOW_LOCAL_CONFIG = init_local_config()
+METAFLOW_CONFIG = None
+
+METAFLOW_LOCAL_CONFIG = None
 
 _all_configs = {}
 
@@ -94,6 +97,12 @@ def from_conf(name, default=None, validate_fn=None):
     validate_fn should accept (name, value).
     If the value validates, return None, else raise an MetaflowException.
     """
+    global METAFLOW_CONFIG, METAFLOW_LOCAL_CONFIG
+
+    if METAFLOW_CONFIG is None:
+        METAFLOW_CONFIG = init_config()
+        METAFLOW_LOCAL_CONFIG = init_local_config()
+
     is_default = True
     env_name = "METAFLOW_%s" % name
     value = os.environ.get(
