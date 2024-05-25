@@ -13,6 +13,8 @@ try:
 except ModuleNotFoundError:
     print("'nbrun' requires an interactive python environment (such as Jupyter)")
 
+DEFAULT_DIR = tempfile.gettempdir()
+
 
 def get_current_cell():
     if ipython:
@@ -48,13 +50,15 @@ class NBRunner(object):
     def __init__(
         self,
         flow,
+        show_output: bool = False,
         profile: Optional[str] = None,
         env: Optional[Dict] = None,
-        base_dir: Optional[str] = None,
+        base_dir: str = DEFAULT_DIR,
         **kwargs,
     ):
         self.cell = get_current_cell()
         self.flow = flow
+        self.show_output = show_output
 
         self.env_vars = os.environ.copy()
         self.env_vars.update(env or {})
@@ -67,17 +71,11 @@ class NBRunner(object):
         if not self.cell:
             raise ValueError("Couldn't find a cell.")
 
-        if self.base_dir is None:
-            # for some reason, using this is much faster
-            self.tempdir = tempfile.mkdtemp()
-        else:
-            self.tempdir = self.base_dir
-
         self.tmp_flow_file = tempfile.NamedTemporaryFile(
             prefix=self.flow.__name__,
             suffix=".py",
             mode="w",
-            dir=self.tempdir,
+            dir=self.base_dir,
             delete=False,
         )
 
@@ -87,25 +85,28 @@ class NBRunner(object):
 
         self.runner = Runner(
             flow_file=self.tmp_flow_file.name,
+            show_output=self.show_output,
             profile=profile,
             env=self.env_vars,
+            cwd=self.base_dir,
             **kwargs,
         )
 
     def nbrun(self, **kwargs):
-        result = self.runner.run(show_output=True, **kwargs)
+        self.old_val_show_output = self.show_output
+        self.runner.show_output = True
+        result = self.runner.run(**kwargs)
+        self.runner.show_output = self.old_val_show_output
         self.runner.spm.cleanup()
         return result.run
 
     def nbresume(self, **kwargs):
-        result = self.runner.resume(show_output=True, **kwargs)
+        self.old_val_show_output = self.show_output
+        self.runner.show_output = True
+        result = self.runner.resume(**kwargs)
+        self.runner.show_output = self.old_val_show_output
         self.runner.spm.cleanup()
         return result.run
-
-    def cleanup(self):
-        """Cleans up the temporary directory used to store the flow script"""
-        if self.base_dir is None:
-            shutil.rmtree(self.tempdir, ignore_errors=True)
 
     def run(self, **kwargs):
         """

@@ -188,8 +188,10 @@ class Runner(object):
     def __init__(
         self,
         flow_file: str,
+        show_output: bool = False,
         profile: Optional[str] = None,
         env: Optional[Dict] = None,
+        cwd: Optional[str] = None,
         **kwargs
     ):
         """
@@ -212,12 +214,18 @@ class Runner(object):
         ----------
         flow_file : str
             Path to the flow file to run
+        show_output : bool, default False
+            Suppress the 'stdout' and 'stderr' to the console by default,
+            Only applicable for synchronous 'run' and 'resume' functions.
         profile : Optional[str], default None
             Metaflow profile to use to run this run. If not specified, the default
             profile is used (or the one already set using `METAFLOW_PROFILE`)
         env : Optional[Dict], default None
             Additional environment variables to set for the Run. This overrides the
             environment set for this process.
+        cwd : Optional[str], default None
+            The directory to run the subprocess in; if not specified, the current
+            directory is used.
         **kwargs : Any
             Additional arguments that you would pass to `python ./myflow.py` before
             the `run` command.
@@ -234,11 +242,15 @@ class Runner(object):
         from metaflow.runner.click_api import MetaflowAPI
 
         self.flow_file = flow_file
+        self.show_output = show_output
+
         self.old_env = os.environ.copy()
         self.env_vars = self.old_env.copy()
         self.env_vars.update(env or {})
         if profile:
             self.env_vars["METAFLOW_PROFILE"] = profile
+
+        self.cwd = cwd
         self.spm = SubprocessManager()
         self.top_level_kwargs = kwargs
         self.api = MetaflowAPI.from_cli(self.flow_file, start)
@@ -262,7 +274,7 @@ class Runner(object):
 
             # Set the correct metadata from the runner_attribute file corresponding to this run.
             content = read_from_file_when_ready(tfp_runner_attribute.name, timeout=10)
-            metadata_for_flow, pathspec = content.split(":", maxsplit=1)
+            metadata_for_flow, pathspec = content.rsplit(":", maxsplit=1)
             metadata(metadata_for_flow)
             run_object = Run(pathspec, _namespace_check=False)
             return ExecutingRun(self, command_obj, run_object)
@@ -277,19 +289,13 @@ class Runner(object):
                 error_message += "\nStderr:\n%s\n" % stderr_log
             raise RuntimeError(error_message) from e
 
-    def run(self, show_output: bool = False, **kwargs) -> ExecutingRun:
+    def run(self, **kwargs) -> ExecutingRun:
         """
         Synchronous execution of the run. This method will *block* until
         the run has completed execution.
 
         Parameters
         ----------
-        show_output : bool, default False
-            Suppress the 'stdout' and 'stderr' to the console by default.
-            They can be accessed later by reading the files present in the
-            ExecutingRun object (referenced as 'result' below) returned:
-                - result.stdout
-                - result.stderr
         **kwargs : Any
             Additional arguments that you would pass to `python ./myflow.py` after
             the `run` command.
@@ -308,25 +314,22 @@ class Runner(object):
             )
 
             pid = self.spm.run_command(
-                [sys.executable, *command], env=self.env_vars, show_output=show_output
+                [sys.executable, *command],
+                env=self.env_vars,
+                cwd=self.cwd,
+                show_output=self.show_output,
             )
             command_obj = self.spm.get(pid)
 
             return self.__get_executing_run(tfp_runner_attribute, command_obj)
 
-    def resume(self, show_output: bool = False, **kwargs):
+    def resume(self, **kwargs):
         """
         Synchronous resume execution of the run.
         This method will *block* until the resumed run has completed execution.
 
         Parameters
         ----------
-        show_output : bool, default False
-            Suppress the 'stdout' and 'stderr' to the console by default.
-            They can be accessed later by reading the files present in the
-            ExecutingRun object (referenced as 'result' below) returned:
-                - result.stdout
-                - result.stderr
         **kwargs : Any
             Additional arguments that you would pass to `python ./myflow.py` after
             the `resume` command.
@@ -345,7 +348,10 @@ class Runner(object):
             )
 
             pid = self.spm.run_command(
-                [sys.executable, *command], env=self.env_vars, show_output=show_output
+                [sys.executable, *command],
+                env=self.env_vars,
+                cwd=self.cwd,
+                show_output=self.show_output,
             )
             command_obj = self.spm.get(pid)
 
@@ -378,6 +384,7 @@ class Runner(object):
             pid = await self.spm.async_run_command(
                 [sys.executable, *command],
                 env=self.env_vars,
+                cwd=self.cwd,
             )
             command_obj = self.spm.get(pid)
 
@@ -410,6 +417,7 @@ class Runner(object):
             pid = await self.spm.async_run_command(
                 [sys.executable, *command],
                 env=self.env_vars,
+                cwd=self.cwd,
             )
             command_obj = self.spm.get(pid)
 
