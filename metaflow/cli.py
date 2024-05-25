@@ -3,39 +3,16 @@ import sys
 import traceback
 from datetime import datetime
 from functools import wraps
-import metaflow.tracing as tracing
 
+import metaflow.tracing as tracing
 from metaflow._vendor import click
 
-from . import lint
-from . import plugins
-from . import parameters
-from . import decorators
-from . import metaflow_version
-from . import namespace
-from .metaflow_current import current
+from . import decorators, lint, metaflow_version, namespace, parameters, plugins
 from .cli_args import cli_args
-from .tagging_util import validate_tags
-from .util import (
-    resolve_identity,
-    decompress_list,
-    write_latest_run_id,
-    get_latest_run_id,
-)
-from .task import MetaflowTask
+from .client.core import get_metadata
+from .datastore import FlowDataStore, TaskDataStore, TaskDataStoreSet
 from .exception import CommandException, MetaflowException
 from .graph import FlowGraph
-from .datastore import FlowDataStore, TaskDataStoreSet, TaskDataStore
-
-from .runtime import NativeRuntime
-from .package import MetaflowPackage
-from .plugins import (
-    DATASTORES,
-    ENVIRONMENTS,
-    LOGGING_SIDECARS,
-    METADATA_PROVIDERS,
-    MONITOR_SIDECARS,
-)
 from .metaflow_config import (
     DEFAULT_DATASTORE,
     DEFAULT_ENVIRONMENT,
@@ -44,12 +21,29 @@ from .metaflow_config import (
     DEFAULT_MONITOR,
     DEFAULT_PACKAGE_SUFFIXES,
 )
+from .metaflow_current import current
 from .metaflow_environment import MetaflowEnvironment
+from .mflog import LOG_SOURCES, mflog
+from .package import MetaflowPackage
+from .plugins import (
+    DATASTORES,
+    ENVIRONMENTS,
+    LOGGING_SIDECARS,
+    METADATA_PROVIDERS,
+    MONITOR_SIDECARS,
+)
 from .pylint_wrapper import PyLint
-from .R import use_r, metaflow_r_version
-from .mflog import mflog, LOG_SOURCES
+from .R import metaflow_r_version, use_r
+from .runtime import NativeRuntime
+from .tagging_util import validate_tags
+from .task import MetaflowTask
 from .unbounded_foreach import UBF_CONTROL, UBF_TASK
-
+from .util import (
+    decompress_list,
+    get_latest_run_id,
+    resolve_identity,
+    write_latest_run_id,
+)
 
 ERASE_TO_EOL = "\033[K"
 HIGHLIGHT = "red"
@@ -558,11 +552,11 @@ def common_run_options(func):
         help="Write the ID of this run to the file specified.",
     )
     @click.option(
-        "--pathspec-file",
+        "--runner-attribute-file",
         default=None,
         show_default=True,
         type=str,
-        help="Write the pathspec of this run to the file specified.",
+        help="Write the metadata and pathspec of this run to the file specified. Used internally for Metaflow's Runner API.",
     )
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -622,7 +616,7 @@ def resume(
     decospecs=None,
     run_id_file=None,
     resume_identifier=None,
-    pathspec_file=None,
+    runner_attribute_file=None,
 ):
     before_run(obj, tags, decospecs + obj.environment.decospecs())
 
@@ -679,10 +673,13 @@ def resume(
         resume_identifier=resume_identifier,
     )
     write_file(run_id_file, runtime.run_id)
-    write_file(pathspec_file, "/".join((obj.flow.name, runtime.run_id)))
     runtime.print_workflow_info()
 
     runtime.persist_constants()
+    write_file(
+        runner_attribute_file,
+        "%s:%s" % (get_metadata(), "/".join((obj.flow.name, runtime.run_id))),
+    )
     if clone_only:
         runtime.clone_original_run()
     else:
@@ -713,7 +710,7 @@ def run(
     max_log_size=None,
     decospecs=None,
     run_id_file=None,
-    pathspec_file=None,
+    runner_attribute_file=None,
     user_namespace=None,
     **kwargs
 ):
@@ -738,11 +735,14 @@ def run(
     )
     write_latest_run_id(obj, runtime.run_id)
     write_file(run_id_file, runtime.run_id)
-    write_file(pathspec_file, "/".join((obj.flow.name, runtime.run_id)))
 
     obj.flow._set_constants(obj.graph, kwargs)
     runtime.print_workflow_info()
     runtime.persist_constants()
+    write_file(
+        runner_attribute_file,
+        "%s:%s" % (get_metadata(), "/".join((obj.flow.name, runtime.run_id))),
+    )
     runtime.execute()
 
 

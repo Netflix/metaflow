@@ -1,26 +1,27 @@
-import sys
-import os
-import json
-import uuid
 import glob
 import importlib
-import tempfile
+import json
+import os
 import shutil
 import subprocess
+import sys
+import tempfile
+import uuid
 from multiprocessing import Pool
 
 from metaflow._vendor import click
+from metaflow.cli import run, start
 
 skip_api_executor = False
 
 try:
+    from metaflow import Runner
     from metaflow.runner.click_api import (
         MetaflowAPI,
-        extract_all_params,
         click_to_python_types,
+        extract_all_params,
     )
-    from metaflow.cli import start, run
-except RuntimeError:
+except ImportError:
     skip_api_executor = True
 
 from metaflow_test import MetaflowTest
@@ -73,13 +74,67 @@ def log(msg, formatter=None, context=None, real_bad=False, real_good=False):
     click.echo("[pid %s] %s" % (pid, line))
 
 
-def run_test(formatter, context, debug, checks, env_base):
+def run_test(formatter, context, debug, checks, env_base, executor):
     def run_cmd(mode):
         cmd = [context["python"], "-B", "test_flow.py"]
         cmd.extend(context["top_options"])
         cmd.extend((mode, "--run-id-file", "run-id"))
         cmd.extend(context["run_options"])
         return cmd
+
+    def construct_arg_dict(params_opts, cli_options):
+        result_dict = {}
+        has_value = False
+        secondary_supplied = False
+
+        for arg in cli_options:
+            if "=" in arg:
+                given_opt, val = arg.split("=", 1)
+                has_value = True
+            else:
+                given_opt = arg
+
+            for key, each_param in params_opts.items():
+                py_type = click_to_python_types[type(each_param.type)]
+                if given_opt in each_param.opts:
+                    secondary_supplied = False
+                elif given_opt in each_param.secondary_opts:
+                    secondary_supplied = True
+                else:
+                    continue
+
+                if has_value:
+                    value = val
+                else:
+                    if secondary_supplied:
+                        value = False
+                    else:
+                        value = True
+
+                if each_param.multiple:
+                    if key not in result_dict:
+                        result_dict[key] = [py_type(value)]
+                    else:
+                        result_dict[key].append(py_type(value))
+                else:
+                    result_dict[key] = py_type(value)
+
+            has_value = False
+            secondary_supplied = False
+
+        return result_dict
+
+    def construct_arg_dicts_from_click_api():
+        _, _, param_opts, _, _ = extract_all_params(start)
+        top_level_options = context["top_options"]
+        top_level_dict = construct_arg_dict(param_opts, top_level_options)
+
+        _, _, param_opts, _, _ = extract_all_params(run)
+        run_level_options = context["run_options"]
+        run_level_dict = construct_arg_dict(param_opts, run_level_options)
+        run_level_dict["run_id_file"] = "run-id"
+
+        return top_level_dict, run_level_dict
 
     cwd = os.getcwd()
     tempdir = tempfile.mkdtemp("_metaflow_test")
@@ -135,13 +190,25 @@ def run_test(formatter, context, debug, checks, env_base):
                 return pre_ret, path
 
         # run flow
-        flow_ret = subprocess.call(run_cmd("run"), env=env)
+        if executor == "cli":
+            flow_ret = subprocess.call(run_cmd("run"), env=env)
+        elif executor == "api":
+            top_level_dict, run_level_dict = construct_arg_dicts_from_click_api()
+            runner = Runner("test_flow.py", env=env, **top_level_dict)
+            result = runner.run(show_output=True, **run_level_dict)
+            flow_ret = result.command_obj.process.returncode
+
         if flow_ret:
             if formatter.should_fail:
                 log("Flow failed as expected.")
             elif formatter.should_resume:
                 log("Resuming flow", formatter, context)
-                flow_ret = subprocess.call(run_cmd("resume"), env=env)
+                if executor == "cli":
+                    flow_ret = subprocess.call(run_cmd("resume"), env=env)
+                elif executor == "api":
+                    _, resume_level_dict = construct_arg_dicts_from_click_api()
+                    result = runner.resume(show_output=True, **resume_level_dict)
+                    flow_ret = result.command_obj.process.returncode
             else:
                 log("flow failed", formatter, context)
                 return flow_ret, path
@@ -235,23 +302,45 @@ def run_test_cases(args):
                 if enabled_tests and (test_name not in map(str, enabled_tests)):
                     continue
 
-                log("running", formatter, context)
-                ret, path = run_test(
-                    formatter,
-                    context,
-                    debug,
-                    contexts["checks"],
-                    base_env,
-                )
+                for executor in context["executors"]:
+                    if executor == "api" and skip_api_executor is True:
+                        continue
+                    log(
+                        "running [using %s executor]" % executor,
+                        formatter,
+                        context,
+                    )
+                    ret, path = run_test(
+                        formatter,
+                        context,
+                        debug,
+                        contexts["checks"],
+                        base_env,
+                        executor,
+                    )
 
-                if ret:
-                    tstid = "%s in context %s" % (formatter, context["name"])
-                    failed.append((tstid, path))
-                    log("failed", formatter, context, real_bad=True)
-                    if debug:
-                        return failed
-                else:
-                    log("success", formatter, context, real_good=True)
+                    if ret:
+                        tstid = "%s in context %s [using %s executor]" % (
+                            formatter,
+                            context["name"],
+                            executor,
+                        )
+                        failed.append((tstid, path))
+                        log(
+                            "failed [using %s executor]" % executor,
+                            formatter,
+                            context,
+                            real_bad=True,
+                        )
+                        if debug:
+                            return failed
+                    else:
+                        log(
+                            "success [using %s executor]" % executor,
+                            formatter,
+                            context,
+                            real_good=True,
+                        )
         else:
             log("not a valid combination. Skipped.", formatter)
     return failed
@@ -268,13 +357,13 @@ def run_test_cases(args):
     "--tests",
     default="",
     type=str,
-    help="A comma-separate list of graphs to include (default: all).",
+    help="A comma-separated list of tests to include (default: all).",
 )
 @click.option(
     "--graphs",
     default="",
     type=str,
-    help="A comma-separate list of graphs to include (default: all).",
+    help="A comma-separated list of graphs to include (default: all).",
 )
 @click.option(
     "--debug",
