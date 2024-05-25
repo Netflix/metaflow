@@ -194,8 +194,8 @@ def run_test(formatter, context, debug, checks, env_base, executor):
             flow_ret = subprocess.call(run_cmd("run"), env=env)
         elif executor == "api":
             top_level_dict, run_level_dict = construct_arg_dicts_from_click_api()
-            runner = Runner("test_flow.py", env=env, **top_level_dict)
-            result = runner.run(show_output=True, **run_level_dict)
+            runner = Runner("test_flow.py", show_output=True, env=env, **top_level_dict)
+            result = runner.run(**run_level_dict)
             flow_ret = result.command_obj.process.returncode
 
         if flow_ret:
@@ -207,7 +207,7 @@ def run_test(formatter, context, debug, checks, env_base, executor):
                     flow_ret = subprocess.call(run_cmd("resume"), env=env)
                 elif executor == "api":
                     _, resume_level_dict = construct_arg_dicts_from_click_api()
-                    result = runner.resume(show_output=True, **resume_level_dict)
+                    result = runner.resume(**resume_level_dict)
                     flow_ret = result.command_obj.process.returncode
             else:
                 log("flow failed", formatter, context)
