@@ -1,22 +1,20 @@
 import ast
 import os
-import shutil
 import tempfile
 from typing import Dict, Optional
 
 from metaflow import Runner
 
-try:
-    from IPython import get_ipython
-
-    ipython = get_ipython()
-except ModuleNotFoundError:
-    print("'nbrun' requires an interactive python environment (such as Jupyter)")
-
 DEFAULT_DIR = tempfile.gettempdir()
 
 
-def get_current_cell():
+class NBRunnerInitializationError(Exception):
+    """Custom exception for errors during NBRunner initialization."""
+
+    pass
+
+
+def get_current_cell(ipython):
     if ipython:
         return ipython.history_manager.input_hist_raw[-1]
     return None
@@ -50,13 +48,22 @@ class NBRunner(object):
     def __init__(
         self,
         flow,
-        show_output: bool = False,
+        show_output: bool = True,
         profile: Optional[str] = None,
         env: Optional[Dict] = None,
         base_dir: str = DEFAULT_DIR,
         **kwargs,
     ):
-        self.cell = get_current_cell()
+        try:
+            from IPython import get_ipython
+
+            ipython = get_ipython()
+        except ModuleNotFoundError:
+            raise NBRunnerInitializationError(
+                "'NBRunner' requires an interactive Python environment (such as Jupyter)"
+            )
+
+        self.cell = get_current_cell(ipython)
         self.flow = flow
         self.show_output = show_output
 
@@ -93,18 +100,12 @@ class NBRunner(object):
         )
 
     def nbrun(self, **kwargs):
-        self.old_val_show_output = self.show_output
-        self.runner.show_output = True
         result = self.runner.run(**kwargs)
-        self.runner.show_output = self.old_val_show_output
         self.cleanup()
         return result.run
 
     def nbresume(self, **kwargs):
-        self.old_val_show_output = self.show_output
-        self.runner.show_output = True
         result = self.runner.resume(**kwargs)
-        self.runner.show_output = self.old_val_show_output
         self.cleanup()
         return result.run
 

@@ -188,7 +188,7 @@ class Runner(object):
     def __init__(
         self,
         flow_file: str,
-        show_output: bool = False,
+        show_output: bool = True,
         profile: Optional[str] = None,
         env: Optional[Dict] = None,
         cwd: Optional[str] = None,
@@ -214,8 +214,8 @@ class Runner(object):
         ----------
         flow_file : str
             Path to the flow file to run
-        show_output : bool, default False
-            Suppress the 'stdout' and 'stderr' to the console by default,
+        show_output : bool, default True
+            Show the 'stdout' and 'stderr' to the console by default,
             Only applicable for synchronous 'run' and 'resume' functions.
         profile : Optional[str], default None
             Metaflow profile to use to run this run. If not specified, the default
