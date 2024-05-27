@@ -10,6 +10,7 @@ from .fast_bakery import bake_image
 from metaflow.plugins.aws.batch.batch_decorator import BatchDecorator
 from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
 from metaflow.plugins.pypi.conda_decorator import CondaStepDecorator
+from metaflow.plugins.pypi.pypi_decorator import PyPIStepDecorator
 
 
 class DockerEnvironmentException(MetaflowException):
@@ -90,10 +91,14 @@ class DockerEnvironment(MetaflowEnvironment):
 
         image = None
         for deco in step.decorators:
-            if isinstance(deco, CondaStepDecorator):
+            if isinstance(deco, CondaStepDecorator) or isinstance(
+                deco, PyPIStepDecorator
+            ):
                 pkgs = deco.attributes["packages"]
                 python = deco.attributes["python"]
-                image = bake_image(python, pkgs, self.datastore.TYPE, base_image)
+                image = bake_image(
+                    python, pkgs, self.datastore.TYPE, base_image, deco.name
+                )
 
         if image is not None:
             # we have an image that we need to set to a kubernetes or batch decorator.

@@ -49,9 +49,13 @@ def get_cache_image_tag(spec_hash):
     return current_meta.get(spec_hash, {}).get("image", None)
 
 
-def generate_spec_hash(base_image=None, python_version=None, packages={}):
+def generate_spec_hash(
+    base_image=None, python_version=None, packages={}, resolver_type=None
+):
     sorted_keys = sorted(packages.keys())
-    base_str = "%s%s%s" % (DOCKER_IMAGE_BAKERY_TYPE, python_version, base_image or "")
+    base_str = "".join(
+        [DOCKER_IMAGE_BAKERY_TYPE, python_version, base_image or "", resolver_type]
+    )
     sortspec = base_str.join("%s%s" % (k, packages[k]) for k in sorted_keys).encode(
         "utf-8"
     )
@@ -60,7 +64,13 @@ def generate_spec_hash(base_image=None, python_version=None, packages={}):
     return hash
 
 
-def bake_image(python=None, packages={}, datastore_type=None, base_image=None):
+def bake_image(
+    python=None,
+    packages={},
+    datastore_type=None,
+    base_image=None,
+    resolver_type="conda",
+):
     if DOCKER_IMAGE_BAKERY_URL is None:
         raise FastBakeryException("Image bakery URL is not set.")
     # Gather base deps
@@ -70,7 +80,7 @@ def bake_image(python=None, packages={}, datastore_type=None, base_image=None):
     deps.update(packages)
 
     # Try getting image tag from cache
-    spec_hash = generate_spec_hash(base_image, python, deps)
+    spec_hash = generate_spec_hash(base_image, python, deps, resolver_type)
     image = get_cache_image_tag(spec_hash)
     if image:
         return image
@@ -83,10 +93,16 @@ def bake_image(python=None, packages={}, datastore_type=None, base_image=None):
     package_matchspecs = [_format(pkg, ver) for pkg, ver in deps.items()]
 
     data = {
-        "condaMatchspecs": package_matchspecs,
         "imageKind": DOCKER_IMAGE_BAKERY_TYPE,
         "pythonVersion": python,
     }
+    if resolver_type == "conda":
+        data.update({"condaMatchspecs": package_matchspecs})
+    elif resolver_type == "pypi":
+        data.update({"pipRequirements": package_matchspecs})
+    else:
+        raise FastBakeryException("Unknown resolver type: %s" % resolver_type)
+
     if base_image is not None:
         data.update({"baseImage": {"imageReference": base_image}})
 
@@ -96,7 +112,6 @@ def bake_image(python=None, packages={}, datastore_type=None, base_image=None):
             "Selected Bakery Authentication method is not supported: %s",
             DOCKER_IMAGE_BAKERY_AUTH,
         )
-
     image = invoker(data)
     # Cache tag
     cache_image_tag(spec_hash, image, data)
