@@ -8,6 +8,12 @@ from metaflow import Runner
 DEFAULT_DIR = tempfile.gettempdir()
 
 
+class NBRunnerInitializationError(Exception):
+    """Custom exception for errors during NBRunner initialization."""
+
+    pass
+
+
 def get_current_cell(ipython):
     if ipython:
         return ipython.history_manager.input_hist_raw[-1]
@@ -53,10 +59,9 @@ class NBRunner(object):
 
             ipython = get_ipython()
         except ModuleNotFoundError:
-            print(
-                "'nbrun' requires an interactive python environment (such as Jupyter)"
+            raise NBRunnerInitializationError(
+                "'NBRunner' requires an interactive Python environment (such as Jupyter)"
             )
-            return
 
         self.cell = get_current_cell(ipython)
         self.flow = flow
