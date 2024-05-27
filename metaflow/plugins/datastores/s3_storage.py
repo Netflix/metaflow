@@ -13,6 +13,8 @@ from metaflow.metaflow_config import DATASTORE_SYSROOT_S3, ARTIFACT_LOCALROOT
 from metaflow.datastore.datastore_storage import CloseAfterUse, DataStoreStorage
 
 
+S3_CHUNK_SIZE = int(os.environ.get("_S3_CHUNK_SIZE", 1024**2))
+
 try:
     # python2
     from urlparse import urlparse
@@ -151,7 +153,7 @@ class S3Storage(DataStoreStorage):
 
         return CloseAfterUse(iter_results(), closer=s3)
 
-    def stream_bytes(self, paths, chunk_size=2**1024):
+    def stream_bytes(self, paths, chunk_size=S3_CHUNK_SIZE):
         if len(paths) == 0:
             return CloseAfterUse(iter([]))
 
