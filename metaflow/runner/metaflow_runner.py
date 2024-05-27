@@ -428,3 +428,6 @@ class Runner(object):
 
     async def __aexit__(self, exc_type, exc_value, traceback):
         self.spm.cleanup()
+
+    def cleanup(self):
+        self.spm.cleanup()
