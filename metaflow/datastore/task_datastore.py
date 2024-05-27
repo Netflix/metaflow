@@ -857,7 +857,7 @@ class TaskDataStore(object):
                 buffered = buffer.get(k, b"")
                 val = buffered + v if v is not None else buffered
                 lines = val.decode("utf-8").split("\n")
-                if len(lines) > 2:
+                if len(lines) >= 2:
                     # more than two lines of logs,
                     # buffer the last line in case it was not completely loaded.
                     output[k] = ("\n".join(lines[:-1])).encode("utf-8")
@@ -866,6 +866,7 @@ class TaskDataStore(object):
                     # the chunk did not contain a newline,
                     # instead the bytes for the logline continue to the next chunk
                     buffer[k] = val
+
             yield [(paths[k], v if v is not None else b"") for k, v in output.items()]
 
     @require_mode(None)

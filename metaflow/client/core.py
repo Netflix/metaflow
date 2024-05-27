@@ -1505,7 +1505,11 @@ class Task(MetaflowObject):
                 return item[1][0]
 
             first_lines = sorted(
-                [(source, lines[0]) for source, lines in logsources_linecache.items()],
+                [
+                    (source, lines[0])
+                    for source, lines in logsources_linecache.items()
+                    if lines
+                ],
                 key=_keysort,
             )
             if not first_lines:
