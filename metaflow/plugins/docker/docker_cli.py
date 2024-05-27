@@ -38,7 +38,9 @@ def list():
         echo("List of locally cached image tags:\n")
 
     for val in current_cache.values():
-        packages = val["bakery_request"]["condaMatchspecs"]
+        packages = val["bakery_request"].get("condaMatchspecs", None) or val[
+            "bakery_request"
+        ].get("pipRequirements", {})
         kind = val["kind"]
         python_version = val["bakery_request"]["pythonVersion"]
         base_image = (
