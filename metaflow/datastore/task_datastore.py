@@ -865,7 +865,17 @@ class TaskDataStore(object):
                 elif len(lines) == 1 and val:
                     # the chunk did not contain a newline,
                     # instead the bytes for the logline continue to the next chunk
-                    buffer[k] = val
+                    if v is None:
+                        # if we did not get a new value this round,
+                        # we know to output everything from the buffer.
+                        output[k] = val
+                    else:
+                        # otherwise keep buffering
+                        buffer[k] = val
+
+            if not output and buffer:
+                # we did not have enough data to return yet
+                continue
 
             yield [(paths[k], v if v is not None else b"") for k, v in output.items()]
 
