@@ -48,7 +48,7 @@ class NBRunner(object):
     def __init__(
         self,
         flow,
-        show_output: bool = False,
+        show_output: bool = True,
         profile: Optional[str] = None,
         env: Optional[Dict] = None,
         base_dir: str = DEFAULT_DIR,
@@ -100,18 +100,12 @@ class NBRunner(object):
         )
 
     def nbrun(self, **kwargs):
-        self.old_val_show_output = self.show_output
-        self.runner.show_output = True
         result = self.runner.run(**kwargs)
-        self.runner.show_output = self.old_val_show_output
         self.runner.spm.cleanup()
         return result.run
 
     def nbresume(self, **kwargs):
-        self.old_val_show_output = self.show_output
-        self.runner.show_output = True
         result = self.runner.resume(**kwargs)
-        self.runner.show_output = self.old_val_show_output
         self.runner.spm.cleanup()
         return result.run
 
