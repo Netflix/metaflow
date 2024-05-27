@@ -97,7 +97,7 @@ class NBRunner(object):
         self.runner.show_output = True
         result = self.runner.run(**kwargs)
         self.runner.show_output = self.old_val_show_output
-        self.runner.spm.cleanup()
+        self.cleanup()
         return result.run
 
     def nbresume(self, **kwargs):
@@ -105,7 +105,7 @@ class NBRunner(object):
         self.runner.show_output = True
         result = self.runner.resume(**kwargs)
         self.runner.show_output = self.old_val_show_output
-        self.runner.spm.cleanup()
+        self.cleanup()
         return result.run
 
     def run(self, **kwargs):
@@ -131,3 +131,7 @@ class NBRunner(object):
         Asynchronously resumes the flow.
         """
         return await self.runner.async_resume(**kwargs)
+
+    def cleanup(self):
+        os.remove(self.tmp_flow_file.name)
+        self.runner.cleanup()
