@@ -1,22 +1,14 @@
 import ast
 import os
-import shutil
 import tempfile
 from typing import Dict, Optional
 
 from metaflow import Runner
 
-try:
-    from IPython import get_ipython
-
-    ipython = get_ipython()
-except ModuleNotFoundError:
-    print("'nbrun' requires an interactive python environment (such as Jupyter)")
-
 DEFAULT_DIR = tempfile.gettempdir()
 
 
-def get_current_cell():
+def get_current_cell(ipython):
     if ipython:
         return ipython.history_manager.input_hist_raw[-1]
     return None
@@ -56,7 +48,17 @@ class NBRunner(object):
         base_dir: str = DEFAULT_DIR,
         **kwargs,
     ):
-        self.cell = get_current_cell()
+        try:
+            from IPython import get_ipython
+
+            ipython = get_ipython()
+        except ModuleNotFoundError:
+            print(
+                "'nbrun' requires an interactive python environment (such as Jupyter)"
+            )
+            return
+
+        self.cell = get_current_cell(ipython)
         self.flow = flow
         self.show_output = show_output
 
