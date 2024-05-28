@@ -353,14 +353,6 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
     help="Run id of the origin flow, if this task is part of a flow being resumed.",
 )
 @click.option(
-    "--with",
-    "decospecs",
-    multiple=True,
-    help="Add a decorator to this task. You can specify this "
-    "option multiple times to attach multiple decorators "
-    "to this task.",
-)
-@click.option(
     "--ubf-context",
     default="none",
     type=click.Choice(["none", UBF_CONTROL, UBF_TASK]),
@@ -387,7 +379,6 @@ def step(
     max_user_code_retries=None,
     clone_only=None,
     clone_run_id=None,
-    decospecs=None,
     ubf_context="none",
     num_parallel=None,
 ):
@@ -404,9 +395,6 @@ def step(
     if not func.is_step:
         raise CommandException("Function *%s* is not a step." % step_name)
     echo("Executing a step, *%s*" % step_name, fg="magenta", bold=False)
-
-    if decospecs:
-        decorators._attach_decorators_to_step(func, decospecs)
 
     step_kwargs = ctx.params
     # Remove argument `step_name` from `step_kwargs`.
@@ -765,6 +753,8 @@ def before_run(obj, tags, decospecs):
     # in two places in this module and make sure _init_step_decorators
     # doesn't get called twice.
     if decospecs:
+        # These decospecs are the ones from run/resume PLUS the ones from the
+        # environment (for example the @conda)
         decorators._attach_decorators(obj.flow, decospecs)
         obj.graph = FlowGraph(obj.flow.__class__)
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
@@ -956,6 +946,11 @@ def start(
     )
 
     if decospecs:
+        # Top-level decospecs (./myflow.py --with foo --with bar ...)
+        # These are used primarily with non run/resume options as well
+        # as with the airflow/argo/sfn integrations which pass all the decospecs
+        # (the ones from top-level but also the one from the run/resume level)
+        # through using the top level decospecs.
         decorators._attach_decorators(ctx.obj.flow, decospecs)
 
     # initialize current and parameter context for deploy-time parameters
@@ -965,8 +960,10 @@ def start(
     )
 
     if ctx.invoked_subcommand not in ("run", "resume"):
-        # run/resume are special cases because they can add more decorators with --with,
-        # so they have to take care of themselves.
+        # run/resume are special cases because they can add more decorators with --with
+        # We want to apply those decorators first before applying any environment
+        # decorators so we will apply the run/resume level decospecs first and then
+        # the environment ones in before_run
         decorators._attach_decorators(ctx.obj.flow, ctx.obj.environment.decospecs())
         decorators._init_step_decorators(
             ctx.obj.flow,
