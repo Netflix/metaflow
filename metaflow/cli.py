@@ -137,7 +137,7 @@ def config_merge_cb(ctx, param, value):
     splits = DECOSPECS.split()
     if len(splits) == len(value) and all([a == b for (a, b) in zip(splits, value)]):
         return value
-    return tuple(DECOSPECS.split() + list(value))
+    return tuple(list(value) + DECOSPECS.split())
 
 
 @click.group()
