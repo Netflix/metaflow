@@ -30,16 +30,20 @@ def read_from_file_when_ready(file_path: str, timeout: float = 5):
 
 class ExecutingRun(object):
     """
-    An object that encapsulates both the:
-        - CommandManager Object (that has ability to stream logs,
-          kill the underlying process, etc.)
-        - Metaflow's Run object
+    This class contains a reference to a `metaflow.Run` object representing
+    the currently executing or finished run, as well as metadata related
+    to the process.
 
-    This is a user facing object exposing methods and properties for:
-        - waiting (with an optional timeout and optional streaming of logs)
-        - current snapshot of stdout
-        - current snapshot of stderr
-        - ability to stream logs
+    `ExecutingRun` is returned by methods in `Runner` and `NBRunner`. It is not
+    meant to be instantiated directly.
+
+    This class works as a context manager, allowing you to use a pattern like
+    ```python
+    with Runner(...).run() as running:
+        ...
+    ```
+    Note that you should use either this object as the context manager or
+    `Runner`, not both in a nested manner.
     """
 
     def __init__(
@@ -75,6 +79,8 @@ class ExecutingRun(object):
         Wait for this run to finish, optionally with a timeout
         and optionally streaming its output.
 
+        Note that this method is asynchronous and needs to be `await`ed.
+
         Parameters
         ----------
         timeout : Optional[float], default None
@@ -87,7 +93,7 @@ class ExecutingRun(object):
         Returns
         -------
         ExecutingRun
-            This object
+            This object, allowing you to chain calls.
         """
         await self.command_obj.wait(timeout, stream)
         return self
@@ -95,14 +101,13 @@ class ExecutingRun(object):
     @property
     def returncode(self) -> Optional[int]:
         """
-        Gets the returncode of the underlying subprocess that is responsible
-        for executing the run.
+        Gets the return code of the underlying subprocess. A non-zero
+        code indicates a failure, `None` a currently executing run.
 
         Returns
         -------
         Optional[int]
-            The returncode for the subprocess that executes the run.
-            (None if process is still running)
+            The return code of the underlying subprocess.
         """
         return self.command_obj.process.returncode
 
@@ -112,10 +117,15 @@ class ExecutingRun(object):
         Returns the status of the underlying subprocess that is responsible
         for executing the run.
 
+        The return value is one of the following strings:
+        - `running` indicates a currently executing run.
+        - `failed` indicates a failed run.
+        - `successful` a successful run.
+
         Returns
         -------
         str
-            The current status of the run (one of 'running', 'failed', 'successful').
+            The current status of the run.
         """
         if self.command_obj.process.returncode is None:
             return "running"
@@ -128,7 +138,7 @@ class ExecutingRun(object):
     def stdout(self) -> str:
         """
         Returns the current stdout of the run. If the run is finished, this will
-        contain the entire stdout output but otherwise, it will contain the
+        contain the entire stdout output. Otherwise, it will contain the
         stdout up until this point.
 
         Returns
@@ -145,7 +155,7 @@ class ExecutingRun(object):
     def stderr(self) -> str:
         """
         Returns the current stderr of the run. If the run is finished, this will
-        contain the entire stderr output but otherwise, it will contain the
+        contain the entire stderr output. Otherwise, it will contain the
         stderr up until this point.
 
         Returns
@@ -162,12 +172,14 @@ class ExecutingRun(object):
         self, stream: str, position: Optional[int] = None
     ) -> Iterator[Tuple[int, str]]:
         """
-        Stream logs from the subprocess line by line.
+        Asynchronous iterator to stream logs from the subprocess line by line.
+
+        Note that this method is asynchronous and needs to be `await`ed.
 
         Parameters
         ----------
         stream : str
-            The stream to stream logs from. Can be one of "stdout" or "stderr".
+            The stream to stream logs from. Can be one of `stdout` or `stderr`.
         position : Optional[int], default None
             The position in the log file to start streaming from. If None, it starts
             from the beginning of the log file. This allows resuming streaming from
@@ -185,6 +197,43 @@ class ExecutingRun(object):
 
 
 class Runner(object):
+    """
+    Metaflow's Runner API that presents a programmatic interface
+    to run flows and perform other operations either synchronously or asynchronously.
+    The class expects a path to the flow file along with optional arguments
+    that match top-level options on the command-line.
+
+    This class works as a context manager, calling `cleanup()` to remove
+    temporary files at exit.
+
+    Example:
+    ```python
+    with Runner('slowflow.py', pylint=False) as runner:
+        result = runner.run(alpha=5, tags=["abc", "def"], max_workers=5)
+        print(result.run.finished)
+    ```
+
+    Parameters
+    ----------
+    flow_file : str
+        Path to the flow file to run
+    show_output : bool, default True
+        Show the 'stdout' and 'stderr' to the console by default,
+        Only applicable for synchronous 'run' and 'resume' functions.
+    profile : Optional[str], default None
+        Metaflow profile to use to run this run. If not specified, the default
+        profile is used (or the one already set using `METAFLOW_PROFILE`)
+    env : Optional[Dict], default None
+        Additional environment variables to set for the Run. This overrides the
+        environment set for this process.
+    cwd : Optional[str], default None
+        The directory to run the subprocess in; if not specified, the current
+        directory is used.
+    **kwargs : Any
+        Additional arguments that you would pass to `python myflow.py` before
+        the `run` command.
+    """
+
     def __init__(
         self,
         flow_file: str,
@@ -194,43 +243,6 @@ class Runner(object):
         cwd: Optional[str] = None,
         **kwargs
     ):
-        """
-        Metaflow's Runner API that presents a programmatic interface
-        to run flows either synchronously or asynchronously. The class expects
-        a path to the flow file along with optional top level parameters such as:
-        metadata, environment, datastore, etc.
-
-        The run() method expects run-level parameters. The object returned by the
-        `run()` method is an `ExecutingRun` and you can:
-          - access the client's `Run` object using `.run`
-          - stream logs, ...
-
-        Example:
-            with Runner('../try.py', metadata="local") as runner:
-                result = runner.run(alpha=5, tags=["abc", "def"], max_workers=5)
-                print(result.run.finished)
-
-        Parameters
-        ----------
-        flow_file : str
-            Path to the flow file to run
-        show_output : bool, default True
-            Show the 'stdout' and 'stderr' to the console by default,
-            Only applicable for synchronous 'run' and 'resume' functions.
-        profile : Optional[str], default None
-            Metaflow profile to use to run this run. If not specified, the default
-            profile is used (or the one already set using `METAFLOW_PROFILE`)
-        env : Optional[Dict], default None
-            Additional environment variables to set for the Run. This overrides the
-            environment set for this process.
-        cwd : Optional[str], default None
-            The directory to run the subprocess in; if not specified, the current
-            directory is used.
-        **kwargs : Any
-            Additional arguments that you would pass to `python ./myflow.py` before
-            the `run` command.
-        """
-
         # these imports are required here and not at the top
         # since they interfere with the user defined Parameters
         # in the flow file, this is related to the ability of
@@ -291,19 +303,19 @@ class Runner(object):
 
     def run(self, **kwargs) -> ExecutingRun:
         """
-        Synchronous execution of the run. This method will *block* until
+        Blocking execution of the run. This method will wait until
         the run has completed execution.
 
         Parameters
         ----------
         **kwargs : Any
-            Additional arguments that you would pass to `python ./myflow.py` after
-            the `run` command.
+            Additional arguments that you would pass to `python myflow.py` after
+            the `run` command, in particular, any parameters accepted by the flow.
 
         Returns
         -------
         ExecutingRun
-            ExecutingRun object for this run.
+            ExecutingRun containing the results of the run.
         """
         with tempfile.TemporaryDirectory() as temp_dir:
             tfp_runner_attribute = tempfile.NamedTemporaryFile(
@@ -325,8 +337,8 @@ class Runner(object):
 
     def resume(self, **kwargs):
         """
-        Synchronous resume execution of the run.
-        This method will *block* until the resumed run has completed execution.
+        Blocking resume execution of the run.
+        This method will wait until the resumed run has completed execution.
 
         Parameters
         ----------
@@ -337,7 +349,7 @@ class Runner(object):
         Returns
         -------
         ExecutingRun
-            ExecutingRun object for this resumed run.
+            ExecutingRun containing the results of the resumed run.
         """
         with tempfile.TemporaryDirectory() as temp_dir:
             tfp_runner_attribute = tempfile.NamedTemporaryFile(
@@ -359,19 +371,21 @@ class Runner(object):
 
     async def async_run(self, **kwargs) -> ExecutingRun:
         """
-        Asynchronous execution of the run. This method will return as soon as the
+        Non-blocking execution of the run. This method will return as soon as the
         run has launched.
+
+        Note that this method is asynchronous and needs to be `await`ed.
 
         Parameters
         ----------
         **kwargs : Any
-            Additional arguments that you would pass to `python ./myflow.py` after
-            the `run` command.
+            Additional arguments that you would pass to `python myflow.py` after
+            the `run` command, in particular, any parameters accepted by the flow.
 
         Returns
         -------
         ExecutingRun
-            ExecutingRun object for this run.
+            ExecutingRun representing the run that was started.
         """
         with tempfile.TemporaryDirectory() as temp_dir:
             tfp_runner_attribute = tempfile.NamedTemporaryFile(
@@ -392,19 +406,21 @@ class Runner(object):
 
     async def async_resume(self, **kwargs):
         """
-        Asynchronous resume execution of the run.
+        Non-blocking resume execution of the run.
         This method will return as soon as the resume has launched.
+
+        Note that this method is asynchronous and needs to be `await`ed.
 
         Parameters
         ----------
         **kwargs : Any
-            Additional arguments that you would pass to `python ./myflow.py` after
+            Additional arguments that you would pass to `python myflow.py` after
             the `resume` command.
 
         Returns
         -------
         ExecutingRun
-            ExecutingRun object for this resumed run.
+            ExecutingRun representing the resumed run that was started.
         """
         with tempfile.TemporaryDirectory() as temp_dir:
             tfp_runner_attribute = tempfile.NamedTemporaryFile(
@@ -430,4 +446,7 @@ class Runner(object):
         self.spm.cleanup()
 
     def cleanup(self):
+        """
+        Delete any temporary files created during execution.
+        """
         self.spm.cleanup()
