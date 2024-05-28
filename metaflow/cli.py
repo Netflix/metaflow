@@ -640,7 +640,7 @@ def resume(
     resume_identifier=None,
     runner_attribute_file=None,
 ):
-    before_run(obj, tags, decospecs + obj.environment.decospecs())
+    before_run(obj, tags, decospecs)
 
     if origin_run_id is None:
         origin_run_id = get_latest_run_id(obj.echo, obj.flow.name)
@@ -738,7 +738,7 @@ def run(
 ):
     if user_namespace is not None:
         namespace(user_namespace or None)
-    before_run(obj, tags, decospecs + obj.environment.decospecs())
+    before_run(obj, tags, decospecs)
 
     runtime = NativeRuntime(
         obj.flow,
@@ -786,9 +786,20 @@ def before_run(obj, tags, decospecs):
     # A downside is that we need to have the following decorators handling
     # in two places in this module and make sure _init_step_decorators
     # doesn't get called twice.
-    if decospecs:
-        decorators._attach_decorators(obj.flow, decospecs)
+
+    # We want the order to be the following:
+    # - run level decospecs
+    # - top level decospecs
+    # - environment decospecs
+    all_decospecs = (
+        list(decospecs or [])
+        + obj.tl_decospecs
+        + list(obj.environment.decospecs() or [])
+    )
+    if all_decospecs:
+        decorators._attach_decorators(obj.flow, all_decospecs)
         obj.graph = FlowGraph(obj.flow.__class__)
+
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     # obj.environment.init_environment(obj.logger)
 
@@ -978,8 +989,11 @@ def start(
         deco_options,
     )
 
-    if decospecs:
-        decorators._attach_decorators(ctx.obj.flow, decospecs)
+    # In the case of run/resume, we will want to apply the TL decospecs
+    # *after* the run decospecs so that they don't take precedence. In other
+    # words, for the same decorator, we want `myflow.py run --with foo` to
+    # take precedence over any other `foo` decospec
+    ctx.obj.tl_decospecs = list(decospecs or [])
 
     # initialize current and parameter context for deploy-time parameters
     current._set_env(flow=ctx.obj.flow, is_running=False)
@@ -990,7 +1004,14 @@ def start(
     if ctx.invoked_subcommand not in ("run", "resume"):
         # run/resume are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.
-        decorators._attach_decorators(ctx.obj.flow, ctx.obj.environment.decospecs())
+        all_decospecs = ctx.obj.tl_decospecs + list(
+            ctx.obj.environment.decospecs() or []
+        )
+        if all_decospecs:
+            decorators._attach_decorators(ctx.obj.flow, all_decospecs)
+            # Regenerate graph if we attached more decorators
+            ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
+
         decorators._init_step_decorators(
             ctx.obj.flow,
             ctx.obj.graph,
@@ -998,6 +1019,7 @@ def start(
             ctx.obj.flow_datastore,
             ctx.obj.logger,
         )
+
         # TODO (savin): Enable lazy instantiation of package
         ctx.obj.package = None
     if ctx.invoked_subcommand is None:
