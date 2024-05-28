@@ -120,7 +120,7 @@ def logger(body="", system_msg=False, head="", bad=False, timestamp=True, nl=Tru
     click.secho(body, bold=system_msg, fg=LOGGER_BAD_COLOR if bad else None, nl=nl)
 
 
-def use_conf_and_merge_cb(ctx, param, value):
+def config_merge_cb(ctx, param, value):
     # Callback to:
     #  - read  the Click auto_envvar variable from both the
     #    environment AND the configuration
@@ -859,7 +859,7 @@ def version(obj):
     multiple=True,
     help="Add a decorator to all steps. You can specify this option "
     "multiple times to attach multiple decorators in steps.",
-    callback=use_conf_and_merge_cb,
+    callback=config_merge_cb,
 )
 @click.option(
     "--pylint/--no-pylint",

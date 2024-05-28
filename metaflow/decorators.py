@@ -165,7 +165,7 @@ class Decorator(object):
             return self.name
 
     def __str__(self):
-        mode = "decorated" if self.statically_defined else "cli or configuration"
+        mode = "static" if self.statically_defined else "dynamic"
         attrs = " ".join("%s=%s" % x for x in self.attributes.items())
         if attrs:
             attrs = " " + attrs
