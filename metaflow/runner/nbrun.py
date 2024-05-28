@@ -44,7 +44,7 @@ class NBRunner(object):
     """
     A  wrapper over `Runner` for executing flows defined in a Jupyter
     notebook cell.
-    
+
     Instantiate this class on the last line of a notebook cell where
     a `flow` is defined. In contrast to `Runner`, this class is not
     meant to be used a context manager. Instead, use a blocking helper
@@ -73,7 +73,7 @@ class NBRunner(object):
         directory is used.
     **kwargs : Any
         Additional arguments that you would pass to `python myflow.py` before
-        the `run` command.    
+        the `run` command.
 
     """
 

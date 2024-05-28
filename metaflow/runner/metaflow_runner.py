@@ -42,7 +42,7 @@ class ExecutingRun(object):
     with Runner(...).run() as running:
         ...
     ```
-    Note that you should use either this object as the context manager or 
+    Note that you should use either this object as the context manager or
     `Runner`, not both in a nested manner.
     """
 
