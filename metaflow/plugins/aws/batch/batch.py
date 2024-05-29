@@ -11,6 +11,7 @@ from metaflow.plugins.datatools.s3.s3tail import S3Tail
 from metaflow.plugins.aws.aws_utils import sanitize_batch_tag
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
+    _USE_BAKERY,
     OTEL_ENDPOINT,
     SERVICE_INTERNAL_URL,
     DATATOOLS_S3ROOT,
@@ -23,6 +24,9 @@ from metaflow.metaflow_config import (
     DEFAULT_SECRETS_BACKEND_TYPE,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
     S3_SERVER_SIDE_ENCRYPTION,
+    DOCKER_IMAGE_BAKERY_URL,
+    DOCKER_IMAGE_BAKERY_AUTH,
+    DOCKER_IMAGE_BAKERY_TYPE,
 )
 
 from metaflow.metaflow_config_funcs import config_values
@@ -299,6 +303,18 @@ class Batch(object):
         # add METAFLOW_S3_ENDPOINT_URL
         if S3_ENDPOINT_URL is not None:
             job.environment_variable("METAFLOW_S3_ENDPOINT_URL", S3_ENDPOINT_URL)
+
+        # pass in Fast Bakery config if used, in order to be able to bake images during flow runtime as well.
+        if _USE_BAKERY:
+            job.environment_variable(
+                "METAFLOW_DOCKER_IMAGE_BAKERY_URL", DOCKER_IMAGE_BAKERY_URL
+            )
+            job.environment_variable(
+                "METAFLOW_DOCKER_IMAGE_BAKERY_AUTH", DOCKER_IMAGE_BAKERY_AUTH
+            )
+            job.environment_variable(
+                "METAFLOW_DOCKER_IMAGE_BAKERY_TYPE", DOCKER_IMAGE_BAKERY_TYPE
+            )
 
         for name, value in env.items():
             job.environment_variable(name, value)
