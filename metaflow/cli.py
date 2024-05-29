@@ -1,4 +1,5 @@
 import inspect
+import os
 import sys
 import traceback
 from datetime import datetime
@@ -14,6 +15,7 @@ from .datastore import FlowDataStore, TaskDataStore, TaskDataStoreSet
 from .exception import CommandException, MetaflowException
 from .graph import FlowGraph
 from .metaflow_config import (
+    DECOSPECS,
     DEFAULT_DATASTORE,
     DEFAULT_ENVIRONMENT,
     DEFAULT_EVENT_LOGGER,
@@ -116,6 +118,26 @@ def logger(body="", system_msg=False, head="", bad=False, timestamp=True, nl=Tru
     if head:
         click.secho(head, fg=LOGGER_COLOR, nl=False)
     click.secho(body, bold=system_msg, fg=LOGGER_BAD_COLOR if bad else None, nl=nl)
+
+
+def config_merge_cb(ctx, param, value):
+    # Callback to:
+    #  - read  the Click auto_envvar variable from both the
+    #    environment AND the configuration
+    #  - merge that value with the value passed in the command line (value)
+    #  - return the value as a tuple
+    # Note that this function gets called even if there is no option passed on the
+    # command line.
+    # NOTE: Assumes that ctx.auto_envvar_prefix is set to METAFLOW (same as in
+    # from_conf)
+
+    # Special case where DECOSPECS and value are the same. This happens
+    # when there is no --with option at the TL and DECOSPECS is read from
+    # the env var. In this case, click also passes it as value
+    splits = DECOSPECS.split()
+    if len(splits) == len(value) and all([a == b for (a, b) in zip(splits, value)]):
+        return value
+    return tuple(list(value) + DECOSPECS.split())
 
 
 @click.group()
@@ -618,7 +640,7 @@ def resume(
     resume_identifier=None,
     runner_attribute_file=None,
 ):
-    before_run(obj, tags, decospecs + obj.environment.decospecs())
+    before_run(obj, tags, decospecs)
 
     if origin_run_id is None:
         origin_run_id = get_latest_run_id(obj.echo, obj.flow.name)
@@ -716,7 +738,7 @@ def run(
 ):
     if user_namespace is not None:
         namespace(user_namespace or None)
-    before_run(obj, tags, decospecs + obj.environment.decospecs())
+    before_run(obj, tags, decospecs)
 
     runtime = NativeRuntime(
         obj.flow,
@@ -764,9 +786,20 @@ def before_run(obj, tags, decospecs):
     # A downside is that we need to have the following decorators handling
     # in two places in this module and make sure _init_step_decorators
     # doesn't get called twice.
-    if decospecs:
-        decorators._attach_decorators(obj.flow, decospecs)
+
+    # We want the order to be the following:
+    # - run level decospecs
+    # - top level decospecs
+    # - environment decospecs
+    all_decospecs = (
+        list(decospecs or [])
+        + obj.tl_decospecs
+        + list(obj.environment.decospecs() or [])
+    )
+    if all_decospecs:
+        decorators._attach_decorators(obj.flow, all_decospecs)
         obj.graph = FlowGraph(obj.flow.__class__)
+
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     # obj.environment.init_environment(obj.logger)
 
@@ -837,6 +870,7 @@ def version(obj):
     multiple=True,
     help="Add a decorator to all steps. You can specify this option "
     "multiple times to attach multiple decorators in steps.",
+    callback=config_merge_cb,
 )
 @click.option(
     "--pylint/--no-pylint",
@@ -955,8 +989,11 @@ def start(
         deco_options,
     )
 
-    if decospecs:
-        decorators._attach_decorators(ctx.obj.flow, decospecs)
+    # In the case of run/resume, we will want to apply the TL decospecs
+    # *after* the run decospecs so that they don't take precedence. In other
+    # words, for the same decorator, we want `myflow.py run --with foo` to
+    # take precedence over any other `foo` decospec
+    ctx.obj.tl_decospecs = list(decospecs or [])
 
     # initialize current and parameter context for deploy-time parameters
     current._set_env(flow=ctx.obj.flow, is_running=False)
@@ -967,7 +1004,14 @@ def start(
     if ctx.invoked_subcommand not in ("run", "resume"):
         # run/resume are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.
-        decorators._attach_decorators(ctx.obj.flow, ctx.obj.environment.decospecs())
+        all_decospecs = ctx.obj.tl_decospecs + list(
+            ctx.obj.environment.decospecs() or []
+        )
+        if all_decospecs:
+            decorators._attach_decorators(ctx.obj.flow, all_decospecs)
+            # Regenerate graph if we attached more decorators
+            ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
+
         decorators._init_step_decorators(
             ctx.obj.flow,
             ctx.obj.graph,
@@ -975,6 +1019,7 @@ def start(
             ctx.obj.flow_datastore,
             ctx.obj.logger,
         )
+
         # TODO (savin): Enable lazy instantiation of package
         ctx.obj.package = None
     if ctx.invoked_subcommand is None:
