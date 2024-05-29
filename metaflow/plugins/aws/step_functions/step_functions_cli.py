@@ -4,6 +4,7 @@ import re
 from hashlib import sha1
 
 from metaflow import JSONType, current, decorators, parameters
+from metaflow.client.core import get_metadata
 from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import (
@@ -440,8 +441,15 @@ def resolve_token(
     type=str,
     help="Write the ID of this run to the file specified.",
 )
+@click.option(
+    "--runner-attribute-file",
+    default=None,
+    show_default=True,
+    type=str,
+    help="Write the metadata and pathspec of this run to the file specified. Used internally for Metaflow's Runner API.",
+)
 @click.pass_obj
-def trigger(obj, run_id_file=None, **kwargs):
+def trigger(obj, run_id_file=None, runner_attribute_file=None, **kwargs):
     def _convert_value(param):
         # Swap `-` with `_` in parameter name to match click's behavior
         val = kwargs.get(param.name.replace("-", "_").lower())
@@ -465,6 +473,10 @@ def trigger(obj, run_id_file=None, **kwargs):
     if run_id_file:
         with open(run_id_file, "w") as f:
             f.write(str(run_id))
+
+    if runner_attribute_file:
+        with open(runner_attribute_file, "w") as f:
+            f.write("%s:%s" % (get_metadata(), "/".join((obj.flow.name, run_id))))
 
     obj.echo(
         "Workflow *{name}* triggered on AWS Step Functions "
