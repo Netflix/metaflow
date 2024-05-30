@@ -1,12 +1,18 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 # TODO: Skip these tests if armada_client isn't present and print a warning.
 from armada_client.event import EventType
 from armada_client.typings import JobSubmittedEvent, JobSucceededEvent
+import grpc
 
-from metaflow.plugins.armada.armada import create_armada_pod_spec, wait_for_job_finish
+from metaflow.plugins.armada.armada import (
+    create_armada_pod_spec,
+    create_queue,
+    wait_for_job_finish,
+    ArmadaException,
+)
 
 
 def test_armada_create_armada_pod_spec():
@@ -57,3 +63,53 @@ def test_wait_for_job_finish(get_client):
     get_client.return_value.get_job_events_stream.assert_called_with("test", job_set_id)
     assert get_client.return_value.unmarshal_event_response.called
     assert last_event == unmarshalled_events[-1]
+
+
+@patch("metaflow.plugins.armada.armada._get_client")
+def test_create_queue(get_client):
+    queue_request = MagicMock()
+    get_client.return_value.create_queue_request.return_value = queue_request
+
+    create_queue("localhost", "1337", "test_queue")
+
+    assert get_client.return_value.create_queue_request.called
+    assert get_client.return_value.create_queue.called
+    assert not get_client.return_value.update_queue.called
+
+
+@patch("metaflow.plugins.armada.armada._get_client")
+def test_create_queue_raises_queue_already_exists(get_client):
+    queue_request = MagicMock()
+    get_client.return_value.create_queue_request.return_value = queue_request
+
+    class MockRpcError(grpc.RpcError):
+        def __init__(self, code):
+            self._code = code
+
+        def code(self):
+            return self._code
+
+    get_client.return_value.create_queue.side_effect = MockRpcError(
+        grpc.StatusCode.ALREADY_EXISTS
+    )
+
+    create_queue("localhost", "1337", "test_queue")
+
+    assert get_client.return_value.create_queue_request.called
+    assert get_client.return_value.create_queue.called
+    assert get_client.return_value.update_queue.called
+
+
+@patch("metaflow.plugins.armada.armada._get_client")
+def test_create_queue_raises_unhandled_exception(get_client):
+    queue_request = MagicMock()
+    get_client.return_value.create_queue_request.return_value = queue_request
+
+    get_client.return_value.create_queue.side_effect = Exception("whoops")
+
+    with pytest.raises(ArmadaException):
+        create_queue("localhost", "1337", "test_queue")
+
+    assert get_client.return_value.create_queue_request.called
+    assert get_client.return_value.create_queue.called
+    assert not get_client.return_value.update_queue.called
