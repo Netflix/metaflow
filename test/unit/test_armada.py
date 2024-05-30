@@ -13,6 +13,8 @@ def test_armada_create_armada_pod_spec():
     pod_spec = create_armada_pod_spec(["sleep 10"], {"test": "value"}, [])
     assert pod_spec is not None
     assert pod_spec[0].pod_spec.containers[0].args == ["sleep 10"]
+    assert pod_spec[0].pod_spec.containers[0].env[0].name == "test"
+    assert pod_spec[0].pod_spec.containers[0].env[0].value == "value"
     print(len(pod_spec))
     print(pod_spec)
     # assert False
