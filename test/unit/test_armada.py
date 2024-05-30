@@ -37,7 +37,7 @@ def test_wait_for_job_finish(get_client):
     job_id = "fake_job_id"
     job_set_id = "fake_job_set_id"
     get_client.return_value.get_job_events_stream.return_value = list(
-        ["event1", "event2"]
+        ["event1", "event2", "event3", "event4"]
     )
     unmarshalled_events = [
         MockEvent(EventType.submitted, MockMessage(job_id), "1"),
@@ -45,8 +45,6 @@ def test_wait_for_job_finish(get_client):
         MockEvent(EventType.running, MockMessage(job_id), "3"),
         MockEvent(EventType.succeeded, MockMessage(job_id), "4"),
     ]
-    assert unmarshalled_events[0].type == EventType.submitted
-    print(unmarshalled_events[0])
     get_client.return_value.unmarshal_event_response.side_effect = unmarshalled_events
 
     last_event = wait_for_job_finish(
