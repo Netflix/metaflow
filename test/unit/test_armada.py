@@ -9,7 +9,9 @@ import grpc
 
 from metaflow.plugins.armada.armada import (
     create_armada_pod_spec,
+    create_job_request_item,
     create_queue,
+    submit_jobs,
     wait_for_job_finish,
     ArmadaException,
 )
@@ -113,3 +115,23 @@ def test_create_queue_raises_unhandled_exception(get_client):
     assert get_client.return_value.create_queue_request.called
     assert get_client.return_value.create_queue.called
     assert not get_client.return_value.update_queue.called
+
+
+@patch("metaflow.plugins.armada.armada._get_client")
+def test_submit_jobs(get_client):
+    result = submit_jobs("localhost", "1337", "fake_queue", "fake_job_set_id", [])
+    assert result is not None
+    assert get_client.return_value.submit_jobs.called
+    get_client.return_value.submit_jobs.assert_called_with(
+        queue="fake_queue", job_set_id="fake_job_set_id", job_request_items=[]
+    )
+
+
+@patch("metaflow.plugins.armada.armada._get_client")
+def test_create_job_request_item(get_client):
+    pod_spec = create_armada_pod_spec(["sleep 10"], {"test": "value"}, [])
+    result = create_job_request_item(pod_spec)
+    assert result is not None
+    get_client.return_value.create_job_request_item.assert_called_with(
+        priority=1, namespace="default", pod_spec=pod_spec
+    )
