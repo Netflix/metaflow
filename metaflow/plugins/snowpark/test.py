@@ -62,7 +62,7 @@ class SnowflakeAsyncClient(object):
 
 if __name__ == "__main__":
     client = SnowflakeAsyncClient(
-        user="SAVINOUTERBOUNDS", password="Thefray7", account="pfb48862"
+        user="SAVINOUTERBOUNDS", password="****", account="pfb48862"
     )
 
     _id = client.submit(
