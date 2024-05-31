@@ -21,7 +21,8 @@ import google.auth.iam
 from google.auth.transport.requests import Request
 import google.oauth2.credentials
 import google.oauth2.service_account
-import requests_toolbelt.adapters.appengine
+# AIP-8457(talebz): WFSDK requests-toolbelt dependency breaks KFNB "pip install poetry"
+# import requests_toolbelt.adapters.appengine
 from webbrowser import open_new_tab
 import requests
 import json

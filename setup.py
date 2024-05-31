@@ -21,7 +21,6 @@ setup(
       """,
     install_requires=[
         "requests",
-        "urllib3<2.0.0",  # see requests break https://github.com/kubeflow/pipelines/pull/9323
         "boto3",
         "pylint",
         # required for KFP
@@ -36,8 +35,9 @@ setup(
         "kubernetes>=8.0.0,<27",
         "protobuf>=3.13.0,<4",
         "pyyaml>=5.3,<7",
-        "requests-toolbelt>=0.8.0,<1",
-        "uritemplate>=3.0.1,<4",
+        # AIP-8457(talebz): WFSDK requests-toolbelt dependency breaks KFNB "pip install poetry"
+        # "requests-toolbelt>=0.8.0,<1",
+        # "uritemplate>=3.0.1,<4",
     ],
     tests_require=["coverage"],
     extras_require={
