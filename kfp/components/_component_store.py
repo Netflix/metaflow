@@ -10,8 +10,7 @@ import logging
 import requests
 import tempfile
 from typing import Callable, Iterable
-# AIP-8457(talebz): WFSDK requests-toolbelt dependency breaks KFNB "pip install poetry"
-# from uritemplate import URITemplate
+from uritemplate import URITemplate
 from . import _components as comp
 from .structures import ComponentReference
 from ._key_value_store import KeyValueStore

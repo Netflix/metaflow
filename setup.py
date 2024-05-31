@@ -21,7 +21,6 @@ setup(
       """,
     install_requires=[
         "requests",
-        # "urllib3<2.0.0",  # see requests break https://github.com/kubeflow/pipelines/pull/9323
         "boto3",
         "pylint",
         # required for KFP
@@ -29,13 +28,14 @@ setup(
         "Deprecated>=1.2.7,<2",
         "docstring-parser>=0.7.3,<1",
         "fire>=0.3.1,<1",
-        # "googleapis-common-protos>=1.6.0,<2",
+        "googleapis-common-protos>=1.6.0,<2",
         "jsonschema>=4.19.2,<5",
         "kfp-pipeline-spec>=0.1.13,<0.2.0",
-        # "kfp-server-api>=1.1.2,<2.0.0",
+        "kfp-server-api>=1.1.2,<2.0.0",
         "kubernetes>=8.0.0,<27",
         "protobuf>=3.13.0,<4",
         "pyyaml>=5.3,<7",
+        # AIP-8457(talebz): WFSDK requests-toolbelt dependency breaks KFNB "pip install poetry"
         # "requests-toolbelt>=0.8.0,<1",
         # "uritemplate>=3.0.1,<4",
     ],
