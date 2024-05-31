@@ -185,6 +185,12 @@ class ArgoWorkflows(object):
         return name.replace("_", "-")
 
     @staticmethod
+    def _sensor_name(name):
+        # Unfortunately, Argo Events Sensor names don't allow for
+        # dots (sensors run into an error) which rules out self.name :(
+        return name.replace(".", "-")
+
+    @staticmethod
     def list_templates(flow_name, all=False):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
@@ -216,7 +222,7 @@ class ArgoWorkflows(object):
 
         # The workflow might have sensors attached to it, which consume actual resources.
         # Try to delete these as well.
-        sensor_deleted = client.delete_sensor(name)
+        sensor_deleted = client.delete_sensor(ArgoWorkflows._sensor_name(name))
 
         # After cleaning up related resources, delete the workflow in question.
         # Failure in deleting is treated as critical and will be made visible to the user
@@ -333,10 +339,9 @@ class ArgoWorkflows(object):
             argo_client.schedule_workflow_template(
                 self.name, self._schedule, self._timezone
             )
-            # Register sensor. Unfortunately, Argo Events Sensor names don't allow for
-            # dots (sensors run into an error) which rules out self.name :(
+            # Register sensor.
             # Metaflow will overwrite any existing sensor.
-            sensor_name = self.name.replace(".", "-")
+            sensor_name = ArgoWorkflows._sensor_name(self.name)
             if self._sensor:
                 argo_client.register_sensor(sensor_name, self._sensor.to_json())
             else:
@@ -2039,7 +2044,7 @@ class ArgoWorkflows(object):
             .metadata(
                 # Sensor metadata.
                 ObjectMeta()
-                .name(self.name.replace(".", "-"))
+                .name(ArgoWorkflows._sensor_name(self.name))
                 .namespace(KUBERNETES_NAMESPACE)
                 .label("app.kubernetes.io/name", "metaflow-sensor")
                 .label("app.kubernetes.io/part-of", "metaflow")
