@@ -89,16 +89,24 @@ class DockerEnvironment(MetaflowEnvironment):
             if _is_remote_deco(deco):
                 base_image = deco.attributes.get("image", None)
 
+        conda_deco = next(
+            (deco for deco in step.decorators if isinstance(deco, CondaStepDecorator)),
+            None,
+        )
+        pypi_deco = next(
+            (deco for deco in step.decorators if isinstance(deco, PyPIStepDecorator)),
+            None,
+        )
         image = None
-        for deco in step.decorators:
-            if isinstance(deco, CondaStepDecorator) or isinstance(
-                deco, PyPIStepDecorator
-            ):
-                pkgs = deco.attributes["packages"]
-                python = deco.attributes["python"]
-                image = bake_image(
-                    python, pkgs, self.datastore.TYPE, base_image, deco.name
-                )
+        # pypi packages need to take precedence over conda.
+        # a conda decorator always exists alongside pypi so this needs to be accounted for
+        dependency_deco = pypi_deco if pypi_deco is not None else conda_deco
+        if dependency_deco is not None:
+            pkgs = dependency_deco.attributes["packages"]
+            python = dependency_deco.attributes["python"]
+            image = bake_image(
+                python, pkgs, self.datastore.TYPE, base_image, dependency_deco.name
+            )
 
         if image is not None:
             # we have an image that we need to set to a kubernetes or batch decorator.
