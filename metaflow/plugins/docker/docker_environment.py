@@ -25,6 +25,7 @@ class DockerEnvironment(MetaflowEnvironment):
     _filecache = None
 
     def __init__(self, flow):
+        self.steps_to_delegate = set()
         self.flow = flow
 
     def set_local_root(self, local_root):
@@ -49,40 +50,39 @@ class DockerEnvironment(MetaflowEnvironment):
         if not _USE_BAKERY:
             raise DockerEnvironmentException("Image Bakery is not configured.")
 
-    def _setup_conda_fallback(self):
+    def _init_conda_fallback(self):
         # TODO: In the future we want to support executing with Docker even locally.
-        have_to_delegate = False
         for step in self.flow:
             if not any(_is_remote_deco(deco) for deco in step.decorators):
                 # We need to fall back to the Conda environmment for flows that are trying to execute anything locally.
-                have_to_delegate = True
-        if not have_to_delegate:
+                self.steps_to_delegate.add(step.name)
+        if not self.steps_to_delegate:
             return False
-        # replace methods with the delegate class that we determined.
-        cls = CondaEnvironment
-        for k in cls.__dict__:
-            obj = getattr(cls, k)
-            if callable(obj):
-                setattr(self.__class__, k, obj)
+        # TODO: move to init if possible.
+        self.delegate = CondaEnvironment(self.flow)
+        self.delegate.set_local_root(self.local_root)
         return True
 
     def init_environment(self, echo):
-        if self._setup_conda_fallback():
-            print(
-                "Some steps would execute locally. Had to fallback to a conda environment"
-            )
-            # switched env instance methods to conda, need to re-validate and init the environment.
-            self.validate_environment(echo, self.datastore_type)
-            self.init_environment(echo)
-            return
+        self._init_conda_fallback()
         # First resolve environments through Conda, before PyPI.
         echo("Baking Docker images for environment(s) ...")
-        # do the magic
         for step in self.flow:
             self.bake_image_for_step(step)
         echo("Environments are ready!")
+        if self.steps_to_delegate:
+            echo(
+                "Docker is not supported locally yet. Creating a Conda environment for steps that would execute locally."
+            )
+            # The delegated conda environment also need to validate and init.
+            # we pass a set of steps we want to init to restrict the conda environments created.
+            self.delegate.validate_environment(echo, self.datastore_type)
+            self.delegate.init_environment(echo, self.steps_to_delegate)
 
     def bake_image_for_step(self, step):
+        if self._is_delegated(step.name):
+            # do not bake images for delegated steps
+            return
         # map out if user is requesting a base image to build on top of
         base_image = None
         for deco in step.decorators:
@@ -114,10 +114,17 @@ class DockerEnvironment(MetaflowEnvironment):
                 if _is_remote_deco(deco):
                     deco.attributes["image"] = image
 
+    def _is_delegated(self, step_name):
+        return step_name in self.steps_to_delegate
+
     def executable(self, step_name, default=None):
+        if self._is_delegated(step_name):
+            return self.delegate.executable(step_name, default)
         return os.path.join("/conda-prefix", "bin/python")
 
     def interpreter(self, step_name):
+        if self._is_delegated(step_name):
+            return self.delegate.interpreter(step_name)
         return os.path.join("/conda-prefix", "bin/python")
 
     def is_disabled(self, step):
@@ -136,6 +143,8 @@ class DockerEnvironment(MetaflowEnvironment):
         return config
 
     def bootstrap_commands(self, step_name, datastore_type):
+        if self._is_delegated(step_name):
+            return self.delegate.bootstrap_commands(step_name, datastore_type)
         # Bootstrap conda and execution environment for step
         # we use an internal boolean flag so we do not have to pass the image bakery endpoint url
         # in order to denote that a bakery has been configured.
