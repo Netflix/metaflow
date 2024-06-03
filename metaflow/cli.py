@@ -10,7 +10,6 @@ from metaflow._vendor import click
 
 from . import decorators, lint, metaflow_version, namespace, parameters, plugins
 from .cli_args import cli_args
-from .client.core import get_metadata
 from .datastore import FlowDataStore, TaskDataStore, TaskDataStoreSet
 from .exception import CommandException, MetaflowException
 from .graph import FlowGraph
@@ -700,7 +699,12 @@ def resume(
     runtime.persist_constants()
     write_file(
         runner_attribute_file,
-        "%s:%s" % (get_metadata(), "/".join((obj.flow.name, runtime.run_id))),
+        "%s@%s:%s"
+        % (
+            obj.metadata.__class__.TYPE,
+            obj.metadata.__class__.INFO,
+            "/".join((obj.flow.name, runtime.run_id)),
+        ),
     )
     if clone_only:
         runtime.clone_original_run()
@@ -763,7 +767,12 @@ def run(
     runtime.persist_constants()
     write_file(
         runner_attribute_file,
-        "%s:%s" % (get_metadata(), "/".join((obj.flow.name, runtime.run_id))),
+        "%s@%s:%s"
+        % (
+            obj.metadata.__class__.TYPE,
+            obj.metadata.__class__.INFO,
+            "/".join((obj.flow.name, runtime.run_id)),
+        ),
     )
     runtime.execute()
 
