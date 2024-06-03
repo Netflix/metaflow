@@ -21,7 +21,6 @@ from metaflow.metaflow_config import (
     TEMPDIR,
 )
 from metaflow.util import (
-    namedtuple_with_defaults,
     is_stringish,
     to_bytes,
     to_unicode,
@@ -29,6 +28,7 @@ from metaflow.util import (
     url_quote,
     url_unquote,
 )
+from metaflow.tuple_util import namedtuple_with_defaults
 from metaflow.exception import MetaflowException
 from metaflow.debug import debug
 import metaflow.tracing as tracing
@@ -1245,12 +1245,12 @@ class S3(object):
 
         def _store():
             for key_obj in key_objs:
-                if isinstance(key_obj, tuple):
-                    key = key_obj[0]
-                    obj = key_obj[1]
-                else:
+                if isinstance(key_obj, S3PutObject):
                     key = key_obj.key
                     obj = key_obj.value
+                else:
+                    key = key_obj[0]
+                    obj = key_obj[1]
                 store_info = {
                     "key": key,
                     "content_type": getattr(key_obj, "content_type", None),
@@ -1319,12 +1319,12 @@ class S3(object):
 
         def _check():
             for key_path in key_paths:
-                if isinstance(key_path, tuple):
-                    key = key_path[0]
-                    path = key_path[1]
-                else:
+                if isinstance(key_path, S3PutObject):
                     key = key_path.key
                     path = key_path.path
+                else:
+                    key = key_path[0]
+                    path = key_path[1]
                 store_info = {
                     "key": key,
                     "content_type": getattr(key_path, "content_type", None),
@@ -1626,6 +1626,7 @@ class S3(object):
                         # Run the operation.
                         env = os.environ.copy()
                         tracing.inject_tracing_vars(env)
+                        env["METAFLOW_ESCAPE_HATCH_WARNING"] = "False"
                         stdout = subprocess.check_output(
                             cmdline + addl_cmdline,
                             cwd=self._tmpdir,

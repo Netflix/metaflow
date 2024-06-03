@@ -33,6 +33,8 @@ from metaflow.metaflow_config import (
     DATATOOLS_S3ROOT,
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
+    GCP_SECRET_MANAGER_PREFIX,
+    AZURE_KEY_VAULT_PREFIX,
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
@@ -674,6 +676,14 @@ class ArgoWorkflows(object):
             ),
         }
 
+        if self._schedule is not None:
+            # timezone is an optional field and json dumps on None will result in null
+            # hence configuring it to an empty string
+            if self._timezone is None:
+                self._timezone = ""
+            cron_info = {"schedule": self._schedule, "tz": self._timezone}
+            annotations.update({"metaflow/cron": json.dumps(cron_info)})
+
         if self.parameters:
             annotations.update({"metaflow/parameters": json.dumps(self.parameters)})
 
@@ -884,7 +894,14 @@ class ArgoWorkflows(object):
 
     # Visit every node and yield the uber DAGTemplate(s).
     def _dag_templates(self):
-        def _visit(node, exit_node=None, templates=None, dag_tasks=None):
+        def _visit(
+            node, exit_node=None, templates=None, dag_tasks=None, parent_foreach=None
+        ):
+            if node.parallel_foreach:
+                raise ArgoWorkflowsException(
+                    "Deploying flows with @parallel decorator(s) "
+                    "as Argo Workflows is not supported currently."
+                )
             # Every for-each node results in a separate subDAG and an equivalent
             # DAGTemplate rooted at the child of the for-each node. Each DAGTemplate
             # has a unique name - the top-level DAGTemplate is named as the name of
@@ -932,6 +949,37 @@ class ArgoWorkflows(object):
                         )
                     )
                 ]
+                # NOTE: Due to limitations with Argo Workflows Parameter size we
+                #       can not pass arbitrarily large lists of task id's to join tasks.
+                #       Instead we ensure that task id's for foreach tasks can be
+                #       deduced deterministically and pass the relevant information to
+                #       the join task.
+                #
+                #       We need to add the split-index and root-input-path for the last
+                #       step in any foreach scope and use these to generate the task id,
+                #       as the join step uses the root and the cardinality of the
+                #       foreach scope to generate the required id's.
+                if (
+                    node.is_inside_foreach
+                    and self.graph[node.out_funcs[0]].type == "join"
+                ):
+                    if any(
+                        self.graph[parent].matching_join
+                        == self.graph[node.out_funcs[0]].name
+                        and self.graph[parent].type == "foreach"
+                        for parent in self.graph[node.out_funcs[0]].split_parents
+                    ):
+                        parameters.extend(
+                            [
+                                Parameter("split-index").value(
+                                    "{{inputs.parameters.split-index}}"
+                                ),
+                                Parameter("root-input-path").value(
+                                    "{{inputs.parameters.input-paths}}"
+                                ),
+                            ]
+                        )
+
                 dag_task = (
                     DAGTask(self._sanitize(node.name))
                     .dependencies(
@@ -952,9 +1000,19 @@ class ArgoWorkflows(object):
             # For split nodes traverse all the children
             if node.type == "split":
                 for n in node.out_funcs:
-                    _visit(self.graph[n], node.matching_join, templates, dag_tasks)
+                    _visit(
+                        self.graph[n],
+                        node.matching_join,
+                        templates,
+                        dag_tasks,
+                        parent_foreach,
+                    )
                 return _visit(
-                    self.graph[node.matching_join], exit_node, templates, dag_tasks
+                    self.graph[node.matching_join],
+                    exit_node,
+                    templates,
+                    dag_tasks,
+                    parent_foreach,
                 )
             # For foreach nodes generate a new sub DAGTemplate
             elif node.type == "foreach":
@@ -978,6 +1036,16 @@ class ArgoWorkflows(object):
                                 ),
                                 Parameter("split-index").value("{{item}}"),
                             ]
+                            + (
+                                [
+                                    Parameter("root-input-path").value(
+                                        "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
+                                        % (node.name, self._sanitize(node.name))
+                                    ),
+                                ]
+                                if parent_foreach
+                                else []
+                            )
                         )
                     )
                     .with_param(
@@ -987,13 +1055,18 @@ class ArgoWorkflows(object):
                 )
                 dag_tasks.append(foreach_task)
                 templates, dag_tasks_1 = _visit(
-                    self.graph[node.out_funcs[0]], node.matching_join, templates, []
+                    self.graph[node.out_funcs[0]],
+                    node.matching_join,
+                    templates,
+                    [],
+                    node.name,
                 )
                 templates.append(
                     Template(foreach_template_name)
                     .inputs(
                         Inputs().parameters(
                             [Parameter("input-paths"), Parameter("split-index")]
+                            + ([Parameter("root-input-path")] if parent_foreach else [])
                         )
                     )
                     .outputs(
@@ -1020,13 +1093,26 @@ class ArgoWorkflows(object):
                         Arguments().parameters(
                             [
                                 Parameter("input-paths").value(
-                                    "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters}}"
-                                    % (
-                                        self.graph[node.matching_join].in_funcs[-1],
-                                        foreach_template_name,
-                                    )
-                                )
+                                    "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
+                                    % (node.name, self._sanitize(node.name))
+                                ),
+                                Parameter("split-cardinality").value(
+                                    "{{tasks.%s.outputs.parameters.split-cardinality}}"
+                                    % self._sanitize(node.name)
+                                ),
                             ]
+                            + (
+                                [
+                                    Parameter("split-index").value(
+                                        "{{inputs.parameters.split-index}}"
+                                    ),
+                                    Parameter("root-input-path").value(
+                                        "{{inputs.parameters.input-paths}}"
+                                    ),
+                                ]
+                                if parent_foreach
+                                else []
+                            )
                         )
                     )
                 )
@@ -1036,11 +1122,16 @@ class ArgoWorkflows(object):
                     exit_node,
                     templates,
                     dag_tasks,
+                    parent_foreach,
                 )
             # For linear nodes continue traversing to the next node
             if node.type in ("linear", "join", "start"):
                 return _visit(
-                    self.graph[node.out_funcs[0]], exit_node, templates, dag_tasks
+                    self.graph[node.out_funcs[0]],
+                    exit_node,
+                    templates,
+                    dag_tasks,
+                    parent_foreach,
                 )
             else:
                 raise ArgoWorkflowsException(
@@ -1083,11 +1174,43 @@ class ArgoWorkflows(object):
             # Ideally, we would like these task ids to be the same as node name
             # (modulo retry suffix) on Argo Workflows but that doesn't seem feasible
             # right now.
-            task_str = node.name + "-{{workflow.creationTimestamp}}"
+
+            task_idx = ""
+            input_paths = ""
+            root_input = None
+            # export input_paths as it is used multiple times in the container script
+            # and we do not want to repeat the values.
+            input_paths_expr = "export INPUT_PATHS=''"
             if node.name != "start":
-                task_str += "-{{inputs.parameters.input-paths}}"
+                input_paths_expr = (
+                    "export INPUT_PATHS={{inputs.parameters.input-paths}}"
+                )
+                input_paths = "$(echo $INPUT_PATHS)"
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
-                task_str += "-{{inputs.parameters.split-index}}"
+                task_idx = "{{inputs.parameters.split-index}}"
+            if node.is_inside_foreach and self.graph[node.out_funcs[0]].type == "join":
+                if any(
+                    self.graph[parent].matching_join
+                    == self.graph[node.out_funcs[0]].name
+                    for parent in self.graph[node.out_funcs[0]].split_parents
+                    if self.graph[parent].type == "foreach"
+                ) and any(not self.graph[f].type == "foreach" for f in node.in_funcs):
+                    # we need to propagate the split-index and root-input-path info for
+                    # the last step inside a foreach for correctly joining nested
+                    # foreaches
+                    task_idx = "{{inputs.parameters.split-index}}"
+                    root_input = "{{inputs.parameters.root-input-path}}"
+
+            # Task string to be hashed into an ID
+            task_str = "-".join(
+                [
+                    node.name,
+                    "{{workflow.creationTimestamp}}",
+                    root_input or input_paths,
+                    task_idx,
+                ]
+            )
+
             # Generated task_ids need to be non-numeric - see register_task_id in
             # service.py. We do so by prefixing `t-`
             task_id_expr = (
@@ -1136,6 +1259,7 @@ class ArgoWorkflows(object):
                     # env var.
                     '${METAFLOW_INIT_SCRIPT:+eval \\"${METAFLOW_INIT_SCRIPT}\\"}',
                     "mkdir -p $PWD/.logs",
+                    input_paths_expr,
                     task_id_expr,
                     mflog_expr,
                 ]
@@ -1146,8 +1270,6 @@ class ArgoWorkflows(object):
             step_cmds = self.environment.bootstrap_commands(
                 node.name, self.flow_datastore.TYPE
             )
-
-            input_paths = "{{inputs.parameters.input-paths}}"
 
             top_opts_dict = {
                 "with": [
@@ -1217,10 +1339,16 @@ class ArgoWorkflows(object):
                 node.type == "join"
                 and self.graph[node.split_parents[-1]].type == "foreach"
             ):
-                # Set aggregated input-paths for a foreach-join
+                # Set aggregated input-paths for a for-each join
+                foreach_step = next(
+                    n for n in node.in_funcs if self.graph[n].is_inside_foreach
+                )
                 input_paths = (
-                    "$(python -m metaflow.plugins.argo.process_input_paths %s)"
-                    % input_paths
+                    "$(python -m metaflow.plugins.argo.generate_input_paths %s {{workflow.creationTimestamp}} %s {{inputs.parameters.split-cardinality}})"
+                    % (
+                        foreach_step,
+                        input_paths,
+                    )
                 )
             step = [
                 "step",
@@ -1349,6 +1477,8 @@ class ArgoWorkflows(object):
             env[
                 "METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION"
             ] = AWS_SECRETS_MANAGER_DEFAULT_REGION
+            env["METAFLOW_GCP_SECRET_MANAGER_PREFIX"] = GCP_SECRET_MANAGER_PREFIX
+            env["METAFLOW_AZURE_KEY_VAULT_PREFIX"] = AZURE_KEY_VAULT_PREFIX
 
             # support for Azure
             env[
@@ -1386,13 +1516,37 @@ class ArgoWorkflows(object):
             # input. Analogously, if the node under consideration is a foreach
             # node, then we emit split cardinality as an extra output. I would like
             # to thank the designers of Argo Workflows for making this so
-            # straightforward!
+            # straightforward! Things become a bit more complicated to support very
+            # wide foreaches where we have to resort to passing a root-input-path
+            # so that we can compute the task ids for each parent task of a for-each
+            # join task deterministically inside the join task without resorting to
+            # passing a rather long list of (albiet compressed)
             inputs = []
             if node.name != "start":
                 inputs.append(Parameter("input-paths"))
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 # Fetch split-index from parent
                 inputs.append(Parameter("split-index"))
+            if (
+                node.type == "join"
+                and self.graph[node.split_parents[-1]].type == "foreach"
+            ):
+                # append this only for joins of foreaches, not static splits
+                inputs.append(Parameter("split-cardinality"))
+            if node.is_inside_foreach and self.graph[node.out_funcs[0]].type == "join":
+                if any(
+                    self.graph[parent].matching_join
+                    == self.graph[node.out_funcs[0]].name
+                    for parent in self.graph[node.out_funcs[0]].split_parents
+                    if self.graph[parent].type == "foreach"
+                ) and any(not self.graph[f].type == "foreach" for f in node.in_funcs):
+                    # we need to propagate the split-index and root-input-path info for
+                    # the last step inside a foreach for correctly joining nested
+                    # foreaches
+                    if not any(self.graph[n].type == "foreach" for n in node.in_funcs):
+                        # Don't add duplicate split index parameters.
+                        inputs.append(Parameter("split-index"))
+                    inputs.append(Parameter("root-input-path"))
 
             outputs = []
             if node.name != "end":
@@ -1401,6 +1555,11 @@ class ArgoWorkflows(object):
                 # Emit split cardinality from foreach task
                 outputs.append(
                     Parameter("num-splits").valueFrom({"path": "/mnt/out/splits"})
+                )
+                outputs.append(
+                    Parameter("split-cardinality").valueFrom(
+                        {"path": "/mnt/out/split_cardinality"}
+                    )
                 )
 
             # It makes no sense to set env vars to None (shows up as "None" string)
@@ -1420,12 +1579,14 @@ class ArgoWorkflows(object):
             # Set shared_memory to 0 if it isn't specified. This results
             # in Kubernetes using it's default value when the pod is created.
             shared_memory = resources.get("shared_memory", 0)
+            port = resources.get("port", None)
+            if port:
+                port = int(port)
 
             tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
 
             if tmpfs_enabled and tmpfs_tempdir:
                 env["METAFLOW_TEMPDIR"] = tmpfs_path
-
             # Create a ContainerTemplate for this node. Ideally, we would have
             # liked to inline this ContainerTemplate and avoid scanning the workflow
             # twice, but due to issues with variable substitution, we will have to
@@ -1484,6 +1645,9 @@ class ArgoWorkflows(object):
                         kubernetes_sdk.V1Container(
                             name=self._sanitize(node.name),
                             command=cmds,
+                            ports=[kubernetes_sdk.V1ContainerPort(container_port=port)]
+                            if port
+                            else None,
                             env=[
                                 kubernetes_sdk.V1EnvVar(name=k, value=str(v))
                                 for k, v in env.items()
@@ -2032,8 +2196,10 @@ class ArgoWorkflows(object):
                                                 # Technically, we don't need to create
                                                 # a payload carry-on and can stuff
                                                 # everything within the body.
-                                                data_template="{{ .Input.body.payload.%s | toJson }}"
-                                                % v,
+                                                # NOTE: We need the conditional logic in order to successfully fall back to the default value
+                                                # when the event payload does not contain a key for a parameter.
+                                                data_template='{{ if (hasKey $.Input.body.payload "%s") }}{{- (.Input.body.payload.%s | toJson) -}}{{- else -}}{{ (fail "use-default-instead") }}{{- end -}}'
+                                                % (v, v),
                                                 # Unfortunately the sensor needs to
                                                 # record the default values for
                                                 # the parameters - there doesn't seem

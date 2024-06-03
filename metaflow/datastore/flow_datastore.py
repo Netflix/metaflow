@@ -67,8 +67,15 @@ class FlowDataStore(object):
     def datastore_root(self):
         return self._storage_impl.datastore_root
 
-    def get_latest_task_datastores(
-        self, run_id=None, steps=None, pathspecs=None, allow_not_done=False
+    def get_task_datastores(
+        self,
+        run_id=None,
+        steps=None,
+        pathspecs=None,
+        allow_not_done=False,
+        attempt=None,
+        include_prior=False,
+        mode="r",
     ):
         """
         Return a list of TaskDataStore for a subset of the tasks.
@@ -93,6 +100,12 @@ class FlowDataStore(object):
         allow_not_done : bool, optional
             If True, returns the latest attempt of a task even if that attempt
             wasn't marked as done, by default False
+        attempt : int, optional
+            Attempt number of the tasks to return.  If not provided, returns latest attempt.
+        include_prior : boolean, default False
+            If True, returns all attempts up to and including attempt.
+        mode : str, default "r"
+            Mode to initialize the returned TaskDataStores in.
 
         Returns
         -------
@@ -126,8 +139,13 @@ class FlowDataStore(object):
                 if task.is_file is False
             ]
         urls = []
+        # parse content urls for specific attempt only, or for all attempts in max range
+        attempt_range = range(metaflow_config.MAX_ATTEMPTS)
+        # we have no reason to check for attempts greater than MAX_ATTEMPTS, as they do not exist.
+        if attempt is not None and attempt <= metaflow_config.MAX_ATTEMPTS - 1:
+            attempt_range = range(attempt + 1) if include_prior else [attempt]
         for task_url in task_urls:
-            for attempt in range(metaflow_config.MAX_ATTEMPTS):
+            for attempt in attempt_range:
                 for suffix in [
                     TaskDataStore.METADATA_DATA_SUFFIX,
                     TaskDataStore.METADATA_ATTEMPT_SUFFIX,
@@ -168,11 +186,19 @@ class FlowDataStore(object):
             for (run, step, task), attempt in latest_started_attempts.items()
         )
         if allow_not_done:
-            latest_to_fetch = latest_started_attempts
+            latest_to_fetch = (
+                done_attempts.union(latest_started_attempts)
+                if include_prior
+                else latest_started_attempts
+            )
         else:
-            latest_to_fetch = latest_started_attempts & done_attempts
+            latest_to_fetch = (
+                done_attempts
+                if include_prior
+                else (latest_started_attempts & done_attempts)
+            )
         latest_to_fetch = [
-            (v[0], v[1], v[2], v[3], data_objs.get(v), "r", allow_not_done)
+            (v[0], v[1], v[2], v[3], data_objs.get(v), mode, allow_not_done)
             for v in latest_to_fetch
         ]
         return list(itertools.starmap(self.get_task_datastore, latest_to_fetch))

@@ -72,6 +72,7 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
         meta["argo-workflow-name"] = os.environ["ARGO_WORKFLOW_NAME"]
         meta["argo-workflow-namespace"] = os.environ["ARGO_WORKFLOW_NAMESPACE"]
         meta["auto-emit-argo-events"] = self.attributes["auto-emit-argo-events"]
+        meta["argo-workflow-template-owner"] = os.environ["METAFLOW_OWNER"]
         entries = [
             MetaDatum(
                 field=k, value=v, type=k, tags=["attempt_id:{0}".format(retry_count)]
@@ -101,6 +102,9 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
         if graph[step_name].type == "foreach":
             with open("/mnt/out/splits", "w") as file:
                 json.dump(list(range(flow._foreach_num_splits)), file)
+            with open("/mnt/out/split_cardinality", "w") as file:
+                json.dump(flow._foreach_num_splits, file)
+
         # Unfortunately, we can't always use pod names as task-ids since the pod names
         # are not static across retries. We write the task-id to a file that is read
         # by the next task here.

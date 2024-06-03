@@ -10,4 +10,4 @@ class MetaflowAzureResourceError(MetaflowException):
 
 
 class MetaflowAzurePackageError(MetaflowException):
-    headline = "Missing required packages 'azure-identity' and 'azure-storage-blob'"
+    headline = "Missing required packages 'azure-identity' and 'azure-storage-blob' and 'azure-keyvault-secrets'"

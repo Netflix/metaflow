@@ -1,33 +1,31 @@
 import inspect
+import os
 import sys
 import traceback
 from datetime import datetime
 from functools import wraps
-import metaflow.tracing as tracing
 
+import metaflow.tracing as tracing
 from metaflow._vendor import click
 
-from . import lint
-from . import plugins
-from . import parameters
-from . import decorators
-from . import metaflow_version
-from . import namespace
-from .metaflow_current import current
+from . import decorators, lint, metaflow_version, namespace, parameters, plugins
 from .cli_args import cli_args
-from .tagging_util import validate_tags
-from .util import (
-    resolve_identity,
-    decompress_list,
-    write_latest_run_id,
-    get_latest_run_id,
-)
-from .task import MetaflowTask
+from .client.core import get_metadata
+from .datastore import FlowDataStore, TaskDataStore, TaskDataStoreSet
 from .exception import CommandException, MetaflowException
 from .graph import FlowGraph
-from .datastore import FlowDataStore, TaskDataStoreSet, TaskDataStore
-
-from .runtime import NativeRuntime
+from .metaflow_config import (
+    DECOSPECS,
+    DEFAULT_DATASTORE,
+    DEFAULT_ENVIRONMENT,
+    DEFAULT_EVENT_LOGGER,
+    DEFAULT_METADATA,
+    DEFAULT_MONITOR,
+    DEFAULT_PACKAGE_SUFFIXES,
+)
+from .metaflow_current import current
+from .metaflow_environment import MetaflowEnvironment
+from .mflog import LOG_SOURCES, mflog
 from .package import MetaflowPackage
 from .plugins import (
     DATASTORES,
@@ -36,20 +34,18 @@ from .plugins import (
     METADATA_PROVIDERS,
     MONITOR_SIDECARS,
 )
-from .metaflow_config import (
-    DEFAULT_DATASTORE,
-    DEFAULT_ENVIRONMENT,
-    DEFAULT_EVENT_LOGGER,
-    DEFAULT_METADATA,
-    DEFAULT_MONITOR,
-    DEFAULT_PACKAGE_SUFFIXES,
-)
-from .metaflow_environment import MetaflowEnvironment
 from .pylint_wrapper import PyLint
-from .R import use_r, metaflow_r_version
-from .mflog import mflog, LOG_SOURCES
+from .R import metaflow_r_version, use_r
+from .runtime import NativeRuntime
+from .tagging_util import validate_tags
+from .task import MetaflowTask
 from .unbounded_foreach import UBF_CONTROL, UBF_TASK
-
+from .util import (
+    decompress_list,
+    get_latest_run_id,
+    resolve_identity,
+    write_latest_run_id,
+)
 
 ERASE_TO_EOL = "\033[K"
 HIGHLIGHT = "red"
@@ -122,6 +118,26 @@ def logger(body="", system_msg=False, head="", bad=False, timestamp=True, nl=Tru
     if head:
         click.secho(head, fg=LOGGER_COLOR, nl=False)
     click.secho(body, bold=system_msg, fg=LOGGER_BAD_COLOR if bad else None, nl=nl)
+
+
+def config_merge_cb(ctx, param, value):
+    # Callback to:
+    #  - read  the Click auto_envvar variable from both the
+    #    environment AND the configuration
+    #  - merge that value with the value passed in the command line (value)
+    #  - return the value as a tuple
+    # Note that this function gets called even if there is no option passed on the
+    # command line.
+    # NOTE: Assumes that ctx.auto_envvar_prefix is set to METAFLOW (same as in
+    # from_conf)
+
+    # Special case where DECOSPECS and value are the same. This happens
+    # when there is no --with option at the TL and DECOSPECS is read from
+    # the env var. In this case, click also passes it as value
+    splits = DECOSPECS.split()
+    if len(splits) == len(value) and all([a == b for (a, b) in zip(splits, value)]):
+        return value
+    return tuple(list(value) + DECOSPECS.split())
 
 
 @click.group()
@@ -285,126 +301,6 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
         with open(file, "wb") as f:
             pickle.dump(output, f, protocol=pickle.HIGHEST_PROTOCOL)
         echo("Artifacts written to *%s*" % file)
-
-
-@cli.command(
-    help="Show stdout/stderr produced by a task or all tasks in a step. "
-    "The format for input-path is either <run_id>/<step_name> or "
-    "<run_id>/<step_name>/<task_id>."
-)
-@click.argument("input-path")
-@click.option(
-    "--stdout/--no-stdout",
-    default=False,
-    show_default=True,
-    help="Show stdout of the task.",
-)
-@click.option(
-    "--stderr/--no-stderr",
-    default=False,
-    show_default=True,
-    help="Show stderr of the task.",
-)
-@click.option(
-    "--both/--no-both",
-    default=True,
-    show_default=True,
-    help="Show both stdout and stderr of the task.",
-)
-@click.option(
-    "--timestamps/--no-timestamps",
-    default=False,
-    show_default=True,
-    help="Show timestamps.",
-)
-@click.pass_obj
-def logs(obj, input_path, stdout=None, stderr=None, both=None, timestamps=False):
-    types = set()
-    if stdout:
-        types.add("stdout")
-        both = False
-    if stderr:
-        types.add("stderr")
-        both = False
-    if both:
-        types.update(("stdout", "stderr"))
-
-    streams = list(sorted(types, reverse=True))
-
-    # Pathspec can either be run_id/step_name or run_id/step_name/task_id.
-    parts = input_path.split("/")
-    if len(parts) == 2:
-        run_id, step_name = parts
-        task_id = None
-    elif len(parts) == 3:
-        run_id, step_name, task_id = parts
-    else:
-        raise CommandException(
-            "input_path should either be run_id/step_name "
-            "or run_id/step_name/task_id"
-        )
-
-    datastore_set = TaskDataStoreSet(
-        obj.flow_datastore, run_id, steps=[step_name], allow_not_done=True
-    )
-    if task_id:
-        ds_list = [
-            TaskDataStore(
-                obj.flow_datastore,
-                run_id=run_id,
-                step_name=step_name,
-                task_id=task_id,
-                mode="r",
-                allow_not_done=True,
-            )
-        ]
-    else:
-        ds_list = list(datastore_set)  # get all tasks
-
-    if ds_list:
-
-        def echo_unicode(line, **kwargs):
-            click.secho(line.decode("UTF-8", errors="replace"), **kwargs)
-
-        # old style logs are non mflog-style logs
-        maybe_old_style = True
-        for ds in ds_list:
-            echo(
-                "Dumping logs of run_id=*{run_id}* "
-                "step=*{step}* task_id=*{task_id}*".format(
-                    run_id=ds.run_id, step=ds.step_name, task_id=ds.task_id
-                ),
-                fg="magenta",
-            )
-
-            for stream in streams:
-                echo(stream, bold=True)
-                logs = ds.load_logs(LOG_SOURCES, stream)
-                if any(data for _, data in logs):
-                    # attempt to read new, mflog-style logs
-                    for line in mflog.merge_logs([blob for _, blob in logs]):
-                        if timestamps:
-                            ts = mflog.utc_to_local(line.utc_tstamp)
-                            tstamp = ts.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-                            click.secho(tstamp + " ", fg=LOGGER_TIMESTAMP, nl=False)
-                        echo_unicode(line.msg)
-                    maybe_old_style = False
-                elif maybe_old_style:
-                    # if they are not available, we may be looking at
-                    # a legacy run (unless we have seen new-style data already
-                    # for another stream). This return an empty string if
-                    # nothing is found
-                    log = ds.load_log_legacy(stream)
-                    if log and timestamps:
-                        raise CommandException(
-                            "We can't show --timestamps for old runs. Sorry!"
-                        )
-                    echo_unicode(log, nl=False)
-    else:
-        raise CommandException(
-            "No Tasks found at the given path -- "
-            "either none exist or none have started yet"
-        )
 
 
 # TODO - move step and init under a separate 'internal' subcommand
@@ -677,6 +573,13 @@ def common_run_options(func):
         type=str,
         help="Write the ID of this run to the file specified.",
     )
+    @click.option(
+        "--runner-attribute-file",
+        default=None,
+        show_default=True,
+        type=str,
+        help="Write the metadata and pathspec of this run to the file specified. Used internally for Metaflow's Runner API.",
+    )
     @wraps(func)
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
@@ -735,8 +638,9 @@ def resume(
     decospecs=None,
     run_id_file=None,
     resume_identifier=None,
+    runner_attribute_file=None,
 ):
-    before_run(obj, tags, decospecs + obj.environment.decospecs())
+    before_run(obj, tags, decospecs)
 
     if origin_run_id is None:
         origin_run_id = get_latest_run_id(obj.echo, obj.flow.name)
@@ -790,9 +694,14 @@ def resume(
         max_log_size=max_log_size * 1024 * 1024,
         resume_identifier=resume_identifier,
     )
-    write_run_id(run_id_file, runtime.run_id)
+    write_file(run_id_file, runtime.run_id)
     runtime.print_workflow_info()
+
     runtime.persist_constants()
+    write_file(
+        runner_attribute_file,
+        "%s:%s" % (get_metadata(), "/".join((obj.flow.name, runtime.run_id))),
+    )
     if clone_only:
         runtime.clone_original_run()
     else:
@@ -823,12 +732,13 @@ def run(
     max_log_size=None,
     decospecs=None,
     run_id_file=None,
+    runner_attribute_file=None,
     user_namespace=None,
     **kwargs
 ):
     if user_namespace is not None:
         namespace(user_namespace or None)
-    before_run(obj, tags, decospecs + obj.environment.decospecs())
+    before_run(obj, tags, decospecs)
 
     runtime = NativeRuntime(
         obj.flow,
@@ -846,18 +756,22 @@ def run(
         max_log_size=max_log_size * 1024 * 1024,
     )
     write_latest_run_id(obj, runtime.run_id)
-    write_run_id(run_id_file, runtime.run_id)
+    write_file(run_id_file, runtime.run_id)
 
     obj.flow._set_constants(obj.graph, kwargs)
     runtime.print_workflow_info()
     runtime.persist_constants()
+    write_file(
+        runner_attribute_file,
+        "%s:%s" % (get_metadata(), "/".join((obj.flow.name, runtime.run_id))),
+    )
     runtime.execute()
 
 
-def write_run_id(run_id_file, run_id):
-    if run_id_file is not None:
-        with open(run_id_file, "w") as f:
-            f.write(str(run_id))
+def write_file(file_path, content):
+    if file_path is not None:
+        with open(file_path, "w") as f:
+            f.write(str(content))
 
 
 def before_run(obj, tags, decospecs):
@@ -872,9 +786,20 @@ def before_run(obj, tags, decospecs):
     # A downside is that we need to have the following decorators handling
     # in two places in this module and make sure _init_step_decorators
     # doesn't get called twice.
-    if decospecs:
-        decorators._attach_decorators(obj.flow, decospecs)
+
+    # We want the order to be the following:
+    # - run level decospecs
+    # - top level decospecs
+    # - environment decospecs
+    all_decospecs = (
+        list(decospecs or [])
+        + obj.tl_decospecs
+        + list(obj.environment.decospecs() or [])
+    )
+    if all_decospecs:
+        decorators._attach_decorators(obj.flow, all_decospecs)
         obj.graph = FlowGraph(obj.flow.__class__)
+
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     # obj.environment.init_environment(obj.logger)
 
@@ -945,6 +870,7 @@ def version(obj):
     multiple=True,
     help="Add a decorator to all steps. You can specify this option "
     "multiple times to attach multiple decorators in steps.",
+    callback=config_merge_cb,
 )
 @click.option(
     "--pylint/--no-pylint",
@@ -1063,8 +989,11 @@ def start(
         deco_options,
     )
 
-    if decospecs:
-        decorators._attach_decorators(ctx.obj.flow, decospecs)
+    # In the case of run/resume, we will want to apply the TL decospecs
+    # *after* the run decospecs so that they don't take precedence. In other
+    # words, for the same decorator, we want `myflow.py run --with foo` to
+    # take precedence over any other `foo` decospec
+    ctx.obj.tl_decospecs = list(decospecs or [])
 
     # initialize current and parameter context for deploy-time parameters
     current._set_env(flow=ctx.obj.flow, is_running=False)
@@ -1075,7 +1004,14 @@ def start(
     if ctx.invoked_subcommand not in ("run", "resume"):
         # run/resume are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.
-        decorators._attach_decorators(ctx.obj.flow, ctx.obj.environment.decospecs())
+        all_decospecs = ctx.obj.tl_decospecs + list(
+            ctx.obj.environment.decospecs() or []
+        )
+        if all_decospecs:
+            decorators._attach_decorators(ctx.obj.flow, all_decospecs)
+            # Regenerate graph if we attached more decorators
+            ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
+
         decorators._init_step_decorators(
             ctx.obj.flow,
             ctx.obj.graph,
@@ -1083,6 +1019,7 @@ def start(
             ctx.obj.flow_datastore,
             ctx.obj.logger,
         )
+
         # TODO (savin): Enable lazy instantiation of package
         ctx.obj.package = None
     if ctx.invoked_subcommand is None:

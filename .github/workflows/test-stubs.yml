@@ -17,8 +17,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, macos-latest]
+        os: [ubuntu-20.04]
         ver: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+        include:
+          - os: macos-latest
+            ver: "3.12"
+          - os: macos-latest
+            ver: "3.11"
+          - os: macos-latest
+            ver: "3.10"
 
     steps:
     - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0

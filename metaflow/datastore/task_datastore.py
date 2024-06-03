@@ -173,6 +173,26 @@ class TaskDataStore(object):
                 if data_obj is not None:
                     self._objects = data_obj.get("objects", {})
                     self._info = data_obj.get("info", {})
+        elif self._mode == "d":
+            self._objects = {}
+            self._info = {}
+
+            if self._attempt is None:
+                for i in range(metaflow_config.MAX_ATTEMPTS):
+                    check_meta = self._metadata_name_for_attempt(
+                        self.METADATA_ATTEMPT_SUFFIX, i
+                    )
+                    if self.has_metadata(check_meta, add_attempt=False):
+                        self._attempt = i
+
+            # Do not allow destructive operations on the datastore if attempt is still in flight
+            # and we explicitly did not allow operating on running tasks.
+            if not allow_not_done and not self.has_metadata(self.METADATA_DONE_SUFFIX):
+                raise DataException(
+                    "No completed attempts of the task was found for task '%s'"
+                    % self._path
+                )
+
         else:
             raise DataException("Unknown datastore mode: '%s'" % self._mode)
 
@@ -749,6 +769,36 @@ class TaskDataStore(object):
             else:
                 to_store_dict[n] = data
         self._save_file(to_store_dict)
+
+    @require_mode("d")
+    def scrub_logs(self, logsources, stream, attempt_override=None):
+        path_logsources = {
+            self._metadata_name_for_attempt(
+                self._get_log_location(s, stream),
+                attempt_override=attempt_override,
+            ): s
+            for s in logsources
+        }
+
+        # Legacy log paths
+        legacy_log = self._metadata_name_for_attempt(
+            "%s.log" % stream, attempt_override
+        )
+        path_logsources[legacy_log] = stream
+
+        existing_paths = [
+            path
+            for path in path_logsources.keys()
+            if self.has_metadata(path, add_attempt=False)
+        ]
+
+        # Replace log contents with [REDACTED source stream]
+        to_store_dict = {
+            path: bytes("[REDACTED %s %s]" % (path_logsources[path], stream), "utf-8")
+            for path in existing_paths
+        }
+
+        self._save_file(to_store_dict, add_attempt=False, allow_overwrite=True)
 
     @require_mode("r")
     def load_log_legacy(self, stream, attempt_override=None):

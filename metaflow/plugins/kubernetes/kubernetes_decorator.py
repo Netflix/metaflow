@@ -21,6 +21,10 @@ from metaflow.metaflow_config import (
     KUBERNETES_TOLERATIONS,
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SHARED_MEMORY,
+    KUBERNETES_PORT,
+    KUBERNETES_CPU,
+    KUBERNETES_MEMORY,
+    KUBERNETES_DISK,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -28,6 +32,8 @@ from metaflow.sidecar import Sidecar
 
 from ..aws.aws_utils import get_docker_registry, get_ec2_instance_metadata
 from .kubernetes import KubernetesException, parse_kube_keyvalue_list
+from metaflow.unbounded_foreach import UBF_CONTROL
+from .kubernetes_jobsets import TaskIdConstructor
 
 try:
     unicode
@@ -90,6 +96,8 @@ class KubernetesDecorator(StepDecorator):
         volumes to the path to which the volume is to be mounted, e.g., `{'pvc-name': '/path/to/mount/on'}`.
     shared_memory: int, optional
         Shared memory size (in MiB) required for this step
+    port: int, optional
+        Port number to specify in the Kubernetes job object
     """
 
     name = "kubernetes"
@@ -113,6 +121,7 @@ class KubernetesDecorator(StepDecorator):
         "tmpfs_path": "/metaflow_temp",
         "persistent_volume_claims": None,  # e.g., {"pvc-name": "/mnt/vol", "another-pvc": "/mnt/vol2"}
         "shared_memory": None,
+        "port": None,
     }
     package_url = None
     package_sha = None
@@ -170,6 +179,15 @@ class KubernetesDecorator(StepDecorator):
             except (NameError, ImportError):
                 pass
 
+        # parse the CPU, memory, disk, values from the KUBERNETES_ environment variable (you would need to export the METAFLOW_KUBERNETES_CPU, METAFLOW_KUBERNETES_MEMORY and/or METAFLOW_KUBERNTES_DISK environment variable with the desired values before running the flow)
+        # find the values from the environment variables, then validate if the values are still the default ones, if so, then replace them with the values from the environment variables (otherwise, keep the values from the decorator)
+        if self.attributes["cpu"] == self.defaults["cpu"] and KUBERNETES_CPU:
+            self.attributes["cpu"] = KUBERNETES_CPU
+        if self.attributes["memory"] == self.defaults["memory"] and KUBERNETES_MEMORY:
+            self.attributes["memory"] = KUBERNETES_MEMORY
+        if self.attributes["disk"] == self.defaults["disk"] and KUBERNETES_DISK:
+            self.attributes["disk"] = KUBERNETES_DISK
+
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
             # If metaflow-config specifies a docker image, just use that.
@@ -200,6 +218,8 @@ class KubernetesDecorator(StepDecorator):
                 self.attributes["tmpfs_size"] = int(self.attributes["memory"]) // 2
         if not self.attributes["shared_memory"]:
             self.attributes["shared_memory"] = KUBERNETES_SHARED_MEMORY
+        if not self.attributes["port"]:
+            self.attributes["port"] = KUBERNETES_PORT
 
     # Refer https://github.com/Netflix/metaflow/blob/master/docs/lifecycle.png
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
@@ -221,11 +241,15 @@ class KubernetesDecorator(StepDecorator):
                 "Kubernetes. Please use one or the other.".format(step=step)
             )
 
-        for deco in decos:
-            if getattr(deco, "IS_PARALLEL", False):
-                raise KubernetesException(
-                    "@kubernetes does not support parallel execution currently."
+        if any([deco.name == "parallel" for deco in decos]) and any(
+            [deco.name == "catch" for deco in decos]
+        ):
+            raise MetaflowException(
+                "Step *{step}* contains a @parallel decorator "
+                "with the @catch decorator. @catch is not supported with @parallel on Kubernetes.".format(
+                    step=step
                 )
+            )
 
         # Set run time limit for the Kubernetes job.
         self.run_time_limit = get_run_time_limit_for_task(decos)
@@ -403,6 +427,10 @@ class KubernetesDecorator(StepDecorator):
                 "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME"
             ]
             meta["kubernetes-node-ip"] = os.environ["METAFLOW_KUBERNETES_NODE_IP"]
+            if os.environ.get("METAFLOW_KUBERNETES_JOBSET_NAME"):
+                meta["kubernetes-jobset-name"] = os.environ[
+                    "METAFLOW_KUBERNETES_JOBSET_NAME"
+                ]
 
             # TODO (savin): Introduce equivalent support for Microsoft Azure and
             #               Google Cloud Platform
@@ -434,6 +462,24 @@ class KubernetesDecorator(StepDecorator):
             # Start MFLog sidecar to collect task logs.
             self._save_logs_sidecar = Sidecar("save_logs_periodically")
             self._save_logs_sidecar.start()
+
+        num_parallel = None
+        if hasattr(flow, "_parallel_ubf_iter"):
+            num_parallel = flow._parallel_ubf_iter.num_parallel
+
+        if num_parallel and num_parallel >= 1 and ubf_context == UBF_CONTROL:
+            control_task_id, worker_task_ids = TaskIdConstructor.join_step_task_ids(
+                num_parallel
+            )
+            mapper_task_ids = [control_task_id] + worker_task_ids
+            flow._control_mapper_tasks = [
+                "%s/%s/%s" % (run_id, step_name, mapper_task_id)
+                for mapper_task_id in mapper_task_ids
+            ]
+            flow._control_task_is_mapper_zero = True
+
+        if num_parallel and num_parallel > 1:
+            _setup_multinode_environment()
 
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_retries
@@ -468,3 +514,20 @@ class KubernetesDecorator(StepDecorator):
             cls.package_url, cls.package_sha = flow_datastore.save_data(
                 [package.blob], len_hint=1
             )[0]
+
+
+def _setup_multinode_environment():
+    import socket
+
+    os.environ["MF_PARALLEL_MAIN_IP"] = socket.gethostbyname(os.environ["MASTER_ADDR"])
+    os.environ["MF_PARALLEL_NUM_NODES"] = os.environ["WORLD_SIZE"]
+    if os.environ.get("CONTROL_INDEX") is not None:
+        os.environ["MF_PARALLEL_NODE_INDEX"] = str(0)
+    elif os.environ.get("WORKER_REPLICA_INDEX") is not None:
+        os.environ["MF_PARALLEL_NODE_INDEX"] = str(
+            int(os.environ["WORKER_REPLICA_INDEX"]) + 1
+        )
+    else:
+        raise MetaflowException(
+            "Jobset related ENV vars called $CONTROL_INDEX or $WORKER_REPLICA_INDEX not found"
+        )
