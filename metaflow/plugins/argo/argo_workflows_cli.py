@@ -5,8 +5,9 @@ import re
 import sys
 from hashlib import sha1
 
-from metaflow import JSONType, current, decorators, parameters
+from metaflow import Run, JSONType, current, decorators, parameters
 from metaflow.client.core import get_metadata
+from metaflow.exception import MetaflowNotFound
 from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import (
@@ -166,6 +167,13 @@ def argo_workflows(obj, name=None):
     default="",
     help="PagerDuty Events API V2 Integration key for workflow success/failure notifications.",
 )
+@click.option(
+    "--runner-attribute-file",
+    default=None,
+    show_default=True,
+    type=str,
+    help="Write the workflow name to the file specified. Used internally for Metaflow's Runner API.",
+)
 @click.pass_obj
 def create(
     obj,
@@ -183,8 +191,13 @@ def create(
     notify_on_success=False,
     notify_slack_webhook_url=None,
     notify_pager_duty_integration_key=None,
+    runner_attribute_file=None,
 ):
     validate_tags(tags)
+
+    if runner_attribute_file:
+        with open(runner_attribute_file, "w") as f:
+            json.dump({"name": obj.workflow_name}, f)
 
     obj.echo("Deploying *%s* to Argo Workflows..." % obj.workflow_name, bold=True)
 
@@ -597,7 +610,14 @@ def trigger(obj, run_id_file=None, runner_attribute_file=None, **kwargs):
 
     if runner_attribute_file:
         with open(runner_attribute_file, "w") as f:
-            f.write("%s:%s" % (get_metadata(), "/".join((obj.flow.name, run_id))))
+            json.dump(
+                {
+                    "name": obj.workflow_name,
+                    "metadata": get_metadata(),
+                    "pathspec": "/".join((obj.flow.name, run_id)),
+                },
+                f,
+            )
 
     obj.echo(
         "Workflow *{name}* triggered on Argo Workflows "
@@ -798,6 +818,20 @@ def validate_token(name, token_prefix, authorize, instructions_fn=None):
     return True
 
 
+def get_run_object(pathspec: str):
+    try:
+        return Run(pathspec, _namespace_check=False)
+    except MetaflowNotFound:
+        return None
+
+
+def get_status_considering_run_object(status, run_obj):
+    remapped_status = remap_status(status)
+    if remapped_status == "Running" and run_obj is None:
+        return "Pending"
+    return remapped_status
+
+
 @argo_workflows.command(help="Fetch flow execution status on Argo Workflows.")
 @click.argument("run-id", required=True, type=str)
 @click.pass_obj
@@ -815,8 +849,11 @@ def status(obj, run_id):
     # Trim prefix from run_id
     name = run_id[5:]
     status = ArgoWorkflows.get_workflow_status(obj.flow.name, name)
+    run_obj = get_run_object("/".join((obj.flow.name, run_id)))
+
     if status is not None:
-        obj.echo_always(remap_status(status))
+        status = get_status_considering_run_object(status, run_obj)
+        obj.echo_always(status)
 
 
 @argo_workflows.command(help="Terminate flow execution on Argo Workflows.")
