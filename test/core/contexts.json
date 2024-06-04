@@ -19,10 +19,10 @@
                 "--quiet"
             ],
             "run_options": [
-                "--max-workers", "50",
-                "--max-num-splits", "10000",
-                "--tag", "\u523a\u8eab means sashimi",
-                "--tag", "multiple tags should be ok"
+                "--max-workers=50",
+                "--max-num-splits=10000",
+                "--tag=\u523a\u8eab means sashimi",
+                "--tag=multiple tags should be ok"
             ],
             "checks": [ "python3-cli", "python3-metadata"],
             "disabled_tests": [
@@ -30,7 +30,8 @@
                 "S3FailureTest",
                 "CardComponentRefreshTest",
                 "CardWithRefreshTest"
-            ]
+            ],
+            "executors": ["cli", "api"]
         },
         {
             "name": "python3-all-local-cards-realtime",
@@ -51,16 +52,17 @@
                 "--quiet"
             ],
             "run_options": [
-                "--max-workers", "50",
-                "--max-num-splits", "10000",
-                "--tag", "\u523a\u8eab means sashimi",
-                "--tag", "multiple tags should be ok"
+                "--max-workers=50",
+                "--max-num-splits=10000",
+                "--tag=\u523a\u8eab means sashimi",
+                "--tag=multiple tags should be ok"
             ],
             "checks": [ "python3-cli", "python3-metadata"],
             "enabled_tests": [
                 "CardComponentRefreshTest",
                 "CardWithRefreshTest"
-            ]
+            ],
+            "executors": ["cli", "api"]
         },
         {
             "name": "python3-all-local-azure-storage",
@@ -81,16 +83,17 @@
                 "--quiet"
             ],
             "run_options": [
-                "--max-workers", "50",
-                "--max-num-splits", "10000",
-                "--tag", "\u523a\u8eab means sashimi",
-                "--tag", "multiple tags should be ok"
+                "--max-workers=50",
+                "--max-num-splits=10000",
+                "--tag=\u523a\u8eab means sashimi",
+                "--tag=multiple tags should be ok"
             ],
             "checks": [ "python3-cli", "python3-metadata"],
             "disabled_tests": [
                 "LargeArtifactTest",
                 "S3FailureTest"
-            ]
+            ],
+            "executors": ["cli", "api"]
         },
         {
             "name": "dev-local",
@@ -111,15 +114,16 @@
                 "--quiet"
             ],
             "run_options": [
-                "--max-workers", "50",
-                "--max-num-splits", "10000",
-                "--tag", "\u523a\u8eab means sashimi",
-                "--tag", "multiple tags should be ok"
+                "--max-workers=50",
+                "--max-num-splits=10000",
+                "--tag=\u523a\u8eab means sashimi",
+                "--tag=multiple tags should be ok"
             ],
             "checks": ["python3-cli", "python3-metadata"],
             "disabled_tests": [
                 "S3FailureTest"
-            ]
+            ],
+            "executors": ["cli", "api"]
         },
         {
             "name": "python3-batch",
@@ -140,10 +144,10 @@
                 "METAFLOW_DEFAULT_METADATA": "service"
             },
             "run_options": [
-                "--max-workers", "50",
-                "--max-num-splits", "10000",
-                "--tag", "\u523a\u8eab means sashimi",
-                "--tag", "multiple tags should be ok"
+                "--max-workers=50",
+                "--max-num-splits=10000",
+                "--tag=\u523a\u8eab means sashimi",
+                "--tag=multiple tags should be ok"
             ],
             "checks": ["python3-cli", "python3-metadata"],
             "disabled_tests": [
@@ -156,7 +160,8 @@
                 "TimeoutDecoratorTest",
                 "CardExtensionsImportTest",
                 "RunIdFileTest"
-            ]
+            ],
+            "executors": ["cli", "api"]
         },
         {
             "name": "python3-k8s",
@@ -177,10 +182,10 @@
                 "METAFLOW_DEFAULT_METADATA": "service"
             },
             "run_options": [
-                "--max-workers", "50",
-                "--max-num-splits", "10000",
-                "--tag", "\u523a\u8eab means sashimi",
-                "--tag", "multiple tags should be ok"
+                "--max-workers=50",
+                "--max-num-splits=10000",
+                "--tag=\u523a\u8eab means sashimi",
+                "--tag=multiple tags should be ok"
             ],
             "checks": ["python3-cli", "python3-metadata"],
             "disabled_tests": [
@@ -193,7 +198,8 @@
                 "TimeoutDecoratorTest",
                 "CardExtensionsImportTest",
                 "RunIdFileTest"
-            ]
+            ],
+            "executors": ["cli", "api"]
         }
     ],
     "checks": {

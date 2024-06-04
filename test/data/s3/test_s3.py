@@ -898,7 +898,7 @@ def test_put_files(
                 f.write(data)
             yield S3PutObject(
                 key=key,
-                value=path,
+                path=path,
                 content_type=content_type,
                 metadata=metadata,
                 encryption=encryption,

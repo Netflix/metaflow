@@ -32,6 +32,8 @@ from metaflow.plugins.storage_executor import (
     handle_executor_exceptions,
 )
 
+from metaflow.plugins.azure.azure_credential import create_cacheable_azure_credential
+
 AZURE_STORAGE_DOWNLOAD_MAX_CONCURRENCY = 4
 AZURE_STORAGE_UPLOAD_MAX_CONCURRENCY = 16
 
@@ -143,12 +145,19 @@ class _AzureRootClient(object):
                     # It is good enough 99.9% of the time.
                     # Depending on ResourceExistsError is more costly, though
                     # we are still going to handle it right.
+
+                    # The default timeout in the Azure blobstore python SDK
+                    # doesn't work well on slower network connections and largish
+                    # files. Hence increasing the connection_timeout below.
+                    # For more details, see this:
+                    # https://github.com/Azure/azure-sdk-for-python/issues/23232
                     if overwrite or not blob.exists():
                         blob.upload_blob(
                             byte_stream,
                             overwrite=overwrite,
                             metadata=metadata_to_upload,
                             max_concurrency=AZURE_STORAGE_UPLOAD_MAX_CONCURRENCY,
+                            connection_timeout=14400,
                         )
                 except ResourceExistsError:
                     if overwrite:
@@ -265,12 +274,10 @@ class AzureStorage(DataStoreStorage):
         if not self._default_scope_token or (
             self._default_scope_token.expires_on - time.time() < 300
         ):
-            from azure.identity import DefaultAzureCredential
-
-            with DefaultAzureCredential() as credential:
-                self._default_scope_token = credential.get_token(
-                    AZURE_STORAGE_DEFAULT_SCOPE
-                )
+            credential = create_cacheable_azure_credential()
+            self._default_scope_token = credential.get_token(
+                AZURE_STORAGE_DEFAULT_SCOPE
+            )
         return self._default_scope_token
 
     @property

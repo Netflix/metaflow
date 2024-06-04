@@ -26,6 +26,7 @@ DEFAULT_METADATA = from_conf("DEFAULT_METADATA", "local")
 DEFAULT_MONITOR = from_conf("DEFAULT_MONITOR", "nullSidecarMonitor")
 DEFAULT_PACKAGE_SUFFIXES = from_conf("DEFAULT_PACKAGE_SUFFIXES", ".py,.R,.RDS")
 DEFAULT_AWS_CLIENT_PROVIDER = from_conf("DEFAULT_AWS_CLIENT_PROVIDER", "boto3")
+DEFAULT_GCP_CLIENT_PROVIDER = from_conf("DEFAULT_GCP_CLIENT_PROVIDER", "gcp-default")
 DEFAULT_SECRETS_BACKEND_TYPE = from_conf("DEFAULT_SECRETS_BACKEND_TYPE")
 DEFAULT_SECRETS_ROLE = from_conf("DEFAULT_SECRETS_ROLE")
 
@@ -144,6 +145,22 @@ DATATOOLS_LOCALROOT = from_conf(
 # Secrets Backend - AWS Secrets Manager configuration
 AWS_SECRETS_MANAGER_DEFAULT_REGION = from_conf("AWS_SECRETS_MANAGER_DEFAULT_REGION")
 
+# Secrets Backend - GCP Secrets name prefix. With this, users don't have
+# to specify the full secret name in the @secret decorator.
+#
+# Note that it makes a difference whether the prefix ends with a slash or not
+# E.g. if secret name passed to @secret decorator is mysecret:
+# - "projects/1234567890/secrets/" -> "projects/1234567890/secrets/mysecret"
+# - "projects/1234567890/secrets/foo-" -> "projects/1234567890/secrets/foo-mysecret"
+GCP_SECRET_MANAGER_PREFIX = from_conf("GCP_SECRET_MANAGER_PREFIX")
+
+# Secrets Backend - Azure Key Vault prefix. With this, users don't have to
+# specify the full https:// vault url in the @secret decorator.
+#
+# It does not make a difference if the prefix ends in a / or not. We will handle either
+# case correctly.
+AZURE_KEY_VAULT_PREFIX = from_conf("AZURE_KEY_VAULT_PREFIX")
+
 # The root directory to save artifact pulls in, when using S3 or Azure
 ARTIFACT_LOCALROOT = from_conf("ARTIFACT_LOCALROOT", os.getcwd())
 
@@ -210,6 +227,8 @@ DEFAULT_CONTAINER_REGISTRY = from_conf("DEFAULT_CONTAINER_REGISTRY")
 INCLUDE_FOREACH_STACK = from_conf("INCLUDE_FOREACH_STACK", False)
 # Maximum length of the foreach value string to be stored in each ForeachFrame.
 MAXIMUM_FOREACH_VALUE_CHARS = from_conf("MAXIMUM_FOREACH_VALUE_CHARS", 30)
+# The default runtime limit (In seconds) of jobs launched by any compute provider. Default of 5 days.
+DEFAULT_RUNTIME_LIMIT = from_conf("DEFAULT_RUNTIME_LIMIT", 5 * 24 * 60 * 60)
 
 ###
 # Organization customizations
@@ -229,6 +248,14 @@ CONTACT_INFO = from_conf(
         "Get help by email": "help@metaflow.org",
     },
 )
+
+
+###
+# Decorators
+###
+# Format is a space separated string of decospecs (what is passed
+# using --with)
+DECOSPECS = from_conf("DECOSPECS", "")
 
 ###
 # AWS Batch configuration
@@ -327,9 +354,16 @@ KUBERNETES_FETCH_EC2_METADATA = from_conf("KUBERNETES_FETCH_EC2_METADATA", False
 KUBERNETES_SHARED_MEMORY = from_conf("KUBERNETES_SHARED_MEMORY", None)
 # Default port number to open on the pods
 KUBERNETES_PORT = from_conf("KUBERNETES_PORT", None)
+# Default kubernetes resource requests for CPU, memory and disk
+KUBERNETES_CPU = from_conf("KUBERNETES_CPU", None)
+KUBERNETES_MEMORY = from_conf("KUBERNETES_MEMORY", None)
+KUBERNETES_DISK = from_conf("KUBERNETES_DISK", None)
 
 ARGO_WORKFLOWS_KUBERNETES_SECRETS = from_conf("ARGO_WORKFLOWS_KUBERNETES_SECRETS", "")
 ARGO_WORKFLOWS_ENV_VARS_TO_SKIP = from_conf("ARGO_WORKFLOWS_ENV_VARS_TO_SKIP", "")
+
+KUBERNETES_JOBSET_GROUP = from_conf("KUBERNETES_JOBSET_GROUP", "jobset.x-k8s.io")
+KUBERNETES_JOBSET_VERSION = from_conf("KUBERNETES_JOBSET_VERSION", "v1alpha2")
 
 ##
 # Argo Events Configuration
@@ -375,6 +409,12 @@ CONDA_PACKAGE_GSROOT = from_conf("CONDA_PACKAGE_GSROOT")
 # Mamba promises faster package dependency resolution times, which
 # should result in an appreciable speedup in flow environment initialization.
 CONDA_DEPENDENCY_RESOLVER = from_conf("CONDA_DEPENDENCY_RESOLVER", "conda")
+
+###
+# Escape hatch configuration
+###
+# Print out warning if escape hatch is not used for the target packages
+ESCAPE_HATCH_WARNING = from_conf("ESCAPE_HATCH_WARNING", True)
 
 ###
 # Debug configuration
@@ -459,9 +499,11 @@ def get_pinned_conda_libs(python_version, datastore_type):
     elif datastore_type == "azure":
         pins["azure-identity"] = ">=1.10.0"
         pins["azure-storage-blob"] = ">=12.12.0"
+        pins["azure-keyvault-secrets"] = ">=4.7.0"
     elif datastore_type == "gs":
         pins["google-cloud-storage"] = ">=2.5.0"
         pins["google-auth"] = ">=2.11.0"
+        pins["google-cloud-secret-manager"] = ">=2.10.0"
     elif datastore_type == "local":
         pass
     else:
@@ -474,6 +516,8 @@ def get_pinned_conda_libs(python_version, datastore_type):
 # Check if there are extensions to Metaflow to load and override everything
 try:
     from metaflow.extension_support import get_modules
+
+    _TOGGLE_DECOSPECS = []
 
     ext_modules = get_modules("config")
     for m in ext_modules:
@@ -498,8 +542,18 @@ try:
                     return d1
 
                 globals()[n] = _new_get_pinned_conda_libs
+            elif n == "TOGGLE_DECOSPECS":
+                if any([x.startswith("-") for x in o]):
+                    raise ValueError("Removing decospecs is not currently supported")
+                if any(" " in x for x in o):
+                    raise ValueError("Decospecs cannot contain spaces")
+                _TOGGLE_DECOSPECS.extend(o)
             elif not n.startswith("__") and not isinstance(o, types.ModuleType):
                 globals()[n] = o
+    # If DECOSPECS is set, use that, else extrapolate from extensions
+    if not DECOSPECS:
+        DECOSPECS = " ".join(_TOGGLE_DECOSPECS)
+
 finally:
     # Erase all temporary names to avoid leaking things
     for _n in [
@@ -516,6 +570,7 @@ finally:
         "v",
         "f1",
         "f2",
+        "_TOGGLE_DECOSPECS",
     ]:
         try:
             del globals()[_n]

@@ -22,7 +22,7 @@ class TaskDataStoreSet(object):
         prefetch_data_artifacts=None,
         allow_not_done=False,
     ):
-        self.task_datastores = flow_datastore.get_latest_task_datastores(
+        self.task_datastores = flow_datastore.get_task_datastores(
             run_id, steps=steps, pathspecs=pathspecs, allow_not_done=allow_not_done
         )
 

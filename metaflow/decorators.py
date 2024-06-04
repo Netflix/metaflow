@@ -158,13 +158,14 @@ class Decorator(object):
                     attr_list.append("%s=%s" % (k, str(v)))
                 else:
                     attr_list.append("%s=%s" % (k, json.dumps(v).replace('"', '\\"')))
+
             attrstr = ",".join(attr_list)
             return "%s:%s" % (self.name, attrstr)
         else:
             return self.name
 
     def __str__(self):
-        mode = "decorated" if self.statically_defined else "cli"
+        mode = "static" if self.statically_defined else "dynamic"
         attrs = " ".join("%s=%s" % x for x in self.attributes.items())
         if attrs:
             attrs = " " + attrs
@@ -450,6 +451,18 @@ def _base_step_decorator(decotype, *args, **kwargs):
         return wrap
 
 
+_all_step_decos = None
+
+
+def _get_all_step_decos():
+    global _all_step_decos
+    if _all_step_decos is None:
+        from .plugins import STEP_DECORATORS
+
+        _all_step_decos = {decotype.name: decotype for decotype in STEP_DECORATORS}
+    return _all_step_decos
+
+
 def _attach_decorators(flow, decospecs):
     """
     Attach decorators to all steps during runtime. This has the same
@@ -462,6 +475,7 @@ def _attach_decorators(flow, decospecs):
     #
     # Note that each step gets its own instance of the decorator class,
     # so decorator can maintain step-specific state.
+
     for step in flow:
         _attach_decorators_to_step(step, decospecs)
 
@@ -472,9 +486,8 @@ def _attach_decorators_to_step(step, decospecs):
     effect as if you defined the decorators statically in the source for
     the step.
     """
-    from .plugins import STEP_DECORATORS
 
-    decos = {decotype.name: decotype for decotype in STEP_DECORATORS}
+    decos = _get_all_step_decos()
 
     for decospec in decospecs:
         splits = decospec.split(":", 1)

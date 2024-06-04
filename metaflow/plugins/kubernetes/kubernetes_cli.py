@@ -7,11 +7,17 @@ from metaflow import JSONTypeClass, util
 from metaflow._vendor import click
 from metaflow.exception import METAFLOW_EXIT_DISALLOW_RETRY, CommandException
 from metaflow.metadata.util import sync_local_metadata_from_datastore
+from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, KUBERNETES_LABELS
 from metaflow.mflog import TASK_LOG_SOURCE
 import metaflow.tracing as tracing
 
-from .kubernetes import Kubernetes, KubernetesKilledException, parse_kube_keyvalue_list
+from .kubernetes import (
+    Kubernetes,
+    KubernetesKilledException,
+    parse_kube_keyvalue_list,
+    KubernetesException,
+)
 from .kubernetes_decorator import KubernetesDecorator
 
 
@@ -109,6 +115,15 @@ def kubernetes():
 )
 @click.option("--shared-memory", default=None, help="Size of shared memory in MiB")
 @click.option("--port", default=None, help="Port number to expose from the container")
+@click.option(
+    "--ubf-context", default=None, type=click.Choice([None, UBF_CONTROL, UBF_TASK])
+)
+@click.option(
+    "--num-parallel",
+    default=None,
+    type=int,
+    help="Number of parallel nodes to run as a multi-node job.",
+)
 @click.pass_context
 def step(
     ctx,
@@ -136,6 +151,7 @@ def step(
     tolerations=None,
     shared_memory=None,
     port=None,
+    num_parallel=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None, **kwargs):
@@ -166,6 +182,12 @@ def step(
         }
         kwargs["input_paths"] = "".join("${%s}" % s for s in split_vars.keys())
         env.update(split_vars)
+
+    if num_parallel is not None and num_parallel <= 1:
+        raise KubernetesException(
+            "Using @parallel with `num_parallel` <= 1 is not supported with Kubernetes. "
+            "Please set the value of `num_parallel` to be greater than 1."
+        )
 
     # Set retry policy.
     retry_count = int(kwargs.get("retry_count", 0))
@@ -251,6 +273,7 @@ def step(
                 tolerations=tolerations,
                 shared_memory=shared_memory,
                 port=port,
+                num_parallel=num_parallel,
             )
     except Exception as e:
         traceback.print_exc(chain=False)

@@ -17,6 +17,7 @@ from metaflow.metaflow_config import (
     AIRFLOW_KUBERNETES_KUBECONFIG_FILE,
     AIRFLOW_KUBERNETES_STARTUP_TIMEOUT_SECONDS,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    GCP_SECRET_MANAGER_PREFIX,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     CARD_AZUREROOT,
     CARD_GSROOT,
@@ -31,6 +32,7 @@ from metaflow.metaflow_config import (
     S3_ENDPOINT_URL,
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
+    AZURE_KEY_VAULT_PREFIX,
 )
 
 from metaflow.metaflow_config_funcs import config_values
@@ -408,6 +410,11 @@ class Airflow(object):
             env[
                 "METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION"
             ] = AWS_SECRETS_MANAGER_DEFAULT_REGION
+        if GCP_SECRET_MANAGER_PREFIX:
+            env["METAFLOW_GCP_SECRET_MANAGER_PREFIX"] = GCP_SECRET_MANAGER_PREFIX
+
+        if AZURE_KEY_VAULT_PREFIX:
+            env["METAFLOW_AZURE_KEY_VAULT_PREFIX"] = AZURE_KEY_VAULT_PREFIX
 
         env.update(additional_mf_variables)
 

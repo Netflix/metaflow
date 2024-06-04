@@ -1,2 +1,6 @@
 click==7.1.2
 packaging==23.0
+importlib_metadata==4.8.3
+typeguard==4.0.1
+typing_extensions==4.7.0
+zipp==3.6.0
