@@ -284,15 +284,15 @@ SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH = from_conf(
 # On Demand Docker image build configuration
 ###
 # Image builder service url
-DOCKER_IMAGE_BAKERY_URL = from_conf("DOCKER_IMAGE_BAKERY_URL", None)
+FAST_BAKERY_URL = from_conf("FAST_BAKERY_URL", None)
 # Authentication mode for Image bakery endpoint.
 # Use AWS_IAM for a secure AWS Lambda endpoint.
-DOCKER_IMAGE_BAKERY_AUTH = from_conf("DOCKER_IMAGE_BAKERY_AUTH", None)
+FAST_BAKERY_AUTH = from_conf("FAST_BAKERY_AUTH", None)
 # Image builder image compression type.
 # Available types for now are 'esgz-zstd' and 'oci-zstd'
-DOCKER_IMAGE_BAKERY_TYPE = from_conf("DOCKER_IMAGE_BAKERY_TYPE", "oci-zstd")
+FAST_BAKERY_TYPE = from_conf("FAST_BAKERY_TYPE", "oci-zstd")
 # internal env for skipping bakery related processes.
-_USE_BAKERY = bool(os.environ.get("USE_BAKERY", bool(DOCKER_IMAGE_BAKERY_URL)))
+_USE_BAKERY = bool(os.environ.get("USE_BAKERY", bool(FAST_BAKERY_URL)))
 ###
 # Kubernetes configuration
 ###

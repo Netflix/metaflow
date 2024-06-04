@@ -4,9 +4,9 @@ import requests
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    DOCKER_IMAGE_BAKERY_TYPE,
-    DOCKER_IMAGE_BAKERY_URL,
-    DOCKER_IMAGE_BAKERY_AUTH,
+    FAST_BAKERY_TYPE,
+    FAST_BAKERY_URL,
+    FAST_BAKERY_AUTH,
     get_pinned_conda_libs,
 )
 
@@ -14,7 +14,7 @@ BAKERY_METAFILE = ".imagebakery-cache"
 
 
 class FastBakeryException(MetaflowException):
-    headline = "Docker Image Bakery ran into an exception"
+    headline = "Fast Bakery ran into an exception"
 
     def __init__(self, error):
         if isinstance(error, (list,)):
@@ -34,7 +34,7 @@ def read_metafile():
 def cache_image_tag(spec_hash, image, request):
     current_meta = read_metafile()
     current_meta[spec_hash] = {
-        "kind": DOCKER_IMAGE_BAKERY_TYPE,
+        "kind": FAST_BAKERY_TYPE,
         "image": image,
         "bakery_request": request,
     }
@@ -54,7 +54,7 @@ def generate_spec_hash(
 ):
     sorted_keys = sorted(packages.keys())
     base_str = "".join(
-        [DOCKER_IMAGE_BAKERY_TYPE, python_version, base_image or "", resolver_type]
+        [FAST_BAKERY_TYPE, python_version, base_image or "", resolver_type]
     )
     sortspec = base_str.join("%s%s" % (k, packages[k]) for k in sorted_keys).encode(
         "utf-8"
@@ -71,8 +71,8 @@ def bake_image(
     base_image=None,
     resolver_type="conda",
 ):
-    if DOCKER_IMAGE_BAKERY_URL is None:
-        raise FastBakeryException("Image bakery URL is not set.")
+    if FAST_BAKERY_URL is None:
+        raise FastBakeryException("Fast Bakery URL is not set.")
     # Gather base deps
     deps = {}
     if datastore_type is not None:
@@ -93,7 +93,7 @@ def bake_image(
     package_matchspecs = [_format(pkg, ver) for pkg, ver in deps.items()]
 
     data = {
-        "imageKind": DOCKER_IMAGE_BAKERY_TYPE,
+        "imageKind": FAST_BAKERY_TYPE,
         "pythonVersion": python,
     }
     if resolver_type == "conda":
@@ -106,11 +106,11 @@ def bake_image(
     if base_image is not None:
         data.update({"baseImage": {"imageReference": base_image}})
 
-    invoker = BAKERY_INVOKERS.get(DOCKER_IMAGE_BAKERY_AUTH)
+    invoker = BAKERY_INVOKERS.get(FAST_BAKERY_AUTH)
     if not invoker:
         raise FastBakeryException(
             "Selected Bakery Authentication method is not supported: %s",
-            DOCKER_IMAGE_BAKERY_AUTH,
+            FAST_BAKERY_AUTH,
         )
     image = invoker(data)
     # Cache tag
@@ -121,7 +121,7 @@ def bake_image(
 
 def default_invoker(payload):
     headers = {"Content-Type": "application/json"}
-    response = requests.post(DOCKER_IMAGE_BAKERY_URL, json=payload, headers=headers)
+    response = requests.post(FAST_BAKERY_URL, json=payload, headers=headers)
 
     return _handle_bakery_response(response)
 
@@ -142,12 +142,12 @@ def aws_iam_invoker(payload):
     # credits to https://github.com/boto/botocore/issues/1784#issuecomment-659132830,
     # We need to jump through some hoops when calling the endpoint with IAM auth
     # as botocore does not offer a direct utility for signing arbitrary requests
-    req = AWSRequest("POST", DOCKER_IMAGE_BAKERY_URL, headers, payload)
+    req = AWSRequest("POST", FAST_BAKERY_URL, headers, payload)
     SigV4Auth(
         credentials, service_name="lambda", region_name=session.region_name
     ).add_auth(req)
 
-    response = requests.post(DOCKER_IMAGE_BAKERY_URL, data=payload, headers=req.headers)
+    response = requests.post(FAST_BAKERY_URL, data=payload, headers=req.headers)
 
     return _handle_bakery_response(response)
 

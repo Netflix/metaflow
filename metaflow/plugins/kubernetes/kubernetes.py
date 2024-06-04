@@ -29,9 +29,9 @@ from metaflow.metaflow_config import (
     DEFAULT_AWS_CLIENT_PROVIDER,
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
-    DOCKER_IMAGE_BAKERY_URL,
-    DOCKER_IMAGE_BAKERY_TYPE,
-    DOCKER_IMAGE_BAKERY_AUTH,
+    FAST_BAKERY_URL,
+    FAST_BAKERY_TYPE,
+    FAST_BAKERY_AUTH,
     _USE_BAKERY,
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_LABELS,
@@ -307,13 +307,13 @@ class Kubernetes(object):
         # pass in Fast Bakery config if used, in order to be able to bake images during flow runtime as well.
         if _USE_BAKERY:
             job.environment_variable(
-                "METAFLOW_DOCKER_IMAGE_BAKERY_URL", DOCKER_IMAGE_BAKERY_URL
+                "METAFLOW_DOCKER_IMAGE_BAKERY_URL", FAST_BAKERY_URL
             )
             job.environment_variable(
-                "METAFLOW_DOCKER_IMAGE_BAKERY_AUTH", DOCKER_IMAGE_BAKERY_AUTH
+                "METAFLOW_DOCKER_IMAGE_BAKERY_AUTH", FAST_BAKERY_AUTH
             )
             job.environment_variable(
-                "METAFLOW_DOCKER_IMAGE_BAKERY_TYPE", DOCKER_IMAGE_BAKERY_TYPE
+                "METAFLOW_DOCKER_IMAGE_BAKERY_TYPE", FAST_BAKERY_TYPE
             )
 
         tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)

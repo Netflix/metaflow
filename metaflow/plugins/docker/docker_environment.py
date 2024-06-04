@@ -46,9 +46,9 @@ class DockerEnvironment(MetaflowEnvironment):
 
         self.datastore = [d for d in DATASTORES if d.TYPE == self.datastore_type][0]
 
-        # Use remote image bakery for conda environments if configured.
+        # Use remote fast bakery for conda environments if configured.
         if not _USE_BAKERY:
-            raise DockerEnvironmentException("Image Bakery is not configured.")
+            raise DockerEnvironmentException("Fast Bakery is not configured.")
 
     def _init_conda_fallback(self):
         # TODO: In the future we want to support executing with Docker even locally.
@@ -57,11 +57,10 @@ class DockerEnvironment(MetaflowEnvironment):
                 # We need to fall back to the Conda environmment for flows that are trying to execute anything locally.
                 self.steps_to_delegate.add(step.name)
         if not self.steps_to_delegate:
-            return False
+            return
         # TODO: move to init if possible.
         self.delegate = CondaEnvironment(self.flow)
         self.delegate.set_local_root(self.local_root)
-        return True
 
     def init_environment(self, echo):
         self._init_conda_fallback()
@@ -71,9 +70,7 @@ class DockerEnvironment(MetaflowEnvironment):
             self.bake_image_for_step(step)
         echo("Environments are ready!")
         if self.steps_to_delegate:
-            echo(
-                "Docker is not supported locally yet. Creating a Conda environment for steps that would execute locally."
-            )
+            # TODO: add debug echo to output steps that required a conda environment.
             # The delegated conda environment also need to validate and init.
             # we pass a set of steps we want to init to restrict the conda environments created.
             self.delegate.validate_environment(echo, self.datastore_type)
@@ -146,7 +143,7 @@ class DockerEnvironment(MetaflowEnvironment):
         if self._is_delegated(step_name):
             return self.delegate.bootstrap_commands(step_name, datastore_type)
         # Bootstrap conda and execution environment for step
-        # we use an internal boolean flag so we do not have to pass the image bakery endpoint url
+        # we use an internal boolean flag so we do not have to pass the fast bakery endpoint url
         # in order to denote that a bakery has been configured.
         return [
             "export USE_BAKERY=1",
