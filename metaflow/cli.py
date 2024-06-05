@@ -801,9 +801,7 @@ def before_run(obj, tags, decospecs):
     # - top-level
     # - environment
     decospecs = (
-        list(decospecs or [])
-        + obj.decospecs
-        + list(obj.environment.decospecs() or [])
+        list(decospecs or []) + obj.decospecs + list(obj.environment.decospecs() or [])
     )
     if decospecs:
         decorators._attach_decorators(obj.flow, decospecs)
@@ -901,6 +899,12 @@ def version(obj):
     type=click.Choice(MONITOR_SIDECARS),
     help="Monitoring backend type",
 )
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    expose_value=True,
+    help="Set metadata & datastore to local",
+)
 @click.pass_context
 def start(
     ctx,
@@ -929,7 +933,13 @@ def start(
 
     echo("Metaflow %s" % version, fg="magenta", bold=True, nl=False)
     echo(" executing *%s*" % ctx.obj.flow.name, fg="magenta", nl=False)
-    echo(" for *%s*" % resolve_identity(), fg="magenta")
+    if ctx.params["dry_run"]:
+        # Set metadata & datastore to local for dry-run execution
+        # TODO: Consider setting monitor, tracer and logger to null too
+        ctx.params["metadata"] = metadata = "local"
+        ctx.params["datastore"] = datastore = "local"
+        echo(" in dry run mode", fg="magenta", nl=False)
+    echo(" for *%s* " % resolve_identity(), fg="magenta")
 
     cli_args._set_top_kwargs(ctx.params)
     ctx.obj.echo = echo
@@ -1011,9 +1021,7 @@ def start(
     if ctx.invoked_subcommand not in ("run", "resume"):
         # run/resume are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.
-        decospecs = list(decospecs or []) + list(
-            ctx.obj.environment.decospecs() or []
-        )
+        decospecs = list(decospecs or []) + list(ctx.obj.environment.decospecs() or [])
         if decospecs:
             decorators._attach_decorators(ctx.obj.flow, decospecs)
             # Regenerate graph if we attached more decorators
