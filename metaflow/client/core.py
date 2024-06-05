@@ -267,8 +267,8 @@ class MetaflowObject(object):
         attempt: Optional[int] = None,
         _object: Optional["MetaflowObject"] = None,
         _parent: Optional["MetaflowObject"] = None,
-        _create_namespace: Optional[str] = None,
         _namespace_check: bool = True,
+        _create_namespace: Optional[str] = None,
     ):
         self._metaflow = Metaflow()
         self._parent = _parent
@@ -385,10 +385,10 @@ class MetaflowObject(object):
                     attempt=self._attempt,
                     _object=obj,
                     _parent=self,
+                    _namespace_check=self._namespace_check,
                     _create_namespace=self._current_namespace
                     if self._namespace_check
                     else None,
-                    _namespace_check=self._namespace_check,
                 )
                 for obj in unfiltered_children
             ),
@@ -500,10 +500,10 @@ class MetaflowObject(object):
                 attempt=self._attempt,
                 _object=obj,
                 _parent=self,
-                _current_namespace=self._current_namespace
+                _namespace_check=self._namespace_check,
+                _create_namespace=self._current_namespace
                 if self._namespace_check
                 else None,
-                _namespace_check=self._namespace_check,
             )
         else:
             raise KeyError(id)
@@ -534,7 +534,7 @@ class MetaflowObject(object):
             pathspec=pathspec, attempt=attempt, _namespace_check=namespace_check
         )
 
-    def _unpickle_2122(self, data):
+    def _unpickle_2124(self, data):
         if len(data) != 4:
             raise MetaflowInternalError(
                 "Unexpected size of array: {}".format(len(data))
@@ -543,11 +543,11 @@ class MetaflowObject(object):
         self.__init__(
             pathspec=pathspec,
             attempt=attempt,
-            _create_namespace=create_namespace,
             _namespace_check=namespace_check,
+            _create_namespace=create_namespace,
         )
 
-    _UNPICKLE_FUNC = {"2.8.4": _unpickle_284, "2.12.2": _unpickle_2122}
+    _UNPICKLE_FUNC = {"2.8.4": _unpickle_284, "2.12.4": _unpickle_2124}
 
     def __setstate__(self, state):
         """
@@ -573,6 +573,7 @@ class MetaflowObject(object):
                 pathspec=state.get("_pathspec", None),
                 attempt=state.get("_attempt", None),
                 _namespace_check=state.get("_namespace_check", False),
+                _create_namespace=None,
             )
 
     def __getstate__(self):
@@ -589,7 +590,7 @@ class MetaflowObject(object):
         # checking for the namespace even after unpickling since we will know which
         # namespace to check.
         return {
-            "version": "2.12.2",
+            "version": "2.12.4",
             "data": [
                 self.pathspec,
                 self._attempt,
