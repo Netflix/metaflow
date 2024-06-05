@@ -164,7 +164,7 @@ class FlowSpecVisitor(ast.NodeVisitor):
                             and value.func.id == "Parameter"
                         ):
                             for target in body_item.targets:
-                                if isinstance(target, ast.Name):
+                                if isinstance(target, ast.Constant):
                                     kwargs = {
                                         kw.arg: ast.literal_eval(kw.value)
                                         for kw in value.keywords
