@@ -144,6 +144,21 @@ class FlowSpecVisitor(ast.NodeVisitor):
     def __init__(self):
         self.parameters = []
 
+    def construct_parameter(self, node):
+        all_values = {}
+        fields = ["name", "default", "type", "help", "required", "show_default"]
+
+        num_supplied_args = len(node.args)
+        for i in range(num_supplied_args):
+            all_values[fields[i]] = node.args[i].value
+
+        for kw in node.keywords:
+            if isinstance(kw.value, ast.Constant):
+                all_values[kw.arg] = ast.literal_eval(kw.value)
+
+        name = all_values.pop("name")
+        return Parameter(name=name, **all_values)
+
     def visit_ClassDef(self, node):
         # Check if the class is a subclass of FlowSpec
         if any(
@@ -165,12 +180,8 @@ class FlowSpecVisitor(ast.NodeVisitor):
                         ):
                             for target in body_item.targets:
                                 if isinstance(target, ast.Name):
-                                    kwargs = {}
-                                    for kw in value.keywords:
-                                        if isinstance(kw.value, ast.Constant):
-                                            kwargs[kw.arg] = ast.literal_eval(kw.value)
                                     self.parameters.append(
-                                        Parameter(name=target.id, **kwargs)
+                                        self.construct_parameter(value)
                                     )
         self.generic_visit(node)
 
