@@ -7,8 +7,8 @@ if sys.version_info < (3, 7):
     """
     )
 
+import ast
 import datetime
-import importlib
 import inspect
 import itertools
 import uuid
@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, List, Optional
 from typing import OrderedDict as TOrderedDict
 from typing import Union
 
-from metaflow import FlowSpec, Parameter
+from metaflow import Parameter
 from metaflow._vendor import click
 from metaflow._vendor.click.types import (
     BoolParamType,
@@ -136,31 +136,60 @@ def get_inspect_param_obj(p: Union[click.Argument, click.Option], kind: str):
     )
 
 
-# Cache to store already loaded modules
-loaded_modules = {}
+# Cache to store already parsed modules
+parsed_modules = {}
+
+
+class FlowSpecVisitor(ast.NodeVisitor):
+    def __init__(self):
+        self.parameters = []
+
+    def visit_ClassDef(self, node):
+        # Check if the class is a subclass of FlowSpec
+        if any(
+            isinstance(base, ast.Name) and base.id == "FlowSpec" for base in node.bases
+        ):
+            # Visit all the attributes in the class
+            for body_item in node.body:
+                # Check if the attribute is an instance of Parameter
+                if isinstance(body_item, ast.Assign):
+                    for value in (
+                        [body_item.value]
+                        if not isinstance(body_item.value, list)
+                        else body_item.value.elts
+                    ):
+                        if (
+                            isinstance(value, ast.Call)
+                            and isinstance(value.func, ast.Name)
+                            and value.func.id == "Parameter"
+                        ):
+                            for target in body_item.targets:
+                                if isinstance(target, ast.Name):
+                                    kwargs = {
+                                        kw.arg: ast.literal_eval(kw.value)
+                                        for kw in value.keywords
+                                    }
+                                    self.parameters.append(
+                                        Parameter(name=target.id, **kwargs)
+                                    )
+        self.generic_visit(node)
 
 
 def extract_flowspec_params(flow_file: str) -> List[Parameter]:
-    # Check if the module has already been loaded
-    if flow_file in loaded_modules:
-        module = loaded_modules[flow_file]
-    else:
-        # Load the module if it's not already loaded
-        spec = importlib.util.spec_from_file_location("module", flow_file)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        # Cache the loaded module
-        loaded_modules[flow_file] = module
-    classes = inspect.getmembers(module, inspect.isclass)
+    # Check if the module has already been parsed
+    if flow_file in parsed_modules:
+        return parsed_modules[flow_file]
 
-    parameters = []
-    for _, kls in classes:
-        if kls != FlowSpec and issubclass(kls, FlowSpec):
-            for _, obj in inspect.getmembers(kls):
-                if isinstance(obj, Parameter):
-                    parameters.append(obj)
+    with open(flow_file, "r") as file:
+        tree = ast.parse(file.read(), filename=flow_file)
 
-    return parameters
+    visitor = FlowSpecVisitor()
+    visitor.visit(tree)
+
+    # Cache the parsed parameters
+    parsed_modules[flow_file] = visitor.parameters
+
+    return visitor.parameters
 
 
 class MetaflowAPI(object):
@@ -384,7 +413,6 @@ if __name__ == "__main__":
         decospecs=["kubernetes"],
         max_workers=5,
         alpha=3,
-        myfile="path/to/file",
     )
     print(" ".join(command))
 
