@@ -796,17 +796,17 @@ def before_run(obj, tags, decospecs):
     # in two places in this module and make sure _init_step_decorators
     # doesn't get called twice.
 
-    # We want the order to be the following:
-    # - run level decospecs
-    # - top level decospecs
-    # - environment decospecs
-    all_decospecs = (
+    # decospecs have this precedence order:
+    # - run-level
+    # - top-level
+    # - environment
+    decospecs = (
         list(decospecs or [])
-        + obj.tl_decospecs
+        + obj.decospecs
         + list(obj.environment.decospecs() or [])
     )
-    if all_decospecs:
-        decorators._attach_decorators(obj.flow, all_decospecs)
+    if decospecs:
+        decorators._attach_decorators(obj.flow, decospecs)
         obj.graph = FlowGraph(obj.flow.__class__)
 
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
@@ -998,11 +998,9 @@ def start(
         deco_options,
     )
 
-    # In the case of run/resume, we will want to apply the TL decospecs
-    # *after* the run decospecs so that they don't take precedence. In other
-    # words, for the same decorator, we want `myflow.py run --with foo` to
-    # take precedence over any other `foo` decospec
-    ctx.obj.tl_decospecs = list(decospecs or [])
+    # run/resume can add more decorators with --with, which take precedence
+    # over any other decospecs
+    ctx.obj.decospecs = list(decospecs or [])
 
     # initialize current and parameter context for deploy-time parameters
     current._set_env(flow=ctx.obj.flow, is_running=False)
@@ -1013,11 +1011,11 @@ def start(
     if ctx.invoked_subcommand not in ("run", "resume"):
         # run/resume are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.
-        all_decospecs = ctx.obj.tl_decospecs + list(
+        decospecs = list(decospecs or []) + list(
             ctx.obj.environment.decospecs() or []
         )
-        if all_decospecs:
-            decorators._attach_decorators(ctx.obj.flow, all_decospecs)
+        if decospecs:
+            decorators._attach_decorators(ctx.obj.flow, decospecs)
             # Regenerate graph if we attached more decorators
             ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
 
