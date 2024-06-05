@@ -164,11 +164,11 @@ class FlowSpecVisitor(ast.NodeVisitor):
                             and value.func.id == "Parameter"
                         ):
                             for target in body_item.targets:
-                                if isinstance(target, ast.Constant):
-                                    kwargs = {
-                                        kw.arg: ast.literal_eval(kw.value)
-                                        for kw in value.keywords
-                                    }
+                                if isinstance(target, ast.Name):
+                                    kwargs = {}
+                                    for kw in value.keywords:
+                                        if isinstance(kw.value, ast.Constant):
+                                            kwargs[kw.arg] = ast.literal_eval(kw.value)
                                     self.parameters.append(
                                         Parameter(name=target.id, **kwargs)
                                     )
