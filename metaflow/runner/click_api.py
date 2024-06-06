@@ -150,7 +150,12 @@ class FlowSpecVisitor(ast.NodeVisitor):
 
         num_supplied_args = len(node.args)
         for i in range(num_supplied_args):
-            all_values[fields[i]] = node.args[i].value
+            if isinstance(node.args[i], ast.Str):  # Python 3.7 and earlier
+                all_values[fields[i]] = node.args[i].s
+            elif isinstance(node.args[i], ast.Num):  # Python 3.7 and earlier
+                all_values[fields[i]] = node.args[i].n
+            else:
+                all_values[fields[i]] = node.args[i].value
 
         for kw in node.keywords:
             if isinstance(kw.value, ast.Constant):
