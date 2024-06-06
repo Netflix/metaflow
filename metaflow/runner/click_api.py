@@ -183,7 +183,10 @@ class FlowSpecVisitor(ast.NodeVisitor):
         ):
             if node.decorator_list:
                 for each_decorator in node.decorator_list:
-                    decorator_name = each_decorator.func.id
+                    if isinstance(each_decorator, ast.Call):
+                        decorator_name = each_decorator.func.id
+                    elif isinstance(each_decorator, ast.Name):
+                        decorator_name = each_decorator.id
                     if decorator_name in FLOW_DECORATORS_DESC_DICT:
                         class_name = FLOW_DECORATORS_DESC_DICT[decorator_name]
                         options = get_options_from_classname(class_name)
