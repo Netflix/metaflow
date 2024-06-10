@@ -30,10 +30,6 @@ from metaflow.metaflow_config import (
     DEFAULT_GCP_CLIENT_PROVIDER,
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
-    FAST_BAKERY_URL,
-    FAST_BAKERY_TYPE,
-    FAST_BAKERY_AUTH,
-    _USE_BAKERY,
     GCP_SECRET_MANAGER_PREFIX,
     AZURE_KEY_VAULT_PREFIX,
     KUBERNETES_FETCH_EC2_METADATA,
@@ -378,18 +374,6 @@ class Kubernetes(object):
             "METAFLOW_ARGO_EVENTS_WEBHOOK_AUTH",
             ARGO_EVENTS_WEBHOOK_AUTH,
         )
-
-        # pass in Fast Bakery config if used, in order to be able to bake images during flow runtime as well.
-        if _USE_BAKERY:
-            job.environment_variable(
-                "METAFLOW_DOCKER_IMAGE_BAKERY_URL", FAST_BAKERY_URL
-            )
-            job.environment_variable(
-                "METAFLOW_DOCKER_IMAGE_BAKERY_AUTH", FAST_BAKERY_AUTH
-            )
-            job.environment_variable(
-                "METAFLOW_DOCKER_IMAGE_BAKERY_TYPE", FAST_BAKERY_TYPE
-            )
 
         tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
         if tmpfs_enabled and tmpfs_tempdir:
