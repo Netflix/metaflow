@@ -110,6 +110,14 @@ class DockerEnvironment(MetaflowEnvironment):
             python = dependency_deco.attributes["python"]
             pkgs = get_pinned_conda_libs(python, self.datastore_type)
             pkgs.update(dependency_deco.attributes["packages"])
+            # request only Conda OR PyPI packages
+            if dependency_deco.name == "pypi":
+                pypi_pkg = pkgs
+                conda_pkg = None
+            else:
+                conda_pkg = pkgs
+                pypi_pkg = None
+
             # Try getting image tag from cache first.
             spec_hash = generate_spec_hash(
                 base_image, python, pkgs, dependency_deco.name
@@ -118,7 +126,7 @@ class DockerEnvironment(MetaflowEnvironment):
             if not image:
                 try:
                     image, request = self.bakery.bake(
-                        python, pkgs, base_image, dependency_deco.name, FAST_BAKERY_TYPE
+                        python, pypi_pkg, conda_pkg, base_image, FAST_BAKERY_TYPE
                     )
                 except FastBakeryException as ex:
                     raise DockerEnvironmentException(str(ex))

@@ -19,10 +19,10 @@ class FastBakery:
 
     def bake(
         self,
-        python=None,
-        packages={},
+        python_version,
+        pypi_packages=None,
+        conda_packages=None,
         base_image=None,
-        resolver_type="conda",
         image_kind="oci-zstd",
     ):
         def _format(pkg, ver):
@@ -30,21 +30,23 @@ class FastBakery:
                 return "%s%s" % (pkg, ver)
             return "%s==%s" % (pkg, ver)
 
-        package_matchspecs = [_format(pkg, ver) for pkg, ver in packages.items()]
-
+        conda_matchspecs = (
+            [_format(pkg, ver) for pkg, ver in conda_packages.items()]
+            if conda_packages is not None
+            else []
+        )
+        pypi_matchspecs = (
+            [_format(pkg, ver) for pkg, ver in pypi_packages.items()]
+            if pypi_packages is not None
+            else []
+        )
         data = {
+            "pythonVersion": python_version,
             "imageKind": image_kind,
-            "pythonVersion": python,
+            **({"pipRequirements": pypi_matchspecs} if pypi_matchspecs else {}),
+            **({"condaMatchspecs": conda_matchspecs} if conda_matchspecs else {}),
+            **({"baseImage": {"imageReference": base_image}} if base_image else {}),
         }
-        if resolver_type == "conda":
-            data.update({"condaMatchspecs": package_matchspecs})
-        elif resolver_type == "pypi":
-            data.update({"pipRequirements": package_matchspecs})
-        else:
-            raise FastBakeryException("Unknown resolver type: %s" % resolver_type)
-
-        if base_image is not None:
-            data.update({"baseImage": {"imageReference": base_image}})
 
         image = self.invoker(data)
 
