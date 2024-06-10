@@ -1,16 +1,24 @@
+import hashlib
+import json
 import os
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     _USE_BAKERY,
+    FAST_BAKERY_TYPE,
+    FAST_BAKERY_AUTH,
+    FAST_BAKERY_URL,
+    get_pinned_conda_libs,
 )
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.plugins.pypi.conda_environment import CondaEnvironment
-from .fast_bakery import bake_image
+from .fast_bakery import FastBakery, FastBakeryException
 from metaflow.plugins.aws.batch.batch_decorator import BatchDecorator
 from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
 from metaflow.plugins.pypi.conda_decorator import CondaStepDecorator
 from metaflow.plugins.pypi.pypi_decorator import PyPIStepDecorator
+
+BAKERY_METAFILE = ".imagebakery-cache"
 
 
 class DockerEnvironmentException(MetaflowException):
@@ -64,8 +72,8 @@ class DockerEnvironment(MetaflowEnvironment):
 
     def init_environment(self, echo):
         self._init_conda_fallback()
-        # First resolve environments through Conda, before PyPI.
         echo("Baking Docker images for environment(s) ...")
+        self.bakery = FastBakery(url=FAST_BAKERY_URL, auth_type=FAST_BAKERY_AUTH)
         for step in self.flow:
             self.bake_image_for_step(step)
         echo("Environments are ready!")
@@ -99,11 +107,23 @@ class DockerEnvironment(MetaflowEnvironment):
         # a conda decorator always exists alongside pypi so this needs to be accounted for
         dependency_deco = pypi_deco if pypi_deco is not None else conda_deco
         if dependency_deco is not None:
-            pkgs = dependency_deco.attributes["packages"]
             python = dependency_deco.attributes["python"]
-            image = bake_image(
-                python, pkgs, self.datastore.TYPE, base_image, dependency_deco.name
+            pkgs = get_pinned_conda_libs(python, self.datastore_type)
+            pkgs.update(dependency_deco.attributes["packages"])
+            # Try getting image tag from cache first.
+            spec_hash = generate_spec_hash(
+                base_image, python, pkgs, dependency_deco.name
             )
+            image = get_cache_image_tag(spec_hash)
+            if not image:
+                try:
+                    image, request = self.bakery.bake(
+                        python, pkgs, base_image, dependency_deco.name, FAST_BAKERY_TYPE
+                    )
+                except FastBakeryException as ex:
+                    raise DockerEnvironmentException(str(ex))
+                # cache the baked image for later use
+                cache_image_tag(spec_hash, image, request)
 
         if image is not None:
             # we have an image that we need to set to a kubernetes or batch decorator.
@@ -148,6 +168,47 @@ class DockerEnvironment(MetaflowEnvironment):
         return [
             "export USE_BAKERY=1",
         ] + super().bootstrap_commands(step_name, datastore_type)
+
+
+def cache_image_tag(spec_hash, image, request):
+    current_meta = read_metafile()
+    current_meta[spec_hash] = {
+        "kind": FAST_BAKERY_TYPE,
+        "image": image,
+        "bakery_request": request,
+    }
+
+    with open(BAKERY_METAFILE, "w") as f:
+        json.dump(current_meta, f)
+
+
+def get_cache_image_tag(spec_hash):
+    current_meta = read_metafile()
+
+    return current_meta.get(spec_hash, {}).get("image", None)
+
+
+def read_metafile():
+    try:
+        with open(BAKERY_METAFILE, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def generate_spec_hash(
+    base_image=None, python_version=None, packages={}, resolver_type=None
+):
+    sorted_keys = sorted(packages.keys())
+    base_str = "".join(
+        [FAST_BAKERY_TYPE, python_version, base_image or "", resolver_type]
+    )
+    sortspec = base_str.join("%s%s" % (k, packages[k]) for k in sorted_keys).encode(
+        "utf-8"
+    )
+    hash = hashlib.md5(sortspec).hexdigest()
+
+    return hash
 
 
 def _is_remote_deco(deco):

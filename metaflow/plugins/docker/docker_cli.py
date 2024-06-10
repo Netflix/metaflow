@@ -2,7 +2,7 @@ import os
 from metaflow._vendor import click
 from metaflow.cli import echo_always as echo
 
-from .fast_bakery import read_metafile, BAKERY_METAFILE
+from .docker_environment import read_metafile, BAKERY_METAFILE
 
 
 @click.group()

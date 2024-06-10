@@ -1,155 +1,85 @@
-import hashlib
 import json
 import requests
 
-from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import (
-    FAST_BAKERY_TYPE,
-    FAST_BAKERY_URL,
-    FAST_BAKERY_AUTH,
-    get_pinned_conda_libs,
-)
 
-BAKERY_METAFILE = ".imagebakery-cache"
-
-
-class FastBakeryException(MetaflowException):
+class FastBakeryException(Exception):
     headline = "Fast Bakery ran into an exception"
 
-    def __init__(self, error):
-        if isinstance(error, (list,)):
-            error = "\n".join(error)
-        msg = "{error}".format(error=error)
-        super(FastBakeryException, self).__init__(msg)
 
+class FastBakery:
+    def __init__(self, url, auth_type=None):
+        self.url = url
+        BAKERY_INVOKERS = {"AWS_IAM": self.aws_iam_invoker, None: self.default_invoker}
+        if auth_type not in BAKERY_INVOKERS:
+            raise FastBakeryException(
+                "Selected Bakery Authentication method is not supported: %s",
+                auth_type,
+            )
+        self.invoker = BAKERY_INVOKERS[auth_type]
 
-def read_metafile():
-    try:
-        with open(BAKERY_METAFILE, "r") as f:
-            return json.load(f)
-    except Exception:
-        return {}
+    def bake(
+        self,
+        python=None,
+        packages={},
+        base_image=None,
+        resolver_type="conda",
+        image_kind="oci-zstd",
+    ):
+        def _format(pkg, ver):
+            if any(ver.startswith(c) for c in [">", "<", "~", "@", "="]):
+                return "%s%s" % (pkg, ver)
+            return "%s==%s" % (pkg, ver)
 
+        package_matchspecs = [_format(pkg, ver) for pkg, ver in packages.items()]
 
-def cache_image_tag(spec_hash, image, request):
-    current_meta = read_metafile()
-    current_meta[spec_hash] = {
-        "kind": FAST_BAKERY_TYPE,
-        "image": image,
-        "bakery_request": request,
-    }
+        data = {
+            "imageKind": image_kind,
+            "pythonVersion": python,
+        }
+        if resolver_type == "conda":
+            data.update({"condaMatchspecs": package_matchspecs})
+        elif resolver_type == "pypi":
+            data.update({"pipRequirements": package_matchspecs})
+        else:
+            raise FastBakeryException("Unknown resolver type: %s" % resolver_type)
 
-    with open(BAKERY_METAFILE, "w") as f:
-        json.dump(current_meta, f)
+        if base_image is not None:
+            data.update({"baseImage": {"imageReference": base_image}})
 
+        image = self.invoker(data)
 
-def get_cache_image_tag(spec_hash):
-    current_meta = read_metafile()
+        return image, data
 
-    return current_meta.get(spec_hash, {}).get("image", None)
+    def default_invoker(self, payload):
+        headers = {"Content-Type": "application/json"}
+        response = requests.post(self.url, json=payload, headers=headers)
 
+        return _handle_bakery_response(response)
 
-def generate_spec_hash(
-    base_image=None, python_version=None, packages={}, resolver_type=None
-):
-    sorted_keys = sorted(packages.keys())
-    base_str = "".join(
-        [FAST_BAKERY_TYPE, python_version, base_image or "", resolver_type]
-    )
-    sortspec = base_str.join("%s%s" % (k, packages[k]) for k in sorted_keys).encode(
-        "utf-8"
-    )
-    hash = hashlib.md5(sortspec).hexdigest()
+    def aws_iam_invoker(self, payload):
+        # AWS_IAM requires a signed request to be made
+        # ref: https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html
+        headers = {"Content-Type": "application/json"}
+        payload = json.dumps(payload)
 
-    return hash
+        import boto3
+        from botocore.auth import SigV4Auth
+        from botocore.awsrequest import AWSRequest
 
+        session = boto3.Session()
+        credentials = session.get_credentials().get_frozen_credentials()
 
-def bake_image(
-    python=None,
-    packages={},
-    datastore_type=None,
-    base_image=None,
-    resolver_type="conda",
-):
-    if FAST_BAKERY_URL is None:
-        raise FastBakeryException("Fast Bakery URL is not set.")
-    # Gather base deps
-    deps = {}
-    if datastore_type is not None:
-        deps = get_pinned_conda_libs(python, datastore_type)
-    deps.update(packages)
+        # credits to https://github.com/boto/botocore/issues/1784#issuecomment-659132830,
+        # We need to jump through some hoops when calling the endpoint with IAM auth
+        # as botocore does not offer a direct utility for signing arbitrary requests
+        req = AWSRequest("POST", self.url, headers, payload)
+        SigV4Auth(
+            credentials, service_name="lambda", region_name=session.region_name
+        ).add_auth(req)
 
-    # Try getting image tag from cache
-    spec_hash = generate_spec_hash(base_image, python, deps, resolver_type)
-    image = get_cache_image_tag(spec_hash)
-    if image:
-        return image
+        response = requests.post(self.url, data=payload, headers=req.headers)
 
-    def _format(pkg, ver):
-        if any(ver.startswith(c) for c in [">", "<", "~", "@", "="]):
-            return "%s%s" % (pkg, ver)
-        return "%s==%s" % (pkg, ver)
-
-    package_matchspecs = [_format(pkg, ver) for pkg, ver in deps.items()]
-
-    data = {
-        "imageKind": FAST_BAKERY_TYPE,
-        "pythonVersion": python,
-    }
-    if resolver_type == "conda":
-        data.update({"condaMatchspecs": package_matchspecs})
-    elif resolver_type == "pypi":
-        data.update({"pipRequirements": package_matchspecs})
-    else:
-        raise FastBakeryException("Unknown resolver type: %s" % resolver_type)
-
-    if base_image is not None:
-        data.update({"baseImage": {"imageReference": base_image}})
-
-    invoker = BAKERY_INVOKERS.get(FAST_BAKERY_AUTH)
-    if not invoker:
-        raise FastBakeryException(
-            "Selected Bakery Authentication method is not supported: %s",
-            FAST_BAKERY_AUTH,
-        )
-    image = invoker(data)
-    # Cache tag
-    cache_image_tag(spec_hash, image, data)
-
-    return image
-
-
-def default_invoker(payload):
-    headers = {"Content-Type": "application/json"}
-    response = requests.post(FAST_BAKERY_URL, json=payload, headers=headers)
-
-    return _handle_bakery_response(response)
-
-
-def aws_iam_invoker(payload):
-    # AWS_IAM requires a signed request to be made
-    # ref: https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html
-    headers = {"Content-Type": "application/json"}
-    payload = json.dumps(payload)
-
-    import boto3
-    from botocore.auth import SigV4Auth
-    from botocore.awsrequest import AWSRequest
-
-    session = boto3.Session()
-    credentials = session.get_credentials().get_frozen_credentials()
-
-    # credits to https://github.com/boto/botocore/issues/1784#issuecomment-659132830,
-    # We need to jump through some hoops when calling the endpoint with IAM auth
-    # as botocore does not offer a direct utility for signing arbitrary requests
-    req = AWSRequest("POST", FAST_BAKERY_URL, headers, payload)
-    SigV4Auth(
-        credentials, service_name="lambda", region_name=session.region_name
-    ).add_auth(req)
-
-    response = requests.post(FAST_BAKERY_URL, data=payload, headers=req.headers)
-
-    return _handle_bakery_response(response)
+        return _handle_bakery_response(response)
 
 
 def _handle_bakery_response(response):
@@ -167,6 +97,3 @@ def _handle_bakery_response(response):
     image = body["containerImage"]
 
     return image
-
-
-BAKERY_INVOKERS = {"AWS_IAM": aws_iam_invoker, None: default_invoker}
