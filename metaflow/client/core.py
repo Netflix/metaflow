@@ -268,13 +268,13 @@ class MetaflowObject(object):
         _object: Optional["MetaflowObject"] = None,
         _parent: Optional["MetaflowObject"] = None,
         _namespace_check: bool = True,
-        _create_namespace: Optional[str] = None,
+        _current_namespace: Optional[str] = None,
     ):
         self._metaflow = Metaflow()
         self._parent = _parent
         self._path_components = None
         self._attempt = attempt
-        self._current_namespace = _create_namespace or get_namespace()
+        self._current_namespace = _current_namespace or get_namespace()
         self._namespace_check = _namespace_check
 
         if self._attempt is not None:
@@ -386,7 +386,7 @@ class MetaflowObject(object):
                     _object=obj,
                     _parent=self,
                     _namespace_check=self._namespace_check,
-                    _create_namespace=self._current_namespace
+                    _current_namespace=self._current_namespace
                     if self._namespace_check
                     else None,
                 )
@@ -501,7 +501,7 @@ class MetaflowObject(object):
                 _object=obj,
                 _parent=self,
                 _namespace_check=self._namespace_check,
-                _create_namespace=self._current_namespace
+                _current_namespace=self._current_namespace
                 if self._namespace_check
                 else None,
             )
@@ -539,12 +539,12 @@ class MetaflowObject(object):
             raise MetaflowInternalError(
                 "Unexpected size of array: {}".format(len(data))
             )
-        pathspec, attempt, create_namespace, namespace_check = data
+        pathspec, attempt, ns, namespace_check = data
         self.__init__(
             pathspec=pathspec,
             attempt=attempt,
             _namespace_check=namespace_check,
-            _create_namespace=create_namespace,
+            _current_namespace=ns,
         )
 
     _UNPICKLE_FUNC = {"2.8.4": _unpickle_284, "2.12.4": _unpickle_2124}
@@ -573,7 +573,7 @@ class MetaflowObject(object):
                 pathspec=state.get("_pathspec", None),
                 attempt=state.get("_attempt", None),
                 _namespace_check=state.get("_namespace_check", False),
-                _create_namespace=None,
+                _current_namespace=None,
             )
 
     def __getstate__(self):
