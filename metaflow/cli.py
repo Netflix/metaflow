@@ -707,11 +707,12 @@ def resume(
             "/".join((obj.flow.name, runtime.run_id)),
         ),
     )
-    if clone_only:
-        runtime.clone_original_run()
-    else:
-        runtime.clone_original_run(generate_task_obj=True)
-        runtime.execute()
+    with runtime.run_heartbeat():
+        if clone_only:
+            runtime.clone_original_run()
+        else:
+            runtime.clone_original_run(generate_task_obj=True)
+            runtime.execute()
 
 
 @tracing.cli_entrypoint("cli/run")
