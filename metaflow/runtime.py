@@ -206,20 +206,21 @@ class NativeRuntime(object):
 
         self._is_cloned[self._params_task.path] = self._params_task.is_cloned
 
-    @contextmanager
-    def run_heartbeat(self):
+    def should_skip_clone_only_execution(self):
         (
             should_skip_clone_only_execution,
             skip_reason,
         ) = self._should_skip_clone_only_execution()
         if should_skip_clone_only_execution:
             self._logger(skip_reason, system_msg=True)
-            return
+            return True
+        return False
+
+    @contextmanager
+    def run_heartbeat(self):
         self._metadata.start_run_heartbeat(self._flow.name, self._run_id)
         yield
         self._metadata.stop_heartbeat()
-
-        return True
 
     def print_workflow_info(self):
         self._run_url = (
@@ -255,14 +256,14 @@ class NativeRuntime(object):
 
     def clone_task(self, step_name, task_id, pathspec_index, generate_task_obj):
         try:
+            new_task_id = task_id
             if generate_task_obj:
                 task = self._new_task(
                     step_name, task_id="r_%s" % task_id, pathspec_index=pathspec_index
                 )
+                new_task_id = task.task_id
                 self._cloned_tasks.append(task)
                 self._cloned_task_index.add(task.task_index)
-
-            new_task_id = task.task_id
 
             self._logger(
                 "Cloning task from {}/{}/{}/{} to {}/{}/{}/{}".format(
