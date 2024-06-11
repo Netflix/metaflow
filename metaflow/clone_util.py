@@ -35,7 +35,6 @@ def clone_task_helper(
         origin = flow_datastore.get_task_datastore(
             origin_run_id, origin_step_name, origin_task_id
         )
-
     metadata_tags = ["attempt_id:{0}".format(attempt_id)]
     output.clone(origin)
     _ = metadata_service.register_task_id(
@@ -44,7 +43,6 @@ def clone_task_helper(
         task_id,
         attempt_id,
     )
-
     metadata_service.register_metadata(
         run_id,
         step_name,

@@ -707,6 +707,12 @@ def resume(
             "/".join((obj.flow.name, runtime.run_id)),
         ),
     )
+
+    # We may skip clone-only resume if this is not a resume leader,
+    # and clone is already complete.
+    if runtime.should_skip_clone_only_execution():
+        return
+
     with runtime.run_heartbeat():
         if clone_only:
             runtime.clone_original_run()
