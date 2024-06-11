@@ -710,6 +710,7 @@ def resume(
     if clone_only:
         runtime.clone_original_run()
     else:
+        runtime.clone_original_run(generate_task_obj=True)
         runtime.execute()
 
 
