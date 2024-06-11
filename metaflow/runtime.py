@@ -472,6 +472,8 @@ class NativeRuntime(object):
         for _ in range(3):
             list(self._poll_workers())
 
+    # Given the current task information (task_index), the type of transition,
+    # and the split index, return the new task index.
     def _translate_index(self, task, next_step, type, split_index=None):
         import re
 
