@@ -146,7 +146,7 @@ class Stub(with_metaclass(StubMetaClass, object)):
             return object.__getattribute__(self, name)
 
     def __getattr__(self, name):
-        if name in DELETED_ATTRS:
+        if name in DELETED_ATTRS or self.___is_returned_exception___:
             raise AttributeError()
         return fwd_request(self, OP_GETATTR, name)
 
@@ -166,6 +166,8 @@ class Stub(with_metaclass(StubMetaClass, object)):
         ):
             object.__setattr__(self, name, value)
         else:
+            if self.___is_returned_exception___:
+                raise AttributeError()
             fwd_request(self, OP_SETATTR, name, value)
 
     def __dir__(self):
