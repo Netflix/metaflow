@@ -268,11 +268,13 @@ class MetaflowObject(object):
         _object: Optional["MetaflowObject"] = None,
         _parent: Optional["MetaflowObject"] = None,
         _namespace_check: bool = True,
+        _current_namespace: Optional[str] = None,
     ):
         self._metaflow = Metaflow()
         self._parent = _parent
         self._path_components = None
         self._attempt = attempt
+        self._current_namespace = _current_namespace or get_namespace()
         self._namespace_check = _namespace_check
 
         if self._attempt is not None:
@@ -339,8 +341,8 @@ class MetaflowObject(object):
         self._user_tags = frozenset(self._object.get("tags") or [])
         self._system_tags = frozenset(self._object.get("system_tags") or [])
 
-        if self._namespace_check and not self.is_in_namespace():
-            raise MetaflowNamespaceMismatch(current_namespace)
+        if self._namespace_check and not self._is_in_namespace(self._current_namespace):
+            raise MetaflowNamespaceMismatch(self._current_namespace)
 
     def _get_object(self, *path_components):
         result = self._metaflow.metadata.get_object(
@@ -365,8 +367,8 @@ class MetaflowObject(object):
         query_filter = {}
 
         # skip namespace filtering if _namespace_check is unset.
-        if self._namespace_check and current_namespace:
-            query_filter = {"any_tags": current_namespace}
+        if self._namespace_check and self._current_namespace:
+            query_filter = {"any_tags": self._current_namespace}
 
         unfiltered_children = self._metaflow.metadata.get_object(
             self._NAME,
@@ -383,7 +385,10 @@ class MetaflowObject(object):
                     attempt=self._attempt,
                     _object=obj,
                     _parent=self,
-                    _namespace_check=False,
+                    _namespace_check=self._namespace_check,
+                    _current_namespace=self._current_namespace
+                    if self._namespace_check
+                    else None,
                 )
                 for obj in unfiltered_children
             ),
@@ -427,10 +432,27 @@ class MetaflowObject(object):
         bool
             Whether or not the object is in the current namespace
         """
+        return self._is_in_namespace(current_namespace)
+
+    def _is_in_namespace(self, ns: str) -> bool:
+        """
+        Returns whether this object is in namespace passed in.
+
+        If the current namespace is None, this will always return True.
+
+        Parameters
+        ----------
+        ns : str
+            Namespace to check if the object is in.
+        Returns
+        -------
+        bool
+            Whether or not the object is in the current namespace
+        """
         if self._NAME == "flow":
             return any(True for _ in self)
         else:
-            return current_namespace is None or current_namespace in self._tags
+            return ns is None or ns in self._tags
 
     def __str__(self):
         if self._attempt is not None:
@@ -479,6 +501,9 @@ class MetaflowObject(object):
                 _object=obj,
                 _parent=self,
                 _namespace_check=self._namespace_check,
+                _current_namespace=self._current_namespace
+                if self._namespace_check
+                else None,
             )
         else:
             raise KeyError(id)
@@ -509,7 +534,20 @@ class MetaflowObject(object):
             pathspec=pathspec, attempt=attempt, _namespace_check=namespace_check
         )
 
-    _UNPICKLE_FUNC = {"2.8.4": _unpickle_284}
+    def _unpickle_2124(self, data):
+        if len(data) != 4:
+            raise MetaflowInternalError(
+                "Unexpected size of array: {}".format(len(data))
+            )
+        pathspec, attempt, ns, namespace_check = data
+        self.__init__(
+            pathspec=pathspec,
+            attempt=attempt,
+            _namespace_check=namespace_check,
+            _current_namespace=ns,
+        )
+
+    _UNPICKLE_FUNC = {"2.8.4": _unpickle_284, "2.12.4": _unpickle_2124}
 
     def __setstate__(self, state):
         """
@@ -529,12 +567,13 @@ class MetaflowObject(object):
             self._UNPICKLE_FUNC[version](self, state["data"])
         else:
             # For backward compatibility: handles pickled objects that were serialized without a __getstate__ override
-            # We set namespace_check to False if it doesn't exist for the same
-            # reason as the one listed in __getstate__
+            # We set namespace_check to False if it doesn't exist so that the user can
+            # continue accessing this object once unpickled.
             self.__init__(
                 pathspec=state.get("_pathspec", None),
                 attempt=state.get("_attempt", None),
                 _namespace_check=state.get("_namespace_check", False),
+                _current_namespace=None,
             )
 
     def __getstate__(self):
@@ -546,16 +585,17 @@ class MetaflowObject(object):
         from this object) are pickled (serialized) in a later version of Metaflow, it may not be possible
         to unpickle (deserialize) them in a previous version of Metaflow.
         """
-        # Note that we set _namespace_check to False because we want the user to
-        # be able to access this object even after unpickling it. If we set it to
-        # True, it would check the namespace again at the time of unpickling even
-        # if the user properly got the object in the first place and pickled it.
+        # Note that we now record the namespace at the time of the object creation so
+        # we don't need to force namespace_check to be False and can properly continue
+        # checking for the namespace even after unpickling since we will know which
+        # namespace to check.
         return {
-            "version": "2.8.4",
+            "version": "2.12.4",
             "data": [
                 self.pathspec,
                 self._attempt,
-                False,
+                self._current_namespace,
+                self._namespace_check,
             ],
         }
 
