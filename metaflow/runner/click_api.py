@@ -15,6 +15,7 @@ import uuid
 from collections import OrderedDict
 from typing import Any, Callable, Dict, List, Optional
 from typing import OrderedDict as TOrderedDict
+from typing import Tuple as TTuple
 from typing import Union
 
 from metaflow import FlowSpec, Parameter
@@ -140,7 +141,9 @@ def get_inspect_param_obj(p: Union[click.Argument, click.Option], kind: str):
 loaded_modules = {}
 
 
-def extract_flowspec_params(flow_file: str) -> List[Parameter]:
+def extract_flowspec_params_and_options(
+    flow_file: str,
+) -> TTuple[List[Parameter], Dict[str, Any]]:
     # Check if the module has already been loaded
     if flow_file in loaded_modules:
         module = loaded_modules[flow_file]
@@ -154,13 +157,21 @@ def extract_flowspec_params(flow_file: str) -> List[Parameter]:
     classes = inspect.getmembers(module, inspect.isclass)
 
     parameters = []
+    options = {}
     for _, kls in classes:
         if kls != FlowSpec and issubclass(kls, FlowSpec):
-            for _, obj in inspect.getmembers(kls):
-                if isinstance(obj, Parameter):
+            for var_name, obj in inspect.getmembers(kls):
+                if (
+                    var_name[0] != 0
+                    and not var_name in FlowSpec._NON_PARAMETERS
+                    and isinstance(obj, Parameter)
+                ):
                     parameters.append(obj)
+            for deco_list in kls._flow_decorators.items():
+                for deco in deco_list:
+                    options.update(deco.get_top_level_options())
 
-    return parameters
+    return parameters, options
 
 
 class MetaflowAPI(object):
@@ -180,7 +191,12 @@ class MetaflowAPI(object):
 
     @classmethod
     def from_cli(cls, flow_file: str, cli_collection: Callable) -> Callable:
-        flow_parameters = extract_flowspec_params(flow_file)
+        flow_parameters, flow_options = extract_flowspec_params_and_options(flow_file)
+
+        if flow_options:
+            for name, kwargs in flow_options.items():
+                cli_collection.params.insert(0, click.Option(("--" + name,), **kwargs))
+
         class_dict = {"__module__": "metaflow", "_API_NAME": flow_file}
         command_groups = cli_collection.sources
         for each_group in command_groups:

@@ -157,7 +157,6 @@ class NativeRuntime(object):
                 deco.runtime_init(flow, graph, package, self._run_id)
 
     def _new_task(self, step, input_paths=None, **kwargs):
-
         if input_paths is None:
             may_clone = True
         else:
@@ -315,7 +314,6 @@ class NativeRuntime(object):
             # main scheduling loop
             exception = None
             while self._run_queue or self._active_tasks[0] > 0:
-
                 # 1. are any of the current workers finished?
                 finished_tasks = list(self._poll_workers())
                 # 2. push new tasks triggered by the finished tasks to the queue
@@ -583,7 +581,6 @@ class NativeRuntime(object):
                 )
 
     def _queue_task_foreach(self, task, next_steps):
-
         # CHECK: this condition should be enforced by the linter but
         # let's assert that the assumption holds
         if len(next_steps) > 1:
@@ -798,8 +795,8 @@ class Task(object):
         task_id=None,
         resume_identifier=None,
     ):
-
         self.step = step
+        self.flow = flow
         self.flow_name = flow.name
         self.run_id = run_id
         self.task_id = None
@@ -935,7 +932,6 @@ class Task(object):
                     # yet written the _resume_leader metadata, we will wait for a few seconds.
                     # We will wait for resume leader for at most 3 times.
                     for resume_leader_wait_retry in range(3):
-
                         if ds.has_metadata("_resume_leader", add_attempt=False):
                             resume_leader = ds.load_metadata(
                                 ["_resume_leader"], add_attempt=False
@@ -1323,7 +1319,7 @@ class CLIArgs(object):
         # FlowDecorators can define their own top-level options. They are
         # responsible for adding their own top-level options and values through
         # the get_top_level_options() hook.
-        for deco in flow_decorators():
+        for deco in flow_decorators(self.task.flow):
             self.top_level_options.update(deco.get_top_level_options())
 
         self.commands = ["step"]
@@ -1342,11 +1338,9 @@ class CLIArgs(object):
         self.env = {}
 
     def get_args(self):
-
         # TODO: Make one with dict_to_cli_options; see cli_args.py for more detail
         def _options(mapping):
             for k, v in mapping.items():
-
                 # None or False arguments are ignored
                 # v needs to be explicitly False, not falsy, e.g. 0 is an acceptable value
                 if v is None or v is False:

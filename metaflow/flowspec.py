@@ -104,15 +104,11 @@ class FlowSpec(object):
         self._graph = FlowGraph(self.__class__)
         self._steps = [getattr(self, node.name) for node in self._graph]
 
-        # This must be set before calling cli.main() below (or specifically, add_custom_parameters)
-        parameters.parameters = [p for _, p in self._get_parameters()]
-
         if use_cli:
-            # we import cli here to make sure custom parameters in
-            # args.py get fully evaluated before cli.py is imported.
-            from . import cli
+            with parameters.with_flow(self) as _:
+                from . import cli
 
-            cli.main(self)
+                cli.main(self)
 
     @property
     def script_name(self) -> str:
@@ -192,7 +188,7 @@ class FlowSpec(object):
                     "attributes": deco.attributes,
                     "statically_defined": deco.statically_defined,
                 }
-                for deco in flow_decorators()
+                for deco in flow_decorators(self)
                 if not deco.name.startswith("_")
             ],
         }
