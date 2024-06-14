@@ -167,7 +167,7 @@ def extract_flowspec_params_and_options(
                     and isinstance(obj, Parameter)
                 ):
                     parameters.append(obj)
-            for deco_list in kls._flow_decorators.items():
+            for deco_list in kls._flow_decorators.values():
                 for deco in deco_list:
                     options.update(deco.get_top_level_options())
 
