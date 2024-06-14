@@ -204,10 +204,10 @@ class FlowDecorator(Decorator):
 # compare this to parameters.add_custom_parameters
 def add_decorator_options(cmd):
     seen = {}
-    f = getattr(current_flow, "flow", None)
-    if f is None:
+    flow_cls = getattr(current_flow, "flow_cls", None)
+    if flow_cls is None:
         return cmd
-    for deco in flow_decorators(f):
+    for deco in flow_decorators(flow_cls):
         for option, kwargs in deco.options.items():
             if option in seen:
                 msg = (
@@ -223,8 +223,8 @@ def add_decorator_options(cmd):
     return cmd
 
 
-def flow_decorators(flow):
-    return [d for deco_list in flow._flow_decorators.values() for d in deco_list]
+def flow_decorators(flow_cls):
+    return [d for deco_list in flow_cls._flow_decorators.values() for d in deco_list]
 
 
 class StepDecorator(Decorator):

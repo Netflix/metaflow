@@ -105,7 +105,7 @@ class FlowSpec(object):
         self._steps = [getattr(self, node.name) for node in self._graph]
 
         if use_cli:
-            with parameters.with_flow(self) as _:
+            with parameters.flow_context(self.__class__) as _:
                 from . import cli
 
                 cli.main(self)
@@ -194,12 +194,13 @@ class FlowSpec(object):
         }
         self._graph_info = graph_info
 
-    def _get_parameters(self):
-        for var in dir(self):
-            if var[0] == "_" or var in self._NON_PARAMETERS:
+    @classmethod
+    def _get_parameters(cls):
+        for var in dir(cls):
+            if var[0] == "_" or var in cls._NON_PARAMETERS:
                 continue
             try:
-                val = getattr(self, var)
+                val = getattr(cls, var)
             except:
                 continue
             if isinstance(val, Parameter):

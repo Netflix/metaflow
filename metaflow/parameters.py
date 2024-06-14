@@ -47,17 +47,17 @@ current_flow = local()
 
 
 @contextmanager
-def with_flow(flow):
+def flow_context(flow_cls):
     """
     Context manager to set the current flow for the thread. This is used
     to extract the parameters from the FlowSpec that is being used to create
     the CLI.
     """
-    current_flow.flow = flow
+    current_flow.flow_cls = flow_cls
     try:
         yield
     finally:
-        del current_flow.flow
+        del current_flow.flow_cls
 
 
 context_proto = None
@@ -419,10 +419,10 @@ def add_custom_parameters(deploy_mode=False):
         cmd.has_flow_params = True
         # Iterate over parameters in reverse order so cmd.params lists options
         # in the order they are defined in the FlowSpec subclass
-        current_flowspec = getattr(current_flow, "flow", None)
-        if current_flowspec is None:
+        flow_cls = getattr(current_flow, "flow_cls", None)
+        if flow_cls is None:
             return cmd
-        parameters = [p for _, p in current_flowspec._get_parameters()]
+        parameters = [p for _, p in flow_cls._get_parameters()]
         for arg in parameters[::-1]:
             kwargs = arg.option_kwargs(deploy_mode)
             cmd.params.insert(0, click.Option(("--" + arg.name,), **kwargs))

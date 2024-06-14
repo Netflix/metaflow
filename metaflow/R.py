@@ -129,7 +129,7 @@ def run(
     from . import cli
 
     try:
-        with parameters.with_flow(flow) as _:
+        with parameters.flow_context(flow.__class__) as _:
             cli.main(
                 flow,
                 args=metaflow_args,
