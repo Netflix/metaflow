@@ -206,7 +206,7 @@ def add_decorator_options(cmd):
     seen = {}
     f = getattr(current_flow, "flow", None)
     if f is None:
-        raise MetaflowException("No current flow")
+        return cmd
     for deco in flow_decorators(f):
         for option, kwargs in deco.options.items():
             if option in seen:

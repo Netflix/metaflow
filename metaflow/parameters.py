@@ -421,7 +421,7 @@ def add_custom_parameters(deploy_mode=False):
         # in the order they are defined in the FlowSpec subclass
         current_flowspec = getattr(current_flow, "flow", None)
         if current_flowspec is None:
-            raise MetaflowException("No current flow found.")
+            return cmd
         parameters = [p for _, p in current_flowspec._get_parameters()]
         for arg in parameters[::-1]:
             kwargs = arg.option_kwargs(deploy_mode)
