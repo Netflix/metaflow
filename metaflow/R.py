@@ -126,10 +126,11 @@ def run(
     flow = module.FLOW(use_cli=False)
 
     from . import exception
-    from . import cli
 
     try:
         with parameters.flow_context(flow.__class__) as _:
+            from . import cli
+
             cli.main(
                 flow,
                 args=metaflow_args,

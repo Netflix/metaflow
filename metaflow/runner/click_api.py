@@ -15,7 +15,6 @@ import uuid
 from collections import OrderedDict
 from typing import Any, Callable, Dict, List, Optional
 from typing import OrderedDict as TOrderedDict
-from typing import Tuple as TTuple
 from typing import Union
 
 from metaflow import FlowSpec, Parameter
