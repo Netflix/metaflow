@@ -53,7 +53,18 @@ class ParallelUBF(UnboundedForeachInput):
         return item or 0  # item is None for the control task, but it is also split 0
 
 
-class FlowSpec(object):
+class _FlowSpecMeta(type):
+    def __new__(cls, name, bases, dct):
+        f = super().__new__(cls, name, bases, dct)
+        # This makes sure to give _flow_decorators to each
+        # child class (and not share it with the FlowSpec base
+        # class). This is important to not make a "global"
+        # _flow_decorators
+        f._flow_decorators = {}
+        return f
+
+
+class FlowSpec(metaclass=_FlowSpecMeta):
     """
     Main class from which all Flows should inherit.
 
@@ -83,8 +94,6 @@ class FlowSpec(object):
     # names starting with `_` as those are already excluded from `_get_parameters`.
     _NON_PARAMETERS = {"cmd", "foreach_stack", "index", "input", "script_name", "name"}
 
-    _flow_decorators = {}
-
     def __init__(self, use_cli=True):
         """
         Construct a FlowSpec
@@ -104,15 +113,11 @@ class FlowSpec(object):
         self._graph = FlowGraph(self.__class__)
         self._steps = [getattr(self, node.name) for node in self._graph]
 
-        # This must be set before calling cli.main() below (or specifically, add_custom_parameters)
-        parameters.parameters = [p for _, p in self._get_parameters()]
-
         if use_cli:
-            # we import cli here to make sure custom parameters in
-            # args.py get fully evaluated before cli.py is imported.
-            from . import cli
+            with parameters.flow_context(self.__class__) as _:
+                from . import cli
 
-            cli.main(self)
+                cli.main(self)
 
     @property
     def script_name(self) -> str:
@@ -192,18 +197,19 @@ class FlowSpec(object):
                     "attributes": deco.attributes,
                     "statically_defined": deco.statically_defined,
                 }
-                for deco in flow_decorators()
+                for deco in flow_decorators(self)
                 if not deco.name.startswith("_")
             ],
         }
         self._graph_info = graph_info
 
-    def _get_parameters(self):
-        for var in dir(self):
-            if var[0] == "_" or var in self._NON_PARAMETERS:
+    @classmethod
+    def _get_parameters(cls):
+        for var in dir(cls):
+            if var[0] == "_" or var in cls._NON_PARAMETERS:
                 continue
             try:
-                val = getattr(self, var)
+                val = getattr(cls, var)
             except:
                 continue
             if isinstance(val, Parameter):

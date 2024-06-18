@@ -58,9 +58,9 @@ class S3KeySensorDecorator(AirflowSensorDecorator):
         #  `verify` is a airflow variable.
     )
 
-    def validate(self):
+    def validate(self, flow):
         if self.attributes["bucket_key"] is None:
             raise AirflowException(
                 "`bucket_key` for `@%s`cannot be empty." % (self.name)
             )
-        super().validate()
+        super().validate(flow)

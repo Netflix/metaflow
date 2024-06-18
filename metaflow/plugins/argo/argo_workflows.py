@@ -1237,7 +1237,7 @@ class ArgoWorkflows(object):
             # FlowDecorators can define their own top-level options. They are
             # responsible for adding their own top-level options and values through
             # the get_top_level_options() hook. See similar logic in runtime.py.
-            for deco in flow_decorators():
+            for deco in flow_decorators(self.flow):
                 top_opts_dict.update(deco.get_top_level_options())
 
             top_level = list(dict_to_cli_options(top_opts_dict)) + [

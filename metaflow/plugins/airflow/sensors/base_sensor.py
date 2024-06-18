@@ -1,5 +1,5 @@
 import uuid
-from metaflow.decorators import FlowDecorator
+from metaflow.decorators import FlowDecorator, flow_decorators
 from ..exception import AirflowException
 from ..airflow_utils import AirflowTask, id_creator, TASK_ID_HASH_LEN
 
@@ -49,7 +49,7 @@ class AirflowSensorDecorator(FlowDecorator):
             operator_type=self.operator_type,
         ).set_operator_args(**{k: v for k, v in task_args.items() if v is not None})
 
-    def validate(self):
+    def validate(self, flow):
         """
         Validate if the arguments for the sensor are correct.
         """
@@ -58,7 +58,7 @@ class AirflowSensorDecorator(FlowDecorator):
         if self.attributes["name"] is None:
             deco_index = [
                 d._id
-                for d in self._flow_decorators
+                for d in flow_decorators(flow)
                 if issubclass(d.__class__, AirflowSensorDecorator)
             ].index(self._id)
             self._airflow_task_name = "%s-%s" % (
@@ -71,4 +71,4 @@ class AirflowSensorDecorator(FlowDecorator):
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
     ):
-        self.validate()
+        self.validate(flow)

@@ -11,6 +11,8 @@ from .exception import (
     InvalidDecoratorAttribute,
 )
 
+from .parameters import current_flow
+
 from metaflow._vendor import click
 
 try:
@@ -174,13 +176,9 @@ class Decorator(object):
 
 
 class FlowDecorator(Decorator):
-    _flow_decorators = []
     options = {}
 
     def __init__(self, *args, **kwargs):
-        # Note that this assumes we are executing one flow per process, so we have a global list of
-        # _flow_decorators. A similar setup is used in parameters.
-        self._flow_decorators.append(self)
         super(FlowDecorator, self).__init__(*args, **kwargs)
 
     def flow_init(
@@ -206,7 +204,10 @@ class FlowDecorator(Decorator):
 # compare this to parameters.add_custom_parameters
 def add_decorator_options(cmd):
     seen = {}
-    for deco in flow_decorators():
+    flow_cls = getattr(current_flow, "flow_cls", None)
+    if flow_cls is None:
+        return cmd
+    for deco in flow_decorators(flow_cls):
         for option, kwargs in deco.options.items():
             if option in seen:
                 msg = (
@@ -222,8 +223,8 @@ def add_decorator_options(cmd):
     return cmd
 
 
-def flow_decorators():
-    return FlowDecorator._flow_decorators
+def flow_decorators(flow_cls):
+    return [d for deco_list in flow_cls._flow_decorators.values() for d in deco_list]
 
 
 class StepDecorator(Decorator):

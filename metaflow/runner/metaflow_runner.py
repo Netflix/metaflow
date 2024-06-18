@@ -1,3 +1,4 @@
+import importlib
 import os
 import sys
 import tempfile
@@ -250,6 +251,9 @@ class Runner(object):
         #    from metaflow import Runner
         # This ability is made possible by the statement:
         # 'from .metaflow_runner import Runner' in '__init__.py'
+
+        if "metaflow.cli" in sys.modules:
+            importlib.reload(sys.modules["metaflow.cli"])
         from metaflow.cli import start
         from metaflow.runner.click_api import MetaflowAPI
 

@@ -85,7 +85,7 @@ class ExternalTaskSensorDecorator(AirflowSensorDecorator):
             )
         return task_args
 
-    def validate(self):
+    def validate(self, flow):
         if self.attributes["external_dag_id"] is None:
             raise AirflowException(
                 "`%s` argument of `@%s`cannot be `None`."
@@ -131,4 +131,4 @@ class ExternalTaskSensorDecorator(AirflowSensorDecorator):
                         self.name,
                     )
                 )
-        super().validate()
+        super().validate(flow)
