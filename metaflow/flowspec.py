@@ -53,7 +53,18 @@ class ParallelUBF(UnboundedForeachInput):
         return item or 0  # item is None for the control task, but it is also split 0
 
 
-class FlowSpec(object):
+class _FlowSpecMeta(type):
+    def __new__(cls, name, bases, dct):
+        f = super().__new__(cls, name, bases, dct)
+        # This makes sure to give _flow_decorators to each
+        # child class (and not share it with the FlowSpec base
+        # class). This is important to not make a "global"
+        # _flow_decorators
+        f._flow_decorators = {}
+        return f
+
+
+class FlowSpec(metaclass=_FlowSpecMeta):
     """
     Main class from which all Flows should inherit.
 
@@ -82,8 +93,6 @@ class FlowSpec(object):
     # compute (like anything related to the `foreach_stack`). We don't need to exclude
     # names starting with `_` as those are already excluded from `_get_parameters`.
     _NON_PARAMETERS = {"cmd", "foreach_stack", "index", "input", "script_name", "name"}
-
-    _flow_decorators = {}
 
     def __init__(self, use_cli=True):
         """

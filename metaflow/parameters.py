@@ -53,11 +53,20 @@ def flow_context(flow_cls):
     to extract the parameters from the FlowSpec that is being used to create
     the CLI.
     """
-    current_flow.flow_cls = flow_cls
+    # Use a stack because with the runner this can get called multiple times in
+    # a nested fashion
+    current_flow.flow_cls_stack = getattr(current_flow, "flow_cls_stack", [])
+    current_flow.flow_cls_stack.insert(0, flow_cls)
+    current_flow.flow_cls = current_flow.flow_cls_stack[0]
     try:
         yield
     finally:
-        del current_flow.flow_cls
+        current_flow.flow_cls_stack = current_flow.flow_cls_stack[1:]
+        if len(current_flow.flow_cls_stack) == 0:
+            del current_flow.flow_cls_stack
+            del current_flow.flow_cls
+        else:
+            current_flow.flow_cls = current_flow.flow_cls_stack[0]
 
 
 context_proto = None

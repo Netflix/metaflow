@@ -32,7 +32,6 @@ from metaflow._vendor.click.types import (
     UUIDParameterType,
 )
 from metaflow._vendor.typeguard import TypeCheckError, check_type
-from metaflow.cli import start
 from metaflow.decorators import add_decorator_options
 from metaflow.exception import MetaflowException
 from metaflow.includefile import FilePathClass
@@ -185,7 +184,6 @@ class MetaflowAPI(object):
     @classmethod
     def from_cli(cls, flow_file: str, cli_collection: Callable) -> Callable:
         flow_cls = extract_flow_class_from_file(flow_file)
-
         flow_parameters = [p for _, p in flow_cls._get_parameters()]
         with flow_context(flow_cls) as _:
             add_decorator_options(cli_collection)
@@ -386,6 +384,8 @@ def extract_command(
 
 
 if __name__ == "__main__":
+    from metaflow.cli import start
+
     api = MetaflowAPI.from_cli("../try.py", start)
 
     command = api(metadata="local").run(
