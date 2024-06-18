@@ -946,7 +946,7 @@ def start(
     ctx.obj.environment = [
         e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == environment
     ][0](ctx.obj.flow)
-    ctx.obj.environment.validate_environment(echo, datastore)
+    ctx.obj.environment.validate_environment(ctx.obj.logger, datastore)
 
     ctx.obj.event_logger = LOGGING_SIDECARS[event_logger](
         flow=ctx.obj.flow, env=ctx.obj.environment
