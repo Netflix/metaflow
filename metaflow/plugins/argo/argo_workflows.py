@@ -2015,6 +2015,7 @@ class ArgoWorkflows(object):
                         kubernetes_sdk.V1Container(
                             name=self._sanitize(node.name),
                             command=cmds,
+                            termination_message_policy="FallbackToLogsOnError",
                             ports=[kubernetes_sdk.V1ContainerPort(container_port=port)]
                             if port
                             else None,
