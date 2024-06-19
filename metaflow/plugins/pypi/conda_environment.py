@@ -48,9 +48,9 @@ class CondaEnvironment(MetaflowEnvironment):
         # Apply conda decorator to manage the task execution lifecycle.
         return ("conda",) + super().decospecs()
 
-    def validate_environment(self, echo, datastore_type):
+    def validate_environment(self, logger, datastore_type):
         self.datastore_type = datastore_type
-        self.echo = echo
+        self.logger = logger
 
         # Avoiding circular imports.
         from metaflow.plugins import DATASTORES
@@ -165,7 +165,7 @@ class CondaEnvironment(MetaflowEnvironment):
                     self.write_to_environment_manifest([id_, platform, type_], packages)
 
         # First resolve environments through Conda, before PyPI.
-        echo("Bootstrapping virtual environment(s) ...")
+        self.logger("Bootstrapping virtual environment(s) ...")
         for solver in ["conda", "pypi"]:
             with ThreadPoolExecutor() as executor:
                 results = list(
@@ -178,11 +178,9 @@ class CondaEnvironment(MetaflowEnvironment):
                 )
             if self.datastore_type not in ["local"]:
                 # Cache packages only when a remote datastore is in play.
-                storage = self.datastore(
-                    _datastore_packageroot(self.datastore, self.echo)
-                )
+                storage = self.datastore(_datastore_packageroot(self.datastore, echo))
                 cache(storage, results, solver)
-        echo("Virtual environment(s) bootstrapped!")
+        self.logger("Virtual environment(s) bootstrapped!")
 
     def executable(self, step_name, default=None):
         step = next(step for step in self.flow if step.name == step_name)
@@ -316,7 +314,7 @@ class CondaEnvironment(MetaflowEnvironment):
                             **environment,
                             **{
                                 "package_root": _datastore_packageroot(
-                                    self.datastore, self.echo
+                                    self.datastore, self.logger
                                 )
                             },
                         }
