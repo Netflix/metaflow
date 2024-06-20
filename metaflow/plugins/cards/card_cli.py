@@ -388,6 +388,22 @@ def card_read_options_and_arguments(func):
     return wrapper
 
 
+def _extract_reload_token(data, task, mf_card):
+    if "render_seq" not in data:
+        return "never"
+
+    if data["render_seq"] == "final":
+        # final data update should always trigger a card reload to show
+        # the final card, hence a different token for the final update
+        return "final"
+    elif mf_card.RELOAD_POLICY == mf_card.RELOAD_POLICY_ALWAYS:
+        return "render-seq-%s" % data["render_seq"]
+    elif mf_card.RELOAD_POLICY == mf_card.RELOAD_POLICY_NEVER:
+        return "never"
+    elif mf_card.RELOAD_POLICY == mf_card.RELOAD_POLICY_ONCHANGE:
+        return mf_card.reload_content_token(task, data)
+
+
 def update_card(mf_card, mode, task, data, timeout_value=None):
     """
     This method will be responsible for creating a card/data-update based on the `mode`.
@@ -432,31 +448,21 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
             - `timeout_stack_trace` : stack trace of the function if it timed out.
     """
 
-    def _reload_token():
-        if "render_seq" not in data:
-            return "never"
-
-        if data["render_seq"] == "final":
-            # final data update should always trigger a card reload to show
-            # the final card, hence a different token for the final update
-            return "final"
-        elif mf_card.RELOAD_POLICY == mf_card.RELOAD_POLICY_ALWAYS:
-            return "render-seq-%s" % data["render_seq"]
-        elif mf_card.RELOAD_POLICY == mf_card.RELOAD_POLICY_NEVER:
-            return "never"
-        elif mf_card.RELOAD_POLICY == mf_card.RELOAD_POLICY_ONCHANGE:
-            return mf_card.reload_content_token(task, data)
-
     def _add_token_html(html):
         if html is None:
             return None
-        return html.replace(mf_card.RELOAD_POLICY_TOKEN, _reload_token())
+        return html.replace(
+            mf_card.RELOAD_POLICY_TOKEN,
+            _extract_reload_token(data=data, task=task, mf_card=mf_card),
+        )
 
     def _add_token_json(json_msg):
         if json_msg is None:
             return None
         return {
-            "reload_token": _reload_token(),
+            "reload_token": _extract_reload_token(
+                data=data, task=task, mf_card=mf_card
+            ),
             "data": json_msg,
             "created_on": time.time(),
         }
@@ -740,8 +746,16 @@ def create(
     #   3. `refresh` is implemented but it raises an exception. (We do nothing. Don't store anything.)
     #   4. `refresh` is implemented but it times out. (We do nothing. Don't store anything.)
 
+    def _render_error_card(stack_trace):
+        _card = error_card()
+        token = _extract_reload_token(data, task, _card)
+        return _card.render(
+            task,
+            stack_trace=stack_trace,
+        ).replace(mf_card.RELOAD_POLICY_TOKEN, token)
+
     if error_stack_trace is not None and mode != "refresh":
-        rendered_content = error_card().render(task, stack_trace=error_stack_trace)
+        rendered_content = _render_error_card(error_stack_trace)
     elif (
         rendered_info.is_implemented
         and rendered_info.timed_out
@@ -753,18 +767,15 @@ def create(
             "To increase the timeout duration for card rendering, please set the `timeout` parameter in the @card decorator. "
             "\nStack Trace : \n%s"
         ) % (timeout, rendered_info.timeout_stack_trace)
-        rendered_content = error_card().render(
-            task,
-            stack_trace=timeout_stack_trace,
-        )
+        rendered_content = _render_error_card(timeout_stack_trace)
     elif (
         rendered_info.is_implemented
         and rendered_info.data is None
         and render_error_card
         and mode != "refresh"
     ):
-        rendered_content = error_card().render(
-            task, stack_trace="No information rendered from card of type %s" % type
+        rendered_content = _render_error_card(
+            "No information rendered from card of type %s" % type
         )
     elif (
         not rendered_info.is_implemented
@@ -775,7 +786,7 @@ def create(
             "Card of type %s is a runtime time card with no `render_runtime` implemented. "
             "Please implement `render_runtime` method to allow rendering this card at runtime."
         ) % type
-        rendered_content = error_card().render(task, stack_trace=message)
+        rendered_content = _render_error_card(message)
 
     # todo : should we save native type for error card or error type ?
     if type is not None and re.match(CARD_ID_PATTERN, type) is not None:
