@@ -556,7 +556,7 @@ class StepFunctions(object):
         env_deco = [deco for deco in node.decorators if deco.name == "environment"]
         env = {}
         if env_deco:
-            env = env_deco[0].attributes["vars"].copy()
+            type(env_deco[0]).merge_vars(env_deco, env)
 
         # add METAFLOW_S3_ENDPOINT_URL
         if S3_ENDPOINT_URL is not None:
