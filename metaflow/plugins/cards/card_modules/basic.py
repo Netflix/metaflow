@@ -542,10 +542,23 @@ class ErrorCard(MetaflowCard):
 
     type = "error"
 
+    RELOAD_POLICY = MetaflowCard.RELOAD_POLICY_ONCHANGE
+
     def __init__(self, options={}, components=[], graph=None):
         self._only_repr = True
         self._graph = None if graph is None else transform_flow_graph(graph)
         self._components = components
+
+    def reload_content_token(self, task, data):
+        """
+        The reload token will change when the component array has changed in the Metaflow card.
+        The change in the component array is signified by the change in the component_update_ts.
+        """
+        if task.finished:
+            return "final"
+        # `component_update_ts` will never be None. It is set to a default value when the `ComponentStore` is instantiated
+        # And it is updated when components added / removed / changed from the `ComponentStore`.
+        return "runtime-%s" % (str(data["component_update_ts"]))
 
     def render(self, task, stack_trace=None):
         RENDER_TEMPLATE = read_file(RENDER_TEMPLATE_PATH)
