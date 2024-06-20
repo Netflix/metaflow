@@ -218,7 +218,7 @@ class CondaEnvironment(MetaflowEnvironment):
                 disabled = decorator.attributes["disabled"]
                 if not disabled or str(disabled).lower() == "false":
                     environment[decorator.name] = {
-                        k: decorator.attributes[k]
+                        k: copy.deepcopy(decorator.attributes[k])
                         for k in decorator.attributes
                         if k != "disabled"
                     }
