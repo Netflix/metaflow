@@ -521,7 +521,6 @@ def _setup_multinode_environment():
             os.environ["MF_MASTER_ADDR"]
         )
         os.environ["MF_PARALLEL_NUM_NODES"] = os.environ["MF_WORLD_SIZE"]
-
         os.environ["MF_PARALLEL_NODE_INDEX"] = (
             str(0)
             if "MF_CONTROL_INDEX" in os.environ
