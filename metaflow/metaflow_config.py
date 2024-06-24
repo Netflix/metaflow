@@ -318,6 +318,8 @@ FAST_BAKERY_AUTH = from_conf("FAST_BAKERY_AUTH", None)
 # Image builder image compression type.
 # Available types for now are 'esgz-zstd' and 'oci-zstd'
 FAST_BAKERY_TYPE = from_conf("FAST_BAKERY_TYPE", "oci-zstd")
+# base path for the environment on a fast bakery image
+FAST_BAKERY_ENV_PATH = from_conf("FAST_BAKERY_ENV_PATH", "/opt/outerbounds/fastbakery")
 # internal env for skipping bakery related processes.
 _USE_BAKERY = bool(os.environ.get("USE_BAKERY", bool(FAST_BAKERY_URL)))
 ###

@@ -8,6 +8,7 @@ from metaflow.metaflow_config import (
     FAST_BAKERY_TYPE,
     FAST_BAKERY_AUTH,
     FAST_BAKERY_URL,
+    FAST_BAKERY_ENV_PATH,
     get_pinned_conda_libs,
 )
 from metaflow.metaflow_environment import MetaflowEnvironment
@@ -145,12 +146,12 @@ class DockerEnvironment(MetaflowEnvironment):
     def executable(self, step_name, default=None):
         if self._is_delegated(step_name):
             return self.delegate.executable(step_name, default)
-        return os.path.join("/conda-prefix", "bin/python")
+        return os.path.join(FAST_BAKERY_ENV_PATH, "bin/python")
 
     def interpreter(self, step_name):
         if self._is_delegated(step_name):
             return self.delegate.interpreter(step_name)
-        return os.path.join("/conda-prefix", "bin/python")
+        return os.path.join(FAST_BAKERY_ENV_PATH, "bin/python")
 
     def is_disabled(self, step):
         for decorator in step.decorators:
