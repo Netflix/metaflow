@@ -17,6 +17,7 @@ CLIS_DESC = [
     ("card", ".cards.card_cli.cli"),
     ("tag", ".tag_cli.cli"),
     ("logs", ".logs_cli.cli"),
+    ("snowpark", ".snowpark.snowpark_cli.cli"),
 ]
 
 from .test_unbounded_foreach_decorator import InternalTestUnboundedForeachInput
@@ -31,6 +32,7 @@ STEP_DECORATORS_DESC = [
     ("retry", ".retry_decorator.RetryDecorator"),
     ("resources", ".resources_decorator.ResourcesDecorator"),
     ("batch", ".aws.batch.batch_decorator.BatchDecorator"),
+    ("snowpark", ".snowpark.snowpark_decorator.SnowparkDecorator"),
     ("kubernetes", ".kubernetes.kubernetes_decorator.KubernetesDecorator"),
     (
         "argo_workflows_internal",
