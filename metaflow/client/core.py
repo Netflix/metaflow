@@ -276,6 +276,11 @@ class MetaflowObject(object):
         self._attempt = attempt
         self._current_namespace = _current_namespace or get_namespace()
         self._namespace_check = _namespace_check
+        # If the current namespace is False, we disable checking for namespace for this
+        # and all children objects. Not setting namespace_check to False has the consequence
+        # of preventing access to children objects after the namespace changes
+        if self._current_namespace is None:
+            self._namespace_check = False
 
         if self._attempt is not None:
             if self._NAME not in ["task", "artifact"]:
