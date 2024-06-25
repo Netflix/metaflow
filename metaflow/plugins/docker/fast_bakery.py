@@ -9,7 +9,13 @@ class FastBakeryException(Exception):
 class FastBakery:
     def __init__(self, url, auth_type=None):
         self.url = url
-        BAKERY_INVOKERS = {"AWS_IAM": self.aws_iam_invoker, None: self.default_invoker}
+        self.headers = {"Content-Type": "application/json"}
+
+        BAKERY_INVOKERS = {
+            "TOKEN": self.token_invoker,
+            "AWS_IAM": self.aws_iam_invoker,
+            None: self.default_invoker,
+        }
         if auth_type not in BAKERY_INVOKERS:
             raise FastBakeryException(
                 "Selected Bakery Authentication method is not supported: %s",
@@ -53,7 +59,16 @@ class FastBakery:
         return image, data
 
     def default_invoker(self, payload):
-        headers = {"Content-Type": "application/json"}
+        response = requests.post(self.url, json=payload, headers=self.headers)
+
+        return _handle_bakery_response(response)
+
+    def token_invoker(self, payload):
+        from metaflow.metaflow_config import SERVICE_HEADERS
+
+        headers = self.headers.copy()
+        if SERVICE_HEADERS:
+            headers.update(SERVICE_HEADERS)
         response = requests.post(self.url, json=payload, headers=headers)
 
         return _handle_bakery_response(response)
@@ -61,7 +76,6 @@ class FastBakery:
     def aws_iam_invoker(self, payload):
         # AWS_IAM requires a signed request to be made
         # ref: https://docs.aws.amazon.com/IAM/latest/UserGuide/create-signed-request.html
-        headers = {"Content-Type": "application/json"}
         payload = json.dumps(payload)
 
         import boto3
@@ -74,7 +88,7 @@ class FastBakery:
         # credits to https://github.com/boto/botocore/issues/1784#issuecomment-659132830,
         # We need to jump through some hoops when calling the endpoint with IAM auth
         # as botocore does not offer a direct utility for signing arbitrary requests
-        req = AWSRequest("POST", self.url, headers, payload)
+        req = AWSRequest("POST", self.url, self.headers, payload)
         SigV4Auth(
             credentials, service_name="lambda", region_name=session.region_name
         ).add_auth(req)
