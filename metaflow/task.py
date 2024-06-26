@@ -4,6 +4,7 @@ import math
 import sys
 import os
 import time
+import signal
 
 from types import MethodType, FunctionType
 
@@ -27,6 +28,42 @@ from metaflow.tuple_util import ForeachFrame
 
 # Maximum number of characters of the foreach path that we store in the metadata.
 MAX_FOREACH_PATH_LENGTH = 256
+
+
+class SystemSignalHandler:
+    def __init__(self, run_id, step_name, task_id, metadata_service, metadata_tags):
+        self.run_id = run_id
+        self.step_name = (step_name,)
+        self.task_id = task_id
+        self.metadata_service = metadata_service
+        self.metadata_tags = metadata_tags
+
+        signal.signal(signal.SIGINT, self.exit_sigint_gracefully)
+        signal.signal(signal.SIGTERM, self.exit_sigterm_gracefully)
+        print("SystemSignalHandler initialized...")
+
+    def log_exit_signal(self, signal):
+        metadata_info = [
+            MetaDatum(
+                field="signal",
+                value=signal,
+                type="signal",
+                tags=self.metadata_tags,
+            )
+        ]
+        self.metadata_service.register_metadata(
+            self.run_id, self.step_name, self.task_id, metadata_info
+        )
+
+    def exit_sigint_gracefully(self, signum, frame):
+        print("SIGINT received... ")
+        self.log_exit_signal("SIGINT")
+        self.status = signal.SIGINT
+
+    def exit_sigterm_gracefully(self, signum, frame):
+        print("SIGTERM received... ")
+        self.log_exit_signal("SIGTERM")
+        self.status = signal.SIGTERM
 
 
 class MetaflowTask(object):
@@ -375,6 +412,7 @@ class MetaflowTask(object):
             )
 
         metadata_tags = ["attempt_id:{0}".format(retry_count)]
+        SystemSignalHandler(run_id, step_name, task_id, self.metadata, metadata_tags)
 
         metadata = [
             MetaDatum(
