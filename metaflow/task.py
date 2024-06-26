@@ -317,7 +317,7 @@ class MetaflowTask(object):
                 level="info",
                 module="metaflow.task",
                 name="clone",
-                payload={**task_payload,"msg": msg},
+                payload={**task_payload, "msg": msg},
             )
         # If we actually have to do the clone ourselves, proceed...
         clone_task_helper(

@@ -26,11 +26,17 @@ class SystemMonitor(object):
 
         """
         from metaflow.sidecar import Message, MessageTypes
+
         self._context.update(context)
-        self.monitor.send(Message(MessageTypes.MUST_SEND, {
-            "is_context_updated": True,
-            **self._context,
-        }))
+        self.monitor.send(
+            Message(
+                MessageTypes.MUST_SEND,
+                {
+                    "is_context_updated": True,
+                    **self._context,
+                },
+            )
+        )
 
     def init_system_monitor(
         self, flow_name: str, monitor: "metaflow.monitor.NullMonitor"
