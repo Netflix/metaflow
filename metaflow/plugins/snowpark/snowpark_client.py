@@ -70,22 +70,30 @@ class SnowparkClient(object):
             self.root.compute_pools[compute_pool].fetch()
 
             # upload the spec file to stage
-            result = self.session.file.put(snowpark_spec_file.name, f"@{stage}")
+            result = self.session.file.put(snowpark_spec_file.name, "@%s" % stage)
 
             service_name = name.replace("-", "_")
             external_access = (
-                f"EXTERNAL_ACCESS_INTEGRATIONS=({external_integration}) "
+                "EXTERNAL_ACCESS_INTEGRATIONS=(%s) " % external_integration
                 if external_integration
                 else ""
             )
 
             # cannot pass 'is_job' parameter using the API, thus we need to use SQL directly..
             query = f"""
-            EXECUTE JOB SERVICE IN COMPUTE POOL {compute_pool}
-            NAME = {db}.{schema}.{service_name}
-            {external_access}
-            FROM @{stage} SPECIFICATION_FILE={result[0].target}
-            """
+            EXECUTE JOB SERVICE IN COMPUTE POOL %s
+            NAME = %s.%s.%s
+            %s
+            FROM @%s SPECIFICATION_FILE=%s
+            """ % (
+                compute_pool,
+                db,
+                schema,
+                service_name,
+                external_access,
+                stage,
+                result[0].target,
+            )
 
             async_job = self.session.sql(query).collect(block=False)
             return async_job.query_id, service_name
