@@ -76,7 +76,11 @@ class SystemMonitor(object):
             Message to log.
 
         """
-        if os.environ.get("METAFLOW_DEBUG_SIDECAR", "0") == "1":
+        if os.environ.get("METAFLOW_DEBUG_SIDECAR", "0").lower() not in (
+            "0",
+            "false",
+            "",
+        ):
             print("system monitor: %s" % msg, file=sys.stderr)
 
     @contextmanager
