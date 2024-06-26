@@ -1,5 +1,4 @@
 import json
-import yaml
 from collections import defaultdict
 from typing import List, Dict, Optional
 
@@ -226,6 +225,8 @@ class SnowparkServiceSpec:
 
 
 def generate_spec_file(spec: SnowparkServiceSpec, filename: str, format: str = "yaml"):
+    import yaml
+
     spec_dict = spec.to_dict()
     with open(filename, "w") as file:
         if format == "json":
