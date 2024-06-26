@@ -1,5 +1,6 @@
 from metaflow.decorators import FlowDecorator, StepDecorator
 from metaflow.metaflow_environment import InvalidEnvironmentException
+from metaflow.metaflow_config import conda_supported_virtual_envs
 
 
 class PyPIStepDecorator(StepDecorator):
@@ -64,11 +65,7 @@ class PyPIStepDecorator(StepDecorator):
         # one here. We can consider introducing a UX where @pypi is able to consume
         # poetry.lock files in the future.
 
-        _supported_virtual_envs = ["conda"]  # , "venv"]
-
-        # To placate people who don't want to see a shred of conda in UX, we symlink
-        # --environment=pypi to --environment=conda
-        _supported_virtual_envs.extend(["pypi"])
+        _supported_virtual_envs = conda_supported_virtual_envs()
 
         # The --environment= requirement ensures that valid virtual environments are
         # created for every step to execute it, greatly simplifying the @pypi
@@ -113,11 +110,7 @@ class PyPIFlowDecorator(FlowDecorator):
 
         # @pypi uses a conda environment to create a virtual environment.
         # The conda environment can be created through micromamba.
-        _supported_virtual_envs = ["conda"]
-
-        # To placate people who don't want to see a shred of conda in UX, we symlink
-        # --environment=pypi to --environment=conda
-        _supported_virtual_envs.extend(["pypi"])
+        _supported_virtual_envs = conda_supported_virtual_envs()
 
         # The --environment= requirement ensures that valid virtual environments are
         # created for every step to execute it, greatly simplifying the @conda
