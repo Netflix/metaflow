@@ -266,9 +266,7 @@ class NativeRuntime(object):
         try:
             new_task_id = task_id
             if generate_task_obj:
-                task = self._new_task(
-                    step_name, task_id="r_%s" % task_id, pathspec_index=pathspec_index
-                )
+                task = self._new_task(step_name, pathspec_index=pathspec_index)
                 if ubf_context:
                     task.ubf_context = ubf_context
                 new_task_id = task.task_id
