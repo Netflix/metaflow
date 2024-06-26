@@ -80,19 +80,19 @@ class SnowparkClient(object):
             )
 
             # cannot pass 'is_job' parameter using the API, thus we need to use SQL directly..
-            query = f"""
-            EXECUTE JOB SERVICE IN COMPUTE POOL %s
-            NAME = %s.%s.%s
-            %s
-            FROM @%s SPECIFICATION_FILE=%s
-            """ % (
-                compute_pool,
-                db,
-                schema,
-                service_name,
-                external_access,
-                stage,
-                result[0].target,
+            query = """
+            EXECUTE JOB SERVICE IN COMPUTE POOL {compute_pool}
+            NAME = {db}.{schema}.{service_name}
+            {external_access}
+            FROM @{stage} SPECIFICATION_FILE={specification_file}
+            """.format(
+                compute_pool=compute_pool,
+                db=db,
+                schema=schema,
+                service_name=service_name,
+                external_access=external_access,
+                stage=stage,
+                specification_file=result[0].target,
             )
 
             async_job = self.session.sql(query).collect(block=False)
