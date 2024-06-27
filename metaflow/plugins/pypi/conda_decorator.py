@@ -11,7 +11,6 @@ from metaflow.extension_support import EXT_PKG
 from metaflow.metadata import MetaDatum
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.util import get_metaflow_root
-from metaflow.metaflow_config import conda_supported_virtual_envs
 
 from ... import INFO_FILE
 
@@ -95,7 +94,11 @@ class CondaStepDecorator(StepDecorator):
 
         # @conda uses a conda environment to create a virtual environment.
         # The conda environment can be created through micromamba.
-        _supported_virtual_envs = conda_supported_virtual_envs()
+        _supported_virtual_envs = ["conda"]
+
+        # To placate people who don't want to see a shred of conda in UX, we symlink
+        # --environment=pypi to --environment=conda
+        _supported_virtual_envs.extend(["pypi"])
 
         # The --environment= requirement ensures that valid virtual environments are
         # created for every step to execute it, greatly simplifying the @conda
@@ -329,10 +332,17 @@ class CondaFlowDecorator(FlowDecorator):
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
     ):
+        # @conda uses a conda environment to create a virtual environment.
+        # The conda environment can be created through micromamba.
+        _supported_virtual_envs = ["conda"]
+
+        # To placate people who don't want to see a shred of conda in UX, we symlink
+        # --environment=pypi to --environment=conda
+        _supported_virtual_envs.extend(["pypi"])
+
         # The --environment= requirement ensures that valid virtual environments are
         # created for every step to execute it, greatly simplifying the @conda
         # implementation.
-        _supported_virtual_envs = conda_supported_virtual_envs()
         if environment.TYPE not in _supported_virtual_envs:
             raise InvalidEnvironmentException(
                 "@%s decorator requires %s"

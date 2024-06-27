@@ -503,20 +503,6 @@ def get_pinned_conda_libs(python_version, datastore_type):
     return pins
 
 
-# List of virtual environments that support @conda/@pypi
-# extensible via extensions
-def conda_supported_virtual_envs():
-    """
-    Returns a list of supported environments that @conda/@pypi use for validation.
-    """
-    # @conda uses a conda environment to create a virtual environment.
-    # The conda environment can be created through micromamba.
-
-    # To placate people who don't want to see a shred of conda in UX, we symlink
-    # --environment=pypi to --environment=conda
-    return ["conda", "pypi"]
-
-
 # Check if there are extensions to Metaflow to load and override everything
 try:
     from metaflow.extension_support import get_modules
@@ -546,15 +532,6 @@ try:
                     return d1
 
                 globals()[n] = _new_get_pinned_conda_libs
-            elif n == "conda_supported_virtual_envs":
-
-                def _new_supported_venvs(f1=globals()[n], f2=o):
-                    a1 = f1()
-                    a2 = f2()
-                    return a1 + a2
-
-                globals()[n] = _new_supported_venvs
-
             elif n == "TOGGLE_DECOSPECS":
                 if any([x.startswith("-") for x in o]):
                     raise ValueError("Removing decospecs is not currently supported")
