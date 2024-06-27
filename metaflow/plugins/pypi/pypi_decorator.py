@@ -70,6 +70,10 @@ class PyPIStepDecorator(StepDecorator):
         # --environment=pypi to --environment=conda
         _supported_virtual_envs.extend(["pypi"])
 
+        # TODO: Hardcoded for now to support Docker environment.
+        # We should introduce a more robust mechanism for appending supported environments, for example from within extensions.
+        _supported_virtual_envs.extend(["docker"])
+
         # The --environment= requirement ensures that valid virtual environments are
         # created for every step to execute it, greatly simplifying the @pypi
         # implementation.
@@ -118,6 +122,10 @@ class PyPIFlowDecorator(FlowDecorator):
         # To placate people who don't want to see a shred of conda in UX, we symlink
         # --environment=pypi to --environment=conda
         _supported_virtual_envs.extend(["pypi"])
+
+        # TODO: Hardcoded for now to support Docker environment.
+        # We should introduce a more robust mechanism for appending supported environments, for example from within extensions.
+        _supported_virtual_envs.extend(["docker"])
 
         # The --environment= requirement ensures that valid virtual environments are
         # created for every step to execute it, greatly simplifying the @conda
