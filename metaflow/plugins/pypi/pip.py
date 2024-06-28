@@ -9,7 +9,6 @@ from itertools import chain, product
 from urllib.parse import unquote
 
 from metaflow.exception import MetaflowException
-from metaflow.util import which
 
 from .micromamba import Micromamba
 from .utils import pip_tags, wheel_tags
@@ -23,6 +22,23 @@ class PipException(MetaflowException):
             error = "\n".join(error)
         msg = "{error}".format(error=error)
         super(PipException, self).__init__(msg)
+
+
+class PipPackageNotFound(Exception):
+    "Wrapper for pip package resolve errors."
+
+    def __init__(self, error):
+        self.error = error
+        try:
+            # Parse the package spec from error message:
+            # ERROR: ERROR: Could not find a version that satisfies the requirement pkg==0.0.1 (from versions: none)
+            # ERROR: No matching distribution found for pkg==0.0.1
+            self.package_spec = re.search(
+                "ERROR: No matching distribution found for (.*)", self.error
+            )[1]
+            self.package_name = re.match("\w*", self.package_spec)[0]
+        except Exception:
+            pass
 
 
 METADATA_FILE = "{prefix}/.pip/metadata"
@@ -81,7 +97,16 @@ class Pip(object):
                     cmd.append(f"{package}{version}")
                 else:
                     cmd.append(f"{package}=={version}")
-            self._call(prefix, cmd)
+            try:
+                self._call(prefix, cmd)
+            except PipPackageNotFound as ex:
+                # pretty print package errors
+                raise PipException(
+                    "Could not find a binary distribution for %s \n"
+                    "for the platform %s\n\n"
+                    "Note that ***@pypi*** does not currently support source distributions"
+                    % (ex.package_spec, platform)
+                )
 
             def _format(dl_info):
                 res = {k: v for k, v in dl_info.items() if k in ["url"]}
@@ -302,11 +327,14 @@ class Pip(object):
                 .strip()
             )
         except subprocess.CalledProcessError as e:
+            errors = e.stderr.decode()
+            if "No matching distribution" in errors:
+                raise PipPackageNotFound(errors)
             raise PipException(
                 "command '{cmd}' returned error ({code}) {output}\n{stderr}".format(
                     cmd=" ".join(e.cmd),
                     code=e.returncode,
                     output=e.output.decode(),
-                    stderr=e.stderr.decode(),
+                    stderr=errors,
                 )
             )
