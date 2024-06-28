@@ -499,6 +499,14 @@ def configure_aws_batch(existing_env):
         default=existing_env.get("METAFLOW_BATCH_CONTAINER_IMAGE", ""),
         show_default=True,
     )
+    # Set private image repository credentials secret
+    env["BATCH_CONTAINER_IMAGE_CREDS_SECRET"] = click.prompt(
+        cyan("[BATCH_CONTAINER_IMAGE_CREDS_SECRET]")
+        + yellow(" (optional)")
+        + " Secret containing credentials if using a private image repository",
+        default=existing_env.get("BATCH_CONTAINER_IMAGE_CREDS_SECRET", ""),
+        show_default=True,
+    )
 
     # Configure AWS Step Functions for scheduling.
     if click.confirm(
