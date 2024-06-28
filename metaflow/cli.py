@@ -23,6 +23,7 @@ from .metaflow_config import (
     DEFAULT_PACKAGE_SUFFIXES,
 )
 from .metaflow_current import current
+from metaflow.system import _system_monitor, _system_logger
 from .metaflow_environment import MetaflowEnvironment
 from .mflog import LOG_SOURCES, mflog
 from .package import MetaflowPackage
@@ -952,11 +953,13 @@ def start(
         flow=ctx.obj.flow, env=ctx.obj.environment
     )
     ctx.obj.event_logger.start()
+    _system_logger.init_system_logger(ctx.obj.flow.name, ctx.obj.event_logger)
 
     ctx.obj.monitor = MONITOR_SIDECARS[monitor](
         flow=ctx.obj.flow, env=ctx.obj.environment
     )
     ctx.obj.monitor.start()
+    _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
 
     ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == metadata][0](
         ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
