@@ -32,7 +32,8 @@ from kfp import dsl
 from kfp.compiler import compiler
 from kfp.compiler._k8s_helper import sanitize_k8s_name
 
-from kfp._auth import get_auth_token, get_gcp_access_token
+# AIP-8570(talebz): WFSDK: broken with requests_toolbelt>1.0
+# from kfp._auth import get_auth_token, get_gcp_access_token
 from kfp_server_api import ApiException
 
 # Operators on scalar values. Only applies to one of |int_value|,
