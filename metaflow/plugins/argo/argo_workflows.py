@@ -6,6 +6,7 @@ import shlex
 import sys
 from collections import defaultdict
 from hashlib import sha1
+from math import inf
 
 from metaflow import JSONType, current
 from metaflow.decorators import flow_decorators
@@ -901,7 +902,9 @@ class ArgoWorkflows(object):
                                 "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
                                 % (n, self._sanitize(n))
                                 for n in node.in_funcs
-                            ]
+                            ],
+                            # NOTE: We set zlibmin to infinite because zlib compression for the Argo input-paths breaks template value substitution.
+                            zlibmin=inf,
                         )
                     )
                 ]
