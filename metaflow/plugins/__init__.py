@@ -139,6 +139,9 @@ AZURE_CLIENT_PROVIDERS_DESC = [
     ("azure-default", ".azure.azure_credential.AzureDefaultClientProvider")
 ]
 
+CONCRETE_DEPLOYER_PROVIDERS_DESC = [
+    ("argo-workflows", ".argo.argo_workflows_runner.ArgoWorkflowsDeployer")
+]
 
 process_plugins(globals())
 
@@ -163,6 +166,7 @@ AWS_CLIENT_PROVIDERS = resolve_plugins("aws_client_provider")
 SECRETS_PROVIDERS = resolve_plugins("secrets_provider")
 AZURE_CLIENT_PROVIDERS = resolve_plugins("azure_client_provider")
 GCP_CLIENT_PROVIDERS = resolve_plugins("gcp_client_provider")
+CONCRETE_DEPLOYER_PROVIDERS = resolve_plugins("concrete_deployer_provider")
 
 from .cards.card_modules import MF_EXTERNAL_CARDS
 
