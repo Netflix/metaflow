@@ -1,6 +1,6 @@
 import sys
 import tempfile
-from typing import Optional, ClassVar
+from typing import Optional
 
 from metaflow.plugins.argo.argo_workflows import ArgoWorkflows
 from metaflow.plugins.deployer import (
@@ -88,7 +88,7 @@ def trigger(instance: DeployedFlow, **kwargs):
 
 
 class ArgoWorkflowsDeployer(ConcreteDeployer):
-    TYPE: ClassVar[Optional[str]] = "argo-workflows"
+    TYPE: Optional[str] = "argo-workflows"
 
     def __init__(self, deployer_kwargs, **kwargs):
         self.deployer_kwargs = deployer_kwargs

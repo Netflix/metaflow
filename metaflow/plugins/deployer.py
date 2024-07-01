@@ -3,7 +3,7 @@ import sys
 import json
 import importlib
 import tempfile
-from typing import Optional, Dict, ClassVar, Any
+from typing import Optional, Dict, Any
 
 from metaflow.exception import MetaflowNotFound
 from metaflow.runner.subprocess_manager import CommandManager, SubprocessManager
@@ -137,7 +137,7 @@ class DeployedFlow(object):
 
 
 class ConcreteDeployer(object):
-    TYPE: ClassVar[Optional[str]] = None
+    TYPE: Optional[str] = None
 
     def __init__(
         self,
