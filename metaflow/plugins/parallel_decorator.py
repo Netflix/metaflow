@@ -16,7 +16,6 @@ class ParallelDecorator(StepDecorator):
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context
     ):
-
         if ubf_context == UBF_CONTROL:
             num_parallel = cli_args.task.ubf_iter.num_parallel
             cli_args.command_options["num-parallel"] = str(num_parallel)
@@ -25,6 +24,22 @@ class ParallelDecorator(StepDecorator):
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
     ):
         self.environment = environment
+
+    def task_pre_step(
+        self,
+        step_name,
+        task_datastore,
+        metadata,
+        run_id,
+        task_id,
+        flow,
+        graph,
+        retry_count,
+        max_user_code_retries,
+        ubf_context,
+        inputs,
+    ):
+        self.input_paths = [obj.pathspec for obj in inputs]
 
     def task_decorate(
         self, step_func, flow, graph, retry_count, max_user_code_retries, ubf_context
@@ -47,6 +62,7 @@ class ParallelDecorator(StepDecorator):
                 env_to_use,
                 _step_func_with_setup,
                 retry_count,
+                self.input_paths,
             )
         else:
             return _step_func_with_setup
@@ -56,7 +72,9 @@ class ParallelDecorator(StepDecorator):
         pass
 
 
-def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_count):
+def _local_multinode_control_task_step_func(
+    flow, env_to_use, step_func, retry_count, input_paths
+):
     """
     Used as multinode UBF control task when run in local mode.
     """
@@ -80,8 +98,6 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
     run_id = current.run_id
     step_name = current.step_name
     control_task_id = current.task_id
-
-    (_, split_step_name, split_task_id) = control_task_id.split("-")[1:]
     # UBF handling for multinode case
     top_task_id = control_task_id.replace("control-", "")  # chop "-0"
     mapper_task_ids = [control_task_id]
@@ -93,12 +109,13 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
     script = sys.argv[0]
 
     # start workers
+    # TODO: Logs for worker processes are assigned to control process as of today, which
+    #       should be fixed at some point
     subprocesses = []
     for node_index in range(1, num_parallel):
         task_id = "%s_node_%d" % (top_task_id, node_index)
         mapper_task_ids.append(task_id)
         os.environ["MF_PARALLEL_NODE_INDEX"] = str(node_index)
-        input_paths = "%s/%s/%s" % (run_id, split_step_name, split_task_id)
         # Override specific `step` kwargs.
         kwargs = cli_args.step_kwargs
         kwargs["split_index"] = str(node_index)
@@ -109,6 +126,7 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
         kwargs["retry_count"] = str(retry_count)
 
         cmd = cli_args.step_command(executable, script, step_name, step_kwargs=kwargs)
+
         p = subprocess.Popen(cmd)
         subprocesses.append(p)
 

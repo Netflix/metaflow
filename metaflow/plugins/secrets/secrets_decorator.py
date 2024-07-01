@@ -210,8 +210,17 @@ class SecretsDecorator(StepDecorator):
         ubf_context,
         inputs,
     ):
-        if ubf_context == UBF_CONTROL:
-            """control tasks (as used in "unbounded for each") don't need secrets"""
+        # We will skip the secret injection for "locally" launched UBF_CONTROL tasks because otherwise there
+        # will be a env var clash with UBF_WORKER tasks which will fail the flow in the @secrets decorator's `task_pre_step`.
+        if (
+            ubf_context == UBF_CONTROL
+            and os.environ.get("METAFLOW_RUNTIME_ENVIRONMENT", "local") == "local"
+        ):
+            # When we "locally" run @parallel tasks, the control task will create the worker tasks and the environment variables
+            # of the control task are inherited by the worker tasks. If we don't skip setting secrets in the control task then the
+            # worker tasks will already have the secrets set as environment variables, causing the @secrets' `task_pre_step` to fail.
+            # In remote settings, (e.g. AWS Batch/Kubernetes), the worker task and control task are independently created
+            # so there is no chances of an env var clash.
             return
         # List of pairs (secret_spec, env_vars_from_this_spec)
         all_secrets_env_vars = []

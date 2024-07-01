@@ -26,7 +26,13 @@ class SecretsDecoratorTest(MetaflowTest):
         import os
         from metaflow import current
 
-        if current.task_id.startswith("control-"):
+        if (
+            self._graph[current.step_name].parallel_step
+            and current.parallel.node_index == 0
+            and os.environ.get("METAFLOW_RUNTIME_ENVIRONMENT", "local") == "local"
+        ):
+            # We don't check control task secrets when there is a parallel step
+            # run locally.
             return
 
         assert os.environ.get("secret_1") == "Pizza is a vegetable."

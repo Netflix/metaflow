@@ -121,7 +121,7 @@ class TagCatchTest(MetaflowTest):
                     data = task.data
                     got = sorted(m.value for m in task.metadata if m.type == "attempt")
                     if flow._graph[step.id].parallel_step:
-                        if "control" in task.id:
+                        if "_node_" not in task.id:
                             assert_equals(list(map(str, range(attempts))), got)
                         else:
                             # non-control tasks have one attempt less for parallel steps
