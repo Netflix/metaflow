@@ -65,7 +65,7 @@ class CondaEnvironment(MetaflowEnvironment):
         micromamba = Micromamba()
         self.solvers = {"conda": micromamba, "pypi": Pip(micromamba)}
 
-    def init_environment(self, echo):
+    def init_environment(self, echo, only_steps=None):
         # The implementation optimizes for latency to ensure as many operations can
         # be turned into cheap no-ops as feasible. Otherwise, we focus on maintaining
         # a balance between latency and maintainability of code without re-implementing
@@ -77,6 +77,8 @@ class CondaEnvironment(MetaflowEnvironment):
         def environments(type_):
             seen = set()
             for step in self.flow:
+                if only_steps and step.name not in only_steps:
+                    continue
                 environment = self.get_environment(step)
                 if type_ in environment and environment["id_"] not in seen:
                     seen.add(environment["id_"])
