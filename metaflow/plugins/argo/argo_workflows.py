@@ -2158,7 +2158,7 @@ class ArgoWorkflows(object):
                                                 # NOTE: We need the conditional logic in order to successfully fall back to the default value
                                                 # when the event payload does not contain a key for a parameter.
                                                 # NOTE: Keys might contain dashes, so use the safer 'get' for fetching the value
-                                                data_template='{{ if (hasKey $.Input.body.payload "%s") }}{{- (get $.Input.body.payload "%s" | toJson) -}}{{- else -}}{{ (fail "use-default-instead") }}{{- end -}}'
+                                                data_template='{{ if (hasKey $.Input.body.payload "%s") }}{{- (get $.Input.body.payload "%s" | toRawJson) -}}{{- else -}}{{ (fail "use-default-instead") }}{{- end -}}'
                                                 % (v, v),
                                                 # Unfortunately the sensor needs to
                                                 # record the default values for
