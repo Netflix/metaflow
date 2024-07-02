@@ -846,6 +846,8 @@ class ArgoWorkflows(object):
                 .templates(self._container_templates())
                 # Exit hook template(s)
                 .templates(self._exit_hook_templates())
+                # Sidecar templates (Daemon Containers)
+                .templates(self._daemon_container_templates())
             )
         )
 
@@ -1098,7 +1100,20 @@ class ArgoWorkflows(object):
                     "Argo Workflows." % (node.type, node.name)
                 )
 
-        templates, _ = _visit(node=self.graph["start"])
+        daemon_container_tasks = [
+            DAGTask("run-heartbeat-daemon").template("run-heartbeat-daemon")
+        ]
+        templates, _ = _visit(
+            node=self.graph["start"], dag_tasks=daemon_container_tasks
+        )
+        return templates
+
+    def _daemon_container_names(self):
+        return ["run-heartbeat-daemon"]
+
+    def _daemon_container_templates(self):
+        templates = []
+        templates.append(self._heartbeat_daemon_template())
         return templates
 
     # Visit every node and yield ContainerTemplates.
@@ -1916,6 +1931,107 @@ class ArgoWorkflows(object):
             Http("POST").url(self.notify_slack_webhook_url).body(json.dumps(payload))
         )
 
+    def _heartbeat_daemon_template(self):
+        # Use any step that is known to exist, as we only care
+        # about being able to retrieve the code package for the utility scripts.
+        executable = self.environment.executable("_parameters")
+        run_id_template = "argo-{{workflow.name}}"
+        entrypoint = [executable, "-m metaflow.plugins.argo.heartbeat_daemon "]
+        heartbeat_cmds = "%s %s %s" % (
+            " ".join(entrypoint),
+            self.flow.name,
+            run_id_template,
+        )
+
+        # TODO: we do not really need MFLOG logging for the daemon at the moment, but might be good for the future.
+        # Consider if we can do without this setup.
+        # Configure log capture.
+        mflog_expr = export_mflog_env_vars(
+            datastore_type=self.flow_datastore.TYPE,
+            stdout_path="$PWD/.logs/mflog_stdout",
+            stderr_path="$PWD/.logs/mflog_stderr",
+            flow_name=self.flow.name,
+            run_id=run_id_template,
+            step_name="_run_heartbeat_daemon",
+            task_id="1",
+            retry_count="0",
+        )
+        # TODO: Can the init be trimmed down?
+        # Can we do without get_package_commands fetching the whole code package?
+        init_cmds = " && ".join(
+            [
+                # For supporting sandboxes, ensure that a custom script is executed
+                # before anything else is executed. The script is passed in as an
+                # env var.
+                '${METAFLOW_INIT_SCRIPT:+eval \\"${METAFLOW_INIT_SCRIPT}\\"}',
+                "mkdir -p $PWD/.logs",
+                mflog_expr,
+            ]
+            + self.environment.get_package_commands(
+                self.code_package_url, self.flow_datastore.TYPE
+            )
+        )
+
+        cmd_str = " && ".join([init_cmds, heartbeat_cmds])
+        cmds = shlex.split('bash -c "%s"' % cmd_str)
+
+        # TODO: Check that this is the minimal env.
+        # Env required for sending heartbeats to the metadata service, nothing extra.
+        env = {
+            # These values are needed by Metaflow to set it's internal
+            # state appropriately.
+            "METAFLOW_CODE_URL": self.code_package_url,
+            "METAFLOW_CODE_SHA": self.code_package_sha,
+            "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
+            "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
+            "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
+            "METAFLOW_USER": "argo-workflows",
+            "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
+            "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
+            "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
+            "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
+            "METAFLOW_CARD_S3ROOT": CARD_S3ROOT,
+            "METAFLOW_KUBERNETES_WORKLOAD": 1,
+            "METAFLOW_KUBERNETES_FETCH_EC2_METADATA": KUBERNETES_FETCH_EC2_METADATA,
+            "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
+            "METAFLOW_OWNER": self.username,
+        }
+        # support Metaflow sandboxes
+        env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
+
+        # cleanup env values
+        env = {
+            k: v
+            for k, v in env.items()
+            if v is not None
+            and k not in set(ARGO_WORKFLOWS_ENV_VARS_TO_SKIP.split(","))
+        }
+        from kubernetes import client as kubernetes_sdk
+
+        return DaemonTemplate("run-heartbeat-daemon").container(
+            to_camelcase(
+                kubernetes_sdk.V1Container(
+                    name="main",
+                    image="python:3.9",
+                    command=cmds,
+                    env=[
+                        kubernetes_sdk.V1EnvVar(name=k, value=str(v))
+                        for k, v in env.items()
+                    ],
+                    resources=kubernetes_sdk.V1ResourceRequirements(
+                        requests={
+                            "cpu": "100m",
+                            "memory": "250Mi",
+                        },
+                        limits={
+                            "cpu": "100m",
+                            "memory": "250Mi",
+                        },
+                    ),
+                )
+            )
+        )
+
     def _compile_sensor(self):
         # This method compiles a Metaflow @trigger decorator into Argo Events Sensor.
         #
@@ -2486,6 +2602,24 @@ class Metadata(object):
 
     def __str__(self):
         return json.dumps(self.to_json(), indent=4)
+
+
+class DaemonTemplate(object):
+    def __init__(self, name):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+        self.payload["daemon"] = True
+        self.payload["name"] = name
+
+    def container(self, container):
+        self.payload["container"] = container
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
 
 
 class Template(object):
