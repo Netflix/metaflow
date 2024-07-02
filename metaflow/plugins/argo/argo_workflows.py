@@ -846,6 +846,8 @@ class ArgoWorkflows(object):
                 .templates(self._container_templates())
                 # Exit hook template(s)
                 .templates(self._exit_hook_templates())
+                # Sidecar templates (Daemon Containers)
+                .templates(self._daemon_container_templates())
             )
         )
 
@@ -1098,7 +1100,20 @@ class ArgoWorkflows(object):
                     "Argo Workflows." % (node.type, node.name)
                 )
 
-        templates, _ = _visit(node=self.graph["start"])
+        daemon_container_tasks = [
+            DAGTask("run-heartbeat-daemon").template("run-heartbeat-daemon")
+        ]
+        templates, _ = _visit(
+            node=self.graph["start"], dag_tasks=daemon_container_tasks
+        )
+        return templates
+
+    def _daemon_container_names(self):
+        return ["run-heartbeat-daemon"]
+
+    def _daemon_container_templates(self):
+        templates = []
+        templates.append(self._heartbeat_daemon_template())
         return templates
 
     # Visit every node and yield ContainerTemplates.
@@ -1916,6 +1931,33 @@ class ArgoWorkflows(object):
             Http("POST").url(self.notify_slack_webhook_url).body(json.dumps(payload))
         )
 
+    def _heartbeat_daemon_template(self):
+        from kubernetes import client as kubernetes_sdk
+
+        return DaemonTemplate("run-heartbeat-daemon").container(
+            to_camelcase(
+                kubernetes_sdk.V1Container(
+                    name="main",
+                    image="python:3.9",
+                    command=[
+                        "python",
+                        "-c",
+                        "$'from time import sleep\nwhile True:\n  sleep(5)\n  print(\"test\")'",
+                    ],
+                    resources=kubernetes_sdk.V1ResourceRequirements(
+                        requests={
+                            "cpu": "100m",
+                            "memory": "250Mi",
+                        },
+                        limits={
+                            "cpu": "100m",
+                            "memory": "250Mi",
+                        },
+                    ),
+                )
+            )
+        )
+
     def _compile_sensor(self):
         # This method compiles a Metaflow @trigger decorator into Argo Events Sensor.
         #
@@ -2486,6 +2528,24 @@ class Metadata(object):
 
     def __str__(self):
         return json.dumps(self.to_json(), indent=4)
+
+
+class DaemonTemplate(object):
+    def __init__(self, name):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+        self.payload["daemon"] = True
+        self.payload["name"] = name
+
+    def container(self, container):
+        self.payload["container"] = container
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
 
 
 class Template(object):
