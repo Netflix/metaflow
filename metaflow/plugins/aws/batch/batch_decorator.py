@@ -261,8 +261,8 @@ class BatchDecorator(StepDecorator):
         # metadata. A rudimentary way to detect non-local execution is to
         # check for the existence of AWS_BATCH_JOB_ID environment variable.
 
+        meta = {}
         if "AWS_BATCH_JOB_ID" in os.environ:
-            meta = {}
             meta["aws-batch-job-id"] = os.environ["AWS_BATCH_JOB_ID"]
             meta["aws-batch-job-attempt"] = os.environ["AWS_BATCH_JOB_ATTEMPT"]
             meta["aws-batch-ce-name"] = os.environ["AWS_BATCH_CE_NAME"]
@@ -290,18 +290,6 @@ class BatchDecorator(StepDecorator):
             instance_meta = get_ec2_instance_metadata()
             meta.update(instance_meta)
 
-            entries = [
-                MetaDatum(
-                    field=k,
-                    value=v,
-                    type=k,
-                    tags=["attempt_id:{0}".format(retry_count)],
-                )
-                for k, v in meta.items()
-            ]
-            # Register book-keeping metadata for debugging.
-            metadata.register_metadata(run_id, step_name, task_id, entries)
-
             self._save_logs_sidecar = Sidecar("save_logs_periodically")
             self._save_logs_sidecar.start()
 
@@ -322,6 +310,21 @@ class BatchDecorator(StepDecorator):
 
         if num_parallel >= 1:
             _setup_multinode_environment()
+            # current.parallel.node_index will be correctly available over here.
+            meta.update({"parallel-node-index": current.parallel.node_index})
+
+        if len(meta) > 0:
+            entries = [
+                MetaDatum(
+                    field=k,
+                    value=v,
+                    type=k,
+                    tags=["attempt_id:{0}".format(retry_count)],
+                )
+                for k, v in meta.items()
+            ]
+            # Register book-keeping metadata for debugging.
+            metadata.register_metadata(run_id, step_name, task_id, entries)
 
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_retries
