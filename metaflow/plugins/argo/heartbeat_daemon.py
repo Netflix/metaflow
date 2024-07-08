@@ -8,7 +8,7 @@ from metaflow.metaflow_config import SERVICE_URL
 
 def main(flow_name, run_id):
     # Reuse the metadataHeartbeat mechanism for Argo Daemon Containers as well
-    daemon = MetadataHeartBeat()
+    daemon = MetadataHeartBeat(exponential_backoff=False)
     payload = {
         HB_URL_KEY: os.path.join(
             SERVICE_URL, f"flows/{flow_name}/runs/{run_id}/heartbeat"
@@ -17,9 +17,10 @@ def main(flow_name, run_id):
     msg = Message(MessageTypes.BEST_EFFORT, payload)
     # start heartbeating
     daemon.process_message(msg)
-    while True:
-        print("is daemon alive:", daemon.req_thread.is_alive())
-        print("sleeping for 10 seconds (does not affect heartbeats)...")
+    # Keepalive loop
+    while daemon.req_thread.is_alive():
+        # Do not pollute daemon logs with anything unnecessary,
+        # as they might be extremely long running.
         sleep(10)
 
 
