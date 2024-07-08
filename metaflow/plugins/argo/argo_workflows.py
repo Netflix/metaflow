@@ -2018,16 +2018,6 @@ class ArgoWorkflows(object):
                         kubernetes_sdk.V1EnvVar(name=k, value=str(v))
                         for k, v in env.items()
                     ],
-                    resources=kubernetes_sdk.V1ResourceRequirements(
-                        requests={
-                            "cpu": "100m",
-                            "memory": "250Mi",
-                        },
-                        limits={
-                            "cpu": "100m",
-                            "memory": "250Mi",
-                        },
-                    ),
                 )
             )
         )
