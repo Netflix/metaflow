@@ -1100,16 +1100,16 @@ class ArgoWorkflows(object):
                     "Argo Workflows." % (node.type, node.name)
                 )
 
+        # We also need to add references to the daemon containers to our DAG,
+        # so start off by collecting all the daemons and build a DAGTask for each
         daemon_container_tasks = [
-            DAGTask("run-heartbeat-daemon").template("run-heartbeat-daemon")
+            DAGTask("%s-task" % daemon_template.name).template(daemon_template.name)
+            for daemon_template in self._daemon_container_templates()
         ]
         templates, _ = _visit(
             node=self.graph["start"], dag_tasks=daemon_container_tasks
         )
         return templates
-
-    def _daemon_container_names(self):
-        return ["run-heartbeat-daemon"]
 
     def _daemon_container_templates(self):
         templates = []
@@ -2018,6 +2018,16 @@ class ArgoWorkflows(object):
                         kubernetes_sdk.V1EnvVar(name=k, value=str(v))
                         for k, v in env.items()
                     ],
+                    resources=kubernetes_sdk.V1ResourceRequirements(
+                        requests={
+                            "cpu": "1",
+                            "memory": "250Mi",
+                        },
+                        limits={
+                            "cpu": "1",
+                            "memory": "250Mi",
+                        },
+                    ),
                 )
             )
         )
@@ -2597,6 +2607,7 @@ class Metadata(object):
 class DaemonTemplate(object):
     def __init__(self, name):
         tree = lambda: defaultdict(tree)
+        self.name = name
         self.payload = tree()
         self.payload["daemon"] = True
         self.payload["name"] = name
