@@ -60,11 +60,16 @@ def production_token(instance: DeployedFlow):
 
     Returns
     -------
-    str
-        The production token.
+    str, optional
+        The production token, None if it cannot be retrieved.
     """
-    _, production_token = StepFunctions.get_existing_deployment(instance.deployer.name)
-    return production_token
+    try:
+        _, production_token = StepFunctions.get_existing_deployment(
+            instance.deployer.name
+        )
+        return production_token
+    except TypeError:
+        return None
 
 
 def list_runs(instance: DeployedFlow, **kwargs):
