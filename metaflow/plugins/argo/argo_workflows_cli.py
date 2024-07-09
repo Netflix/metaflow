@@ -173,6 +173,7 @@ def argo_workflows(obj, name=None):
     show_default=True,
     type=str,
     help="Write the workflow name to the file specified. Used internally for Metaflow's Runner API.",
+    hidden=True,
 )
 @click.pass_obj
 def create(
@@ -582,7 +583,8 @@ def resolve_token(
     default=None,
     show_default=True,
     type=str,
-    help="Write the metadata and pathspec of this run to the file specified. Used internally for Metaflow's Runner API.",
+    help="Write the metadata and pathspec of this run to the file specified.\nUsed internally for Metaflow's Runner API.",
+    hidden=True,
 )
 @click.pass_obj
 def trigger(obj, run_id_file=None, runner_attribute_file=None, **kwargs):

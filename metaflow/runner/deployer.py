@@ -31,18 +31,16 @@ def get_lower_level_group(
 ):
     if _type is None:
         raise ValueError(
-            "ConcreteDeployer doesn't have a 'TYPE' to target. Please use a sub-class of ConcreteDeployer."
+            "DeployerImpl doesn't have a 'TYPE' to target. Please use a sub-class of DeployerImpl."
         )
     return getattr(api(**top_level_kwargs), _type)(**deployer_kwargs)
 
 
 class Deployer(object):
-    methods = {}
-
     def __init__(
         self,
         flow_file: str,
-        show_output: bool = False,
+        show_output: bool = True,
         profile: Optional[str] = None,
         env: Optional[Dict] = None,
         cwd: Optional[str] = None,
@@ -58,8 +56,10 @@ class Deployer(object):
         from metaflow.plugins import CONCRETE_DEPLOYER_PROVIDERS
 
         for provider_class in CONCRETE_DEPLOYER_PROVIDERS:
+            # TYPE is the name of the CLI groups i.e.
+            # `argo-workflows` instead of `argo_workflows`
+            # The injected method names replace '-' by '_' though.
             method_name = provider_class.TYPE.replace("-", "_")
-            Deployer.methods[method_name] = provider_class
             setattr(Deployer, method_name, self.make_function(provider_class))
 
     def make_function(self, deployer_class):
@@ -80,7 +80,7 @@ class Deployer(object):
 class TriggeredRun(object):
     def __init__(
         self,
-        deployer: "ConcreteDeployer",
+        deployer: "DeployerImpl",
         content: str,
     ):
         self.deployer = deployer
@@ -117,7 +117,7 @@ class TriggeredRun(object):
 
 
 class DeployedFlow(object):
-    def __init__(self, deployer: "ConcreteDeployer"):
+    def __init__(self, deployer: "DeployerImpl"):
         self.deployer = deployer
 
     def __contains__(self, key: str):
@@ -136,13 +136,15 @@ class DeployedFlow(object):
                 setattr(self.__class__, k, property(fget=lambda _, v=v: v))
 
 
-class ConcreteDeployer(object):
+class DeployerImpl(object):
+    # TYPE needs to match the names of CLI groups i.e.
+    # `argo-workflows` instead of `argo_workflows`
     TYPE: ClassVar[Optional[str]] = None
 
     def __init__(
         self,
         flow_file: str,
-        show_output: bool = False,
+        show_output: bool = True,
         profile: Optional[str] = None,
         env: Optional[Dict] = None,
         cwd: Optional[str] = None,
@@ -172,7 +174,7 @@ class ConcreteDeployer(object):
     def create(self, **kwargs) -> DeployedFlow:
         if self.TYPE is None:
             raise ValueError(
-                "ConcreteDeployer doesn't have a 'TYPE' to target. Please use a sub-class of ConcreteDeployer."
+                "DeployerImpl doesn't have a 'TYPE' to target. Please use a sub-class of DeployerImpl."
             )
 
         with tempfile.TemporaryDirectory() as temp_dir:
