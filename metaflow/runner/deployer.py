@@ -118,13 +118,6 @@ class Deployer(object):
         cwd: Optional[str] = None,
         **kwargs
     ):
-        if sys.version_info < (3, 7):
-            raise RuntimeError(
-                """
-                The Metaflow Programmatic API is not supported for versions of Python less than 3.7
-            """
-            )
-
         self.flow_file = flow_file
         self.show_output = show_output
         self.profile = profile
