@@ -1376,7 +1376,7 @@ class S3(object):
             if S3_RETRY_COUNT > 0:
                 self._jitter_sleep(i)
         raise MetaflowS3Exception(
-            "S3 operation failed.\n" "Key requested: %s\n" "Error: %s" % (url, error)
+            "S3 operation failed.\n" "Key requested: %s\n" "Error: %s\n" "Error Code: %d" % (url, error, error_code)
         )
 
     # add some jitter to make sure retries are not synchronized
@@ -1558,6 +1558,7 @@ class S3(object):
                     # position as if transient retries did not exist. This
                     # makes sure that order is respected even in the presence of
                     # transient retries.
+                    print("This is the idx %s" % idx.decode(encoding="utf-8"))
                     out_lines[int(idx.decode(encoding="utf-8"))] = rest
 
         def try_s3_op(last_ok_count, pending_retries, out_lines, inject_failures):
