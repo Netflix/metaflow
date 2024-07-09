@@ -76,7 +76,7 @@ def trigger(instance: DeployedFlow, **kwargs):
 
         if command_obj.process.returncode == 0:
             triggered_run = TriggeredRun(deployer=instance.deployer, content=content)
-            triggered_run._update_env(
+            triggered_run._enrich_object(
                 {"status": property(status), "terminate": terminate}
             )
             return triggered_run
@@ -95,6 +95,6 @@ class ArgoWorkflowsDeployer(DeployerImpl):
         super().__init__(**kwargs)
 
     def _enrich_deployed_flow(self, deployed_flow: DeployedFlow):
-        deployed_flow._update_env(
+        deployed_flow._enrich_object(
             {"production_token": property(production_token), "trigger": trigger}
         )

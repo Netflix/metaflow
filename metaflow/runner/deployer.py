@@ -2,12 +2,13 @@ import os
 import sys
 import json
 import importlib
+import functools
 import tempfile
 from typing import Optional, Dict, ClassVar, Any
 
 from metaflow.exception import MetaflowNotFound
 from metaflow.runner.subprocess_manager import CommandManager, SubprocessManager
-from metaflow.runner.utils import read_from_file_when_ready, clear_and_set_os_environ
+from metaflow.runner.utils import read_from_file_when_ready
 
 
 def handle_timeout(tfp_runner_attribute, command_obj: CommandManager):
@@ -89,18 +90,12 @@ class TriggeredRun(object):
         self.pathspec = content_json.get("pathspec")
         self.name = content_json.get("name")
 
-    def __contains__(self, key: str):
-        return getattr(self, key, None) is not None
-
-    def get(self, key: str, default=None) -> Optional[Any]:
-        return getattr(self, key, default)
-
-    def _update_env(self, env):
+    def _enrich_object(self, env):
         for k, v in env.items():
             if isinstance(v, property):
                 setattr(self.__class__, k, v)
             elif callable(v):
-                setattr(self, k, v.__get__(self))
+                setattr(self, k, functools.partial(v, self))
             else:
                 setattr(self.__class__, k, property(fget=lambda _, v=v: v))
 
@@ -118,18 +113,12 @@ class DeployedFlow(object):
     def __init__(self, deployer: "DeployerImpl"):
         self.deployer = deployer
 
-    def __contains__(self, key: str):
-        return getattr(self, key, None) is not None
-
-    def get(self, key: str, default=None) -> Optional[Any]:
-        return getattr(self, key, default)
-
-    def _update_env(self, env):
+    def _enrich_object(self, env):
         for k, v in env.items():
             if isinstance(v, property):
                 setattr(self.__class__, k, v)
             elif callable(v):
-                setattr(self, k, v.__get__(self))
+                setattr(self, k, functools.partial(v, self))
             else:
                 setattr(self.__class__, k, property(fget=lambda _, v=v: v))
 
