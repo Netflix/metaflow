@@ -106,10 +106,8 @@ class TriggeredRun(object):
 
     @property
     def run(self):
-        from metaflow import Run, metadata
+        from metaflow import Run
 
-        clear_and_set_os_environ(self.deployer.old_env)
-        metadata(self.metadata_for_flow)
         try:
             return Run(self.pathspec, _namespace_check=False)
         except MetaflowNotFound:
@@ -150,6 +148,11 @@ class DeployerImpl(object):
         cwd: Optional[str] = None,
         **kwargs
     ):
+        if self.TYPE is None:
+            raise ValueError(
+                "DeployerImpl doesn't have a 'TYPE' to target. Please use a sub-class of DeployerImpl."
+            )
+
         if "metaflow.cli" in sys.modules:
             importlib.reload(sys.modules["metaflow.cli"])
         from metaflow.cli import start
@@ -172,11 +175,6 @@ class DeployerImpl(object):
         self.api = MetaflowAPI.from_cli(self.flow_file, start)
 
     def create(self, **kwargs) -> DeployedFlow:
-        if self.TYPE is None:
-            raise ValueError(
-                "DeployerImpl doesn't have a 'TYPE' to target. Please use a sub-class of DeployerImpl."
-            )
-
         with tempfile.TemporaryDirectory() as temp_dir:
             tfp_runner_attribute = tempfile.NamedTemporaryFile(
                 dir=temp_dir, delete=False
