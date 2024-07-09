@@ -163,6 +163,9 @@ class DeployerImpl(object):
         self.top_level_kwargs = kwargs
         self.api = MetaflowAPI.from_cli(self.flow_file, start)
 
+    def __enter__(self) -> "DeployerImpl":
+        return self
+
     def create(self, **kwargs) -> DeployedFlow:
         with tempfile.TemporaryDirectory() as temp_dir:
             tfp_runner_attribute = tempfile.NamedTemporaryFile(
@@ -193,3 +196,9 @@ class DeployerImpl(object):
 
     def _enrich_deployed_flow(self, deployed_flow: DeployedFlow):
         raise NotImplementedError
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.spm.cleanup()
+
+    def cleanup(self):
+        self.spm.cleanup()
