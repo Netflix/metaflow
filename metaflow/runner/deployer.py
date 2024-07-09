@@ -12,6 +12,28 @@ from metaflow.runner.utils import read_from_file_when_ready
 
 
 def handle_timeout(tfp_runner_attribute, command_obj: CommandManager):
+    """
+    Handle the timeout for a running subprocess command that reads a file
+    and raises an error with appropriate logs if a TimeoutError occurs.
+
+    Parameters
+    ----------
+    tfp_runner_attribute : NamedTemporaryFile
+        Temporary file that stores runner attribute data.
+    command_obj : CommandManager
+        Command manager object that encapsulates the running command details.
+
+    Returns
+    -------
+    str
+        Content read from the temporary file.
+
+    Raises
+    ------
+    RuntimeError
+        If a TimeoutError occurs, it raises a RuntimeError with the command's
+        stdout and stderr logs.
+    """
     try:
         content = read_from_file_when_ready(tfp_runner_attribute.name, timeout=10)
         return content
@@ -28,8 +50,32 @@ def handle_timeout(tfp_runner_attribute, command_obj: CommandManager):
 
 
 def get_lower_level_group(
-    api, top_level_kwargs: Dict, _type: str, deployer_kwargs: Dict
+    api, top_level_kwargs: Dict, _type: Optional[str], deployer_kwargs: Dict
 ):
+    """
+    Retrieve a lower-level group from the API based on the type and provided arguments.
+
+    Parameters
+    ----------
+    api : MetaflowAPI
+        Metaflow API instance.
+    top_level_kwargs : Dict
+        Top-level keyword arguments to pass to the API.
+    _type : str
+        Type of the deployer implementation to target.
+    deployer_kwargs : Dict
+        Keyword arguments specific to the deployer.
+
+    Returns
+    -------
+    Any
+        The lower-level group object retrieved from the API.
+
+    Raises
+    ------
+    ValueError
+        If the `_type` is None.
+    """
     if _type is None:
         raise ValueError(
             "DeployerImpl doesn't have a 'TYPE' to target. Please use a sub-class of DeployerImpl."
@@ -38,6 +84,31 @@ def get_lower_level_group(
 
 
 class Deployer(object):
+    """
+    Deployer class for managing deployment of flows using different provider implementations.
+
+    This class dynamically adds methods for each deployment provider available in
+    `DEPLOYER_IMPL_PROVIDERS`.
+
+    Parameters
+    ----------
+    flow_file : str
+        Path to the flow file to deploy.
+    show_output : bool, default True
+        Show the 'stdout' and 'stderr' to the console by default.
+    profile : Optional[str], default None
+        Metaflow profile to use for the deployment. If not specified, the default
+        profile is used.
+    env : Optional[Dict], default None
+        Additional environment variables to set for the deployment.
+    cwd : Optional[str], default None
+        The directory to run the subprocess in; if not specified, the current
+        directory is used.
+    **kwargs : Any
+        Additional arguments that you would pass to `python myflow.py` before
+        the deployment command.
+    """
+
     def __init__(
         self,
         flow_file: str,
@@ -64,6 +135,20 @@ class Deployer(object):
             setattr(Deployer, method_name, self.make_function(provider_class))
 
     def make_function(self, deployer_class):
+        """
+        Create a function for the given deployer class.
+
+        Parameters
+        ----------
+        deployer_class : Type[DeployerImpl]
+            Deployer implementation class.
+
+        Returns
+        -------
+        Callable
+            Function that initializes and returns an instance of the deployer class.
+        """
+
         def f(self, **deployer_kwargs):
             return deployer_class(
                 deployer_kwargs=deployer_kwargs,
@@ -79,6 +164,17 @@ class Deployer(object):
 
 
 class TriggeredRun(object):
+    """
+    TriggeredRun class represents a run that has been triggered for deployment.
+
+    Parameters
+    ----------
+    deployer : DeployerImpl
+        Instance of the deployer implementation.
+    content : str
+        JSON content containing metadata and pathspec for the run.
+    """
+
     def __init__(
         self,
         deployer: "DeployerImpl",
@@ -91,6 +187,14 @@ class TriggeredRun(object):
         self.name = content_json.get("name")
 
     def _enrich_object(self, env):
+        """
+        Enrich the TriggeredRun object with additional properties and methods.
+
+        Parameters
+        ----------
+        env : dict
+            Environment dictionary containing properties and methods to add.
+        """
         for k, v in env.items():
             if isinstance(v, property):
                 setattr(self.__class__, k, v)
@@ -101,6 +205,14 @@ class TriggeredRun(object):
 
     @property
     def run(self):
+        """
+        Retrieve the Run object for the triggered run.
+
+        Returns
+        -------
+        Run, optional
+            Metaflow Run object if available else None.
+        """
         from metaflow import Run
 
         try:
@@ -110,10 +222,27 @@ class TriggeredRun(object):
 
 
 class DeployedFlow(object):
+    """
+    DeployedFlow class represents a flow that has been deployed.
+
+    Parameters
+    ----------
+    deployer : DeployerImpl
+        Instance of the deployer implementation.
+    """
+
     def __init__(self, deployer: "DeployerImpl"):
         self.deployer = deployer
 
     def _enrich_object(self, env):
+        """
+        Enrich the DeployedFlow object with additional properties and methods.
+
+        Parameters
+        ----------
+        env : dict
+            Environment dictionary containing properties and methods to add.
+        """
         for k, v in env.items():
             if isinstance(v, property):
                 setattr(self.__class__, k, v)
@@ -124,8 +253,29 @@ class DeployedFlow(object):
 
 
 class DeployerImpl(object):
-    # TYPE needs to match the names of CLI groups i.e.
-    # `argo-workflows` instead of `argo_workflows`
+    """
+    Base class for deployer implementations. Each implementation should define a TYPE
+    class variable that matches the name of the CLI group.
+
+    Parameters
+    ----------
+    flow_file : str
+        Path to the flow file to deploy.
+    show_output : bool, default True
+        Show the 'stdout' and 'stderr' to the console by default.
+    profile : Optional[str], default None
+        Metaflow profile to use for the deployment. If not specified, the default
+        profile is used.
+    env : Optional[Dict], default None
+        Additional environment variables to set for the deployment.
+    cwd : Optional[str], default None
+        The directory to run the subprocess in; if not specified, the current
+        directory is used.
+    **kwargs : Any
+        Additional arguments that you would pass to `python myflow.py` before
+        the deployment command.
+    """
+
     TYPE: ClassVar[Optional[str]] = None
 
     def __init__(
@@ -167,6 +317,24 @@ class DeployerImpl(object):
         return self
 
     def create(self, **kwargs) -> DeployedFlow:
+        """
+        Create a deployed flow using the deployer implementation.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            Additional arguments to pass to the `create` method of the deployer implementation.
+
+        Returns
+        -------
+        DeployedFlow
+            DeployedFlow object representing the deployed flow.
+
+        Raises
+        ------
+        Exception
+            If there is an error during deployment.
+        """
         with tempfile.TemporaryDirectory() as temp_dir:
             tfp_runner_attribute = tempfile.NamedTemporaryFile(
                 dir=temp_dir, delete=False
@@ -195,10 +363,24 @@ class DeployerImpl(object):
         raise Exception("Error deploying %s to %s" % (self.flow_file, self.TYPE))
 
     def _enrich_deployed_flow(self, deployed_flow: DeployedFlow):
+        """
+        Enrich the DeployedFlow object with additional properties and methods.
+
+        Parameters
+        ----------
+        deployed_flow : DeployedFlow
+            The DeployedFlow object to enrich.
+        """
         raise NotImplementedError
 
     def __exit__(self, exc_type, exc_value, traceback):
+        """
+        Cleanup resources on exit.
+        """
         self.spm.cleanup()
 
     def cleanup(self):
+        """
+        Cleanup resources.
+        """
         self.spm.cleanup()

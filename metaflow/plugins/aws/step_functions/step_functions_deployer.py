@@ -13,6 +13,21 @@ from metaflow.runner.deployer import (
 
 
 def terminate(instance: TriggeredRun, **kwargs):
+    """
+    Terminate a running workflow.
+
+    Parameters
+    ----------
+    instance : TriggeredRun
+        The triggered run instance to terminate.
+    **kwargs : Any
+        Additional arguments to pass to the terminate command.
+
+    Returns
+    -------
+    bool
+        True if the command was successful, False otherwise.
+    """
     _, run_id = instance.pathspec.split("/")
 
     # every subclass needs to have `self.deployer_kwargs`
@@ -35,11 +50,44 @@ def terminate(instance: TriggeredRun, **kwargs):
 
 
 def production_token(instance: DeployedFlow):
+    """
+    Get the production token for a deployed flow.
+
+    Parameters
+    ----------
+    instance : DeployedFlow
+        The deployed flow instance to get the production token for.
+
+    Returns
+    -------
+    str
+        The production token.
+    """
     _, production_token = StepFunctions.get_existing_deployment(instance.deployer.name)
     return production_token
 
 
 def trigger(instance: DeployedFlow, **kwargs):
+    """
+    Trigger a new run for a deployed flow.
+
+    Parameters
+    ----------
+    instance : DeployedFlow
+        The deployed flow instance to trigger a new run for.
+    **kwargs : Any
+        Additional arguments to pass to the trigger command.
+
+    Returns
+    -------
+    TriggeredRun
+        The triggered run instance.
+
+    Raises
+    ------
+    Exception
+        If there is an error during the trigger process.
+    """
     with tempfile.TemporaryDirectory() as temp_dir:
         tfp_runner_attribute = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
 
@@ -73,13 +121,40 @@ def trigger(instance: DeployedFlow, **kwargs):
 
 
 class StepFunctionsDeployer(DeployerImpl):
+    """
+    Deployer implementation for AWS Step Functions.
+
+    Attributes
+    ----------
+    TYPE : ClassVar[Optional[str]]
+        The type of the deployer, which is "step-functions".
+    """
+
     TYPE: ClassVar[Optional[str]] = "step-functions"
 
     def __init__(self, deployer_kwargs, **kwargs):
+        """
+        Initialize the StepFunctionsDeployer.
+
+        Parameters
+        ----------
+        deployer_kwargs : dict
+            The deployer-specific keyword arguments.
+        **kwargs : Any
+            Additional arguments to pass to the superclass constructor.
+        """
         self.deployer_kwargs = deployer_kwargs
         super().__init__(**kwargs)
 
     def _enrich_deployed_flow(self, deployed_flow: DeployedFlow):
+        """
+        Enrich the DeployedFlow object with additional properties and methods.
+
+        Parameters
+        ----------
+        deployed_flow : DeployedFlow
+            The deployed flow object to enrich.
+        """
         deployed_flow._enrich_object(
             {"production_token": property(production_token), "trigger": trigger}
         )
