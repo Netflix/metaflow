@@ -4,7 +4,7 @@ import json
 import importlib
 import functools
 import tempfile
-from typing import Optional, Dict, ClassVar, Any
+from typing import Optional, Dict, ClassVar
 
 from metaflow.exception import MetaflowNotFound
 from metaflow.runner.subprocess_manager import CommandManager, SubprocessManager
@@ -54,9 +54,9 @@ class Deployer(object):
         self.cwd = cwd
         self.top_level_kwargs = kwargs
 
-        from metaflow.plugins import CONCRETE_DEPLOYER_PROVIDERS
+        from metaflow.plugins import DEPLOYER_IMPL_PROVIDERS
 
-        for provider_class in CONCRETE_DEPLOYER_PROVIDERS:
+        for provider_class in DEPLOYER_IMPL_PROVIDERS:
             # TYPE is the name of the CLI groups i.e.
             # `argo-workflows` instead of `argo_workflows`
             # The injected method names replace '-' by '_' though.
