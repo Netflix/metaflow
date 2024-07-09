@@ -12,6 +12,80 @@ from metaflow.runner.deployer import (
 )
 
 
+def suspend(instance: TriggeredRun, **kwargs):
+    """
+    Suspend a running workflow.
+
+    Parameters
+    ----------
+    instance : TriggeredRun
+        The triggered run instance to suspend.
+    **kwargs : Any
+        Additional arguments to pass to the suspend command.
+
+    Returns
+    -------
+    bool
+        True if the command was successful, False otherwise.
+    """
+    _, run_id = instance.pathspec.split("/")
+
+    # every subclass needs to have `self.deployer_kwargs`
+    command = get_lower_level_group(
+        instance.deployer.api,
+        instance.deployer.top_level_kwargs,
+        instance.deployer.TYPE,
+        instance.deployer.deployer_kwargs,
+    ).suspend(run_id=run_id, **kwargs)
+
+    pid = instance.deployer.spm.run_command(
+        [sys.executable, *command],
+        env=instance.deployer.env_vars,
+        cwd=instance.deployer.cwd,
+        show_output=instance.deployer.show_output,
+    )
+
+    command_obj = instance.deployer.spm.get(pid)
+    return command_obj.process.returncode == 0
+
+
+def unsuspend(instance: TriggeredRun, **kwargs):
+    """
+    Unsuspend a suspended workflow.
+
+    Parameters
+    ----------
+    instance : TriggeredRun
+        The triggered run instance to unsuspend.
+    **kwargs : Any
+        Additional arguments to pass to the unsuspend command.
+
+    Returns
+    -------
+    bool
+        True if the command was successful, False otherwise.
+    """
+    _, run_id = instance.pathspec.split("/")
+
+    # every subclass needs to have `self.deployer_kwargs`
+    command = get_lower_level_group(
+        instance.deployer.api,
+        instance.deployer.top_level_kwargs,
+        instance.deployer.TYPE,
+        instance.deployer.deployer_kwargs,
+    ).unsuspend(run_id=run_id, **kwargs)
+
+    pid = instance.deployer.spm.run_command(
+        [sys.executable, *command],
+        env=instance.deployer.env_vars,
+        cwd=instance.deployer.cwd,
+        show_output=instance.deployer.show_output,
+    )
+
+    command_obj = instance.deployer.spm.get(pid)
+    return command_obj.process.returncode == 0
+
+
 def terminate(instance: TriggeredRun, **kwargs):
     """
     Terminate a running workflow.
@@ -93,6 +167,40 @@ def production_token(instance: DeployedFlow):
     return production_token
 
 
+def delete(instance: DeployedFlow, **kwargs):
+    """
+    Delete a deployed flow.
+
+    Parameters
+    ----------
+    instance : DeployedFlow
+        The deployed flow instance to delete.
+    **kwargs : Any
+        Additional arguments to pass to the delete command.
+
+    Returns
+    -------
+    bool
+        True if the command was successful, False otherwise.
+    """
+    command = get_lower_level_group(
+        instance.deployer.api,
+        instance.deployer.top_level_kwargs,
+        instance.deployer.TYPE,
+        instance.deployer.deployer_kwargs,
+    ).delete(**kwargs)
+
+    pid = instance.deployer.spm.run_command(
+        [sys.executable, *command],
+        env=instance.deployer.env_vars,
+        cwd=instance.deployer.cwd,
+        show_output=instance.deployer.show_output,
+    )
+
+    command_obj = instance.deployer.spm.get(pid)
+    return command_obj.process.returncode == 0
+
+
 def trigger(instance: DeployedFlow, **kwargs):
     """
     Trigger a new run for a deployed flow.
@@ -138,7 +246,12 @@ def trigger(instance: DeployedFlow, **kwargs):
         if command_obj.process.returncode == 0:
             triggered_run = TriggeredRun(deployer=instance.deployer, content=content)
             triggered_run._enrich_object(
-                {"status": property(status), "terminate": terminate}
+                {
+                    "status": property(status),
+                    "terminate": terminate,
+                    "suspend": suspend,
+                    "unsuspend": unsuspend,
+                }
             )
             return triggered_run
 
@@ -184,5 +297,9 @@ class ArgoWorkflowsDeployer(DeployerImpl):
             The deployed flow object to enrich.
         """
         deployed_flow._enrich_object(
-            {"production_token": property(production_token), "trigger": trigger}
+            {
+                "production_token": property(production_token),
+                "trigger": trigger,
+                "delete": delete,
+            }
         )
