@@ -140,7 +140,11 @@ AZURE_CLIENT_PROVIDERS_DESC = [
 ]
 
 CONCRETE_DEPLOYER_PROVIDERS_DESC = [
-    ("argo-workflows", ".argo.argo_workflows_deployer.ArgoWorkflowsDeployer")
+    ("argo-workflows", ".argo.argo_workflows_deployer.ArgoWorkflowsDeployer"),
+    (
+        "step-functions",
+        ".aws.step_functions.step_functions_deployer.StepFunctionsDeployer",
+    ),
 ]
 
 process_plugins(globals())
