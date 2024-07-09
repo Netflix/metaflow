@@ -67,6 +67,77 @@ def production_token(instance: DeployedFlow):
     return production_token
 
 
+def list_runs(instance: DeployedFlow, **kwargs):
+    """
+    List runs of a deployed flow.
+
+    Parameters
+    ----------
+    instance : DeployedFlow
+        The deployed flow instance to list runs for.
+    **kwargs : Any
+        Additional arguments to pass to the list_runs command.
+
+    Returns
+    -------
+    bool
+        True if the command was successful, False otherwise.
+    """
+    command = getattr(
+        get_lower_level_group(
+            instance.deployer.api,
+            instance.deployer.top_level_kwargs,
+            instance.deployer.TYPE,
+            instance.deployer.deployer_kwargs,
+        ),
+        "list-runs",
+    )(**kwargs)
+
+    pid = instance.deployer.spm.run_command(
+        [sys.executable, *command],
+        env=instance.deployer.env_vars,
+        cwd=instance.deployer.cwd,
+        show_output=instance.deployer.show_output,
+    )
+
+    command_obj = instance.deployer.spm.get(pid)
+    return command_obj.process.returncode == 0
+
+
+def delete(instance: DeployedFlow, **kwargs):
+    """
+    Delete a deployed flow.
+
+    Parameters
+    ----------
+    instance : DeployedFlow
+        The deployed flow instance to delete.
+    **kwargs : Any
+        Additional arguments to pass to the delete command.
+
+    Returns
+    -------
+    bool
+        True if the command was successful, False otherwise.
+    """
+    command = get_lower_level_group(
+        instance.deployer.api,
+        instance.deployer.top_level_kwargs,
+        instance.deployer.TYPE,
+        instance.deployer.deployer_kwargs,
+    ).delete(**kwargs)
+
+    pid = instance.deployer.spm.run_command(
+        [sys.executable, *command],
+        env=instance.deployer.env_vars,
+        cwd=instance.deployer.cwd,
+        show_output=instance.deployer.show_output,
+    )
+
+    command_obj = instance.deployer.spm.get(pid)
+    return command_obj.process.returncode == 0
+
+
 def trigger(instance: DeployedFlow, **kwargs):
     """
     Trigger a new run for a deployed flow.
@@ -156,5 +227,10 @@ class StepFunctionsDeployer(DeployerImpl):
             The deployed flow object to enrich.
         """
         deployed_flow._enrich_object(
-            {"production_token": property(production_token), "trigger": trigger}
+            {
+                "production_token": property(production_token),
+                "trigger": trigger,
+                "delete": delete,
+                "list_runs": list_runs,
+            }
         )
