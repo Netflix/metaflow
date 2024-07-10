@@ -2009,26 +2009,38 @@ class ArgoWorkflows(object):
             if v is not None
             and k not in set(ARGO_WORKFLOWS_ENV_VARS_TO_SKIP.split(","))
         }
+
+        # We want to grab the base image used by the start step, as this is known to be pullable from within the cluster,
+        # and it might contain the required libraries, allowing us to start up faster.
+        start_step = next(step for step in self.flow if step.name == "start")
+        resources = dict(
+            [deco for deco in start_step.decorators if deco.name == "kubernetes"][
+                0
+            ].attributes
+        )
         from kubernetes import client as kubernetes_sdk
 
         return DaemonTemplate("run-heartbeat-daemon").container(
             to_camelcase(
                 kubernetes_sdk.V1Container(
                     name="main",
-                    image="python:3.9",
+                    image=resources["image"],
                     command=cmds,
                     env=[
                         kubernetes_sdk.V1EnvVar(name=k, value=str(v))
                         for k, v in env.items()
                     ],
                     resources=kubernetes_sdk.V1ResourceRequirements(
+                        # NOTE: base resources for this are kept to a minimum to save on running costs.
+                        # This has an adverse effect on startup time for the daemon, which can be completely
+                        # alleviated by using a base image that has the required dependencies pre-installed
                         requests={
-                            "cpu": "1",
-                            "memory": "250Mi",
+                            "cpu": "200m",
+                            "memory": "100Mi",
                         },
                         limits={
-                            "cpu": "1",
-                            "memory": "250Mi",
+                            "cpu": "200m",
+                            "memory": "100Mi",
                         },
                     ),
                 )
