@@ -165,6 +165,12 @@ def argo_workflows(obj, name=None):
     default="",
     help="PagerDuty Events API V2 Integration key for workflow success/failure notifications.",
 )
+@click.option(
+    "--with-daemon-container/--no-with-daemon-container",
+    default=True,
+    show_default=True,
+    help="Use Argo Daemon Containers for run status updates.",
+)
 @click.pass_obj
 def create(
     obj,
@@ -182,6 +188,7 @@ def create(
     notify_on_success=False,
     notify_slack_webhook_url=None,
     notify_pager_duty_integration_key=None,
+    with_daemon_container=True,
 ):
     validate_tags(tags)
 
@@ -218,6 +225,7 @@ def create(
         notify_on_success,
         notify_slack_webhook_url,
         notify_pager_duty_integration_key,
+        with_daemon_container,
     )
 
     if only_json:
@@ -390,6 +398,7 @@ def make_flow(
     notify_on_success,
     notify_slack_webhook_url,
     notify_pager_duty_integration_key,
+    with_daemon_container,
 ):
     # TODO: Make this check less specific to Amazon S3 as we introduce
     #       support for more cloud object stores.
@@ -452,6 +461,7 @@ def make_flow(
         notify_on_success=notify_on_success,
         notify_slack_webhook_url=notify_slack_webhook_url,
         notify_pager_duty_integration_key=notify_pager_duty_integration_key,
+        with_daemon_container=with_daemon_container,
     )
 
 

@@ -110,6 +110,7 @@ class ArgoWorkflows(object):
         notify_on_success=False,
         notify_slack_webhook_url=None,
         notify_pager_duty_integration_key=None,
+        with_daemon_container=True,
     ):
         # Some high-level notes -
         #
@@ -157,6 +158,7 @@ class ArgoWorkflows(object):
         self.notify_on_success = notify_on_success
         self.notify_slack_webhook_url = notify_slack_webhook_url
         self.notify_pager_duty_integration_key = notify_pager_duty_integration_key
+        self.with_daemon_container = with_daemon_container
 
         self.parameters = self._process_parameters()
         self.triggers, self.trigger_options = self._process_triggers()
@@ -1113,7 +1115,8 @@ class ArgoWorkflows(object):
 
     def _daemon_container_templates(self):
         templates = []
-        templates.append(self._heartbeat_daemon_template())
+        if self.with_daemon_container:
+            templates.append(self._heartbeat_daemon_template())
         return templates
 
     # Visit every node and yield ContainerTemplates.
