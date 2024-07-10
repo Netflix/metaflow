@@ -1936,7 +1936,7 @@ class ArgoWorkflows(object):
         # about being able to retrieve the code package for the utility scripts.
         executable = self.environment.executable("_parameters")
         run_id_template = "argo-{{workflow.name}}"
-        entrypoint = [executable, "-m metaflow.plugins.argo.heartbeat_daemon "]
+        entrypoint = [executable, "-m metaflow.plugins.argo.daemon"]
         heartbeat_cmds = "%s %s %s" % (
             " ".join(entrypoint),
             self.flow.name,
