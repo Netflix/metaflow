@@ -7,8 +7,6 @@ from collections import namedtuple
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_JOBSET_GROUP, KUBERNETES_JOBSET_VERSION
-from metaflow.metaflow_current import current
-from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow.tracing import inject_tracing_vars
 from metaflow.metaflow_config import KUBERNETES_SECRETS
 
@@ -768,7 +766,7 @@ class JobSetSpec(object):
         )
 
 
-class KubernetesJobSet(object):  # todo : [final-refactor] : fix-me
+class KubernetesJobSet(object):
     def __init__(
         self,
         client,
@@ -906,3 +904,119 @@ class KubernetesJobSet(object):  # todo : [final-refactor] : fix-me
             group=self._group,
             version=self._version,
         )
+
+
+class KubernetesArgoJobSet(object):
+    def __init__(self, kubernetes_sdk, name=None, namespace=None, **kwargs):
+        self._kubernetes_sdk = kubernetes_sdk
+        self._annotations = {}
+        self._labels = {}
+        self._group = KUBERNETES_JOBSET_GROUP
+        self._version = KUBERNETES_JOBSET_VERSION
+        self._namespace = namespace
+        self.name = name
+
+        self._jobset_control_addr = _make_domain_name(
+            name,
+            CONTROL_JOB_NAME,
+            0,
+            0,
+            namespace,
+        )
+
+        self._control_spec = JobSetSpec(
+            kubernetes_sdk, name=CONTROL_JOB_NAME, namespace=namespace, **kwargs
+        )
+        self._worker_spec = JobSetSpec(
+            kubernetes_sdk, name="worker", namespace=namespace, **kwargs
+        )
+
+    @property
+    def jobset_control_addr(self):
+        return self._jobset_control_addr
+
+    @property
+    def worker(self):
+        return self._worker_spec
+
+    @property
+    def control(self):
+        return self._control_spec
+
+    def environment_variable_from_selector(self, name, label_value):
+        self.worker.environment_variable_from_selector(name, label_value)
+        self.control.environment_variable_from_selector(name, label_value)
+        return self
+
+    def environment_variables_from_selectors(self, env_dict):
+        for name, label_value in env_dict.items():
+            self.worker.environment_variable_from_selector(name, label_value)
+            self.control.environment_variable_from_selector(name, label_value)
+        return self
+
+    def environment_variable(self, name, value):
+        self.worker.environment_variable(name, value)
+        self.control.environment_variable(name, value)
+        return self
+
+    def label(self, name, value):
+        self.worker.label(name, value)
+        self.control.label(name, value)
+        self._labels = dict(self._labels, **{name: value})
+        return self
+
+    def annotation(self, name, value):
+        self.worker.annotation(name, value)
+        self.control.annotation(name, value)
+        self._annotations = dict(self._annotations, **{name: value})
+        return self
+
+    def dump(self):
+        client = self._kubernetes_sdk
+        import json
+
+        data = json.dumps(
+            client.ApiClient().sanitize_for_serialization(
+                dict(
+                    apiVersion=self._group + "/" + self._version,
+                    kind="JobSet",
+                    metadata=client.api_client.ApiClient().sanitize_for_serialization(
+                        client.V1ObjectMeta(
+                            name=self.name,
+                            labels=self._labels,
+                            annotations=self._annotations,
+                        )
+                    ),
+                    spec=dict(
+                        replicatedJobs=[self.control.dump(), self.worker.dump()],
+                        suspend=False,
+                        startupPolicy=None,
+                        successPolicy=None,
+                        # The Failure Policy helps setting the number of retries for the jobset.
+                        # but we don't rely on it and instead rely on either the local scheduler
+                        # or the Argo Workflows to handle retries.
+                        failurePolicy=None,
+                        network=None,
+                    ),
+                    status=None,
+                )
+            )
+        )
+        # The values we populate in the Jobset manifest (for Argo Workflows) piggybacks on the Argo Workflow's templating engine.
+        # Even though Argo Workflows's templating helps us constructing all the necessary IDs and populating the fields
+        # required by Metaflow, we run into one glitch. When we construct JSON/YAML serializable objects,
+        # anything between two braces such as `{{=asInt(inputs.parameters.workerCount)}}` gets quoted. This is a problem
+        # since we need to pass the value of `inputs.parameters.workerCount` as an integer and not as a string.
+        # If we pass it as a string, the jobset controller will not accept the Jobset CRD we submitted to kubernetes.
+        # To get around this, we need to replace the quoted substring with the unquoted substring because YAML /JSON parsers
+        # won't allow deserialization with the quoting trivially.
+
+        # This is super important because the `inputs.parameters.workerCount` is used to set the number of replicas;
+        # The value for number of replicas is derived from the value of `num_parallel` (which is set in the user-code).
+        # Since the value of `num_parallel` can be dynamic and can change from run to run, we need to ensure that the
+        # value can be passed-down dynamically and is **explicitly set as a integer** in the Jobset Manifest submitted as a
+        # part of the Argo Workflow
+
+        quoted_substring = '"{{=asInt(inputs.parameters.workerCount)}}"'
+        unquoted_substring = "{{=asInt(inputs.parameters.workerCount)}}"
+        return data.replace(quoted_substring, unquoted_substring)
