@@ -1,29 +1,59 @@
-import os
-import sys
+from collections import namedtuple
 from time import sleep
-from metaflow.metadata.heartbeat import MetadataHeartBeat, HB_URL_KEY
-from metaflow.sidecar.sidecar_messages import Message, MessageTypes
-from metaflow.metaflow_config import SERVICE_URL
+from metaflow.metaflow_config import DEFAULT_METADATA
+from metaflow.metaflow_environment import MetaflowEnvironment
+from metaflow.plugins import METADATA_PROVIDERS
+from metaflow._vendor import click
 
 
-def main(flow_name, run_id):
-    # Reuse the metadataHeartbeat mechanism for Argo Daemon Containers as well
-    daemon = MetadataHeartBeat(exponential_backoff=False)
-    payload = {
-        HB_URL_KEY: os.path.join(
-            SERVICE_URL, f"flows/{flow_name}/runs/{run_id}/heartbeat"
-        )
-    }
-    msg = Message(MessageTypes.BEST_EFFORT, payload)
-    # start heartbeating
-    daemon.process_message(msg)
+class CliState:
+    pass
+
+
+@click.group()
+@click.option("--flow_name", required=True)
+@click.option("--run_id", required=True)
+@click.option(
+    "--tag",
+    "tags",
+    multiple=True,
+    default=None,
+    help="Annotate all objects produced by Argo Workflows runs "
+    "with the given tag. You can specify this option multiple "
+    "times to attach multiple tags.",
+)
+@click.pass_context
+def cli(ctx, flow_name, run_id, tags=None):
+    ctx.obj = CliState()
+    ctx.obj.flow_name = flow_name
+    ctx.obj.run_id = run_id
+    ctx.obj.tags = tags
+    # Use a dummy flow to initialize the environment and metadata service,
+    # as we only need a name for the flow object.
+    flow = namedtuple("DummyFlow", "name")
+    dummyflow = flow(flow_name)
+
+    # Initialize a proper metadata service instance
+    environment = MetaflowEnvironment(dummyflow)
+
+    ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == DEFAULT_METADATA][0](
+        environment, dummyflow, None, None
+    )
+
+
+@cli.command(help="start heartbeat process for a run")
+@click.pass_obj
+def heartbeat(obj):
+    # Try to register a run in case the start task has not taken care of it yet.
+    obj.metadata.register_run_id(obj.run_id, obj.tags)
+    # Start run heartbeat
+    obj.metadata.start_run_heartbeat(obj.flow_name, obj.run_id)
     # Keepalive loop
-    while daemon.req_thread.is_alive():
+    while True:
         # Do not pollute daemon logs with anything unnecessary,
         # as they might be extremely long running.
         sleep(10)
 
 
 if __name__ == "__main__":
-    flow_name, run_id = sys.argv[1:]
-    main(flow_name, run_id)
+    cli()

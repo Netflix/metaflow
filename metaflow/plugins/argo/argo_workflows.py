@@ -1940,10 +1940,13 @@ class ArgoWorkflows(object):
         executable = self.environment.executable("_parameters")
         run_id_template = "argo-{{workflow.name}}"
         entrypoint = [executable, "-m metaflow.plugins.argo.daemon"]
-        heartbeat_cmds = "%s %s %s" % (
-            " ".join(entrypoint),
-            self.flow.name,
-            run_id_template,
+        heartbeat_cmds = (
+            "{entrypoint} --flow_name {flow} --run_id {run} {tags} heartbeat".format(
+                entrypoint=" ".join(entrypoint),
+                flow=self.flow.name,
+                run=run_id_template,
+                tags=" ".join(["--tag %s" % t for t in self.tags]) if self.tags else "",
+            )
         )
 
         # TODO: we do not really need MFLOG logging for the daemon at the moment, but might be good for the future.
