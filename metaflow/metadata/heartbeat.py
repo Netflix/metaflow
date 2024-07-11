@@ -18,13 +18,12 @@ class HeartBeatException(MetaflowException):
 
 
 class MetadataHeartBeat(object):
-    def __init__(self, exponential_backoff=True):
+    def __init__(self):
         self.headers = SERVICE_HEADERS
         self.req_thread = Thread(target=self._ping)
         self.req_thread.daemon = True
         self.default_frequency_secs = 10
         self.hb_url = None
-        self.exponential_backoff = exponential_backoff
 
     def process_message(self, msg):
         # type: (Message) -> None
@@ -53,8 +52,7 @@ class MetadataHeartBeat(object):
                 retry_counter = 0
             except HeartBeatException as e:
                 retry_counter = retry_counter + 1
-                retry_wait = 4**retry_counter if self.exponential_backoff else 10
-                time.sleep(retry_wait)
+                time.sleep(4**retry_counter)
 
     def _heartbeat(self):
         if self.hb_url is not None:
