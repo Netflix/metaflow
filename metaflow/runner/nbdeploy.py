@@ -15,6 +15,45 @@ class NBDeployerInitializationError(Exception):
 
 
 class NBDeployer(object):
+    """
+    A  wrapper over `Deployer` for deploying flows defined in a Jupyter
+    notebook cell.
+
+    Instantiate this class on the last line of a notebook cell where
+    a `flow` is defined. In contrast to `Deployer`, this class is not
+    meant to be used in a context manager.
+
+    ```python
+    deployer = NBDeployer(FlowName)
+    ar = deployer.argo_workflows(name="madhur")
+    ar_obj = ar.create()
+    result = ar_obj.trigger(alpha=300)
+    print(result.status)
+    print(result.run)
+    result.terminate()
+    ```
+
+    Parameters
+    ----------
+    flow : FlowSpec
+        Flow defined in the same cell
+    show_output : bool, default True
+        Show the 'stdout' and 'stderr' to the console by default,
+    profile : Optional[str], default None
+        Metaflow profile to use to deploy this run. If not specified, the default
+        profile is used (or the one already set using `METAFLOW_PROFILE`)
+    env : Optional[Dict], default None
+        Additional environment variables to set. This overrides the
+        environment set for this process.
+    base_dir : Optional[str], default None
+        The directory to run the subprocess in; if not specified, a temporary
+        directory is used.
+    **kwargs : Any
+        Additional arguments that you would pass to `python myflow.py` i.e. options
+        listed in `python myflow.py --help`
+
+    """
+
     def __init__(
         self,
         flow,
@@ -81,3 +120,9 @@ class NBDeployer(object):
             setattr(
                 NBDeployer, method_name, self.deployer.make_function(provider_class)
             )
+
+    def cleanup(self):
+        """
+        Delete any temporary files created during execution.
+        """
+        os.remove(self.flow_file)

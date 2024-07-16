@@ -21,7 +21,7 @@ class NBRunner(object):
 
     Instantiate this class on the last line of a notebook cell where
     a `flow` is defined. In contrast to `Runner`, this class is not
-    meant to be used a context manager. Instead, use a blocking helper
+    meant to be used in a context manager. Instead, use a blocking helper
     function like `nbrun` (which calls `cleanup()` internally) or call
     `cleanup()` explictly when using non-blocking APIs.
 
