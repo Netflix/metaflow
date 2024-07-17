@@ -104,7 +104,9 @@ def list_runs(instance: DeployedFlow, states: Optional[List[str]] = None):
     unique_states = set(states)
     if not unique_states.issubset(VALID_STATES):
         invalid_states = unique_states - VALID_STATES
-        raise ValueError(f"Invalid states found: {invalid_states}")
+        raise ValueError(
+            f"Invalid states found: {invalid_states}. Valid states are: {VALID_STATES}"
+        )
 
     if len(states) != len(unique_states):
         raise ValueError("Duplicate states are not allowed")
@@ -114,18 +116,18 @@ def list_runs(instance: DeployedFlow, states: Optional[List[str]] = None):
 
     for e in executions:
         run_id = "sfn-%s" % e["name"]
-        triggered_runs.append(
-            TriggeredRun(
-                deployer=instance.deployer,
-                content=json.dumps(
-                    {
-                        "metadata": instance.deployer.metadata,
-                        "pathspec": "/".join((instance.deployer.flow_name, run_id)),
-                        "name": run_id,
-                    }
-                ),
-            )
+        tr = TriggeredRun(
+            deployer=instance.deployer,
+            content=json.dumps(
+                {
+                    "metadata": instance.deployer.metadata,
+                    "pathspec": "/".join((instance.deployer.flow_name, run_id)),
+                    "name": run_id,
+                }
+            ),
         )
+        tr._enrich_object({"terminate": terminate})
+        triggered_runs.append(tr)
 
     return triggered_runs
 
