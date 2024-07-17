@@ -198,7 +198,14 @@ def create(
 
     if runner_attribute_file:
         with open(runner_attribute_file, "w") as f:
-            json.dump({"name": obj.workflow_name}, f)
+            json.dump(
+                {
+                    "name": obj.workflow_name,
+                    "flow_name": obj.flow.name,
+                    "metadata": get_metadata(),
+                },
+                f,
+            )
 
     obj.echo("Deploying *%s* to Argo Workflows..." % obj.workflow_name, bold=True)
 

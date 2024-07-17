@@ -353,7 +353,10 @@ class DeployerImpl(object):
 
             command_obj = self.spm.get(pid)
             content = handle_timeout(tfp_runner_attribute, command_obj)
-            self.name = json.loads(content).get("name")
+            content = json.loads(content)
+            self.name = content.get("name")
+            self.flow_name = content.get("flow_name")
+            self.metadata = content.get("metadata")
 
             if command_obj.process.returncode == 0:
                 deployed_flow = DeployedFlow(deployer=self)
@@ -377,7 +380,7 @@ class DeployerImpl(object):
         """
         Cleanup resources on exit.
         """
-        self.spm.cleanup()
+        self.cleanup()
 
     def cleanup(self):
         """

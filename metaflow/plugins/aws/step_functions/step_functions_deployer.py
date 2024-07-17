@@ -1,6 +1,7 @@
 import sys
+import json
 import tempfile
-from typing import Optional, ClassVar
+from typing import Optional, ClassVar, List
 
 from metaflow.plugins.aws.step_functions.step_functions import StepFunctions
 from metaflow.runner.deployer import (
@@ -72,7 +73,7 @@ def production_token(instance: DeployedFlow):
         return None
 
 
-def list_runs(instance: DeployedFlow, **kwargs):
+def list_runs(instance: DeployedFlow, states: Optional[List[str]] = None):
     """
     List runs of a deployed flow.
 
@@ -80,33 +81,53 @@ def list_runs(instance: DeployedFlow, **kwargs):
     ----------
     instance : DeployedFlow
         The deployed flow instance to list runs for.
-    **kwargs : Any
-        Additional arguments to pass to the list_runs command.
+    states : Optional[List[str]], optional
+        A list of states to filter the runs by. Allowed values are:
+        "RUNNING", "SUCCEEDED", "FAILED", "TIMED_OUT", "ABORTED".
+        If not provided, all states will be considered.
 
     Returns
     -------
-    bool
-        True if the command was successful, False otherwise.
+    List[TriggeredRun]
+        A list of TriggeredRun objects representing the runs of the deployed flow.
+
+    Raises
+    ------
+    ValueError
+        If any of the provided states are invalid or if there are duplicate states.
     """
-    command = getattr(
-        get_lower_level_group(
-            instance.deployer.api,
-            instance.deployer.top_level_kwargs,
-            instance.deployer.TYPE,
-            instance.deployer.deployer_kwargs,
-        ),
-        "list-runs",
-    )(**kwargs)
+    VALID_STATES = {"RUNNING", "SUCCEEDED", "FAILED", "TIMED_OUT", "ABORTED"}
 
-    pid = instance.deployer.spm.run_command(
-        [sys.executable, *command],
-        env=instance.deployer.env_vars,
-        cwd=instance.deployer.cwd,
-        show_output=instance.deployer.show_output,
-    )
+    if states is None:
+        states = []
 
-    command_obj = instance.deployer.spm.get(pid)
-    return command_obj.process.returncode == 0
+    unique_states = set(states)
+    if not unique_states.issubset(VALID_STATES):
+        invalid_states = unique_states - VALID_STATES
+        raise ValueError(f"Invalid states found: {invalid_states}")
+
+    if len(states) != len(unique_states):
+        raise ValueError("Duplicate states are not allowed")
+
+    triggered_runs = []
+    executions = StepFunctions.list(instance.deployer.name, states)
+
+    for e in executions:
+        run_id = "sfn-%s" % e["name"]
+        triggered_runs.append(
+            TriggeredRun(
+                deployer=instance.deployer,
+                content=json.dumps(
+                    {
+                        "metadata": instance.deployer.metadata,
+                        "pathspec": "/".join((instance.deployer.flow_name, run_id)),
+                        "name": run_id,
+                    }
+                ),
+            )
+        )
+
+    return triggered_runs
 
 
 def delete(instance: DeployedFlow, **kwargs):
