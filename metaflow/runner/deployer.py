@@ -342,7 +342,7 @@ class DeployerImpl(object):
             # every subclass needs to have `self.deployer_kwargs`
             command = get_lower_level_group(
                 self.api, self.top_level_kwargs, self.TYPE, self.deployer_kwargs
-            ).create(runner_attribute_file=tfp_runner_attribute.name, **kwargs)
+            ).create(deployer_attribute_file=tfp_runner_attribute.name, **kwargs)
 
             pid = self.spm.run_command(
                 [sys.executable, *command],

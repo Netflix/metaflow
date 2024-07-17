@@ -196,7 +196,7 @@ def trigger(instance: DeployedFlow, **kwargs):
             instance.deployer.top_level_kwargs,
             instance.deployer.TYPE,
             instance.deployer.deployer_kwargs,
-        ).trigger(runner_attribute_file=tfp_runner_attribute.name, **kwargs)
+        ).trigger(deployer_attribute_file=tfp_runner_attribute.name, **kwargs)
 
         pid = instance.deployer.spm.run_command(
             [sys.executable, *command],

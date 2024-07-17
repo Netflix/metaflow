@@ -168,11 +168,11 @@ def argo_workflows(obj, name=None):
     help="PagerDuty Events API V2 Integration key for workflow success/failure notifications.",
 )
 @click.option(
-    "--runner-attribute-file",
+    "--deployer-attribute-file",
     default=None,
     show_default=True,
     type=str,
-    help="Write the workflow name to the file specified. Used internally for Metaflow's Runner API.",
+    help="Write the workflow name to the file specified. Used internally for Metaflow's Deployer API.",
     hidden=True,
 )
 @click.pass_obj
@@ -192,12 +192,12 @@ def create(
     notify_on_success=False,
     notify_slack_webhook_url=None,
     notify_pager_duty_integration_key=None,
-    runner_attribute_file=None,
+    deployer_attribute_file=None,
 ):
     validate_tags(tags)
 
-    if runner_attribute_file:
-        with open(runner_attribute_file, "w") as f:
+    if deployer_attribute_file:
+        with open(deployer_attribute_file, "w") as f:
             json.dump(
                 {
                     "name": obj.workflow_name,
@@ -586,15 +586,15 @@ def resolve_token(
     help="Write the ID of this run to the file specified.",
 )
 @click.option(
-    "--runner-attribute-file",
+    "--deployer-attribute-file",
     default=None,
     show_default=True,
     type=str,
-    help="Write the metadata and pathspec of this run to the file specified.\nUsed internally for Metaflow's Runner API.",
+    help="Write the metadata and pathspec of this run to the file specified.\nUsed internally for Metaflow's Deployer API.",
     hidden=True,
 )
 @click.pass_obj
-def trigger(obj, run_id_file=None, runner_attribute_file=None, **kwargs):
+def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
     def _convert_value(param):
         # Swap `-` with `_` in parameter name to match click's behavior
         val = kwargs.get(param.name.replace("-", "_").lower())
@@ -617,8 +617,8 @@ def trigger(obj, run_id_file=None, runner_attribute_file=None, **kwargs):
         with open(run_id_file, "w") as f:
             f.write(str(run_id))
 
-    if runner_attribute_file:
-        with open(runner_attribute_file, "w") as f:
+    if deployer_attribute_file:
+        with open(deployer_attribute_file, "w") as f:
             json.dump(
                 {
                     "name": obj.workflow_name,
