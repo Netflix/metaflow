@@ -99,7 +99,7 @@ class Deployer(object):
     profile : Optional[str], default None
         Metaflow profile to use for the deployment. If not specified, the default
         profile is used.
-    env : Optional[Dict], default None
+    env : Optional[Dict[str, str]], default None
         Additional environment variables to set for the deployment.
     cwd : Optional[str], default None
         The directory to run the subprocess in; if not specified, the current
@@ -132,9 +132,9 @@ class Deployer(object):
             # `argo-workflows` instead of `argo_workflows`
             # The injected method names replace '-' by '_' though.
             method_name = provider_class.TYPE.replace("-", "_")
-            setattr(Deployer, method_name, self.make_function(provider_class))
+            setattr(Deployer, method_name, self.__make_function(provider_class))
 
-    def make_function(self, deployer_class):
+    def __make_function(self, deployer_class):
         """
         Create a function for the given deployer class.
 
@@ -303,8 +303,7 @@ class DeployerImpl(object):
         self.env = env
         self.cwd = cwd
 
-        self.old_env = os.environ.copy()
-        self.env_vars = self.old_env.copy()
+        self.env_vars = os.environ.copy()
         self.env_vars.update(self.env or {})
         if self.profile:
             self.env_vars["METAFLOW_PROFILE"] = profile

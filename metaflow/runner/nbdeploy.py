@@ -42,7 +42,7 @@ class NBDeployer(object):
     profile : Optional[str], default None
         Metaflow profile to use to deploy this run. If not specified, the default
         profile is used (or the one already set using `METAFLOW_PROFILE`)
-    env : Optional[Dict], default None
+    env : Optional[Dict[str, str]], default None
         Additional environment variables to set. This overrides the
         environment set for this process.
     base_dir : Optional[str], default None
@@ -118,7 +118,7 @@ class NBDeployer(object):
         for provider_class in DEPLOYER_IMPL_PROVIDERS:
             method_name = provider_class.TYPE.replace("-", "_")
             setattr(
-                NBDeployer, method_name, self.deployer.make_function(provider_class)
+                NBDeployer, method_name, self.deployer.__make_function(provider_class)
             )
 
     def cleanup(self):
