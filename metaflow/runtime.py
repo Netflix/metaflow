@@ -16,6 +16,7 @@ from functools import partial
 from concurrent import futures
 
 from metaflow.datastore.exceptions import DataException
+from contextlib import contextmanager
 
 from . import get_namespace
 from .metadata import MetaDatum
@@ -109,6 +110,8 @@ class NativeRuntime(object):
         self._clone_run_id = clone_run_id
         self._clone_only = clone_only
         self._clone_steps = {} if clone_steps is None else clone_steps
+        self._cloned_tasks = []
+        self._cloned_task_index = set()
         self._reentrant = reentrant
         self._run_url = None
 
@@ -203,6 +206,22 @@ class NativeRuntime(object):
 
         self._is_cloned[self._params_task.path] = self._params_task.is_cloned
 
+    def should_skip_clone_only_execution(self):
+        (
+            should_skip_clone_only_execution,
+            skip_reason,
+        ) = self._should_skip_clone_only_execution()
+        if should_skip_clone_only_execution:
+            self._logger(skip_reason, system_msg=True)
+            return True
+        return False
+
+    @contextmanager
+    def run_heartbeat(self):
+        self._metadata.start_run_heartbeat(self._flow.name, self._run_id)
+        yield
+        self._metadata.stop_heartbeat()
+
     def print_workflow_info(self):
         self._run_url = (
             "%s/%s/%s" % (UI_URL.rstrip("/"), self._flow.name, self._run_id)
@@ -235,41 +254,58 @@ class NativeRuntime(object):
                 )
         return False, None
 
-    def clone_task(self, step_name, task_id):
-        self._logger(
-            "Cloning task from {}/{}/{}/{} to {}/{}/{}/{}".format(
+    def clone_task(
+        self,
+        step_name,
+        task_id,
+        pathspec_index,
+        ubf_context,
+        generate_task_obj,
+        verbose=False,
+    ):
+        try:
+            new_task_id = task_id
+            if generate_task_obj:
+                task = self._new_task(step_name, pathspec_index=pathspec_index)
+                if ubf_context:
+                    task.ubf_context = ubf_context
+                new_task_id = task.task_id
+                self._cloned_tasks.append(task)
+                self._cloned_task_index.add(task.task_index)
+
+            if verbose:
+                self._logger(
+                    "Cloning task from {}/{}/{}/{} to {}/{}/{}/{}".format(
+                        self._flow.name,
+                        self._clone_run_id,
+                        step_name,
+                        task_id,
+                        self._flow.name,
+                        self._run_id,
+                        step_name,
+                        new_task_id,
+                    ),
+                    system_msg=True,
+                )
+            clone_task_helper(
                 self._flow.name,
                 self._clone_run_id,
-                step_name,
-                task_id,
-                self._flow.name,
                 self._run_id,
                 step_name,
-                task_id,
-            ),
-            system_msg=True,
-        )
-        clone_task_helper(
-            self._flow.name,
-            self._clone_run_id,
-            self._run_id,
-            step_name,
-            task_id,  # origin_task_id
-            task_id,
-            self._flow_datastore,
-            self._metadata,
-            origin_ds_set=self._origin_ds_set,
-        )
+                task_id,  # origin_task_id
+                new_task_id,
+                self._flow_datastore,
+                self._metadata,
+                origin_ds_set=self._origin_ds_set,
+            )
+        except Exception as e:
+            self._logger(
+                "Cloning task from {}/{}/{} failed with error: {}".format(
+                    self._clone_run_id, step_name, task_id, str(e)
+                )
+            )
 
-    def clone_original_run(self):
-        (
-            should_skip_clone_only_execution,
-            skip_reason,
-        ) = self._should_skip_clone_only_execution()
-        if should_skip_clone_only_execution:
-            self._logger(skip_reason, system_msg=True)
-            return
-        self._metadata.start_run_heartbeat(self._flow.name, self._run_id)
+    def clone_original_run(self, generate_task_obj=False, verbose=True):
         self._logger(
             "Start cloning original run: {}/{}".format(
                 self._flow.name, self._clone_run_id
@@ -279,43 +315,106 @@ class NativeRuntime(object):
 
         inputs = []
 
+        ubf_mapper_tasks_to_clone = []
+        # We only clone ubf mapper tasks if the control task is complete.
+        # Here we need to check which control tasks are complete, and then get the corresponding
+        # mapper tasks.
         for task_ds in self._origin_ds_set:
             _, step_name, task_id = task_ds.pathspec.split("/")
+            pathspec_index = task_ds.pathspec_index
             if task_ds["_task_ok"] and step_name != "_parameters":
-                inputs.append((step_name, task_id))
+                # Only control task can have _control_mapper_tasks. We then store the corresponding mapepr task pathspecs.
+                control_mapper_tasks = (
+                    []
+                    if "_control_mapper_tasks" not in task_ds
+                    else task_ds["_control_mapper_tasks"]
+                )
+                ubf_mapper_tasks_to_clone.extend(control_mapper_tasks)
+
+        for task_ds in self._origin_ds_set:
+            _, step_name, task_id = task_ds.pathspec.split("/")
+            pathspec_index = task_ds.pathspec_index
+
+            if task_ds["_task_ok"] and step_name != "_parameters":
+                # "_unbounded_foreach" is a special flag to indicate that the transition is an unbounded foreach.
+                # Both parent and splitted children tasks will have this flag set. The splitted control/mapper tasks
+                # have no "foreach_param" because UBF is always followed by a join step.
+                is_ubf_task = (
+                    "_unbounded_foreach" in task_ds and task_ds["_unbounded_foreach"]
+                ) and (self._graph[step_name].foreach_param is None)
+
+                # Only the control task has "_control_mapper_tasks" artifact.
+                is_ubf_control_task = (
+                    is_ubf_task
+                    and ("_control_mapper_tasks" in task_ds)
+                    and task_ds["_control_mapper_tasks"]
+                )
+                is_ubf_mapper_tasks = is_ubf_task and (not is_ubf_control_task)
+                if is_ubf_mapper_tasks and (
+                    task_ds.pathspec not in ubf_mapper_tasks_to_clone
+                ):
+                    # Skip copying UBF mapper tasks if control tasks is incomplete.
+                    continue
+
+                ubf_context = None
+                if is_ubf_task:
+                    ubf_context = "ubf_test" if is_ubf_mapper_tasks else "ubf_control"
+                inputs.append(
+                    (
+                        step_name,
+                        task_id,
+                        pathspec_index,
+                        is_ubf_mapper_tasks,
+                        ubf_context,
+                    )
+                )
 
         with futures.ThreadPoolExecutor(max_workers=self._max_workers) as executor:
             all_tasks = [
-                executor.submit(self.clone_task, step_name, task_id)
-                for (step_name, task_id) in inputs
+                executor.submit(
+                    self.clone_task,
+                    step_name,
+                    task_id,
+                    pathspec_index,
+                    ubf_context=ubf_context,
+                    generate_task_obj=generate_task_obj and (not is_ubf_mapper_tasks),
+                    verbose=verbose,
+                )
+                for (
+                    step_name,
+                    task_id,
+                    pathspec_index,
+                    is_ubf_mapper_tasks,
+                    ubf_context,
+                ) in inputs
             ]
             _, _ = futures.wait(all_tasks)
         self._logger("Cloning original run is done", system_msg=True)
         self._params_task.mark_resume_done()
-        self._metadata.stop_heartbeat()
 
     def execute(self):
-        (
-            should_skip_clone_only_execution,
-            skip_reason,
-        ) = self._should_skip_clone_only_execution()
-        if should_skip_clone_only_execution:
-            self._logger(skip_reason, system_msg=True)
-            return
-        self._metadata.start_run_heartbeat(self._flow.name, self._run_id)
-
-        if self._params_task:
-            self._queue_push("start", {"input_paths": [self._params_task.path]})
+        if len(self._cloned_tasks) > 0:
+            # mutable list storing the cloned tasks.
+            self._run_queue = []
+            self._active_tasks[0] = 0
         else:
-            self._queue_push("start", {})
-
+            if self._params_task:
+                self._queue_push("start", {"input_paths": [self._params_task.path]})
+            else:
+                self._queue_push("start", {})
         progress_tstamp = time.time()
         try:
             # main scheduling loop
             exception = None
-            while self._run_queue or self._active_tasks[0] > 0:
+            while self._run_queue or self._active_tasks[0] > 0 or self._cloned_tasks:
                 # 1. are any of the current workers finished?
-                finished_tasks = list(self._poll_workers())
+                if self._cloned_tasks:
+                    finished_tasks = self._cloned_tasks
+                    # reset the list of cloned tasks and let poll_workers handle
+                    # the remaining transition
+                    self._cloned_tasks = []
+                else:
+                    finished_tasks = list(self._poll_workers())
                 # 2. push new tasks triggered by the finished tasks to the queue
                 self._queue_tasks(finished_tasks)
                 # 3. if there are available worker slots, pop and start tasks
@@ -381,8 +480,6 @@ class NativeRuntime(object):
                 for deco in step.decorators:
                     deco.runtime_finished(exception)
 
-            self._metadata.stop_heartbeat()
-
         # assert that end was executed and it was successful
         if ("end", ()) in self._finished:
             if self._run_url:
@@ -432,9 +529,41 @@ class NativeRuntime(object):
         for _ in range(3):
             list(self._poll_workers())
 
+    # Given the current task information (task_index), the type of transition,
+    # and the split index, return the new task index.
+    def _translate_index(self, task, next_step, type, split_index=None):
+        import re
+
+        match = re.match(r"^(.+)\[(.*)\]$", task.task_index)
+        if match:
+            _, foreach_index = match.groups()
+            # Convert foreach_index to a list of integers
+            if len(foreach_index) > 0:
+                foreach_index = foreach_index.split(",")
+            else:
+                foreach_index = []
+        else:
+            raise ValueError(
+                "Index not in the format of {run_id}/{step_name}[{foreach_index}]"
+            )
+        if type == "linear":
+            return "%s[%s]" % (next_step, ",".join(foreach_index))
+        elif type == "join":
+            indices = []
+            if len(foreach_index) > 0:
+                indices = foreach_index[:-1]
+            return "%s[%s]" % (next_step, ",".join(indices))
+        elif type == "split":
+            foreach_index.append(str(split_index))
+            return "%s[%s]" % (next_step, ",".join(foreach_index))
+
     # Store the parameters needed for task creation, so that pushing on items
     # onto the run_queue is an inexpensive operation.
-    def _queue_push(self, step, task_kwargs):
+    def _queue_push(self, step, task_kwargs, index=None):
+        # If the to-be-pushed task is already cloned before, we don't need
+        # to re-run it.
+        if index and index in self._cloned_task_index:
+            return
         self._run_queue.insert(0, (step, task_kwargs))
         # For foreaches, this will happen multiple time but is ok, becomes a no-op
         self._unprocessed_steps.discard(step)
@@ -493,30 +622,19 @@ class NativeRuntime(object):
                     )
                 num_splits = len(mapper_tasks)
                 self._control_num_splits[task.path] = num_splits
-                if task.is_cloned:
-                    # Add mapper tasks to be cloned.
-                    for i in range(num_splits):
-                        # NOTE: For improved robustness, introduce
-                        # `clone_options` as an enum so that we can force that
-                        # clone must occur for this task.
-                        self._queue_push(
-                            task.step,
-                            {
-                                "input_paths": task.input_paths,
-                                "split_index": str(i),
-                                "ubf_context": UBF_TASK,
-                            },
-                        )
-                else:
-                    # Update _finished since these tasks were successfully
-                    # run elsewhere so that join will be unblocked.
-                    _, foreach_stack = task.finished_id
-                    top = foreach_stack[-1]
-                    bottom = list(foreach_stack[:-1])
-                    for i in range(num_splits):
-                        s = tuple(bottom + [top._replace(index=i)])
-                        self._finished[(task.step, s)] = mapper_tasks[i]
-                        self._is_cloned[mapper_tasks[i]] = False
+
+                # If the control task is cloned, all mapper tasks should have been cloned
+                # as well, so we no longer need to handle cloning of mapper tasks in runtime.
+
+                # Update _finished since these tasks were successfully
+                # run elsewhere so that join will be unblocked.
+                _, foreach_stack = task.finished_id
+                top = foreach_stack[-1]
+                bottom = list(foreach_stack[:-1])
+                for i in range(num_splits):
+                    s = tuple(bottom + [top._replace(index=i)])
+                    self._finished[(task.step, s)] = mapper_tasks[i]
+                    self._is_cloned[mapper_tasks[i]] = False
 
             # Find and check status of control task and retrieve its pathspec
             # for retrieving unbounded foreach cardinality.
@@ -541,16 +659,18 @@ class NativeRuntime(object):
                     required_tasks.append(self._finished.get((task.step, s)))
 
                 if all(required_tasks):
+                    index = self._translate_index(task, next_step, "join")
                     # all tasks to be joined are ready. Schedule the next join step.
                     self._queue_push(
                         next_step,
                         {"input_paths": required_tasks, "join_type": "foreach"},
+                        index,
                     )
         else:
             # matching_split is the split-parent of the finished task
             matching_split = self._graph[self._graph[next_step].split_parents[-1]]
             _, foreach_stack = task.finished_id
-
+            index = ""
             if matching_split.type == "foreach":
                 # next step is a foreach join
 
@@ -565,6 +685,7 @@ class NativeRuntime(object):
                     self._finished.get((task.step, s)) for s in siblings(foreach_stack)
                 ]
                 join_type = "foreach"
+                index = self._translate_index(task, next_step, "join")
             else:
                 # next step is a split
                 # required tasks are all branches joined by the next step
@@ -573,11 +694,14 @@ class NativeRuntime(object):
                     for step in self._graph[next_step].in_funcs
                 ]
                 join_type = "linear"
+                index = self._translate_index(task, next_step, "linear")
 
             if all(required_tasks):
                 # all tasks to be joined are ready. Schedule the next join step.
                 self._queue_push(
-                    next_step, {"input_paths": required_tasks, "join_type": join_type}
+                    next_step,
+                    {"input_paths": required_tasks, "join_type": join_type},
+                    index,
                 )
 
     def _queue_task_foreach(self, task, next_steps):
@@ -598,6 +722,12 @@ class NativeRuntime(object):
             # Need to push control process related task.
             ubf_iter_name = task.results.get("_foreach_var")
             ubf_iter = task.results.get(ubf_iter_name)
+            # UBF control task has no split index, hence "None" as place holder.
+
+            if task.results.get("_control_task_is_mapper_zero", False):
+                index = self._translate_index(task, next_step, "split", 0)
+            else:
+                index = self._translate_index(task, next_step, "split", None)
             self._queue_push(
                 next_step,
                 {
@@ -605,6 +735,7 @@ class NativeRuntime(object):
                     "ubf_context": UBF_CONTROL,
                     "ubf_iter": ubf_iter,
                 },
+                index,
             )
         else:
             num_splits = task.results["_foreach_num_splits"]
@@ -624,8 +755,11 @@ class NativeRuntime(object):
 
             # schedule all splits
             for i in range(num_splits):
+                index = self._translate_index(task, next_step, "split", i)
                 self._queue_push(
-                    next_step, {"split_index": str(i), "input_paths": [task.path]}
+                    next_step,
+                    {"split_index": str(i), "input_paths": [task.path]},
+                    index,
                 )
 
     def _queue_tasks(self, finished_tasks):
@@ -673,7 +807,8 @@ class NativeRuntime(object):
             else:
                 # Next steps are normal linear steps
                 for step in next_steps:
-                    self._queue_push(step, {"input_paths": [task.path]})
+                    index = self._translate_index(task, step, "linear")
+                    self._queue_push(step, {"input_paths": [task.path]}, index)
 
     def _poll_workers(self):
         if self._workers:
@@ -794,6 +929,7 @@ class Task(object):
         join_type=None,
         task_id=None,
         resume_identifier=None,
+        pathspec_index=None,
     ):
         self.step = step
         self.flow = flow
@@ -836,10 +972,9 @@ class Task(object):
         self._is_resume_leader = None
         self._resume_done = None
         self._resume_identifier = resume_identifier
-
         origin = None
         if clone_run_id and may_clone:
-            origin = self._find_origin_task(clone_run_id, join_type)
+            origin = self._find_origin_task(clone_run_id, join_type, pathspec_index)
         if origin and origin["_task_ok"]:
             # At this point, we know we are going to clone
             self._is_cloned = True
@@ -960,10 +1095,11 @@ class Task(object):
                         )
 
                 if self._is_resume_leader:
-                    self.log(
-                        "Selected as the reentrant clone leader.",
-                        system_msg=True,
-                    )
+                    if reentrant:
+                        self.log(
+                            "Selected as the reentrant clone leader.",
+                            system_msg=True,
+                        )
                     # Clone in place without relying on run_queue.
                     self.new_attempt()
                     self._ds.clone(origin)
@@ -1131,8 +1267,11 @@ class Task(object):
         self._path = "%s/%s/%s" % (self.run_id, self.step, self.task_id)
         return already_existed
 
-    def _find_origin_task(self, clone_run_id, join_type):
-        if self.step == "_parameters":
+    def _find_origin_task(self, clone_run_id, join_type, pathspec_index=None):
+        if pathspec_index:
+            origin = self.origin_ds_set.get_with_pathspec_index(pathspec_index)
+            return origin
+        elif self.step == "_parameters":
             pathspec = "%s/_parameters[]" % clone_run_id
             origin = self.origin_ds_set.get_with_pathspec_index(pathspec)
 
@@ -1181,6 +1320,11 @@ class Task(object):
                 self.run_id, self.step, self.task_id
             )
             return self._results_ds
+
+    @property
+    def task_index(self):
+        _, task_index = self.results.pathspec_index.split("/")
+        return task_index
 
     @property
     def finished_id(self):
