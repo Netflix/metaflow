@@ -82,6 +82,8 @@ class NBDeployer(object):
 
         self.env_vars = os.environ.copy()
         self.env_vars.update(env or {})
+        # clears the Jupyter parent process ID environment variable
+        # prevents server from interfering with Metaflow
         self.env_vars.update({"JPY_PARENT_PID": ""})
 
         if self.profile:
