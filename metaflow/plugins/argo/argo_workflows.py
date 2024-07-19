@@ -4,11 +4,13 @@ import os
 import re
 import shlex
 import sys
+from typing import Tuple, List
 from collections import defaultdict
 from hashlib import sha1
 from math import inf
 
 from metaflow import JSONType, current
+from metaflow.graph import DAGNode
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
 from metaflow.includefile import FilePathClass
@@ -47,6 +49,7 @@ from metaflow.metaflow_config import (
     SERVICE_INTERNAL_URL,
     UI_URL,
 )
+from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow.metaflow_config_funcs import config_values
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -54,12 +57,16 @@ from metaflow.plugins.kubernetes.kubernetes import (
     parse_kube_keyvalue_list,
     validate_kube_labels,
 )
+from metaflow.graph import FlowGraph
 from metaflow.util import (
     compress_list,
     dict_to_cli_options,
     to_bytes,
     to_camelcase,
     to_unicode,
+)
+from metaflow.plugins.kubernetes.kubernetes_jobsets import (
+    KubernetesArgoJobSet,
 )
 
 from .argo_client import ArgoClient
@@ -82,14 +89,14 @@ class ArgoWorkflowsSchedulingException(MetaflowException):
 #     5. Add Metaflow tags to labels/annotations.
 #     6. Support Multi-cluster scheduling - https://github.com/argoproj/argo-workflows/issues/3523#issuecomment-792307297
 #     7. Support R lang.
-#     8. Ping @savin at slack.outerbounds.co for any feature request.
+#     8. Ping @savin at slack.outerbounds.co for any feature request
 
 
 class ArgoWorkflows(object):
     def __init__(
         self,
         name,
-        graph,
+        graph: FlowGraph,
         flow,
         code_package_sha,
         code_package_url,
@@ -852,13 +859,13 @@ class ArgoWorkflows(object):
     # Visit every node and yield the uber DAGTemplate(s).
     def _dag_templates(self):
         def _visit(
-            node, exit_node=None, templates=None, dag_tasks=None, parent_foreach=None
-        ):
-            if node.parallel_foreach:
-                raise ArgoWorkflowsException(
-                    "Deploying flows with @parallel decorator(s) "
-                    "as Argo Workflows is not supported currently."
-                )
+            node,
+            exit_node=None,
+            templates=None,
+            dag_tasks=None,
+            parent_foreach=None,
+        ):  # Returns Tuple[List[Template], List[DAGTask]]
+            """ """
             # Every for-each node results in a separate subDAG and an equivalent
             # DAGTemplate rooted at the child of the for-each node. Each DAGTemplate
             # has a unique name - the top-level DAGTemplate is named as the name of
@@ -872,7 +879,6 @@ class ArgoWorkflows(object):
                 templates = []
             if exit_node is not None and exit_node is node.name:
                 return templates, dag_tasks
-
             if node.name == "start":
                 # Start node has no dependencies.
                 dag_task = DAGTask(self._sanitize(node.name)).template(
@@ -881,13 +887,86 @@ class ArgoWorkflows(object):
             elif (
                 node.is_inside_foreach
                 and self.graph[node.in_funcs[0]].type == "foreach"
+                and not self.graph[node.in_funcs[0]].parallel_foreach
+                # We need to distinguish what is a "regular" foreach (i.e something that doesn't care about to gang semantics)
+                # vs what is a "num_parallel" based foreach (i.e. something that follows gang semantics.)
+                # A `regular` foreach is basically any arbitrary kind of foreach.
             ):
                 # Child of a foreach node needs input-paths as well as split-index
                 # This child is the first node of the sub workflow and has no dependency
+
                 parameters = [
                     Parameter("input-paths").value("{{inputs.parameters.input-paths}}"),
                     Parameter("split-index").value("{{inputs.parameters.split-index}}"),
                 ]
+                dag_task = (
+                    DAGTask(self._sanitize(node.name))
+                    .template(self._sanitize(node.name))
+                    .arguments(Arguments().parameters(parameters))
+                )
+            elif node.parallel_step:
+                # This is the step where the @parallel decorator is defined.
+                # Since this DAGTask will call the for the `resource` [based templates]
+                # (https://argo-workflows.readthedocs.io/en/stable/walk-through/kubernetes-resources/)
+                # we have certain constraints on the way we can pass information inside the Jobset manifest
+                # [All templates will have access](https://argo-workflows.readthedocs.io/en/stable/variables/#all-templates)
+                # to the `inputs.parameters` so we will pass down ANY/ALL information using the
+                # input parameters.
+                # We define the usual parameters like input-paths/split-index etc. but we will also
+                # define the following:
+                # - `workerCount`:  parameter which will be used to determine the number of
+                #                   parallel worker jobs
+                # - `jobset-name`:  parameter which will be used to determine the name of the jobset.
+                #                   This parameter needs to be dynamic so that when we have retries we don't
+                #                   end up using the name of the jobset again (if we do, it will crash since k8s wont allow duplicated job names)
+                # - `retryCount`:   parameter which will be used to determine the number of retries
+                #                   This parameter will *only* be available within the container templates like we
+                #                   have it for all other DAGTasks and NOT for custom kubernetes resource templates.
+                #                   So as a work-around, we will set it as the `retryCount` parameter instead of
+                #                   setting it as a {{ retries }} in the CLI code. Once set as a input parameter,
+                #                   we can use it in the Jobset Manifest templates as `{{inputs.parameters.retryCount}}`
+                # - `task-id-entropy`: This is a parameter which will help derive task-ids and jobset names. This parameter
+                #                   contains the relevant amount of entropy to ensure that task-ids and jobset names
+                #                   are uniquish. We will also use this in the join task to construct the task-ids of
+                #                   all parallel tasks since the task-ids for parallel task are minted formulaically.
+                parameters = [
+                    Parameter("input-paths").value("{{inputs.parameters.input-paths}}"),
+                    Parameter("num-parallel").value(
+                        "{{inputs.parameters.num-parallel}}"
+                    ),
+                    Parameter("split-index").value("{{inputs.parameters.split-index}}"),
+                    Parameter("task-id-entropy").value(
+                        "{{inputs.parameters.task-id-entropy}}"
+                    ),
+                    # we cant just use hyphens with sprig.
+                    # https://github.com/argoproj/argo-workflows/issues/10567#issuecomment-1452410948
+                    Parameter("workerCount").value(
+                        "{{=sprig.int(sprig.sub(sprig.int(inputs.parameters['num-parallel']),1))}}"
+                    ),
+                ]
+                if any(d.name == "retry" for d in node.decorators):
+                    parameters.extend(
+                        [
+                            Parameter("retryCount").value("{{retries}}"),
+                            # The job-setname needs to be unique for each retry
+                            # and we cannot use the `generateName` field in the
+                            # Jobset Manifest since we need to construct the subdomain
+                            # and control pod domain name pre-hand. So we will use
+                            # the retry count to ensure that the jobset name is unique
+                            Parameter("jobset-name").value(
+                                "js-{{inputs.parameters.task-id-entropy}}{{retries}}",
+                            ),
+                        ]
+                    )
+                else:
+                    parameters.extend(
+                        [
+                            Parameter("jobset-name").value(
+                                "js-{{inputs.parameters.task-id-entropy}}",
+                            )
+                        ]
+                    )
+
                 dag_task = (
                     DAGTask(self._sanitize(node.name))
                     .template(self._sanitize(node.name))
@@ -947,8 +1026,8 @@ class ArgoWorkflows(object):
                     .template(self._sanitize(node.name))
                     .arguments(Arguments().parameters(parameters))
                 )
-            dag_tasks.append(dag_task)
 
+            dag_tasks.append(dag_task)
             # End the workflow if we have reached the end of the flow
             if node.type == "end":
                 return [
@@ -974,14 +1053,30 @@ class ArgoWorkflows(object):
                     parent_foreach,
                 )
             # For foreach nodes generate a new sub DAGTemplate
+            # We do this for "regular" foreaches (ie. `self.next(self.a, foreach=)`)
             elif node.type == "foreach":
                 foreach_template_name = self._sanitize(
                     "%s-foreach-%s"
                     % (
                         node.name,
-                        node.foreach_param,
+                        "parallel" if node.parallel_foreach else node.foreach_param
+                        # Since foreach's are derived based on `self.next(self.a, foreach="<varname>")`
+                        # vs @parallel foreach are done based on `self.next(self.a, num_parallel="<some-number>")`,
+                        # we need to ensure that `foreach_template_name` suffix is appropriately set based on the kind
+                        # of foreach.
                     )
                 )
+
+                # There are two separate "DAGTask"s created for the foreach node.
+                # - The first one is a "jump-off" DAGTask where we propagate the
+                # input-paths and split-index. This thing doesn't create
+                # any actual containers and it responsible for only propagating
+                # the parameters.
+                # - The DAGTask that follows first DAGTask is the one
+                # that uses the ContainerTemplate. This DAGTask is named the same
+                # thing as the foreach node. We will leverage a similar pattern for the
+                # @parallel tasks.
+                #
                 foreach_task = (
                     DAGTask(foreach_template_name)
                     .dependencies([self._sanitize(node.name)])
@@ -1005,9 +1100,26 @@ class ArgoWorkflows(object):
                                 if parent_foreach
                                 else []
                             )
+                            + (
+                                # Disabiguate parameters for a regular `foreach` vs a `@parallel` foreach
+                                [
+                                    Parameter("num-parallel").value(
+                                        "{{tasks.%s.outputs.parameters.num-parallel}}"
+                                        % self._sanitize(node.name)
+                                    ),
+                                    Parameter("task-id-entropy").value(
+                                        "{{tasks.%s.outputs.parameters.task-id-entropy}}"
+                                        % self._sanitize(node.name)
+                                    ),
+                                ]
+                                if node.parallel_foreach
+                                else []
+                            )
                         )
                     )
                     .with_param(
+                        # For @parallel workloads `num-splits` will be explicitly set to one so that
+                        # we can piggyback on the current mechanism with which we leverage argo.
                         "{{tasks.%s.outputs.parameters.num-splits}}"
                         % self._sanitize(node.name)
                     )
@@ -1020,17 +1132,34 @@ class ArgoWorkflows(object):
                     [],
                     node.name,
                 )
+
+                # How do foreach's work on Argo:
+                # Lets say you have the following dag: (start[sets `foreach="x"`]) --> (task-a [actual foreach]) --> (join) --> (end)
+                # With argo we will :
+                # (start [sets num-splits]) --> (task-a-foreach-(0,0) [dummy task]) --> (task-a) --> (join) --> (end)
+                # The (task-a-foreach-(0,0) [dummy task]) propagates the values of the `split-index` and the input paths.
+                # to the actual foreach task.
                 templates.append(
                     Template(foreach_template_name)
                     .inputs(
                         Inputs().parameters(
                             [Parameter("input-paths"), Parameter("split-index")]
                             + ([Parameter("root-input-path")] if parent_foreach else [])
+                            + (
+                                [
+                                    Parameter("num-parallel"),
+                                    Parameter("task-id-entropy"),
+                                    # Parameter("workerCount")
+                                ]
+                                if node.parallel_foreach
+                                else []
+                            )
                         )
                     )
                     .outputs(
                         Outputs().parameters(
                             [
+                                # non @parallel tasks set task-ids as outputs
                                 Parameter("task-id").valueFrom(
                                     {
                                         "parameter": "{{tasks.%s.outputs.parameters.task-id}}"
@@ -1040,29 +1169,67 @@ class ArgoWorkflows(object):
                                     }
                                 )
                             ]
+                            if not node.parallel_foreach
+                            else [
+                                # @parallel tasks set `task-id-entropy` and `num-parallel`
+                                # as outputs so task-ids can be derived in the join step.
+                                # Both of these values should be propagated from the
+                                # jobset labels.
+                                Parameter("num-parallel").valueFrom(
+                                    {
+                                        "parameter": "{{tasks.%s.outputs.parameters.num-parallel}}"
+                                        % self._sanitize(
+                                            self.graph[node.matching_join].in_funcs[0]
+                                        )
+                                    }
+                                ),
+                                Parameter("task-id-entropy").valueFrom(
+                                    {
+                                        "parameter": "{{tasks.%s.outputs.parameters.task-id-entropy}}"
+                                        % self._sanitize(
+                                            self.graph[node.matching_join].in_funcs[0]
+                                        )
+                                    }
+                                ),
+                            ]
                         )
                     )
                     .dag(DAGTemplate().fail_fast().tasks(dag_tasks_1))
                 )
+
                 join_foreach_task = (
                     DAGTask(self._sanitize(self.graph[node.matching_join].name))
                     .template(self._sanitize(self.graph[node.matching_join].name))
                     .dependencies([foreach_template_name])
                     .arguments(
                         Arguments().parameters(
-                            [
-                                Parameter("input-paths").value(
-                                    "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
-                                    % (node.name, self._sanitize(node.name))
-                                ),
-                                Parameter("split-cardinality").value(
-                                    "{{tasks.%s.outputs.parameters.split-cardinality}}"
-                                    % self._sanitize(node.name)
-                                ),
-                            ]
+                            (
+                                [
+                                    Parameter("input-paths").value(
+                                        "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
+                                        % (node.name, self._sanitize(node.name))
+                                    ),
+                                    Parameter("split-cardinality").value(
+                                        "{{tasks.%s.outputs.parameters.split-cardinality}}"
+                                        % self._sanitize(node.name)
+                                    ),
+                                ]
+                                if not node.parallel_foreach
+                                else [
+                                    Parameter("num-parallel").value(
+                                        "{{tasks.%s.outputs.parameters.num-parallel}}"
+                                        % self._sanitize(node.name)
+                                    ),
+                                    Parameter("task-id-entropy").value(
+                                        "{{tasks.%s.outputs.parameters.task-id-entropy}}"
+                                        % self._sanitize(node.name)
+                                    ),
+                                ]
+                            )
                             + (
                                 [
                                     Parameter("split-index").value(
+                                        # TODO : Pass down these parameters to the jobset stuff.
                                         "{{inputs.parameters.split-index}}"
                                     ),
                                     Parameter("root-input-path").value(
@@ -1140,7 +1307,17 @@ class ArgoWorkflows(object):
             # export input_paths as it is used multiple times in the container script
             # and we do not want to repeat the values.
             input_paths_expr = "export INPUT_PATHS=''"
-            if node.name != "start":
+            # If node is not a start step or a @parallel join then we will set the input paths.
+            # To set the input-paths as a parameter, we need to ensure that the node
+            # is not (a start node or a parallel join node). Start nodes will have no
+            # input paths and parallel join will derive input paths based on a
+            # formulaic approach using `num-parallel` and `task-id-entropy`.
+            if not (
+                node.name == "start"
+                or (node.type == "join" and self.graph[node.in_funcs[0]].parallel_step)
+            ):
+                # For parallel joins we don't pass the INPUT_PATHS but are dynamically constructed.
+                # So we don't need to set the input paths.
                 input_paths_expr = (
                     "export INPUT_PATHS={{inputs.parameters.input-paths}}"
                 )
@@ -1169,13 +1346,23 @@ class ArgoWorkflows(object):
                     task_idx,
                 ]
             )
+            if node.parallel_step:
+                task_str = "-".join(
+                    [
+                        "$TASK_ID_PREFIX",
+                        "{{inputs.parameters.task-id-entropy}}",  # id_base is addition entropy to based on node-name of the workflow
+                        "$TASK_ID_SUFFIX",
+                    ]
+                )
+            else:
+                # Generated task_ids need to be non-numeric - see register_task_id in
+                # service.py. We do so by prefixing `t-`
+                _task_id_base = (
+                    "$(echo %s | md5sum | cut -d ' ' -f 1 | tail -c 9)" % task_str
+                )
+                task_str = "(t-%s)" % _task_id_base
 
-            # Generated task_ids need to be non-numeric - see register_task_id in
-            # service.py. We do so by prefixing `t-`
-            task_id_expr = (
-                "export METAFLOW_TASK_ID="
-                "(t-$(echo %s | md5sum | cut -d ' ' -f 1 | tail -c 9))" % task_str
-            )
+            task_id_expr = "export METAFLOW_TASK_ID=" "%s" % task_str
             task_id = "$METAFLOW_TASK_ID"
 
             # Resolve retry strategy.
@@ -1194,9 +1381,20 @@ class ArgoWorkflows(object):
             user_code_retries = max_user_code_retries
             total_retries = max_user_code_retries + max_error_retries
             # {{retries}} is only available if retryStrategy is specified
+            # and they are only available in the container templates NOT for custom
+            # Kubernetes manifests like Jobsets.
+            # For custom kubernetes manifests, we will pass the retryCount as a parameter
+            # and use that in the manifest.
             retry_count = (
-                "{{retries}}" if max_user_code_retries + max_error_retries else 0
+                (
+                    "{{retries}}"
+                    if not node.parallel_step
+                    else "{{inputs.parameters.retryCount}}"
+                )
+                if total_retries
+                else 0
             )
+
             minutes_between_retries = int(minutes_between_retries)
 
             # Configure log capture.
@@ -1302,13 +1500,24 @@ class ArgoWorkflows(object):
                 foreach_step = next(
                     n for n in node.in_funcs if self.graph[n].is_inside_foreach
                 )
-                input_paths = (
-                    "$(python -m metaflow.plugins.argo.generate_input_paths %s {{workflow.creationTimestamp}} %s {{inputs.parameters.split-cardinality}})"
-                    % (
-                        foreach_step,
-                        input_paths,
+                if not self.graph[node.split_parents[-1]].parallel_foreach:
+                    input_paths = (
+                        "$(python -m metaflow.plugins.argo.generate_input_paths %s {{workflow.creationTimestamp}} %s {{inputs.parameters.split-cardinality}})"
+                        % (
+                            foreach_step,
+                            input_paths,
+                        )
                     )
-                )
+                else:
+                    # When we run Jobsets with Argo Workflows we need to ensure that `input_paths` are generated using the a formulaic approach
+                    # because our current strategy of using volume mounts for outputs won't work with Jobsets
+                    input_paths = (
+                        "$(python -m metaflow.plugins.argo.jobset_input_paths %s %s {{inputs.parameters.task-id-entropy}} {{inputs.parameters.num-parallel}})"
+                        % (
+                            run_id,
+                            foreach_step,
+                        )
+                    )
             step = [
                 "step",
                 node.name,
@@ -1318,7 +1527,14 @@ class ArgoWorkflows(object):
                 "--max-user-code-retries %d" % user_code_retries,
                 "--input-paths %s" % input_paths,
             ]
-            if any(self.graph[n].type == "foreach" for n in node.in_funcs):
+            if node.parallel_step:
+                step.append(
+                    "--split-index ${MF_CONTROL_INDEX:-$((MF_WORKER_REPLICA_INDEX + 1))}"
+                )
+                # This is needed for setting the value of the UBF context in the CLI.
+                step.append("--ubf-context $UBF_CONTEXT")
+
+            elif any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 # Pass split-index to a foreach task
                 step.append("--split-index {{inputs.parameters.split-index}}")
             if self.tags:
@@ -1481,17 +1697,47 @@ class ArgoWorkflows(object):
             # join task deterministically inside the join task without resorting to
             # passing a rather long list of (albiet compressed)
             inputs = []
-            if node.name != "start":
+            # To set the input-paths as a parameter, we need to ensure that the node
+            # is not (a start node or a parallel join node). Start nodes will have no
+            # input paths and parallel join will derive input paths based on a
+            # formulaic approach.
+            if not (
+                node.name == "start"
+                or (node.type == "join" and self.graph[node.in_funcs[0]].parallel_step)
+            ):
                 inputs.append(Parameter("input-paths"))
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 # Fetch split-index from parent
                 inputs.append(Parameter("split-index"))
+
             if (
                 node.type == "join"
                 and self.graph[node.split_parents[-1]].type == "foreach"
             ):
-                # append this only for joins of foreaches, not static splits
-                inputs.append(Parameter("split-cardinality"))
+                # @parallel join tasks require `num-parallel` and `task-id-entropy`
+                # to construct the input paths, so we pass them down as input parameters.
+                if self.graph[node.split_parents[-1]].parallel_foreach:
+                    inputs.extend(
+                        [Parameter("num-parallel"), Parameter("task-id-entropy")]
+                    )
+                else:
+                    # append this only for joins of foreaches, not static splits
+                    inputs.append(Parameter("split-cardinality"))
+            # We can use an `elif` condition because the first `if` condition validates if its
+            # a foreach join node, hence we can safely assume that if that condition fails then
+            # we can check if the node is a @parallel node.
+            elif node.parallel_step:
+                inputs.extend(
+                    [
+                        Parameter("num-parallel"),
+                        Parameter("task-id-entropy"),
+                        Parameter("jobset-name"),
+                        Parameter("workerCount"),
+                    ]
+                )
+                if any(d.name == "retry" for d in node.decorators):
+                    inputs.append(Parameter("retryCount"))
+
             if node.is_inside_foreach and self.graph[node.out_funcs[0]].type == "join":
                 if any(
                     self.graph[parent].matching_join
@@ -1508,7 +1754,9 @@ class ArgoWorkflows(object):
                     inputs.append(Parameter("root-input-path"))
 
             outputs = []
-            if node.name != "end":
+            # @parallel steps will not have a task-id as an output parameter since task-ids
+            # are derived at runtime.
+            if not (node.name == "end" or node.parallel_step):
                 outputs = [Parameter("task-id").valueFrom({"path": "/mnt/out/task_id"})]
             if node.type == "foreach":
                 # Emit split cardinality from foreach task
@@ -1520,6 +1768,19 @@ class ArgoWorkflows(object):
                         {"path": "/mnt/out/split_cardinality"}
                     )
                 )
+
+            if node.parallel_foreach:
+                outputs.extend(
+                    [
+                        Parameter("num-parallel").valueFrom(
+                            {"path": "/mnt/out/num_parallel"}
+                        ),
+                        Parameter("task-id-entropy").valueFrom(
+                            {"path": "/mnt/out/task_id_entropy"}
+                        ),
+                    ]
+                )
+            # Outputs should be defined over here, Not in the _dag_template for the `num_parallel` stuff.
 
             # It makes no sense to set env vars to None (shows up as "None" string)
             # Also we skip some env vars (e.g. in case we want to pull them from KUBERNETES_SECRETS)
@@ -1550,6 +1811,156 @@ class ArgoWorkflows(object):
             # liked to inline this ContainerTemplate and avoid scanning the workflow
             # twice, but due to issues with variable substitution, we will have to
             # live with this routine.
+            if node.parallel_step:
+
+                # Explicitly add the task-id-hint label. This is important because this label
+                # is returned as an Output parameter of this step and is used subsequently an
+                # an input in the join step. Even the num_parallel is used as an output parameter
+                kubernetes_labels = self.kubernetes_labels.copy()
+                jobset_name = "{{inputs.parameters.jobset-name}}"
+                kubernetes_labels[
+                    "task_id_entropy"
+                ] = "{{inputs.parameters.task-id-entropy}}"
+                kubernetes_labels["num_parallel"] = "{{inputs.parameters.num-parallel}}"
+                jobset = KubernetesArgoJobSet(
+                    kubernetes_sdk=kubernetes_sdk,
+                    name=jobset_name,
+                    flow_name=self.flow.name,
+                    run_id=run_id,
+                    step_name=self._sanitize(node.name),
+                    task_id=task_id,
+                    attempt=retry_count,
+                    user=self.username,
+                    subdomain=jobset_name,
+                    command=cmds,
+                    namespace=resources["namespace"],
+                    image=resources["image"],
+                    image_pull_policy=resources["image_pull_policy"],
+                    service_account=resources["service_account"],
+                    secrets=(
+                        [
+                            k
+                            for k in (
+                                list(
+                                    []
+                                    if not resources.get("secrets")
+                                    else [resources.get("secrets")]
+                                    if isinstance(resources.get("secrets"), str)
+                                    else resources.get("secrets")
+                                )
+                                + KUBERNETES_SECRETS.split(",")
+                                + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
+                            )
+                            if k
+                        ]
+                    ),
+                    node_selector=resources.get("node_selector"),
+                    cpu=str(resources["cpu"]),
+                    memory=str(resources["memory"]),
+                    disk=str(resources["disk"]),
+                    gpu=resources["gpu"],
+                    gpu_vendor=str(resources["gpu_vendor"]),
+                    tolerations=resources["tolerations"],
+                    use_tmpfs=use_tmpfs,
+                    tmpfs_tempdir=tmpfs_tempdir,
+                    tmpfs_size=tmpfs_size,
+                    tmpfs_path=tmpfs_path,
+                    timeout_in_seconds=run_time_limit,
+                    persistent_volume_claims=resources["persistent_volume_claims"],
+                    shared_memory=shared_memory,
+                    port=port,
+                )
+
+                for k, v in env.items():
+                    jobset.environment_variable(k, v)
+
+                for k, v in kubernetes_labels.items():
+                    jobset.label(k, v)
+
+                ## -----Jobset specific env vars START here-----
+                jobset.environment_variable(
+                    "MF_MASTER_ADDR", jobset.jobset_control_addr
+                )
+                jobset.environment_variable("MF_MASTER_PORT", str(port))
+                jobset.environment_variable(
+                    "MF_WORLD_SIZE", "{{inputs.parameters.num-parallel}}"
+                )
+                # for k, v in .items():
+                jobset.environment_variables_from_selectors(
+                    {
+                        "MF_WORKER_REPLICA_INDEX": "metadata.annotations['jobset.sigs.k8s.io/job-index']",
+                        "JOBSET_RESTART_ATTEMPT": "metadata.annotations['jobset.sigs.k8s.io/restart-attempt']",
+                        "METAFLOW_KUBERNETES_JOBSET_NAME": "metadata.annotations['jobset.sigs.k8s.io/jobset-name']",
+                        "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
+                        "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
+                        "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
+                        "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME": "spec.serviceAccountName",
+                        "METAFLOW_KUBERNETES_NODE_IP": "status.hostIP",
+                        # `TASK_ID_SUFFIX` is needed for the construction of the task-ids
+                        "TASK_ID_SUFFIX": "metadata.annotations['jobset.sigs.k8s.io/job-index']",
+                    }
+                )
+                annotations = {
+                    # setting annotations explicitly as they wont be
+                    # passed down from WorkflowTemplate level
+                    "metaflow/step_name": node.name,
+                    "metaflow/attempt": str(retry_count),
+                    "metaflow/run_id": run_id,
+                    "metaflow/production_token": self.production_token,
+                    "metaflow/owner": self.username,
+                    "metaflow/user": "argo-workflows",
+                    "metaflow/flow_name": self.flow.name,
+                }
+                if current.get("project_name"):
+                    annotations.update(
+                        {
+                            "metaflow/project_name": current.project_name,
+                            "metaflow/branch_name": current.branch_name,
+                            "metaflow/project_flow_name": current.project_flow_name,
+                        }
+                    )
+                for k, v in annotations.items():
+                    jobset.annotation(k, v)
+                ## -----Jobset specific env vars END here-----
+                ## ---- Jobset control/workers specific vars START here ----
+                jobset.control.replicas(1)
+                jobset.worker.replicas("{{=asInt(inputs.parameters.workerCount)}}")
+                jobset.control.environment_variable("UBF_CONTEXT", UBF_CONTROL)
+                jobset.worker.environment_variable("UBF_CONTEXT", UBF_TASK)
+                jobset.control.environment_variable("MF_CONTROL_INDEX", "0")
+                # `TASK_ID_PREFIX` needs to explicitly be `control` or `worker`
+                # because the join task uses a formulaic approach to infer the task-ids
+                jobset.control.environment_variable("TASK_ID_PREFIX", "control")
+                jobset.worker.environment_variable("TASK_ID_PREFIX", "worker")
+
+                ## ---- Jobset control/workers specific vars END here ----
+                yield (
+                    Template(ArgoWorkflows._sanitize(node.name))
+                    .resource(
+                        "create",
+                        jobset.dump(),
+                        "status.terminalState == Completed",
+                        "status.terminalState == Failed",
+                    )
+                    .inputs(Inputs().parameters(inputs))
+                    .outputs(
+                        Outputs().parameters(
+                            [
+                                Parameter("task-id-entropy").valueFrom(
+                                    {"jsonPath": "{.metadata.labels.task_id_entropy}"}
+                                ),
+                                Parameter("num-parallel").valueFrom(
+                                    {"jsonPath": "{.metadata.labels.num_parallel}"}
+                                ),
+                            ]
+                        )
+                    )
+                    .retry_strategy(
+                        times=total_retries,
+                        minutes_between_retries=minutes_between_retries,
+                    )
+                )
+                continue
             yield (
                 Template(self._sanitize(node.name))
                 # Set @timeout values
@@ -1838,7 +2249,7 @@ class ArgoWorkflows(object):
                 "fields": [
                     {
                         "type": "mrkdwn",
-                        "text": "*Project:* %s" % current.project_name 
+                        "text": "*Project:* %s" % current.project_name
                     },
                     {
                         "type": "mrkdwn",
@@ -2611,6 +3022,15 @@ class Template(object):
 
     def to_json(self):
         return self.payload
+
+    def resource(self, action, manifest, success_criteria, failure_criteria):
+        self.payload["resource"] = {}
+        self.payload["resource"]["action"] = action
+        self.payload["setOwnerReference"] = True
+        self.payload["resource"]["successCondition"] = success_criteria
+        self.payload["resource"]["failureCondition"] = failure_criteria
+        self.payload["resource"]["manifest"] = manifest
+        return self
 
     def __str__(self):
         return json.dumps(self.payload, indent=4)

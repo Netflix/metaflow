@@ -155,6 +155,7 @@ class Kubernetes(object):
         ):
             self._job = self.create_jobset(**kwargs).execute()
         else:
+            kwargs.pop("num_parallel", None)
             kwargs["name_pattern"] = "t-{uid}-".format(uid=str(uuid4())[:8])
             self._job = self.create_job_object(**kwargs).create().execute()
 
