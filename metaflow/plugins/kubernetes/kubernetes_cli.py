@@ -3,20 +3,20 @@ import sys
 import time
 import traceback
 
+import metaflow.tracing as tracing
 from metaflow import JSONTypeClass, util
 from metaflow._vendor import click
 from metaflow.exception import METAFLOW_EXIT_DISALLOW_RETRY, CommandException
 from metaflow.metadata.util import sync_local_metadata_from_datastore
-from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, KUBERNETES_LABELS
 from metaflow.mflog import TASK_LOG_SOURCE
-import metaflow.tracing as tracing
+from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 
 from .kubernetes import (
     Kubernetes,
+    KubernetesException,
     KubernetesKilledException,
     parse_kube_keyvalue_list,
-    KubernetesException,
 )
 from .kubernetes_decorator import KubernetesDecorator
 
@@ -185,8 +185,8 @@ def step(
 
     if num_parallel is not None and num_parallel <= 1:
         raise KubernetesException(
-            "Using @parallel with `num_parallel` <= 1 is not supported with Kubernetes. "
-            "Please set the value of `num_parallel` to be greater than 1."
+            "Using @parallel with `num_parallel` <= 1 is not supported with "
+            "@kubernetes. Please set the value of `num_parallel` to be greater than 1."
         )
 
     # Set retry policy.
@@ -203,19 +203,37 @@ def step(
         )
         time.sleep(minutes_between_retries * 60)
 
+    # Explicitly Remove `ubf_context` from `kwargs` so that it's not passed as a commandline option
+    # If an underlying step command is executing a vanilla Kubernetes job, then it should never need
+    # to know about the UBF context.
+    # If it is a jobset which is executing a multi-node job, then the UBF context is set based on the
+    # `ubf_context` parameter passed to the jobset.
+    kwargs.pop("ubf_context", None)
+    # `task_id` is also need to be removed from `kwargs` as it needs to be dynamically
+    # set in the downstream code IF num_parallel is > 1
+    task_id = kwargs["task_id"]
+    if num_parallel:
+        kwargs.pop("task_id")
+
     step_cli = "{entrypoint} {top_args} step {step} {step_args}".format(
         entrypoint="%s -u %s" % (executable, os.path.basename(sys.argv[0])),
         top_args=" ".join(util.dict_to_cli_options(ctx.parent.parent.params)),
         step=step_name,
         step_args=" ".join(util.dict_to_cli_options(kwargs)),
     )
+    # Since it is a parallel step there are some parts of the step_cli that need to be modified
+    # based on the type of worker in the JobSet. This is why we will create a placeholder string
+    # in the template which will be replaced based on the type of worker.
+
+    if num_parallel:
+        step_cli = "%s {METAFLOW_PARALLEL_STEP_CLI_OPTIONS_TEMPLATE}" % step_cli
 
     # Set log tailing.
     ds = ctx.obj.flow_datastore.get_task_datastore(
         mode="w",
         run_id=kwargs["run_id"],
         step_name=step_name,
-        task_id=kwargs["task_id"],
+        task_id=task_id,
         attempt=int(retry_count),
     )
     stdout_location = ds.get_log_location(TASK_LOG_SOURCE, "stdout")
@@ -229,7 +247,7 @@ def step(
             sync_local_metadata_from_datastore(
                 DATASTORE_LOCAL_DIR,
                 ctx.obj.flow_datastore.get_task_datastore(
-                    kwargs["run_id"], step_name, kwargs["task_id"]
+                    kwargs["run_id"], step_name, task_id
                 ),
             )
 
@@ -245,7 +263,7 @@ def step(
                 flow_name=ctx.obj.flow.name,
                 run_id=kwargs["run_id"],
                 step_name=step_name,
-                task_id=kwargs["task_id"],
+                task_id=task_id,
                 attempt=str(retry_count),
                 user=util.get_username(),
                 code_package_sha=code_package_sha,
