@@ -1108,56 +1108,24 @@ class Task(object):
 
     def _get_task_id(self, task_id):
         already_existed = True
+        tags = []
         if self.ubf_context == UBF_CONTROL:
-            [input_path] = self.input_paths
-            run, input_step, input_task = input_path.split("/")
-            # We associate the control task-id to be 1:1 with the split node
-            # where the unbounded-foreach was defined.
-            # We prefer encoding the corresponding split into the task_id of
-            # the control node; so it has access to this information quite
-            # easily. There is anyway a corresponding int id stored in the
-            # metadata backend - so this should be fine.
-            task_id = "control-%s-%s-%s" % (run, input_step, input_task)
-        # Register only regular Metaflow (non control) tasks.
+            tags = [CONTROL_TASK_TAG]
+        # Register Metaflow tasks.
         if task_id is None:
-            task_id = str(self.metadata.new_task_id(self.run_id, self.step))
+            task_id = str(
+                self.metadata.new_task_id(self.run_id, self.step, sys_tags=tags)
+            )
             already_existed = False
         else:
-            # task_id is preset only by persist_constants() or control tasks.
-            if self.ubf_context == UBF_CONTROL:
-                tags = [CONTROL_TASK_TAG]
-                attempt_id = 0
-                already_existed = not self.metadata.register_task_id(
-                    self.run_id,
-                    self.step,
-                    task_id,
-                    attempt_id,
-                    sys_tags=tags,
-                )
-                # A Task's tags are now those of its ancestral Run, so we are not able
-                # to rely on a task's tags to indicate the presence of a control task
-                # so, on top of adding the tags above, we also add a task metadata
-                # entry indicating that this is a "control task".
-                #
-                # Here we will also add a task metadata entry to indicate "control task".
-                # Within the metaflow repo, the only dependency of such a "control task"
-                # indicator is in the integration test suite (see Step.control_tasks() in
-                # client API).
-                task_metadata_list = [
-                    MetaDatum(
-                        field="internal_task_type",
-                        value=CONTROL_TASK_TAG,
-                        type="internal_task_type",
-                        tags=["attempt_id:{0}".format(attempt_id)],
-                    )
-                ]
-                self.metadata.register_metadata(
-                    self.run_id, self.step, task_id, task_metadata_list
-                )
-            else:
-                already_existed = not self.metadata.register_task_id(
-                    self.run_id, self.step, task_id, 0
-                )
+            # task_id is preset only by persist_constants().
+            already_existed = not self.metadata.register_task_id(
+                self.run_id,
+                self.step,
+                task_id,
+                0,
+                sys_tags=tags,
+            )
 
         self.task_id = task_id
         self._path = "%s/%s/%s" % (self.run_id, self.step, self.task_id)

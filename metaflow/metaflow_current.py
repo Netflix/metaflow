@@ -261,14 +261,6 @@ class Current(object):
         return self._username
 
     @property
-    def parallel(self):
-        return Parallel(
-            main_ip=os.environ.get("MF_PARALLEL_MAIN_IP", "127.0.0.1"),
-            num_nodes=int(os.environ.get("MF_PARALLEL_NUM_NODES", "1")),
-            node_index=int(os.environ.get("MF_PARALLEL_NODE_INDEX", "0")),
-        )
-
-    @property
     def tags(self):
         """
         [Legacy function - do not use]
