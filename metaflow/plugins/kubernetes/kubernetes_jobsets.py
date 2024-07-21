@@ -1,13 +1,14 @@
 import copy
+import json
 import math
 import random
 import time
-from metaflow.metaflow_current import current
-from metaflow.exception import MetaflowException
-from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
-import json
-from metaflow.metaflow_config import KUBERNETES_JOBSET_GROUP, KUBERNETES_JOBSET_VERSION
 from collections import namedtuple
+
+from metaflow.exception import MetaflowException
+from metaflow.metaflow_config import KUBERNETES_JOBSET_GROUP, KUBERNETES_JOBSET_VERSION
+from metaflow.tracing import inject_tracing_vars
+from metaflow.metaflow_config import KUBERNETES_SECRETS
 
 
 class KubernetesJobsetException(MetaflowException):
@@ -50,6 +51,8 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
 
     return decorator
 
+
+CONTROL_JOB_NAME = "control"
 
 JobsetStatus = namedtuple(
     "JobsetStatus",
@@ -323,18 +326,18 @@ class RunningJobSet(object):
         with client.ApiClient() as api_client:
             api_instance = client.CustomObjectsApi(api_client)
             try:
-                jobset = api_instance.get_namespaced_custom_object(
+                obj = api_instance.get_namespaced_custom_object(
                     group=self._group,
                     version=self._version,
                     namespace=self._namespace,
-                    plural="jobsets",
+                    plural=plural,
                     name=self._name,
                 )
 
                 # Suspend the jobset and set the replica's to Zero.
                 #
-                jobset["spec"]["suspend"] = True
-                for replicated_job in jobset["spec"]["replicatedJobs"]:
+                obj["spec"]["suspend"] = True
+                for replicated_job in obj["spec"]["replicatedJobs"]:
                     replicated_job["replicas"] = 0
 
                 api_instance.replace_namespaced_custom_object(
@@ -342,8 +345,8 @@ class RunningJobSet(object):
                     version=self._version,
                     namespace=self._namespace,
                     plural=plural,
-                    name=jobset["metadata"]["name"],
-                    body=jobset,
+                    name=obj["metadata"]["name"],
+                    body=obj,
                 )
             except Exception as e:
                 raise KubernetesJobsetException(
@@ -448,203 +451,6 @@ class RunningJobSet(object):
         ).jobset_failed
 
 
-class TaskIdConstructor:
-    @classmethod
-    def jobset_worker_id(cls, control_task_id: str):
-        return "".join(
-            [control_task_id.replace("control", "worker"), "-", "$WORKER_REPLICA_INDEX"]
-        )
-
-    @classmethod
-    def join_step_task_ids(cls, num_parallel):
-        """
-        Called within the step decorator to set the `flow._control_mapper_tasks`.
-        Setting these allows the flow to know which tasks are needed in the join step.
-        We set this in the `task_pre_step` method of the decorator.
-        """
-        control_task_id = current.task_id
-        worker_task_id_base = control_task_id.replace("control", "worker")
-        mapper = lambda idx: worker_task_id_base + "-%s" % (str(idx))
-        return control_task_id, [mapper(idx) for idx in range(0, num_parallel - 1)]
-
-    @classmethod
-    def argo(cls):
-        pass
-
-
-def _jobset_specific_env_vars(client, jobset_main_addr, master_port, num_parallel):
-    return [
-        client.V1EnvVar(
-            name="MASTER_ADDR",
-            value=jobset_main_addr,
-        ),
-        client.V1EnvVar(
-            name="MASTER_PORT",
-            value=str(master_port),
-        ),
-        client.V1EnvVar(
-            name="WORLD_SIZE",
-            value=str(num_parallel),
-        ),
-    ] + [
-        client.V1EnvVar(
-            name="JOBSET_RESTART_ATTEMPT",
-            value_from=client.V1EnvVarSource(
-                field_ref=client.V1ObjectFieldSelector(
-                    field_path="metadata.annotations['jobset.sigs.k8s.io/restart-attempt']"
-                )
-            ),
-        ),
-        client.V1EnvVar(
-            name="METAFLOW_KUBERNETES_JOBSET_NAME",
-            value_from=client.V1EnvVarSource(
-                field_ref=client.V1ObjectFieldSelector(
-                    field_path="metadata.annotations['jobset.sigs.k8s.io/jobset-name']"
-                )
-            ),
-        ),
-        client.V1EnvVar(
-            name="WORKER_REPLICA_INDEX",
-            value_from=client.V1EnvVarSource(
-                field_ref=client.V1ObjectFieldSelector(
-                    field_path="metadata.annotations['jobset.sigs.k8s.io/job-index']"
-                )
-            ),
-        ),
-    ]
-
-
-def get_control_job(
-    client,
-    job_spec,
-    jobset_main_addr,
-    subdomain,
-    port=None,
-    num_parallel=None,
-    namespace=None,
-    annotations=None,
-) -> dict:
-    master_port = port
-
-    job_spec = copy.deepcopy(job_spec)
-    job_spec.parallelism = 1
-    job_spec.completions = 1
-    job_spec.template.spec.set_hostname_as_fqdn = True
-    job_spec.template.spec.subdomain = subdomain
-    job_spec.template.metadata.annotations = copy.copy(annotations)
-
-    for idx in range(len(job_spec.template.spec.containers[0].command)):
-        # CHECK FOR THE ubf_context in the command.
-        # Replace the UBF context to the one appropriately matching control/worker.
-        # Since we are passing the `step_cli` one time from the top level to one
-        # KuberentesJobSet, we need to ensure that UBF context is replaced properly
-        # in all the worker jobs.
-        if UBF_CONTROL in job_spec.template.spec.containers[0].command[idx]:
-            job_spec.template.spec.containers[0].command[idx] = (
-                job_spec.template.spec.containers[0]
-                .command[idx]
-                .replace(UBF_CONTROL, UBF_CONTROL + " " + "--split-index 0")
-            )
-
-    job_spec.template.spec.containers[0].env = (
-        job_spec.template.spec.containers[0].env
-        + _jobset_specific_env_vars(client, jobset_main_addr, master_port, num_parallel)
-        + [
-            client.V1EnvVar(
-                name="CONTROL_INDEX",
-                value=str(0),
-            )
-        ]
-    )
-
-    # Based on https://github.com/kubernetes-sigs/jobset/blob/v0.5.0/api/jobset/v1alpha2/jobset_types.go#L178
-    return dict(
-        name="control",
-        template=client.api_client.ApiClient().sanitize_for_serialization(
-            client.V1JobTemplateSpec(
-                metadata=client.V1ObjectMeta(
-                    namespace=namespace,
-                    # We don't set any annotations here
-                    # since they have been either set in the JobSpec
-                    # or on the JobSet level
-                ),
-                spec=job_spec,
-            )
-        ),
-        replicas=1,  # The control job will always have 1 replica.
-    )
-
-
-def get_worker_job(
-    client,
-    job_spec,
-    job_name,
-    jobset_main_addr,
-    subdomain,
-    control_task_id=None,
-    worker_task_id=None,
-    replicas=1,
-    port=None,
-    num_parallel=None,
-    namespace=None,
-    annotations=None,
-) -> dict:
-    master_port = port
-
-    job_spec = copy.deepcopy(job_spec)
-    job_spec.parallelism = 1
-    job_spec.completions = 1
-    job_spec.template.spec.set_hostname_as_fqdn = True
-    job_spec.template.spec.subdomain = subdomain
-    job_spec.template.metadata.annotations = copy.copy(annotations)
-
-    for idx in range(len(job_spec.template.spec.containers[0].command)):
-        if control_task_id in job_spec.template.spec.containers[0].command[idx]:
-            job_spec.template.spec.containers[0].command[idx] = (
-                job_spec.template.spec.containers[0]
-                .command[idx]
-                .replace(control_task_id, worker_task_id)
-            )
-        # CHECK FOR THE ubf_context in the command.
-        # Replace the UBF context to the one appropriately matching control/worker.
-        # Since we are passing the `step_cli` one time from the top level to one
-        # KuberentesJobSet, we need to ensure that UBF context is replaced properly
-        # in all the worker jobs.
-        if UBF_CONTROL in job_spec.template.spec.containers[0].command[idx]:
-            # Since all command will have a UBF_CONTROL, we need to replace the UBF_CONTROL
-            # with the actual UBF Context and also ensure that we are setting the correct
-            # split-index for the worker jobs.
-            split_index_str = "--split-index `expr $[WORKER_REPLICA_INDEX] + 1`"  # This set in the environment variables below
-            job_spec.template.spec.containers[0].command[idx] = (
-                job_spec.template.spec.containers[0]
-                .command[idx]
-                .replace(UBF_CONTROL, UBF_TASK + " " + split_index_str)
-            )
-
-    job_spec.template.spec.containers[0].env = job_spec.template.spec.containers[
-        0
-    ].env + _jobset_specific_env_vars(
-        client, jobset_main_addr, master_port, num_parallel
-    )
-
-    # Based on https://github.com/kubernetes-sigs/jobset/blob/v0.5.0/api/jobset/v1alpha2/jobset_types.go#L178
-    return dict(
-        name=job_name,
-        template=client.api_client.ApiClient().sanitize_for_serialization(
-            client.V1JobTemplateSpec(
-                metadata=client.V1ObjectMeta(
-                    namespace=namespace,
-                    # We don't set any annotations here
-                    # since they have been either set in the JobSpec
-                    # or on the JobSet level
-                ),
-                spec=job_spec,
-            )
-        ),
-        replicas=replicas,
-    )
-
-
 def _make_domain_name(
     jobset_name, main_job_name, main_job_index, main_pod_index, namespace
 ):
@@ -658,97 +464,413 @@ def _make_domain_name(
     )
 
 
+class JobSetSpec(object):
+    def __init__(self, kubernetes_sdk, name, **kwargs):
+        self._kubernetes_sdk = kubernetes_sdk
+        self._kwargs = kwargs
+        self.name = name
+
+    def replicas(self, replicas):
+        self._kwargs["replicas"] = replicas
+        return self
+
+    def step_name(self, step_name):
+        self._kwargs["step_name"] = step_name
+        return self
+
+    def namespace(self, namespace):
+        self._kwargs["namespace"] = namespace
+        return self
+
+    def command(self, command):
+        self._kwargs["command"] = command
+        return self
+
+    def image(self, image):
+        self._kwargs["image"] = image
+        return self
+
+    def cpu(self, cpu):
+        self._kwargs["cpu"] = cpu
+        return self
+
+    def memory(self, mem):
+        self._kwargs["memory"] = mem
+        return self
+
+    def environment_variable(self, name, value):
+        # Never set to None
+        if value is None:
+            return self
+        self._kwargs["environment_variables"] = dict(
+            self._kwargs.get("environment_variables", {}), **{name: value}
+        )
+        return self
+
+    def secret(self, name):
+        if name is None:
+            return self
+        if len(self._kwargs.get("secrets", [])) == 0:
+            self._kwargs["secrets"] = []
+        self._kwargs["secrets"] = list(set(self._kwargs["secrets"] + [name]))
+
+    def environment_variable_from_selector(self, name, label_value):
+        # Never set to None
+        if label_value is None:
+            return self
+        self._kwargs["environment_variables_from_selectors"] = dict(
+            self._kwargs.get("environment_variables_from_selectors", {}),
+            **{name: label_value}
+        )
+        return self
+
+    def label(self, name, value):
+        self._kwargs["labels"] = dict(self._kwargs.get("labels", {}), **{name: value})
+        return self
+
+    def annotation(self, name, value):
+        self._kwargs["annotations"] = dict(
+            self._kwargs.get("annotations", {}), **{name: value}
+        )
+        return self
+
+    def dump(self):
+        client = self._kubernetes_sdk
+        use_tmpfs = self._kwargs["use_tmpfs"]
+        tmpfs_size = self._kwargs["tmpfs_size"]
+        tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
+        shared_memory = (
+            int(self._kwargs["shared_memory"])
+            if self._kwargs["shared_memory"]
+            else None
+        )
+
+        return dict(
+            name=self.name,
+            template=client.api_client.ApiClient().sanitize_for_serialization(
+                client.V1JobTemplateSpec(
+                    metadata=client.V1ObjectMeta(
+                        namespace=self._kwargs["namespace"],
+                        # We don't set any annotations here
+                        # since they have been either set in the JobSpec
+                        # or on the JobSet level
+                    ),
+                    spec=client.V1JobSpec(
+                        # Retries are handled by Metaflow when it is responsible for
+                        # executing the flow. The responsibility is moved to Kubernetes
+                        # when Argo Workflows is responsible for the execution.
+                        backoff_limit=self._kwargs.get("retries", 0),
+                        completions=1,
+                        parallelism=1,
+                        ttl_seconds_after_finished=7
+                        * 60
+                        * 60  # Remove job after a week. TODO: Make this configurable
+                        * 24,
+                        template=client.V1PodTemplateSpec(
+                            metadata=client.V1ObjectMeta(
+                                annotations=self._kwargs.get("annotations", {}),
+                                labels=self._kwargs.get("labels", {}),
+                                namespace=self._kwargs["namespace"],
+                            ),
+                            spec=client.V1PodSpec(
+                                ##  --- jobset require podspec deets start----
+                                subdomain=self._kwargs["subdomain"],
+                                set_hostname_as_fqdn=True,
+                                ##  --- jobset require podspec deets end ----
+                                # Timeout is set on the pod and not the job (important!)
+                                active_deadline_seconds=self._kwargs[
+                                    "timeout_in_seconds"
+                                ],
+                                # TODO (savin): Enable affinities for GPU scheduling.
+                                # affinity=?,
+                                containers=[
+                                    client.V1Container(
+                                        command=self._kwargs["command"],
+                                        ports=[]
+                                        if self._kwargs["port"] is None
+                                        else [
+                                            client.V1ContainerPort(
+                                                container_port=int(self._kwargs["port"])
+                                            )
+                                        ],
+                                        env=[
+                                            client.V1EnvVar(name=k, value=str(v))
+                                            for k, v in self._kwargs.get(
+                                                "environment_variables", {}
+                                            ).items()
+                                        ]
+                                        # And some downward API magic. Add (key, value)
+                                        # pairs below to make pod metadata available
+                                        # within Kubernetes container.
+                                        + [
+                                            client.V1EnvVar(
+                                                name=k,
+                                                value_from=client.V1EnvVarSource(
+                                                    field_ref=client.V1ObjectFieldSelector(
+                                                        field_path=str(v)
+                                                    )
+                                                ),
+                                            )
+                                            for k, v in self._kwargs.get(
+                                                "environment_variables_from_selectors",
+                                                {},
+                                            ).items()
+                                        ]
+                                        + [
+                                            client.V1EnvVar(name=k, value=str(v))
+                                            for k, v in inject_tracing_vars({}).items()
+                                        ],
+                                        env_from=[
+                                            client.V1EnvFromSource(
+                                                secret_ref=client.V1SecretEnvSource(
+                                                    name=str(k),
+                                                    # optional=True
+                                                )
+                                            )
+                                            for k in list(
+                                                self._kwargs.get("secrets", [])
+                                            )
+                                            if k
+                                        ],
+                                        image=self._kwargs["image"],
+                                        image_pull_policy=self._kwargs[
+                                            "image_pull_policy"
+                                        ],
+                                        name=self._kwargs["step_name"].replace(
+                                            "_", "-"
+                                        ),
+                                        resources=client.V1ResourceRequirements(
+                                            requests={
+                                                "cpu": str(self._kwargs["cpu"]),
+                                                "memory": "%sM"
+                                                % str(self._kwargs["memory"]),
+                                                "ephemeral-storage": "%sM"
+                                                % str(self._kwargs["disk"]),
+                                            },
+                                            limits={
+                                                "%s.com/gpu".lower()
+                                                % self._kwargs["gpu_vendor"]: str(
+                                                    self._kwargs["gpu"]
+                                                )
+                                                for k in [0]
+                                                # Don't set GPU limits if gpu isn't specified.
+                                                if self._kwargs["gpu"] is not None
+                                            },
+                                        ),
+                                        volume_mounts=(
+                                            [
+                                                client.V1VolumeMount(
+                                                    mount_path=self._kwargs.get(
+                                                        "tmpfs_path"
+                                                    ),
+                                                    name="tmpfs-ephemeral-volume",
+                                                )
+                                            ]
+                                            if tmpfs_enabled
+                                            else []
+                                        )
+                                        + (
+                                            [
+                                                client.V1VolumeMount(
+                                                    mount_path="/dev/shm", name="dhsm"
+                                                )
+                                            ]
+                                            if shared_memory
+                                            else []
+                                        )
+                                        + (
+                                            [
+                                                client.V1VolumeMount(
+                                                    mount_path=path, name=claim
+                                                )
+                                                for claim, path in self._kwargs[
+                                                    "persistent_volume_claims"
+                                                ].items()
+                                            ]
+                                            if self._kwargs["persistent_volume_claims"]
+                                            is not None
+                                            else []
+                                        ),
+                                    )
+                                ],
+                                node_selector=self._kwargs.get("node_selector"),
+                                # TODO (savin): Support image_pull_secrets
+                                # image_pull_secrets=?,
+                                # TODO (savin): Support preemption policies
+                                # preemption_policy=?,
+                                #
+                                # A Container in a Pod may fail for a number of
+                                # reasons, such as because the process in it exited
+                                # with a non-zero exit code, or the Container was
+                                # killed due to OOM etc. If this happens, fail the pod
+                                # and let Metaflow handle the retries.
+                                restart_policy="Never",
+                                service_account_name=self._kwargs["service_account"],
+                                # Terminate the container immediately on SIGTERM
+                                termination_grace_period_seconds=0,
+                                tolerations=[
+                                    client.V1Toleration(**toleration)
+                                    for toleration in self._kwargs.get("tolerations")
+                                    or []
+                                ],
+                                volumes=(
+                                    [
+                                        client.V1Volume(
+                                            name="tmpfs-ephemeral-volume",
+                                            empty_dir=client.V1EmptyDirVolumeSource(
+                                                medium="Memory",
+                                                # Add default unit as ours differs from Kubernetes default.
+                                                size_limit="{}Mi".format(tmpfs_size),
+                                            ),
+                                        )
+                                    ]
+                                    if tmpfs_enabled
+                                    else []
+                                )
+                                + (
+                                    [
+                                        client.V1Volume(
+                                            name="dhsm",
+                                            empty_dir=client.V1EmptyDirVolumeSource(
+                                                medium="Memory",
+                                                size_limit="{}Mi".format(shared_memory),
+                                            ),
+                                        )
+                                    ]
+                                    if shared_memory
+                                    else []
+                                )
+                                + (
+                                    [
+                                        client.V1Volume(
+                                            name=claim,
+                                            persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
+                                                claim_name=claim
+                                            ),
+                                        )
+                                        for claim in self._kwargs[
+                                            "persistent_volume_claims"
+                                        ].keys()
+                                    ]
+                                    if self._kwargs["persistent_volume_claims"]
+                                    is not None
+                                    else []
+                                ),
+                                # TODO (savin): Set termination_message_policy
+                            ),
+                        ),
+                    ),
+                )
+            ),
+            replicas=self._kwargs["replicas"],
+        )
+
+
 class KubernetesJobSet(object):
     def __init__(
         self,
         client,
         name=None,
-        job_spec=None,
         namespace=None,
         num_parallel=None,
-        annotations=None,
-        labels=None,
-        port=None,
-        task_id=None,
+        # explcitly declaring num_parallel because we need to ensure that
+        # num_parallel is an INTEGER and this abstraction is called by the
+        # local runtime abstraction of kubernetes.
+        # Argo will call another abstraction that will allow setting a lot of these
+        # values from the top level argo code.
         **kwargs
     ):
         self._client = client
-        self._kwargs = kwargs
+        self._annotations = {}
+        self._labels = {}
         self._group = KUBERNETES_JOBSET_GROUP
         self._version = KUBERNETES_JOBSET_VERSION
+        self._namespace = namespace
         self.name = name
 
-        main_job_name = "control"
-        main_job_index = 0
-        main_pod_index = 0
-        subdomain = self.name
-        num_parallel = int(1 if not num_parallel else num_parallel)
-        self._namespace = namespace
-        jobset_main_addr = _make_domain_name(
-            self.name,
-            main_job_name,
-            main_job_index,
-            main_pod_index,
-            self._namespace,
+        self._jobset_control_addr = _make_domain_name(
+            name,
+            CONTROL_JOB_NAME,
+            0,
+            0,
+            namespace,
         )
 
-        annotations = {} if not annotations else annotations
-        labels = {} if not labels else labels
-
-        if "metaflow/task_id" in annotations:
-            del annotations["metaflow/task_id"]
-
-        control_job = get_control_job(
-            client=self._client.get(),
-            job_spec=job_spec,
-            jobset_main_addr=jobset_main_addr,
-            subdomain=subdomain,
-            port=port,
-            num_parallel=num_parallel,
-            namespace=namespace,
-            annotations=annotations,
+        self._control_spec = JobSetSpec(
+            client.get(), name=CONTROL_JOB_NAME, namespace=namespace, **kwargs
         )
-        worker_task_id = TaskIdConstructor.jobset_worker_id(task_id)
-        worker_job = get_worker_job(
-            client=self._client.get(),
-            job_spec=job_spec,
-            job_name="worker",
-            jobset_main_addr=jobset_main_addr,
-            subdomain=subdomain,
-            control_task_id=task_id,
-            worker_task_id=worker_task_id,
-            replicas=num_parallel - 1,
-            port=port,
-            num_parallel=num_parallel,
-            namespace=namespace,
-            annotations=annotations,
+        self._worker_spec = JobSetSpec(
+            client.get(), name="worker", namespace=namespace, **kwargs
         )
-        worker_jobs = [worker_job]
-        # Based on https://github.com/kubernetes-sigs/jobset/blob/v0.5.0/api/jobset/v1alpha2/jobset_types.go#L163
-        _kclient = client.get()
-        self._jobset = dict(
+        assert (
+            type(num_parallel) == int
+        ), "num_parallel must be an integer"  # todo: [final-refactor] : fix-me
+
+    @property
+    def jobset_control_addr(self):
+        return self._jobset_control_addr
+
+    @property
+    def worker(self):
+        return self._worker_spec
+
+    @property
+    def control(self):
+        return self._control_spec
+
+    def environment_variable_from_selector(self, name, label_value):
+        self.worker.environment_variable_from_selector(name, label_value)
+        self.control.environment_variable_from_selector(name, label_value)
+        return self
+
+    def environment_variables_from_selectors(self, env_dict):
+        for name, label_value in env_dict.items():
+            self.worker.environment_variable_from_selector(name, label_value)
+            self.control.environment_variable_from_selector(name, label_value)
+        return self
+
+    def environment_variable(self, name, value):
+        self.worker.environment_variable(name, value)
+        self.control.environment_variable(name, value)
+        return self
+
+    def label(self, name, value):
+        self.worker.label(name, value)
+        self.control.label(name, value)
+        self._labels = dict(self._labels, **{name: value})
+        return self
+
+    def annotation(self, name, value):
+        self.worker.annotation(name, value)
+        self.control.annotation(name, value)
+        self._annotations = dict(self._annotations, **{name: value})
+        return self
+
+    def secret(self, name):
+        self.worker.secret(name)
+        self.control.secret(name)
+        return self
+
+    def dump(self):
+        client = self._client.get()
+        return dict(
             apiVersion=self._group + "/" + self._version,
             kind="JobSet",
-            metadata=_kclient.api_client.ApiClient().sanitize_for_serialization(
-                _kclient.V1ObjectMeta(
-                    name=self.name, labels=labels, annotations=annotations
+            metadata=client.api_client.ApiClient().sanitize_for_serialization(
+                client.V1ObjectMeta(
+                    name=self.name,
+                    labels=self._labels,
+                    annotations=self._annotations,
                 )
             ),
             spec=dict(
-                replicatedJobs=[control_job] + worker_jobs,
+                replicatedJobs=[self.control.dump(), self.worker.dump()],
                 suspend=False,
                 startupPolicy=None,
                 successPolicy=None,
                 # The Failure Policy helps setting the number of retries for the jobset.
-                # It cannot accept a value of 0 for maxRestarts.
-                # So the attempt needs to be smartly set.
-                # If there is no retry decorator then we not set maxRestarts and instead we will
-                # set the attempt statically to 0. Otherwise we will make the job pickup the attempt
-                # from the `V1EnvVarSource.value_from.V1ObjectFieldSelector.field_path` = "metadata.annotations['jobset.sigs.k8s.io/restart-attempt']"
-                # failurePolicy={
-                #     "maxRestarts" : 1
-                # },
-                # The can be set for ArgoWorkflows
+                # but we don't rely on it and instead rely on either the local scheduler
+                # or the Argo Workflows to handle retries.
                 failurePolicy=None,
                 network=None,
             ),
@@ -767,7 +889,7 @@ class KubernetesJobSet(object):
                     version=self._version,
                     namespace=self._namespace,
                     plural="jobsets",
-                    body=self._jobset,
+                    body=self.dump(),
                 )
             except Exception as e:
                 raise KubernetesJobsetException(
@@ -782,3 +904,119 @@ class KubernetesJobSet(object):
             group=self._group,
             version=self._version,
         )
+
+
+class KubernetesArgoJobSet(object):
+    def __init__(self, kubernetes_sdk, name=None, namespace=None, **kwargs):
+        self._kubernetes_sdk = kubernetes_sdk
+        self._annotations = {}
+        self._labels = {}
+        self._group = KUBERNETES_JOBSET_GROUP
+        self._version = KUBERNETES_JOBSET_VERSION
+        self._namespace = namespace
+        self.name = name
+
+        self._jobset_control_addr = _make_domain_name(
+            name,
+            CONTROL_JOB_NAME,
+            0,
+            0,
+            namespace,
+        )
+
+        self._control_spec = JobSetSpec(
+            kubernetes_sdk, name=CONTROL_JOB_NAME, namespace=namespace, **kwargs
+        )
+        self._worker_spec = JobSetSpec(
+            kubernetes_sdk, name="worker", namespace=namespace, **kwargs
+        )
+
+    @property
+    def jobset_control_addr(self):
+        return self._jobset_control_addr
+
+    @property
+    def worker(self):
+        return self._worker_spec
+
+    @property
+    def control(self):
+        return self._control_spec
+
+    def environment_variable_from_selector(self, name, label_value):
+        self.worker.environment_variable_from_selector(name, label_value)
+        self.control.environment_variable_from_selector(name, label_value)
+        return self
+
+    def environment_variables_from_selectors(self, env_dict):
+        for name, label_value in env_dict.items():
+            self.worker.environment_variable_from_selector(name, label_value)
+            self.control.environment_variable_from_selector(name, label_value)
+        return self
+
+    def environment_variable(self, name, value):
+        self.worker.environment_variable(name, value)
+        self.control.environment_variable(name, value)
+        return self
+
+    def label(self, name, value):
+        self.worker.label(name, value)
+        self.control.label(name, value)
+        self._labels = dict(self._labels, **{name: value})
+        return self
+
+    def annotation(self, name, value):
+        self.worker.annotation(name, value)
+        self.control.annotation(name, value)
+        self._annotations = dict(self._annotations, **{name: value})
+        return self
+
+    def dump(self):
+        client = self._kubernetes_sdk
+        import json
+
+        data = json.dumps(
+            client.ApiClient().sanitize_for_serialization(
+                dict(
+                    apiVersion=self._group + "/" + self._version,
+                    kind="JobSet",
+                    metadata=client.api_client.ApiClient().sanitize_for_serialization(
+                        client.V1ObjectMeta(
+                            name=self.name,
+                            labels=self._labels,
+                            annotations=self._annotations,
+                        )
+                    ),
+                    spec=dict(
+                        replicatedJobs=[self.control.dump(), self.worker.dump()],
+                        suspend=False,
+                        startupPolicy=None,
+                        successPolicy=None,
+                        # The Failure Policy helps setting the number of retries for the jobset.
+                        # but we don't rely on it and instead rely on either the local scheduler
+                        # or the Argo Workflows to handle retries.
+                        failurePolicy=None,
+                        network=None,
+                    ),
+                    status=None,
+                )
+            )
+        )
+        # The values we populate in the Jobset manifest (for Argo Workflows) piggybacks on the Argo Workflow's templating engine.
+        # Even though Argo Workflows's templating helps us constructing all the necessary IDs and populating the fields
+        # required by Metaflow, we run into one glitch. When we construct JSON/YAML serializable objects,
+        # anything between two braces such as `{{=asInt(inputs.parameters.workerCount)}}` gets quoted. This is a problem
+        # since we need to pass the value of `inputs.parameters.workerCount` as an integer and not as a string.
+        # If we pass it as a string, the jobset controller will not accept the Jobset CRD we submitted to kubernetes.
+        # To get around this, we need to replace the quoted substring with the unquoted substring because YAML /JSON parsers
+        # won't allow deserialization with the quoting trivially.
+
+        # This is super important because the `inputs.parameters.workerCount` is used to set the number of replicas;
+        # The value for number of replicas is derived from the value of `num_parallel` (which is set in the user-code).
+        # Since the value of `num_parallel` can be dynamic and can change from run to run, we need to ensure that the
+        # value can be passed-down dynamically and is **explicitly set as a integer** in the Jobset Manifest submitted as a
+        # part of the Argo Workflow
+
+        quoted_substring = '"{{=asInt(inputs.parameters.workerCount)}}"'
+        unquoted_substring = "{{=asInt(inputs.parameters.workerCount)}}"
+        return data.replace(quoted_substring, unquoted_substring)

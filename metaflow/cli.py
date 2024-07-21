@@ -10,7 +10,6 @@ from metaflow._vendor import click
 
 from . import decorators, lint, metaflow_version, namespace, parameters, plugins
 from .cli_args import cli_args
-from .client.core import get_metadata
 from .datastore import FlowDataStore, TaskDataStore, TaskDataStoreSet
 from .exception import CommandException, MetaflowException
 from .graph import FlowGraph
@@ -24,6 +23,7 @@ from .metaflow_config import (
     DEFAULT_PACKAGE_SUFFIXES,
 )
 from .metaflow_current import current
+from metaflow.system import _system_monitor, _system_logger
 from .metaflow_environment import MetaflowEnvironment
 from .mflog import LOG_SOURCES, mflog
 from .package import MetaflowPackage
@@ -700,12 +700,25 @@ def resume(
     runtime.persist_constants()
     write_file(
         runner_attribute_file,
-        "%s:%s" % (get_metadata(), "/".join((obj.flow.name, runtime.run_id))),
+        "%s@%s:%s"
+        % (
+            obj.metadata.__class__.TYPE,
+            obj.metadata.__class__.INFO,
+            "/".join((obj.flow.name, runtime.run_id)),
+        ),
     )
-    if clone_only:
-        runtime.clone_original_run()
-    else:
-        runtime.execute()
+
+    # We may skip clone-only resume if this is not a resume leader,
+    # and clone is already complete.
+    if runtime.should_skip_clone_only_execution():
+        return
+
+    with runtime.run_heartbeat():
+        if clone_only:
+            runtime.clone_original_run()
+        else:
+            runtime.clone_original_run(generate_task_obj=True, verbose=False)
+            runtime.execute()
 
 
 @tracing.cli_entrypoint("cli/run")
@@ -763,7 +776,12 @@ def run(
     runtime.persist_constants()
     write_file(
         runner_attribute_file,
-        "%s:%s" % (get_metadata(), "/".join((obj.flow.name, runtime.run_id))),
+        "%s@%s:%s"
+        % (
+            obj.metadata.__class__.TYPE,
+            obj.metadata.__class__.INFO,
+            "/".join((obj.flow.name, runtime.run_id)),
+        ),
     )
     runtime.execute()
 
@@ -937,17 +955,19 @@ def start(
     ctx.obj.environment = [
         e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == environment
     ][0](ctx.obj.flow)
-    ctx.obj.environment.validate_environment(echo, datastore)
+    ctx.obj.environment.validate_environment(ctx.obj.logger, datastore)
 
     ctx.obj.event_logger = LOGGING_SIDECARS[event_logger](
         flow=ctx.obj.flow, env=ctx.obj.environment
     )
     ctx.obj.event_logger.start()
+    _system_logger.init_system_logger(ctx.obj.flow.name, ctx.obj.event_logger)
 
     ctx.obj.monitor = MONITOR_SIDECARS[monitor](
         flow=ctx.obj.flow, env=ctx.obj.environment
     )
     ctx.obj.monitor.start()
+    _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
 
     ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == metadata][0](
         ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor

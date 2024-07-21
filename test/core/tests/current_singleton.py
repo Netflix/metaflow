@@ -126,7 +126,11 @@ class CurrentSingletonTest(MetaflowTest):
                     assert_equals(task.data.task_obj.pathspec, task.pathspec)
                     # Check we can go up and down pickled objects even in a different
                     # namespace
-                    assert_equals(task.data.parent.parent.id, task.data.run_obj.id)
+                    # NOTA: task.data.parent (which is what this used to be) DOES NOT
+                    # work since the `.data` object is a MetaflowData object which does
+                    # NOT have a parent attribute (and probably shouldn't as it would
+                    # conflict with a `parent` artifact)
+                    assert_equals(task.parent.parent.id, task.data.run_obj.id)
                     assert_equals(
                         task.data.run_obj[task.data.step_name].id, task.data.step_name
                     )

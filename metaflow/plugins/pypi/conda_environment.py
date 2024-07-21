@@ -48,9 +48,9 @@ class CondaEnvironment(MetaflowEnvironment):
         # Apply conda decorator to manage the task execution lifecycle.
         return ("conda",) + super().decospecs()
 
-    def validate_environment(self, echo, datastore_type):
+    def validate_environment(self, logger, datastore_type):
         self.datastore_type = datastore_type
-        self.echo = echo
+        self.logger = logger
 
         # Avoiding circular imports.
         from metaflow.plugins import DATASTORES
@@ -65,7 +65,7 @@ class CondaEnvironment(MetaflowEnvironment):
         micromamba = Micromamba()
         self.solvers = {"conda": micromamba, "pypi": Pip(micromamba)}
 
-    def init_environment(self, echo):
+    def init_environment(self, echo, only_steps=None):
         # The implementation optimizes for latency to ensure as many operations can
         # be turned into cheap no-ops as feasible. Otherwise, we focus on maintaining
         # a balance between latency and maintainability of code without re-implementing
@@ -77,6 +77,8 @@ class CondaEnvironment(MetaflowEnvironment):
         def environments(type_):
             seen = set()
             for step in self.flow:
+                if only_steps and step.name not in only_steps:
+                    continue
                 environment = self.get_environment(step)
                 if type_ in environment and environment["id_"] not in seen:
                     seen.add(environment["id_"])
@@ -165,7 +167,7 @@ class CondaEnvironment(MetaflowEnvironment):
                     self.write_to_environment_manifest([id_, platform, type_], packages)
 
         # First resolve environments through Conda, before PyPI.
-        echo("Bootstrapping virtual environment(s) ...")
+        self.logger("Bootstrapping virtual environment(s) ...")
         for solver in ["conda", "pypi"]:
             with ThreadPoolExecutor() as executor:
                 results = list(
@@ -178,11 +180,9 @@ class CondaEnvironment(MetaflowEnvironment):
                 )
             if self.datastore_type not in ["local"]:
                 # Cache packages only when a remote datastore is in play.
-                storage = self.datastore(
-                    _datastore_packageroot(self.datastore, self.echo)
-                )
+                storage = self.datastore(_datastore_packageroot(self.datastore, echo))
                 cache(storage, results, solver)
-        echo("Virtual environment(s) bootstrapped!")
+        self.logger("Virtual environment(s) bootstrapped!")
 
     def executable(self, step_name, default=None):
         step = next(step for step in self.flow if step.name == step_name)
@@ -220,7 +220,7 @@ class CondaEnvironment(MetaflowEnvironment):
                 disabled = decorator.attributes["disabled"]
                 if not disabled or str(disabled).lower() == "false":
                     environment[decorator.name] = {
-                        k: decorator.attributes[k]
+                        k: copy.deepcopy(decorator.attributes[k])
                         for k in decorator.attributes
                         if k != "disabled"
                     }
@@ -316,7 +316,7 @@ class CondaEnvironment(MetaflowEnvironment):
                             **environment,
                             **{
                                 "package_root": _datastore_packageroot(
-                                    self.datastore, self.echo
+                                    self.datastore, self.logger
                                 )
                             },
                         }

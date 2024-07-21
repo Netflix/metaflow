@@ -1,4 +1,8 @@
 import json
+
+from contextlib import contextmanager
+from threading import local
+
 from typing import Any, Callable, Dict, NamedTuple, Optional, Type, Union
 
 from metaflow._vendor import click
@@ -31,7 +35,40 @@ ParameterContext = NamedTuple(
     ],
 )
 
-parameters = []  # Set by FlowSpec.__init__()
+
+# When we launch a flow, we need to know the parameters so we can
+# attach them with add_custom_parameters to commands. This used to be a global
+# but causes problems when multiple FlowSpec are loaded (as can happen when using
+# the Runner or just if multiple Flows are defined and instantiated). To minimally
+# impact code, we now create the CLI with a thread local value of the FlowSpec
+# that is being used to create the CLI which enables us to extract the parameters
+# directly from the Flow.
+current_flow = local()
+
+
+@contextmanager
+def flow_context(flow_cls):
+    """
+    Context manager to set the current flow for the thread. This is used
+    to extract the parameters from the FlowSpec that is being used to create
+    the CLI.
+    """
+    # Use a stack because with the runner this can get called multiple times in
+    # a nested fashion
+    current_flow.flow_cls_stack = getattr(current_flow, "flow_cls_stack", [])
+    current_flow.flow_cls_stack.insert(0, flow_cls)
+    current_flow.flow_cls = current_flow.flow_cls_stack[0]
+    try:
+        yield
+    finally:
+        current_flow.flow_cls_stack = current_flow.flow_cls_stack[1:]
+        if len(current_flow.flow_cls_stack) == 0:
+            del current_flow.flow_cls_stack
+            del current_flow.flow_cls
+        else:
+            current_flow.flow_cls = current_flow.flow_cls_stack[0]
+
+
 context_proto = None
 
 
@@ -391,6 +428,10 @@ def add_custom_parameters(deploy_mode=False):
         cmd.has_flow_params = True
         # Iterate over parameters in reverse order so cmd.params lists options
         # in the order they are defined in the FlowSpec subclass
+        flow_cls = getattr(current_flow, "flow_cls", None)
+        if flow_cls is None:
+            return cmd
+        parameters = [p for _, p in flow_cls._get_parameters()]
         for arg in parameters[::-1]:
             kwargs = arg.option_kwargs(deploy_mode)
             cmd.params.insert(0, click.Option(("--" + arg.name,), **kwargs))

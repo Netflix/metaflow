@@ -3,6 +3,7 @@ import sys
 from importlib import util as imp_util, machinery as imp_machinery
 from tempfile import NamedTemporaryFile
 
+from . import parameters
 from .util import to_bytes
 
 R_FUNCTIONS = {}
@@ -125,15 +126,17 @@ def run(
     flow = module.FLOW(use_cli=False)
 
     from . import exception
-    from . import cli
 
     try:
-        cli.main(
-            flow,
-            args=metaflow_args,
-            handle_exceptions=False,
-            entrypoint=full_cmdline[: -len(metaflow_args)],
-        )
+        with parameters.flow_context(flow.__class__) as _:
+            from . import cli
+
+            cli.main(
+                flow,
+                args=metaflow_args,
+                handle_exceptions=False,
+                entrypoint=full_cmdline[: -len(metaflow_args)],
+            )
     except exception.MetaflowException as e:
         cli.print_metaflow_exception(e)
         os.remove(tmp.name)

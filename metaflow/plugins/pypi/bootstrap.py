@@ -90,7 +90,7 @@ if __name__ == "__main__":
         f"""set -e;
         if ! command -v micromamba >/dev/null 2>&1; then
             mkdir micromamba;
-            python -c "import requests, bz2, sys; data = requests.get('https://micro.mamba.pm/api/micromamba/{architecture}/latest').content; sys.stdout.buffer.write(bz2.decompress(data))" | tar -xv -C $(pwd)/micromamba bin/micromamba --strip-components 1;
+            python -c "import requests, bz2, sys; data = requests.get('https://micro.mamba.pm/api/micromamba/{architecture}/1.5.7').content; sys.stdout.buffer.write(bz2.decompress(data))" | tar -xv -C $(pwd)/micromamba bin/micromamba --strip-components 1;
             export PATH=$PATH:$(pwd)/micromamba;
             if ! command -v micromamba >/dev/null 2>&1; then
                 echo "Failed to install Micromamba!";
@@ -123,7 +123,7 @@ if __name__ == "__main__":
             [
                 f"""set -e;
                 export PATH=$PATH:$(pwd)/micromamba;
-                micromamba run --prefix {prefix} pip --disable-pip-version-check install --root-user-action=ignore --no-compile {pypi_pkgs_dir}/*.whl"""
+                micromamba run --prefix {prefix} python -m pip --disable-pip-version-check install --root-user-action=ignore --no-compile {pypi_pkgs_dir}/*.whl --no-user"""
             ]
         )
 

@@ -32,9 +32,10 @@ from metaflow._vendor.click.types import (
     UUIDParameterType,
 )
 from metaflow._vendor.typeguard import TypeCheckError, check_type
-from metaflow.cli import start
+from metaflow.decorators import add_decorator_options
+from metaflow.exception import MetaflowException
 from metaflow.includefile import FilePathClass
-from metaflow.parameters import JSONTypeClass
+from metaflow.parameters import JSONTypeClass, flow_context
 
 click_to_python_types = {
     StringParamType: str,
@@ -140,7 +141,7 @@ def get_inspect_param_obj(p: Union[click.Argument, click.Option], kind: str):
 loaded_modules = {}
 
 
-def extract_flowspec_params(flow_file: str) -> List[Parameter]:
+def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
     # Check if the module has already been loaded
     if flow_file in loaded_modules:
         module = loaded_modules[flow_file]
@@ -153,14 +154,16 @@ def extract_flowspec_params(flow_file: str) -> List[Parameter]:
         loaded_modules[flow_file] = module
     classes = inspect.getmembers(module, inspect.isclass)
 
-    parameters = []
+    flow_cls = None
     for _, kls in classes:
         if kls != FlowSpec and issubclass(kls, FlowSpec):
-            for _, obj in inspect.getmembers(kls):
-                if isinstance(obj, Parameter):
-                    parameters.append(obj)
+            if flow_cls is not None:
+                raise MetaflowException(
+                    "Multiple FlowSpec classes found in %s" % flow_file
+                )
+            flow_cls = kls
 
-    return parameters
+    return flow_cls
 
 
 class MetaflowAPI(object):
@@ -180,7 +183,11 @@ class MetaflowAPI(object):
 
     @classmethod
     def from_cli(cls, flow_file: str, cli_collection: Callable) -> Callable:
-        flow_parameters = extract_flowspec_params(flow_file)
+        flow_cls = extract_flow_class_from_file(flow_file)
+        flow_parameters = [p for _, p in flow_cls._get_parameters()]
+        with flow_context(flow_cls) as _:
+            add_decorator_options(cli_collection)
+
         class_dict = {"__module__": "metaflow", "_API_NAME": flow_file}
         command_groups = cli_collection.sources
         for each_group in command_groups:
@@ -377,6 +384,8 @@ def extract_command(
 
 
 if __name__ == "__main__":
+    from metaflow.cli import start
+
     api = MetaflowAPI.from_cli("../try.py", start)
 
     command = api(metadata="local").run(

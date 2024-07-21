@@ -295,6 +295,19 @@ def check_parallel_step_after_next(graph):
 
 @linter.ensure_static_graph
 @linter.check
+def check_join_followed_by_parallel_step(graph):
+    msg = (
+        "An @parallel step should be followed by a join step. Step *{0}* is called "
+        "after an @parallel step but is not a join step. Please add an extra `inputs` "
+        "argument to the step."
+    )
+    for node in graph:
+        if node.parallel_step and not graph[node.out_funcs[0]].type == "join":
+            raise LintWarn(msg.format(node.out_funcs[0]))
+
+
+@linter.ensure_static_graph
+@linter.check
 def check_parallel_foreach_calls_parallel_step(graph):
     msg = (
         "Step *{0.name}* has a @parallel decorator, but is not called "
