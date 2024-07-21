@@ -400,7 +400,7 @@ class ArgoWorkflows(object):
             sensor_name = ArgoWorkflows._sensor_name(self.name)
             if self._sensor:
                 # The new sensor will go into the sensor namespace specified
-                client.register_sensor(
+                argo_client.register_sensor(
                     sensor_name, self._sensor.to_json(), ARGO_EVENTS_SENSOR_NAMESPACE
                 )
         except Exception as e:
