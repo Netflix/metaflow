@@ -205,7 +205,8 @@ class ArgoWorkflows(object):
                 # This workflow was created before sensor annotations
                 # and may have a sensor in the default namespace
                 # we will delete it and it'll get recreated if need be
-                client.delete_sensor(self.name.replace(".", "-"), client._namespace)
+                old_sensor_name = ArgoWorkflows._sensor_name(self.name)
+                client.delete_sensor(old_sensor_name, client._namespace)
             elif old_has_sensor == "True":
                 # delete old sensor only if it was somewhere else, otherwise it'll get replaced
                 old_sensor_name = old_template["metadata"]["annotations"][
@@ -723,7 +724,7 @@ class ArgoWorkflows(object):
                             for trigger in self.triggers
                         ]
                     ),
-                    "metaflow/sensor_name": self.name.replace(".", "-"),
+                    "metaflow/sensor_name": ArgoWorkflows._sensor_name(self.name),
                     "metaflow/sensor_namespace": ARGO_EVENTS_SENSOR_NAMESPACE,
                 }
             )
