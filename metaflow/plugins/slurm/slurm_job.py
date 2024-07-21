@@ -16,8 +16,8 @@ class SlurmJob(object):
         # and raise SlurmException
         sbatch_options = {
             "job-name": self.name,
-            "output": f"{self.name}.out",
-            "error": f"{self.name}.err",
+            "output": f"{self.name}/stdout",
+            "error": f"{self.name}/stderr",
             "partition": self.kwargs.get("partition"),
             "nodes": self.kwargs.get("nodes"),
             "ntasks": self.kwargs.get("ntasks"),
@@ -46,8 +46,9 @@ class SlurmJob(object):
         return self.create_slurm_script()
 
     def execute(self):
-        # self.command is ['bash', '-c', 'ACTUAL_COMMAND']
-        cmd = f"bash -c '{self.command[-1]}'"
+        cmd_str = self.command[-1].replace("'", '"')
+        cmd_str = f"mkdir -p {self.name} && cd {self.name} && " + cmd_str
+        cmd = f"bash -c '{cmd_str}'"
 
         slurm_job_id = self.loop.run_until_complete(
             self.client.submit(
