@@ -54,7 +54,7 @@ class SlurmJobScript(object):
             f"source {self.bashrc_path}" if self.bashrc_path else "",
         ]
         setup_lines.extend(
-            f'export {key}="{value}"' for key, value in self.env_vars.items()
+            f"export {key}='{value}'" for key, value in self.env_vars.items()
         )
         return "\n".join(setup_lines)
 
