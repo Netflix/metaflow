@@ -10,7 +10,8 @@ SLURM_JOB_SCRIPT_TEMPLATE = """\
 
 {run_commands}
 
-wait"""
+wait
+"""
 
 
 class SlurmJobScript(object):
@@ -31,9 +32,13 @@ class SlurmJobScript(object):
         directives = []
         for key, value in self.sbatch_options.items():
             if len(key) == 1:
-                directives.append(f"#SBATCH -{key}" + (f" {value}" if value else ""))
+                directives.append(
+                    "#SBATCH -%s%s" % (key, " %s" % value if value else "")
+                )
             else:
-                directives.append(f"#SBATCH --{key}" + (f"={value}" if value else ""))
+                directives.append(
+                    "#SBATCH --%s%s" % (key, "=%s" % value if value else "")
+                )
 
         return "\n".join(directives)
 
@@ -42,19 +47,19 @@ class SlurmJobScript(object):
         srun_options = []
         for key, value in self.srun_options.items():
             if len(key) == 1:
-                srun_options.append(f"-{key}" + (f" {value}" if value else ""))
+                srun_options.append("-%s%s" % (key, " %s" % value if value else ""))
             else:
-                srun_options.append(f"--{key}" + (f"={value}" if value else ""))
+                srun_options.append("--%s%s" % (key, "=%s" % value if value else ""))
 
         return " ".join(srun_options)
 
     @property
     def shell_env_setup(self):
         setup_lines = [
-            f"source {self.bashrc_path}" if self.bashrc_path else "",
+            "source %s" % self.bashrc_path if self.bashrc_path else "",
         ]
         setup_lines.extend(
-            f"export {key}='{value}'" for key, value in self.env_vars.items()
+            "export %s='%s'" % (key, value) for key, value in self.env_vars.items()
         )
         return "\n".join(setup_lines)
 
@@ -63,8 +68,8 @@ class SlurmJobScript(object):
         command: str,
     ) -> str:
         run_cmds = [
-            f"srun {self.srun_args} \\" if self.srun_options else "srun \\",
-            f"  {command}",
+            "srun %s \\" % self.srun_args if self.srun_options else "srun \\",
+            "  %s" % command,
         ]
 
         run_cmd = "\n".join(run_cmds)
