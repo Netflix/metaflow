@@ -16,8 +16,8 @@ class SlurmJob(object):
         # and raise SlurmException
         sbatch_options = {
             "job-name": self.name,
-            "output": f"{self.name}/stdout",
-            "error": f"{self.name}/stderr",
+            "output": "%s/stdout" % self.name,
+            "error": "%s/stderr" % self.name,
             "partition": self.kwargs.get("partition"),
             "nodes": self.kwargs.get("nodes"),
             "ntasks": self.kwargs.get("ntasks"),
@@ -47,8 +47,8 @@ class SlurmJob(object):
 
     def execute(self):
         cmd_str = self.command[-1].replace("'", '"')
-        cmd_str = f"mkdir -p {self.name} && cd {self.name} && " + cmd_str
-        cmd = f"bash -c '{cmd_str}'"
+        cmd_str = "mkdir -p %s && cd %s && %s" % (self.name, self.name, cmd_str)
+        cmd = "bash -c '%s'" % cmd_str
 
         slurm_job_id = self.loop.run_until_complete(
             self.client.submit(
@@ -109,7 +109,7 @@ class RunningJob(object):
         return self.name
 
     async def status_obj(self):
-        cmd_scontrol = f"scontrol show job {self.slurm_job_id}"
+        cmd_scontrol = "scontrol show job %s" % self.slurm_job_id
         proc_verify_scontrol = await self.client.conn.run(
             _LOAD_SLURM_PREFIX + "which scontrol"
         )
@@ -138,7 +138,7 @@ class RunningJob(object):
             job_state = match.group(1)
             return job_state
         raise RuntimeError(
-            f"Couldn't determine status of slurm job with ID: {self.slurm_job_id}"
+            "Couldn't determine status of slurm job with ID: %s" % self.slurm_job_id
         )
 
     @property
@@ -156,7 +156,7 @@ class RunningJob(object):
             reason = match.group(1)
             return reason
         raise RuntimeError(
-            f"Couldn't determine reason for slurm job with ID: {self.slurm_job_id}"
+            "Couldn't determine reason for slurm job with ID: %s" % self.slurm_job_id
         )
 
     # TODO: confirm from full list here: https://slurm.schedmd.com/squeue.html#SECTION_JOB-STATE-CODES

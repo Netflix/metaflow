@@ -51,9 +51,9 @@ class SlurmClient(object):
         cert_file_path = Path(cert_file).expanduser().resolve() if cert_file else None
 
         if cert_file and not cert_file_path.exists():
-            raise FileNotFoundError(f"Certificate file not found: {cert_file}")
+            raise FileNotFoundError("Certificate file not found: %s" % cert_file)
         if not ssh_key_file_path.exists():
-            raise FileNotFoundError(f"SSH key file not found: {ssh_key_file}")
+            raise FileNotFoundError("SSH key file not found: %s" % ssh_key_file)
         if cert_file:
             self.client_keys = [
                 (
@@ -83,8 +83,8 @@ class SlurmClient(object):
 
         except Exception as e:
             raise RuntimeError(
-                f"Could not connect to host: '{self.address}' "
-                f"as user: '{self.username}' "
+                "Could not connect to host: '%s' as user: '%s'"
+                % (self.address, self.username)
             ) from e
 
         return self.conn
@@ -97,7 +97,7 @@ class SlurmClient(object):
         # make sure remote workdir exists..
         remote_workdir = Path(self.remote_workdir or "~")
 
-        cmd_mkdir_remote = f"mkdir -p {remote_workdir!s}"
+        cmd_mkdir_remote = "mkdir -p %s" % remote_workdir
         proc_mkdir_remote = await self.conn.run(cmd_mkdir_remote)
 
         client_err = proc_mkdir_remote.stderr.strip()
@@ -105,7 +105,7 @@ class SlurmClient(object):
             raise RuntimeError(client_err)
 
         # copy the slurm script
-        slurm_filename = f"{job_name}.sh"
+        slurm_filename = "%s.sh" % job_name
         with tempfile.TemporaryDirectory() as temp_dir:
             slurm_script_file = tempfile.NamedTemporaryFile(
                 dir=temp_dir, delete=False, suffix=".sh"
@@ -125,7 +125,7 @@ class SlurmClient(object):
             )
 
         # run the slurm script through sbatch
-        cmd_sbatch = f"sbatch {remote_slurm_filename!s}"
+        cmd_sbatch = "sbatch %s" % remote_slurm_filename
         proc_verify_sbatch = await self.conn.run(_LOAD_SLURM_PREFIX + "which sbatch")
         if proc_verify_sbatch.returncode != 0:
             raise RuntimeError("'sbatch' could not be found on the remote machine.")
@@ -139,7 +139,7 @@ class SlurmClient(object):
         return slurm_job_id
 
     async def terminate_job(self, job_id: str):
-        cmd_scancel = f"scancel {job_id}"
+        cmd_scancel = "scancel %s" % job_id
         proc_verify_scancel = await self.conn.run(_LOAD_SLURM_PREFIX + "which scancel")
         if proc_verify_scancel.returncode != 0:
             raise RuntimeError("'scancel' could not be found on the remote machine.")
@@ -176,7 +176,7 @@ srun python compute_np.py
 """.strip()
 
     jid = await sc.submit("madhur", script_contents)
-    print(f"id: {jid}")
+    print("id: %s" % jid)
 
 
 if __name__ == "__main__":
