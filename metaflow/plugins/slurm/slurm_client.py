@@ -6,17 +6,6 @@ from pathlib import Path
 from typing import Optional
 from metaflow.plugins.slurm.slurm_exceptions import SlurmException
 
-try:
-    import asyncssh
-except (NameError, ImportError, ModuleNotFoundError):
-    raise SlurmException(
-        "Could not import module 'asyncssh'.\n\nInstall asyncssh "
-        "Python package (https://pypi.org/project/asyncssh/) first.\n"
-        "You can install the module by executing - "
-        "%s -m pip install asyncssh\n"
-        "or equivalent through your favorite Python package manager." % sys.executable
-    )
-
 
 _LOAD_SLURM_PREFIX = """\
 source /etc/profile
@@ -46,6 +35,18 @@ class SlurmClient(object):
                 "ssh_key_file is a required parameter in the Slurm plugin."
             )
 
+        try:
+            self.asyncssh = __import__("asyncssh")
+        except (NameError, ImportError, ModuleNotFoundError):
+            raise SlurmException(
+                "Could not import module 'asyncssh'.\n\nInstall asyncssh "
+                "Python package (https://pypi.org/project/asyncssh/) first.\n"
+                "You can install the module by executing - "
+                "%s -m pip install asyncssh\n"
+                "or equivalent through your favorite Python package manager."
+                % sys.executable
+            )
+
         ssh_key_file_path = Path(ssh_key_file).expanduser().resolve()
         cert_file_path = Path(cert_file).expanduser().resolve() if cert_file else None
 
@@ -56,12 +57,12 @@ class SlurmClient(object):
         if cert_file:
             self.client_keys = [
                 (
-                    asyncssh.read_private_key(ssh_key_file_path),
-                    asyncssh.read_certificate(cert_file_path),
+                    self.asyncssh.read_private_key(ssh_key_file_path),
+                    self.asyncssh.read_certificate(cert_file_path),
                 )
             ]
         else:
-            self.client_keys = [asyncssh.read_private_key(ssh_key_file_path)]
+            self.client_keys = [self.asyncssh.read_private_key(ssh_key_file_path)]
 
         self.username = username
         self.address = address
@@ -71,9 +72,9 @@ class SlurmClient(object):
         # TODO: need to use cleanup...
         self.cleanup = cleanup
 
-    async def connect(self) -> asyncssh.SSHClientConnection:
+    async def connect(self):
         try:
-            self.conn = await asyncssh.connect(
+            self.conn = await self.asyncssh.connect(
                 self.address,
                 username=self.username,
                 client_keys=self.client_keys,
@@ -115,7 +116,7 @@ class SlurmClient(object):
                 fp.write(slurm_script_contents)
                 fp.flush()
 
-            await asyncssh.scp(
+            await self.asyncssh.scp(
                 filename,
                 (self.address, remote_slurm_filename),
                 username=self.username,
