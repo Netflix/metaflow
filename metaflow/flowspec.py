@@ -28,7 +28,14 @@ except NameError:
 
 from .datastore.inputs import Inputs
 
-INTERNAL_ARTIFACTS_SET = set(["_foreach_values", "_unbounded_foreach"])
+INTERNAL_ARTIFACTS_SET = set(
+    [
+        "_foreach_values",
+        "_unbounded_foreach",
+        "_control_mapper_tasks",
+        "_control_task_is_mapper_zero",
+    ]
+)
 
 
 class InvalidNextException(MetaflowException):
