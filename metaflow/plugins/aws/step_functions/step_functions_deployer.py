@@ -15,12 +15,10 @@ from metaflow.runner.deployer import (
 
 def terminate(instance: TriggeredRun, **kwargs):
     """
-    Terminate a running workflow.
+    Terminate the running workflow.
 
     Parameters
     ----------
-    instance : TriggeredRun
-        The triggered run instance to terminate.
     **kwargs : Any
         Additional arguments to pass to the terminate command.
 
@@ -52,12 +50,7 @@ def terminate(instance: TriggeredRun, **kwargs):
 
 def production_token(instance: DeployedFlow):
     """
-    Get the production token for a deployed flow.
-
-    Parameters
-    ----------
-    instance : DeployedFlow
-        The deployed flow instance to get the production token for.
+    Get the production token for the deployed flow.
 
     Returns
     -------
@@ -75,15 +68,13 @@ def production_token(instance: DeployedFlow):
 
 def list_runs(instance: DeployedFlow, states: Optional[List[str]] = None):
     """
-    List runs of a deployed flow.
+    List runs of the deployed flow.
 
     Parameters
     ----------
-    instance : DeployedFlow
-        The deployed flow instance to list runs for.
     states : Optional[List[str]], optional
         A list of states to filter the runs by. Allowed values are:
-        "RUNNING", "SUCCEEDED", "FAILED", "TIMED_OUT", "ABORTED".
+        RUNNING, SUCCEEDED, FAILED, TIMED_OUT, ABORTED.
         If not provided, all states will be considered.
 
     Returns
@@ -134,12 +125,10 @@ def list_runs(instance: DeployedFlow, states: Optional[List[str]] = None):
 
 def delete(instance: DeployedFlow, **kwargs):
     """
-    Delete a deployed flow.
+    Delete the deployed flow.
 
     Parameters
     ----------
-    instance : DeployedFlow
-        The deployed flow instance to delete.
     **kwargs : Any
         Additional arguments to pass to the delete command.
 
@@ -168,18 +157,16 @@ def delete(instance: DeployedFlow, **kwargs):
 
 def trigger(instance: DeployedFlow, **kwargs):
     """
-    Trigger a new run for a deployed flow.
+    Trigger a new run for the deployed flow.
 
     Parameters
     ----------
-    instance : DeployedFlow
-        The deployed flow instance to trigger a new run for.
     **kwargs : Any
-        Additional arguments to pass to the trigger command.
+        Additional arguments to pass to the trigger command, `Parameters` in particular
 
     Returns
     -------
-    TriggeredRun
+    StepFunctionsTriggeredRun
         The triggered run instance.
 
     Raises

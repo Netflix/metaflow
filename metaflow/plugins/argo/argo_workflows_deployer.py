@@ -14,12 +14,10 @@ from metaflow.runner.deployer import (
 
 def suspend(instance: TriggeredRun, **kwargs):
     """
-    Suspend a running workflow.
+    Suspend the running workflow.
 
     Parameters
     ----------
-    instance : TriggeredRun
-        The triggered run instance to suspend.
     **kwargs : Any
         Additional arguments to pass to the suspend command.
 
@@ -51,12 +49,10 @@ def suspend(instance: TriggeredRun, **kwargs):
 
 def unsuspend(instance: TriggeredRun, **kwargs):
     """
-    Unsuspend a suspended workflow.
+    Unsuspend the suspended workflow.
 
     Parameters
     ----------
-    instance : TriggeredRun
-        The triggered run instance to unsuspend.
     **kwargs : Any
         Additional arguments to pass to the unsuspend command.
 
@@ -88,12 +84,10 @@ def unsuspend(instance: TriggeredRun, **kwargs):
 
 def terminate(instance: TriggeredRun, **kwargs):
     """
-    Terminate a running workflow.
+    Terminate the running workflow.
 
     Parameters
     ----------
-    instance : TriggeredRun
-        The triggered run instance to terminate.
     **kwargs : Any
         Additional arguments to pass to the terminate command.
 
@@ -125,12 +119,7 @@ def terminate(instance: TriggeredRun, **kwargs):
 
 def status(instance: TriggeredRun):
     """
-    Get the status of a triggered run.
-
-    Parameters
-    ----------
-    instance : TriggeredRun
-        The triggered run instance to get the status of.
+    Get the status of the triggered run.
 
     Returns
     -------
@@ -151,12 +140,7 @@ def status(instance: TriggeredRun):
 
 def production_token(instance: DeployedFlow):
     """
-    Get the production token for a deployed flow.
-
-    Parameters
-    ----------
-    instance : DeployedFlow
-        The deployed flow instance to get the production token for.
+    Get the production token for the deployed flow.
 
     Returns
     -------
@@ -174,12 +158,10 @@ def production_token(instance: DeployedFlow):
 
 def delete(instance: DeployedFlow, **kwargs):
     """
-    Delete a deployed flow.
+    Delete the deployed flow.
 
     Parameters
     ----------
-    instance : DeployedFlow
-        The deployed flow instance to delete.
     **kwargs : Any
         Additional arguments to pass to the delete command.
 
@@ -208,18 +190,16 @@ def delete(instance: DeployedFlow, **kwargs):
 
 def trigger(instance: DeployedFlow, **kwargs):
     """
-    Trigger a new run for a deployed flow.
+    Trigger a new run for the deployed flow.
 
     Parameters
     ----------
-    instance : DeployedFlow
-        The deployed flow instance to trigger a new run for.
     **kwargs : Any
-        Additional arguments to pass to the trigger command.
+        Additional arguments to pass to the trigger command, `Parameters` in particular
 
     Returns
     -------
-    TriggeredRun
+    ArgoWorkflowsTriggeredRun
         The triggered run instance.
 
     Raises
