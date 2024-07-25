@@ -1,3 +1,5 @@
+import sys
+
 from metaflow.extension_support.plugins import (
     merge_lists,
     process_plugins,
@@ -139,6 +141,13 @@ AZURE_CLIENT_PROVIDERS_DESC = [
     ("azure-default", ".azure.azure_credential.AzureDefaultClientProvider")
 ]
 
+DEPLOYER_IMPL_PROVIDERS_DESC = [
+    ("argo-workflows", ".argo.argo_workflows_deployer.ArgoWorkflowsDeployer"),
+    (
+        "step-functions",
+        ".aws.step_functions.step_functions_deployer.StepFunctionsDeployer",
+    ),
+]
 
 process_plugins(globals())
 
@@ -163,6 +172,9 @@ AWS_CLIENT_PROVIDERS = resolve_plugins("aws_client_provider")
 SECRETS_PROVIDERS = resolve_plugins("secrets_provider")
 AZURE_CLIENT_PROVIDERS = resolve_plugins("azure_client_provider")
 GCP_CLIENT_PROVIDERS = resolve_plugins("gcp_client_provider")
+
+if sys.version_info >= (3, 7):
+    DEPLOYER_IMPL_PROVIDERS = resolve_plugins("deployer_impl_provider")
 
 from .cards.card_modules import MF_EXTERNAL_CARDS
 

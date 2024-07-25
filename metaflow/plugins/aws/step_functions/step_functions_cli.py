@@ -4,6 +4,7 @@ import re
 from hashlib import sha1
 
 from metaflow import JSONType, current, decorators, parameters
+from metaflow.client.core import get_metadata
 from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import (
@@ -130,6 +131,14 @@ def step_functions(obj, name=None):
     help="Use AWS Step Functions Distributed Map instead of Inline Map for "
     "defining foreach tasks in Amazon State Language.",
 )
+@click.option(
+    "--deployer-attribute-file",
+    default=None,
+    show_default=True,
+    type=str,
+    help="Write the workflow name to the file specified. Used internally for Metaflow's Deployer API.",
+    hidden=True,
+)
 @click.pass_obj
 def create(
     obj,
@@ -143,8 +152,20 @@ def create(
     workflow_timeout=None,
     log_execution_history=False,
     use_distributed_map=False,
+    deployer_attribute_file=None,
 ):
     validate_tags(tags)
+
+    if deployer_attribute_file:
+        with open(deployer_attribute_file, "w") as f:
+            json.dump(
+                {
+                    "name": obj.state_machine_name,
+                    "flow_name": obj.flow.name,
+                    "metadata": get_metadata(),
+                },
+                f,
+            )
 
     obj.echo(
         "Deploying *%s* to AWS Step Functions..." % obj.state_machine_name, bold=True
@@ -231,8 +252,10 @@ def check_metadata_service_version(obj):
 
 
 def resolve_state_machine_name(obj, name):
-    def attach_prefix(name):
-        if SFN_STATE_MACHINE_PREFIX is not None:
+    def attach_prefix(name: str):
+        if SFN_STATE_MACHINE_PREFIX is not None and (
+            not name.startswith(SFN_STATE_MACHINE_PREFIX)
+        ):
             return SFN_STATE_MACHINE_PREFIX + "_" + name
         return name
 
@@ -440,8 +463,16 @@ def resolve_token(
     type=str,
     help="Write the ID of this run to the file specified.",
 )
+@click.option(
+    "--deployer-attribute-file",
+    default=None,
+    show_default=True,
+    type=str,
+    help="Write the metadata and pathspec of this run to the file specified.\nUsed internally for Metaflow's Deployer API.",
+    hidden=True,
+)
 @click.pass_obj
-def trigger(obj, run_id_file=None, **kwargs):
+def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
     def _convert_value(param):
         # Swap `-` with `_` in parameter name to match click's behavior
         val = kwargs.get(param.name.replace("-", "_").lower())
@@ -465,6 +496,17 @@ def trigger(obj, run_id_file=None, **kwargs):
     if run_id_file:
         with open(run_id_file, "w") as f:
             f.write(str(run_id))
+
+    if deployer_attribute_file:
+        with open(deployer_attribute_file, "w") as f:
+            json.dump(
+                {
+                    "name": obj.state_machine_name,
+                    "metadata": get_metadata(),
+                    "pathspec": "/".join((obj.flow.name, run_id)),
+                },
+                f,
+            )
 
     obj.echo(
         "Workflow *{name}* triggered on AWS Step Functions "
