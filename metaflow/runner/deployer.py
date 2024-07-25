@@ -85,10 +85,8 @@ def get_lower_level_group(
 
 class Deployer(object):
     """
-    Deployer class for managing deployment of flows using different provider implementations.
-
-    This class dynamically adds methods for each deployment provider available in
-    `DEPLOYER_IMPL_PROVIDERS`.
+    Use the `Deployer` class to configure and access one of the production
+    orchestrators supported by Metaflow.
 
     Parameters
     ----------
@@ -165,14 +163,10 @@ class Deployer(object):
 
 class TriggeredRun(object):
     """
-    TriggeredRun class represents a run that has been triggered for deployment.
+    TriggeredRun class represents a run that has been triggered on a production orchestrator.
 
-    Parameters
-    ----------
-    deployer : DeployerImpl
-        Instance of the deployer implementation.
-    content : str
-        JSON content containing metadata and pathspec for the run.
+    Only when the `start` task starts running, the `run` object corresponding to the run
+    becomes available.
     """
 
     def __init__(
@@ -206,12 +200,15 @@ class TriggeredRun(object):
     @property
     def run(self):
         """
-        Retrieve the Run object for the triggered run.
+        Retrieve the `Run` object for the triggered run.
+
+        Note that Metaflow `Run` becomes available only when the `start` task
+        has started executing.
 
         Returns
         -------
         Run, optional
-            Metaflow Run object if available else None.
+            Metaflow Run object if the `start` step has started executing, otherwise None.
         """
         from metaflow import Run
 
@@ -322,7 +319,8 @@ class DeployerImpl(object):
         Parameters
         ----------
         **kwargs : Any
-            Additional arguments to pass to the `create` method of the deployer implementation.
+            Additional arguments to pass to `create` corresponding to the
+            command line arguments of `create`
 
         Returns
         -------
