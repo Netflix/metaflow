@@ -98,6 +98,7 @@ class KubernetesJob(object):
                     containers=[
                         client.V1Container(
                             command=self._kwargs["command"],
+                            termination_message_policy="FallbackToLogsOnError",
                             ports=[]
                             if self._kwargs["port"] is None
                             else [
