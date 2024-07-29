@@ -181,6 +181,12 @@ def argo_workflows(obj, name=None):
     help="Write the workflow name to the file specified. Used internally for Metaflow's Deployer API.",
     hidden=True,
 )
+@click.option(
+    "--with-capture-error-hook/--no-with-capture-error-hook",
+    default=False,
+    show_default=True,
+    help="Capture error message in an exit hook",
+)
 @click.pass_obj
 def create(
     obj,
@@ -200,6 +206,7 @@ def create(
     notify_pager_duty_integration_key=None,
     enable_heartbeat_daemon=True,
     deployer_attribute_file=None,
+    with_capture_error_hook=False,
 ):
     validate_tags(tags)
 
@@ -248,6 +255,7 @@ def create(
         notify_slack_webhook_url,
         notify_pager_duty_integration_key,
         enable_heartbeat_daemon,
+        with_capture_error_hook,
     )
 
     if only_json:
@@ -421,6 +429,7 @@ def make_flow(
     notify_slack_webhook_url,
     notify_pager_duty_integration_key,
     enable_heartbeat_daemon,
+    with_capture_error_hook,
 ):
     # TODO: Make this check less specific to Amazon S3 as we introduce
     #       support for more cloud object stores.
@@ -484,6 +493,7 @@ def make_flow(
         notify_slack_webhook_url=notify_slack_webhook_url,
         notify_pager_duty_integration_key=notify_pager_duty_integration_key,
         enable_heartbeat_daemon=enable_heartbeat_daemon,
+        with_capture_error_hook=with_capture_error_hook,
     )
 
 

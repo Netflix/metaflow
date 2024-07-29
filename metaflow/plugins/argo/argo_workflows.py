@@ -48,6 +48,7 @@ from metaflow.metaflow_config import (
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
     UI_URL,
+    KUBERNETES_SANDBOX_CAPTURE_ERROR_SCRIPT,
 )
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow.metaflow_config_funcs import config_values
@@ -118,6 +119,7 @@ class ArgoWorkflows(object):
         notify_slack_webhook_url=None,
         notify_pager_duty_integration_key=None,
         enable_heartbeat_daemon=True,
+        with_capture_error_hook=False,
     ):
         # Some high-level notes -
         #
@@ -166,7 +168,7 @@ class ArgoWorkflows(object):
         self.notify_slack_webhook_url = notify_slack_webhook_url
         self.notify_pager_duty_integration_key = notify_pager_duty_integration_key
         self.enable_heartbeat_daemon = enable_heartbeat_daemon
-
+        self.with_capture_error_hook = with_capture_error_hook
         self.parameters = self._process_parameters()
         self.triggers, self.trigger_options = self._process_triggers()
         self._schedule, self._timezone = self._get_schedule()
@@ -856,7 +858,9 @@ class ArgoWorkflows(object):
                 # Exit hook template(s)
                 .templates(self._exit_hook_templates())
                 # Sidecar templates (Daemon Containers)
-                .templates(self._daemon_templates())
+                .templates(self._daemon_templates()).onExit(
+                    self.with_capture_error_hook, "capture-error-hook-fn-preflight"
+                )
             )
         )
 
@@ -2167,7 +2171,180 @@ class ArgoWorkflows(object):
                     .success_condition("true == true")
                 )
             )
+        if self.with_capture_error_hook:
+            templates.append(self._capture_error_hook_preflight_template())
+            templates.append(self._capture_error_hook_template())
         return templates
+
+    def _capture_error_hook_preflight_template(self):
+        step = (
+            WorkflowStep()
+            .name("capture-error-hook-fn-preflight")
+            .template("capture-error-hook-fn")
+            .when("{{workflow.status}} != Succeeded")
+        )
+        error_hook_steps = []
+        error_hook_steps.append(step)
+        return Template("capture-error-hook-fn-preflight").steps(error_hook_steps)
+
+    def _capture_error_hook_template(self):
+        from kubernetes import client as kubernetes_sdk
+
+        start_step = [step for step in self.graph if step.name == "start"][0]
+        # We want to grab the base image used by the start step, as this is known to be pullable from within the cluster,
+        # and it might contain the required libraries, allowing us to start up faster.
+        resources = dict(
+            [deco for deco in start_step.decorators if deco.name == "kubernetes"][
+                0
+            ].attributes
+        )
+
+        run_id_template = "argo-{{workflow.name}}"
+        metaflow_version = self.environment.get_environment_info()
+        metaflow_version["flow_name"] = self.graph.name
+        metaflow_version["production_token"] = self.production_token
+
+        mflog_expr = export_mflog_env_vars(
+            datastore_type=self.flow_datastore.TYPE,
+            stdout_path="$PWD/.logs/mflog_stdout",
+            stderr_path="$PWD/.logs/mflog_stderr",
+            flow_name=self.flow.name,
+            run_id=run_id_template,
+            step_name="_run_capture_error",
+            task_id="1",
+            retry_count="0",
+        )
+
+        init_cmds = " && ".join(
+            [
+                # For supporting sandboxes, ensure that a custom script is executed
+                # before anything else is executed. The script is passed in as an
+                # env var.
+                '${METAFLOW_INIT_SCRIPT:+eval \\"${METAFLOW_INIT_SCRIPT}\\"}',
+                "mkdir -p $PWD/.logs",
+                mflog_expr,
+            ]
+            + self.environment.get_package_commands(
+                self.code_package_url, self.flow_datastore.TYPE
+            )
+            + [
+                "first_err=$(python3 -c 'from metaflow.plugins.argo.capture_error import determine_first_error; first_err=determine_first_error(); print(first_err)')",
+                "export FIRST_ERROR=$first_err",
+                "echo $FIRST_ERROR",
+            ]
+        )
+
+        capture_cmd_str = 'if [ -n \\"${KUBERNETES_SANDBOX_CAPTURE_ERROR_SCRIPT}\\" ]; then eval \\"${KUBERNETES_SANDBOX_CAPTURE_ERROR_SCRIPT}\\"; fi'
+        cmd_str = " && ".join([init_cmds, capture_cmd_str])
+        cmds = shlex.split('bash -c "%s"' % cmd_str)
+        script_val = KUBERNETES_SANDBOX_CAPTURE_ERROR_SCRIPT
+        metaflow_env = {
+            # These values are needed by Metaflow to set it's internal
+            # state appropriately.
+            "METAFLOW_CODE_URL": self.code_package_url,
+            "METAFLOW_CODE_SHA": self.code_package_sha,
+            "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
+            "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
+            "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
+            "METAFLOW_USER": "argo-workflows",
+            "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
+            "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
+            "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
+            "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
+            "METAFLOW_CARD_S3ROOT": CARD_S3ROOT,
+            "METAFLOW_KUBERNETES_WORKLOAD": 1,
+            "METAFLOW_KUBERNETES_FETCH_EC2_METADATA": KUBERNETES_FETCH_EC2_METADATA,
+            "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
+            "METAFLOW_OWNER": self.username,
+            "METAFLOW_VERSION": json.dumps(metaflow_version),
+        }
+
+        metaflow_env = {
+            k: v
+            for k, v in metaflow_env.items()
+            if v is not None
+            and k not in set(ARGO_WORKFLOWS_ENV_VARS_TO_SKIP.split(","))
+        }
+        v1Container = kubernetes_sdk.V1Container(
+            name="captureerrcontainer",
+            command=cmds,
+            image=resources["image"],
+            env_from=[
+                kubernetes_sdk.V1EnvFromSource(
+                    secret_ref=kubernetes_sdk.V1SecretEnvSource(
+                        name=str(k),
+                        # optional=True
+                    )
+                )
+                for k in list(
+                    []
+                    if not resources.get("secrets")
+                    else [resources.get("secrets")]
+                    if isinstance(resources.get("secrets"), str)
+                    else resources.get("secrets")
+                )
+                + KUBERNETES_SECRETS.split(",")
+                + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
+                if k
+            ],
+            env=[
+                kubernetes_sdk.V1EnvVar(
+                    name="METAFLOW_ENABLE_WORKFLOW_EXIT_HOOK", value="true"
+                ),
+                kubernetes_sdk.V1EnvVar(
+                    name="METAFLOW_WORKFLOW_NAME", value="{{workflow.name}}"
+                ),
+                kubernetes_sdk.V1EnvVar(
+                    name="METAFLOW_WORKFLOW_NAMESPACE", value="{{workflow.namespace}}"
+                ),
+                kubernetes_sdk.V1EnvVar(
+                    name="METAFLOW_WORKFLOW_UID", value="{{workflow.uid}}"
+                ),
+                kubernetes_sdk.V1EnvVar(
+                    name="METAFLOW_WORKFLOW_ANNOTATIONS",
+                    value="{{workflow.annotations.json}}",
+                ),
+                kubernetes_sdk.V1EnvVar(
+                    name="METAFLOW_WORKFLOW_LABELS", value="{{workflow.labels.json}}"
+                ),
+                kubernetes_sdk.V1EnvVar(
+                    name="METAFLOW_ARGO_WORKFLOW_STATUS", value="{{workflow.status}}"
+                ),
+                kubernetes_sdk.V1EnvVar(
+                    name="METAFLOW_ARGO_WORKFLOW_FAILURES",
+                    value="{{workflow.failures}}",
+                ),
+                kubernetes_sdk.V1EnvVar(
+                    name="KUBERNETES_SANDBOX_CAPTURE_ERROR_SCRIPT", value=script_val
+                ),
+                kubernetes_sdk.V1EnvVar(
+                    name="METAFLOW_INIT_SCRIPT", value=KUBERNETES_SANDBOX_INIT_SCRIPT
+                ),
+            ]
+            + [
+                kubernetes_sdk.V1EnvVar(name=k, value=str(v))
+                for k, v in metaflow_env.items()
+            ]
+            + [
+                kubernetes_sdk.V1EnvVar(
+                    name=k,
+                    value_from=kubernetes_sdk.V1EnvVarSource(
+                        field_ref=kubernetes_sdk.V1ObjectFieldSelector(
+                            field_path=str(v)
+                        )
+                    ),
+                )
+                for k, v in {
+                    "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
+                    "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
+                    "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
+                    "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME": "spec.serviceAccountName",
+                    "METAFLOW_KUBERNETES_NODE_IP": "status.hostIP",
+                }.items()
+            ],
+        )
+        capture_error_hook_fn = to_camelcase(v1Container)
+        return Template("capture-error-hook-fn").container(capture_error_hook_fn)
 
     def _pager_duty_alert_template(self):
         # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgx-send-an-alert-event
@@ -2912,6 +3089,34 @@ class ObjectMeta(object):
         return json.dumps(self.to_json(), indent=4)
 
 
+class WorkflowStep(object):
+    def __init__(self):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+
+    def name(self, name):
+        self.payload["name"] = str(name)
+        return self
+
+    def template(self, template):
+        self.payload["template"] = str(template)
+        return self
+
+    def when(self, condition):
+        self.payload["when"] = str(condition)
+        return self
+
+    def step(self, expression):
+        self.payload["expression"] = str(expression)
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.to_json(), indent=4)
+
+
 class WorkflowSpec(object):
     # https://argoproj.github.io/argo-workflows/fields/#workflowspec
     # This object sets all Workflow level properties.
@@ -2940,6 +3145,11 @@ class WorkflowSpec(object):
 
     def entrypoint(self, entrypoint):
         self.payload["entrypoint"] = entrypoint
+        return self
+
+    def onExit(self, with_capture_error_hook, on_exit_template):
+        if with_capture_error_hook:
+            self.payload["onExit"] = on_exit_template
         return self
 
     def parallelism(self, parallelism):
@@ -3065,6 +3275,18 @@ class Template(object):
 
     def dag(self, dag_template):
         self.payload["dag"] = dag_template.to_json()
+        return self
+
+    def steps(self, steps):
+        if "steps" not in self.payload:
+            self.payload["steps"] = []
+        # steps is a list of lists.
+        # hence we go over every item in the incoming list
+        # serialize it and then append the list to the payload
+        step_list = []
+        for step in steps:
+            step_list.append(step.to_json())
+        self.payload["steps"].append(step_list)
         return self
 
     def container(self, container):
