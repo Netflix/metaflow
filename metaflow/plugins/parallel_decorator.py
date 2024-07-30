@@ -1,11 +1,34 @@
+from collections import namedtuple
 from metaflow.decorators import StepDecorator
-from metaflow.unbounded_foreach import UBF_CONTROL
+from metaflow.unbounded_foreach import UBF_CONTROL, CONTROL_TASK_TAG
 from metaflow.exception import MetaflowException
+from metaflow.metadata import MetaDatum
+from metaflow.metaflow_current import current, Parallel
 import os
 import sys
 
 
 class ParallelDecorator(StepDecorator):
+    """
+    MF Add To Current
+    -----------------
+    parallel -> metaflow.metaflow_current.Parallel
+
+        @@ Returns
+        -------
+        Parallel
+            `namedtuple` with the following fields:
+                - main_ip : str
+                    The IP address of the control task.
+                - num_nodes : int
+                    The total number of tasks created by @parallel
+                - node_index : int
+                    The index of the current task in all the @parallel tasks.
+
+    is_parallel -> bool
+        True if the current step is a @parallel step.
+    """
+
     name = "parallel"
     defaults = {}
     IS_PARALLEL = True
@@ -16,7 +39,6 @@ class ParallelDecorator(StepDecorator):
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context
     ):
-
         if ubf_context == UBF_CONTROL:
             num_parallel = cli_args.task.ubf_iter.num_parallel
             cli_args.command_options["num-parallel"] = str(num_parallel)
@@ -25,6 +47,82 @@ class ParallelDecorator(StepDecorator):
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
     ):
         self.environment = environment
+        # Previously, the `parallel` property was a hardcoded, static property within `current`.
+        # Whenever `current.parallel` was called, it returned a named tuple with values coming from
+        # environment variables, loaded dynamically at runtime.
+        # Now, many of these environment variables are set by compute-related decorators in `task_pre_step`.
+        # This necessitates ensuring the correct ordering of the `parallel` and compute decorators if we want to
+        # statically set the namedtuple via `current._update_env` in `task_pre_step`. Hence we avoid using
+        # `current._update_env` since:
+        # - it will set a static named tuple, resolving environment variables only once (at the time of calling `current._update_env`).
+        # - we cannot guarantee the order of calling the decorator's `task_pre_step` (calling `current._update_env` may not set
+        #   the named tuple with the correct values).
+        # Therefore, we explicitly set the property in `step_init` to ensure the property can resolve the appropriate values in the named tuple
+        # when accessed at runtime.
+        setattr(
+            current.__class__,
+            "parallel",
+            property(
+                fget=lambda _: Parallel(
+                    main_ip=os.environ.get("MF_PARALLEL_MAIN_IP", "127.0.0.1"),
+                    num_nodes=int(os.environ.get("MF_PARALLEL_NUM_NODES", "1")),
+                    node_index=int(os.environ.get("MF_PARALLEL_NODE_INDEX", "0")),
+                )
+            ),
+        )
+
+    def task_pre_step(
+        self,
+        step_name,
+        task_datastore,
+        metadata,
+        run_id,
+        task_id,
+        flow,
+        graph,
+        retry_count,
+        max_user_code_retries,
+        ubf_context,
+        inputs,
+    ):
+        from metaflow import current
+
+        # Set `is_parallel` to `True` in `current` just like we
+        # with `is_production` in the project decorator.
+        current._update_env(
+            {
+                "is_parallel": True,
+            }
+        )
+
+        self.input_paths = [obj.pathspec for obj in inputs]
+        task_metadata_list = [
+            MetaDatum(
+                field="parallel-world-size",
+                value=flow._parallel_ubf_iter.num_parallel,
+                type="parallel-world-size",
+                tags=["attempt_id:{0}".format(0)],
+            )
+        ]
+        if ubf_context == UBF_CONTROL:
+            # A Task's tags are now those of its ancestral Run, so we are not able
+            # to rely on a task's tags to indicate the presence of a control task
+            # so, on top of adding the tags above, we also add a task metadata
+            # entry indicating that this is a "control task".
+            #
+            # Here we will also add a task metadata entry to indicate "control
+            # task". Within the metaflow repo, the only dependency of such a
+            # "control task" indicator is in the integration test suite (see
+            # Step.control_tasks() in client API).
+            task_metadata_list += [
+                MetaDatum(
+                    field="internal_task_type",
+                    value=CONTROL_TASK_TAG,
+                    type="internal_task_type",
+                    tags=["attempt_id:{0}".format(0)],
+                )
+            ]
+        metadata.register_metadata(run_id, step_name, task_id, task_metadata_list)
 
     def task_decorate(
         self, step_func, flow, graph, retry_count, max_user_code_retries, ubf_context
@@ -47,6 +145,7 @@ class ParallelDecorator(StepDecorator):
                 env_to_use,
                 _step_func_with_setup,
                 retry_count,
+                ",".join(self.input_paths),
             )
         else:
             return _step_func_with_setup
@@ -56,7 +155,9 @@ class ParallelDecorator(StepDecorator):
         pass
 
 
-def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_count):
+def _local_multinode_control_task_step_func(
+    flow, env_to_use, step_func, retry_count, input_paths
+):
     """
     Used as multinode UBF control task when run in local mode.
     """
@@ -80,10 +181,7 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
     run_id = current.run_id
     step_name = current.step_name
     control_task_id = current.task_id
-
-    (_, split_step_name, split_task_id) = control_task_id.split("-")[1:]
     # UBF handling for multinode case
-    top_task_id = control_task_id.replace("control-", "")  # chop "-0"
     mapper_task_ids = [control_task_id]
     # If we are running inside Conda, we use the base executable FIRST;
     # the conda environment will then be used when runtime_step_cli is
@@ -93,12 +191,13 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
     script = sys.argv[0]
 
     # start workers
+    # TODO: Logs for worker processes are assigned to control process as of today, which
+    #       should be fixed at some point
     subprocesses = []
     for node_index in range(1, num_parallel):
-        task_id = "%s_node_%d" % (top_task_id, node_index)
+        task_id = "%s_node_%d" % (control_task_id, node_index)
         mapper_task_ids.append(task_id)
         os.environ["MF_PARALLEL_NODE_INDEX"] = str(node_index)
-        input_paths = "%s/%s/%s" % (run_id, split_step_name, split_task_id)
         # Override specific `step` kwargs.
         kwargs = cli_args.step_kwargs
         kwargs["split_index"] = str(node_index)
@@ -109,6 +208,7 @@ def _local_multinode_control_task_step_func(flow, env_to_use, step_func, retry_c
         kwargs["retry_count"] = str(retry_count)
 
         cmd = cli_args.step_command(executable, script, step_name, step_kwargs=kwargs)
+
         p = subprocess.Popen(cmd)
         subprocesses.append(p)
 

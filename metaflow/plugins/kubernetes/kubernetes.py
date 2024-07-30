@@ -1,9 +1,9 @@
+import copy
 import json
 import math
 import os
 import re
 import shlex
-import copy
 import time
 from typing import Dict, List, Optional
 from uuid import uuid4
@@ -14,10 +14,11 @@ from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT,
     ARGO_EVENTS_EVENT_BUS,
     ARGO_EVENTS_EVENT_SOURCE,
-    ARGO_EVENTS_SERVICE_ACCOUNT,
     ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
-    AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    ARGO_EVENTS_SERVICE_ACCOUNT,
     ARGO_EVENTS_WEBHOOK_AUTH,
+    AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    AZURE_KEY_VAULT_PREFIX,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     CARD_AZUREROOT,
     CARD_GSROOT,
@@ -31,18 +32,18 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
     GCP_SECRET_MANAGER_PREFIX,
-    AZURE_KEY_VAULT_PREFIX,
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_LABELS,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
-    S3_ENDPOINT_URL,
-    SERVICE_HEADERS,
-    SERVICE_INTERNAL_URL,
-    S3_SERVER_SIDE_ENCRYPTION,
     OTEL_ENDPOINT,
+    S3_ENDPOINT_URL,
+    S3_SERVER_SIDE_ENCRYPTION,
+    SERVICE_HEADERS,
+    KUBERNETES_SECRETS,
+    SERVICE_INTERNAL_URL,
 )
+from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow.metaflow_config_funcs import config_values
-
 from metaflow.mflog import (
     BASH_SAVE_LOGS,
     bash_capture_logs,
@@ -60,6 +61,10 @@ STDERR_FILE = "mflog_stderr"
 STDOUT_PATH = os.path.join(LOGS_DIR, STDOUT_FILE)
 STDERR_PATH = os.path.join(LOGS_DIR, STDERR_FILE)
 
+METAFLOW_PARALLEL_STEP_CLI_OPTIONS_TEMPLATE = (
+    "{METAFLOW_PARALLEL_STEP_CLI_OPTIONS_TEMPLATE}"
+)
+
 
 class KubernetesException(MetaflowException):
     headline = "Kubernetes error"
@@ -67,12 +72,6 @@ class KubernetesException(MetaflowException):
 
 class KubernetesKilledException(MetaflowException):
     headline = "Kubernetes Batch job killed"
-
-
-def _extract_labels_and_annotations_from_job_spec(job_spec):
-    annotations = job_spec.template.metadata.annotations
-    labels = job_spec.template.metadata.labels
-    return copy.copy(annotations), copy.copy(labels)
 
 
 class Kubernetes(object):
@@ -154,57 +153,287 @@ class Kubernetes(object):
             and kwargs["num_parallel"]
             and int(kwargs["num_parallel"]) > 0
         ):
-            job = self.create_job_object(**kwargs)
-            spec = job.create_job_spec()
-            # `kwargs["step_cli"]` is setting `ubf_context` as control to ALL pods.
-            # This will be modified by the KubernetesJobSet object
-            annotations, labels = _extract_labels_and_annotations_from_job_spec(spec)
-            self._job = self.create_jobset(
-                job_spec=spec,
-                run_id=kwargs["run_id"],
-                step_name=kwargs["step_name"],
-                task_id=kwargs["task_id"],
-                namespace=kwargs["namespace"],
-                env=kwargs["env"],
-                num_parallel=kwargs["num_parallel"],
-                port=kwargs["port"],
-                annotations=annotations,
-                labels=labels,
-            ).execute()
+            self._job = self.create_jobset(**kwargs).execute()
         else:
+            kwargs.pop("num_parallel", None)
             kwargs["name_pattern"] = "t-{uid}-".format(uid=str(uuid4())[:8])
             self._job = self.create_job_object(**kwargs).create().execute()
 
     def create_jobset(
         self,
-        job_spec=None,
-        run_id=None,
-        step_name=None,
-        task_id=None,
+        flow_name,
+        run_id,
+        step_name,
+        task_id,
+        attempt,
+        user,
+        code_package_sha,
+        code_package_url,
+        code_package_ds,
+        docker_image,
+        docker_image_pull_policy,
+        step_cli=None,
+        service_account=None,
+        secrets=None,
+        node_selector=None,
         namespace=None,
+        cpu=None,
+        gpu=None,
+        gpu_vendor=None,
+        disk=None,
+        memory=None,
+        use_tmpfs=None,
+        tmpfs_tempdir=None,
+        tmpfs_size=None,
+        tmpfs_path=None,
+        run_time_limit=None,
         env=None,
-        num_parallel=None,
-        port=None,
-        annotations=None,
+        persistent_volume_claims=None,
+        tolerations=None,
         labels=None,
+        shared_memory=None,
+        port=None,
+        num_parallel=None,
     ):
-        if env is None:
-            env = {}
-
-        _prefix = str(uuid4())[:6]
-        js = KubernetesClient().jobset(
-            name="js-%s" % _prefix,
-            run_id=run_id,
-            task_id=task_id,
-            step_name=step_name,
-            namespace=namespace,
-            labels=self._get_labels(labels),
-            annotations=annotations,
-            num_parallel=num_parallel,
-            job_spec=job_spec,
-            port=port,
+        name = "js-%s" % str(uuid4())[:6]
+        jobset = (
+            KubernetesClient()
+            .jobset(
+                name=name,
+                namespace=namespace,
+                service_account=service_account,
+                node_selector=node_selector,
+                image=docker_image,
+                image_pull_policy=docker_image_pull_policy,
+                cpu=cpu,
+                memory=memory,
+                disk=disk,
+                gpu=gpu,
+                gpu_vendor=gpu_vendor,
+                timeout_in_seconds=run_time_limit,
+                # Retries are handled by Metaflow runtime
+                retries=0,
+                step_name=step_name,
+                # We set the jobset name as the subdomain.
+                # todo: [final-refactor] ask @shri what was the motive when we did initial implementation
+                subdomain=name,
+                tolerations=tolerations,
+                use_tmpfs=use_tmpfs,
+                tmpfs_tempdir=tmpfs_tempdir,
+                tmpfs_size=tmpfs_size,
+                tmpfs_path=tmpfs_path,
+                persistent_volume_claims=persistent_volume_claims,
+                shared_memory=shared_memory,
+                port=port,
+                num_parallel=num_parallel,
+            )
+            .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
+            .environment_variable("METAFLOW_CODE_URL", code_package_url)
+            .environment_variable("METAFLOW_CODE_DS", code_package_ds)
+            .environment_variable("METAFLOW_USER", user)
+            .environment_variable("METAFLOW_SERVICE_URL", SERVICE_INTERNAL_URL)
+            .environment_variable(
+                "METAFLOW_SERVICE_HEADERS",
+                json.dumps(SERVICE_HEADERS),
+            )
+            .environment_variable("METAFLOW_DATASTORE_SYSROOT_S3", DATASTORE_SYSROOT_S3)
+            .environment_variable("METAFLOW_DATATOOLS_S3ROOT", DATATOOLS_S3ROOT)
+            .environment_variable("METAFLOW_DEFAULT_DATASTORE", self._datastore.TYPE)
+            .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
+            .environment_variable("METAFLOW_KUBERNETES_WORKLOAD", 1)
+            .environment_variable(
+                "METAFLOW_KUBERNETES_FETCH_EC2_METADATA", KUBERNETES_FETCH_EC2_METADATA
+            )
+            .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "kubernetes")
+            .environment_variable(
+                "METAFLOW_DEFAULT_SECRETS_BACKEND_TYPE", DEFAULT_SECRETS_BACKEND_TYPE
+            )
+            .environment_variable("METAFLOW_CARD_S3ROOT", CARD_S3ROOT)
+            .environment_variable(
+                "METAFLOW_DEFAULT_AWS_CLIENT_PROVIDER", DEFAULT_AWS_CLIENT_PROVIDER
+            )
+            .environment_variable(
+                "METAFLOW_DEFAULT_GCP_CLIENT_PROVIDER", DEFAULT_GCP_CLIENT_PROVIDER
+            )
+            .environment_variable(
+                "METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION",
+                AWS_SECRETS_MANAGER_DEFAULT_REGION,
+            )
+            .environment_variable(
+                "METAFLOW_GCP_SECRET_MANAGER_PREFIX", GCP_SECRET_MANAGER_PREFIX
+            )
+            .environment_variable(
+                "METAFLOW_AZURE_KEY_VAULT_PREFIX", AZURE_KEY_VAULT_PREFIX
+            )
+            .environment_variable("METAFLOW_S3_ENDPOINT_URL", S3_ENDPOINT_URL)
+            .environment_variable(
+                "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT",
+                AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
+            )
+            .environment_variable(
+                "METAFLOW_DATASTORE_SYSROOT_AZURE", DATASTORE_SYSROOT_AZURE
+            )
+            .environment_variable("METAFLOW_CARD_AZUREROOT", CARD_AZUREROOT)
+            .environment_variable("METAFLOW_DATASTORE_SYSROOT_GS", DATASTORE_SYSROOT_GS)
+            .environment_variable("METAFLOW_CARD_GSROOT", CARD_GSROOT)
+            # support Metaflow sandboxes
+            .environment_variable(
+                "METAFLOW_INIT_SCRIPT", KUBERNETES_SANDBOX_INIT_SCRIPT
+            )
+            .environment_variable("METAFLOW_OTEL_ENDPOINT", OTEL_ENDPOINT)
+            # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync
+            # between the local user instance and the remote Kubernetes pod
+            # assumes metadata is stored in DATASTORE_LOCAL_DIR on the Kubernetes
+            # pod; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set (
+            # see get_datastore_root_from_config in datastore/local.py).
         )
-        return js
+
+        _labels = self._get_labels(labels)
+        for k, v in _labels.items():
+            jobset.label(k, v)
+
+        for k in list(
+            [] if not secrets else [secrets] if isinstance(secrets, str) else secrets
+        ) + KUBERNETES_SECRETS.split(","):
+            jobset.secret(k)
+
+        jobset.environment_variables_from_selectors(
+            {
+                "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
+                "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
+                "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
+                "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME": "spec.serviceAccountName",
+                "METAFLOW_KUBERNETES_NODE_IP": "status.hostIP",
+            }
+        )
+
+        # Temporary passing of *some* environment variables. Do not rely on this
+        # mechanism as it will be removed in the near future
+        for k, v in config_values():
+            if k.startswith("METAFLOW_CONDA_") or k.startswith("METAFLOW_DEBUG_"):
+                jobset.environment_variable(k, v)
+
+        if S3_SERVER_SIDE_ENCRYPTION is not None:
+            jobset.environment_variable(
+                "METAFLOW_S3_SERVER_SIDE_ENCRYPTION", S3_SERVER_SIDE_ENCRYPTION
+            )
+
+        # Set environment variables to support metaflow.integrations.ArgoEvent
+        jobset.environment_variable(
+            "METAFLOW_ARGO_EVENTS_WEBHOOK_URL", ARGO_EVENTS_INTERNAL_WEBHOOK_URL
+        )
+        jobset.environment_variable("METAFLOW_ARGO_EVENTS_EVENT", ARGO_EVENTS_EVENT)
+        jobset.environment_variable(
+            "METAFLOW_ARGO_EVENTS_EVENT_BUS", ARGO_EVENTS_EVENT_BUS
+        )
+        jobset.environment_variable(
+            "METAFLOW_ARGO_EVENTS_EVENT_SOURCE", ARGO_EVENTS_EVENT_SOURCE
+        )
+        jobset.environment_variable(
+            "METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT", ARGO_EVENTS_SERVICE_ACCOUNT
+        )
+        jobset.environment_variable(
+            "METAFLOW_ARGO_EVENTS_WEBHOOK_AUTH",
+            ARGO_EVENTS_WEBHOOK_AUTH,
+        )
+
+        ## -----Jobset specific env vars START here-----
+        jobset.environment_variable("MF_MASTER_ADDR", jobset.jobset_control_addr)
+        jobset.environment_variable("MF_MASTER_PORT", str(port))
+        jobset.environment_variable("MF_WORLD_SIZE", str(num_parallel))
+        jobset.environment_variable_from_selector(
+            "JOBSET_RESTART_ATTEMPT",
+            "metadata.annotations['jobset.sigs.k8s.io/restart-attempt']",
+        )
+        jobset.environment_variable_from_selector(
+            "METAFLOW_KUBERNETES_JOBSET_NAME",
+            "metadata.annotations['jobset.sigs.k8s.io/jobset-name']",
+        )
+        jobset.environment_variable_from_selector(
+            "MF_WORKER_REPLICA_INDEX",
+            "metadata.annotations['jobset.sigs.k8s.io/job-index']",
+        )
+        ## -----Jobset specific env vars END here-----
+
+        tmpfs_enabled = use_tmpfs or (tmpfs_size and not use_tmpfs)
+        if tmpfs_enabled and tmpfs_tempdir:
+            jobset.environment_variable("METAFLOW_TEMPDIR", tmpfs_path)
+
+        for name, value in env.items():
+            jobset.environment_variable(name, value)
+
+        annotations = {
+            "metaflow/user": user,
+            "metaflow/flow_name": flow_name,
+            "metaflow/control-task-id": task_id,
+        }
+        if current.get("project_name"):
+            annotations.update(
+                {
+                    "metaflow/project_name": current.project_name,
+                    "metaflow/branch_name": current.branch_name,
+                    "metaflow/project_flow_name": current.project_flow_name,
+                }
+            )
+
+        for name, value in annotations.items():
+            jobset.annotation(name, value)
+
+        (
+            jobset.annotation("metaflow/run_id", run_id)
+            .annotation("metaflow/step_name", step_name)
+            .annotation("metaflow/attempt", attempt)
+            .label("app.kubernetes.io/name", "metaflow-task")
+            .label("app.kubernetes.io/part-of", "metaflow")
+        )
+
+        ## ----------- control/worker specific values START here -----------
+        # We will now set the appropriate command for the control/worker job
+        _get_command = lambda index, _tskid: self._command(
+            flow_name=flow_name,
+            run_id=run_id,
+            step_name=step_name,
+            task_id=_tskid,
+            attempt=attempt,
+            code_package_url=code_package_url,
+            step_cmds=[
+                step_cli.replace(
+                    METAFLOW_PARALLEL_STEP_CLI_OPTIONS_TEMPLATE,
+                    "--ubf-context $UBF_CONTEXT --split-index %s --task-id %s"
+                    % (index, _tskid),
+                )
+            ],
+        )
+        jobset.control.replicas(1)
+        jobset.worker.replicas(num_parallel - 1)
+
+        # We set the appropriate command for the control/worker job
+        # and also set the task-id/spit-index for the control/worker job
+        # appropirately.
+        jobset.control.command(_get_command("0", str(task_id)))
+        jobset.worker.command(
+            _get_command(
+                "`expr $[MF_WORKER_REPLICA_INDEX] + 1`",
+                "-".join(
+                    [
+                        str(task_id),
+                        "worker",
+                        "$MF_WORKER_REPLICA_INDEX",
+                    ]
+                ),
+            )
+        )
+
+        jobset.control.environment_variable("UBF_CONTEXT", UBF_CONTROL)
+        jobset.worker.environment_variable("UBF_CONTEXT", UBF_TASK)
+        # Every control job requires an environment variable of MF_CONTROL_INDEX
+        # set to 0 so that we can derive the MF_PARALLEL_NODE_INDEX correctly.
+        # Since only the control job has MF_CONTROL_INDE set to 0, all worker nodes
+        # will use MF_WORKER_REPLICA_INDEX
+        jobset.control.environment_variable("MF_CONTROL_INDEX", "0")
+        ## ----------- control/worker specific values END here -----------
+
+        return jobset
 
     def create_job_object(
         self,
@@ -241,7 +470,6 @@ class Kubernetes(object):
         shared_memory=None,
         port=None,
         name_pattern=None,
-        num_parallel=None,
     ):
         if env is None:
             env = {}
@@ -282,7 +510,6 @@ class Kubernetes(object):
                 persistent_volume_claims=persistent_volume_claims,
                 shared_memory=shared_memory,
                 port=port,
-                num_parallel=num_parallel,
             )
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)

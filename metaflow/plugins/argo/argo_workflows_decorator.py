@@ -2,12 +2,14 @@ import json
 import os
 import time
 
+
 from metaflow import current
 from metaflow.decorators import StepDecorator
 from metaflow.events import Trigger
 from metaflow.metadata import MetaDatum
 from metaflow.metaflow_config import ARGO_EVENTS_WEBHOOK_URL
-
+from metaflow.graph import DAGNode, FlowGraph
+from metaflow.flowspec import FlowSpec
 from .argo_events import ArgoEvent
 
 
@@ -83,7 +85,13 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
         metadata.register_metadata(run_id, step_name, task_id, entries)
 
     def task_finished(
-        self, step_name, flow, graph, is_task_ok, retry_count, max_user_code_retries
+        self,
+        step_name,
+        flow: FlowSpec,
+        graph: FlowGraph,
+        is_task_ok,
+        retry_count,
+        max_user_code_retries,
     ):
         if not is_task_ok:
             # The task finished with an exception - execution won't
@@ -100,16 +108,39 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
         # we run pods with a security context. We work around this constraint by
         # mounting an emptyDir volume.
         if graph[step_name].type == "foreach":
+            # A DAGNode is considered a `parallel_step` if it is annotated by the @parallel decorator.
+            # A DAGNode is considered a `parallel_foreach` if it contains a `num_parallel` kwarg provided to the
+            # `next` method of that DAGNode.
+            # At this moment in the code we care if a node is marked as a `parallel_foreach` so that we can pass down the
+            # value of `num_parallel` to the subsequent steps.
+            # For @parallel, the implmentation uses 1 jobset object. That one jobset
+            # object internally creates 'num_parallel' jobs. So, we set foreach_num_splits
+            # to 1 here for @parallel. The parallelism of jobset is handled in
+            # kubernetes_job.py.
+            if graph[step_name].parallel_foreach:
+                with open("/mnt/out/num_parallel", "w") as f:
+                    json.dump(flow._parallel_ubf_iter.num_parallel, f)
+                flow._foreach_num_splits = 1
+                with open("/mnt/out/task_id_entropy", "w") as file:
+                    import uuid
+
+                    file.write(uuid.uuid4().hex[:6])
+
             with open("/mnt/out/splits", "w") as file:
                 json.dump(list(range(flow._foreach_num_splits)), file)
             with open("/mnt/out/split_cardinality", "w") as file:
                 json.dump(flow._foreach_num_splits, file)
 
-        # Unfortunately, we can't always use pod names as task-ids since the pod names
-        # are not static across retries. We write the task-id to a file that is read
-        # by the next task here.
-        with open("/mnt/out/task_id", "w") as file:
-            file.write(self.task_id)
+        # for steps that have a `@parallel` decorator set to them, we will be relying on Jobsets
+        # to run the task. In this case, we cannot set anything in the
+        # `/mnt/out` directory, since such form of output mounts are not available to jobset execution as
+        # argo just treats it like A K8s resource that it throws in the cluster.
+        if not graph[step_name].parallel_step:
+            # Unfortunately, we can't always use pod names as task-ids since the pod names
+            # are not static across retries. We write the task-id to a file that is read
+            # by the next task here.
+            with open("/mnt/out/task_id", "w") as file:
+                file.write(self.task_id)
 
         # Emit Argo Events given that the flow has succeeded. Given that we only
         # emit events when the task succeeds, we can piggy back on this decorator

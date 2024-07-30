@@ -12,28 +12,27 @@ from metaflow.metaflow_config import (
     DATASTORE_LOCAL_DIR,
     KUBERNETES_CONTAINER_IMAGE,
     KUBERNETES_CONTAINER_REGISTRY,
+    KUBERNETES_CPU,
+    KUBERNETES_DISK,
     KUBERNETES_FETCH_EC2_METADATA,
-    KUBERNETES_IMAGE_PULL_POLICY,
     KUBERNETES_GPU_VENDOR,
+    KUBERNETES_IMAGE_PULL_POLICY,
+    KUBERNETES_MEMORY,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_PERSISTENT_VOLUME_CLAIMS,
-    KUBERNETES_TOLERATIONS,
+    KUBERNETES_PORT,
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SHARED_MEMORY,
-    KUBERNETES_PORT,
-    KUBERNETES_CPU,
-    KUBERNETES_MEMORY,
-    KUBERNETES_DISK,
+    KUBERNETES_TOLERATIONS,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.sidecar import Sidecar
+from metaflow.unbounded_foreach import UBF_CONTROL
 
 from ..aws.aws_utils import get_docker_registry, get_ec2_instance_metadata
 from .kubernetes import KubernetesException, parse_kube_keyvalue_list
-from metaflow.unbounded_foreach import UBF_CONTROL
-from .kubernetes_jobsets import TaskIdConstructor
 
 try:
     unicode
@@ -416,8 +415,8 @@ class KubernetesDecorator(StepDecorator):
         # check for the existence of METAFLOW_KUBERNETES_WORKLOAD environment
         # variable.
 
+        meta = {}
         if "METAFLOW_KUBERNETES_WORKLOAD" in os.environ:
-            meta = {}
             meta["kubernetes-pod-name"] = os.environ["METAFLOW_KUBERNETES_POD_NAME"]
             meta["kubernetes-pod-namespace"] = os.environ[
                 "METAFLOW_KUBERNETES_POD_NAMESPACE"
@@ -427,15 +426,15 @@ class KubernetesDecorator(StepDecorator):
                 "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME"
             ]
             meta["kubernetes-node-ip"] = os.environ["METAFLOW_KUBERNETES_NODE_IP"]
-            if os.environ.get("METAFLOW_KUBERNETES_JOBSET_NAME"):
-                meta["kubernetes-jobset-name"] = os.environ[
-                    "METAFLOW_KUBERNETES_JOBSET_NAME"
-                ]
+
+            meta["kubernetes-jobset-name"] = os.environ.get(
+                "METAFLOW_KUBERNETES_JOBSET_NAME"
+            )
 
             # TODO (savin): Introduce equivalent support for Microsoft Azure and
             #               Google Cloud Platform
-            # TODO: Introduce a way to detect Cloud Provider, so unnecessary requests (and delays)
-            # can be avoided by not having to try out all providers.
+            # TODO: Introduce a way to detect Cloud Provider, so unnecessary requests
+            # (and delays) can be avoided by not having to try out all providers.
             if KUBERNETES_FETCH_EC2_METADATA:
                 instance_meta = get_ec2_instance_metadata()
                 meta.update(instance_meta)
@@ -451,14 +450,6 @@ class KubernetesDecorator(StepDecorator):
             #         "METAFLOW_KUBERNETES_POD_NAME"
             #     ].rpartition("-")[0]
 
-            entries = [
-                MetaDatum(field=k, value=v, type=k, tags=[])
-                for k, v in meta.items()
-                if v is not None
-            ]
-            # Register book-keeping metadata for debugging.
-            metadata.register_metadata(run_id, step_name, task_id, entries)
-
             # Start MFLog sidecar to collect task logs.
             self._save_logs_sidecar = Sidecar("save_logs_periodically")
             self._save_logs_sidecar.start()
@@ -467,19 +458,34 @@ class KubernetesDecorator(StepDecorator):
         if hasattr(flow, "_parallel_ubf_iter"):
             num_parallel = flow._parallel_ubf_iter.num_parallel
 
-        if num_parallel and num_parallel >= 1 and ubf_context == UBF_CONTROL:
-            control_task_id, worker_task_ids = TaskIdConstructor.join_step_task_ids(
-                num_parallel
-            )
-            mapper_task_ids = [control_task_id] + worker_task_ids
-            flow._control_mapper_tasks = [
-                "%s/%s/%s" % (run_id, step_name, mapper_task_id)
-                for mapper_task_id in mapper_task_ids
-            ]
-            flow._control_task_is_mapper_zero = True
-
         if num_parallel and num_parallel > 1:
             _setup_multinode_environment()
+            # current.parallel.node_index will be correctly available over here.
+            meta.update({"parallel-node-index": current.parallel.node_index})
+            if ubf_context == UBF_CONTROL:
+                flow._control_mapper_tasks = [
+                    "{}/{}/{}".format(run_id, step_name, task_id)
+                    for task_id in [task_id]
+                    + [
+                        "%s-worker-%d" % (task_id, idx)
+                        for idx in range(num_parallel - 1)
+                    ]
+                ]
+                flow._control_task_is_mapper_zero = True
+
+        if len(meta) > 0:
+            entries = [
+                MetaDatum(
+                    field=k,
+                    value=v,
+                    type=k,
+                    tags=["attempt_id:{0}".format(retry_count)],
+                )
+                for k, v in meta.items()
+                if v is not None
+            ]
+            # Register book-keeping metadata for debugging.
+            metadata.register_metadata(run_id, step_name, task_id, entries)
 
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_retries
@@ -516,18 +522,24 @@ class KubernetesDecorator(StepDecorator):
             )[0]
 
 
+# TODO: Unify this method with the multi-node setup in @batch
 def _setup_multinode_environment():
+    # FIXME: what about MF_MASTER_PORT
     import socket
 
-    os.environ["MF_PARALLEL_MAIN_IP"] = socket.gethostbyname(os.environ["MASTER_ADDR"])
-    os.environ["MF_PARALLEL_NUM_NODES"] = os.environ["WORLD_SIZE"]
-    if os.environ.get("CONTROL_INDEX") is not None:
-        os.environ["MF_PARALLEL_NODE_INDEX"] = str(0)
-    elif os.environ.get("WORKER_REPLICA_INDEX") is not None:
-        os.environ["MF_PARALLEL_NODE_INDEX"] = str(
-            int(os.environ["WORKER_REPLICA_INDEX"]) + 1
+    try:
+        os.environ["MF_PARALLEL_MAIN_IP"] = socket.gethostbyname(
+            os.environ["MF_MASTER_ADDR"]
         )
-    else:
-        raise MetaflowException(
-            "Jobset related ENV vars called $CONTROL_INDEX or $WORKER_REPLICA_INDEX not found"
+        os.environ["MF_PARALLEL_NUM_NODES"] = os.environ["MF_WORLD_SIZE"]
+        os.environ["MF_PARALLEL_NODE_INDEX"] = (
+            str(0)
+            if "MF_CONTROL_INDEX" in os.environ
+            else str(int(os.environ["MF_WORKER_REPLICA_INDEX"]) + 1)
         )
+    except KeyError as e:
+        raise MetaflowException("Environment variable {} is missing.".format(e))
+    except socket.gaierror:
+        raise MetaflowException("Failed to get host by name for MF_MASTER_ADDR.")
+    except ValueError:
+        raise MetaflowException("Invalid value for MF_WORKER_REPLICA_INDEX.")

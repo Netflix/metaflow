@@ -121,7 +121,9 @@ class TagCatchTest(MetaflowTest):
                     data = task.data
                     got = sorted(m.value for m in task.metadata if m.type == "attempt")
                     if flow._graph[step.id].parallel_step:
-                        if "control" in task.id:
+                        if task.metadata_dict.get(
+                            "internal_task_type", None
+                        ):  # Only control tasks have internal_task_type set
                             assert_equals(list(map(str, range(attempts))), got)
                         else:
                             # non-control tasks have one attempt less for parallel steps

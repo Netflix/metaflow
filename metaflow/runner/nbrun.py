@@ -1,9 +1,9 @@
-import ast
 import os
 import tempfile
 from typing import Dict, Optional
 
 from metaflow import Runner
+from metaflow.runner.utils import get_current_cell, format_flowfile
 
 DEFAULT_DIR = tempfile.gettempdir()
 
@@ -14,32 +14,6 @@ class NBRunnerInitializationError(Exception):
     pass
 
 
-def get_current_cell(ipython):
-    if ipython:
-        return ipython.history_manager.input_hist_raw[-1]
-    return None
-
-
-def format_flowfile(cell):
-    """
-    Formats the given cell content to create a valid Python script that can be executed as a Metaflow flow.
-    """
-    flowspec = [
-        x
-        for x in ast.parse(cell).body
-        if isinstance(x, ast.ClassDef) and any(b.id == "FlowSpec" for b in x.bases)
-    ]
-
-    if not flowspec:
-        raise ModuleNotFoundError(
-            "The cell doesn't contain any class that inherits from 'FlowSpec'"
-        )
-
-    lines = cell.splitlines()[: flowspec[0].end_lineno]
-    lines += ["if __name__ == '__main__':", f"    {flowspec[0].name}()"]
-    return "\n".join(lines)
-
-
 class NBRunner(object):
     """
     A  wrapper over `Runner` for executing flows defined in a Jupyter
@@ -47,7 +21,7 @@ class NBRunner(object):
 
     Instantiate this class on the last line of a notebook cell where
     a `flow` is defined. In contrast to `Runner`, this class is not
-    meant to be used a context manager. Instead, use a blocking helper
+    meant to be used in a context manager. Instead, use a blocking helper
     function like `nbrun` (which calls `cleanup()` internally) or call
     `cleanup()` explictly when using non-blocking APIs.
 
@@ -101,6 +75,8 @@ class NBRunner(object):
 
         self.env_vars = os.environ.copy()
         self.env_vars.update(env or {})
+        # clears the Jupyter parent process ID environment variable
+        # prevents server from interfering with Metaflow
         self.env_vars.update({"JPY_PARENT_PID": ""})
         if profile:
             self.env_vars["METAFLOW_PROFILE"] = profile

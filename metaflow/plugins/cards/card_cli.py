@@ -752,7 +752,7 @@ def create(
         return _card.render(
             task,
             stack_trace=stack_trace,
-        ).replace(mf_card.RELOAD_POLICY_TOKEN, token)
+        ).replace(_card.RELOAD_POLICY_TOKEN, token)
 
     if error_stack_trace is not None and mode != "refresh":
         rendered_content = _render_error_card(error_stack_trace)
