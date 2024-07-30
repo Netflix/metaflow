@@ -186,9 +186,9 @@ _plugin_categories = {
     "logging_sidecar": None,
     "monitor_sidecar": None,
     "aws_client_provider": lambda x: x.name,
-    "cli": lambda x: list(x.commands)[0]
-    if len(x.commands) == 1
-    else "too many commands",
+    "cli": lambda x: (
+        list(x.commands)[0] if len(x.commands) == 1 else "too many commands"
+    ),
 }
 
 

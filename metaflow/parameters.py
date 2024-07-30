@@ -115,9 +115,9 @@ class DeployTimeField(object):
         self.parameter_name = parameter_name
         self.parameter_type = parameter_type
         self.return_str = return_str
-        self.print_representation = (
-            self.user_print_representation
-        ) = print_representation
+        self.print_representation = self.user_print_representation = (
+            print_representation
+        )
         if self.print_representation is None:
             self.print_representation = str(self.fun)
 

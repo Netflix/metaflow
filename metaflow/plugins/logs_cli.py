@@ -7,6 +7,7 @@ from ..datastore import TaskDataStoreSet, TaskDataStore
 
 from ..mflog import mflog, LOG_SOURCES
 
+
 # main motivation from https://github.com/pallets/click/issues/430
 # in order to support a default command being called for a Click group.
 #

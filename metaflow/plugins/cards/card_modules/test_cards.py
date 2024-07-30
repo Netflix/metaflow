@@ -138,7 +138,6 @@ class TestJSONComponent(MetaflowCardComponent):
 
 
 class TestRefreshCard(MetaflowCard):
-
     """
     This card takes no components and helps test the `current.card.refresh(data)` interface.
     """
@@ -178,7 +177,6 @@ def _component_values_to_hash(components):
 
 
 class TestRefreshComponentCard(MetaflowCard):
-
     """
     This card takes components and helps test the `current.card.components["A"].update()`
     interface

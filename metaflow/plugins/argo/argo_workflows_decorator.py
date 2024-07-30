@@ -54,7 +54,7 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
                                 "_", 1
                             )[
                                 0
-                            ]  # infer type from env var key
+                            ],  # infer type from env var key
                             # Add more event metadata here in the future
                         }
                     )
