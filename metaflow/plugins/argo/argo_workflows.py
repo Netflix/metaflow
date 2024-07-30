@@ -117,6 +117,7 @@ class ArgoWorkflows(object):
         notify_on_success=False,
         notify_slack_webhook_url=None,
         notify_pager_duty_integration_key=None,
+        enable_heartbeat_daemon=True,
     ):
         # Some high-level notes -
         #
@@ -164,6 +165,7 @@ class ArgoWorkflows(object):
         self.notify_on_success = notify_on_success
         self.notify_slack_webhook_url = notify_slack_webhook_url
         self.notify_pager_duty_integration_key = notify_pager_duty_integration_key
+        self.enable_heartbeat_daemon = enable_heartbeat_daemon
 
         self.parameters = self._process_parameters()
         self.triggers, self.trigger_options = self._process_triggers()
@@ -853,6 +855,8 @@ class ArgoWorkflows(object):
                 .templates(self._container_templates())
                 # Exit hook template(s)
                 .templates(self._exit_hook_templates())
+                # Sidecar templates (Daemon Containers)
+                .templates(self._daemon_templates())
             )
         )
 
@@ -1265,7 +1269,13 @@ class ArgoWorkflows(object):
                     "Argo Workflows." % (node.type, node.name)
                 )
 
-        templates, _ = _visit(node=self.graph["start"])
+        # Generate daemon tasks
+        daemon_tasks = [
+            DAGTask("%s-task" % daemon_template.name).template(daemon_template.name)
+            for daemon_template in self._daemon_templates()
+        ]
+
+        templates, _ = _visit(node=self.graph["start"], dag_tasks=daemon_tasks)
         return templates
 
     # Visit every node and yield ContainerTemplates.
@@ -2068,9 +2078,11 @@ class ArgoWorkflows(object):
                                 for k in list(
                                     []
                                     if not resources.get("secrets")
-                                    else [resources.get("secrets")]
-                                    if isinstance(resources.get("secrets"), str)
-                                    else resources.get("secrets")
+                                    else (
+                                        [resources.get("secrets")]
+                                        if isinstance(resources.get("secrets"), str)
+                                        else resources.get("secrets")
+                                    )
                                 )
                                 + KUBERNETES_SECRETS.split(",")
                                 + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
@@ -2121,6 +2133,13 @@ class ArgoWorkflows(object):
                     )
                 )
             )
+
+    # Return daemon container templates for workflow execution notifications.
+    def _daemon_templates(self):
+        templates = []
+        if self.enable_heartbeat_daemon:
+            templates.append(self._heartbeat_daemon_template())
+        return templates
 
     # Return exit hook templates for workflow execution notifications.
     def _exit_hook_templates(self):
@@ -2326,6 +2345,117 @@ class ArgoWorkflows(object):
 
         return Template("notify-slack-on-success").http(
             Http("POST").url(self.notify_slack_webhook_url).body(json.dumps(payload))
+        )
+
+    def _heartbeat_daemon_template(self):
+        # Use all the affordances available to _parameters task
+        executable = self.environment.executable("_parameters")
+        run_id = "argo-{{workflow.name}}"
+        entrypoint = [executable, "-m metaflow.plugins.argo.daemon"]
+        heartbeat_cmds = "{entrypoint} --flow_name {flow_name} --run_id {run_id} {tags} heartbeat".format(
+            entrypoint=" ".join(entrypoint),
+            flow_name=self.flow.name,
+            run_id=run_id,
+            tags=" ".join(["--tag %s" % t for t in self.tags]) if self.tags else "",
+        )
+
+        # TODO: we do not really need MFLOG logging for the daemon at the moment, but might be good for the future.
+        # Consider if we can do without this setup.
+        # Configure log capture.
+        mflog_expr = export_mflog_env_vars(
+            datastore_type=self.flow_datastore.TYPE,
+            stdout_path="$PWD/.logs/mflog_stdout",
+            stderr_path="$PWD/.logs/mflog_stderr",
+            flow_name=self.flow.name,
+            run_id=run_id,
+            step_name="_run_heartbeat_daemon",
+            task_id="1",
+            retry_count="0",
+        )
+        # TODO: Can the init be trimmed down?
+        # Can we do without get_package_commands fetching the whole code package?
+        init_cmds = " && ".join(
+            [
+                # For supporting sandboxes, ensure that a custom script is executed
+                # before anything else is executed. The script is passed in as an
+                # env var.
+                '${METAFLOW_INIT_SCRIPT:+eval \\"${METAFLOW_INIT_SCRIPT}\\"}',
+                "mkdir -p $PWD/.logs",
+                mflog_expr,
+            ]
+            + self.environment.get_package_commands(
+                self.code_package_url, self.flow_datastore.TYPE
+            )[:-1]
+            # Replace the line 'Task in starting'
+            # FIXME: this can be brittle.
+            + ["mflog 'Heartbeat daemon is starting.'"]
+        )
+
+        cmd_str = " && ".join([init_cmds, heartbeat_cmds])
+        cmds = shlex.split('bash -c "%s"' % cmd_str)
+
+        # TODO: Check that this is the minimal env.
+        # Env required for sending heartbeats to the metadata service, nothing extra.
+        env = {
+            # These values are needed by Metaflow to set it's internal
+            # state appropriately.
+            "METAFLOW_CODE_URL": self.code_package_url,
+            "METAFLOW_CODE_SHA": self.code_package_sha,
+            "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
+            "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
+            "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
+            "METAFLOW_USER": "argo-workflows",
+            "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
+            "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
+            "METAFLOW_OWNER": self.username,
+        }
+        # support Metaflow sandboxes
+        env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
+
+        # cleanup env values
+        env = {
+            k: v
+            for k, v in env.items()
+            if v is not None
+            and k not in set(ARGO_WORKFLOWS_ENV_VARS_TO_SKIP.split(","))
+        }
+
+        # We want to grab the base image used by the start step, as this is known to be pullable from within the cluster,
+        # and it might contain the required libraries, allowing us to start up faster.
+        start_step = next(step for step in self.flow if step.name == "start")
+        resources = dict(
+            [deco for deco in start_step.decorators if deco.name == "kubernetes"][
+                0
+            ].attributes
+        )
+        from kubernetes import client as kubernetes_sdk
+
+        return DaemonTemplate("heartbeat-daemon").container(
+            to_camelcase(
+                kubernetes_sdk.V1Container(
+                    name="main",
+                    # TODO: Make the image configurable
+                    image=resources["image"],
+                    command=cmds,
+                    env=[
+                        kubernetes_sdk.V1EnvVar(name=k, value=str(v))
+                        for k, v in env.items()
+                    ],
+                    resources=kubernetes_sdk.V1ResourceRequirements(
+                        # NOTE: base resources for this are kept to a minimum to save on running costs.
+                        # This has an adverse effect on startup time for the daemon, which can be completely
+                        # alleviated by using a base image that has the required dependencies pre-installed
+                        requests={
+                            "cpu": "200m",
+                            "memory": "100Mi",
+                        },
+                        limits={
+                            "cpu": "200m",
+                            "memory": "100Mi",
+                        },
+                    ),
+                )
+            )
         )
 
     def _compile_sensor(self):
@@ -2898,6 +3028,25 @@ class Metadata(object):
 
     def __str__(self):
         return json.dumps(self.to_json(), indent=4)
+
+
+class DaemonTemplate(object):
+    def __init__(self, name):
+        tree = lambda: defaultdict(tree)
+        self.name = name
+        self.payload = tree()
+        self.payload["daemon"] = True
+        self.payload["name"] = name
+
+    def container(self, container):
+        self.payload["container"] = container
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
 
 
 class Template(object):

@@ -168,6 +168,12 @@ def argo_workflows(obj, name=None):
     help="PagerDuty Events API V2 Integration key for workflow success/failure notifications.",
 )
 @click.option(
+    "--enable-heartbeat-daemon/--no-enable-heartbeat-daemon",
+    default=False,
+    show_default=True,
+    help="Use a daemon container to broadcast heartbeats.",
+)
+@click.option(
     "--deployer-attribute-file",
     default=None,
     show_default=True,
@@ -192,6 +198,7 @@ def create(
     notify_on_success=False,
     notify_slack_webhook_url=None,
     notify_pager_duty_integration_key=None,
+    enable_heartbeat_daemon=True,
     deployer_attribute_file=None,
 ):
     validate_tags(tags)
@@ -240,6 +247,7 @@ def create(
         notify_on_success,
         notify_slack_webhook_url,
         notify_pager_duty_integration_key,
+        enable_heartbeat_daemon,
     )
 
     if only_json:
@@ -412,6 +420,7 @@ def make_flow(
     notify_on_success,
     notify_slack_webhook_url,
     notify_pager_duty_integration_key,
+    enable_heartbeat_daemon,
 ):
     # TODO: Make this check less specific to Amazon S3 as we introduce
     #       support for more cloud object stores.
@@ -474,6 +483,7 @@ def make_flow(
         notify_on_success=notify_on_success,
         notify_slack_webhook_url=notify_slack_webhook_url,
         notify_pager_duty_integration_key=notify_pager_duty_integration_key,
+        enable_heartbeat_daemon=enable_heartbeat_daemon,
     )
 
 
