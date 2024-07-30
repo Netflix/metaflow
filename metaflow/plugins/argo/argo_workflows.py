@@ -110,7 +110,7 @@ class ArgoWorkflows(object):
         notify_on_success=False,
         notify_slack_webhook_url=None,
         notify_pager_duty_integration_key=None,
-        with_daemon_container=True,
+        enable_heartbeat_daemon=True,
     ):
         # Some high-level notes -
         #
@@ -158,7 +158,7 @@ class ArgoWorkflows(object):
         self.notify_on_success = notify_on_success
         self.notify_slack_webhook_url = notify_slack_webhook_url
         self.notify_pager_duty_integration_key = notify_pager_duty_integration_key
-        self.with_daemon_container = with_daemon_container
+        self.enable_heartbeat_daemon = enable_heartbeat_daemon
 
         self.parameters = self._process_parameters()
         self.triggers, self.trigger_options = self._process_triggers()
@@ -849,7 +849,7 @@ class ArgoWorkflows(object):
                 # Exit hook template(s)
                 .templates(self._exit_hook_templates())
                 # Sidecar templates (Daemon Containers)
-                .templates(self._daemon_container_templates())
+                .templates(self._daemon_templates())
             )
         )
 
@@ -1102,21 +1102,13 @@ class ArgoWorkflows(object):
                     "Argo Workflows." % (node.type, node.name)
                 )
 
-        # We also need to add references to the daemon containers to our DAG,
-        # so start off by collecting all the daemons and build a DAGTask for each
-        daemon_container_tasks = [
+        # Generate daemon tasks
+        daemon_tasks = [
             DAGTask("%s-task" % daemon_template.name).template(daemon_template.name)
-            for daemon_template in self._daemon_container_templates()
+            for daemon_template in self._daemon_templates()
         ]
-        templates, _ = _visit(
-            node=self.graph["start"], dag_tasks=daemon_container_tasks
-        )
-        return templates
 
-    def _daemon_container_templates(self):
-        templates = []
-        if self.with_daemon_container:
-            templates.append(self._heartbeat_daemon_template())
+        templates, _ = _visit(node=self.graph["start"], dag_tasks=daemon_tasks)
         return templates
 
     # Visit every node and yield ContainerTemplates.
@@ -1451,16 +1443,16 @@ class ArgoWorkflows(object):
 
             # support for @secret
             env["METAFLOW_DEFAULT_SECRETS_BACKEND_TYPE"] = DEFAULT_SECRETS_BACKEND_TYPE
-            env[
-                "METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION"
-            ] = AWS_SECRETS_MANAGER_DEFAULT_REGION
+            env["METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION"] = (
+                AWS_SECRETS_MANAGER_DEFAULT_REGION
+            )
             env["METAFLOW_GCP_SECRET_MANAGER_PREFIX"] = GCP_SECRET_MANAGER_PREFIX
             env["METAFLOW_AZURE_KEY_VAULT_PREFIX"] = AZURE_KEY_VAULT_PREFIX
 
             # support for Azure
-            env[
-                "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
-            ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
+            env["METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"] = (
+                AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
+            )
             env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
             env["METAFLOW_CARD_AZUREROOT"] = CARD_AZUREROOT
 
@@ -1622,9 +1614,11 @@ class ArgoWorkflows(object):
                         kubernetes_sdk.V1Container(
                             name=self._sanitize(node.name),
                             command=cmds,
-                            ports=[kubernetes_sdk.V1ContainerPort(container_port=port)]
-                            if port
-                            else None,
+                            ports=(
+                                [kubernetes_sdk.V1ContainerPort(container_port=port)]
+                                if port
+                                else None
+                            ),
                             env=[
                                 kubernetes_sdk.V1EnvVar(name=k, value=str(v))
                                 for k, v in env.items()
@@ -1674,9 +1668,11 @@ class ArgoWorkflows(object):
                                 for k in list(
                                     []
                                     if not resources.get("secrets")
-                                    else [resources.get("secrets")]
-                                    if isinstance(resources.get("secrets"), str)
-                                    else resources.get("secrets")
+                                    else (
+                                        [resources.get("secrets")]
+                                        if isinstance(resources.get("secrets"), str)
+                                        else resources.get("secrets")
+                                    )
                                 )
                                 + KUBERNETES_SECRETS.split(",")
                                 + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
@@ -1727,6 +1723,13 @@ class ArgoWorkflows(object):
                     )
                 )
             )
+
+    # Return daemon container templates for workflow execution notifications.
+    def _daemon_templates(self):
+        templates = []
+        if self.enable_heartbeat_daemon:
+            templates.append(self._heartbeat_daemon_template())
+        return templates
 
     # Return exit hook templates for workflow execution notifications.
     def _exit_hook_templates(self):
@@ -1935,18 +1938,15 @@ class ArgoWorkflows(object):
         )
 
     def _heartbeat_daemon_template(self):
-        # Use any step that is known to exist, as we only care
-        # about being able to retrieve the code package for the utility scripts.
+        # Use all the affordances available to _parameters task
         executable = self.environment.executable("_parameters")
-        run_id_template = "argo-{{workflow.name}}"
+        run_id = "argo-{{workflow.name}}"
         entrypoint = [executable, "-m metaflow.plugins.argo.daemon"]
-        heartbeat_cmds = (
-            "{entrypoint} --flow_name {flow} --run_id {run} {tags} heartbeat".format(
-                entrypoint=" ".join(entrypoint),
-                flow=self.flow.name,
-                run=run_id_template,
-                tags=" ".join(["--tag %s" % t for t in self.tags]) if self.tags else "",
-            )
+        heartbeat_cmds = "{entrypoint} --flow_name {flow_name} --run_id {run_id} {tags} heartbeat".format(
+            entrypoint=" ".join(entrypoint),
+            flow_name=self.flow.name,
+            run_id=run_id,
+            tags=" ".join(["--tag %s" % t for t in self.tags]) if self.tags else "",
         )
 
         # TODO: we do not really need MFLOG logging for the daemon at the moment, but might be good for the future.
@@ -1957,7 +1957,7 @@ class ArgoWorkflows(object):
             stdout_path="$PWD/.logs/mflog_stdout",
             stderr_path="$PWD/.logs/mflog_stderr",
             flow_name=self.flow.name,
-            run_id=run_id_template,
+            run_id=run_id,
             step_name="_run_heartbeat_daemon",
             task_id="1",
             retry_count="0",
@@ -1975,7 +1975,10 @@ class ArgoWorkflows(object):
             ]
             + self.environment.get_package_commands(
                 self.code_package_url, self.flow_datastore.TYPE
-            )
+            )[:-1]
+            # Replace the line 'Task in starting'
+            # FIXME: this can be brittle.
+            + ["mflog 'Heartbeat daemon is starting.'"]
         )
 
         cmd_str = " && ".join([init_cmds, heartbeat_cmds])
@@ -1992,14 +1995,8 @@ class ArgoWorkflows(object):
             "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
             "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
             "METAFLOW_USER": "argo-workflows",
-            "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
-            "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
             "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
             "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
-            "METAFLOW_CARD_S3ROOT": CARD_S3ROOT,
-            "METAFLOW_KUBERNETES_WORKLOAD": 1,
-            "METAFLOW_KUBERNETES_FETCH_EC2_METADATA": KUBERNETES_FETCH_EC2_METADATA,
-            "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
             "METAFLOW_OWNER": self.username,
         }
         # support Metaflow sandboxes
@@ -2023,10 +2020,11 @@ class ArgoWorkflows(object):
         )
         from kubernetes import client as kubernetes_sdk
 
-        return DaemonTemplate("run-heartbeat-daemon").container(
+        return DaemonTemplate("heartbeat-daemon").container(
             to_camelcase(
                 kubernetes_sdk.V1Container(
                     name="main",
+                    # TODO: Make the image configurable
                     image=resources["image"],
                     command=cmds,
                     env=[
