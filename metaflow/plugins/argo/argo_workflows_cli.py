@@ -646,17 +646,22 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
         else None
     )
 
-    if workflow_url:
-        obj.echo(
-            "See it in the Argo Workflows UI at %s" % workflow_url,
-            bold=True,
-        )
-
     run_url = (
         "%s/%s/%s" % (UI_URL.rstrip("/"), obj.flow.name, run_id) if UI_URL else None
     )
 
-    if run_url:
+    if workflow_url and run_url:
+        obj.echo(
+            "See the run in the UI at %s and in the Argo Workflows UI at %s"
+            % (run_url, workflow_url),
+            bold=True,
+        )
+    elif workflow_url:
+        obj.echo(
+            "See the run in the Argo Workflows UI at %s" % workflow_url,
+            bold=True,
+        )
+    elif run_url:
         obj.echo(
             "See the run in the UI at %s" % run_url,
             bold=True,
