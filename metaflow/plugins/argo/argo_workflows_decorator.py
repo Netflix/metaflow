@@ -108,18 +108,12 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
         # we run pods with a security context. We work around this constraint by
         # mounting an emptyDir volume.
         if graph[step_name].type == "foreach":
-            # A DAGNode is considered a `parallel_step` if it is annotated by the @parallel decorator.
-            # A DAGNode is considered a `parallel_foreach` if it contains a `num_parallel` kwarg provided to the
-            # `next` method of that DAGNode.
-            # At this moment in the code we care if a node is marked as a `parallel_foreach` so that we can pass down the
-            # value of `num_parallel` to the subsequent steps.
-            # For @parallel, the implmentation uses 1 jobset object. That one jobset
-            # object internally creates 'num_parallel' jobs. So, we set foreach_num_splits
-            # to 1 here for @parallel. The parallelism of jobset is handled in
-            # kubernetes_job.py.
             if graph[step_name].parallel_foreach:
+                # If a node is marked as a `parallel_foreach`, pass down the value of
+                # `num_parallel` to the subsequent steps.
                 with open("/mnt/out/num_parallel", "w") as f:
                     json.dump(flow._parallel_ubf_iter.num_parallel, f)
+                # Set splits to 1 since parallelism is handled by JobSet.
                 flow._foreach_num_splits = 1
                 with open("/mnt/out/task_id_entropy", "w") as file:
                     import uuid
@@ -131,10 +125,9 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
             with open("/mnt/out/split_cardinality", "w") as file:
                 json.dump(flow._foreach_num_splits, file)
 
-        # for steps that have a `@parallel` decorator set to them, we will be relying on Jobsets
+        # For steps that have a `@parallel` decorator set to them, we will be relying on Jobsets
         # to run the task. In this case, we cannot set anything in the
-        # `/mnt/out` directory, since such form of output mounts are not available to jobset execution as
-        # argo just treats it like A K8s resource that it throws in the cluster.
+        # `/mnt/out` directory, since such form of output mounts are not available to Jobset executions.
         if not graph[step_name].parallel_step:
             # Unfortunately, we can't always use pod names as task-ids since the pod names
             # are not static across retries. We write the task-id to a file that is read
