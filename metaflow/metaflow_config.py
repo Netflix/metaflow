@@ -241,9 +241,7 @@ UI_URL = from_conf("UI_URL")
 ###
 # Capture error logs from argo
 ###
-KUBERNETES_SANDBOX_CAPTURE_ERROR_SCRIPT = from_conf(
-    "KUBERNETES_SANDBOX_CAPTURE_ERROR_SCRIPT"
-)
+ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT = from_conf("ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT")
 
 # Contact information displayed when running the `metaflow` command.
 # Value should be a dictionary where:

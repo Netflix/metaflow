@@ -4,15 +4,15 @@ import os
 import re
 import shlex
 import sys
-from typing import Tuple, List
 from collections import defaultdict
 from hashlib import sha1
 from math import inf
+from typing import List, Tuple
 
 from metaflow import JSONType, current
-from metaflow.graph import DAGNode
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
+from metaflow.graph import DAGNode, FlowGraph
 from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT,
@@ -21,10 +21,12 @@ from metaflow.metaflow_config import (
     ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
     ARGO_EVENTS_SERVICE_ACCOUNT,
     ARGO_EVENTS_WEBHOOK_AUTH,
+    ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT,
     ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
     ARGO_WORKFLOWS_KUBERNETES_SECRETS,
     ARGO_WORKFLOWS_UI_URL,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    AZURE_KEY_VAULT_PREFIX,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     CARD_AZUREROOT,
     CARD_GSROOT,
@@ -36,7 +38,6 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
     GCP_SECRET_MANAGER_PREFIX,
-    AZURE_KEY_VAULT_PREFIX,
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
@@ -48,9 +49,7 @@ from metaflow.metaflow_config import (
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
     UI_URL,
-    KUBERNETES_SANDBOX_CAPTURE_ERROR_SCRIPT,
 )
-from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow.metaflow_config_funcs import config_values
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -58,16 +57,14 @@ from metaflow.plugins.kubernetes.kubernetes import (
     parse_kube_keyvalue_list,
     validate_kube_labels,
 )
-from metaflow.graph import FlowGraph
+from metaflow.plugins.kubernetes.kubernetes_jobsets import KubernetesArgoJobSet
+from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow.util import (
     compress_list,
     dict_to_cli_options,
     to_bytes,
     to_camelcase,
     to_unicode,
-)
-from metaflow.plugins.kubernetes.kubernetes_jobsets import (
-    KubernetesArgoJobSet,
 )
 
 from .argo_client import ArgoClient
@@ -119,7 +116,7 @@ class ArgoWorkflows(object):
         notify_slack_webhook_url=None,
         notify_pager_duty_integration_key=None,
         enable_heartbeat_daemon=True,
-        with_capture_error_hook=False,
+        enable_error_msg_capture=False,
     ):
         # Some high-level notes -
         #
@@ -168,7 +165,7 @@ class ArgoWorkflows(object):
         self.notify_slack_webhook_url = notify_slack_webhook_url
         self.notify_pager_duty_integration_key = notify_pager_duty_integration_key
         self.enable_heartbeat_daemon = enable_heartbeat_daemon
-        self.with_capture_error_hook = with_capture_error_hook
+        self.enable_error_msg_capture = enable_error_msg_capture
         self.parameters = self._process_parameters()
         self.triggers, self.trigger_options = self._process_triggers()
         self._schedule, self._timezone = self._get_schedule()
@@ -788,6 +785,12 @@ class ArgoWorkflows(object):
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
+                # OnExit hooks
+                .onExit(
+                    "capture-error-hook-fn-preflight"
+                    if self.enable_error_msg_capture
+                    else None
+                )
                 # Set exit hook handlers if notifications are enabled
                 .hooks(
                     {
@@ -858,9 +861,7 @@ class ArgoWorkflows(object):
                 # Exit hook template(s)
                 .templates(self._exit_hook_templates())
                 # Sidecar templates (Daemon Containers)
-                .templates(self._daemon_templates()).onExit(
-                    self.with_capture_error_hook, "capture-error-hook-fn-preflight"
-                )
+                .templates(self._daemon_templates())
             )
         )
 
@@ -1067,7 +1068,7 @@ class ArgoWorkflows(object):
                     "%s-foreach-%s"
                     % (
                         node.name,
-                        "parallel" if node.parallel_foreach else node.foreach_param
+                        "parallel" if node.parallel_foreach else node.foreach_param,
                         # Since foreach's are derived based on `self.next(self.a, foreach="<varname>")`
                         # vs @parallel foreach are done based on `self.next(self.a, num_parallel="<some-number>")`,
                         # we need to ensure that `foreach_template_name` suffix is appropriately set based on the kind
@@ -1858,9 +1859,11 @@ class ArgoWorkflows(object):
                                 list(
                                     []
                                     if not resources.get("secrets")
-                                    else [resources.get("secrets")]
-                                    if isinstance(resources.get("secrets"), str)
-                                    else resources.get("secrets")
+                                    else (
+                                        [resources.get("secrets")]
+                                        if isinstance(resources.get("secrets"), str)
+                                        else resources.get("secrets")
+                                    )
                                 )
                                 + KUBERNETES_SECRETS.split(",")
                                 + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
@@ -2030,9 +2033,11 @@ class ArgoWorkflows(object):
                             name=self._sanitize(node.name),
                             command=cmds,
                             termination_message_policy="FallbackToLogsOnError",
-                            ports=[kubernetes_sdk.V1ContainerPort(container_port=port)]
-                            if port
-                            else None,
+                            ports=(
+                                [kubernetes_sdk.V1ContainerPort(container_port=port)]
+                                if port
+                                else None
+                            ),
                             env=[
                                 kubernetes_sdk.V1EnvVar(name=k, value=str(v))
                                 for k, v in env.items()
@@ -2171,23 +2176,11 @@ class ArgoWorkflows(object):
                     .success_condition("true == true")
                 )
             )
-        if self.with_capture_error_hook:
-            templates.append(self._capture_error_hook_preflight_template())
-            templates.append(self._capture_error_hook_template())
+        if self.enable_error_msg_capture:
+            templates.extend(self._error_msg_capture_hook_templates())
         return templates
 
-    def _capture_error_hook_preflight_template(self):
-        step = (
-            WorkflowStep()
-            .name("capture-error-hook-fn-preflight")
-            .template("capture-error-hook-fn")
-            .when("{{workflow.status}} != Succeeded")
-        )
-        error_hook_steps = []
-        error_hook_steps.append(step)
-        return Template("capture-error-hook-fn-preflight").steps(error_hook_steps)
-
-    def _capture_error_hook_template(self):
+    def _error_msg_capture_hook_templates(self):
         from kubernetes import client as kubernetes_sdk
 
         start_step = [step for step in self.graph if step.name == "start"][0]
@@ -2226,19 +2219,19 @@ class ArgoWorkflows(object):
             ]
             + self.environment.get_package_commands(
                 self.code_package_url, self.flow_datastore.TYPE
-            )
+            )[:-1]
+            # Replace the line 'Task in starting'
+            # FIXME: this can be brittle.
+            + ["mflog 'Error capture hook is starting.'"]
+            + ["python -m metaflow.plugins.argo.capture_error"]
             + [
-                "first_err=$(python3 -c 'from metaflow.plugins.argo.capture_error import determine_first_error; first_err=determine_first_error(); print(first_err)')",
-                "export FIRST_ERROR=$first_err",
-                "echo $FIRST_ERROR",
+                'if [ -n \\"${ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT}\\" ]; then eval \\"${ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT}\\"; fi'
             ]
         )
 
-        capture_cmd_str = 'if [ -n \\"${KUBERNETES_SANDBOX_CAPTURE_ERROR_SCRIPT}\\" ]; then eval \\"${KUBERNETES_SANDBOX_CAPTURE_ERROR_SCRIPT}\\"; fi'
-        cmd_str = " && ".join([init_cmds, capture_cmd_str])
+        # TODO: Also capture the first failed task id
         cmds = shlex.split('bash -c "%s"' % cmd_str)
-        script_val = KUBERNETES_SANDBOX_CAPTURE_ERROR_SCRIPT
-        metaflow_env = {
+        env = {
             # These values are needed by Metaflow to set it's internal
             # state appropriately.
             "METAFLOW_CODE_URL": self.code_package_url,
@@ -2247,104 +2240,57 @@ class ArgoWorkflows(object):
             "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
             "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
             "METAFLOW_USER": "argo-workflows",
-            "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
-            "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
             "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
             "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
-            "METAFLOW_CARD_S3ROOT": CARD_S3ROOT,
-            "METAFLOW_KUBERNETES_WORKLOAD": 1,
-            "METAFLOW_KUBERNETES_FETCH_EC2_METADATA": KUBERNETES_FETCH_EC2_METADATA,
-            "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
             "METAFLOW_OWNER": self.username,
-            "METAFLOW_VERSION": json.dumps(metaflow_version),
         }
+        # support Metaflow sandboxes
+        env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
+        env["ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT"] = ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT
 
-        metaflow_env = {
+        env["METAFLOW_ARGO_WORKFLOW_FAILURES"] = "{{workflow.failures}}"
+        env = {
             k: v
-            for k, v in metaflow_env.items()
+            for k, v in env.items()
             if v is not None
             and k not in set(ARGO_WORKFLOWS_ENV_VARS_TO_SKIP.split(","))
         }
-        v1Container = kubernetes_sdk.V1Container(
-            name="captureerrcontainer",
-            command=cmds,
-            image=resources["image"],
-            env_from=[
-                kubernetes_sdk.V1EnvFromSource(
-                    secret_ref=kubernetes_sdk.V1SecretEnvSource(
-                        name=str(k),
-                        # optional=True
+        return [
+            Template("error-msg-capture-hook").container(
+                to_camelcase(
+                    kubernetes_sdk.V1Container(
+                        name="main",
+                        command=cmds,
+                        image=resources["image"],
+                        env=[
+                            kubernetes_sdk.V1EnvVar(name=k, value=str(v))
+                            for k, v in env.items()
+                        ],
+                        resources=kubernetes_sdk.V1ResourceRequirements(
+                            # NOTE: base resources for this are kept to a minimum to save on running costs.
+                            # This has an adverse effect on startup time for the daemon, which can be completely
+                            # alleviated by using a base image that has the required dependencies pre-installed
+                            requests={
+                                "cpu": "200m",
+                                "memory": "100Mi",
+                            },
+                            limits={
+                                "cpu": "200m",
+                                "memory": "100Mi",
+                            },
+                        ),
                     )
                 )
-                for k in list(
-                    []
-                    if not resources.get("secrets")
-                    else [resources.get("secrets")]
-                    if isinstance(resources.get("secrets"), str)
-                    else resources.get("secrets")
-                )
-                + KUBERNETES_SECRETS.split(",")
-                + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
-                if k
-            ],
-            env=[
-                kubernetes_sdk.V1EnvVar(
-                    name="METAFLOW_ENABLE_WORKFLOW_EXIT_HOOK", value="true"
-                ),
-                kubernetes_sdk.V1EnvVar(
-                    name="METAFLOW_WORKFLOW_NAME", value="{{workflow.name}}"
-                ),
-                kubernetes_sdk.V1EnvVar(
-                    name="METAFLOW_WORKFLOW_NAMESPACE", value="{{workflow.namespace}}"
-                ),
-                kubernetes_sdk.V1EnvVar(
-                    name="METAFLOW_WORKFLOW_UID", value="{{workflow.uid}}"
-                ),
-                kubernetes_sdk.V1EnvVar(
-                    name="METAFLOW_WORKFLOW_ANNOTATIONS",
-                    value="{{workflow.annotations.json}}",
-                ),
-                kubernetes_sdk.V1EnvVar(
-                    name="METAFLOW_WORKFLOW_LABELS", value="{{workflow.labels.json}}"
-                ),
-                kubernetes_sdk.V1EnvVar(
-                    name="METAFLOW_ARGO_WORKFLOW_STATUS", value="{{workflow.status}}"
-                ),
-                kubernetes_sdk.V1EnvVar(
-                    name="METAFLOW_ARGO_WORKFLOW_FAILURES",
-                    value="{{workflow.failures}}",
-                ),
-                kubernetes_sdk.V1EnvVar(
-                    name="KUBERNETES_SANDBOX_CAPTURE_ERROR_SCRIPT", value=script_val
-                ),
-                kubernetes_sdk.V1EnvVar(
-                    name="METAFLOW_INIT_SCRIPT", value=KUBERNETES_SANDBOX_INIT_SCRIPT
-                ),
-            ]
-            + [
-                kubernetes_sdk.V1EnvVar(name=k, value=str(v))
-                for k, v in metaflow_env.items()
-            ]
-            + [
-                kubernetes_sdk.V1EnvVar(
-                    name=k,
-                    value_from=kubernetes_sdk.V1EnvVarSource(
-                        field_ref=kubernetes_sdk.V1ObjectFieldSelector(
-                            field_path=str(v)
-                        )
-                    ),
-                )
-                for k, v in {
-                    "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
-                    "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
-                    "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
-                    "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME": "spec.serviceAccountName",
-                    "METAFLOW_KUBERNETES_NODE_IP": "status.hostIP",
-                }.items()
-            ],
-        )
-        capture_error_hook_fn = to_camelcase(v1Container)
-        return Template("capture-error-hook-fn").container(capture_error_hook_fn)
+            ),
+            Template("capture-error-hook-fn-preflight").steps(
+                [
+                    WorkflowStep()
+                    .name("capture-error-hook-fn-preflight")
+                    .template("error-msg-capture-hook")
+                    .when("{{workflow.status}} != Succeeded")
+                ]
+            ),
+        ]
 
     def _pager_duty_alert_template(self):
         # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgx-send-an-alert-event
@@ -3147,8 +3093,8 @@ class WorkflowSpec(object):
         self.payload["entrypoint"] = entrypoint
         return self
 
-    def onExit(self, with_capture_error_hook, on_exit_template):
-        if with_capture_error_hook:
+    def onExit(self, on_exit_template):
+        if on_exit_template:
             self.payload["onExit"] = on_exit_template
         return self
 
