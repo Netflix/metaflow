@@ -2208,7 +2208,7 @@ class ArgoWorkflows(object):
             retry_count="0",
         )
 
-        init_cmds = " && ".join(
+        cmds = " && ".join(
             [
                 # For supporting sandboxes, ensure that a custom script is executed
                 # before anything else is executed. The script is passed in as an
@@ -2230,7 +2230,7 @@ class ArgoWorkflows(object):
         )
 
         # TODO: Also capture the first failed task id
-        cmds = shlex.split('bash -c "%s"' % cmd_str)
+        cmds = shlex.split('bash -c "%s"' % cmds)
         env = {
             # These values are needed by Metaflow to set it's internal
             # state appropriately.
