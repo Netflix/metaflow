@@ -180,7 +180,7 @@ class RunningJob(object):
             )
         except NotFoundError:
             raise SnowparkException(
-                "The image *%s* most probably doesn't exist on Snowpark"
+                "The image *%s* most probably doesn't exist on Snowpark, or too many resources (CPU, GPU, memory) were requested."
                 % self.kwargs.get("image")
             )
 
