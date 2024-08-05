@@ -15,7 +15,7 @@ class SnowparkClient(object):
         database: str,
         warehouse: str,
         schema: str,
-        autocommit: bool,
+        autocommit: bool = True,
     ):
         try:
             from snowflake.core import Root
@@ -42,6 +42,10 @@ class SnowparkClient(object):
             "schema": schema,
             "autocommit": autocommit,
         }
+
+        for key, value in self.connection_parameters.items():
+            if value is None:
+                raise ValueError("The value for '%s' should not be None" % key)
 
         try:
             self.session = Session.builder.configs(self.connection_parameters).create()
@@ -74,7 +78,7 @@ class SnowparkClient(object):
 
             service_name = name.replace("-", "_")
             external_access = (
-                "EXTERNAL_ACCESS_INTEGRATIONS=(%s) " % external_integration
+                "EXTERNAL_ACCESS_INTEGRATIONS=(%s) " % ",".join(external_integration)
                 if external_integration
                 else ""
             )
@@ -99,5 +103,4 @@ class SnowparkClient(object):
             return async_job.query_id, service_name
 
     def terminate_job(self, service):
-        service.suspend()
         service.delete()

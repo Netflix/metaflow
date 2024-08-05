@@ -1,3 +1,5 @@
+import time
+
 from .snowpark_client import SnowparkClient
 from .snowpark_service_spec import (
     Container,
@@ -8,6 +10,20 @@ from .snowpark_service_spec import (
 from .snowpark_exceptions import SnowparkException
 
 mapping = str.maketrans("0123456789", "abcdefghij")
+
+# this is not a decorator since the exception imports need to be inside
+# and not at the top level..
+def retry_operation(
+    exception_type, func, max_retries=3, retry_delay=2, *args, **kwargs
+):
+    for attempt in range(max_retries):
+        try:
+            return func(*args, **kwargs)
+        except exception_type as e:
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+            else:
+                raise e
 
 
 class SnowparkJob(object):
@@ -129,15 +145,14 @@ class RunningJob(object):
         self.query_id = query_id
         self.service_name = service_name
 
+        from snowflake.core.exceptions import NotFoundError
+
+        self.service = retry_operation(NotFoundError, self.__get_service)
+
+    def __get_service(self):
         db = self.client.session.get_current_database()
         schema = self.client.session.get_current_schema()
-
-        # wait because 'status' might not be ready, and will give 404
-        # TODO: do this in a better way..
-        import time
-
-        time.sleep(5)
-        self.service = (
+        return (
             self.client.root.databases[db].schemas[schema].services[self.service_name]
         )
 
@@ -152,15 +167,12 @@ class RunningJob(object):
     def job_name(self):
         return self.service_name
 
-    def status_obj(self):
+    def status_obj(self, timeout=0):
         from snowflake.core.exceptions import APIError
 
-        try:
-            return self.service.get_service_status()
-        except APIError as e:
-            # TODO: maybe retry, sometimes can happen
-            # because of too many concurrent requests
-            pass
+        return retry_operation(
+            APIError, self.service.get_service_status, timeout=timeout
+        )
 
     @property
     def status(self):

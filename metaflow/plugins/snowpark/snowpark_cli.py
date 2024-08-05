@@ -34,9 +34,37 @@ def snowpark():
 @click.argument("step-name")
 @click.argument("code-package-sha")
 @click.argument("code-package-url")
-# below are snowpark specific options
 @click.option(
     "--executable", help="Executable requirement for Snowpark Container Services."
+)
+# below are snowpark specific options
+@click.option(
+    "--account",
+    help="Account ID for Snowpark Container Services.",
+)
+@click.option(
+    "--user",
+    help="Username for Snowpark Container Services.",
+)
+@click.option(
+    "--password",
+    help="Password for Snowpark Container Services.",
+)
+@click.option(
+    "--role",
+    help="Role for Snowpark Container Services.",
+)
+@click.option(
+    "--database",
+    help="Database for Snowpark Container Services.",
+)
+@click.option(
+    "--warehouse",
+    help="Warehouse for Snowpark Container Services.",
+)
+@click.option(
+    "--schema",
+    help="Schema for Snowpark Container Services.",
 )
 @click.option(
     "--image",
@@ -49,13 +77,14 @@ def snowpark():
 @click.option("--volume-mounts", multiple=True)
 @click.option(
     "--external-integration",
+    multiple=True,
     help="External Integration requirement for Snowpark Container Services.",
 )
 @click.option("--cpu", help="CPU requirement for Snowpark Container Services.")
 @click.option("--gpu", help="GPU requirement for Snowpark Container Services.")
 @click.option("--memory", help="Memory requirement for Snowpark Container Services.")
-# TODO: secrets, volumes
-# TODO: others to consider: tmpfs, run_time_limit, ubf-context, num-parallel??
+# TODO: secrets, volumes for snowpark
+# TODO: others to consider: ubf-context, num-parallel
 @click.option("--run-id", help="Passed to the top-level 'step'.")
 @click.option("--task-id", help="Passed to the top-level 'step'.")
 @click.option("--input-paths", help="Passed to the top-level 'step'.")
@@ -70,6 +99,7 @@ def snowpark():
 @click.option(
     "--max-user-code-retries", default=0, help="Passed to the top-level 'step'."
 )
+# TODO: this is not used anywhere as of now...
 @click.option(
     "--run-time-limit",
     default=5 * 24 * 60 * 60,  # Default is set to 5 days
@@ -82,6 +112,13 @@ def step(
     code_package_sha,
     code_package_url,
     executable=None,
+    account=None,
+    user=None,
+    password=None,
+    role=None,
+    database=None,
+    warehouse=None,
+    schema=None,
     image=None,
     stage=None,
     compute_pool=None,
@@ -190,6 +227,15 @@ def step(
             datastore=ctx.obj.flow_datastore,
             metadata=ctx.obj.metadata,
             environment=ctx.obj.environment,
+            client_credentials={
+                "account": account,
+                "user": user,
+                "password": password,
+                "role": role,
+                "database": database,
+                "warehouse": warehouse,
+                "schema": schema,
+            },
         )
         with ctx.obj.monitor.measure("metaflow.snowpark.launch_job"):
             snowpark.launch_job(

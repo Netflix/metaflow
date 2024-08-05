@@ -3,6 +3,7 @@ import sys
 import platform
 
 from metaflow import R
+from metaflow.metadata import MetaDatum
 from metaflow.metadata.util import sync_local_metadata_to_datastore
 from metaflow.sidecar import Sidecar
 from metaflow.decorators import StepDecorator
@@ -20,6 +21,13 @@ class SnowparkDecorator(StepDecorator):
     name = "snowpark"
 
     defaults = {
+        "account": None,
+        "user": None,
+        "password": None,
+        "role": None,
+        "database": None,
+        "warehouse": None,
+        "schema": None,
         "image": None,
         "stage": None,
         "compute_pool": None,
@@ -129,12 +137,30 @@ class SnowparkDecorator(StepDecorator):
         self.metadata = metadata
         self.task_datastore = task_datastore
 
+        meta = {}
         if "METAFLOW_SNOWPARK_WORKLOAD" in os.environ:
-            meta = {}
-            # TODO: inject task metadata
+            meta["snowflake-account"] = os.environ.get("SNOWFLAKE_ACCOUNT")
+            meta["snowflake-database"] = os.environ.get("SNOWFLAKE_DATABASE")
+            meta["snowflake-schema"] = os.environ.get("SNOWFLAKE_SCHEMA")
+            meta["snowflake-host"] = os.environ.get("SNOWFLAKE_HOST")
+            meta["snowflake-service-name"] = os.environ.get("SNOWFLAKE_SERVICE_NAME")
 
             self._save_logs_sidecar = Sidecar("save_logs_periodically")
             self._save_logs_sidecar.start()
+
+        if len(meta) > 0:
+            entries = [
+                MetaDatum(
+                    field=k,
+                    value=v,
+                    type=k,
+                    tags=["attempt_id:{0}".format(retry_count)],
+                )
+                for k, v in meta.items()
+                if v is not None
+            ]
+            # Register book-keeping metadata for debugging.
+            metadata.register_metadata(run_id, step_name, task_id, entries)
 
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_retries

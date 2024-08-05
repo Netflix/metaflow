@@ -43,10 +43,17 @@ STDERR_PATH = os.path.join(LOGS_DIR, STDERR_FILE)
 
 
 class Snowpark(object):
-    def __init__(self, datastore, metadata, environment):
+    def __init__(
+        self,
+        datastore,
+        metadata,
+        environment,
+        client_credentials,
+    ):
         self.datastore = datastore
         self.metadata = metadata
         self.environment = environment
+        self.snowpark_client = SnowparkClient(**client_credentials)
         atexit.register(lambda: self.job.kill() if hasattr(self, "job") else None)
 
     def _job_name(self, user, flow_name, run_id, step_name, task_id, retry_count):
@@ -140,21 +147,9 @@ class Snowpark(object):
             attrs.get("metaflow.retry_count"),
         )
 
-        # TODO: get this in a different manner...
-        snowpark_client = SnowparkClient(
-            account="pfb48862",
-            user="madhurouterbounds",
-            password="xxxxxxxx",
-            role="test_role",
-            database="TUTORIAL_DB",
-            warehouse="TUTORIAL_WAREHOUSE",
-            schema="DATA_SCHEMA",
-            autocommit=True,
-        )
-
         snowpark_job = (
             SnowparkJob(
-                client=snowpark_client,
+                client=self.snowpark_client,
                 name=job_name,
                 command=self._command(
                     self.environment, code_package_url, step_name, [step_cli], task_spec
@@ -221,13 +216,6 @@ class Snowpark(object):
 
         for name, value in env.items():
             snowpark_job.environment_variable(name, value)
-
-        # TODO: remove later...
-        snowpark_job = snowpark_job.environment_variable(
-            "AWS_ACCESS_KEY_ID", os.environ["SNOWFLAKE_AWS_ACCESS_KEY_ID"]
-        ).environment_variable(
-            "AWS_SECRET_ACCESS_KEY", os.environ["SNOWFLAKE_AWS_SECRET_ACCESS_KEY"]
-        )
 
         return snowpark_job
 
