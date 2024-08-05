@@ -6,6 +6,8 @@ import time
 from tempfile import NamedTemporaryFile
 from hashlib import sha1
 
+from urllib.parse import urlparse
+
 from metaflow.datastore import FlowDataStore
 from metaflow.datastore.content_addressed_store import BlobCache
 from metaflow.exception import MetaflowException
@@ -83,7 +85,6 @@ class FileCache(object):
     def get_log_legacy(
         self, ds_type, location, logtype, attempt, flow_name, run_id, step_name, task_id
     ):
-
         ds_cls = self._get_datastore_storage_impl(ds_type)
         ds_root = ds_cls.path_join(*ds_cls.path_split(location)[:-5])
         cache_id = self._flow_ds_id(ds_type, ds_root, flow_name)
@@ -311,12 +312,24 @@ class FileCache(object):
 
     @staticmethod
     def _flow_ds_id(ds_type, ds_root, flow_name):
-        return ".".join([ds_type, ds_root, flow_name])
+        p = urlparse(ds_root)
+        sanitized_root = (p.netloc + p.path).replace("/", "_")
+        return ".".join([ds_type, sanitized_root, flow_name])
 
     @staticmethod
     def _task_ds_id(ds_type, ds_root, flow_name, run_id, step_name, task_id, attempt):
+        p = urlparse(ds_root)
+        sanitized_root = (p.netloc + p.path).replace("/", "_")
         return ".".join(
-            [ds_type, ds_root, flow_name, run_id, step_name, task_id, str(attempt)]
+            [
+                ds_type,
+                sanitized_root,
+                flow_name,
+                run_id,
+                step_name,
+                task_id,
+                str(attempt),
+            ]
         )
 
     def _garbage_collect(self):
