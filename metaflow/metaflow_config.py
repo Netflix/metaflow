@@ -238,6 +238,11 @@ DEFAULT_RUNTIME_LIMIT = from_conf("DEFAULT_RUNTIME_LIMIT", 5 * 24 * 60 * 60)
 ###
 UI_URL = from_conf("UI_URL")
 
+###
+# Capture error logs from argo
+###
+ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT = from_conf("ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT")
+
 # Contact information displayed when running the `metaflow` command.
 # Value should be a dictionary where:
 #  - key is a string describing contact method

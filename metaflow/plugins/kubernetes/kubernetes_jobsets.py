@@ -755,7 +755,6 @@ class JobSetSpec(object):
                                     is not None
                                     else []
                                 ),
-                                # TODO (savin): Set termination_message_policy
                             ),
                         ),
                     ),

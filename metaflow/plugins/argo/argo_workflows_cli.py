@@ -5,11 +5,14 @@ import re
 import sys
 from hashlib import sha1
 
-from metaflow import Run, JSONType, current, decorators, parameters
-from metaflow.client.core import get_metadata
-from metaflow.exception import MetaflowNotFound
+from metaflow import JSONType, Run, current, decorators, parameters
 from metaflow._vendor import click
-from metaflow.exception import MetaflowException, MetaflowInternalError
+from metaflow.client.core import get_metadata
+from metaflow.exception import (
+    MetaflowException,
+    MetaflowInternalError,
+    MetaflowNotFound,
+)
 from metaflow.metaflow_config import (
     ARGO_WORKFLOWS_UI_URL,
     KUBERNETES_NAMESPACE,
@@ -181,6 +184,12 @@ def argo_workflows(obj, name=None):
     help="Write the workflow name to the file specified. Used internally for Metaflow's Deployer API.",
     hidden=True,
 )
+@click.option(
+    "--enable-error-msg-capture/--no-enable-error-msg-capture",
+    default=False,
+    show_default=True,
+    help="Capture stack trace of first failed task in exit hook.",
+)
 @click.pass_obj
 def create(
     obj,
@@ -200,6 +209,7 @@ def create(
     notify_pager_duty_integration_key=None,
     enable_heartbeat_daemon=True,
     deployer_attribute_file=None,
+    enable_error_msg_capture=False,
 ):
     validate_tags(tags)
 
@@ -248,6 +258,7 @@ def create(
         notify_slack_webhook_url,
         notify_pager_duty_integration_key,
         enable_heartbeat_daemon,
+        enable_error_msg_capture,
     )
 
     if only_json:
@@ -421,6 +432,7 @@ def make_flow(
     notify_slack_webhook_url,
     notify_pager_duty_integration_key,
     enable_heartbeat_daemon,
+    enable_error_msg_capture,
 ):
     # TODO: Make this check less specific to Amazon S3 as we introduce
     #       support for more cloud object stores.
@@ -484,6 +496,7 @@ def make_flow(
         notify_slack_webhook_url=notify_slack_webhook_url,
         notify_pager_duty_integration_key=notify_pager_duty_integration_key,
         enable_heartbeat_daemon=enable_heartbeat_daemon,
+        enable_error_msg_capture=enable_error_msg_capture,
     )
 
 

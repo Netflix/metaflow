@@ -257,7 +257,6 @@ class KubernetesJob(object):
                         if self._kwargs["persistent_volume_claims"] is not None
                         else []
                     ),
-                    # TODO (savin): Set termination_message_policy
                 ),
             ),
         )
