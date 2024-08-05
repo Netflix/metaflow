@@ -211,6 +211,13 @@ def create(
     deployer_attribute_file=None,
     enable_error_msg_capture=False,
 ):
+    for node in obj.graph:
+        if any([d.name == "snowpark" for d in node.decorators]):
+            raise MetaflowException(
+                "Step *%s* is marked for execution on Snowpark with Argo Workflows which isn't currently supported."
+                % node.name
+            )
+
     validate_tags(tags)
 
     if deployer_attribute_file:
