@@ -103,7 +103,10 @@ class SnowparkJob(object):
             self.kwargs.get("external_integration"),
         )
         return RunningJob(
-            client=self.client, query_id=query_id, service_name=service_name
+            client=self.client,
+            query_id=query_id,
+            service_name=service_name,
+            **self.kwargs
         )
 
     def image(self, image):
@@ -140,10 +143,11 @@ class SnowparkJob(object):
 
 
 class RunningJob(object):
-    def __init__(self, client, query_id, service_name):
+    def __init__(self, client, query_id, service_name, **kwargs):
         self.client = client
         self.query_id = query_id
         self.service_name = service_name
+        self.kwargs = kwargs
 
         from snowflake.core.exceptions import NotFoundError
 
@@ -168,11 +172,17 @@ class RunningJob(object):
         return self.service_name
 
     def status_obj(self, timeout=0):
-        from snowflake.core.exceptions import APIError
+        from snowflake.core.exceptions import APIError, NotFoundError
 
-        return retry_operation(
-            APIError, self.service.get_service_status, timeout=timeout
-        )
+        try:
+            return retry_operation(
+                APIError, self.service.get_service_status, timeout=timeout
+            )
+        except NotFoundError:
+            raise SnowparkException(
+                "The image *%s* most probably doesn't exist on Snowpark"
+                % self.kwargs.get("image")
+            )
 
     @property
     def status(self):

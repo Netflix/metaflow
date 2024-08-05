@@ -4,6 +4,8 @@ import tempfile
 from .snowpark_exceptions import SnowflakeException
 from .snowpark_service_spec import generate_spec_file
 
+from metaflow.exception import MetaflowException
+
 
 class SnowparkClient(object):
     def __init__(
@@ -53,6 +55,27 @@ class SnowparkClient(object):
         if hasattr(self, "session"):
             self.session.close()
 
+    def __check_existence_of_stage_and_compute_pool(
+        self, db, schema, stage, compute_pool
+    ):
+        from snowflake.core.exceptions import NotFoundError
+
+        # check if stage exists, will raise an error otherwise
+        try:
+            self.root.databases[db].schemas[schema].stages[stage].fetch()
+        except NotFoundError:
+            raise MetaflowException(
+                "Stage *%s* does not exist or not authorized." % stage
+            )
+
+        # check if compute_pool exists, will raise an error otherwise
+        try:
+            self.root.compute_pools[compute_pool].fetch()
+        except NotFoundError:
+            raise MetaflowException(
+                "Compute pool *%s* does not exist or not authorized." % compute_pool
+            )
+
     def submit(self, name: str, spec, stage, compute_pool, external_integration):
         db = self.session.get_current_database()
         schema = self.session.get_current_schema()
@@ -63,11 +86,9 @@ class SnowparkClient(object):
             )
             generate_spec_file(spec, snowpark_spec_file.name, format="yaml")
 
-            # check if stage exists, will raise an error otherwise
-            self.root.databases[db].schemas[schema].stages[stage].fetch()
-
-            # check if compute_pool exists, will raise an error otherwise
-            self.root.compute_pools[compute_pool].fetch()
+            self.__check_existence_of_stage_and_compute_pool(
+                db, schema, stage, compute_pool
+            )
 
             # upload the spec file to stage
             result = self.session.file.put(snowpark_spec_file.name, "@%s" % stage)
