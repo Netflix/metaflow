@@ -59,7 +59,14 @@ class SnowparkJob(object):
                     ("memory", self.kwargs.get("memory")),
                 ]
                 if v
-            }
+            },
+            limits={
+                k: v
+                for k, v in [
+                    ("nvidia.com/gpu", self.kwargs.get("gpu")),
+                ]
+                if v
+            },
         )
 
         volume_mounts = self.kwargs.get("volume_mounts")
