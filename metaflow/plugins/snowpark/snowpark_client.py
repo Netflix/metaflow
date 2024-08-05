@@ -43,10 +43,6 @@ class SnowparkClient(object):
             "autocommit": autocommit,
         }
 
-        for key, value in self.connection_parameters.items():
-            if value is None:
-                raise ValueError("The value for '%s' should not be None" % key)
-
         try:
             self.session = Session.builder.configs(self.connection_parameters).create()
             self.root = Root(self.session)

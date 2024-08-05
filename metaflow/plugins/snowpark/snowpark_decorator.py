@@ -8,7 +8,17 @@ from metaflow.metadata.util import sync_local_metadata_to_datastore
 from metaflow.sidecar import Sidecar
 from metaflow.decorators import StepDecorator
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import DEFAULT_CONTAINER_IMAGE, DEFAULT_CONTAINER_REGISTRY
+from metaflow.metaflow_config import (
+    DEFAULT_CONTAINER_IMAGE,
+    DEFAULT_CONTAINER_REGISTRY,
+    SNOWPARK_ACCOUNT,
+    SNOWPARK_USER,
+    SNOWPARK_PASSWORD,
+    SNOWPARK_ROLE,
+    SNOWPARK_DATABASE,
+    SNOWPARK_WAREHOUSE,
+    SNOWPARK_SCHEMA,
+)
 
 from metaflow.metaflow_config import (
     DATASTORE_LOCAL_DIR,
@@ -45,6 +55,21 @@ class SnowparkDecorator(StepDecorator):
 
     def __init__(self, attributes=None, statically_defined=False):
         super(SnowparkDecorator, self).__init__(attributes, statically_defined)
+
+        if not self.attributes["account"]:
+            self.attributes["account"] = SNOWPARK_ACCOUNT
+        if not self.attributes["user"]:
+            self.attributes["user"] = SNOWPARK_USER
+        if not self.attributes["password"]:
+            self.attributes["password"] = SNOWPARK_PASSWORD
+        if not self.attributes["role"]:
+            self.attributes["role"] = SNOWPARK_ROLE
+        if not self.attributes["database"]:
+            self.attributes["database"] = SNOWPARK_DATABASE
+        if not self.attributes["warehouse"]:
+            self.attributes["warehouse"] = SNOWPARK_WAREHOUSE
+        if not self.attributes["schema"]:
+            self.attributes["schema"] = SNOWPARK_SCHEMA
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:

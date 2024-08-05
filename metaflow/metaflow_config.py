@@ -360,6 +360,24 @@ ARGO_WORKFLOWS_ENV_VARS_TO_SKIP = from_conf("ARGO_WORKFLOWS_ENV_VARS_TO_SKIP", "
 KUBERNETES_JOBSET_GROUP = from_conf("KUBERNETES_JOBSET_GROUP", "jobset.x-k8s.io")
 KUBERNETES_JOBSET_VERSION = from_conf("KUBERNETES_JOBSET_VERSION", "v1alpha2")
 
+###
+# Snowpark configuration
+###
+# Snowflake account to use with the @snowpark decorator
+SNOWPARK_ACCOUNT = from_conf("SNOWPARK_ACCOUNT")
+# Snowflake user to use with the @snowpark decorator
+SNOWPARK_USER = from_conf("SNOWPARK_USER")
+# Snowflake password to use with the @snowpark decorator
+SNOWPARK_PASSWORD = from_conf("SNOWPARK_PASSWORD")
+# Snowflake role to use with the @snowpark decorator
+SNOWPARK_ROLE = from_conf("SNOWPARK_ROLE")
+# Snowflake database to use with the @snowpark decorator
+SNOWPARK_DATABASE = from_conf("SNOWPARK_DATABASE")
+# Snowflake warehouse to use with the @snowpark decorator
+SNOWPARK_WAREHOUSE = from_conf("SNOWPARK_WAREHOUSE")
+# Snowflake schema to use with the @snowpark decorator
+SNOWPARK_SCHEMA = from_conf("SNOWPARK_SCHEMA")
+
 ##
 # Argo Events Configuration
 ##
