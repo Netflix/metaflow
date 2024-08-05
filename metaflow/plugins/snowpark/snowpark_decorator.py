@@ -7,6 +7,7 @@ from metaflow.metadata import MetaDatum
 from metaflow.metadata.util import sync_local_metadata_to_datastore
 from metaflow.sidecar import Sidecar
 from metaflow.decorators import StepDecorator
+from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import DEFAULT_CONTAINER_IMAGE, DEFAULT_CONTAINER_REGISTRY
 
 from metaflow.metaflow_config import (
@@ -80,6 +81,14 @@ class SnowparkDecorator(StepDecorator):
         self.environment = environment
         self.step = step
         self.flow_datastore = flow_datastore
+
+        if any([deco.name == "parallel" for deco in decos]):
+            raise MetaflowException(
+                "Step *{step}* contains a @parallel decorator "
+                "with the @snowpark decorator. @parallel is not supported with @snowpark.".format(
+                    step=step
+                )
+            )
 
     def package_init(self, flow, step_name, environment):
         try:
