@@ -312,12 +312,6 @@ SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH = from_conf(
 ###
 # Image builder service url
 FAST_BAKERY_URL = from_conf("FAST_BAKERY_URL", None)
-# Authentication mode for Image bakery endpoint.
-# Use AWS_IAM for a secure AWS Lambda endpoint.
-FAST_BAKERY_AUTH = from_conf("FAST_BAKERY_AUTH", None)
-# Image builder image compression type.
-# Available types for now are 'esgz-zstd' and 'oci-zstd'
-FAST_BAKERY_TYPE = from_conf("FAST_BAKERY_TYPE", "oci-zstd")
 # base path for the environment on a fast bakery image
 FAST_BAKERY_ENV_PATH = from_conf("FAST_BAKERY_ENV_PATH", "/opt/outerbounds/fastbakery")
 # internal env for skipping bakery related processes.

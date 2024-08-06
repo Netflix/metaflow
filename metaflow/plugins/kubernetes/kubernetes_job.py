@@ -63,7 +63,7 @@ class KubernetesJob(object):
 
     def create_job_spec(self):
         client = self._client.get()
-
+        print(self._kwargs["command"])
         # tmpfs variables
         use_tmpfs = self._kwargs["use_tmpfs"]
         tmpfs_size = self._kwargs["tmpfs_size"]

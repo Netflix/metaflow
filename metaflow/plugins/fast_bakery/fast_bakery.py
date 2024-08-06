@@ -9,7 +9,7 @@ class FastBakeryException(Exception):
 class FastBakery:
     def __init__(self, url: str):
         self.url = url
-        self.headers = {"Content-Type": "application/json"}
+        self.headers = {"Content-Type": "application/json", "Connection": "keep-alive"}
         self._reset_payload()
 
     def _reset_payload(self):
@@ -37,6 +37,14 @@ class FastBakery:
 
     def image_kind(self, kind: str):
         self._payload["imageKind"] = kind
+        return self
+
+    def ignore_cache(self):
+        self._payload["cacheBehavior"] = {
+            "responseMaxAgeSeconds": 0,
+            "layerMaxAgeSeconds": 0,
+            "baseImageMaxAgeSeconds": 0,
+        }
         return self
 
     @staticmethod
