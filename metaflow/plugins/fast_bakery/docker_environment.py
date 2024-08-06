@@ -20,6 +20,7 @@ from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
 from metaflow.plugins.pypi.conda_decorator import CondaStepDecorator
 from metaflow.plugins.pypi.pypi_decorator import PyPIStepDecorator
 
+# TODO: move under .metaflow
 BAKERY_METAFILE = ".imagebakery-cache"
 
 import json
@@ -109,10 +110,6 @@ class DockerEnvironment(MetaflowEnvironment):
 
         self.datastore = [d for d in DATASTORES if d.TYPE == self.datastore_type][0]
 
-        # Use remote fast bakery for conda environments if configured.
-        if not _USE_BAKERY:
-            raise DockerEnvironmentException("Fast Bakery is not configured.")
-
     def init_environment(self, echo):
         self.skipped_steps = {
             step.name
@@ -123,52 +120,27 @@ class DockerEnvironment(MetaflowEnvironment):
             )
         }
 
-        echo("Baking Docker images for environment(s) ...")
+        steps_to_bake = [
+            step for step in self.flow if step.name not in self.skipped_steps
+        ]
+        if steps_to_bake:
+            echo("Baking Docker image(s) ...")
 
-        with ThreadPoolExecutor() as executor:
-            results = list(
-                executor.map(
-                    self.bake_image_for_step,
-                    [step for step in self.flow if step.name not in self.skipped_steps],
+            with ThreadPoolExecutor() as executor:
+                results = list(
+                    executor.map(
+                        self.bake_image_for_step,
+                        steps_to_bake,
+                    )
                 )
-            )
 
-        echo("Environments are ready!")
+            echo("Docker image(s) baked!")
+
         if self.skipped_steps:
             self.delegate = CondaEnvironment(self.flow)
             self.delegate.set_local_root(self.local_root)
             self.delegate.validate_environment(echo, self.datastore_type)
             self.delegate.init_environment(echo, self.skipped_steps)
-
-    def details_from_step(self, step):
-        # map out if user is requesting a base image to build on top of
-        base_image = None
-        for deco in step.decorators:
-            if _is_remote_deco(deco):
-                base_image = deco.attributes.get("image", None)
-
-        conda_deco = next(
-            (deco for deco in step.decorators if isinstance(deco, CondaStepDecorator)),
-            None,
-        )
-        pypi_deco = next(
-            (deco for deco in step.decorators if isinstance(deco, PyPIStepDecorator)),
-            None,
-        )
-        dependency_deco = pypi_deco if pypi_deco is not None else conda_deco
-        if dependency_deco is not None:
-            python = dependency_deco.attributes["python"]
-            pkgs = get_pinned_conda_libs(python, self.datastore_type)
-            pkgs.update(dependency_deco.attributes["packages"])
-            # request only Conda OR PyPI packages
-            if dependency_deco.name == "pypi":
-                pypi_pkg = pkgs
-                conda_pkg = None
-            else:
-                conda_pkg = pkgs
-                pypi_pkg = None
-
-        return base_image, python, pypi_pkg, conda_pkg, dependency_deco.name
 
     @cache_request(BAKERY_METAFILE)
     def _cached_bake(self, python, pypi_pkg, conda_pkg, base_image, image_kind):
@@ -181,28 +153,51 @@ class DockerEnvironment(MetaflowEnvironment):
         if base_image:
             self.bakery.base_image(base_image)
         self.bakery.image_kind(image_kind)
-
-        image = self.bakery.bake()
-        return image
+        return self.bakery.bake()
 
     def bake_image_for_step(self, step):
-
-        base_image, python, pypi_pkg, conda_pkg, _deco_type = self.details_from_step(
-            step
+        base_image = next(
+            (
+                d.attributes.get("image")
+                for d in step.decorators
+                if isinstance(d, (BatchDecorator, KubernetesDecorator))
+            ),
+            None,
+        )
+        dependencies = next(
+            (
+                d
+                for d in step.decorators
+                if isinstance(d, (CondaStepDecorator, PyPIStepDecorator))
+            ),
+            None,
         )
 
+        python = next(
+            (d for d in step.decorators if isinstance(d, (CondaStepDecorator))), None
+        ).attributes["python"]
+        pkgs = get_pinned_conda_libs(python, self.datastore_type)
+        pkgs.update(dependencies.attributes["packages"])
+
+        pkg_type = "pypi" if isinstance(dependencies, PyPIStepDecorator) else "conda"
+
         try:
-            image = self._cached_bake(
-                python, pypi_pkg, conda_pkg, base_image, FAST_BAKERY_TYPE
+            result = self._cached_bake(
+                python=python,
+                pypi_pkg=pkgs if pkg_type == "pypi" else None,
+                conda_pkg=pkgs if pkg_type == "conda" else None,
+                base_image=base_image,
+                image_kind=FAST_BAKERY_TYPE,
             )
-            # We don't have access to the request payload anymore, so we'll create a simplified version
-            for deco in step.decorators:
-                if _is_remote_deco(deco):
-                    deco.attributes["image"] = image["success"]["containerImage"]
+
+            for d in step.decorators:
+                if isinstance(d, (BatchDecorator, KubernetesDecorator)):
+                    d.attributes["image"] = result["success"]["containerImage"]
+                    break
         except FastBakeryException as ex:
             raise DockerEnvironmentException(str(ex))
 
-        return step, image
+        return step, result
 
     def executable(self, step_name, default=None):
         if step_name in self.skipped_steps:
@@ -238,7 +233,3 @@ class DockerEnvironment(MetaflowEnvironment):
         return [
             "export USE_BAKERY=1",
         ] + super().bootstrap_commands(step_name, datastore_type)
-
-
-def _is_remote_deco(deco):
-    return isinstance(deco, BatchDecorator) or isinstance(deco, KubernetesDecorator)

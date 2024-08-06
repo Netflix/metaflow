@@ -68,11 +68,8 @@ class FastBakery:
             headers = {**self.headers, **(SERVICE_HEADERS or {})}
         except ImportError:
             headers = self.headers
-
         response = requests.post(self.url, json=payload, headers=headers)
-
-        if response.status_code >= 400:
-            self._handle_error_response(response)
+        self._handle_error_response(response)
 
         return response.json()
 
@@ -82,7 +79,11 @@ class FastBakery:
             raise FastBakeryException(f"Server error: {response.text}")
 
         body = response.json()
-        try:
-            raise FastBakeryException(f"*{body['kind']}*\n{body['message']}")
-        except KeyError:
-            raise FastBakeryException(f"Unexpected error: {body}")
+        status_code = body.get("error", {}).get("statusCode", response.status_code)
+        if status_code >= 400:
+            try:
+                raise FastBakeryException(
+                    f"*{body['error']['details']['kind']}*\n{body['error']['details']['message']}"
+                )
+            except KeyError:
+                raise FastBakeryException(f"Unexpected error: {body}")
