@@ -64,7 +64,7 @@ class PyPIStepDecorator(StepDecorator):
         # one here. We can consider introducing a UX where @pypi is able to consume
         # poetry.lock files in the future.
 
-        _supported_virtual_envs = ["conda", "docker"]  # , "venv"]
+        _supported_virtual_envs = ["conda", "fast-bakery"]  # , "venv"]
 
         # To placate people who don't want to see a shred of conda in UX, we symlink
         # --environment=pypi to --environment=conda
