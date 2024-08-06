@@ -94,7 +94,7 @@ class CondaStepDecorator(StepDecorator):
 
         # @conda uses a conda environment to create a virtual environment.
         # The conda environment can be created through micromamba.
-        _supported_virtual_envs = ["conda", "docker"]
+        _supported_virtual_envs = ["conda", "fast-bakery"]
 
         # To placate people who don't want to see a shred of conda in UX, we symlink
         # --environment=pypi to --environment=conda
