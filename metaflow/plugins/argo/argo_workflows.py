@@ -2259,6 +2259,24 @@ class ArgoWorkflows(object):
                             kubernetes_sdk.V1EnvVar(name=k, value=str(v))
                             for k, v in env.items()
                         ],
+                        env_from=[
+                            kubernetes_sdk.V1EnvFromSource(
+                                secret_ref=kubernetes_sdk.V1SecretEnvSource(
+                                    name=str(k),
+                                    # optional=True
+                                )
+                            )
+                            for k in list(
+                                []
+                                if not resources.get("secrets")
+                                else [resources.get("secrets")]
+                                if isinstance(resources.get("secrets"), str)
+                                else resources.get("secrets")
+                            )
+                            + KUBERNETES_SECRETS.split(",")
+                            + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
+                            if k
+                        ],
                         resources=kubernetes_sdk.V1ResourceRequirements(
                             # NOTE: base resources for this are kept to a minimum to save on running costs.
                             # This has an adverse effect on startup time for the daemon, which can be completely
@@ -2556,6 +2574,24 @@ class ArgoWorkflows(object):
                     env=[
                         kubernetes_sdk.V1EnvVar(name=k, value=str(v))
                         for k, v in env.items()
+                    ],
+                    env_from=[
+                        kubernetes_sdk.V1EnvFromSource(
+                            secret_ref=kubernetes_sdk.V1SecretEnvSource(
+                                name=str(k),
+                                # optional=True
+                            )
+                        )
+                        for k in list(
+                            []
+                            if not resources.get("secrets")
+                            else [resources.get("secrets")]
+                            if isinstance(resources.get("secrets"), str)
+                            else resources.get("secrets")
+                        )
+                        + KUBERNETES_SECRETS.split(",")
+                        + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
+                        if k
                     ],
                     resources=kubernetes_sdk.V1ResourceRequirements(
                         # NOTE: base resources for this are kept to a minimum to save on running costs.
