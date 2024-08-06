@@ -22,6 +22,60 @@ from metaflow.plugins.pypi.pypi_decorator import PyPIStepDecorator
 
 BAKERY_METAFILE = ".imagebakery-cache"
 
+import json
+import os
+import fcntl
+from functools import wraps
+from concurrent.futures import ThreadPoolExecutor
+
+
+def cache_request(cache_file):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+
+            call_args = kwargs.copy()
+            call_args.update(zip(func.__code__.co_varnames, args))
+            call_args.pop("self", None)
+            cache_key = hashlib.md5(
+                json.dumps(call_args, sort_keys=True).encode("utf-8")
+            ).hexdigest()
+
+            try:
+                with open(cache_file, "r") as f:
+                    cache = json.load(f)
+                    if cache_key in cache:
+                        return cache[cache_key]
+            except (FileNotFoundError, json.JSONDecodeError):
+                cache = {}
+
+            result = func(*args, **kwargs)
+
+            try:
+                with open(cache_file, "r+") as f:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                    try:
+                        f.seek(0)
+                        cache = json.load(f)
+                    except json.JSONDecodeError:
+                        cache = {}
+
+                    cache[cache_key] = result
+
+                    f.seek(0)
+                    f.truncate()
+                    json.dump(cache, f)
+            except FileNotFoundError:
+                with open(cache_file, "w") as f:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                    json.dump({cache_key: result}, f)
+
+            return result
+
+        return wrapper
+
+    return decorator
+
 
 class DockerEnvironmentException(MetaflowException):
     headline = "Ran into an error while setting up the environment"
@@ -31,20 +85,19 @@ class DockerEnvironmentException(MetaflowException):
 
 
 class DockerEnvironment(MetaflowEnvironment):
-    TYPE = "docker"
+    TYPE = "fast-bakery"
     _filecache = None
 
     def __init__(self, flow):
-        self.steps_to_delegate = set()
+        self.skipped_steps = set()
         self.flow = flow
 
+        self.bakery = FastBakery(url=FAST_BAKERY_URL)
+
     def set_local_root(self, local_root):
-        # TODO: Make life simple by passing echo to the constructor and getting rid of
-        # this method's invocation in the decorator
         self.local_root = local_root
 
     def decospecs(self):
-        # Apply conda decorator to manage the task execution lifecycle.
         return ("conda",) + super().decospecs()
 
     def validate_environment(self, echo, datastore_type):
@@ -60,92 +113,32 @@ class DockerEnvironment(MetaflowEnvironment):
         if not _USE_BAKERY:
             raise DockerEnvironmentException("Fast Bakery is not configured.")
 
-    def _init_conda_fallback(self):
-        # TODO: In the future we want to support executing with Docker even locally.
-        for step in self.flow:
-            if not any(_is_remote_deco(deco) for deco in step.decorators):
-                # We need to fall back to the Conda environmment for flows that are trying to execute anything locally.
-                self.steps_to_delegate.add(step.name)
-        if not self.steps_to_delegate:
-            return
-        # TODO: move to init if possible.
-        self.delegate = CondaEnvironment(self.flow)
-        self.delegate.set_local_root(self.local_root)
-
     def init_environment(self, echo):
-        self._init_conda_fallback()
+        self.skipped_steps = {
+            step.name
+            for step in self.flow
+            if not any(
+                isinstance(deco, (BatchDecorator, KubernetesDecorator))
+                for deco in step.decorators
+            )
+        }
+
         echo("Baking Docker images for environment(s) ...")
-        self.bakery = FastBakery(url=FAST_BAKERY_URL, auth_type=FAST_BAKERY_AUTH)
-        # 1. Check cache for known images, set them to the step if found
-        # 2. if no known image in the cache, we set up steps for a later baking process
-        # 3. bake all missing images in parallel, gather results.
-        # 4. set baked image tags for the missing steps.
-        not_cached_steps = {}
-        for step in self.flow:
-            if self._is_delegated(step.name):
-                continue
-            spec_hash = self.cache_hash_for_step(step)
-            image = get_cache_image_tag(spec_hash)
-            if image:
-                self.set_image_for_step(step, image)
-                continue
-            # we don't have a cached image for the step yet, set up for baking.
-            if spec_hash in not_cached_steps:
-                not_cached_steps[spec_hash].append(step)
-            else:
-                not_cached_steps[spec_hash] = [step]
 
-        def _bake(args):
-            spec_hash, steps = args
-            # we only need to perform the bake request for one of the steps per hash
-            step = steps[0]
-            image, request = self.bake_image_for_step(step)
-            return spec_hash, image, request
-
-        # bake missing images in parallel
-        results = []
         with ThreadPoolExecutor() as executor:
-            results = list(executor.map(_bake, not_cached_steps.items()))
-
-        # set the newly baked images for steps and cache the images for later use
-        for res in results:
-            spec_hash, image, request = res
-            for step in not_cached_steps[spec_hash]:
-                self.set_image_for_step(step, image)
-            cache_image_tag(spec_hash, image, request)
+            results = list(
+                executor.map(
+                    self.bake_image_for_step,
+                    [step for step in self.flow if step.name not in self.skipped_steps],
+                )
+            )
 
         echo("Environments are ready!")
-        if self.steps_to_delegate:
-            # TODO: add debug echo to output steps that required a conda environment.
-            # The delegated conda environment also need to validate and init.
-            # we pass a set of steps we want to init to restrict the conda environments created.
+        if self.skipped_steps:
+            self.delegate = CondaEnvironment(self.flow)
+            self.delegate.set_local_root(self.local_root)
             self.delegate.validate_environment(echo, self.datastore_type)
-            self.delegate.init_environment(echo, self.steps_to_delegate)
-
-    def set_image_for_step(self, step, image):
-        # we have an image that we need to set to a kubernetes or batch decorator.
-        for deco in step.decorators:
-            if _is_remote_deco(deco):
-                deco.attributes["image"] = image
-
-    def cache_hash_for_step(self, step):
-        (
-            base_image,
-            python_version,
-            pypi_pkg,
-            conda_pkg,
-            deco_name,
-        ) = self.details_from_step(step)
-
-        packages = {**(pypi_pkg or {}), **(conda_pkg or {})}
-        sorted_keys = sorted(packages.keys())
-        base_str = "".join(
-            [FAST_BAKERY_TYPE, python_version, base_image or "", deco_name]
-        )
-        sortspec = base_str.join("%s%s" % (k, packages[k]) for k in sorted_keys).encode(
-            "utf-8"
-        )
-        return hashlib.md5(sortspec).hexdigest()
+            self.delegate.init_environment(echo, self.skipped_steps)
 
     def details_from_step(self, step):
         # map out if user is requesting a base image to build on top of
@@ -177,34 +170,47 @@ class DockerEnvironment(MetaflowEnvironment):
 
         return base_image, python, pypi_pkg, conda_pkg, dependency_deco.name
 
+    @cache_request(BAKERY_METAFILE)
+    def _cached_bake(self, python, pypi_pkg, conda_pkg, base_image, image_kind):
+        self.bakery._reset_payload()
+        self.bakery.python_version(python)
+        if pypi_pkg:
+            self.bakery.pypi_packages(pypi_pkg)
+        if conda_pkg:
+            self.bakery.conda_packages(conda_pkg)
+        if base_image:
+            self.bakery.base_image(base_image)
+        self.bakery.image_kind(image_kind)
+
+        image = self.bakery.bake()
+        return image
+
     def bake_image_for_step(self, step):
-        if self._is_delegated(step.name):
-            # do not bake images for delegated steps
-            return
 
         base_image, python, pypi_pkg, conda_pkg, _deco_type = self.details_from_step(
             step
         )
 
         try:
-            image, request = self.bakery.bake(
+            image = self._cached_bake(
                 python, pypi_pkg, conda_pkg, base_image, FAST_BAKERY_TYPE
             )
+            # We don't have access to the request payload anymore, so we'll create a simplified version
+            for deco in step.decorators:
+                if _is_remote_deco(deco):
+                    deco.attributes["image"] = image["success"]["containerImage"]
         except FastBakeryException as ex:
             raise DockerEnvironmentException(str(ex))
 
-        return image, request
-
-    def _is_delegated(self, step_name):
-        return step_name in self.steps_to_delegate
+        return step, image
 
     def executable(self, step_name, default=None):
-        if self._is_delegated(step_name):
+        if step_name in self.skipped_steps:
             return self.delegate.executable(step_name, default)
         return os.path.join(FAST_BAKERY_ENV_PATH, "bin/python")
 
     def interpreter(self, step_name):
-        if self._is_delegated(step_name):
+        if step_name in self.skipped_steps:
             return self.delegate.interpreter(step_name)
         return os.path.join(FAST_BAKERY_ENV_PATH, "bin/python")
 
@@ -224,7 +230,7 @@ class DockerEnvironment(MetaflowEnvironment):
         return config
 
     def bootstrap_commands(self, step_name, datastore_type):
-        if self._is_delegated(step_name):
+        if step_name in self.skipped_steps:
             return self.delegate.bootstrap_commands(step_name, datastore_type)
         # Bootstrap conda and execution environment for step
         # we use an internal boolean flag so we do not have to pass the fast bakery endpoint url
@@ -232,32 +238,6 @@ class DockerEnvironment(MetaflowEnvironment):
         return [
             "export USE_BAKERY=1",
         ] + super().bootstrap_commands(step_name, datastore_type)
-
-
-def cache_image_tag(spec_hash, image, request):
-    current_meta = read_metafile()
-    current_meta[spec_hash] = {
-        "kind": FAST_BAKERY_TYPE,
-        "image": image,
-        "bakery_request": request,
-    }
-
-    with open(BAKERY_METAFILE, "w") as f:
-        json.dump(current_meta, f)
-
-
-def get_cache_image_tag(spec_hash):
-    current_meta = read_metafile()
-
-    return current_meta.get(spec_hash, {}).get("image", None)
-
-
-def read_metafile():
-    try:
-        with open(BAKERY_METAFILE, "r") as f:
-            return json.load(f)
-    except Exception:
-        return {}
 
 
 def _is_remote_deco(deco):
