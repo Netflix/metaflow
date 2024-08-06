@@ -5,9 +5,6 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
-    _USE_BAKERY,
-    FAST_BAKERY_TYPE,
-    FAST_BAKERY_AUTH,
     FAST_BAKERY_URL,
     FAST_BAKERY_ENV_PATH,
     get_pinned_conda_libs,
@@ -28,6 +25,9 @@ import os
 import fcntl
 from functools import wraps
 from concurrent.futures import ThreadPoolExecutor
+
+
+# TODO - ensure that both @conda/@pypi are not assigned to the same step
 
 
 def cache_request(cache_file):
@@ -124,7 +124,7 @@ class DockerEnvironment(MetaflowEnvironment):
             step for step in self.flow if step.name not in self.skipped_steps
         ]
         if steps_to_bake:
-            echo("Baking Docker image(s) ...")
+            echo("Baking container image(s) ...")
 
             with ThreadPoolExecutor() as executor:
                 results = list(
@@ -134,7 +134,7 @@ class DockerEnvironment(MetaflowEnvironment):
                     )
                 )
 
-            echo("Docker image(s) baked!")
+            echo("Container image(s) baked!")
 
         if self.skipped_steps:
             self.delegate = CondaEnvironment(self.flow)
@@ -143,7 +143,7 @@ class DockerEnvironment(MetaflowEnvironment):
             self.delegate.init_environment(echo, self.skipped_steps)
 
     @cache_request(BAKERY_METAFILE)
-    def _cached_bake(self, python, pypi_pkg, conda_pkg, base_image, image_kind):
+    def _cached_bake(self, python, pypi_pkg, conda_pkg, base_image):
         self.bakery._reset_payload()
         self.bakery.python_version(python)
         if pypi_pkg:
@@ -152,7 +152,6 @@ class DockerEnvironment(MetaflowEnvironment):
             self.bakery.conda_packages(conda_pkg)
         if base_image:
             self.bakery.base_image(base_image)
-        self.bakery.image_kind(image_kind)
         return self.bakery.bake()
 
     def bake_image_for_step(self, step):
@@ -180,14 +179,13 @@ class DockerEnvironment(MetaflowEnvironment):
         pkgs.update(dependencies.attributes["packages"])
 
         pkg_type = "pypi" if isinstance(dependencies, PyPIStepDecorator) else "conda"
-
+        # python=None
         try:
             result = self._cached_bake(
                 python=python,
                 pypi_pkg=pkgs if pkg_type == "pypi" else None,
                 conda_pkg=pkgs if pkg_type == "conda" else None,
                 base_image=base_image,
-                image_kind=FAST_BAKERY_TYPE,
             )
 
             for d in step.decorators:
@@ -202,11 +200,13 @@ class DockerEnvironment(MetaflowEnvironment):
     def executable(self, step_name, default=None):
         if step_name in self.skipped_steps:
             return self.delegate.executable(step_name, default)
+        # return "python"
         return os.path.join(FAST_BAKERY_ENV_PATH, "bin/python")
 
     def interpreter(self, step_name):
         if step_name in self.skipped_steps:
             return self.delegate.interpreter(step_name)
+        # return "python"
         return os.path.join(FAST_BAKERY_ENV_PATH, "bin/python")
 
     def is_disabled(self, step):
@@ -230,6 +230,4 @@ class DockerEnvironment(MetaflowEnvironment):
         # Bootstrap conda and execution environment for step
         # we use an internal boolean flag so we do not have to pass the fast bakery endpoint url
         # in order to denote that a bakery has been configured.
-        return [
-            "export USE_BAKERY=1",
-        ] + super().bootstrap_commands(step_name, datastore_type)
+        return super().bootstrap_commands(step_name, datastore_type)
