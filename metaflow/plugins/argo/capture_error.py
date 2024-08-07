@@ -67,4 +67,4 @@ def determine_first_error():
 
 if __name__ == "__main__":
     first_err = determine_first_error()
-    print(first_err["message"])
+    print(json.dumps(first_err, indent=2))
