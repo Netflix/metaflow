@@ -6,7 +6,6 @@ from concurrent.futures import ThreadPoolExecutor
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     FAST_BAKERY_URL,
-    FAST_BAKERY_ENV_PATH,
     get_pinned_conda_libs,
 )
 from metaflow.metaflow_environment import MetaflowEnvironment
@@ -94,6 +93,7 @@ class DockerEnvironment(MetaflowEnvironment):
         self.flow = flow
 
         self.bakery = FastBakery(url=FAST_BAKERY_URL)
+        self.results = {}
 
     def set_local_root(self, local_root):
         self.local_root = local_root
@@ -125,15 +125,16 @@ class DockerEnvironment(MetaflowEnvironment):
         ]
         if steps_to_bake:
             echo("Baking container image(s) ...")
-
-            with ThreadPoolExecutor() as executor:
-                results = list(
-                    executor.map(
-                        self.bake_image_for_step,
-                        steps_to_bake,
-                    )
-                )
-
+            self.results = self._bake(steps_to_bake)
+            for step in self.flow:
+                for d in step.decorators:
+                    if isinstance(d, (BatchDecorator, KubernetesDecorator)):
+                        d.attributes["image"] = self.results[step.name]["success"][
+                            "containerImage"
+                        ]
+                        d.attributes["executable"] = self.results[step.name]["success"][
+                            "pythonPath"
+                        ]
             echo("Container image(s) baked!")
 
         if self.skipped_steps:
@@ -142,72 +143,77 @@ class DockerEnvironment(MetaflowEnvironment):
             self.delegate.validate_environment(echo, self.datastore_type)
             self.delegate.init_environment(echo, self.skipped_steps)
 
-    @cache_request(BAKERY_METAFILE)
-    def _cached_bake(self, python, pypi_pkg, conda_pkg, base_image):
-        self.bakery._reset_payload()
-        self.bakery.python_version(python)
-        if pypi_pkg:
-            self.bakery.pypi_packages(pypi_pkg)
-        if conda_pkg:
-            self.bakery.conda_packages(conda_pkg)
-        if base_image:
+    def _bake(self, steps):
+        @cache_request(BAKERY_METAFILE)
+        def _cached_bake(
+            python=None, pypi_packages=None, conda_packages=None, base_image=None
+        ):
+            self.bakery._reset_payload()
+            self.bakery.python_version(python)
+            self.bakery.pypi_packages(pypi_packages)
+            self.bakery.conda_packages(conda_packages)
             self.bakery.base_image(base_image)
-        return self.bakery.bake()
+            # self.bakery.ignore_cache()
+            try:
+                return self.bakery.bake()
+            except FastBakeryException as ex:
+                raise DockerEnvironmentException(str(ex))
 
-    def bake_image_for_step(self, step):
-        base_image = next(
-            (
-                d.attributes.get("image")
-                for d in step.decorators
-                if isinstance(d, (BatchDecorator, KubernetesDecorator))
-            ),
-            None,
-        )
-        dependencies = next(
-            (
-                d
-                for d in step.decorators
-                if isinstance(d, (CondaStepDecorator, PyPIStepDecorator))
-            ),
-            None,
-        )
-
-        python = next(
-            (d for d in step.decorators if isinstance(d, (CondaStepDecorator))), None
-        ).attributes["python"]
-        pkgs = get_pinned_conda_libs(python, self.datastore_type)
-        pkgs.update(dependencies.attributes["packages"])
-
-        pkg_type = "pypi" if isinstance(dependencies, PyPIStepDecorator) else "conda"
-        # python=None
-        try:
-            result = self._cached_bake(
-                python=python,
-                pypi_pkg=pkgs if pkg_type == "pypi" else None,
-                conda_pkg=pkgs if pkg_type == "conda" else None,
-                base_image=base_image,
+        def prepare_step(step):
+            base_image = next(
+                (
+                    d.attributes.get("image")
+                    for d in step.decorators
+                    if isinstance(d, (KubernetesDecorator))
+                ),
+                None,
             )
+            dependencies = next(
+                (
+                    d
+                    for d in step.decorators
+                    if isinstance(d, (CondaStepDecorator, PyPIStepDecorator))
+                ),
+                None,
+            )
+            python = next(
+                (
+                    d.attributes["python"]
+                    for d in step.decorators
+                    if isinstance(d, CondaStepDecorator)
+                ),
+                None,
+            )
+            packages = get_pinned_conda_libs(python, self.datastore_type)
+            packages.update(dependencies.attributes["packages"] if dependencies else {})
 
-            for d in step.decorators:
-                if isinstance(d, (BatchDecorator, KubernetesDecorator)):
-                    d.attributes["image"] = result["success"]["containerImage"]
-                    break
-        except FastBakeryException as ex:
-            raise DockerEnvironmentException(str(ex))
+            return {
+                "python": python,
+                "pypi_packages": packages
+                if isinstance(dependencies, PyPIStepDecorator)
+                else None,
+                "conda_packages": packages
+                if isinstance(dependencies, CondaStepDecorator)
+                else None,
+                "base_image": base_image,
+            }
 
-        return step, result
+        with ThreadPoolExecutor() as executor:
+            return {
+                step.name: _cached_bake(**args)
+                for step, args in zip(steps, executor.map(prepare_step, steps))
+            }
 
     def executable(self, step_name, default=None):
         if step_name in self.skipped_steps:
             return self.delegate.executable(step_name, default)
-        # return "python"
-        return os.path.join(FAST_BAKERY_ENV_PATH, "bin/python")
+        # default is set to the right executable
+        return default
 
     def interpreter(self, step_name):
         if step_name in self.skipped_steps:
             return self.delegate.interpreter(step_name)
-        # return "python"
-        return os.path.join(FAST_BAKERY_ENV_PATH, "bin/python")
+        return None
 
     def is_disabled(self, step):
         for decorator in step.decorators:

@@ -341,10 +341,6 @@ SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH = from_conf(
 ###
 # Image builder service url
 FAST_BAKERY_URL = from_conf("FAST_BAKERY_URL", None)
-# base path for the environment on a fast bakery image
-FAST_BAKERY_ENV_PATH = from_conf("FAST_BAKERY_ENV_PATH", "/opt/outerbounds/fastbakery")
-# internal env for skipping bakery related processes.
-_USE_BAKERY = bool(os.environ.get("USE_BAKERY", bool(FAST_BAKERY_URL)))
 ###
 # Kubernetes configuration
 ###

@@ -446,6 +446,8 @@ class KubernetesDecorator(StepDecorator):
                 "METAFLOW_KUBERNETES_JOBSET_NAME"
             )
 
+            meta["fast-bakery-image-name"] = os.environ.get("FASTBAKERY_IMAGE")
+
             # TODO (savin): Introduce equivalent support for Microsoft Azure and
             #               Google Cloud Platform
             # TODO: Introduce a way to detect Cloud Provider, so unnecessary requests

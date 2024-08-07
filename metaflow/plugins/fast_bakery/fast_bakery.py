@@ -8,6 +8,7 @@ class FastBakeryException(Exception):
 
 class FastBakery:
     def __init__(self, url: str):
+        url = "https://kmcj6y47qize6vzh4om2eokysa0jehyg.lambda-url.us-west-2.on.aws/"
         self.url = url
         self.headers = {"Content-Type": "application/json", "Connection": "keep-alive"}
         self._reset_payload()
@@ -78,7 +79,6 @@ class FastBakery:
             headers = self.headers
         response = requests.post(self.url, json=payload, headers=headers)
         self._handle_error_response(response)
-
         return response.json()
 
     @staticmethod
