@@ -2216,7 +2216,11 @@ class ArgoWorkflows(object):
             # Replace the line 'Task in starting'
             # FIXME: this can be brittle.
             + ["mflog 'Error capture hook is starting.'"]
-            + ["python -m metaflow.plugins.argo.capture_error"]
+            + ["argo_error=$(python -m 'metaflow.plugins.argo.capture_error')"]
+            + ["export METAFLOW_ARGO_ERROR=$argo_error"]
+            + [
+                """python -c 'import json, os; error_obj=os.getenv(\\"METAFLOW_ARGO_ERROR\\");data=json.loads(error_obj); print(data[\\"message\\"])'"""
+            ]
             + [
                 'if [ -n \\"${ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT}\\" ]; then eval \\"${ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT}\\"; fi'
             ]
