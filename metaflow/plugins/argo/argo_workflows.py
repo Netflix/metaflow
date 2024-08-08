@@ -3041,15 +3041,15 @@ class ArgoWorkflows(object):
 # dependency on argo-workflows Python SDK if this method turns out to be painful.
 # TODO: Autogenerate them, maybe?
 
+def _tree():
+    return defaultdict(_tree)
+
 
 class WorkflowTemplate(object):
     # https://argoproj.github.io/argo-workflows/fields/#workflowtemplate
 
     def __init__(self):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
         self.payload["apiVersion"] = "argoproj.io/v1alpha1"
         self.payload["kind"] = "WorkflowTemplate"
 
@@ -3072,10 +3072,7 @@ class CronWorkflow(object):
     # https://argo-workflows.readthedocs.io/en/latest/fields/#cronworkflow
 
     def __init__(self):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
         self.payload["apiVersion"] = "argoproj.io/v1alpha1"
         self.payload["kind"] = "CronWorkflow"
 
@@ -3098,10 +3095,7 @@ class CronWorkflowSpec(object):
     # https://argo-workflows.readthedocs.io/en/latest/fields/#cronworkflowspec
 
     def __init__(self):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
 
     def schedule(self, schedule):
         self.payload["schedule"] = schedule
@@ -3132,10 +3126,7 @@ class ObjectMeta(object):
     # https://argoproj.github.io/argo-workflows/fields/#objectmeta
 
     def __init__(self):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
 
     def annotation(self, key, value):
         self.payload["annotations"][key] = str(value)
@@ -3178,10 +3169,7 @@ class ObjectMeta(object):
 
 class WorkflowStep(object):
     def __init__(self):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
 
     def name(self, name):
         self.payload["name"] = str(name)
@@ -3211,10 +3199,7 @@ class WorkflowSpec(object):
     # This object sets all Workflow level properties.
 
     def __init__(self):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
 
     def active_deadline_seconds(self, active_deadline_seconds):
         # Overall duration of a workflow in seconds
@@ -3292,10 +3277,7 @@ class Metadata(object):
     # https://argoproj.github.io/argo-workflows/fields/#metadata
 
     def __init__(self):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
 
     def annotation(self, key, value):
         self.payload["annotations"][key] = str(value)
@@ -3335,11 +3317,8 @@ class Metadata(object):
 
 class DaemonTemplate(object):
     def __init__(self, name):
-        def tree():
-            return defaultdict(tree)
-
         self.name = name
-        self.payload = tree()
+        self.payload = _tree()
         self.payload["daemon"] = True
         self.payload["name"] = name
 
@@ -3358,10 +3337,7 @@ class Template(object):
     # https://argoproj.github.io/argo-workflows/fields/#template
 
     def __init__(self, name):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
         self.payload["name"] = name
 
     def active_deadline_seconds(self, active_deadline_seconds):
@@ -3509,10 +3485,7 @@ class Inputs(object):
     # https://argoproj.github.io/argo-workflows/fields/#inputs
 
     def __init__(self):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
 
     def parameters(self, parameters):
         if "parameters" not in self.payload:
@@ -3532,10 +3505,7 @@ class Outputs(object):
     # https://argoproj.github.io/argo-workflows/fields/#outputs
 
     def __init__(self):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
 
     def parameters(self, parameters):
         if "parameters" not in self.payload:
@@ -3555,10 +3525,7 @@ class Parameter(object):
     # https://argoproj.github.io/argo-workflows/fields/#parameter
 
     def __init__(self, name):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
         self.payload["name"] = name
 
     def value(self, value):
@@ -3588,10 +3555,7 @@ class DAGTemplate(object):
     # https://argoproj.github.io/argo-workflows/fields/#dagtemplate
 
     def __init__(self):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
 
     def fail_fast(self, fail_fast=True):
         # https://github.com/argoproj/argo-workflows/issues/1442
@@ -3616,10 +3580,7 @@ class DAGTask(object):
     # https://argoproj.github.io/argo-workflows/fields/#dagtask
 
     def __init__(self, name):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
         self.payload["name"] = name
 
     def arguments(self, arguments):
@@ -3656,10 +3617,7 @@ class Arguments(object):
     # https://argoproj.github.io/argo-workflows/fields/#arguments
 
     def __init__(self):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
 
     def parameters(self, parameters):
         if "parameters" not in self.payload:
@@ -3679,10 +3637,7 @@ class Sensor(object):
     # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.Sensor
 
     def __init__(self):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
         self.payload["apiVersion"] = "argoproj.io/v1alpha1"
         self.payload["kind"] = "Sensor"
 
@@ -3705,10 +3660,7 @@ class SensorSpec(object):
     # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.SensorSpec
 
     def __init__(self):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
 
     def replicas(self, replicas=1):
         # TODO: Make number of deployment replicas configurable.
@@ -3747,10 +3699,7 @@ class SensorTemplate(object):
     # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.Template
 
     def __init__(self):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
 
     def service_account_name(self, service_account_name):
         self.payload["serviceAccountName"] = service_account_name
@@ -3777,10 +3726,7 @@ class EventDependency(object):
     # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.EventDependency
 
     def __init__(self, name):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
         self.payload["name"] = name
 
     def event_source_name(self, event_source_name):
@@ -3815,10 +3761,7 @@ class EventDependencyFilter(object):
     # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.EventDependencyFilter
 
     def __init__(self):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
 
     def exprs(self, exprs):
         self.payload["exprs"] = exprs
@@ -3839,10 +3782,7 @@ class Trigger(object):
     # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.Trigger
 
     def __init__(self):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
 
     def template(self, trigger_template):
         self.payload["template"] = trigger_template.to_json()
@@ -3870,10 +3810,7 @@ class TriggerTemplate(object):
     # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.TriggerTemplate
 
     def __init__(self, name):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
         self.payload["name"] = name
 
     def argo_workflow_trigger(self, argo_workflow_trigger):
@@ -3898,10 +3835,7 @@ class ArgoWorkflowTrigger(object):
     # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.ArgoWorkflowTrigger
 
     def __init__(self):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
         self.payload["operation"] = "submit"
         self.payload["group"] = "argoproj.io"
         self.payload["version"] = "v1alpha1"
@@ -3929,10 +3863,7 @@ class TriggerParameter(object):
     # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.TriggerParameter
 
     def __init__(self):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
 
     def src(self, dependency_name, value, data_key=None, data_template=None):
         self.payload["src"] = {
@@ -3960,10 +3891,7 @@ class Http(object):
     # https://argoproj.github.io/argo-workflows/fields/#http
 
     def __init__(self, method):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
         self.payload["method"] = method
         self.payload["headers"] = []
 
@@ -3994,10 +3922,7 @@ class LifecycleHook(object):
     # https://argoproj.github.io/argo-workflows/fields/#lifecyclehook
 
     def __init__(self):
-        def tree():
-            return defaultdict(tree)
-
-        self.payload = tree()
+        self.payload = _tree()
 
     def expression(self, expression):
         self.payload["expression"] = str(expression)
