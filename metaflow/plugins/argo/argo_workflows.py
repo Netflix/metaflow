@@ -170,7 +170,7 @@ class ArgoWorkflows(object):
 
         self.kubernetes_labels = self._get_kubernetes_labels()
         self._workflow_template = self._compile_workflow_template()
-        self._cronworkflow_template = self.compile_cronworkflow_template()
+        self._cronworkflow_template = self._compile_cronworkflow_template()
         self._sensor = self._compile_sensor()
 
     def __str__(self):
@@ -178,9 +178,6 @@ class ArgoWorkflows(object):
 
     def get_all_templates(self):
         return [self._workflow_template, self._cronworkflow_template, self._sensor]
-
-    def deployed_objects(self):
-        return [self._workflow_template, self._sensor]
 
     def deploy(self):
         try:
