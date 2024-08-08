@@ -664,9 +664,9 @@ class StepFunctions(object):
                 # input to those descendent tasks. We set and propagate the
                 # task ids pointing to split_parents through every state.
                 if any(self.graph[n].type == "foreach" for n in node.in_funcs):
-                    attrs[
-                        "split_parent_task_id_%s.$" % node.split_parents[-1]
-                    ] = "$.SplitParentTaskId"
+                    attrs["split_parent_task_id_%s.$" % node.split_parents[-1]] = (
+                        "$.SplitParentTaskId"
+                    )
                     for parent in node.split_parents[:-1]:
                         if self.graph[parent].type == "foreach":
                             attrs["split_parent_task_id_%s.$" % parent] = (

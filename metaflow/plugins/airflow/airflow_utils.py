@@ -567,9 +567,11 @@ class AirflowTask(object):
         return cls(
             task_dict["name"],
             is_mapper_node=is_mapper_node,
-            operator_type=task_dict["operator_type"]
-            if "operator_type" in task_dict
-            else "kubernetes",
+            operator_type=(
+                task_dict["operator_type"]
+                if "operator_type" in task_dict
+                else "kubernetes"
+            ),
             flow_name=flow_name,
             flow_contains_foreach=flow_contains_foreach,
         ).set_operator_args(**op_args)

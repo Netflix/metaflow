@@ -298,9 +298,7 @@ class CondaEnvironment(MetaflowEnvironment):
             lambda f: lambda obj: (
                 {k: f(f)(v) for k, v in sorted(obj.items())}
                 if isinstance(obj, dict)
-                else sorted([f(f)(e) for e in obj])
-                if isinstance(obj, list)
-                else obj
+                else sorted([f(f)(e) for e in obj]) if isinstance(obj, list) else obj
             )
         )
 

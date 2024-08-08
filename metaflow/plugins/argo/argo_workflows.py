@@ -1661,16 +1661,16 @@ class ArgoWorkflows(object):
 
             # support for @secret
             env["METAFLOW_DEFAULT_SECRETS_BACKEND_TYPE"] = DEFAULT_SECRETS_BACKEND_TYPE
-            env[
-                "METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION"
-            ] = AWS_SECRETS_MANAGER_DEFAULT_REGION
+            env["METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION"] = (
+                AWS_SECRETS_MANAGER_DEFAULT_REGION
+            )
             env["METAFLOW_GCP_SECRET_MANAGER_PREFIX"] = GCP_SECRET_MANAGER_PREFIX
             env["METAFLOW_AZURE_KEY_VAULT_PREFIX"] = AZURE_KEY_VAULT_PREFIX
 
             # support for Azure
-            env[
-                "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
-            ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
+            env["METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"] = (
+                AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
+            )
             env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
             env["METAFLOW_CARD_AZUREROOT"] = CARD_AZUREROOT
 
@@ -1828,9 +1828,9 @@ class ArgoWorkflows(object):
                 # an input in the join step.
                 kubernetes_labels = self.kubernetes_labels.copy()
                 jobset_name = "{{inputs.parameters.jobset-name}}"
-                kubernetes_labels[
-                    "task_id_entropy"
-                ] = "{{inputs.parameters.task-id-entropy}}"
+                kubernetes_labels["task_id_entropy"] = (
+                    "{{inputs.parameters.task-id-entropy}}"
+                )
                 kubernetes_labels["num_parallel"] = "{{inputs.parameters.num-parallel}}"
                 jobset = KubernetesArgoJobSet(
                     kubernetes_sdk=kubernetes_sdk,
@@ -2024,11 +2024,15 @@ class ArgoWorkflows(object):
                                 name=self._sanitize(node.name),
                                 command=cmds,
                                 termination_message_policy="FallbackToLogsOnError",
-                                ports=[
-                                    kubernetes_sdk.V1ContainerPort(container_port=port)
-                                ]
-                                if port
-                                else None,
+                                ports=(
+                                    [
+                                        kubernetes_sdk.V1ContainerPort(
+                                            container_port=port
+                                        )
+                                    ]
+                                    if port
+                                    else None
+                                ),
                                 env=[
                                     kubernetes_sdk.V1EnvVar(name=k, value=str(v))
                                     for k, v in env.items()
@@ -2243,9 +2247,10 @@ class ArgoWorkflows(object):
         }
         # support Metaflow sandboxes
         env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
-        env[
-            "METAFLOW_ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT"
-        ] = ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT
+        env["METAFLOW_ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT"] = (
+            ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT
+        )
+
         env["METAFLOW_WORKFLOW_NAME"] = "{{workflow.name}}"
         env["METAFLOW_WORKFLOW_NAMESPACE"] = "{{workflow.namespace}}"
         env["METAFLOW_ARGO_WORKFLOW_FAILURES"] = "{{workflow.failures}}"
@@ -2276,9 +2281,11 @@ class ArgoWorkflows(object):
                             for k in list(
                                 []
                                 if not resources.get("secrets")
-                                else [resources.get("secrets")]
-                                if isinstance(resources.get("secrets"), str)
-                                else resources.get("secrets")
+                                else (
+                                    [resources.get("secrets")]
+                                    if isinstance(resources.get("secrets"), str)
+                                    else resources.get("secrets")
+                                )
                             )
                             + KUBERNETES_SECRETS.split(",")
                             + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
@@ -2592,9 +2599,11 @@ class ArgoWorkflows(object):
                         for k in list(
                             []
                             if not resources.get("secrets")
-                            else [resources.get("secrets")]
-                            if isinstance(resources.get("secrets"), str)
-                            else resources.get("secrets")
+                            else (
+                                [resources.get("secrets")]
+                                if isinstance(resources.get("secrets"), str)
+                                else resources.get("secrets")
+                            )
                         )
                         + KUBERNETES_SECRETS.split(",")
                         + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
