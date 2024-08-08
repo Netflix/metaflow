@@ -2625,7 +2625,8 @@ class ArgoWorkflows(object):
                 .suspend(self._schedule is None)
                 .schedule(self._schedule)
                 .timezone(self._timezone)
-                .workflow_template_ref_name(self.name))
+                .workflow_template_ref_name(self.name)
+            )
         )
 
     def _compile_sensor(self):
@@ -2726,7 +2727,6 @@ class ArgoWorkflows(object):
                 "Could not import Python package 'kubernetes'. Install kubernetes "
                 "sdk (https://pypi.org/project/kubernetes/) first."
             )
-
 
         annotations = {
             "metaflow/production_token": self.production_token,
@@ -3017,6 +3017,7 @@ class WorkflowTemplate(object):
     def __init__(self):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
         self.payload["apiVersion"] = "argoproj.io/v1alpha1"
         self.payload["kind"] = "WorkflowTemplate"
@@ -3035,12 +3036,14 @@ class WorkflowTemplate(object):
     def __str__(self):
         return json.dumps(self.payload, indent=4)
 
+
 class CronWorkflow(object):
     # https://argo-workflows.readthedocs.io/en/latest/fields/#cronworkflow
 
     def __init__(self):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
         self.payload["apiVersion"] = "argoproj.io/v1alpha1"
         self.payload["kind"] = "CronWorkflow"
@@ -3059,12 +3062,14 @@ class CronWorkflow(object):
     def __str__(self):
         return json.dumps(self.payload, indent=4)
 
+
 class CronWorkflowSpec(object):
     # https://argo-workflows.readthedocs.io/en/latest/fields/#cronworkflowspec
 
     def __init__(self):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
 
     def schedule(self, schedule):
@@ -3080,7 +3085,9 @@ class CronWorkflowSpec(object):
         return self
 
     def workflow_template_ref_name(self, workflow_template_ref_name):
-        self.payload["workflowSpec"]["workflowTemplateRef"]["name"] = workflow_template_ref_name
+        self.payload["workflowSpec"]["workflowTemplateRef"][
+            "name"
+        ] = workflow_template_ref_name
         return self
 
     def to_json(self):
@@ -3096,6 +3103,7 @@ class ObjectMeta(object):
     def __init__(self):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
 
     def annotation(self, key, value):
@@ -3141,6 +3149,7 @@ class WorkflowStep(object):
     def __init__(self):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
 
     def name(self, name):
@@ -3173,6 +3182,7 @@ class WorkflowSpec(object):
     def __init__(self):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
 
     def active_deadline_seconds(self, active_deadline_seconds):
@@ -3253,6 +3263,7 @@ class Metadata(object):
     def __init__(self):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
 
     def annotation(self, key, value):
@@ -3295,6 +3306,7 @@ class DaemonTemplate(object):
     def __init__(self, name):
         def tree():
             return defaultdict(tree)
+
         self.name = name
         self.payload = tree()
         self.payload["daemon"] = True
@@ -3317,6 +3329,7 @@ class Template(object):
     def __init__(self, name):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
         self.payload["name"] = name
 
@@ -3467,6 +3480,7 @@ class Inputs(object):
     def __init__(self):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
 
     def parameters(self, parameters):
@@ -3489,6 +3503,7 @@ class Outputs(object):
     def __init__(self):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
 
     def parameters(self, parameters):
@@ -3511,6 +3526,7 @@ class Parameter(object):
     def __init__(self, name):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
         self.payload["name"] = name
 
@@ -3543,6 +3559,7 @@ class DAGTemplate(object):
     def __init__(self):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
 
     def fail_fast(self, fail_fast=True):
@@ -3570,6 +3587,7 @@ class DAGTask(object):
     def __init__(self, name):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
         self.payload["name"] = name
 
@@ -3609,6 +3627,7 @@ class Arguments(object):
     def __init__(self):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
 
     def parameters(self, parameters):
@@ -3631,6 +3650,7 @@ class Sensor(object):
     def __init__(self):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
         self.payload["apiVersion"] = "argoproj.io/v1alpha1"
         self.payload["kind"] = "Sensor"
@@ -3656,6 +3676,7 @@ class SensorSpec(object):
     def __init__(self):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
 
     def replicas(self, replicas=1):
@@ -3697,6 +3718,7 @@ class SensorTemplate(object):
     def __init__(self):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
 
     def service_account_name(self, service_account_name):
@@ -3726,6 +3748,7 @@ class EventDependency(object):
     def __init__(self, name):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
         self.payload["name"] = name
 
@@ -3763,6 +3786,7 @@ class EventDependencyFilter(object):
     def __init__(self):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
 
     def exprs(self, exprs):
@@ -3786,6 +3810,7 @@ class Trigger(object):
     def __init__(self):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
 
     def template(self, trigger_template):
@@ -3816,6 +3841,7 @@ class TriggerTemplate(object):
     def __init__(self, name):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
         self.payload["name"] = name
 
@@ -3843,6 +3869,7 @@ class ArgoWorkflowTrigger(object):
     def __init__(self):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
         self.payload["operation"] = "submit"
         self.payload["group"] = "argoproj.io"
@@ -3873,6 +3900,7 @@ class TriggerParameter(object):
     def __init__(self):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
 
     def src(self, dependency_name, value, data_key=None, data_template=None):
@@ -3903,6 +3931,7 @@ class Http(object):
     def __init__(self, method):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
         self.payload["method"] = method
         self.payload["headers"] = []
@@ -3936,6 +3965,7 @@ class LifecycleHook(object):
     def __init__(self):
         def tree():
             return defaultdict(tree)
+
         self.payload = tree()
 
     def expression(self, expression):
