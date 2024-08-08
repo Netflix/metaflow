@@ -3044,7 +3044,6 @@ class ArgoWorkflows(object):
 def _tree():
     return defaultdict(_tree)
 
-
 class WorkflowTemplate(object):
     # https://argoproj.github.io/argo-workflows/fields/#workflowtemplate
 
