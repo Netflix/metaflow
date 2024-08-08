@@ -281,11 +281,15 @@ def create(
     )
 
     if only_yaml:
-        obj.echo_always(yaml.dump_all(
-            flow.get_all_templates(),
-            explicit_start=True,
-            default_flow_style=False,
-        ), err=False, no_bold=True)
+        obj.echo_always(
+            yaml.dump_all(
+                flow.get_all_templates(),
+                explicit_start=True,
+                default_flow_style=False,
+            ),
+            err=False,
+            no_bold=True,
+        )
     elif only_json:
         # NOTE: this _only_ outputs the WorkflowTemplate. If you want the sensor and
         # cron workflow templates, use --only-yaml instead.
