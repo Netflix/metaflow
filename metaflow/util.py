@@ -382,9 +382,9 @@ def to_camelcase(obj):
     if isinstance(obj, dict):
         res = obj.__class__()
         for k in obj:
-            res[
-                re.sub(r"(?!^)_([a-zA-Z])", lambda x: x.group(1).upper(), k)
-            ] = to_camelcase(obj[k])
+            res[re.sub(r"(?!^)_([a-zA-Z])", lambda x: x.group(1).upper(), k)] = (
+                to_camelcase(obj[k])
+            )
     elif isinstance(obj, (list, set, tuple)):
         res = obj.__class__(to_camelcase(v) for v in obj)
     else:
@@ -401,9 +401,9 @@ def to_pascalcase(obj):
     if isinstance(obj, dict):
         res = obj.__class__()
         for k in obj:
-            res[
-                re.sub("([a-zA-Z])", lambda x: x.groups()[0].upper(), k, 1)
-            ] = to_pascalcase(obj[k])
+            res[re.sub("([a-zA-Z])", lambda x: x.groups()[0].upper(), k, 1)] = (
+                to_pascalcase(obj[k])
+            )
     elif isinstance(obj, (list, set, tuple)):
         res = obj.__class__(to_pascalcase(v) for v in obj)
     else:

@@ -391,9 +391,9 @@ class MetaflowObject(object):
                     _object=obj,
                     _parent=self,
                     _namespace_check=self._namespace_check,
-                    _current_namespace=self._current_namespace
-                    if self._namespace_check
-                    else None,
+                    _current_namespace=(
+                        self._current_namespace if self._namespace_check else None
+                    ),
                 )
                 for obj in unfiltered_children
             ),
@@ -506,9 +506,9 @@ class MetaflowObject(object):
                 _object=obj,
                 _parent=self,
                 _namespace_check=self._namespace_check,
-                _current_namespace=self._current_namespace
-                if self._namespace_check
-                else None,
+                _current_namespace=(
+                    self._current_namespace if self._namespace_check else None
+                ),
             )
         else:
             raise KeyError(id)

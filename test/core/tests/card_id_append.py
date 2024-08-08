@@ -56,9 +56,11 @@ class CardsWithIdTest(MetaflowTest):
                     checker.assert_card(
                         step.name,
                         task_id,
-                        "test_editable_card"
-                        if step.name == "start"
-                        else "test_non_editable_card",
+                        (
+                            "test_editable_card"
+                            if step.name == "start"
+                            else "test_non_editable_card"
+                        ),
                         "%d" % number,
                         card_id="abc",
                         exact_match=True,
@@ -74,9 +76,11 @@ class CardsWithIdTest(MetaflowTest):
                     checker.assert_card(
                         step.name,
                         task_id,
-                        "test_editable_card"
-                        if step.name == "start"
-                        else "test_non_editable_card",
+                        (
+                            "test_editable_card"
+                            if step.name == "start"
+                            else "test_non_editable_card"
+                        ),
                         "%d" % random_number,
                         card_id="abc",
                         exact_match=True,

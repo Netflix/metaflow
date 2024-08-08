@@ -1119,9 +1119,11 @@ def get(
                         str(url.idx),
                         url_quote(url.prefix).decode(encoding="utf-8"),
                         url_quote(url.url).decode(encoding="utf-8"),
-                        url_quote(url.range).decode(encoding="utf-8")
-                        if url.range
-                        else "<norange>",
+                        (
+                            url_quote(url.range).decode(encoding="utf-8")
+                            if url.range
+                            else "<norange>"
+                        ),
                     ]
                 )
                 + "\n"

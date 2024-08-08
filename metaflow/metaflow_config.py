@@ -104,9 +104,11 @@ RETRY_WARNING_THRESHOLD = 3
 DATATOOLS_SUFFIX = from_conf("DATATOOLS_SUFFIX", "data")
 DATATOOLS_S3ROOT = from_conf(
     "DATATOOLS_S3ROOT",
-    os.path.join(DATASTORE_SYSROOT_S3, DATATOOLS_SUFFIX)
-    if DATASTORE_SYSROOT_S3
-    else None,
+    (
+        os.path.join(DATASTORE_SYSROOT_S3, DATATOOLS_SUFFIX)
+        if DATASTORE_SYSROOT_S3
+        else None
+    ),
 )
 
 TEMPDIR = from_conf("TEMPDIR", ".")
@@ -124,25 +126,31 @@ DATATOOLS_SESSION_VARS = from_conf("DATATOOLS_SESSION_VARS", {})
 # Similar to DATATOOLS_LOCALROOT, this is used ONLY by the IncludeFile's internal implementation.
 DATATOOLS_AZUREROOT = from_conf(
     "DATATOOLS_AZUREROOT",
-    os.path.join(DATASTORE_SYSROOT_AZURE, DATATOOLS_SUFFIX)
-    if DATASTORE_SYSROOT_AZURE
-    else None,
+    (
+        os.path.join(DATASTORE_SYSROOT_AZURE, DATATOOLS_SUFFIX)
+        if DATASTORE_SYSROOT_AZURE
+        else None
+    ),
 )
 # GS datatools root location
 # Note: we do not expose an actual datatools library for GS (like we do for S3)
 # Similar to DATATOOLS_LOCALROOT, this is used ONLY by the IncludeFile's internal implementation.
 DATATOOLS_GSROOT = from_conf(
     "DATATOOLS_GSROOT",
-    os.path.join(DATASTORE_SYSROOT_GS, DATATOOLS_SUFFIX)
-    if DATASTORE_SYSROOT_GS
-    else None,
+    (
+        os.path.join(DATASTORE_SYSROOT_GS, DATATOOLS_SUFFIX)
+        if DATASTORE_SYSROOT_GS
+        else None
+    ),
 )
 # Local datatools root location
 DATATOOLS_LOCALROOT = from_conf(
     "DATATOOLS_LOCALROOT",
-    os.path.join(DATASTORE_SYSROOT_LOCAL, DATATOOLS_SUFFIX)
-    if DATASTORE_SYSROOT_LOCAL
-    else None,
+    (
+        os.path.join(DATASTORE_SYSROOT_LOCAL, DATATOOLS_SUFFIX)
+        if DATASTORE_SYSROOT_LOCAL
+        else None
+    ),
 )
 
 # Secrets Backend - AWS Secrets Manager configuration
@@ -176,9 +184,11 @@ CARD_S3ROOT = from_conf(
 )
 CARD_AZUREROOT = from_conf(
     "CARD_AZUREROOT",
-    os.path.join(DATASTORE_SYSROOT_AZURE, CARD_SUFFIX)
-    if DATASTORE_SYSROOT_AZURE
-    else None,
+    (
+        os.path.join(DATASTORE_SYSROOT_AZURE, CARD_SUFFIX)
+        if DATASTORE_SYSROOT_AZURE
+        else None
+    ),
 )
 CARD_GSROOT = from_conf(
     "CARD_GSROOT",
@@ -311,9 +321,11 @@ SFN_EXECUTION_LOG_GROUP_ARN = from_conf("SFN_EXECUTION_LOG_GROUP_ARN")
 # Amazon S3 path for storing the results of AWS Step Functions Distributed Map
 SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH = from_conf(
     "SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH",
-    os.path.join(DATASTORE_SYSROOT_S3, "sfn_distributed_map_output")
-    if DATASTORE_SYSROOT_S3
-    else None,
+    (
+        os.path.join(DATASTORE_SYSROOT_S3, "sfn_distributed_map_output")
+        if DATASTORE_SYSROOT_S3
+        else None
+    ),
 )
 ###
 # Kubernetes configuration
