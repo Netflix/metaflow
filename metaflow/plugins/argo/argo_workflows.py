@@ -3041,8 +3041,10 @@ class ArgoWorkflows(object):
 # dependency on argo-workflows Python SDK if this method turns out to be painful.
 # TODO: Autogenerate them, maybe?
 
+
 def _tree():
     return defaultdict(_tree)
+
 
 class WorkflowTemplate(object):
     # https://argoproj.github.io/argo-workflows/fields/#workflowtemplate
