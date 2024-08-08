@@ -1,6 +1,4 @@
 import json
-import os
-import sys
 
 from metaflow.exception import MetaflowException
 from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
@@ -283,23 +281,17 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def schedule_workflow_template(self, name, schedule=None, timezone=None):
+    def schedule_workflow_template(self, name, cron_workflow=None):
         # Unfortunately, Kubernetes client does not handle optimistic
         # concurrency control by itself unlike kubectl
         client = self._client.get()
-        body = {
-            "apiVersion": "argoproj.io/v1alpha1",
-            "kind": "CronWorkflow",
-            "metadata": {"name": name},
-            "spec": {
-                "suspend": schedule is None,
-                "schedule": schedule,
-                "timezone": timezone,
-                "workflowSpec": {"workflowTemplateRef": {"name": name}},
-            },
-        }
+        if cron_workflow is None:
+            cron_workflow = {}
+        if not cron_workflow:
+            cron_workflow["metadata"] = {}
+
         try:
-            body["metadata"][
+            cron_workflow["metadata"][
                 "resourceVersion"
             ] = client.CustomObjectsApi().get_namespaced_custom_object(
                 group=self._group,
@@ -315,7 +307,7 @@ class ArgoClient(object):
         except client.rest.ApiException as e:
             # Scheduled workflow does not exist and we want to schedule a workflow
             if e.status == 404:
-                if schedule is None:
+                if cron_workflow["spec"]["schedule"] is None:
                     return
                 try:
                     return client.CustomObjectsApi().create_namespaced_custom_object(
@@ -323,7 +315,7 @@ class ArgoClient(object):
                         version=self._version,
                         namespace=self._namespace,
                         plural="cronworkflows",
-                        body=body,
+                        body=cron_workflow,
                     )
                 except client.rest.ApiException as e:
                     raise ArgoClientException(
@@ -341,7 +333,7 @@ class ArgoClient(object):
                 version=self._version,
                 namespace=self._namespace,
                 plural="cronworkflows",
-                body=body,
+                body=cron_workflow,
                 name=name,
             )
         except client.rest.ApiException as e:

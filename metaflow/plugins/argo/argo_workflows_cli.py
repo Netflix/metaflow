@@ -1,4 +1,5 @@
 import base64
+import yaml
 import json
 import platform
 import re
@@ -129,7 +130,13 @@ def argo_workflows(obj, name=None):
     "--only-json",
     is_flag=True,
     default=False,
-    help="Only print out JSON sent to Argo Workflows. Do not deploy anything.",
+    help="Only print out JSON sent to Argo Workflows. Do not deploy anything. DEPRECATED, prefer --output-yaml instead",
+)
+@click.option(
+    "--only-yaml",
+    is_flag=True,
+    default=False,
+    help="Only print out yaml sent to Argo Workflows. Do not deploy anything. Includes all objects",
 )
 @click.option(
     "--max-workers",
@@ -202,6 +209,7 @@ def create(
     tags=None,
     user_namespace=None,
     only_json=False,
+    only_yaml=False,
     authorize=None,
     generate_new_token=False,
     given_token=None,
@@ -272,9 +280,16 @@ def create(
         enable_error_msg_capture,
     )
 
-    if only_json:
+    if only_yaml:
+        obj.echo_always(yaml.dump_all(
+            flow.get_all_templates(),
+            explicit_start=True,
+            default_flow_style=False,
+        ), err=False, no_bold=True)
+    elif only_json:
+        # NOTE: this _only_ outputs the WorkflowTemplate. If you want the sensor and
+        # cron workflow templates, use --only-yaml instead.
         obj.echo_always(str(flow), err=False, no_bold=True)
-        # TODO: Support echo-ing Argo Events Sensor template
     else:
         flow.deploy()
         obj.echo(
