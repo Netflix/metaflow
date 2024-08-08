@@ -2049,6 +2049,7 @@ class ArgoWorkflows(object):
                                         ),
                                     )
                                     for k, v in {
+                                        "METAFLOW_KUBERNETES_NAMESPACE": "metadata.namespace",
                                         "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
                                         "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
                                         "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",

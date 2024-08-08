@@ -299,6 +299,7 @@ class Kubernetes(object):
 
         jobset.environment_variables_from_selectors(
             {
+                "METAFLOW_KUBERNETES_NAMESPACE": "metadata.namespace",
                 "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
                 "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
                 "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
