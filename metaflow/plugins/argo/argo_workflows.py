@@ -7,12 +7,11 @@ import sys
 from collections import defaultdict
 from hashlib import sha1
 from math import inf
-from typing import List, Tuple
 
 from metaflow import JSONType, current
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
-from metaflow.graph import DAGNode, FlowGraph
+from metaflow.graph import FlowGraph
 from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT,
@@ -41,7 +40,6 @@ from metaflow.metaflow_config import (
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
-    KUBERNETES_NODE_SELECTOR,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     KUBERNETES_SECRETS,
     S3_ENDPOINT_URL,
@@ -172,10 +170,17 @@ class ArgoWorkflows(object):
 
         self.kubernetes_labels = self._get_kubernetes_labels()
         self._workflow_template = self._compile_workflow_template()
+        self._cronworkflow_template = self.compile_cronworkflow_template()
         self._sensor = self._compile_sensor()
 
     def __str__(self):
         return str(self._workflow_template)
+
+    def get_all_templates(self):
+        return [self._workflow_template, self._cronworkflow_template, self._sensor]
+
+    def deployed_objects(self):
+        return [self._workflow_template, self._sensor]
 
     def deploy(self):
         try:
@@ -307,7 +312,7 @@ class ArgoWorkflows(object):
             try:
                 # Check that the workflow was deployed through Metaflow
                 workflow_template["metadata"]["annotations"]["metaflow/owner"]
-            except KeyError as e:
+            except KeyError:
                 raise ArgoWorkflowsException(
                     "An existing non-metaflow workflow with the same name as "
                     "*%s* already exists in Argo Workflows. \nPlease modify the "
@@ -346,7 +351,7 @@ class ArgoWorkflows(object):
         try:
             argo_client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
             argo_client.schedule_workflow_template(
-                self.name, self._schedule, self._timezone
+                self.name, self._cronworkflow_template
             )
             # Register sensor.
             # Metaflow will overwrite any existing sensor.
@@ -408,7 +413,7 @@ class ArgoWorkflows(object):
                         "metaflow/production_token"
                     ],
                 )
-            except KeyError as e:
+            except KeyError:
                 raise ArgoWorkflowsException(
                     "An existing non-metaflow workflow with the same name as "
                     "*%s* already exists in Argo Workflows. \nPlease modify the "
@@ -2614,6 +2619,18 @@ class ArgoWorkflows(object):
             )
         )
 
+    def _compile_cronworkflow_template(self):
+        return (
+            CronWorkflow()
+            .metadata(ObjectMeta().name(self.name))
+            .spec(
+                CronWorkflowSpec()
+                .suspend(self._schedule is None)
+                .schedule(self._schedule)
+                .timezone(self._timezone)
+                .workflow_template_ref_name(self.name))
+        )
+
     def _compile_sensor(self):
         # This method compiles a Metaflow @trigger decorator into Argo Events Sensor.
         #
@@ -2713,7 +2730,6 @@ class ArgoWorkflows(object):
                 "sdk (https://pypi.org/project/kubernetes/) first."
             )
 
-        labels = {"app.kubernetes.io/part-of": "metaflow"}
 
         annotations = {
             "metaflow/production_token": self.production_token,
@@ -2731,7 +2747,7 @@ class ArgoWorkflows(object):
             )
 
         # Useful to paint the UI
-        trigger_annotations = {
+        {
             "metaflow/triggered_by": json.dumps(
                 [
                     {key: trigger.get(key) for key in ["name", "type"]}
@@ -3002,7 +3018,8 @@ class WorkflowTemplate(object):
     # https://argoproj.github.io/argo-workflows/fields/#workflowtemplate
 
     def __init__(self):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
         self.payload["apiVersion"] = "argoproj.io/v1alpha1"
         self.payload["kind"] = "WorkflowTemplate"
@@ -3021,12 +3038,67 @@ class WorkflowTemplate(object):
     def __str__(self):
         return json.dumps(self.payload, indent=4)
 
+class CronWorkflow(object):
+    # https://argo-workflows.readthedocs.io/en/latest/fields/#cronworkflow
+
+    def __init__(self):
+        def tree():
+            return defaultdict(tree)
+        self.payload = tree()
+        self.payload["apiVersion"] = "argoproj.io/v1alpha1"
+        self.payload["kind"] = "CronWorkflow"
+
+    def metadata(self, object_meta):
+        self.payload["metadata"] = object_meta.to_json()
+        return self
+
+    def spec(self, cron_workflow_spec):
+        self.payload["spec"] = cron_workflow_spec.to_json()
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
+
+class CronWorkflowSpec(object):
+    # https://argo-workflows.readthedocs.io/en/latest/fields/#cronworkflowspec
+
+    def __init__(self):
+        def tree():
+            return defaultdict(tree)
+        self.payload = tree()
+
+    def schedule(self, schedule):
+        self.payload["schedule"] = schedule
+        return self
+
+    def timezone(self, timezone):
+        self.payload["timezone"] = timezone
+        return self
+
+    def suspend(self, suspend):
+        self.payload["suspend"] = suspend
+        return self
+
+    def workflow_template_ref_name(self, workflow_template_ref_name):
+        self.payload["workflowSpec"]["workflowTemplateRef"]["name"] = workflow_template_ref_name
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
+
 
 class ObjectMeta(object):
     # https://argoproj.github.io/argo-workflows/fields/#objectmeta
 
     def __init__(self):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
 
     def annotation(self, key, value):
@@ -3070,7 +3142,8 @@ class ObjectMeta(object):
 
 class WorkflowStep(object):
     def __init__(self):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
 
     def name(self, name):
@@ -3101,7 +3174,8 @@ class WorkflowSpec(object):
     # This object sets all Workflow level properties.
 
     def __init__(self):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
 
     def active_deadline_seconds(self, active_deadline_seconds):
@@ -3180,7 +3254,8 @@ class Metadata(object):
     # https://argoproj.github.io/argo-workflows/fields/#metadata
 
     def __init__(self):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
 
     def annotation(self, key, value):
@@ -3221,7 +3296,8 @@ class Metadata(object):
 
 class DaemonTemplate(object):
     def __init__(self, name):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.name = name
         self.payload = tree()
         self.payload["daemon"] = True
@@ -3242,7 +3318,8 @@ class Template(object):
     # https://argoproj.github.io/argo-workflows/fields/#template
 
     def __init__(self, name):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
         self.payload["name"] = name
 
@@ -3391,7 +3468,8 @@ class Inputs(object):
     # https://argoproj.github.io/argo-workflows/fields/#inputs
 
     def __init__(self):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
 
     def parameters(self, parameters):
@@ -3412,7 +3490,8 @@ class Outputs(object):
     # https://argoproj.github.io/argo-workflows/fields/#outputs
 
     def __init__(self):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
 
     def parameters(self, parameters):
@@ -3433,7 +3512,8 @@ class Parameter(object):
     # https://argoproj.github.io/argo-workflows/fields/#parameter
 
     def __init__(self, name):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
         self.payload["name"] = name
 
@@ -3464,7 +3544,8 @@ class DAGTemplate(object):
     # https://argoproj.github.io/argo-workflows/fields/#dagtemplate
 
     def __init__(self):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
 
     def fail_fast(self, fail_fast=True):
@@ -3490,7 +3571,8 @@ class DAGTask(object):
     # https://argoproj.github.io/argo-workflows/fields/#dagtask
 
     def __init__(self, name):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
         self.payload["name"] = name
 
@@ -3528,7 +3610,8 @@ class Arguments(object):
     # https://argoproj.github.io/argo-workflows/fields/#arguments
 
     def __init__(self):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
 
     def parameters(self, parameters):
@@ -3549,7 +3632,8 @@ class Sensor(object):
     # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.Sensor
 
     def __init__(self):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
         self.payload["apiVersion"] = "argoproj.io/v1alpha1"
         self.payload["kind"] = "Sensor"
@@ -3573,7 +3657,8 @@ class SensorSpec(object):
     # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.SensorSpec
 
     def __init__(self):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
 
     def replicas(self, replicas=1):
@@ -3613,7 +3698,8 @@ class SensorTemplate(object):
     # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.Template
 
     def __init__(self):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
 
     def service_account_name(self, service_account_name):
@@ -3641,7 +3727,8 @@ class EventDependency(object):
     # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.EventDependency
 
     def __init__(self, name):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
         self.payload["name"] = name
 
@@ -3677,7 +3764,8 @@ class EventDependencyFilter(object):
     # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.EventDependencyFilter
 
     def __init__(self):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
 
     def exprs(self, exprs):
@@ -3699,7 +3787,8 @@ class Trigger(object):
     # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.Trigger
 
     def __init__(self):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
 
     def template(self, trigger_template):
@@ -3728,7 +3817,8 @@ class TriggerTemplate(object):
     # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.TriggerTemplate
 
     def __init__(self, name):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
         self.payload["name"] = name
 
@@ -3754,7 +3844,8 @@ class ArgoWorkflowTrigger(object):
     # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.ArgoWorkflowTrigger
 
     def __init__(self):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
         self.payload["operation"] = "submit"
         self.payload["group"] = "argoproj.io"
@@ -3783,7 +3874,8 @@ class TriggerParameter(object):
     # https://github.com/argoproj/argo-events/blob/master/api/sensor.md#argoproj.io/v1alpha1.TriggerParameter
 
     def __init__(self):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
 
     def src(self, dependency_name, value, data_key=None, data_template=None):
@@ -3812,7 +3904,8 @@ class Http(object):
     # https://argoproj.github.io/argo-workflows/fields/#http
 
     def __init__(self, method):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
         self.payload["method"] = method
         self.payload["headers"] = []
@@ -3844,7 +3937,8 @@ class LifecycleHook(object):
     # https://argoproj.github.io/argo-workflows/fields/#lifecyclehook
 
     def __init__(self):
-        tree = lambda: defaultdict(tree)
+        def tree():
+            return defaultdict(tree)
         self.payload = tree()
 
     def expression(self, expression):
