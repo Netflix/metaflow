@@ -49,7 +49,7 @@ setup(
         [console_scripts]
         metaflow=metaflow.cmd.main_cli:start
       """,
-    install_requires=["requests", "boto3"],
+    install_requires=["requests", "boto3", "pyyaml"],
     extras_require={
         "stubs": ["metaflow-stubs==%s" % version],
     },
