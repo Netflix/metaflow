@@ -13,6 +13,7 @@ from ..exception import MetaflowInternalError
 from ..metadata import DataArtifact, MetaDatum
 from ..parameters import Parameter
 from ..util import Path, is_stringish, to_fileobj
+from .serailizers import serialize_object, deserialize_object, SERIALIZERS
 
 from .exceptions import DataException, UnpicklableArtifactException
 
@@ -121,6 +122,8 @@ class TaskDataStore(object):
         if ver >= 34:
             self._encodings.add("pickle-v4")
             self._encodings.add("gzip+pickle-v4")
+            for s in SERIALIZERS:
+                self._encodings.add(s.ENCODING_TYPE)
 
         self._is_done_set = False
 
@@ -281,45 +284,13 @@ class TaskDataStore(object):
 
         def pickle_iter():
             for name, obj in artifacts_iter:
-                do_v4 = (
-                    force_v4 and force_v4
-                    if isinstance(force_v4, bool)
-                    else force_v4.get(name, False)
+                blob, serialization_info = serialize_object(
+                    name, obj, self._encodings, force_v4=force_v4
                 )
-                if do_v4:
-                    encode_type = "gzip+pickle-v4"
-                    if encode_type not in self._encodings:
-                        raise DataException(
-                            "Artifact *%s* requires a serialization encoding that "
-                            "requires Python 3.4 or newer." % name
-                        )
-                    try:
-                        blob = pickle.dumps(obj, protocol=4)
-                    except TypeError as e:
-                        raise UnpicklableArtifactException(name)
-                else:
-                    try:
-                        blob = pickle.dumps(obj, protocol=2)
-                        encode_type = "gzip+pickle-v2"
-                    except (SystemError, OverflowError):
-                        encode_type = "gzip+pickle-v4"
-                        if encode_type not in self._encodings:
-                            raise DataException(
-                                "Artifact *%s* is very large (over 2GB). "
-                                "You need to use Python 3.4 or newer if you want to "
-                                "serialize large objects." % name
-                            )
-                        try:
-                            blob = pickle.dumps(obj, protocol=4)
-                        except TypeError as e:
-                            raise UnpicklableArtifactException(name)
-                    except TypeError as e:
-                        raise UnpicklableArtifactException(name)
-
                 self._info[name] = {
-                    "size": len(blob),
-                    "type": str(type(obj)),
-                    "encoding": encode_type,
+                    "size": serialization_info.size,
+                    "type": serialization_info.type,
+                    "encoding": serialization_info.encode_type,
                 }
 
                 artifact_names.append(name)
@@ -363,14 +334,25 @@ class TaskDataStore(object):
             )
         to_load = defaultdict(list)
         for name in names:
+            # Nothing in this for loop block should change since it's just verifying if
+            # the artifact and it's encoding are appropriate present in the datastore.
             info = self._info.get(name)
             # We use gzip+pickle-v2 as this is the oldest/most compatible.
             # This datastore will always include the proper encoding version so
             # this is just to be able to read very old artifacts
+            # This code path is necessary because we may be accessing some artifact that is written in a newer
+            # version of python and is now being accessed by a older version of python (vice-versa).
+            # TODO : Ensure serialization is backwards compatibility in python versions as well as metaflow
             if info:
                 encode_type = info.get("encoding", "gzip+pickle-v2")
             else:
                 encode_type = "gzip+pickle-v2"
+
+            # TODO This code block checks for backward compatibility with the
+            # previous versions of python and then raises an exception if the
+            # artifact is not compatible with the current version of python.
+            # But since we are adding new encoding types, we need to verify if
+            # this line is required or not
             if encode_type not in self._encodings:
                 raise DataException(
                     "Python 3.4 or later is required to load artifact '%s'" % name
@@ -387,7 +369,9 @@ class TaskDataStore(object):
                 # We unpickle everytime to have fully distinct objects (the user
                 # would not expect two artifacts with different names to actually
                 # be aliases of one another)
-                yield name, pickle.loads(blob)
+                yield name, deserialize_object(
+                    blob, self._info.get(name, {}).get("encoding", "gzip+pickle-v2")
+                )
 
     @require_mode("r")
     def get_artifact_sizes(self, names):

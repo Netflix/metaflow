@@ -1,5 +1,5 @@
 from __future__ import print_function
-
+import sys
 import json
 import os
 import tarfile
@@ -36,6 +36,7 @@ from metaflow.util import cached_property, is_stringish, resolve_identity, to_un
 
 from .. import INFO_FILE
 from .filecache import FileCache
+import tempfile
 
 try:
     # python2
@@ -2131,6 +2132,16 @@ class Run(MetaflowObject):
             If the name does not identify a valid Step object
         """
         return super(Run, self).__getitem__(name)
+
+    def __enter__(self):
+        self._temp_code_dir = tempfile.TemporaryDirectory("mf_code")
+        self.code.tarball.extractall(self._temp_code_dir.name)
+        sys.path.insert(0, self._temp_code_dir.name)
+        return self
+
+    def __exit__(self, type, value, traceback):
+        sys.path.remove(self._temp_code_dir.name)
+        self._temp_code_dir.cleanup()
 
     def __getstate__(self):
         return super(Run, self).__getstate__()
