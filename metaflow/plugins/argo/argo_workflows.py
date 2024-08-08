@@ -2243,8 +2243,11 @@ class ArgoWorkflows(object):
         }
         # support Metaflow sandboxes
         env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
-        env["ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT"] = ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT
-
+        env[
+            "METAFLOW_ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT"
+        ] = ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT
+        env["METAFLOW_WORKFLOW_NAME"] = "{{workflow.name}}"
+        env["METAFLOW_WORKFLOW_NAMESPACE"] = "{{workflow.namespace}}"
         env["METAFLOW_ARGO_WORKFLOW_FAILURES"] = "{{workflow.failures}}"
         env = {
             k: v
@@ -2291,7 +2294,7 @@ class ArgoWorkflows(object):
                             },
                             limits={
                                 "cpu": "200m",
-                                "memory": "100Mi",
+                                "memory": "500Mi",
                             },
                         ),
                     )
