@@ -34,6 +34,7 @@ from metaflow.metaflow_config import (
     GCP_SECRET_MANAGER_PREFIX,
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_LABELS,
+    KUBERNETES_NAMESPACE,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     OTEL_ENDPOINT,
     S3_ENDPOINT_URL,
@@ -281,6 +282,7 @@ class Kubernetes(object):
                 "METAFLOW_INIT_SCRIPT", KUBERNETES_SANDBOX_INIT_SCRIPT
             )
             .environment_variable("METAFLOW_OTEL_ENDPOINT", OTEL_ENDPOINT)
+            .environment_variable("METAFLOW_KUBERNETES_NAMESPACE", KUBERNETES_NAMESPACE)
             # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync
             # between the local user instance and the remote Kubernetes pod
             # assumes metadata is stored in DATASTORE_LOCAL_DIR on the Kubernetes
@@ -565,6 +567,7 @@ class Kubernetes(object):
                 "METAFLOW_INIT_SCRIPT", KUBERNETES_SANDBOX_INIT_SCRIPT
             )
             .environment_variable("METAFLOW_OTEL_ENDPOINT", OTEL_ENDPOINT)
+            .environment_variable("METAFLOW_KUBERNETES_NAMESPACE", KUBERNETES_NAMESPACE)
             # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync
             # between the local user instance and the remote Kubernetes pod
             # assumes metadata is stored in DATASTORE_LOCAL_DIR on the Kubernetes
