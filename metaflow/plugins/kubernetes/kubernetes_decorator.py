@@ -97,6 +97,9 @@ class KubernetesDecorator(StepDecorator):
         Shared memory size (in MiB) required for this step
     port: int, optional
         Port number to specify in the Kubernetes job object
+    compute_pool : str, optional, default None
+        Compute pool to be used for for this step.
+        If not specified, any accessible compute pool within the perimeter is used.
     """
 
     name = "kubernetes"
@@ -121,6 +124,7 @@ class KubernetesDecorator(StepDecorator):
         "persistent_volume_claims": None,  # e.g., {"pvc-name": "/mnt/vol", "another-pvc": "/mnt/vol2"}
         "shared_memory": None,
         "port": None,
+        "compute_pool": None,
     }
     package_url = None
     package_sha = None
@@ -153,6 +157,13 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["node_selector"] = parse_kube_keyvalue_list(
                 self.attributes["node_selector"].split(",")
             )
+        else:
+            self.attributes["node_selector"] = {}
+        if self.attributes["compute_pool"]:
+            self.attributes["node_selector"].update(
+                {"outerbounds.co/compute_pool": self.attributes["compute_pool"]}
+            )
+            del self.attributes["compute_pool"]
 
         if self.attributes["tolerations"]:
             try:
