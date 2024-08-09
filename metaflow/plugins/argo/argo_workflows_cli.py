@@ -172,7 +172,7 @@ def argo_workflows(obj, name=None):
 )
 @click.option(
     "--enable-heartbeat-daemon/--no-enable-heartbeat-daemon",
-    default=False,
+    default=True,
     show_default=True,
     help="Use a daemon container to broadcast heartbeats.",
 )
@@ -186,7 +186,7 @@ def argo_workflows(obj, name=None):
 )
 @click.option(
     "--enable-error-msg-capture/--no-enable-error-msg-capture",
-    default=False,
+    default=True,
     show_default=True,
     help="Capture stack trace of first failed task in exit hook.",
 )
