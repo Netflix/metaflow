@@ -3,6 +3,7 @@ import shutil
 import sys
 import tempfile
 import zlib
+import json
 import base64
 from functools import wraps
 from io import BytesIO
@@ -308,7 +309,9 @@ def dict_to_cli_options(params):
             v = v if isinstance(v, (list, tuple, set)) else [v]
             for value in v:
                 yield "--%s" % k
-                if not isinstance(value, bool):
+                if isinstance(value, dict):
+                    yield json.dumps(value)
+                elif not isinstance(value, bool):
                     value = to_unicode(value)
 
                     # Of the value starts with $, assume the caller wants shell variable
