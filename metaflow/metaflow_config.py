@@ -15,6 +15,17 @@ if sys.platform == "darwin":
 ## value, either set `METAFLOW_DEFAULT_DATASTORE` in your configuration file or set
 ## an environment variable called `METAFLOW_DEFAULT_DATASTORE`
 
+##
+# Constants (NOTE: these need to live before any from_conf)
+##
+
+# Path to the local directory to store artifacts for 'local' datastore.
+DATASTORE_LOCAL_DIR = ".metaflow"
+
+# Local configuration file (in .metaflow) containing overrides per-project
+LOCAL_CONFIG_FILE = "config.json"
+
+
 ###
 # Default configuration
 ###
@@ -42,8 +53,6 @@ USER = from_conf("USER")
 ###
 # Datastore configuration
 ###
-# Path to the local directory to store artifacts for 'local' datastore.
-DATASTORE_LOCAL_DIR = ".metaflow"
 DATASTORE_SYSROOT_LOCAL = from_conf("DATASTORE_SYSROOT_LOCAL")
 # S3 bucket and prefix to store artifacts for 's3' datastore.
 DATASTORE_SYSROOT_S3 = from_conf("DATASTORE_SYSROOT_S3")
