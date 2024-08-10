@@ -14,16 +14,38 @@ logger = _get_aip_logger()
 
 def run_argo_workflow(
     kubernetes_namespace: str,
-    template_name: str,
+    template_name: Optional[str] = None,
+    project_name: Optional[str] = None,
+    branch_name: Optional[str] = None,
+    template_name_prefix: Optional[str] = None,
     parameters: Optional[dict] = None,
     wait_timeout: Union[int, float, datetime.timedelta] = 0,
     **kwarg,  # Other parameters for wait function
 ) -> Tuple[str, str]:
+    """
+    Using template_name to trigger a workflow template name with exact match.
+
+    If no template_name is provided, the latest workflow template satisfying
+    the project_name, branch_name and template_name_prefix will be used.
+    All of these filters are optional. If not provided, the latest workflow
+    from the namespace will be used.
+    """
+    client = ArgoClient(namespace=kubernetes_namespace)
+
+    if not template_name:
+        template_name = get_latest_workflow(
+            kubernetes_namespace,
+            project_name=project_name,
+            branch_name=branch_name,
+            template_name_prefix=template_name_prefix,
+        )
+
     try:
         # TODO(talebz): add tag of origin-run-id to correlate parent flow
-        workflow_manifest: Dict[str, Any] = ArgoClient(
-            namespace=kubernetes_namespace,
-        ).trigger_workflow_template(template_name, parameters)
+        logger.info(f"Triggering workflow template: {template_name}")
+        workflow_manifest: Dict[str, Any] = client.trigger_workflow_template(
+            template_name, parameters
+        )
     except Exception as e:
         raise AIPException(str(e))
 
@@ -39,6 +61,52 @@ def run_argo_workflow(
         )
 
     return argo_run_id, argo_run_uid
+
+
+def get_latest_workflow(
+    kubernetes_namespace: str,
+    project_name: Optional[str] = None,
+    branch_name: Optional[str] = None,
+    template_name_prefix: Optional[str] = None,
+):
+    # TODO:
+    # - Add filter by project_id instead of project name - project_id is not added as a label yet.
+    # - Add filter by flow_name - flow_name is not added as a label yet.
+    client = ArgoClient(namespace=kubernetes_namespace)
+
+    templates = client.list_workflow_template()["items"]
+    templates = [
+        template
+        for template in templates
+        if (
+            not project_name
+            or template["metadata"]["labels"]["gitlab.zgtools.net/project-name"]
+            == project_name
+        )
+        and (
+            not branch_name
+            or template["metadata"]["labels"]["gitlab.zgtools.net/branch-name"]
+            == branch_name
+        )
+        and (
+            not template_name_prefix
+            or template["metadata"]["name"].startswith(template_name_prefix)
+        )
+    ]
+    if not templates:
+        raise AIPException(
+            f"No workflow template found with constraints "
+            f"project_name={project_name}, branch_name={branch_name}, template_name_prefix={template_name_prefix}"
+        )
+    # Sort by creation timestamp to get the latest template.
+    templates.sort(
+        key=lambda template: template["metadata"]["creationTimestamp"], reverse=True
+    )
+    template_name = templates[1]["metadata"]["name"]
+    logger.info(
+        f"Found {len(templates)} WorkflowTemplates. Using latest workflow template: {template_name}"
+    )
+    return template_name
 
 
 def delete_argo_workflow(
