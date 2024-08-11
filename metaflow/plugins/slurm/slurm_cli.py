@@ -55,7 +55,7 @@ def slurm():
 @click.option("--nodelist", help="nodelist requirement for Slurm.")
 @click.option("--exclude", help="exclude requirement for Slurm.")
 @click.option("--gres", help="generic resources per node for Slurm.")
-# TODO: other params for slurm..
+# TODO: any other params for slurm??
 # TODO: others to consider: ubf-context, num-parallel??
 @click.option("--run-id", help="Passed to the top-level 'step'.")
 @click.option("--task-id", help="Passed to the top-level 'step'.")
