@@ -11,6 +11,12 @@ from .snowpark_exceptions import SnowparkException
 
 mapping = str.maketrans("0123456789", "abcdefghij")
 
+
+# keep only alpha numeric characters and underscores..
+def sanitize_name(job_name: str):
+    return "".join(char for char in job_name if char.isalnum() or char == "_")
+
+
 # this is not a decorator since the exception imports need to be inside
 # and not at the top level..
 def retry_operation(
@@ -29,7 +35,7 @@ def retry_operation(
 class SnowparkJob(object):
     def __init__(self, client: SnowparkClient, name, command, **kwargs):
         self.client = client
-        self.name = name
+        self.name = sanitize_name(name)
         self.command = command
         self.kwargs = kwargs
         self.container_name = self.name.translate(mapping).lower()
