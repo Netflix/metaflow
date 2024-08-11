@@ -381,6 +381,20 @@ ARGO_WORKFLOWS_ENV_VARS_TO_SKIP = from_conf("ARGO_WORKFLOWS_ENV_VARS_TO_SKIP", "
 KUBERNETES_JOBSET_GROUP = from_conf("KUBERNETES_JOBSET_GROUP", "jobset.x-k8s.io")
 KUBERNETES_JOBSET_VERSION = from_conf("KUBERNETES_JOBSET_VERSION", "v1alpha2")
 
+###
+# Slurm configuration
+###
+# Slurm username to use with the @slurm decorator
+SLURM_USERNAME = from_conf("SLURM_USERNAME")
+# Slurm address to use with the @slurm decorator
+SLURM_ADDRESS = from_conf("SLURM_ADDRESS")
+# Slurm ssh key file to use with the @slurm decorator
+SLURM_SSH_KEY_FILE = from_conf("SLURM_SSH_KEY_FILE")
+# Slurm cert file to use with the @slurm decorator
+SLURM_CERT_FILE = from_conf("SLURM_CERT_FILE")
+# Slurm remote workdir to use with the @slurm decorator
+SLURM_REMOTE_WORKDIR = from_conf("SLURM_REMOTE_WORKDIR")
+
 ##
 # Argo Events Configuration
 ##

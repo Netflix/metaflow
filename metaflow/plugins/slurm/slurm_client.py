@@ -26,15 +26,6 @@ class SlurmClient(object):
         remote_workdir: Optional[str] = None,
         cleanup: bool = False,
     ):
-        if not username:
-            raise ValueError("username is a required parameter in the Slurm plugin.")
-        if not address:
-            raise ValueError("address is a required parameter in the Slurm plugin.")
-        if not ssh_key_file:
-            raise ValueError(
-                "ssh_key_file is a required parameter in the Slurm plugin."
-            )
-
         try:
             self.asyncssh = __import__("asyncssh")
         except (NameError, ImportError, ModuleNotFoundError):

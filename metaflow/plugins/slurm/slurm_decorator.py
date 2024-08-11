@@ -10,6 +10,11 @@ from metaflow.exception import MetaflowException
 
 from metaflow.metaflow_config import (
     DATASTORE_LOCAL_DIR,
+    SLURM_USERNAME,
+    SLURM_ADDRESS,
+    SLURM_SSH_KEY_FILE,
+    SLURM_CERT_FILE,
+    SLURM_REMOTE_WORKDIR,
 )
 
 from .slurm_exceptions import SlurmException
@@ -38,6 +43,17 @@ class SlurmDecorator(StepDecorator):
 
     def __init__(self, attributes=None, statically_defined=False):
         super(SlurmDecorator, self).__init__(attributes, statically_defined)
+
+        if not self.attributes["username"]:
+            self.attributes["username"] = SLURM_USERNAME
+        if not self.attributes["address"]:
+            self.attributes["address"] = SLURM_ADDRESS
+        if not self.attributes["ssh_key_file"]:
+            self.attributes["ssh_key_file"] = SLURM_SSH_KEY_FILE
+        if not self.attributes["cert_file"]:
+            self.attributes["cert_file"] = SLURM_CERT_FILE
+        if not self.attributes["remote_workdir"]:
+            self.attributes["remote_workdir"] = SLURM_REMOTE_WORKDIR
 
     # Refer https://github.com/Netflix/metaflow/blob/master/docs/lifecycle.png
     # to understand where these functions are invoked in the lifecycle of a
