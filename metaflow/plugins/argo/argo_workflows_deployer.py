@@ -1,15 +1,48 @@
 import sys
+import json
 import tempfile
 from typing import Optional, ClassVar
 
+from metaflow.client.core import get_metadata
+from metaflow.plugins.argo.argo_client import ArgoClient
+from metaflow.metaflow_config import KUBERNETES_NAMESPACE
 from metaflow.plugins.argo.argo_workflows import ArgoWorkflows
 from metaflow.runner.deployer import (
+    Deployer,
     DeployerImpl,
     DeployedFlow,
     TriggeredRun,
     get_lower_level_group,
     handle_timeout,
 )
+
+
+def generate_fake_flow_file_contents(param_info: dict):
+    params_code = ""
+    for _, param_details in param_info.items():
+        param_name = param_details["name"]
+        param_type = param_details["type"]
+        param_help = param_details["description"]
+        param_required = param_details["is_required"]
+        params_code += f"    {param_name} = Parameter('{param_name}', type={param_type}, help='{param_help}', required={param_required})\n"
+
+    contents = f"""\
+from metaflow import FlowSpec, Parameter, step
+
+class DummyParameterFlow(FlowSpec):
+{params_code}
+    @step
+    def start(self):
+        self.next(self.end)
+
+    @step
+    def end(self):
+        pass
+
+if __name__ == '__main__':
+    DummyParameterFlow()
+"""
+    return contents
 
 
 def suspend(instance: TriggeredRun, **kwargs):
@@ -186,6 +219,38 @@ def delete(instance: DeployedFlow, **kwargs):
 
     command_obj = instance.deployer.spm.get(pid)
     return command_obj.process.returncode == 0
+
+
+def from_deployment(identifier: str):
+    client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+    workflow_template = client.get_workflow_template(identifier)
+    metadata_annotations = workflow_template.get("metadata", {}).get("annotations", {})
+
+    flow_name = metadata_annotations.get("metaflow/flow_name", {})
+    parameters = json.loads(metadata_annotations.get("metaflow/parameters", {}))
+
+    fake_flow_file_contents = generate_fake_flow_file_contents(parameters)
+
+    # TODO: how to clean-up the temp file?
+    with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as fake_flow_file:
+        with open(fake_flow_file.name, "w") as fp:
+            fp.write(fake_flow_file_contents)
+
+        # TODO: pass "branch" or "name" accordingly if @project was used
+        # assumes @project is not used as of now..
+        d = Deployer(fake_flow_file.name).argo_workflows(name=identifier)
+
+        # d.name might change if we implement the above todo
+        d.name = identifier
+        d.flow_name = flow_name
+
+        # TODO: get original metadata somehow..
+        d.metadata = get_metadata()
+
+    df = DeployedFlow(deployer=d)
+    d._enrich_deployed_flow(df)
+
+    return df
 
 
 def trigger(instance: DeployedFlow, **kwargs):

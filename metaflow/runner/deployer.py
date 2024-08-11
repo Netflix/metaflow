@@ -272,6 +272,14 @@ class DeployedFlow(object):
     def __init__(self, deployer: "DeployerImpl"):
         self.deployer = deployer
 
+    @staticmethod
+    def from_deployment(identifier: str, type_: str = "argo-workflows"):
+        if type_ == "argo-workflows":
+            from metaflow.plugins.argo.argo_workflows_deployer import from_deployment
+
+            return from_deployment(identifier)
+        raise NotImplementedError("This method is not available for type: %s" % type_)
+
     def _enrich_object(self, env):
         """
         Enrich the DeployedFlow object with additional properties and methods.
