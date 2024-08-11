@@ -2,9 +2,11 @@ import os
 import sys
 
 from metaflow import R
+from metaflow.metadata import MetaDatum
 from metaflow.metadata.util import sync_local_metadata_to_datastore
 from metaflow.sidecar import Sidecar
 from metaflow.decorators import StepDecorator
+from metaflow.exception import MetaflowException
 
 from metaflow.metaflow_config import (
     DATASTORE_LOCAL_DIR,
@@ -17,6 +19,12 @@ class SlurmDecorator(StepDecorator):
     name = "slurm"
 
     defaults = {
+        "username": None,
+        "address": None,
+        "ssh_key_file": None,
+        "cert_file": None,
+        "remote_workdir": None,
+        "cleanup": False,
         "partition": None,
         "nodes": None,
         "ntasks": None,
@@ -40,6 +48,14 @@ class SlurmDecorator(StepDecorator):
         self.environment = environment
         self.step = step
         self.flow_datastore = flow_datastore
+
+        if any([deco.name == "parallel" for deco in decos]):
+            raise MetaflowException(
+                "Step *{step}* contains a @parallel decorator "
+                "with the @slurm decorator. @parallel is not supported with @slurm.".format(
+                    step=step
+                )
+            )
 
     def package_init(self, flow, step_name, environment):
         try:
@@ -97,12 +113,32 @@ class SlurmDecorator(StepDecorator):
         self.metadata = metadata
         self.task_datastore = task_datastore
 
+        meta = {}
         if "METAFLOW_SLURM_WORKLOAD" in os.environ:
-            meta = {}
-            # TODO: inject task metadata
+            meta["slurm-job-user"] = os.environ.get("SLURM_JOB_USER")
+            meta["slurm-submit-dir"] = os.environ.get("SLURM_SUBMIT_DIR")
+            meta["slurm-nodename"] = os.environ.get("SLURMD_NODENAME")
+            meta["slurm-cluster-name"] = os.environ.get("SLURM_CLUSTER_NAME")
+            meta["slurm-job-partition"] = os.environ.get("SLURM_JOB_PARTITION")
+            meta["slurm-job-id"] = os.environ.get("SLURM_JOB_ID")
+            meta["slurm-job-name"] = os.environ.get("SLURM_JOB_NAME")
 
             self._save_logs_sidecar = Sidecar("save_logs_periodically")
             self._save_logs_sidecar.start()
+
+        if len(meta) > 0:
+            entries = [
+                MetaDatum(
+                    field=k,
+                    value=v,
+                    type=k,
+                    tags=["attempt_id:{0}".format(retry_count)],
+                )
+                for k, v in meta.items()
+                if v is not None
+            ]
+            # Register book-keeping metadata for debugging.
+            metadata.register_metadata(run_id, step_name, task_id, entries)
 
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_retries

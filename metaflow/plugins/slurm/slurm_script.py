@@ -58,9 +58,12 @@ class SlurmJobScript(object):
         setup_lines = [
             "source %s" % self.bashrc_path if self.bashrc_path else "",
         ]
-        setup_lines.extend(
-            "export %s='%s'" % (key, value) for key, value in self.env_vars.items()
-        )
+        for key, value in self.env_vars.items():
+            if key == "METAFLOW_INIT_SCRIPT":
+                # this needs outer double quotes
+                setup_lines.append('export %s="%s"' % (key, value))
+            else:
+                setup_lines.append("export %s='%s'" % (key, value))
         return "\n".join(setup_lines)
 
     def get_run_command(

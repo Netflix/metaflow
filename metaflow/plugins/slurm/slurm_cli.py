@@ -34,14 +34,23 @@ def slurm():
 @click.argument("step-name")
 @click.argument("code-package-sha")
 @click.argument("code-package-url")
-# below are slurm specific options
 @click.option("--executable", help="Executable requirement for Slurm.")
+# below are slurm specific options
+@click.option("--username", help="Username for login node for Slurm.")
+@click.option("--address", help="IP Address of login node for Slurm.")
+@click.option("--ssh-key-file", help="SSH key file for login node for Slurm.")
+@click.option("--cert-file", help="Certificate file for login node for Slurm.")
+@click.option("--remote-workdir", help="Remote working directory for Slurm.")
+@click.option(
+    "--cleanup", help="Cleanup created artifacts on Slurm.", is_flag=True, default=False
+)
 @click.option("--partition", help="Partition requirement for Slurm.")
 @click.option("--nodes", help="Nodes requirement for Slurm.")
 @click.option("--ntasks", help="ntasks requirement for Slurm.")
 @click.option("--cpus-per-task", help="cpus-per-task requirement for Slurm.")
 @click.option("--memory", help="Memory requirement for Slurm.")
-# TODO: others to consider: tmpfs, ubf-context, num-parallel??
+# TODO: other params for slurm..
+# TODO: others to consider: ubf-context, num-parallel??
 @click.option("--run-id", help="Passed to the top-level 'step'.")
 @click.option("--task-id", help="Passed to the top-level 'step'.")
 @click.option("--input-paths", help="Passed to the top-level 'step'.")
@@ -68,6 +77,12 @@ def step(
     code_package_sha,
     code_package_url,
     executable=None,
+    username=None,
+    address=None,
+    ssh_key_file=None,
+    cert_file=None,
+    remote_workdir=None,
+    cleanup=False,
     partition=None,
     nodes=None,
     ntasks=None,
@@ -173,6 +188,14 @@ def step(
             datastore=ctx.obj.flow_datastore,
             metadata=ctx.obj.metadata,
             environment=ctx.obj.environment,
+            slurm_access_params={
+                "username": username,
+                "address": address,
+                "ssh_key_file": ssh_key_file,
+                "cert_file": cert_file,
+                "remote_workdir": remote_workdir,
+                "cleanup": cleanup,
+            },
         )
         with ctx.obj.monitor.measure("metaflow.slurm.launch_job"):
             slurm.launch_job(

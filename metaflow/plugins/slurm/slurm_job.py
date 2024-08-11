@@ -3,10 +3,15 @@ from .slurm_client import SlurmClient, _LOAD_SLURM_PREFIX
 from .slurm_script import SlurmJobScript
 
 
+# keep only alpha numeric characters and underscores..
+def sanitize_name(job_name: str):
+    return "".join(char for char in job_name if char.isalnum() or char == "_")
+
+
 class SlurmJob(object):
     def __init__(self, client: SlurmClient, name, command, loop, **kwargs) -> None:
         self.client = client
-        self.name = name
+        self.name = sanitize_name(name)
         self.command = command
         self.loop = loop
         self.kwargs = kwargs

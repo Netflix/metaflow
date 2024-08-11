@@ -47,10 +47,17 @@ loop = asyncio.get_event_loop()
 
 
 class Slurm(object):
-    def __init__(self, datastore, metadata, environment):
+    def __init__(
+        self,
+        datastore,
+        metadata,
+        environment,
+        slurm_access_params,
+    ):
         self.datastore = datastore
         self.metadata = metadata
         self.environment = environment
+        self.slurm_client = SlurmClient(**slurm_access_params)
         atexit.register(lambda: self.job.kill() if hasattr(self, "job") else None)
 
     def _job_name(self, user, flow_name, run_id, step_name, task_id, retry_count):
@@ -142,17 +149,11 @@ class Slurm(object):
             attrs.get("metaflow.retry_count"),
         )
 
-        # TODO: get this in a different manner...
-        slurm_client = SlurmClient(
-            username="ubuntu",
-            address="18.236.81.10",
-            ssh_key_file="~/Desktop/outerbounds/parallelcluster/madhur-slurm.pem",
-        )
-        loop.run_until_complete(slurm_client.connect())
+        loop.run_until_complete(self.slurm_client.connect())
 
         slurm_job = (
             SlurmJob(
-                client=slurm_client,
+                client=self.slurm_client,
                 name=job_name,
                 command=self._command(
                     self.environment, code_package_url, step_name, [step_cli], task_spec
