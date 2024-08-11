@@ -125,7 +125,7 @@ class SlurmClient(object):
             )
 
         # run the slurm script through sbatch
-        cmd_sbatch = "sbatch %s" % remote_slurm_filename
+        cmd_sbatch = "cd %s && sbatch %s && cd -" % (remote_workdir, slurm_filename)
         proc_verify_sbatch = await self.conn.run(_LOAD_SLURM_PREFIX + "which sbatch")
         if proc_verify_sbatch.returncode != 0:
             raise RuntimeError("'sbatch' could not be found on the remote machine.")
