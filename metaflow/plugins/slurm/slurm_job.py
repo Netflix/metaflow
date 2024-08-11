@@ -26,8 +26,14 @@ class SlurmJob(object):
             "partition": self.kwargs.get("partition"),
             "nodes": self.kwargs.get("nodes"),
             "ntasks": self.kwargs.get("ntasks"),
+            "ntasks-per-node": self.kwargs.get("ntasks_per_node"),
             "cpus-per-task": self.kwargs.get("cpus_per_task"),
             "mem": self.kwargs.get("memory"),
+            "mem-per-cpu": self.kwargs.get("memory_per_cpu"),
+            "constraint": self.kwargs.get("constraint"),
+            "nodelist": self.kwargs.get("nodelist"),
+            "exclude": self.kwargs.get("exclude"),
+            "gres": self.kwargs.get("gres"),
             "time": self.kwargs.get("run_time_limit"),
         }
         sbatch_options = {k: v for k, v in sbatch_options.items() if v is not None}
@@ -182,6 +188,7 @@ class RunningJob(object):
             "NODE_FAIL",
             "OUT_OF_MEMORY",
             "PREEMPTED",
+            "CANCELLED",
         ]
 
     @property

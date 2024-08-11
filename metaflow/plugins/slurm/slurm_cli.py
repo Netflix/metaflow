@@ -44,11 +44,17 @@ def slurm():
 @click.option(
     "--cleanup", help="Cleanup created artifacts on Slurm.", is_flag=True, default=False
 )
-@click.option("--partition", help="Partition requirement for Slurm.")
-@click.option("--nodes", help="Nodes requirement for Slurm.")
+@click.option("--partition", help="partition requirement for Slurm.")
+@click.option("--nodes", help="nodes requirement for Slurm.")
 @click.option("--ntasks", help="ntasks requirement for Slurm.")
-@click.option("--cpus-per-task", help="cpus-per-task requirement for Slurm.")
-@click.option("--memory", help="Memory requirement for Slurm.")
+@click.option("--ntasks-per-node", help="ntasks per node requirement for Slurm.")
+@click.option("--cpus-per-task", help="cpus per task requirement for Slurm.")
+@click.option("--memory", help="memory requirement for Slurm.")
+@click.option("--memory-per-cpu", help="memory per cpu requirement for Slurm.")
+@click.option("--constraint", help="constraint requirement for Slurm.")
+@click.option("--nodelist", help="nodelist requirement for Slurm.")
+@click.option("--exclude", help="exclude requirement for Slurm.")
+@click.option("--gres", help="generic resources per node for Slurm.")
 # TODO: other params for slurm..
 # TODO: others to consider: ubf-context, num-parallel??
 @click.option("--run-id", help="Passed to the top-level 'step'.")
@@ -86,8 +92,14 @@ def step(
     partition=None,
     nodes=None,
     ntasks=None,
+    ntasks_per_node=None,
     cpus_per_task=None,
     memory=None,
+    memory_per_cpu=None,
+    constraint=None,
+    nodelist=None,
+    exclude=None,
+    gres=None,
     run_time_limit=None,
     **kwargs
 ):
@@ -208,8 +220,14 @@ def step(
                 partition=partition,
                 nodes=nodes,
                 ntasks=ntasks,
+                ntasks_per_node=ntasks_per_node,
                 cpus_per_task=cpus_per_task,
                 memory=memory,
+                memory_per_cpu=memory_per_cpu,
+                constraint=constraint,
+                nodelist=nodelist,
+                exclude=exclude,
+                gres=gres,
                 run_time_limit=run_time_limit,
                 env=env,
                 attrs=attrs,
