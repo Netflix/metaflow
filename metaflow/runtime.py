@@ -76,7 +76,7 @@ class NativeRuntime(object):
         clone_run_id=None,
         clone_only=False,
         reentrant=False,
-        clone_steps=None,
+        rerun_steps=None,
         max_workers=MAX_WORKERS,
         max_num_splits=MAX_NUM_SPLITS,
         max_log_size=MAX_LOG_SIZE,
@@ -110,11 +110,14 @@ class NativeRuntime(object):
 
         self._clone_run_id = clone_run_id
         self._clone_only = clone_only
-        self._clone_steps = {} if clone_steps is None else clone_steps
         self._cloned_tasks = []
         self._cloned_task_index = set()
         self._reentrant = reentrant
         self._run_url = None
+
+        # If rerun_steps is specified, we will not clone them in resume mode.
+        self._rerun_steps = {} if rerun_steps is None else rerun_steps
+        self._update_rerun_steps()
 
         self._origin_ds_set = None
         if clone_run_id:
@@ -160,13 +163,24 @@ class NativeRuntime(object):
             for deco in step.decorators:
                 deco.runtime_init(flow, graph, package, self._run_id)
 
+    def _update_rerun_steps(self):
+        """
+        Any steps following steps to be rerun should also be included as
+        "rerun" steps. This is to ensure that the flow is executed correctly.
+        """
+        for step_name in self._graph.sorted_nodes:
+            if step_name in self._rerun_steps:
+                out_funcs = self._graph[step_name].out_funcs or []
+                for next_step in out_funcs:
+                    self._rerun_steps.add(next_step)
+
     def _new_task(self, step, input_paths=None, **kwargs):
         if input_paths is None:
             may_clone = True
         else:
             may_clone = all(self._is_cloned[path] for path in input_paths)
 
-        if step in self._clone_steps:
+        if step in self._rerun_steps:
             may_clone = False
 
         if step == "_parameters":
@@ -336,7 +350,11 @@ class NativeRuntime(object):
             _, step_name, task_id = task_ds.pathspec.split("/")
             pathspec_index = task_ds.pathspec_index
 
-            if task_ds["_task_ok"] and step_name != "_parameters":
+            if (
+                task_ds["_task_ok"]
+                and step_name != "_parameters"
+                and (step_name not in self._rerun_steps)
+            ):
                 # "_unbounded_foreach" is a special flag to indicate that the transition is an unbounded foreach.
                 # Both parent and splitted children tasks will have this flag set. The splitted control/mapper tasks
                 # have no "foreach_param" because UBF is always followed by a join step.
