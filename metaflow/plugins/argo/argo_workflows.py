@@ -2227,7 +2227,7 @@ class ArgoWorkflows(object):
                 """python -c 'import json, os; error_obj=os.getenv(\\"METAFLOW_ARGO_ERROR\\");data=json.loads(error_obj); print(data[\\"message\\"])'"""
             ]
             + [
-                'if [ -n \\"${ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT}\\" ]; then eval \\"${ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT}\\"; fi'
+                'if [ -n \\"${METAFLOW_ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT}\\" ]; then eval \\"${METAFLOW_ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT}\\"; fi'
             ]
         )
 
