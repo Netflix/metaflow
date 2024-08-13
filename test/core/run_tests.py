@@ -75,10 +75,13 @@ def log(msg, formatter=None, context=None, real_bad=False, real_good=False):
 
 
 def run_test(formatter, context, debug, checks, env_base, executor):
-    def run_cmd(mode):
+    def run_cmd(mode, args=None):
         cmd = [context["python"], "-B", "test_flow.py"]
         cmd.extend(context["top_options"])
-        cmd.extend((mode, "--run-id-file", "run-id"))
+        cmd.append(mode)
+        if args:
+            cmd.extend(args)
+        cmd.extend(("--run-id-file", "run-id"))
         cmd.extend(context["run_options"])
         return cmd
 
@@ -204,9 +207,17 @@ def run_test(formatter, context, debug, checks, env_base, executor):
             elif formatter.should_resume:
                 log("Resuming flow", formatter, context)
                 if executor == "cli":
-                    flow_ret = subprocess.call(run_cmd("resume"), env=env)
+                    flow_ret = subprocess.call(
+                        run_cmd(
+                            "resume",
+                            [formatter.resume_step] if formatter.resume_step else [],
+                        ),
+                        env=env,
+                    )
                 elif executor == "api":
                     _, resume_level_dict = construct_arg_dicts_from_click_api()
+                    if formatter.resume_step:
+                        resume_level_dict["step_to_rerun"] = formatter.resume_step
                     result = runner.resume(**resume_level_dict)
                     flow_ret = result.command_obj.process.returncode
             else:

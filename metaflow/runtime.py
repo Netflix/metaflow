@@ -168,6 +168,9 @@ class NativeRuntime(object):
         Any steps following steps to be rerun should also be included as
         "rerun" steps. This is to ensure that the flow is executed correctly.
         """
+
+        # sorted_nodes are in topological order already, so we only need to
+        # iterate through the nodes once to get a stable set of rerun steps.
         for step_name in self._graph.sorted_nodes:
             if step_name in self._rerun_steps:
                 out_funcs = self._graph[step_name].out_funcs or []
