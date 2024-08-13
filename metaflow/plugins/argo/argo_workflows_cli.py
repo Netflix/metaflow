@@ -1,9 +1,9 @@
 import base64
-import yaml
 import json
 import platform
 import re
 import sys
+import os
 from hashlib import sha1
 
 from metaflow import JSONType, Run, current, decorators, parameters
@@ -130,13 +130,12 @@ def argo_workflows(obj, name=None):
     "--only-json",
     is_flag=True,
     default=False,
-    help="Only print out JSON sent to Argo Workflows. Do not deploy anything. DEPRECATED, prefer --output-yaml instead",
+    help="Only print out JSON sent to Argo Workflows. Do not deploy anything.",
 )
 @click.option(
-    "--only-yaml",
-    is_flag=True,
-    default=False,
-    help="Only print out yaml sent to Argo Workflows. Do not deploy anything. Includes all objects",
+    "--only-json-directory",
+    default="",
+    help="Writes json sent to Argo Workflows out to this directory. Do not deploy anything. Includes all objects sent.",
 )
 @click.option(
     "--max-workers",
@@ -209,7 +208,7 @@ def create(
     tags=None,
     user_namespace=None,
     only_json=False,
-    only_yaml=False,
+    only_json_directory=None,
     authorize=None,
     generate_new_token=False,
     given_token=None,
@@ -280,19 +279,16 @@ def create(
         enable_error_msg_capture,
     )
 
-    if only_yaml:
-        obj.echo_always(
-            yaml.dump_all(
-                flow.get_all_templates(),
-                explicit_start=True,
-                default_flow_style=False,
-            ),
-            err=False,
-            no_bold=True,
-        )
+    if only_json_directory:
+        os.makedirs(only_json_directory, exists_ok=True)
+        all_templates = flow.get_all_templates(),
+        for template in all_templates:
+            path = os.path.join(only_json_directory, template.to_json()['kind'])
+            with open(path, "w") as f:
+                f.write(str(template))
     elif only_json:
         # NOTE: this _only_ outputs the WorkflowTemplate. If you want the sensor and
-        # cron workflow templates, use --only-yaml instead.
+        # cron workflow templates, use --only-json-directory instead.
         obj.echo_always(str(flow), err=False, no_bold=True)
     else:
         flow.deploy()
