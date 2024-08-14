@@ -59,41 +59,35 @@ class FlowTriggeringFlow(FlowSpec):
             # and template_name == 'wfdsk-ftf-test-he5d4--6rhai0z0wiysuew'
             # where aip _create_workflow_yaml() calls sanitize_k8s_name() which returns
             # 'wfdsk-ftf-test-he5d4-6rhai0z0wiysuew' without the double --
-            self.template_name = sanitize_k8s_name(
-                f"{TEST_TEMPLATE_NAME}-{generate_base64_uuid()}".lower()
-            )
-            logger.info(f"Creating workflow: {self.template_name}")
-            subprocess.run(
-                [
-                    "python",
-                    __file__,
-                    "aip",
-                    "create",
-                    "--name",
-                    self.template_name,
-                    "--yaml-only",
-                    "--pipeline-path",
-                    "/tmp/ftf.yaml",
-                    "--kind",
-                    "WorkflowTemplate",
-                    "--max-run-concurrency",
-                    "0",
-                ],
-                check=True,
-            )
-            subprocess.run(["cat", "/tmp/ftf.yaml"])
+
             print(f"{KUBERNETES_NAMESPACE=}")
-            subprocess.run(
-                [
-                    "argo",
-                    "template",
-                    "-n",
-                    KUBERNETES_NAMESPACE,
-                    "create",
-                    "/tmp/ftf.yaml",
-                ],
-                check=True,
-            )
+
+            self.workflow_template_names = [
+                sanitize_k8s_name(
+                    f"{TEST_TEMPLATE_NAME}-{generate_base64_uuid()}".lower()
+                )
+                for _ in range(3)
+            ]
+            self.triggered_by_tag = "triggerred-by"
+            self.index_tag = "template-index"
+
+            for template_name, template_index in enumerate(
+                self.workflow_template_names
+            ):
+                path = f"/tmp/{template_name}.yaml"
+                logger.info(f"Creating workflow: {template_name}")
+                self.comiple_workflow(
+                    template_name,
+                    path,
+                    extra_args=[
+                        "--tag",
+                        f"{self.triggered_by_tag}:{current.run_id}" "--tag",
+                        f"{self.index}:{template_index}",
+                    ],
+                )
+                subprocess.run(["cat", path])
+                self.submit_template(path)
+                time.sleep(1)  # Spacing workflow template submission time.
 
         self.next(self.end)
 
@@ -101,23 +95,48 @@ class FlowTriggeringFlow(FlowSpec):
     def end(self):
         """Trigger downstream pipeline and test triggering behaviors"""
         if self.trigger_enabled:
-            logger.info("\nTesting run_kubeflow_pipeline")
-            argo_helper = ArgoHelper(KUBERNETES_NAMESPACE)
+            argo_helper = ArgoHelper()
+
+            # ====== Test template filtering ======
+            # Test latest template is returned with prefix filter
+            assert self.workflow_template_names[-1] == argo_helper.template_get_latest(
+                template_prefix=sanitize_k8s_name(TEST_TEMPLATE_NAME.lower()),
+                flow_name=current.flow_name,
+                filter_func=lambda template: template["metadata"]["labels"][
+                    f"metaflow.org/tag_{self.triggered_by_tag}"
+                ]
+                == current.run_id,
+            )
+
+            # Test filter func correctly filters
+            assert self.workflow_template_names[1] == argo_helper.template_get_latest(
+                template_prefix=sanitize_k8s_name(TEST_TEMPLATE_NAME.lower()),
+                flow_name=current.flow_name,
+                filter_func=lambda template: template["metadata"]["labels"][
+                    f"metaflow.org/tag_{self.triggered_by_tag}"
+                ]
+                == current.run_id
+                and template["metadata"]["labels"][f"metaflow.org/tag_{self.index_tag}"]
+                == str(1),
+            )
+
+            # ====== Test template triggering ======
+            logger.info("\n Testing ArgoHelper.trigger")
             run_id, run_uid = argo_helper.trigger(
-                template_name=self.template_name,
+                template_name=self.workflow_template_names[0],
                 parameters={
                     "trigger_enabled": False,
                     "triggered_by": current.run_id,
                 },
             )
             logger.info(f"{run_id=}, {run_uid=}")
-            logger.info(f"{get_argo_url(run_id, run_uid)=}")
+            logger.info(f"{get_argo_url(run_id, KUBERNETES_NAMESPACE, run_uid)=}")
 
             logger.info("Testing timeout exception for wait_for_kfp_run_completion")
             try:
                 argo_helper.watch(run_id, wait_timeout=0.1)
             except TimeoutError:
-                logger.error(
+                logger.info(
                     "Timeout before flow ends throws timeout exception correctly"
                 )
             else:
@@ -136,8 +155,10 @@ class FlowTriggeringFlow(FlowSpec):
 
             _retry_sleep(self.assert_task_triggered_by, metaflow_path=metaflow_path)
 
-            logger.info(f"Deleting {self.template_name=}")
-            argo_helper.template_delete(self.template_name)
+            # ====== Clean up test templates ======
+            for template_name in self.workflow_template_names:
+                logger.info(f"Deleting {template_name}")
+                argo_helper.template_delete(template_name)
         else:
             logger.info(f"{self.trigger_enabled=}")
 
@@ -147,6 +168,43 @@ class FlowTriggeringFlow(FlowSpec):
         start_step = Step(metaflow_path)
         logger.info(f"assert {start_step.task.data.triggered_by=} == {current.run_id=}")
         assert start_step.task.data.triggered_by == current.run_id
+
+    @staticmethod
+    def comiple_workflow(template_name, path, extra_args=None):
+        extra_args = extra_args or []
+        subprocess.run(
+            [
+                "python",
+                __file__,
+                "aip",
+                "create",
+                "--name",
+                template_name,
+                "--yaml-only",
+                "--pipeline-path",
+                path,
+                "--kind",
+                "WorkflowTemplate",
+                "--max-run-concurrency",
+                "0",
+                *extra_args,
+            ],
+            check=True,
+        )
+
+    @staticmethod
+    def submit_template(path):
+        subprocess.run(
+            [
+                "argo",
+                "template",
+                "-n",
+                KUBERNETES_NAMESPACE,
+                "create",
+                path,
+            ],
+            check=True,
+        )
 
 
 if __name__ == "__main__":

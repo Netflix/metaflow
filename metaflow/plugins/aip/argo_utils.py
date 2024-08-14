@@ -3,7 +3,11 @@ import time
 import datetime
 from typing import Optional, Union, Dict, Any, Tuple, Callable
 
-from metaflow.metaflow_config import ARGO_RUN_URL_PREFIX, METAFLOW_RUN_URL_PREFIX
+from metaflow.metaflow_config import (
+    ARGO_RUN_URL_PREFIX,
+    METAFLOW_RUN_URL_PREFIX,
+    KUBERNETES_NAMESPACE,
+)
 from metaflow.plugins.aip.argo_client import ArgoClient
 from metaflow.plugins.aip.aip_decorator import AIPException
 from metaflow.plugins.aip.aip_utils import _get_aip_logger
@@ -13,7 +17,7 @@ logger = _get_aip_logger()
 
 
 class ArgoHelper:
-    def __init__(self, kubernetes_namespace: str):
+    def __init__(self, kubernetes_namespace: str = KUBERNETES_NAMESPACE):
         """
         Args:
             kubernetes_namespace: Namespace where Argo is running.
@@ -68,6 +72,7 @@ class ArgoHelper:
         template_prefix: Optional[str] = None,
         project_name: Optional[str] = None,
         branch_name: Optional[str] = None,
+        flow_name: Optional[str] = None,
         filter_func: Optional[Callable[[Dict[str, Any]], bool]] = None,
         parameters: Optional[dict] = None,
         wait_timeout: Union[int, float, datetime.timedelta] = 0,
@@ -87,16 +92,11 @@ class ArgoHelper:
             wait_timeout: Time to wait for the workflow to complete. Set to 0 to skip waiting.
             **kwarg: Other parameters for the watch function. See `ArgoHelper.watch`.
         """
-        if not any([template_prefix, project_name, branch_name]):
-            raise AIPException(
-                "Running argo workflow with no specified template nor filters can be dangerous. "
-                "Please set at least one of project_name, branch_name or template_name_prefix."
-            )
-
         template_name: str = self.template_get_latest(
             project_name=project_name,
             branch_name=branch_name,
-            template_name_prefix=template_prefix,
+            template_prefix=template_prefix,
+            flow_name=flow_name,
             filter_func=filter_func,
         )
 
@@ -109,17 +109,19 @@ class ArgoHelper:
 
     def template_get_latest(
         self,
-        template_name_prefix: Optional[str] = None,
+        template_prefix: Optional[str] = None,
         project_name: Optional[str] = None,
         branch_name: Optional[str] = None,
+        flow_name: Optional[str] = None,
         filter_func: Optional[Callable[[Dict[str, Any]], bool]] = None,
         name_only: bool = True,
     ) -> Union[str, Dict[str, Any]]:
         """
         Args:
-            template_name_prefix: Prefix of the template name to match.
+            template_prefix: Prefix of the template name to match.
             project_name: Project name to match.
             branch_name: Branch name to match.
+            flow_name: Flow name to match.
             filter_func: Custom filter function that is passed template, and should return boolean value
                 indicating if the template can be used.
             name_only: Whether to return only the name of the template or the full manifest. Defaults to True.
@@ -127,10 +129,16 @@ class ArgoHelper:
         Returns:
             The name of the latest workflow template, or the full manifest if name_only is set to False.
         """
+        if not any(
+            [template_prefix, project_name, branch_name, flow_name, filter_func]
+        ):
+            raise AIPException(
+                "Finding latest argo workflow with no specified filters risks picking up unexpected templates. "
+                "Please set at least one of project_name, branch_name, template_prefix, flow_name or filter_func."
+            )
 
         # TODO:
         # - Add filter by project_id instead of project name - project_id is not added as a label yet.
-        # - Add filter by flow_name - flow_name is not added as a label yet.
 
         templates = self._client.list_workflow_template()["items"]
 
@@ -139,7 +147,7 @@ class ArgoHelper:
             for template in templates
             if (
                 not project_name
-                or template["metadata"]["labels"].get("gitlab.zgtools.net/project-name")
+                or template["metadata"]["labels"].get("metaflow.org/tag_project-name")
                 == project_name
             )
             and (
@@ -148,15 +156,20 @@ class ArgoHelper:
                 == branch_name
             )
             and (
-                not template_name_prefix
-                or template["metadata"]["name"].startswith(template_name_prefix)
+                not flow_name
+                or template["metadata"]["labels"].get("metaflow.org/flow_name")
+                == flow_name
+            )
+            and (
+                not template_prefix
+                or template["metadata"]["name"].startswith(template_prefix)
             )
             and (not filter_func or filter_func(template))
         ]
         if not templates:
             raise AIPException(
                 f"No workflow template found with constraints "
-                f"{project_name=}, {branch_name=}, {template_name_prefix=}, {filter_func=}"
+                f"{project_name=}, {branch_name=}, {template_prefix=}, {filter_func=}"
             )
 
         # Sort by creation timestamp to get the latest template.
