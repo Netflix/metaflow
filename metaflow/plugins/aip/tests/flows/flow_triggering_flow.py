@@ -104,15 +104,14 @@ class FlowTriggeringFlow(FlowSpec):
             logger.info("\nTesting run_kubeflow_pipeline")
             argo_helper = ArgoHelper(KUBERNETES_NAMESPACE)
             run_id, run_uid = argo_helper.template_submit(
-                KUBERNETES_NAMESPACE,
-                self.template_name,
+                template_name=self.template_name,
                 parameters={
                     "trigger_enabled": False,
                     "triggered_by": current.run_id,
                 },
             )
             logger.info(f"{run_id=}, {run_uid=}")
-            logger.info(f"{get_argo_url(run_id, KUBERNETES_NAMESPACE, run_uid)=}")
+            logger.info(f"{get_argo_url(run_id, run_uid)=}")
 
             logger.info("Testing timeout exception for wait_for_kfp_run_completion")
             try:
