@@ -6,6 +6,33 @@ class FastBakeryException(Exception):
     pass
 
 
+class FastBakeryApiResponse:
+    def __init__(self, response) -> None:
+        self.response = response
+
+    @property
+    def python_path(self) -> Optional[str]:
+        if not self.success:
+            return None
+
+        return self.response["success"]["pythonPath"]
+
+    @property
+    def container_image(self) -> Optional[str]:
+        if not self.success:
+            return None
+
+        return self.response["success"]["containerImage"]
+
+    @property
+    def success(self) -> bool:
+        return "success" in self.response
+
+    @property
+    def failure(self) -> bool:
+        return "failure" in self.response
+
+
 class FastBakery:
     def __init__(self, url: str):
         self.url = url
@@ -65,11 +92,11 @@ class FastBakery:
         if "imageKind" not in self._payload:
             self._payload["imageKind"] = "oci-zstd"  # Set default if not specified
 
-        image = self._make_request(self._payload)
+        res = self._make_request(self._payload)
         self._reset_payload()
-        return image
+        return res
 
-    def _make_request(self, payload: Dict) -> str:
+    def _make_request(self, payload: Dict) -> FastBakeryApiResponse:
         try:
             from metaflow.metaflow_config import SERVICE_HEADERS
 
@@ -78,7 +105,7 @@ class FastBakery:
             headers = self.headers
         response = requests.post(self.url, json=payload, headers=headers)
         self._handle_error_response(response)
-        return response.json()
+        return FastBakeryApiResponse(response.json())
 
     @staticmethod
     def _handle_error_response(response: requests.Response):

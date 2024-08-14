@@ -3,6 +3,7 @@ import json
 import os
 
 from concurrent.futures import ThreadPoolExecutor
+from typing import Dict
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     FAST_BAKERY_URL,
@@ -10,7 +11,7 @@ from metaflow.metaflow_config import (
 )
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.plugins.pypi.conda_environment import CondaEnvironment
-from .fast_bakery import FastBakery, FastBakeryException
+from .fast_bakery import FastBakery, FastBakeryApiResponse, FastBakeryException
 from metaflow.plugins.aws.batch.batch_decorator import BatchDecorator
 from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
 from metaflow.plugins.pypi.conda_decorator import CondaStepDecorator
@@ -45,7 +46,7 @@ def cache_request(cache_file):
                 with open(cache_file, "r") as f:
                     cache = json.load(f)
                     if cache_key in cache:
-                        return cache[cache_key]
+                        return FastBakeryApiResponse(cache[cache_key])
             except (FileNotFoundError, json.JSONDecodeError):
                 cache = {}
 
@@ -60,7 +61,7 @@ def cache_request(cache_file):
                     except json.JSONDecodeError:
                         cache = {}
 
-                    cache[cache_key] = result
+                    cache[cache_key] = result.response
 
                     f.seek(0)
                     f.truncate()
@@ -68,7 +69,7 @@ def cache_request(cache_file):
             except FileNotFoundError:
                 with open(cache_file, "w") as f:
                     fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-                    json.dump({cache_key: result}, f)
+                    json.dump({cache_key: result.response}, f)
 
             return result
 
@@ -129,12 +130,8 @@ class DockerEnvironment(MetaflowEnvironment):
             for step in self.flow:
                 for d in step.decorators:
                     if isinstance(d, (BatchDecorator, KubernetesDecorator)):
-                        d.attributes["image"] = self.results[step.name]["success"][
-                            "containerImage"
-                        ]
-                        d.attributes["executable"] = self.results[step.name]["success"][
-                            "pythonPath"
-                        ]
+                        d.attributes["image"] = self.results[step.name].container_image
+                        d.attributes["executable"] = self.results[step.name].python_path
             echo("Container image(s) baked!")
 
         if self.skipped_steps:
@@ -143,7 +140,7 @@ class DockerEnvironment(MetaflowEnvironment):
             self.delegate.validate_environment(echo, self.datastore_type)
             self.delegate.init_environment(echo, self.skipped_steps)
 
-    def _bake(self, steps):
+    def _bake(self, steps) -> Dict[str, FastBakeryApiResponse]:
         @cache_request(BAKERY_METAFILE)
         def _cached_bake(
             python=None, pypi_packages=None, conda_packages=None, base_image=None
