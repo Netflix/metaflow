@@ -9,11 +9,9 @@ from kfp.compiler._k8s_helper import sanitize_k8s_name
 from metaflow import FlowSpec, Parameter, Step, current, step
 from metaflow.metaflow_config import KUBERNETES_NAMESPACE
 from metaflow.plugins.aip import (
-    run_id_to_url,
-    run_argo_workflow,
-    wait_for_argo_run_completion,
-    delete_argo_workflow,
-    to_metaflow_run_id,
+    ArgoHelper,
+    get_argo_url,
+    get_metaflow_run_id,
 )
 from metaflow.plugins.aip import logger
 
@@ -104,7 +102,8 @@ class FlowTriggeringFlow(FlowSpec):
         """Trigger downstream pipeline and test triggering behaviors"""
         if self.trigger_enabled:
             logger.info("\nTesting run_kubeflow_pipeline")
-            run_id, run_uid = run_argo_workflow(
+            argo_helper = ArgoHelper(KUBERNETES_NAMESPACE)
+            run_id, run_uid = argo_helper.template_submit(
                 KUBERNETES_NAMESPACE,
                 self.template_name,
                 parameters={
@@ -113,13 +112,11 @@ class FlowTriggeringFlow(FlowSpec):
                 },
             )
             logger.info(f"{run_id=}, {run_uid=}")
-            logger.info(f"{run_id_to_url(run_id, KUBERNETES_NAMESPACE, run_uid)=}")
+            logger.info(f"{get_argo_url(run_id, KUBERNETES_NAMESPACE, run_uid)=}")
 
             logger.info("Testing timeout exception for wait_for_kfp_run_completion")
             try:
-                wait_for_argo_run_completion(
-                    run_id, KUBERNETES_NAMESPACE, wait_timeout=0.1
-                )
+                argo_helper.watch(run_id, wait_timeout=0.1)
             except TimeoutError:
                 logger.error(
                     "Timeout before flow ends throws timeout exception correctly"
@@ -128,20 +125,20 @@ class FlowTriggeringFlow(FlowSpec):
                 raise AssertionError("Timeout error not thrown as expected.")
 
             logger.info("Test wait_for_kfp_run_completion without triggering timeout")
-            status: str = wait_for_argo_run_completion(
-                run_id, KUBERNETES_NAMESPACE, wait_timeout=datetime.timedelta(minutes=3)
+            status: str = argo_helper.watch(
+                run_id, wait_timeout=datetime.timedelta(minutes=3)
             )
 
             logger.info(f"Run Status of {run_id}: {status=}")
 
-            metaflow_run_id: str = to_metaflow_run_id(run_uid)
+            metaflow_run_id: str = get_metaflow_run_id(run_uid)
             logger.info(f"Test triggered_by is passed correctly")
             metaflow_path = f"{current.flow_name}/{metaflow_run_id}/start"
 
             _retry_sleep(self.assert_task_triggered_by, metaflow_path=metaflow_path)
 
             logger.info(f"Deleting {self.template_name=}")
-            delete_argo_workflow(KUBERNETES_NAMESPACE, self.template_name)
+            argo_helper.template_delete(self.template_name)
         else:
             logger.info(f"{self.trigger_enabled=}")
 

@@ -21,9 +21,9 @@ from metaflow.plugins.aws.step_functions.step_functions_cli import (
     check_metadata_service_version,
 )
 from metaflow.plugins.aip.argo_utils import (
-    run_id_to_url,
-    run_id_to_metaflow_url,
-    to_metaflow_run_id,
+    get_argo_url,
+    get_metaflow_url,
+    get_metaflow_run_id,
 )
 from metaflow.plugins.aip.aip_decorator import AIPException
 from metaflow.plugins.aip.aip_step_init import save_step_environment_variables
@@ -421,9 +421,9 @@ def _echo_workflow_run(
 ):
     argo_workflow_name = workflow_manifest["metadata"]["name"]
     argo_workflow_uid = workflow_manifest["metadata"]["uid"]
-    metaflow_run_id = to_metaflow_run_id(argo_workflow_uid)
-    metaflow_ui_url = run_id_to_metaflow_url(flow_name, argo_workflow_uid)
-    argo_ui_url = run_id_to_url(
+    metaflow_run_id = get_metaflow_run_id(argo_workflow_uid)
+    metaflow_ui_url = get_metaflow_url(flow_name, argo_workflow_uid)
+    argo_ui_url = get_argo_url(
         argo_workflow_name, kubernetes_namespace, argo_workflow_uid
     )
     obj.echo(f"Metaflow run_id=*{metaflow_run_id}*\n", fg="magenta")
