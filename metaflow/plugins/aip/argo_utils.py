@@ -30,6 +30,9 @@ class ArgoHelper:
         **kwarg,
     ) -> Tuple[str, str]:
         """
+        The template that matches the exact template_name will be triggered.
+        This function optionally waits for the workflow to complete.
+
         Args:
             template_name: Name of the workflow template to trigger.
             parameters: Parameters to pass to the workflow template.
@@ -71,6 +74,9 @@ class ArgoHelper:
         **kwarg,
     ) -> Tuple[str, str]:
         """
+        This function triggers the latest workflow template that matches the specified filters.
+        This function optionally waits for the workflow to complete.
+
         Args:
             template_prefix: Prefix of the template name to match.
             project_name: Project name to match.
@@ -133,12 +139,12 @@ class ArgoHelper:
             for template in templates
             if (
                 not project_name
-                or template["metadata"]["labels"]["gitlab.zgtools.net/project-name"]
+                or template["metadata"]["labels"].get("gitlab.zgtools.net/project-name")
                 == project_name
             )
             and (
                 not branch_name
-                or template["metadata"]["labels"]["gitlab.zgtools.net/branch-name"]
+                or template["metadata"]["labels"].get("gitlab.zgtools.net/branch-name")
                 == branch_name
             )
             and (
