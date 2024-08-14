@@ -2,7 +2,7 @@ import os
 import sys
 import platform
 
-from metaflow import R
+from metaflow import R, current
 from metaflow.metadata import MetaDatum
 from metaflow.metadata.util import sync_local_metadata_to_datastore
 from metaflow.sidecar import Sidecar
@@ -170,6 +170,33 @@ class SnowparkDecorator(StepDecorator):
     ):
         self.metadata = metadata
         self.task_datastore = task_datastore
+
+        # if using the pypi/conda decorator with @snowpark of any step,
+        # make sure to pass {'snowflake': '0.11.0'} as well to every step
+        # that uses @snowpark
+        from snowflake.snowpark import Session
+
+        # this path will exist within snowpark container services
+        login_token = open("/snowflake/session/token", "r").read()
+        connection_params = {
+            "account": os.environ.get("SNOWFLAKE_ACCOUNT"),
+            "host": os.environ.get("SNOWFLAKE_HOST"),
+            "authenticator": "oauth",
+            "token": login_token,
+            "database": os.environ.get("SNOWFLAKE_DATABASE"),
+            "schema": os.environ.get("SNOWFLAKE_SCHEMA"),
+            "autocommit": True,
+            "client_session_keep_alive": True,
+        }
+
+        # SNOWFLAKE_WAREHOUSE is injected explicitly by us
+        # but is not really required. So if it exists, we use it in
+        # connection parameters
+        if os.environ.get("SNOWFLAKE_WAREHOUSE"):
+            connection_params["warehouse"] = os.environ.get("SNOWFLAKE_WAREHOUSE")
+
+        session = Session.builder.configs(connection_params).create()
+        current._update_env({"snowflake_session": session})
 
         meta = {}
         if "METAFLOW_SNOWPARK_WORKLOAD" in os.environ:

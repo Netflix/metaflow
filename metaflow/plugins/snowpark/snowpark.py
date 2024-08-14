@@ -190,6 +190,10 @@ class Snowpark(object):
                 "METAFLOW_INIT_SCRIPT", KUBERNETES_SANDBOX_INIT_SCRIPT
             )
             .environment_variable("METAFLOW_OTEL_ENDPOINT", OTEL_ENDPOINT)
+            .environment_variable(
+                "SNOWFLAKE_WAREHOUSE",
+                self.snowpark_client.connection_parameters.get("warehouse"),
+            )
         )
 
         for k, v in config_values():
