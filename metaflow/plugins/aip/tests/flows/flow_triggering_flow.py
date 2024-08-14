@@ -71,7 +71,7 @@ class FlowTriggeringFlow(FlowSpec):
             self.triggered_by_tag = "triggerred-by"
             self.index_tag = "template-index"
 
-            for template_name, template_index in enumerate(
+            for template_index, template_name in enumerate(
                 self.workflow_template_names
             ):
                 path = f"/tmp/{template_name}.yaml"
@@ -112,12 +112,16 @@ class FlowTriggeringFlow(FlowSpec):
             assert self.workflow_template_names[1] == argo_helper.template_get_latest(
                 template_prefix=sanitize_k8s_name(TEST_TEMPLATE_NAME.lower()),
                 flow_name=current.flow_name,
-                filter_func=lambda template: template["metadata"]["labels"][
-                    f"metaflow.org/tag_{self.triggered_by_tag}"
-                ]
-                == current.run_id
-                and template["metadata"]["labels"][f"metaflow.org/tag_{self.index_tag}"]
-                == str(1),
+                filter_func=lambda template: (
+                    template["metadata"]["labels"][
+                        f"metaflow.org/tag_{self.triggered_by_tag}"
+                    ]
+                    == current.run_id
+                    and template["metadata"]["labels"][
+                        f"metaflow.org/tag_{self.index_tag}"
+                    ]
+                    == str(1)
+                ),
             )
 
             # ====== Test template triggering ======
