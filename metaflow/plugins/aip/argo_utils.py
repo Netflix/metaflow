@@ -202,15 +202,17 @@ class ArgoHelper:
         Status check frequency will be close to min_check_delay for the first 11 minutes,
         and gradually approaches max_check_delay after 23 minutes.
 
-        A close mimic to async is to use _get_kfp_run above.
-        Implementation for async is not prioritized until specifically requested.
-
-        TODO(yunw)(AIP-5671): Async version
+        Args:
+            run_id: Argo workflow run id.
+            wait_timeout: Wait timeout in seconds or datetime.timedelta.
+            min_check_delay: Minimum check delay in seconds.
+            max_check_delay: Maximum check delay in seconds.
+            assert_success: Whether to throw exception if run is not successful.
         """
 
         def get_delay(secs_since_start, min_delay, max_delay):
             """
-            this sigmoid function reaches
+            This sigmoid function reaches
             - 0.1 after 11 minutes
             - 0.5 after 15 minutes
             - 1.0 after 23 minutes
