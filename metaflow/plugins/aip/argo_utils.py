@@ -22,7 +22,7 @@ class ArgoHelper:
         """
         self._client = ArgoClient(namespace=kubernetes_namespace)
 
-    def template_submit(
+    def trigger(
         self,
         template_name: Optional[str] = None,
         parameters: Optional[dict] = None,
@@ -30,8 +30,8 @@ class ArgoHelper:
         **kwarg,
     ) -> Tuple[str, str]:
         """
-        The template that matches the exact template_name will be triggered.
-        This function optionally waits for the workflow to complete.
+        Trigger an existing workflow template.
+        Optionally this function can wait (blocking) for the workflow to complete.
 
         Args:
             template_name: Name of the workflow template to trigger.
@@ -63,7 +63,7 @@ class ArgoHelper:
 
         return argo_run_id, argo_run_uid
 
-    def template_submit_latest(
+    def trigger_latest(
         self,
         template_prefix: Optional[str] = None,
         project_name: Optional[str] = None,
@@ -74,8 +74,8 @@ class ArgoHelper:
         **kwarg,
     ) -> Tuple[str, str]:
         """
-        This function triggers the latest workflow template that matches the specified filters.
-        This function optionally waits for the workflow to complete.
+        Trigger the latest workflow template that matches the specified filters.
+        Optionally this function can wait (blocking) for the workflow to complete.
 
         Args:
             template_prefix: Prefix of the template name to match.
@@ -100,7 +100,7 @@ class ArgoHelper:
             filter_func=filter_func,
         )
 
-        return self.template_submit(
+        return self.trigger(
             template_name=template_name,
             parameters=parameters,
             wait_timeout=wait_timeout,

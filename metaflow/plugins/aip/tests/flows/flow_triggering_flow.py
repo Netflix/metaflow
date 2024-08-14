@@ -103,7 +103,7 @@ class FlowTriggeringFlow(FlowSpec):
         if self.trigger_enabled:
             logger.info("\nTesting run_kubeflow_pipeline")
             argo_helper = ArgoHelper(KUBERNETES_NAMESPACE)
-            run_id, run_uid = argo_helper.template_submit(
+            run_id, run_uid = argo_helper.trigger(
                 template_name=self.template_name,
                 parameters={
                     "trigger_enabled": False,
