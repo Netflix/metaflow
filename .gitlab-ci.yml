@@ -10,7 +10,7 @@ include:
 variables:
   PY_LIBRARY_NAME: "zillow-metaflow"
   MAJOR_VERSION: "2"
-  MINOR_VERSION: "1"
+  MINOR_VERSION: "2"
   METAFLOW_VERSION_PATH: "setup.py"
   IMAGE_REPOSITORY_TAG_PATH: 'image_tag_file.txt'
   IMAGE_REPOSITORY_TAG_PATH_AIP_STEP: 'image_tag_file_aip_step.txt'
@@ -28,9 +28,6 @@ stages:
   - test
 
 .version: &version |
-  # Extract the open source Metaflow version as the basis for our forked library version.
-  METAFLOW_VERSION=$(cat $METAFLOW_VERSION_PATH | sed -nr "s/^version = ['\"]([^'\"]*)['\"]$/\1/p")
-
   PY_LIBRARY_VERSION="${MAJOR_VERSION}.${MINOR_VERSION}.${CI_PIPELINE_IID}"
   if [ "${CI_COMMIT_BRANCH}" != "${CI_DEFAULT_BRANCH}" ]; then
     PY_LIBRARY_VERSION="${PY_LIBRARY_VERSION}-dev.${CI_PIPELINE_IID}"
@@ -41,7 +38,7 @@ stages:
   fi
   # Only apply the Metaflow version to the python library as Docker versions do not have the concept of
   # build metadata and the "+" character causes errors.
-  PY_LIBRARY_VERSION="${PY_LIBRARY_VERSION}+${METAFLOW_VERSION}"
+  PY_LIBRARY_VERSION="${PY_LIBRARY_VERSION}"
 
 .test:
   extends: .generate_kubeconfig
