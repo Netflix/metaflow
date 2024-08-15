@@ -184,10 +184,21 @@ class DockerEnvironment(MetaflowEnvironment):
                     d.attributes["python"]
                     for d in step.decorators
                     if isinstance(d, CondaStepDecorator)
-                    and d.is_attribute_user_defined("python")
                 ),
                 None,
             )
+            pypi_deco = next(
+                (d for d in step.decorators if isinstance(d, PyPIStepDecorator)), None
+            )
+            # if pypi decorator is set and user has specified a python version, we must create a new environment.
+            # otherwise rely on the base environment
+            if pypi_deco is not None:
+                python = (
+                    pypi_deco.attributes["python"]
+                    if pypi_deco.is_attribute_user_defined("python")
+                    else None
+                )
+
             packages = get_pinned_conda_libs(python, self.datastore_type)
             packages.update(dependencies.attributes["packages"] if dependencies else {})
 
