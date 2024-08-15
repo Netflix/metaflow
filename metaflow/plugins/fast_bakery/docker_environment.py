@@ -178,6 +178,7 @@ class DockerEnvironment(MetaflowEnvironment):
                     d.attributes["python"]
                     for d in step.decorators
                     if isinstance(d, CondaStepDecorator)
+                    and d.is_attribute_user_defined("python")
                 ),
                 None,
             )
