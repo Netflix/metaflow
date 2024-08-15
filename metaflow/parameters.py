@@ -204,6 +204,8 @@ class DeployTimeField(object):
 def deploy_time_eval(value):
     if isinstance(value, DeployTimeField):
         return value(deploy_time=True)
+    elif isinstance(value, DelayedEvaluationParameter):
+        return value(return_str=True)
     else:
         return value
 
