@@ -6,6 +6,30 @@ class FastBakeryException(Exception):
     pass
 
 
+class SolverStats:
+    def __init__(self, stats) -> None:
+        self.stats = stats
+
+    @property
+    def duration_ms(self):
+        return self.stats["durationMs"]
+
+    @property
+    def packages_in_solved_environment(self):
+        return self.stats["packagesInSolvedEnvironment"]
+
+
+class BakingStats:
+    def __init__(self, stats) -> None:
+        self.stats = stats
+
+    @property
+    def solver_stats(self) -> Optional[SolverStats]:
+        if "solverStats" not in self.stats:
+            return None
+        return SolverStats(self.stats["solverStats"])
+
+
 class FastBakeryApiResponse:
     def __init__(self, response) -> None:
         self.response = response
@@ -27,6 +51,19 @@ class FastBakeryApiResponse:
     @property
     def success(self) -> bool:
         return "success" in self.response
+
+    @property
+    def baking_stats(self) -> Optional[BakingStats]:
+        if not self.success:
+            return None
+
+        if "bakingStats" not in self.response["success"]:
+            return None
+
+        if self.response["success"]["bakingStats"] is None:
+            return None
+
+        return BakingStats(self.response["success"]["bakingStats"])
 
     @property
     def failure(self) -> bool:
@@ -88,7 +125,7 @@ class FastBakery:
 
         return [format_package(pkg, ver) for pkg, ver in packages.items()]
 
-    def bake(self) -> str:
+    def bake(self) -> FastBakeryApiResponse:
         if "imageKind" not in self._payload:
             self._payload["imageKind"] = "oci-zstd"  # Set default if not specified
 

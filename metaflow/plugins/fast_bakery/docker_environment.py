@@ -126,7 +126,7 @@ class DockerEnvironment(MetaflowEnvironment):
         ]
         if steps_to_bake:
             echo("Baking container image(s) ...")
-            self.results = self._bake(steps_to_bake)
+            self.results = self._bake(steps_to_bake, echo)
             for step in self.flow:
                 for d in step.decorators:
                     if isinstance(d, (BatchDecorator, KubernetesDecorator)):
@@ -140,7 +140,7 @@ class DockerEnvironment(MetaflowEnvironment):
             self.delegate.validate_environment(echo, self.datastore_type)
             self.delegate.init_environment(echo, self.skipped_steps)
 
-    def _bake(self, steps) -> Dict[str, FastBakeryApiResponse]:
+    def _bake(self, steps, echo) -> Dict[str, FastBakeryApiResponse]:
         @cache_request(BAKERY_METAFILE)
         def _cached_bake(
             python=None, pypi_packages=None, conda_packages=None, base_image=None
@@ -152,7 +152,13 @@ class DockerEnvironment(MetaflowEnvironment):
             self.bakery.base_image(base_image)
             # self.bakery.ignore_cache()
             try:
-                return self.bakery.bake()
+                res = self.bakery.bake()
+                if res.baking_stats:
+                    echo(
+                        "baked image in: %s milliseconds"
+                        % res.baking_stats.solver_stats.duration_ms
+                    )
+                return res
             except FastBakeryException as ex:
                 raise DockerEnvironmentException(str(ex))
 
