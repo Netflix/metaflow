@@ -1,7 +1,6 @@
 import time
 import requests
 import json
-
 from threading import Thread
 from metaflow.sidecar import MessageTypes, Message
 from metaflow.metaflow_config import SERVICE_HEADERS

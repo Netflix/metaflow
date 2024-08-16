@@ -1,5 +1,4 @@
 import re
-import requests
 
 from metaflow.exception import MetaflowException
 
@@ -25,7 +24,12 @@ def get_ec2_instance_metadata():
     # instance is unreachable.
     timeout = (1, 10)
     token = None
+
+    # TODO: Remove dependency on requests
+    import requests
+
     try:
+
         # Try to get an IMDSv2 token.
         token = requests.put(
             url="http://169.254.169.254/latest/api/token",
@@ -143,6 +147,8 @@ def compute_resource_attributes(decos, compute_deco, resource_defaults):
                         # Here we don't have ints, so we compare the value and raise
                         # an exception if not equal
                         if my_val != v:
+                            # TODO: Throw a better exception since the user has no
+                            #       knowledge of 'compute' decorator
                             raise MetaflowException(
                                 "'resources' and compute decorator have conflicting "
                                 "values for '%s'. Please use consistent values or "

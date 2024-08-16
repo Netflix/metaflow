@@ -1,34 +1,31 @@
 import os
-import sys
 import platform
-import requests
+import sys
 import time
 
-from metaflow import util
-from metaflow import R, current
-
+from metaflow import R, current, util
 from metaflow.decorators import StepDecorator
-from metaflow.plugins.resources_decorator import ResourcesDecorator
-from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.metadata import MetaDatum
 from metaflow.metadata.util import sync_local_metadata_to_datastore
 from metaflow.metaflow_config import (
-    ECS_S3_ACCESS_IAM_ROLE,
-    BATCH_JOB_QUEUE,
     BATCH_CONTAINER_IMAGE,
     BATCH_CONTAINER_REGISTRY,
-    ECS_FARGATE_EXECUTION_ROLE,
+    BATCH_JOB_QUEUE,
     DATASTORE_LOCAL_DIR,
+    ECS_FARGATE_EXECUTION_ROLE,
+    ECS_S3_ACCESS_IAM_ROLE,
 )
+from metaflow.plugins.resources_decorator import ResourcesDecorator
+from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.sidecar import Sidecar
 from metaflow.unbounded_foreach import UBF_CONTROL
 
-from .batch import BatchException
 from ..aws_utils import (
     compute_resource_attributes,
     get_docker_registry,
     get_ec2_instance_metadata,
 )
+from .batch import BatchException
 
 
 class BatchDecorator(StepDecorator):
@@ -275,6 +272,10 @@ class BatchDecorator(StepDecorator):
             # Metaflow would be running the container agent compatible with
             # version V4.
             # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-metadata-endpoint.html
+
+            # TODO: Remove dependency on requests
+            import requests
+
             try:
                 logs_meta = (
                     requests.get(url=os.environ["ECS_CONTAINER_METADATA_URI_V4"])
