@@ -8,7 +8,7 @@ class ResumeSucceededStepTest(MetaflowTest):
 
     RESUME = True
     # resuming on a successful step.
-    RESUME_STEP = "start"
+    RESUME_STEP = "a"
     PRIORITY = 3
     PARAMETERS = {"int_param": {"default": 123}}
 
@@ -29,11 +29,18 @@ class ResumeSucceededStepTest(MetaflowTest):
 
     @steps(2, ["all"])
     def step_all(self):
-        pass
+        if is_resumed():
+            self.data = "test_r"
+        else:
+            self.data = "test"
 
     def check_results(self, flow, checker):
         for step in flow:
-            data_value = step.name + "_r"
+            # task copied in resume will not have artifact with "_r" suffix.
+            if step.name == "start":
+                checker.assert_artifact(step.name, "data", "start")
             # resumed step will rerun and hence data will have this "_r" suffix.
-            if step.name in ["end", "start"]:
-                checker.assert_artifact(step.name, "data", data_value)
+            elif step.name == "a":
+                checker.assert_artifact(step.name, "data", "test_r")
+            elif step.name == "end":
+                checker.assert_artifact(step.name, "data", "end_r")
