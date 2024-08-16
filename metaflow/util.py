@@ -426,6 +426,25 @@ def tar_safe_extract(tar, path=".", members=None, *, numeric_owner=False):
     tar.extractall(path, members, numeric_owner=numeric_owner)
 
 
+def to_pod(value):
+    """
+    Convert a python object to plain-old-data (POD) format.
+
+    Parameters
+    ----------
+    value : Any
+        Value to convert to POD format. The value can be a string, number, list,
+        dictionary, or a nested structure of these types.
+    """
+    if isinstance(value, (str, int, float)):
+        return value
+    if isinstance(value, dict):
+        return {to_pod(k): to_pod(v) for k, v in value.items()}
+    if isinstance(value, (list, set, tuple)):
+        return [to_pod(v) for v in value]
+    return str(value)
+
+
 if sys.version_info[:2] > (3, 5):
     from metaflow._vendor.packaging.version import parse as version_parse
 else:
