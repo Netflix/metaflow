@@ -301,16 +301,14 @@ class NativeRuntime(object):
             )
         except Exception as e:
             self._logger(
-                "Cloning task from {}/{}/{} failed with error: {}".format(
-                    self._clone_run_id, step_name, task_id, str(e)
+                "Cloning {}/{}/{}/{} failed with error: {}".format(
+                    self._flow.name, self._clone_run_id, step_name, task_id, str(e)
                 )
             )
 
     def clone_original_run(self, generate_task_obj=False, verbose=True):
         self._logger(
-            "Start cloning original run: {}/{}".format(
-                self._flow.name, self._clone_run_id
-            ),
+            "Cloning {}/{}".format(self._flow.name, self._clone_run_id),
             system_msg=True,
         )
 
@@ -390,7 +388,9 @@ class NativeRuntime(object):
                 ) in inputs
             ]
             _, _ = futures.wait(all_tasks)
-        self._logger("Cloning original run is done", system_msg=True)
+        self._logger(
+            "{}/{} cloned!".format(self._flow.name, self._clone_run_id), system_msg=True
+        )
         self._params_task.mark_resume_done()
 
     def execute(self):
@@ -1149,13 +1149,13 @@ class Task(object):
                 self._should_skip_cloning = task_completed
                 if self._should_skip_cloning:
                     self.log(
-                        "Skip cloning of previously run task %s" % self.clone_origin,
+                        "Skipping cloning of previously run task %s"
+                        % self.clone_origin,
                         system_msg=True,
                     )
                 else:
                     self.log(
-                        "Cloning results of a previously run task %s"
-                        % self.clone_origin,
+                        "Cloning previously run task %s" % self.clone_origin,
                         system_msg=True,
                     )
         else:
