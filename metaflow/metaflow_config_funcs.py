@@ -101,6 +101,7 @@ def from_conf(name, default=None, validate_fn=None):
 
     if METAFLOW_CONFIG is None:
         METAFLOW_CONFIG = init_config()
+    if METAFLOW_LOCAL_CONFIG is None:
         METAFLOW_LOCAL_CONFIG = init_local_config()
 
     is_default = True
