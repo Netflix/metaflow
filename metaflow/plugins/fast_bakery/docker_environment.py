@@ -17,7 +17,6 @@ from metaflow.plugins.kubernetes.kubernetes_decorator import KubernetesDecorator
 from metaflow.plugins.pypi.conda_decorator import CondaStepDecorator
 from metaflow.plugins.pypi.pypi_decorator import PyPIStepDecorator
 
-# TODO: move under .metaflow
 BAKERY_METAFILE = ".imagebakery-cache"
 
 import json
@@ -141,7 +140,9 @@ class DockerEnvironment(MetaflowEnvironment):
             self.delegate.init_environment(echo, self.skipped_steps)
 
     def _bake(self, steps, echo) -> Dict[str, FastBakeryApiResponse]:
-        @cache_request(BAKERY_METAFILE)
+        metafile_path = get_fastbakery_metafile_path(self.local_root, self.flow.name)
+
+        @cache_request(metafile_path)
         def _cached_bake(
             python=None, pypi_packages=None, conda_packages=None, base_image=None
         ):
@@ -252,3 +253,7 @@ class DockerEnvironment(MetaflowEnvironment):
         # we use an internal boolean flag so we do not have to pass the fast bakery endpoint url
         # in order to denote that a bakery has been configured.
         return super().bootstrap_commands(step_name, datastore_type)
+
+
+def get_fastbakery_metafile_path(local_root, flow_name):
+    return os.path.join(local_root, flow_name, BAKERY_METAFILE)
