@@ -17,6 +17,7 @@ from .exception import (
 )
 from .graph import FlowGraph
 from .unbounded_foreach import UnboundedForeachInput
+from .util import to_pod
 from .metaflow_config import INCLUDE_FOREACH_STACK, MAXIMUM_FOREACH_VALUE_CHARS
 
 # For Python 3 compatibility
@@ -201,7 +202,7 @@ class FlowSpec(metaclass=_FlowSpecMeta):
             "decorators": [
                 {
                     "name": deco.name,
-                    "attributes": deco.attributes,
+                    "attributes": to_pod(deco.attributes),
                     "statically_defined": deco.statically_defined,
                 }
                 for deco in flow_decorators(self)
