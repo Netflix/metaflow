@@ -101,7 +101,7 @@ class MetaflowEnvironment(object):
                 "boto3.client('s3', endpoint_url=os.getenv(METAFLOW_S3_ENDPOINT_URL))"
                 ".download_file('%s', '%s', 'job.tar')\""
             ) % (
-                self._python,
+                self._python(),
                 bucket,
                 s3_object,
             )
