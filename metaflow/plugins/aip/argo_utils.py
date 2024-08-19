@@ -123,7 +123,8 @@ class ArgoHelper:
             branch_name: Branch name to match.
             flow_name: Flow name to match.
             filter_func: Custom filter function that is passed template, and should return boolean value
-                indicating if the template can be used.
+                indicating if the template can be used. When writing the filter function, please be mindful that
+                the labels or annotations may not be present in all the template.
             name_only: Whether to return only the name of the template or the full manifest. Defaults to True.
 
         Returns:
