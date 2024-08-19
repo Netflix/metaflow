@@ -31,8 +31,7 @@ from ..aws.aws_utils import get_docker_registry
 def get_snowflake_session_callable(connection_params):
     def create_session(instance):
         # if using the pypi/conda decorator with @snowpark of any step,
-        # make sure to pass {'snowflake': '0.11.0'} as well to every step
-        # that uses @snowpark
+        # make sure to pass {'snowflake': '0.11.0'} as well to that step
         try:
             from snowflake.snowpark import Session
 
