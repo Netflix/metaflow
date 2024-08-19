@@ -59,18 +59,13 @@ class FlowTriggeringFlow(FlowSpec):
             )
 
         if self.trigger_enabled:  # Upload pipeline
-            # for the case where generate_base64_uuid returns a string starting with '-'
-            # and template_name == 'wfdsk-ftf-test-he5d4--6rhai0z0wiysuew'
-            # where aip _create_workflow_yaml() calls sanitize_k8s_name() which returns
-            # 'wfdsk-ftf-test-he5d4-6rhai0z0wiysuew' without the double --
-
-            print(f"{KUBERNETES_NAMESPACE=}")
+            logger.info(f"{KUBERNETES_NAMESPACE=}")
 
             self.workflow_template_names = [
                 sanitize_k8s_name(
-                    f"{TEST_TEMPLATE_NAME}-{generate_base64_uuid()}".lower()
+                    f"{TEST_TEMPLATE_NAME}-{current.run_id}-{index}".lower()
                 )
-                for _ in range(3)
+                for index in range(3)
             ]
             self.parent_tag = "parent-workflow"
             self.index_tag = "template-index"
@@ -87,7 +82,7 @@ class FlowTriggeringFlow(FlowSpec):
                         "--tag",
                         f"{self.parent_tag}:{current.run_id}",
                         "--tag",
-                        f"{self.index}:{template_index}",
+                        f"{self.index_tag}:{template_index}",
                     ],
                 )
                 subprocess.run(["cat", path])
@@ -126,7 +121,7 @@ class FlowTriggeringFlow(FlowSpec):
                     and template["metadata"]["labels"].get(
                         f"metaflow.org/tag_{self.index_tag}"
                     )
-                    == 1
+                    == str(1)  # All tags value are strings
                 ),
             )
 
@@ -164,11 +159,6 @@ class FlowTriggeringFlow(FlowSpec):
             metaflow_path = f"{current.flow_name}/{metaflow_run_id}/start"
 
             _retry_sleep(self.assert_parent_workflow, metaflow_path=metaflow_path)
-
-            # ====== Clean up test templates ======
-            for template_name in self.workflow_template_names:
-                logger.info(f"Deleting {template_name}")
-                argo_helper.template_delete(template_name)
         else:
             logger.info(f"{self.trigger_enabled=}")
 
