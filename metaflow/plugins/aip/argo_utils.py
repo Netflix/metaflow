@@ -26,7 +26,7 @@ class ArgoHelper:
         """
         self._client = ArgoClient(namespace=kubernetes_namespace)
 
-    def trigger(
+    def trigger_exact(
         self,
         template_name: Optional[str] = None,
         parameters: Optional[dict] = None,
@@ -100,7 +100,7 @@ class ArgoHelper:
             filter_func=filter_func,
         )
 
-        return self.trigger(
+        return self.trigger_exact(
             template_name=template_name,
             parameters=parameters,
             wait_timeout=wait_timeout,

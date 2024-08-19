@@ -126,7 +126,7 @@ class FlowTriggeringFlow(FlowSpec):
 
             # ====== Test template triggering ======
             logger.info("\n Testing ArgoHelper.trigger")
-            run_id, run_uid = argo_helper.trigger(
+            run_id, run_uid = argo_helper.trigger_exact(
                 template_name=self.workflow_template_names[0],
                 parameters={
                     "trigger_enabled": False,

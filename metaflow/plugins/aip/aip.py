@@ -291,9 +291,10 @@ class KubeflowPipelines(object):
             # Note the name has to follow k8s format.
             # self.name is typically CamelCase as it's python class name.
             # generateName contains a sanitized version of self.name from aip.compiler
-            default_workflow_name = workflow["metadata"].pop("generateName").rstrip("-")
             workflow["metadata"]["name"] = (
-                sanitize_k8s_name(name) if name else default_workflow_name
+                sanitize_k8s_name(name)
+                if name
+                else workflow["metadata"].pop("generateName").rstrip("-")
             )
 
             # Service account is added through webhooks.
