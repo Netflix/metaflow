@@ -114,9 +114,6 @@ class Decorator(object):
 
     def __init__(self, attributes=None, statically_defined=False):
         self.attributes = self.defaults.copy()
-        self._user_defined_attributes = (
-            attributes.copy() if attributes is not None else {}
-        )
         self.statically_defined = statically_defined
 
         if attributes:
@@ -125,9 +122,6 @@ class Decorator(object):
                     self.attributes[k] = v
                 else:
                     raise InvalidDecoratorAttribute(self.name, k, self.defaults)
-
-    def is_attribute_user_defined(self, name):
-        return name in self._user_defined_attributes
 
     @classmethod
     def _parse_decorator_spec(cls, deco_spec):
