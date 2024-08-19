@@ -157,8 +157,6 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["node_selector"] = parse_kube_keyvalue_list(
                 self.attributes["node_selector"].split(",")
             )
-        else:
-            self.attributes["node_selector"] = {}
         if self.attributes["compute_pool"]:
             self.attributes["node_selector"].update(
                 {"outerbounds.co/compute_pool": self.attributes["compute_pool"]}
