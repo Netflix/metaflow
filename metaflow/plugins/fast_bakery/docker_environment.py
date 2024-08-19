@@ -33,7 +33,6 @@ def cache_request(cache_file):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-
             call_args = kwargs.copy()
             call_args.update(zip(func.__code__.co_varnames, args))
             call_args.pop("self", None)
@@ -205,12 +204,12 @@ class DockerEnvironment(MetaflowEnvironment):
 
             return {
                 "python": python,
-                "pypi_packages": packages
-                if isinstance(dependencies, PyPIStepDecorator)
-                else None,
-                "conda_packages": packages
-                if isinstance(dependencies, CondaStepDecorator)
-                else None,
+                "pypi_packages": (
+                    packages if isinstance(dependencies, PyPIStepDecorator) else None
+                ),
+                "conda_packages": (
+                    packages if isinstance(dependencies, CondaStepDecorator) else None
+                ),
                 "base_image": base_image,
             }
 
