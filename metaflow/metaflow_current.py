@@ -1,5 +1,5 @@
 from collections import namedtuple
-import os
+import functools
 from typing import Any, Optional, TYPE_CHECKING
 
 from metaflow.metaflow_config import TEMPDIR
@@ -62,7 +62,12 @@ class Current(object):
 
     def _update_env(self, env):
         for k, v in env.items():
-            setattr(self.__class__, k, property(fget=lambda _, v=v: v))
+            if isinstance(v, property):
+                setattr(self.__class__, k, v)
+            elif callable(v):
+                setattr(self, k, functools.partial(v, self))
+            else:
+                setattr(self.__class__, k, property(fget=lambda _, v=v: v))
 
     def __contains__(self, key: str):
         return getattr(self, key, None) is not None
