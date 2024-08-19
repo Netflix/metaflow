@@ -142,7 +142,7 @@ class SnowparkDecorator(StepDecorator):
         try:
             # Snowflake is a soft dependency.
             from snowflake.snowpark import Session
-        except (NameError, ImportError):
+        except (NameError, ImportError, ModuleNotFoundError):
             raise SnowflakeException(
                 "Could not import module 'snowflake'.\n\nInstall Snowflake "
                 "Python package (https://pypi.org/project/snowflake/) first.\n"
