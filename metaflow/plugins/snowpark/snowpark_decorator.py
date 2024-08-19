@@ -28,6 +28,29 @@ from .snowpark_exceptions import SnowflakeException
 from ..aws.aws_utils import get_docker_registry
 
 
+def get_snowflake_session_callable(connection_params):
+    def create_session(instance):
+        # if using the pypi/conda decorator with @snowpark of any step,
+        # make sure to pass {'snowflake': '0.11.0'} as well to every step
+        # that uses @snowpark
+        try:
+            from snowflake.snowpark import Session
+
+            session = Session.builder.configs(connection_params).create()
+            return session
+        except (NameError, ImportError, ModuleNotFoundError):
+            raise SnowflakeException(
+                "Could not import module 'snowflake'.\n\nInstall Snowflake "
+                "Python package (https://pypi.org/project/snowflake/) first.\n"
+                "You can install the module by executing - "
+                "%s -m pip install snowflake\n"
+                "or equivalent through your favorite Python package manager."
+                % sys.executable
+            )
+
+    return create_session
+
+
 class SnowparkDecorator(StepDecorator):
     name = "snowpark"
 
@@ -171,11 +194,6 @@ class SnowparkDecorator(StepDecorator):
         self.metadata = metadata
         self.task_datastore = task_datastore
 
-        # if using the pypi/conda decorator with @snowpark of any step,
-        # make sure to pass {'snowflake': '0.11.0'} as well to every step
-        # that uses @snowpark
-        from snowflake.snowpark import Session
-
         # this path will exist within snowpark container services
         login_token = open("/snowflake/session/token", "r").read()
         connection_params = {
@@ -195,8 +213,13 @@ class SnowparkDecorator(StepDecorator):
         if os.environ.get("SNOWFLAKE_WAREHOUSE"):
             connection_params["warehouse"] = os.environ.get("SNOWFLAKE_WAREHOUSE")
 
-        session = Session.builder.configs(connection_params).create()
-        current._update_env({"snowflake_session": session})
+        current._update_env(
+            {
+                "snowflake_session": property(
+                    get_snowflake_session_callable(connection_params)
+                )
+            }
+        )
 
         meta = {}
         if "METAFLOW_SNOWPARK_WORKLOAD" in os.environ:
