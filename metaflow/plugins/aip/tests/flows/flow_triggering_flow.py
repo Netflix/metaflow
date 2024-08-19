@@ -104,7 +104,7 @@ class FlowTriggeringFlow(FlowSpec):
 
             template_prefix = sanitize_k8s_name(TEST_TEMPLATE_NAME.lower())
             # ====== Test template filtering ======
-            # Test latest template is returned with prefix filter
+            logger.info("\n Testing ArgoHelper.template_get_latest")
             assert self.workflow_template_names[-1] == argo_helper.template_get_latest(
                 template_prefix=template_prefix,
                 flow_name=current.flow_name,
@@ -114,7 +114,7 @@ class FlowTriggeringFlow(FlowSpec):
                 == current.run_id,
             )
 
-            # Test filter func correctly filters
+            logger.info("\n Test filter func correctly filters")
             assert self.workflow_template_names[1] == argo_helper.template_get_latest(
                 template_prefix=template_prefix,
                 flow_name=current.flow_name,
@@ -126,7 +126,7 @@ class FlowTriggeringFlow(FlowSpec):
                     and template["metadata"]["labels"].get(
                         f"metaflow.org/tag_{self.index_tag}"
                     )
-                    == str(1)
+                    == 1
                 ),
             )
 
