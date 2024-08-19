@@ -76,7 +76,7 @@ class NativeRuntime(object):
         clone_run_id=None,
         clone_only=False,
         reentrant=False,
-        clone_steps=None,
+        steps_to_rerun=None,
         max_workers=MAX_WORKERS,
         max_num_splits=MAX_NUM_SPLITS,
         max_log_size=MAX_LOG_SIZE,
@@ -110,11 +110,20 @@ class NativeRuntime(object):
 
         self._clone_run_id = clone_run_id
         self._clone_only = clone_only
-        self._clone_steps = {} if clone_steps is None else clone_steps
         self._cloned_tasks = []
         self._cloned_task_index = set()
         self._reentrant = reentrant
         self._run_url = None
+
+        # If steps_to_rerun is specified, we will not clone them in resume mode.
+        self._steps_to_rerun = steps_to_rerun or {}
+        # sorted_nodes are in topological order already, so we only need to
+        # iterate through the nodes once to get a stable set of rerun steps.
+        for step_name in self._graph.sorted_nodes:
+            if step_name in self._steps_to_rerun:
+                out_funcs = self._graph[step_name].out_funcs or []
+                for next_step in out_funcs:
+                    self._steps_to_rerun.add(next_step)
 
         self._origin_ds_set = None
         if clone_run_id:
@@ -166,7 +175,7 @@ class NativeRuntime(object):
         else:
             may_clone = all(self._is_cloned[path] for path in input_paths)
 
-        if step in self._clone_steps:
+        if step in self._steps_to_rerun:
             may_clone = False
 
         if step == "_parameters":
@@ -336,7 +345,11 @@ class NativeRuntime(object):
             _, step_name, task_id = task_ds.pathspec.split("/")
             pathspec_index = task_ds.pathspec_index
 
-            if task_ds["_task_ok"] and step_name != "_parameters":
+            if (
+                task_ds["_task_ok"]
+                and step_name != "_parameters"
+                and (step_name not in self._steps_to_rerun)
+            ):
                 # "_unbounded_foreach" is a special flag to indicate that the transition is an unbounded foreach.
                 # Both parent and splitted children tasks will have this flag set. The splitted control/mapper tasks
                 # have no "foreach_param" because UBF is always followed by a join step.

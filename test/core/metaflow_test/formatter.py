@@ -9,6 +9,7 @@ class FlowFormatter(object):
         self.graphspec = graphspec
         self.test = test
         self.should_resume = getattr(test, "RESUME", False)
+        self.resume_step = getattr(test, "RESUME_STEP", None)
         self.should_fail = getattr(test, "SHOULD_FAIL", False)
         self.flow_name = "%sFlow" % self.test.__class__.__name__
         self.used = set()

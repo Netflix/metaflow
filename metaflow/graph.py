@@ -173,6 +173,8 @@ class FlowGraph(object):
         self.name = flow.__name__
         self.nodes = self._create_nodes(flow)
         self.doc = deindent_docstring(flow.__doc__)
+        # nodes sorted in topological order.
+        self.sorted_nodes = []
         self._traverse_graph()
         self._postprocess()
 
@@ -199,6 +201,7 @@ class FlowGraph(object):
 
     def _traverse_graph(self):
         def traverse(node, seen, split_parents):
+            self.sorted_nodes.append(node.name)
             if node.type in ("split", "foreach"):
                 node.split_parents = split_parents
                 split_parents = split_parents + [node.name]
