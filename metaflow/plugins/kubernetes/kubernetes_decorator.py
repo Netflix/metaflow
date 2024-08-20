@@ -157,13 +157,12 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["node_selector"] = parse_kube_keyvalue_list(
                 self.attributes["node_selector"].split(",")
             )
-        else:
-            self.attributes["node_selector"] = {}
         if self.attributes["compute_pool"]:
+            if self.attributes["node_selector"] is None:
+                self.attributes["node_selector"] = {}
             self.attributes["node_selector"].update(
-                {"outerbounds.co/compute_pool": self.attributes["compute_pool"]}
+                {"outerbounds.co/compute-pool": self.attributes["compute_pool"]}
             )
-            del self.attributes["compute_pool"]
 
         if self.attributes["tolerations"]:
             try:
@@ -381,9 +380,13 @@ class KubernetesDecorator(StepDecorator):
             cli_args.command_args.append(self.package_sha)
             cli_args.command_args.append(self.package_url)
 
+            # skip certain keys as CLI arguments
+            _skip_keys = ["compute_pool"]
             # --namespace is used to specify Metaflow namespace (a different
             # concept from k8s namespace).
             for k, v in self.attributes.items():
+                if k in _skip_keys:
+                    continue
                 if k == "namespace":
                     cli_args.command_options["k8s_namespace"] = v
                 elif k in {"node_selector"} and v:
