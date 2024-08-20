@@ -65,6 +65,8 @@ def cache_request(cache_file):
                     f.truncate()
                     json.dump(cache, f)
             except FileNotFoundError:
+                # path to cachefile might not exist.
+                os.makedirs(os.path.dirname(cache_file), exist_ok=True)
                 with open(cache_file, "w") as f:
                     fcntl.flock(f.fileno(), fcntl.LOCK_EX)
                     json.dump({cache_key: result.response}, f)
