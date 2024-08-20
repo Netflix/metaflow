@@ -1027,6 +1027,8 @@ class MetaflowData(object):
         self._artifacts = dict((art.id, art) for art in artifacts)
 
     def __getattr__(self, name: str):
+        if name not in self._artifacts:
+            raise AttributeError(name)
         return self._artifacts[name].data
 
     def __contains__(self, var):
