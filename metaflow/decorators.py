@@ -207,6 +207,7 @@ def add_decorator_options(cmd):
     flow_cls = getattr(current_flow, "flow_cls", None)
     if flow_cls is None:
         return cmd
+
     for deco in flow_decorators(flow_cls):
         for option, kwargs in deco.options.items():
             if option in seen:
@@ -219,6 +220,43 @@ def add_decorator_options(cmd):
                 raise MetaflowInternalError(msg)
             else:
                 seen[option] = deco.name
+                cmd.params.insert(0, click.Option(("--" + option,), **kwargs))
+
+    # TODO [CLI-OPTIONS-FROM-STEP-DECOS]: Iterate over the step decorators and create the runtime options needed by the step decorators.
+    return cmd
+
+
+def add_step_decorator_parameters(cmd):
+    step_deco_dict = _get_all_step_decos()
+    seen = set()
+    parameter_seen = set()
+
+    step_deco_names = getattr(current_flow, "unique_step_decos_in_flow", None)
+    if step_deco_names is None:
+        return cmd
+
+    decos = _get_all_step_decos()
+    for param in cmd.params:
+        parameter_seen.add(param.name.replace("--", ""))
+
+    for deco_name in step_deco_names:
+        deco = step_deco_dict[deco_name]
+        for option, kwargs in deco.options.items():
+            if option in seen:
+                msg = (
+                    "Step decorator '%s' uses an option '%s' which is also "
+                    "used by another step decorator. " % (deco.name, option)
+                )
+                raise MetaflowInternalError(msg)
+            elif option in parameter_seen:
+                msg = (
+                    "Step decorator '%s' uses an option '%s' which is also "
+                    "used by a Metaflow Parameter. Please change the name of the parameter."
+                    % (deco.name, option)
+                )
+                raise MetaflowInternalError(msg)
+            else:
+                seen.add(option)
                 cmd.params.insert(0, click.Option(("--" + option,), **kwargs))
     return cmd
 
@@ -256,6 +294,26 @@ class StepDecorator(Decorator):
                   step.__name__ etc., so that we don't have to
                   pass them around with every lifecycle call.
     """
+
+    options = {}
+    # `options` is similar to the one the flow decorator. It will be used to
+    # pass options to the step decorator from the cli.
+
+    # `_USER_SET_OPTIONS` is a class variable that will be used to store the options
+    # set by the user from the cli. This will help globally set some settings to the
+    # step decorator.
+    _USER_SET_OPTIONS = {}
+
+    @classmethod
+    def set_options_value(
+        cls,
+        options_dict,
+    ):
+        """
+        called after flow init and before any dynamically injected decorators are initialized
+        Statically set decorators can inject CLI options which are passed down to the step decorator.
+        """
+        cls._USER_SET_OPTIONS = options_dict
 
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger

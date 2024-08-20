@@ -479,6 +479,7 @@ def step(
     echo("Success", fg="green", bold=True, indent=True)
 
 
+@decorators.add_step_decorator_parameters
 @parameters.add_custom_parameters(deploy_mode=False)
 @cli.command(help="Internal command to initialize a run.", hidden=True)
 @click.option(
@@ -722,6 +723,7 @@ def resume(
 
 
 @tracing.cli_entrypoint("cli/run")
+@decorators.add_step_decorator_parameters
 @parameters.add_custom_parameters(deploy_mode=True)
 @cli.command(help="Run the workflow locally.")
 @common_run_options

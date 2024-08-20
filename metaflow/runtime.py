@@ -1448,6 +1448,9 @@ class CLIArgs(object):
         for deco in flow_decorators(self.task.flow):
             self.top_level_options.update(deco.get_top_level_options())
 
+        # TODO [CLI-OPTIONS-FROM-STEP-DECOS]:
+        # Extract the deco.get_top_level_options() equivalent for the step decorators.
+
         self.commands = ["step"]
         self.command_args = [self.task.step]
         self.command_options = {
