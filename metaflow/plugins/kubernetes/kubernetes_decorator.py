@@ -163,7 +163,6 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["node_selector"].update(
                 {"outerbounds.co/compute-pool": self.attributes["compute_pool"]}
             )
-            # del self.attributes["compute_pool"]
 
         if self.attributes["tolerations"]:
             try:
