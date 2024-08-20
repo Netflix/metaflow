@@ -153,7 +153,7 @@ class MetaflowPackage(object):
 
     def _add_info(self, tar):
         info = tarfile.TarInfo(os.path.basename(INFO_FILE))
-        env = self.environment.get_environment_info(include_ext_info=True)
+        env = self.environment.get_environment_info(full_info=True)
         buf = BytesIO()
         buf.write(json.dumps(env).encode("utf-8"))
         buf.seek(0)
