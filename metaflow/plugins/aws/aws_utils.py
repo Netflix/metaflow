@@ -4,6 +4,22 @@ import requests
 from metaflow.exception import MetaflowException
 
 
+def parse_s3_full_path(s3_uri):
+    from urllib.parse import urlparse
+
+    #  <scheme>://<netloc>/<path>;<params>?<query>#<fragment>
+    scheme, netloc, path, _, _, _ = urlparse(s3_uri)
+    assert scheme == "s3"
+    assert netloc is not None
+
+    bucket = netloc
+    path = path.lstrip("/").rstrip("/")
+    if path == "":
+        path = None
+
+    return bucket, path
+
+
 def get_ec2_instance_metadata():
     """
     Fetches the EC2 instance metadata through AWS instance metadata service

@@ -89,10 +89,16 @@ class MetaflowEnvironment(object):
         It should work silently if everything goes well.
         """
         if datastore_type == "s3":
-            return (
-                '%s -m awscli ${METAFLOW_S3_ENDPOINT_URL:+--endpoint-url=\\"${METAFLOW_S3_ENDPOINT_URL}\\"} '
-                + "s3 cp %s job.tar >/dev/null"
-            ) % (self._python(), code_package_url)
+            from .plugins.aws.aws_utils import parse_s3_full_path
+
+            bucket, s3_object = parse_s3_full_path(code_package_url)
+            # NOTE: the script quoting is extremely sensitive due to the way shlex.split operates and this being inserted
+            # into a quoted command elsewhere.
+            return "{python} -c '{script}'".format(
+                python=self._python(),
+                script='import boto3, os; boto3.client(\\"s3\\", endpoint_url=os.getenv(\\"METAFLOW_S3_ENDPOINT_URL\\")).download_file(\\"%s\\", \\"%s\\", \\"job.tar\\")'
+                % (bucket, s3_object),
+            )
         elif datastore_type == "azure":
             from .plugins.azure.azure_utils import parse_azure_full_path
 
@@ -119,25 +125,34 @@ class MetaflowEnvironment(object):
             )
 
     def _get_install_dependencies_cmd(self, datastore_type):
-        cmds = ["%s -m pip install requests -qqq" % self._python()]
-        if datastore_type == "s3":
-            cmds.append("%s -m pip install awscli boto3 -qqq" % self._python())
-        elif datastore_type == "azure":
-            cmds.append(
-                "%s -m pip install azure-identity azure-storage-blob azure-keyvault-secrets simple-azure-blob-downloader -qqq"
-                % self._python()
-            )
-        elif datastore_type == "gs":
-            cmds.append(
-                "%s -m pip install google-cloud-storage google-auth simple-gcp-object-downloader google-cloud-secret-manager -qqq"
-                % self._python()
-            )
-        else:
+        base_cmd = "{} -m pip install -qqq".format(self._python())
+
+        datastore_packages = {
+            "s3": ["boto3"],
+            "azure": [
+                "azure-identity",
+                "azure-storage-blob",
+                "azure-keyvault-secrets",
+                "simple-azure-blob-downloader",
+            ],
+            "gs": [
+                "google-cloud-storage",
+                "google-auth",
+                "simple-gcp-object-downloader",
+                "google-cloud-secret-manager",
+            ],
+        }
+
+        if datastore_type not in datastore_packages:
             raise NotImplementedError(
-                "We don't know how to generate an install dependencies cmd for datastore %s"
-                % datastore_type
+                "Unknown datastore type: {}".format(datastore_type)
             )
-        return " && ".join(cmds)
+
+        cmd = "{} {}".format(
+            base_cmd, " ".join(datastore_packages[datastore_type] + ["requests"])
+        )
+        # skip pip installs if we know that packages might already be available
+        return "if [ -z $METAFLOW_SKIP_INSTALL_DEPENDENCIES ]; then {}; fi".format(cmd)
 
     def get_package_commands(self, code_package_url, datastore_type):
         cmds = [
