@@ -37,8 +37,8 @@ class TimeoutDecorator(StepDecorator):
     name = "timeout"
     defaults = {"seconds": 0, "minutes": 0, "hours": 0}
 
-    def __init__(self, *args, **kwargs):
-        super(TimeoutDecorator, self).__init__(*args, **kwargs)
+    def resolve_configs(self):
+        super().resolve_configs()
         # Initialize secs in __init__ so other decorators could safely use this
         # value without worrying about decorator order.
         # Convert values in attributes to type:int since they can be type:str

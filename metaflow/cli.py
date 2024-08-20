@@ -47,6 +47,7 @@ from .util import (
     resolve_identity,
     write_latest_run_id,
 )
+from .user_configs import LocalFileInput
 
 ERASE_TO_EOL = "\033[K"
 HIGHLIGHT = "red"
@@ -523,7 +524,7 @@ def init(obj, run_id=None, task_id=None, tags=None, **kwargs):
         obj.monitor,
         run_id=run_id,
     )
-    obj.flow._set_constants(obj.graph, kwargs)
+    obj.flow._set_constants(obj.graph, kwargs, obj.config_options)
     runtime.persist_constants(task_id=task_id)
 
 
@@ -774,7 +775,7 @@ def run(
     write_latest_run_id(obj, runtime.run_id)
     write_file(run_id_file, runtime.run_id)
 
-    obj.flow._set_constants(obj.graph, kwargs)
+    obj.flow._set_constants(obj.graph, kwargs, obj.config_options)
     runtime.print_workflow_info()
     runtime.persist_constants()
 
@@ -847,7 +848,7 @@ def version(obj):
 
 
 @tracing.cli_entrypoint("cli/start")
-@decorators.add_decorator_options
+@decorators.add_decorator_and_config_options
 @click.command(
     cls=click.CommandCollection,
     sources=[cli] + plugins.get_plugin_cli(),
@@ -915,6 +916,15 @@ def version(obj):
     type=click.Choice(MONITOR_SIDECARS),
     help="Monitoring backend type",
 )
+@click.option(
+    "--local-info-file",
+    type=LocalFileInput(exists=True, readable=True, dir_okay=False, resolve_path=True),
+    required=False,
+    default=None,
+    help="A filename containing a subset of the INFO file. Internal use only.",
+    hidden=True,
+    is_eager=True,
+)
 @click.pass_context
 def start(
     ctx,
@@ -928,7 +938,8 @@ def start(
     pylint=None,
     event_logger=None,
     monitor=None,
-    **deco_options
+    local_info_file=None,
+    **deco_and_config_options
 ):
     global echo
     if quiet:
@@ -945,11 +956,17 @@ def start(
     echo(" executing *%s*" % ctx.obj.flow.name, fg="magenta", nl=False)
     echo(" for *%s*" % resolve_identity(), fg="magenta")
 
+    # At this point, we are able to resolve the user-configuration options so we can
+    # process all those decorators that the user added that will modify the flow based
+    # on those configurations. It is important to do this as early as possible since it
+    # actually modifies the flow itself
+    ctx.obj.flow = ctx.obj.flow._process_config_funcs(deco_and_config_options)
+
     cli_args._set_top_kwargs(ctx.params)
     ctx.obj.echo = echo
     ctx.obj.echo_always = echo_always
     ctx.obj.is_quiet = quiet
-    ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
+    ctx.obj.graph = ctx.obj.flow._graph
     ctx.obj.logger = logger
     ctx.obj.check = _check
     ctx.obj.pylint = pylint
@@ -1000,6 +1017,19 @@ def start(
         ctx.obj.event_logger,
         ctx.obj.monitor,
     )
+
+    ctx.obj.config_options = {
+        k: v
+        for k, v in deco_and_config_options.items()
+        if k in ctx.command.config_options
+    }
+    deco_options = {
+        k: v
+        for k, v in deco_and_config_options.items()
+        if k not in ctx.command.config_options
+    }
+
+    decorators._resolve_configs(ctx.obj.flow)
 
     # It is important to initialize flow decorators early as some of the
     # things they provide may be used by some of the objects initialized after.

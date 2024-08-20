@@ -6,9 +6,11 @@ using local / remote processes
 """
 
 from __future__ import print_function
+import json
 import os
 import sys
 import fcntl
+import tempfile
 import time
 import subprocess
 from datetime import datetime
@@ -39,6 +41,9 @@ from .unbounded_foreach import (
     UBF_CONTROL,
     UBF_TASK,
 )
+
+from .user_configs import ConfigInput, dump_config_values
+
 import metaflow.tracing as tracing
 
 MAX_WORKERS = 16
@@ -417,82 +422,95 @@ class NativeRuntime(object):
             else:
                 self._queue_push("start", {})
         progress_tstamp = time.time()
-        try:
-            # main scheduling loop
-            exception = None
-            while self._run_queue or self._active_tasks[0] > 0 or self._cloned_tasks:
-                # 1. are any of the current workers finished?
-                if self._cloned_tasks:
-                    finished_tasks = self._cloned_tasks
-                    # reset the list of cloned tasks and let poll_workers handle
-                    # the remaining transition
-                    self._cloned_tasks = []
-                else:
-                    finished_tasks = list(self._poll_workers())
-                # 2. push new tasks triggered by the finished tasks to the queue
-                self._queue_tasks(finished_tasks)
-                # 3. if there are available worker slots, pop and start tasks
-                #    from the queue.
-                self._launch_workers()
-
-                if time.time() - progress_tstamp > PROGRESS_INTERVAL:
-                    progress_tstamp = time.time()
-                    tasks_print = ", ".join(
-                        [
-                            "%s (%d running; %d done)" % (k, v[0], v[1])
-                            for k, v in self._active_tasks.items()
-                            if k != 0 and v[0] > 0
-                        ]
-                    )
-                    if self._active_tasks[0] == 0:
-                        msg = "No tasks are running."
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as config_file:
+            # Configurations are passed through a file to avoid overloading the
+            # command-line. We only need to create this file once and it can be reused
+            # for any task launch
+            config_key, config_value = dump_config_values(self._flow)
+            if config_value:
+                json.dump({config_key: config_value}, config_file)
+                config_file.flush()
+                self._config_file_name = config_file.name
+            else:
+                self._config_file_name = None
+            try:
+                # main scheduling loop
+                exception = None
+                while (
+                    self._run_queue or self._active_tasks[0] > 0 or self._cloned_tasks
+                ):
+                    # 1. are any of the current workers finished?
+                    if self._cloned_tasks:
+                        finished_tasks = self._cloned_tasks
+                        # reset the list of cloned tasks and let poll_workers handle
+                        # the remaining transition
+                        self._cloned_tasks = []
                     else:
-                        if self._active_tasks[0] == 1:
-                            msg = "1 task is running: "
-                        else:
-                            msg = "%d tasks are running: " % self._active_tasks[0]
-                        msg += "%s." % tasks_print
+                        finished_tasks = list(self._poll_workers())
+                    # 2. push new tasks triggered by the finished tasks to the queue
+                    self._queue_tasks(finished_tasks)
+                    # 3. if there are available worker slots, pop and start tasks
+                    #    from the queue.
+                    self._launch_workers()
 
-                    self._logger(msg, system_msg=True)
-
-                    if len(self._run_queue) == 0:
-                        msg = "No tasks are waiting in the queue."
-                    else:
-                        if len(self._run_queue) == 1:
-                            msg = "1 task is waiting in the queue: "
+                    if time.time() - progress_tstamp > PROGRESS_INTERVAL:
+                        progress_tstamp = time.time()
+                        tasks_print = ", ".join(
+                            [
+                                "%s (%d running; %d done)" % (k, v[0], v[1])
+                                for k, v in self._active_tasks.items()
+                                if k != 0 and v[0] > 0
+                            ]
+                        )
+                        if self._active_tasks[0] == 0:
+                            msg = "No tasks are running."
                         else:
-                            msg = "%d tasks are waiting in the queue." % len(
-                                self._run_queue
-                            )
+                            if self._active_tasks[0] == 1:
+                                msg = "1 task is running: "
+                            else:
+                                msg = "%d tasks are running: " % self._active_tasks[0]
+                            msg += "%s." % tasks_print
 
-                    self._logger(msg, system_msg=True)
-                    if len(self._unprocessed_steps) > 0:
-                        if len(self._unprocessed_steps) == 1:
-                            msg = "%s step has not started" % (
-                                next(iter(self._unprocessed_steps)),
-                            )
-                        else:
-                            msg = "%d steps have not started: " % len(
-                                self._unprocessed_steps
-                            )
-                            msg += "%s." % ", ".join(self._unprocessed_steps)
                         self._logger(msg, system_msg=True)
 
-        except KeyboardInterrupt as ex:
-            self._logger("Workflow interrupted.", system_msg=True, bad=True)
-            self._killall()
-            exception = ex
-            raise
-        except Exception as ex:
-            self._logger("Workflow failed.", system_msg=True, bad=True)
-            self._killall()
-            exception = ex
-            raise
-        finally:
-            # on finish clean tasks
-            for step in self._flow:
-                for deco in step.decorators:
-                    deco.runtime_finished(exception)
+                        if len(self._run_queue) == 0:
+                            msg = "No tasks are waiting in the queue."
+                        else:
+                            if len(self._run_queue) == 1:
+                                msg = "1 task is waiting in the queue: "
+                            else:
+                                msg = "%d tasks are waiting in the queue." % len(
+                                    self._run_queue
+                                )
+
+                        self._logger(msg, system_msg=True)
+                        if len(self._unprocessed_steps) > 0:
+                            if len(self._unprocessed_steps) == 1:
+                                msg = "%s step has not started" % (
+                                    next(iter(self._unprocessed_steps)),
+                                )
+                            else:
+                                msg = "%d steps have not started: " % len(
+                                    self._unprocessed_steps
+                                )
+                                msg += "%s." % ", ".join(self._unprocessed_steps)
+                            self._logger(msg, system_msg=True)
+
+            except KeyboardInterrupt as ex:
+                self._logger("Workflow interrupted.", system_msg=True, bad=True)
+                self._killall()
+                exception = ex
+                raise
+            except Exception as ex:
+                self._logger("Workflow failed.", system_msg=True, bad=True)
+                self._killall()
+                exception = ex
+                raise
+            finally:
+                # on finish clean tasks
+                for step in self._flow:
+                    for deco in step.decorators:
+                        deco.runtime_finished(exception)
 
         # assert that end was executed and it was successful
         if ("end", ()) in self._finished:
@@ -901,7 +919,7 @@ class NativeRuntime(object):
             )
             return
 
-        worker = Worker(task, self._max_log_size)
+        worker = Worker(task, self._max_log_size, self._config_file_name)
         for fd in worker.fds():
             self._workers[fd] = worker
             self._poll.add(fd)
@@ -1181,7 +1199,6 @@ class Task(object):
         # Open the output datastore only if the task is not being cloned.
         if not self._is_cloned:
             self.new_attempt()
-
             for deco in decos:
                 deco.runtime_task_created(
                     self._ds,
@@ -1448,6 +1465,13 @@ class CLIArgs(object):
         for deco in flow_decorators(self.task.flow):
             self.top_level_options.update(deco.get_top_level_options())
 
+        # We also pass configuration options using the kv.<name> syntax which will cause
+        # the configuration options to be loaded from the INFO file (or local-info-file
+        # in the case of the local runtime)
+        self.top_level_options.update(
+            {k: ConfigInput.make_key_name(k) for k in self.task.flow._user_configs}
+        )
+
         self.commands = ["step"]
         self.command_args = [self.task.step]
         self.command_options = {
@@ -1498,8 +1522,9 @@ class CLIArgs(object):
 
 
 class Worker(object):
-    def __init__(self, task, max_logs_size):
+    def __init__(self, task, max_logs_size, config_file_name):
         self.task = task
+        self._config_file_name = config_file_name
         self._proc = self._launch()
 
         if task.retries > task.user_code_retries:
@@ -1551,6 +1576,12 @@ class Worker(object):
                     self.task.user_code_retries,
                     self.task.ubf_context,
                 )
+
+        # Add user configurations using a file to avoid using up too much space on the
+        # command line
+        if self._config_file_name:
+            args.top_level_options["local-info-file"] = self._config_file_name
+        # Pass configuration options
         env.update(args.get_env())
         env["PYTHONUNBUFFERED"] = "x"
         tracing.inject_tracing_vars(env)
