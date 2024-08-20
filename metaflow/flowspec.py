@@ -6,7 +6,7 @@ import reprlib
 
 from itertools import islice
 from types import FunctionType, MethodType
-from typing import Any, Callable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Generator, List, Optional, Tuple
 
 from . import cmd_with_io, parameters
 from .parameters import DelayedEvaluationParameter, Parameter
@@ -20,6 +20,7 @@ from .extension_support import extension_info
 
 from .graph import FlowGraph
 from .unbounded_foreach import UnboundedForeachInput
+from .user_configs import ConfigInput, ConfigValue
 from .util import to_pod
 from .metaflow_config import INCLUDE_FOREACH_STACK, MAXIMUM_FOREACH_VALUE_CHARS
 
@@ -71,9 +72,65 @@ class FlowSpecMeta(type):
         # This makes sure to give _flow_decorators to each
         # child class (and not share it with the FlowSpec base
         # class). This is important to not make a "global"
-        # _flow_decorators
+        # _flow_decorators. Same deal with user configurations
         f._flow_decorators = {}
+        f._user_configs = {}
+
+        # We also cache parameter names to avoid having to recompute what is a parameter
+        # in the dir of a flow
+        f._cached_parameters = None
+
+        # Finally attach all functions that need to be evaluated once user configurations
+        # are available
+        f._config_funcs = []
+
         return f
+
+    @property
+    def configs(cls) -> Generator[Tuple[str, "ConfigValue"], None, None]:
+        """
+        Iterate over all user configurations in this flow
+
+        Use this to parameterize your flow based on configuration. As an example:
+        ```
+        def parametrize(flow):
+            val = next(flow.configs)[1].steps.start.cpu
+            flow.start = environment(vars={'mycpu': val})(flow.start)
+            return flow
+
+        @parametrize
+        class TestFlow(FlowSpec):
+            config = Config('myconfig.json')
+
+            @step
+            def start(self):
+                pass
+        ```
+        can be used to add an environment decorator to the `start` step.
+
+        Yields
+        ------
+        Tuple[str, ConfigValue]
+            Iterates over the configurations of the flow
+        """
+        # When configs are parsed, they are loaded in _user_configs
+        for name, value in cls._user_configs.items():
+            yield name, ConfigValue(value)
+
+    @property
+    def steps(cls) -> Generator[Tuple[str, Any], None, None]:
+        """
+        Iterate over all the steps in this flow
+
+        Yields
+        ------
+        Tuple[str, Any]
+            A tuple with the step name and the step itself
+        """
+        for var in dir(cls):
+            potential_step = getattr(cls, var)
+            if callable(potential_step) and hasattr(potential_step, "is_step"):
+                yield var, potential_step
 
 
 class FlowSpec(metaclass=FlowSpecMeta):
@@ -96,6 +153,9 @@ class FlowSpec(metaclass=FlowSpecMeta):
         "_cached_input",
         "_graph",
         "_flow_decorators",
+        "_user_configs",
+        "_cached_parameters",
+        "_config_funcs",
         "_steps",
         "index",
         "input",
@@ -148,14 +208,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
             fname = fname[:-1]
         return os.path.basename(fname)
 
-    def _set_constants(self, graph, kwargs):
-        from metaflow.decorators import (
-            flow_decorators,
-        )  # To prevent circular dependency
-
-        # Persist values for parameters and other constants (class level variables)
-        # only once. This method is called before persist_constants is called to
-        # persist all values set using setattr
+    def _check_parameters(self):
         seen = set()
         for var, param in self._get_parameters():
             norm = param.name.lower()
@@ -166,13 +219,69 @@ class FlowSpec(metaclass=FlowSpecMeta):
                     "case-insensitive." % param.name
                 )
             seen.add(norm)
-        seen.clear()
+
+    def _process_config_funcs(self, config_options):
+        current_cls = self.__class__
+
+        # Fast path for no user configurations
+        if not self._config_funcs:
+            return self
+
+        # We need to convert all the user configurations from DelayedEvaluationParameters
+        # to actual values so they can be used as is in the config functions.
+
+        # We then reset them to be proper parameters so they can be re-evaluated in
+        # _set_constants
+        to_reset_params = []
+        self._check_parameters()
+        for var, param in self._get_parameters():
+            if not param.IS_FLOW_PARAMETER:
+                continue
+            to_reset_params.append((var, param))
+            val = config_options[param.name.replace("-", "_").lower()]
+            if isinstance(val, DelayedEvaluationParameter):
+                val = val()
+            setattr(current_cls, var, val)
+
+        # Run all the functions. They will now be able to access the configuration
+        # values directly from the class
+        for func in self._config_funcs:
+            current_cls = func(current_cls)
+
+        # Reset all configs that were already present in the class.
+        # TODO: This means that users can't override configs directly. Not sure if this
+        # is a pattern we want to support
+        for var, param in to_reset_params:
+            setattr(current_cls, var, param)
+
+        # We reset cached_parameters on the very off chance that the user added
+        # more configurations based on the configuration
+        current_cls._cached_parameters = None
+
+        # Set the current flow class we are in (the one we just created)
+        parameters.replace_flow_context(current_cls)
+        return current_cls(use_cli=False)
+
+    def _set_constants(self, graph, kwargs, config_options):
+        from metaflow.decorators import (
+            flow_decorators,
+        )  # To prevent circular dependency
+
+        # Persist values for parameters and other constants (class level variables)
+        # only once. This method is called before persist_constants is called to
+        # persist all values set using setattr
+        self._check_parameters()
+
+        seen = set()
         self._success = True
 
         parameters_info = []
         for var, param in self._get_parameters():
             seen.add(var)
-            val = kwargs[param.name.replace("-", "_").lower()]
+            if param.IS_FLOW_PARAMETER:
+                val = config_options[param.name.replace("-", "_").lower()]
+            else:
+                val = kwargs[param.name.replace("-", "_").lower()]
             # Support for delayed evaluation of parameters.
             if isinstance(val, DelayedEvaluationParameter):
                 val = val()
@@ -218,6 +327,11 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
     @classmethod
     def _get_parameters(cls):
+        if cls._cached_parameters is not None:
+            for var in cls._cached_parameters:
+                yield var, getattr(cls, var)
+            return
+        build_list = []
         for var in dir(cls):
             if var[0] == "_" or var in cls._NON_PARAMETERS:
                 continue
@@ -226,7 +340,9 @@ class FlowSpec(metaclass=FlowSpecMeta):
             except:
                 continue
             if isinstance(val, Parameter):
+                build_list.append(var)
                 yield var, val
+        cls._cached_parameters = build_list
 
     def _set_datastore(self, datastore):
         self._datastore = datastore

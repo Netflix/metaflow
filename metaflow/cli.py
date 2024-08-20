@@ -35,6 +35,7 @@ from .plugins import (
 from .pylint_wrapper import PyLint
 from .R import metaflow_r_version, use_r
 from .util import resolve_identity
+from .user_configs import LocalFileInput, config_options
 
 ERASE_TO_EOL = "\033[K"
 HIGHLIGHT = "red"
@@ -223,7 +224,10 @@ def version(obj):
     echo_always(obj.version)
 
 
+# NOTE: add_decorator_options should be TL because it checks to make sure
+# that no option conflict with the ones below
 @decorators.add_decorator_options
+@config_options
 @click.command(
     cls=LazyPluginCommandCollection,
     sources=[cli],
@@ -293,6 +297,15 @@ def version(obj):
     type=click.Choice(MONITOR_SIDECARS),
     help="Monitoring backend type",
 )
+@click.option(
+    "--local-info-file",
+    type=LocalFileInput(exists=True, readable=True, dir_okay=False, resolve_path=True),
+    required=False,
+    default=None,
+    help="A filename containing a subset of the INFO file. Internal use only.",
+    hidden=True,
+    is_eager=True,
+)
 @click.pass_context
 def start(
     ctx,
@@ -306,6 +319,8 @@ def start(
     pylint=None,
     event_logger=None,
     monitor=None,
+    local_info_file=None,
+    config_options=None,
     **deco_options
 ):
     if quiet:
@@ -322,11 +337,17 @@ def start(
     echo(" executing *%s*" % ctx.obj.flow.name, fg="magenta", nl=False)
     echo(" for *%s*" % resolve_identity(), fg="magenta")
 
+    # At this point, we are able to resolve the user-configuration options so we can
+    # process all those decorators that the user added that will modify the flow based
+    # on those configurations. It is important to do this as early as possible since it
+    # actually modifies the flow itself
+    ctx.obj.flow = ctx.obj.flow._process_config_funcs(config_options)
+
     cli_args._set_top_kwargs(ctx.params)
     ctx.obj.echo = echo
     ctx.obj.echo_always = echo_always
     ctx.obj.is_quiet = quiet
-    ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
+    ctx.obj.graph = ctx.obj.flow._graph
     ctx.obj.logger = logger
     ctx.obj.pylint = pylint
     ctx.obj.check = functools.partial(_check, echo)
@@ -376,6 +397,10 @@ def start(
         ctx.obj.event_logger,
         ctx.obj.monitor,
     )
+
+    ctx.obj.config_options = config_options
+
+    decorators._resolve_configs(ctx.obj.flow)
 
     # It is important to initialize flow decorators early as some of the
     # things they provide may be used by some of the objects initialized after.

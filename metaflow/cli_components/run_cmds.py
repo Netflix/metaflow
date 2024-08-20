@@ -40,6 +40,7 @@ def before_run(obj, tags, decospecs):
     )
     if all_decospecs:
         decorators._attach_decorators(obj.flow, all_decospecs)
+        decorators._init(obj.flow, only_non_static=True)
         obj.graph = FlowGraph(obj.flow.__class__)
 
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
@@ -326,7 +327,7 @@ def run(
     write_latest_run_id(obj, runtime.run_id)
     write_file(run_id_file, runtime.run_id)
 
-    obj.flow._set_constants(obj.graph, kwargs)
+    obj.flow._set_constants(obj.graph, kwargs, obj.config_options)
     current._update_env(
         {
             "run_id": runtime.run_id,

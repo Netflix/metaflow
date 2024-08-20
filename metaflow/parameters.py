@@ -72,6 +72,16 @@ def flow_context(flow_cls):
 context_proto = None
 
 
+def replace_flow_context(flow_cls):
+    """
+    Replace the current flow context with a new flow class. This is used
+    when we change the current flow class after having run user configuration functions
+    """
+    current_flow.flow_cls_stack = current_flow.flow_cls_stack[1:]
+    current_flow.flow_cls_stack.insert(0, flow_cls)
+    current_flow.flow_cls = current_flow.flow_cls_stack[0]
+
+
 class JSONTypeClass(click.ParamType):
     name = "JSON"
 
@@ -299,6 +309,8 @@ class Parameter(object):
         If True, show the default value in the help text.
     """
 
+    IS_FLOW_PARAMETER = False
+
     def __init__(
         self,
         name: str,
@@ -439,7 +451,9 @@ def add_custom_parameters(deploy_mode=False):
         flow_cls = getattr(current_flow, "flow_cls", None)
         if flow_cls is None:
             return cmd
-        parameters = [p for _, p in flow_cls._get_parameters()]
+        parameters = [
+            p for _, p in flow_cls._get_parameters() if not p.IS_FLOW_PARAMETER
+        ]
         for arg in parameters[::-1]:
             kwargs = arg.option_kwargs(deploy_mode)
             cmd.params.insert(0, click.Option(("--" + arg.name,), **kwargs))

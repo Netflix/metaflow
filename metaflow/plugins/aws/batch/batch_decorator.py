@@ -138,8 +138,8 @@ class BatchDecorator(StepDecorator):
     supports_conda_environment = True
     target_platform = "linux-64"
 
-    def __init__(self, attributes=None, statically_defined=False):
-        super(BatchDecorator, self).__init__(attributes, statically_defined)
+    def resolve_configs(self):
+        super(BatchDecorator, self).resolve_configs()
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
