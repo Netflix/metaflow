@@ -223,7 +223,13 @@ class DockerEnvironment(MetaflowEnvironment):
         if step_name in self.skipped_steps:
             return self.delegate.executable(step_name, default)
         # default is set to the right executable
-        return default
+        if default is not None:
+            return default
+        if default is None and step_name in self.results:
+            # try to read pythonpath from results. This can happen immediately after baking.
+            return self.results[step_name].python_path
+        # we lack a default and baking results. fallback to parent executable.
+        return super().executable(step_name, default)
 
     def interpreter(self, step_name):
         if step_name in self.skipped_steps:
