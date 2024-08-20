@@ -92,18 +92,12 @@ class MetaflowEnvironment(object):
             from .plugins.aws.aws_utils import parse_s3_full_path
 
             bucket, s3_object = parse_s3_full_path(code_package_url)
-            # Explicitly _don't_ use awscli here, because of version incompatibilities
-            # between awscli v1 (installed via pypi) and awscli v2 (installed _not_
-            # through pypi).
-            # Instead, just use boto3 which we already have installed.
-            return (
-                '%s -c "import boto3; import os; '
-                "boto3.client('s3', endpoint_url=os.getenv(METAFLOW_S3_ENDPOINT_URL))"
-                ".download_file('%s', '%s', 'job.tar')\""
-            ) % (
-                self._python(),
-                bucket,
-                s3_object,
+            # NOTE: the script quoting is extremely sensitive due to the way shlex.split operates and this being inserted
+            # into a quoted command elsewhere.
+            return "{python} -c '{script}'".format(
+                python=self._python(),
+                script='import boto3, os; boto3.client(\\"s3\\", endpoint_url=os.getenv(\\"METAFLOW_S3_ENDPOINT_URL\\")).download_file(\\"%s\\", \\"%s\\", \\"job.tar\\")'
+                % (bucket, s3_object),
             )
         elif datastore_type == "azure":
             from .plugins.azure.azure_utils import parse_azure_full_path
