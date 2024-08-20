@@ -125,25 +125,34 @@ class MetaflowEnvironment(object):
             )
 
     def _get_install_dependencies_cmd(self, datastore_type):
-        cmds = ["%s -m pip install requests -qqq" % self._python()]
-        if datastore_type == "s3":
-            cmds.append("%s -m pip install boto3 -qqq" % self._python())
-        elif datastore_type == "azure":
-            cmds.append(
-                "%s -m pip install azure-identity azure-storage-blob azure-keyvault-secrets simple-azure-blob-downloader -qqq"
-                % self._python()
-            )
-        elif datastore_type == "gs":
-            cmds.append(
-                "%s -m pip install google-cloud-storage google-auth simple-gcp-object-downloader google-cloud-secret-manager -qqq"
-                % self._python()
-            )
-        else:
+        base_cmd = "{} -m pip install".format(self._python())
+
+        datastore_packages = {
+            "s3": ["boto3"],
+            "azure": [
+                "azure-identity",
+                "azure-storage-blob",
+                "azure-keyvault-secrets",
+                "simple-azure-blob-downloader",
+            ],
+            "gs": [
+                "google-cloud-storage",
+                "google-auth",
+                "simple-gcp-object-downloader",
+                "google-cloud-secret-manager",
+            ],
+        }
+
+        if datastore_type not in datastore_packages:
             raise NotImplementedError(
-                "We don't know how to generate an install dependencies cmd for datastore %s"
-                % datastore_type
+                "Unknown datastore type: {}".format(datastore_type)
             )
-        return " && ".join(cmds)
+
+        cmd = "{} {}".format(
+            base_cmd, " ".join(datastore_packages[datastore_type] + ["requests"])
+        )
+        # skip pip installs if we know that packages might already be available
+        return "if [ -z $SKIP_INSTALL_DEPENDENCIES ]; then {}; fi".format(cmd)
 
     def get_package_commands(self, code_package_url, datastore_type):
         cmds = [
