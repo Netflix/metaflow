@@ -152,7 +152,7 @@ class MetaflowEnvironment(object):
             base_cmd, " ".join(datastore_packages[datastore_type] + ["requests"])
         )
         # skip pip installs if we know that packages might already be available
-        return "if [ -z $SKIP_INSTALL_DEPENDENCIES ]; then {}; fi".format(cmd)
+        return "if [ -z $METAFLOW_SKIP_INSTALL_DEPENDENCIES ]; then {}; fi".format(cmd)
 
     def get_package_commands(self, code_package_url, datastore_type):
         cmds = [
