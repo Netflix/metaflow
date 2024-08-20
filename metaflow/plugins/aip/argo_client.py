@@ -1,7 +1,7 @@
 # talebz copied from https://github.com/Netflix/metaflow/blob/master/metaflow/plugins/argo/argo_client.py
 
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 from metaflow.exception import MetaflowException
 from metaflow.plugins.aws.eks.kubernetes_client import KubernetesClient
@@ -82,6 +82,20 @@ class ArgoClient(object):
                 raise ArgoClientException(
                     json.loads(e.body)["message"] if e.body is not None else e.reason
                 )
+
+    def list_workflow_template(self, namespace: Optional[str] = None):
+        client = self._client.get()
+        try:
+            return client.CustomObjectsApi().list_namespaced_custom_object(
+                group=self._group,
+                version=self._version,
+                namespace=namespace or self._namespace,
+                plural="workflowtemplates",
+            )
+        except client.rest.ApiException as e:
+            raise ArgoClientException(
+                json.loads(e.body)["message"] if e.body is not None else e.reason
+            )
 
     def trigger_workflow_template(self, name: str, parameters: Optional[Dict] = None):
         client = self._client.get()

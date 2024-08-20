@@ -151,8 +151,8 @@ AIP_TTL_SECONDS_AFTER_FINISHED = from_conf("AIP_TTL_SECONDS_AFTER_FINISHED", Non
 # Note: `ARGO_RUN_URL_PREFIX` is the URL prefix for ARGO runs on your ARGO cluster. The prefix includes
 # all parts of the URL except the run_id at the end which we append once the run is created.
 # For eg, this would look like: "https://<your-kf-cluster-url>/argo-ui/workflows/
-ARGO_RUN_URL_PREFIX = from_conf("ARGO_RUN_URL_PREFIX", "")
-METAFLOW_RUN_URL_PREFIX = from_conf("METAFLOW_RUN_URL_PREFIX", "")
+ARGO_RUN_URL_PREFIX = from_conf("ARGO_RUN_URL_PREFIX", "").rstrip("/")
+METAFLOW_RUN_URL_PREFIX = from_conf("METAFLOW_RUN_URL_PREFIX", "").rstrip("/")
 AIP_MAX_PARALLELISM = int(from_conf("AIP_MAX_PARALLELISM", 10))
 AIP_MAX_RUN_CONCURRENCY = int(from_conf("AIP_MAX_RUN_CONCURRENCY", 10))
 AIP_SHOW_METAFLOW_UI_URL = bool(from_conf("AIP_SHOW_METAFLOW_UI_URL", False))
