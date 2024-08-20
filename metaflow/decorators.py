@@ -12,6 +12,7 @@ from .exception import (
 )
 
 from .parameters import current_flow
+from .user_configs import DelayEvaluator
 
 from metaflow._vendor import click
 
@@ -123,6 +124,30 @@ class Decorator(object):
                 else:
                     raise InvalidDecoratorAttribute(self.name, k, self.defaults)
 
+    def resolve_configs(self):
+        """
+        Resolve any configuration options that may be set in the decorator's attributes
+        """
+
+        def _resolve_delayed_evaluator(v):
+            if isinstance(v, DelayEvaluator):
+                return v()
+            if isinstance(v, dict):
+                return {
+                    _resolve_delayed_evaluator(k): _resolve_delayed_evaluator(v)
+                    for k, v in v.items()
+                }
+            if isinstance(v, list):
+                return [_resolve_delayed_evaluator(x) for x in v]
+            if isinstance(v, tuple):
+                return tuple(_resolve_delayed_evaluator(x) for x in v)
+            if isinstance(v, set):
+                return {_resolve_delayed_evaluator(x) for x in v}
+            return v
+
+        for k, v in self.attributes.items():
+            self.attributes[k] = _resolve_delayed_evaluator(v)
+
     @classmethod
     def _parse_decorator_spec(cls, deco_spec):
         if len(deco_spec) == 0:
@@ -202,11 +227,28 @@ class FlowDecorator(Decorator):
 
 
 # compare this to parameters.add_custom_parameters
-def add_decorator_options(cmd):
-    seen = {}
+def add_decorator_and_config_options(cmd):
+    config_seen = {}
     flow_cls = getattr(current_flow, "flow_cls", None)
     if flow_cls is None:
         return cmd
+
+    parameters = [p for _, p in flow_cls._get_parameters() if p.IS_FLOW_PARAMETER]
+    # Add configuration options
+    for arg in parameters[::-1]:
+        kwargs = arg.option_kwargs(False)
+        if arg.name in config_seen:
+            msg = (
+                "Multiple configurations use the same name '%s'. Please change the "
+                "names of some of your configurations" % arg.name
+            )
+            raise MetaflowException(msg)
+        config_seen[arg.name] = arg
+        cmd.params.insert(0, click.Option(("--" + arg.name,), **kwargs))
+
+    cmd.config_options = set(config_seen.keys())
+    seen = {}
+    # Add decorator options
     for deco in flow_decorators(flow_cls):
         for option, kwargs in deco.options.items():
             if option in seen:
@@ -217,6 +259,12 @@ def add_decorator_options(cmd):
                     % (deco.name, option, seen[option])
                 )
                 raise MetaflowInternalError(msg)
+            elif option in config_seen:
+                msg = (
+                    "Flow decorator '%s' uses an option '%s' which is also "
+                    "used by a configuration. Please change the name of the "
+                    "configuration" % (deco.name, option)
+                )
             else:
                 kwargs["envvar"] = "METAFLOW_FLOW_%s" % option.upper()
                 seen[option] = deco.name
@@ -509,6 +557,16 @@ def _attach_decorators_to_step(step, decospecs):
                 splits[1] if len(splits) > 1 else ""
             )
             step.decorators.append(deco)
+
+
+def _resolve_configs(flow):
+    # We get the datastore for the _parameters step which can contain
+    for decorators in flow._flow_decorators.values():
+        for deco in decorators:
+            deco.resolve_configs()
+    for step in flow:
+        for deco in step.decorators:
+            deco.resolve_configs()
 
 
 def _init_flow_decorators(
