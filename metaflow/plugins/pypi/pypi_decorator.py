@@ -24,6 +24,12 @@ class PyPIStepDecorator(StepDecorator):
     name = "pypi"
     defaults = {"packages": {}, "python": None, "disabled": None}  # wheels
 
+    def __init__(self, attributes=None, statically_defined=False):
+        self._user_defined_attributes = (
+            attributes.copy() if attributes is not None else {}
+        )
+        super().__init__(attributes, statically_defined)
+
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         # The init_environment hook for Environment creates the relevant virtual
         # environments. The step_init hook sets up the relevant state for that hook to
@@ -87,6 +93,9 @@ class PyPIStepDecorator(StepDecorator):
                     ),
                 )
             )
+
+    def is_attribute_user_defined(self, name):
+        return name in self._user_defined_attributes
 
 
 class PyPIFlowDecorator(FlowDecorator):
