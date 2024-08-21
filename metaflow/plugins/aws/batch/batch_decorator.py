@@ -215,14 +215,16 @@ class BatchDecorator(StepDecorator):
         # Set some more internal state.
         self.flow = flow
         self.graph = graph
-        self.package = package
+        # Package is provided by the package decorator
+        # self.package = package
         self.run_id = run_id
 
-    def runtime_task_created(
-        self, task_datastore, task_id, split_index, input_paths, is_cloned, ubf_context
-    ):
-        if not is_cloned:
-            self._save_package_once(self.flow_datastore, self.package)
+    # Saving of the package is now done in the package decorator
+    # def runtime_task_created(
+    #     self, task_datastore, task_id, split_index, input_paths, is_cloned, ubf_context
+    # ):
+    #     if not is_cloned:
+    #         self._save_package_once(self.flow_datastore, self.package)
 
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context
@@ -232,8 +234,9 @@ class BatchDecorator(StepDecorator):
             # to execute on AWS Batch anymore. We can execute possible fallback
             # code locally.
             cli_args.commands = ["batch", "step"]
-            cli_args.command_args.append(self.package_sha)
-            cli_args.command_args.append(self.package_url)
+            # The package_url and package_sha are now added by the package decorator for that step
+            # cli_args.command_args.append(self.package_sha)
+            # cli_args.command_args.append(self.package_url)
             cli_args.command_options.update(self.attributes)
             cli_args.command_options["run-time-limit"] = self.run_time_limit
             if not R.use_r():
