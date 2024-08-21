@@ -1677,9 +1677,11 @@ class ArgoWorkflows(object):
             env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
             env["METAFLOW_CARD_AZUREROOT"] = CARD_AZUREROOT
             env["METAFLOW_ARGO_WORKFLOWS_KUBERNETES_SECRETS"] = (
-                "argo-workflows-default-service-principal-credentials"
+                ARGO_WORKFLOWS_KUBERNETES_SECRETS
             )
-            env["METAFLOW_ARGO_WORKFLOWS_ENV_VARS_TO_SKIP"] = "METAFLOW_SERVICE_HEADERS"
+            env["METAFLOW_ARGO_WORKFLOWS_ENV_VARS_TO_SKIP"] = (
+                ARGO_WORKFLOWS_ENV_VARS_TO_SKIP
+            )
 
             # support for GCP
             env["METAFLOW_DATASTORE_SYSROOT_GS"] = DATASTORE_SYSROOT_GS
