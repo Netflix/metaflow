@@ -100,7 +100,7 @@ class DockerEnvironment(MetaflowEnvironment):
         self.local_root = local_root
 
     def decospecs(self):
-        return ("conda",) + super().decospecs()
+        return ("conda", "fast_bakery_internal") + super().decospecs()
 
     def validate_environment(self, echo, datastore_type):
         self.datastore_type = datastore_type
