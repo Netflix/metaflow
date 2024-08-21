@@ -257,9 +257,11 @@ class DockerEnvironment(MetaflowEnvironment):
         if step_name in self.skipped_steps:
             return self.delegate.bootstrap_commands(step_name, datastore_type)
         # Bootstrap conda and execution environment for step
-        # we use an internal boolean flag so we do not have to pass the fast bakery endpoint url
-        # in order to denote that a bakery has been configured.
-        return super().bootstrap_commands(step_name, datastore_type)
+        # we set the environment flag for skipping bootstrap dependencies, as these are
+        # provided in all baked images.
+        return [
+            "export METAFLOW_SKIP_INSTALL_DEPENDENCIES=$FASTBAKERY_IMAGE",
+        ] + super().bootstrap_commands(step_name, datastore_type)
 
 
 def get_fastbakery_metafile_path(local_root, flow_name):
