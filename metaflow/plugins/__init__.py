@@ -27,6 +27,7 @@ STEP_DECORATORS_DESC = [
     ("timeout", ".timeout_decorator.TimeoutDecorator"),
     ("environment", ".environment_decorator.EnvironmentDecorator"),
     ("secrets", ".secrets.secrets_decorator.SecretsDecorator"),
+    ("package", ".package.package_decorator.PackageDecorator"),
     ("parallel", ".parallel_decorator.ParallelDecorator"),
     ("retry", ".retry_decorator.RetryDecorator"),
     ("resources", ".resources_decorator.ResourcesDecorator"),
