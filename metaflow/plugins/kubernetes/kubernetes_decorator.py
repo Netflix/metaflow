@@ -125,6 +125,7 @@ class KubernetesDecorator(StepDecorator):
         "shared_memory": None,
         "port": None,
         "compute_pool": None,
+        "executable": None,
     }
     package_url = None
     package_sha = None
