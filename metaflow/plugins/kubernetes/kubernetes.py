@@ -299,8 +299,6 @@ class Kubernetes(object):
 
         jobset.environment_variables_from_selectors(
             {
-                "METAFLOW_ARGO_WORKFLOWS_KUBERNETES_SECRETS": "argo-workflows-default-service-principal-credentials",
-                "METAFLOW_ARGO_WORKFLOWS_ENV_VARS_TO_SKIP": "METAFLOW_SERVICE_HEADERS",
                 "METAFLOW_KUBERNETES_NAMESPACE": "metadata.namespace",
                 "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
                 "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",

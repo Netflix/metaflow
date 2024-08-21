@@ -1658,6 +1658,9 @@ class ArgoWorkflows(object):
 
             # support Metaflow sandboxes
             env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
+            env["METAFLOW_KUBERNETES_SANDBOX_INIT_SCRIPT"] = (
+                KUBERNETES_SANDBOX_INIT_SCRIPT
+            )
 
             # support for @secret
             env["METAFLOW_DEFAULT_SECRETS_BACKEND_TYPE"] = DEFAULT_SECRETS_BACKEND_TYPE
@@ -1673,6 +1676,10 @@ class ArgoWorkflows(object):
             )
             env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
             env["METAFLOW_CARD_AZUREROOT"] = CARD_AZUREROOT
+            env["METAFLOW_ARGO_WORKFLOWS_KUBERNETES_SECRETS"] = (
+                "argo-workflows-default-service-principal-credentials"
+            )
+            env["METAFLOW_ARGO_WORKFLOWS_ENV_VARS_TO_SKIP"] = "METAFLOW_SERVICE_HEADERS"
 
             # support for GCP
             env["METAFLOW_DATASTORE_SYSROOT_GS"] = DATASTORE_SYSROOT_GS
@@ -2049,8 +2056,6 @@ class ArgoWorkflows(object):
                                         ),
                                     )
                                     for k, v in {
-                                        "METAFLOW_ARGO_WORKFLOWS_KUBERNETES_SECRETS": "argo-workflows-default-service-principal-credentials",
-                                        "METAFLOW_ARGO_WORKFLOWS_ENV_VARS_TO_SKIP": "METAFLOW_SERVICE_HEADERS",
                                         "METAFLOW_KUBERNETES_NAMESPACE": "metadata.namespace",
                                         "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
                                         "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
