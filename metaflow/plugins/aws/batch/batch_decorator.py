@@ -123,6 +123,7 @@ class BatchDecorator(StepDecorator):
         "ephemeral_storage": None,
         "log_driver": None,
         "log_options": None,
+        "executable": None,
     }
     resource_defaults = {
         "cpu": "1",
