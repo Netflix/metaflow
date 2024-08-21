@@ -45,6 +45,8 @@ class NBRunner(object):
     base_dir : Optional[str], default None
         The directory to run the subprocess in; if not specified, a temporary
         directory is used.
+    file_read_timeout : int, default 3600
+        The timeout until which we try to read the runner attribute file.
     **kwargs : Any
         Additional arguments that you would pass to `python myflow.py` before
         the `run` command.
@@ -58,6 +60,7 @@ class NBRunner(object):
         profile: Optional[str] = None,
         env: Optional[Dict] = None,
         base_dir: str = DEFAULT_DIR,
+        file_read_timeout: int = 3600,
         **kwargs,
     ):
         try:
@@ -82,6 +85,7 @@ class NBRunner(object):
             self.env_vars["METAFLOW_PROFILE"] = profile
 
         self.base_dir = base_dir
+        self.file_read_timeout = file_read_timeout
 
         if not self.cell:
             raise ValueError("Couldn't find a cell.")
@@ -104,6 +108,7 @@ class NBRunner(object):
             profile=profile,
             env=self.env_vars,
             cwd=self.base_dir,
+            file_read_timeout=self.file_read_timeout,
             **kwargs,
         )
 

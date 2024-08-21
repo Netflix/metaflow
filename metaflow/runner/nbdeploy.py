@@ -61,6 +61,7 @@ class NBDeployer(object):
         profile: Optional[str] = None,
         env: Optional[Dict] = None,
         base_dir: str = DEFAULT_DIR,
+        file_read_timeout: int = 3600,
         **kwargs,
     ):
         try:
@@ -78,6 +79,7 @@ class NBDeployer(object):
         self.profile = profile
         self.env = env
         self.cwd = base_dir
+        self.file_read_timeout = file_read_timeout
         self.top_level_kwargs = kwargs
 
         self.env_vars = os.environ.copy()
@@ -112,6 +114,7 @@ class NBDeployer(object):
             profile=self.profile,
             env=self.env_vars,
             cwd=self.cwd,
+            file_read_timeout=self.file_read_timeout,
             **kwargs,
         )
 
