@@ -11,7 +11,9 @@ from metaflow.runner.subprocess_manager import CommandManager, SubprocessManager
 from metaflow.runner.utils import read_from_file_when_ready
 
 
-def handle_timeout(tfp_runner_attribute, command_obj: CommandManager):
+def handle_timeout(
+    tfp_runner_attribute, command_obj: CommandManager, file_read_timeout: int
+):
     """
     Handle the timeout for a running subprocess command that reads a file
     and raises an error with appropriate logs if a TimeoutError occurs.
@@ -35,7 +37,9 @@ def handle_timeout(tfp_runner_attribute, command_obj: CommandManager):
         stdout and stderr logs.
     """
     try:
-        content = read_from_file_when_ready(tfp_runner_attribute.name, timeout=10)
+        content = read_from_file_when_ready(
+            tfp_runner_attribute.name, timeout=file_read_timeout
+        )
         return content
     except TimeoutError as e:
         stdout_log = open(command_obj.log_files["stdout"]).read()
@@ -102,6 +106,8 @@ class Deployer(object):
     cwd : Optional[str], default None
         The directory to run the subprocess in; if not specified, the current
         directory is used.
+    file_read_timeout : int, default 3600
+        The timeout until which we try to read the deployer attribute file.
     **kwargs : Any
         Additional arguments that you would pass to `python myflow.py` before
         the deployment command.
@@ -114,6 +120,7 @@ class Deployer(object):
         profile: Optional[str] = None,
         env: Optional[Dict] = None,
         cwd: Optional[str] = None,
+        file_read_timeout: int = 3600,
         **kwargs
     ):
         self.flow_file = flow_file
@@ -121,6 +128,7 @@ class Deployer(object):
         self.profile = profile
         self.env = env
         self.cwd = cwd
+        self.file_read_timeout = file_read_timeout
         self.top_level_kwargs = kwargs
 
         from metaflow.plugins import DEPLOYER_IMPL_PROVIDERS
@@ -155,6 +163,7 @@ class Deployer(object):
                 profile=self.profile,
                 env=self.env,
                 cwd=self.cwd,
+                file_read_timeout=self.file_read_timeout,
                 **self.top_level_kwargs
             )
 
@@ -268,6 +277,8 @@ class DeployerImpl(object):
     cwd : Optional[str], default None
         The directory to run the subprocess in; if not specified, the current
         directory is used.
+    file_read_timeout : int, default 3600
+        The timeout until which we try to read the deployer attribute file.
     **kwargs : Any
         Additional arguments that you would pass to `python myflow.py` before
         the deployment command.
@@ -282,6 +293,7 @@ class DeployerImpl(object):
         profile: Optional[str] = None,
         env: Optional[Dict] = None,
         cwd: Optional[str] = None,
+        file_read_timeout: int = 3600,
         **kwargs
     ):
         if self.TYPE is None:
@@ -299,6 +311,7 @@ class DeployerImpl(object):
         self.profile = profile
         self.env = env
         self.cwd = cwd
+        self.file_read_timeout = file_read_timeout
 
         self.env_vars = os.environ.copy()
         self.env_vars.update(self.env or {})
@@ -349,7 +362,9 @@ class DeployerImpl(object):
             )
 
             command_obj = self.spm.get(pid)
-            content = handle_timeout(tfp_runner_attribute, command_obj)
+            content = handle_timeout(
+                tfp_runner_attribute, command_obj, self.file_read_timeout
+            )
             content = json.loads(content)
             self.name = content.get("name")
             self.flow_name = content.get("flow_name")

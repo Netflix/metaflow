@@ -193,7 +193,9 @@ def trigger(instance: DeployedFlow, **kwargs):
         )
 
         command_obj = instance.deployer.spm.get(pid)
-        content = handle_timeout(tfp_runner_attribute, command_obj)
+        content = handle_timeout(
+            tfp_runner_attribute, command_obj, instance.deployer.file_read_timeout
+        )
 
         if command_obj.process.returncode == 0:
             triggered_run = TriggeredRun(deployer=instance.deployer, content=content)
