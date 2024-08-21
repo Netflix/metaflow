@@ -124,7 +124,7 @@ class Kubernetes(object):
         # The `true` command is to make sure that the generated command
         # plays well with docker containers which have entrypoint set as
         # eval $@
-        cmd_str = "mkdir -p %s && %s && %s && %s; " % (
+        cmd_str = "true && mkdir -p %s && %s && %s && %s; " % (
             LOGS_DIR,
             mflog_expr,
             init_expr,
