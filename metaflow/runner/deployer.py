@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import time
 import importlib
 import functools
 import tempfile
@@ -205,6 +206,33 @@ class TriggeredRun(object):
                 setattr(self, k, functools.partial(v, self))
             else:
                 setattr(self.__class__, k, property(fget=lambda _, v=v: v))
+
+    def wait_for_run(self, timeout=None):
+        """
+        Wait for the `run` property to become available.
+
+        Parameters
+        ----------
+        timeout : int, optional
+            Maximum time to wait for the `run` to become available, in seconds. If None, wait indefinitely.
+
+        Raises
+        ------
+        TimeoutError
+            If the `run` is not available within the specified timeout.
+        """
+        start_time = time.time()
+        check_interval = 5
+        while True:
+            if self.run is not None:
+                return self.run
+
+            if timeout is not None and (time.time() - start_time) > timeout:
+                raise TimeoutError(
+                    "Timed out waiting for the run object to become available."
+                )
+
+            time.sleep(check_interval)
 
     @property
     def run(self):
