@@ -218,6 +218,7 @@ def add_decorator_options(cmd):
                 )
                 raise MetaflowInternalError(msg)
             else:
+                kwargs["envvar"] = "METAFLOW_FLOW_%s" % option.upper()
                 seen[option] = deco.name
                 cmd.params.insert(0, click.Option(("--" + option,), **kwargs))
     return cmd
