@@ -307,19 +307,19 @@ def dict_to_cli_options(params):
             # keyword in Python, so we call it 'decospecs' in click args
             if k == "decospecs":
                 k = "with"
-            orig_k = k
+            if k == "config_options":
+                # Special handling here since we gather them all in one option but actually
+                # need to send them one at a time using --config <name> kv.<name>
+                for config_name in v.keys():
+                    yield "--config"
+                    yield to_unicode(config_name)
+                    yield to_unicode(ConfigInput.make_key_name(config_name))
+                continue
             k = k.replace("_", "-")
             v = v if isinstance(v, (list, tuple, set)) else [v]
             for value in v:
                 yield "--%s" % k
                 if not isinstance(value, bool):
-                    if isinstance(value, ConfigValue):
-                        # For ConfigValues, we don't send them as is but instead pass
-                        # the special value that will look up the config value in the
-                        # INFO file
-                        yield ConfigInput.make_key_name(orig_k)
-                        continue
-
                     value = to_unicode(value)
 
                     # Of the value starts with $, assume the caller wants shell variable

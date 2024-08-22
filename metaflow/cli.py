@@ -47,7 +47,7 @@ from .util import (
     resolve_identity,
     write_latest_run_id,
 )
-from .user_configs import LocalFileInput
+from .user_configs import LocalFileInput, config_options
 
 ERASE_TO_EOL = "\033[K"
 HIGHLIGHT = "red"
@@ -848,7 +848,10 @@ def version(obj):
 
 
 @tracing.cli_entrypoint("cli/start")
-@decorators.add_decorator_and_config_options
+# NOTE: add_decorator_options should be TL because it checks to make sure
+# that no option conflict with the ones below
+@decorators.add_decorator_options
+@config_options
 @click.command(
     cls=click.CommandCollection,
     sources=[cli] + plugins.get_plugin_cli(),
@@ -939,7 +942,8 @@ def start(
     event_logger=None,
     monitor=None,
     local_info_file=None,
-    **deco_and_config_options
+    config_options=None,
+    **deco_options
 ):
     global echo
     if quiet:
@@ -960,7 +964,7 @@ def start(
     # process all those decorators that the user added that will modify the flow based
     # on those configurations. It is important to do this as early as possible since it
     # actually modifies the flow itself
-    ctx.obj.flow = ctx.obj.flow._process_config_funcs(deco_and_config_options)
+    ctx.obj.flow = ctx.obj.flow._process_config_funcs(config_options)
 
     cli_args._set_top_kwargs(ctx.params)
     ctx.obj.echo = echo
@@ -1018,16 +1022,7 @@ def start(
         ctx.obj.monitor,
     )
 
-    ctx.obj.config_options = {
-        k: v
-        for k, v in deco_and_config_options.items()
-        if k in ctx.command.config_options
-    }
-    deco_options = {
-        k: v
-        for k, v in deco_and_config_options.items()
-        if k not in ctx.command.config_options
-    }
+    ctx.obj.config_options = config_options
 
     decorators._resolve_configs(ctx.obj.flow)
 

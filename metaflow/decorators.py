@@ -227,27 +227,13 @@ class FlowDecorator(Decorator):
 
 
 # compare this to parameters.add_custom_parameters
-def add_decorator_and_config_options(cmd):
-    config_seen = {}
+def add_decorator_options(cmd):
     flow_cls = getattr(current_flow, "flow_cls", None)
     if flow_cls is None:
         return cmd
 
-    parameters = [p for _, p in flow_cls._get_parameters() if p.IS_FLOW_PARAMETER]
-    # Add configuration options
-    for arg in parameters[::-1]:
-        kwargs = arg.option_kwargs(False)
-        if arg.name in config_seen:
-            msg = (
-                "Multiple configurations use the same name '%s'. Please change the "
-                "names of some of your configurations" % arg.name
-            )
-            raise MetaflowException(msg)
-        config_seen[arg.name] = arg
-        cmd.params.insert(0, click.Option(("--" + arg.name,), **kwargs))
-
-    cmd.config_options = set(config_seen.keys())
     seen = {}
+    existing_params = set(p.name.lower() for p in cmd.params)
     # Add decorator options
     for deco in flow_decorators(flow_cls):
         for option, kwargs in deco.options.items():
@@ -259,11 +245,10 @@ def add_decorator_and_config_options(cmd):
                     % (deco.name, option, seen[option])
                 )
                 raise MetaflowInternalError(msg)
-            elif option in config_seen:
-                msg = (
-                    "Flow decorator '%s' uses an option '%s' which is also "
-                    "used by a configuration. Please change the name of the "
-                    "configuration" % (deco.name, option)
+            elif deco.name.lower() in existing_params:
+                raise MetaflowInternalError(
+                    "Flow decorator '%s' uses an option '%s' which is a reserved "
+                    "keyword. Please use a different option name." % (deco.name, option)
                 )
             else:
                 kwargs["envvar"] = "METAFLOW_FLOW_%s" % option.upper()

@@ -1468,9 +1468,10 @@ class CLIArgs(object):
         # We also pass configuration options using the kv.<name> syntax which will cause
         # the configuration options to be loaded from the INFO file (or local-info-file
         # in the case of the local runtime)
-        self.top_level_options.update(
-            {k: ConfigInput.make_key_name(k) for k in self.task.flow._user_configs}
-        )
+        if self.task.flow._user_configs:
+            self.top_level_options["config"] = [
+                (k, ConfigInput.make_key_name(k)) for k in self.task.flow._user_configs
+            ]
 
         self.commands = ["step"]
         self.command_args = [self.task.step]
@@ -1505,7 +1506,9 @@ class CLIArgs(object):
                 for value in v:
                     yield "--%s" % k
                     if not isinstance(value, bool):
-                        yield to_unicode(value)
+                        value = value if isinstance(value, tuple) else (value,)
+                        for vv in value:
+                            yield to_unicode(vv)
 
         args = list(self.entrypoint)
         args.extend(_options(self.top_level_options))
