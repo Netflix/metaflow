@@ -36,6 +36,12 @@ from .argo_workflows import ArgoWorkflows
 
 VALID_NAME = re.compile(r"^[a-z0-9]([a-z0-9\.\-]*[a-z0-9])?$")
 
+unsupported_decorators = {
+    "snowpark": "Step *%s* is marked for execution on Snowpark with Argo Workflows which isn't currently supported.",
+    "slurm": "Step *%s* is marked for execution on Slurm with Argo Workflows which isn't currently supported.",
+    "nvidia": "Step *%s* is marked for execution on Nvidia with Argo Workflows which isn't currently supported.",
+}
+
 
 class IncorrectProductionToken(MetaflowException):
     headline = "Incorrect production token"
@@ -211,6 +217,11 @@ def create(
     deployer_attribute_file=None,
     enable_error_msg_capture=False,
 ):
+    for node in obj.graph:
+        for decorator, error_message in unsupported_decorators.items():
+            if any([d.name == decorator for d in node.decorators]):
+                raise MetaflowException(error_message % node.name)
+
     validate_tags(tags)
 
     if deployer_attribute_file:
