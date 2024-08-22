@@ -1658,6 +1658,9 @@ class ArgoWorkflows(object):
 
             # support Metaflow sandboxes
             env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
+            env["METAFLOW_KUBERNETES_SANDBOX_INIT_SCRIPT"] = (
+                KUBERNETES_SANDBOX_INIT_SCRIPT
+            )
 
             # support for @secret
             env["METAFLOW_DEFAULT_SECRETS_BACKEND_TYPE"] = DEFAULT_SECRETS_BACKEND_TYPE
@@ -1673,6 +1676,12 @@ class ArgoWorkflows(object):
             )
             env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
             env["METAFLOW_CARD_AZUREROOT"] = CARD_AZUREROOT
+            env["METAFLOW_ARGO_WORKFLOWS_KUBERNETES_SECRETS"] = (
+                ARGO_WORKFLOWS_KUBERNETES_SECRETS
+            )
+            env["METAFLOW_ARGO_WORKFLOWS_ENV_VARS_TO_SKIP"] = (
+                ARGO_WORKFLOWS_ENV_VARS_TO_SKIP
+            )
 
             # support for GCP
             env["METAFLOW_DATASTORE_SYSROOT_GS"] = DATASTORE_SYSROOT_GS
