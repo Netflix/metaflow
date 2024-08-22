@@ -268,7 +268,7 @@ class CondaEnvironment(MetaflowEnvironment):
         for decorator in step.decorators:
             # TODO: rather than relying on decorator names, rely on attributes
             #       to make them extensible.
-            if decorator.name in ["batch", "kubernetes", "nvidia"]:
+            if decorator.name in ["batch", "kubernetes", "nvidia", "snowpark", "slurm"]:
                 # TODO: Support arm architectures
                 target_platform = "linux-64"
                 break

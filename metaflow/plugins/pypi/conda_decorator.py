@@ -210,7 +210,7 @@ class CondaStepDecorator(StepDecorator):
         self.interpreter = (
             self.environment.interpreter(self.step)
             if not any(
-                decorator.name in ["batch", "kubernetes"]
+                decorator.name in ["batch", "kubernetes", "nvidia", "snowpark", "slurm"]
                 for decorator in next(
                     step for step in self.flow if step.name == self.step
                 ).decorators
