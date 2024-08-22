@@ -3,7 +3,6 @@ import json
 import platform
 import re
 import sys
-import os
 from hashlib import sha1
 
 from metaflow import JSONType, Run, current, decorators, parameters
@@ -133,9 +132,23 @@ def argo_workflows(obj, name=None):
     help="Only print out JSON sent to Argo Workflows. Do not deploy anything.",
 )
 @click.option(
-    "--only-json-directory",
-    default="",
-    help="Writes json sent to Argo Workflows out to this directory. Do not deploy anything. Includes all objects sent.",
+    "--only-workflow-template-json",
+    "--only-json",
+    is_flag=True,
+    default=False,
+    help="Print out the Argo Workflow Template JSON sent to Argo Workflows. Do not deploy anything.",
+)
+@click.option(
+    "--only-event-sensor-json",
+    is_flag=True,
+    default=False,
+    help="Print out the Event Sensor JSON sent to Argo Workflows. Do not deploy anything.",
+)
+@click.option(
+    "--only-cron-workflow-template-json",
+    is_flag=True,
+    default=False,
+    help="Print out the Argo Cron Workflow Template JSON sent to Argo Workflows. Do not deploy anything.",
 )
 @click.option(
     "--max-workers",
@@ -207,8 +220,9 @@ def create(
     obj,
     tags=None,
     user_namespace=None,
-    only_json=False,
-    only_json_directory=None,
+    only_workflow_template_json=False,
+    only_event_sensor_json=False,
+    only_cron_workflow_template_json=False,
     authorize=None,
     generate_new_token=False,
     given_token=None,
@@ -279,18 +293,19 @@ def create(
         enable_error_msg_capture,
     )
 
-    if only_json_directory:
-        os.makedirs(only_json_directory, exists_ok=True)
-        all_templates = flow.get_all_templates(),
-        for template in all_templates:
-            path = os.path.join(only_json_directory, template.to_json()['kind'])
-            with open(path, "w") as f:
-                f.write(str(template))
-    elif only_json:
-        # NOTE: this _only_ outputs the WorkflowTemplate. If you want the sensor and
-        # cron workflow templates, use --only-json-directory instead.
+    only_json = (
+        only_workflow_template_json
+        or only_event_sensor_json
+        or only_cron_workflow_template_json
+    )
+    if only_workflow_template_json:
         obj.echo_always(str(flow), err=False, no_bold=True)
-    else:
+    if only_event_sensor_json:
+        obj.echo_always(str(flow.get_event_source_template()), err=False, no_bold=True)
+    if only_cron_workflow_template_json:
+        obj.echo_always(str(flow.get_cron_workflow_template()), err=False, no_bold=True)
+
+    if not only_json:
         flow.deploy()
         obj.echo(
             "Workflow *{workflow_name}* "

@@ -176,8 +176,11 @@ class ArgoWorkflows(object):
     def __str__(self):
         return str(self._workflow_template)
 
-    def get_all_templates(self):
-        return [self._workflow_template, self._cronworkflow_template, self._sensor]
+    def get_cron_workflow_template(self):
+        return self._cronworkflow_template
+
+    def get_event_sensor_template(self):
+        return self._sensor
 
     def deploy(self):
         try:
