@@ -1,7 +1,7 @@
 import json
 import os
 
-from typing import Any, Callable, Dict, Optional, Union, TYPE_CHECKING
+from typing import Any, Callable, Dict, List, Optional, Union, TYPE_CHECKING
 
 from metaflow import INFO_FILE
 from metaflow._vendor import click
@@ -79,9 +79,32 @@ class ConfigValue:
         return json.dumps(self._data)
 
 
-class ConfigInput(click.ParamType):
+class PathOrStr(click.ParamType):
     name = "ConfigInput"
 
+    def convert(self, value, param, ctx):
+        if value is None:
+            return None
+
+        if isinstance(value, dict):
+            return "converted:" + json.dumps(value)
+
+        if value.startswith("converted:"):
+            return value
+
+        if os.path.isfile(value):
+            try:
+                with open(value, "r") as f:
+                    content = f.read()
+            except OSError as e:
+                raise click.UsageError(
+                    "Could not read configuration file '%s'" % value
+                ) from e
+            return "converted:" + content
+        return "converted:" + value
+
+
+class ConfigInput:
     # Contains the values loaded from the INFO file. We make this a class method
     # so that if there are multiple configs, we just need to read the file once.
     # It is OK to be globally unique because this is only evoked in scenario A.2 (see
@@ -92,8 +115,13 @@ class ConfigInput(click.ParamType):
     loaded_configs = None  # type: Optional[Dict[str, Dict[str, Any]]]
     info_file = None  # type: Optional[str]
 
-    def __init__(self, parser: Optional[Callable[[str], Dict[str, Any]]] = None):
-        self._parser = parser
+    def __init__(
+        self,
+        req_configs: List[str],
+        parsers: Dict[str, Callable[[str], Dict[str, Any]]],
+    ):
+        self._req_configs = req_configs
+        self._parsers = parsers
 
     @staticmethod
     def make_key_name(name: str) -> str:
@@ -115,84 +143,51 @@ class ConfigInput(click.ParamType):
             cls.loaded_configs = all_configs
         return cls.loaded_configs.get(config_name, None)
 
-    # @tracefunc
-    def convert(self, value, param, ctx):
+    def process_configs(self, ctx, param, value):
         flow_cls = getattr(current_flow, "flow_cls", None)
         if flow_cls is None:
-            # We are not executing inside a flow (ie: not the CLI)
-            raise MetaflowException("Config object can only be used in a FlowSpec")
-
-        # Click can call convert multiple times, so we need to make sure to only
-        # convert once.
-        if isinstance(value, ConfigValue):
-            return value
-
-        # The value we get in to convert can be:
-        #  - a dictionary
-        #  - a path to a YAML or JSON file
-        #  - the string representation of a YAML or JSON file
-        # In all cases, we also store the configuration in the flow object under _user_configs.
-        # It will *not* be stored as an artifact but is a good place to store it so we
-        # can access it when packaging to store it in the INFO file. The config itself
-        # will be stored as regular artifacts (the ConfigValue object basically)
-
-        if isinstance(value, dict):
-            if self._parser:
-                value = self._parser(value)
-            flow_cls._user_configs[param.name] = value
-            return ConfigValue(value)
-        elif not isinstance(value, str):
-            raise MetaflowException(
-                "Configuration value for '%s' must be a string or a dictionary"
-                % param.name
+            # This is an error
+            raise MetaflowInternalError(
+                "Config values should be processed for a FlowSpec"
             )
 
-        # Here we are sure we have a string
-        if value.startswith("kv."):
-            value = self.get_config(value[3:])
-            if value is None:
-                raise MetaflowException(
-                    "Could not find configuration '%s' in INFO file" % value
-                )
-            # We also set in flow_cls as this makes it easier to access
-            flow_cls._user_configs[param.name] = value
-            return ConfigValue(value)
+        # First validate if we have all the required parameters
+        # Here value is a list of tuples. Each tuple has the name of the configuration
+        # and the string representation of the config (it was already read
+        # from a file if applicable).
+        missing = set(self._req_configs) - set([v[0] for v in value])
+        if missing:
+            raise click.UsageError(
+                "Missing required configuration values: %s" % ", ".join(missing)
+            )
 
-        elif os.path.isfile(value):
-            try:
-                with open(value, "r") as f:
-                    content = f.read()
-            except OSError as e:
-                raise MetaflowException(
-                    "Could not read configuration file '%s'" % value
-                ) from e
-            if self._parser:
-                value = self._parser(content)
+        to_return = {}
+        for name, val in value:
+            name = name.lower()
+            val = val[10:]  # Remove the "converted:" prefix
+            if val.startswith("kv."):
+                # This means to load it from a file
+                read_value = self.get_config(val[3:])
+                if read_value is None:
+                    raise click.UsageError(
+                        "Could not find configuration '%s' in INFO file" % val
+                    )
+                flow_cls._user_configs[name] = read_value
+                to_return[name] = ConfigValue(read_value)
             else:
-                try:
-                    if self._parser:
-                        value = self._parser(content)
-
-                    value = json.loads(content)
-                except json.JSONDecodeError as e:
-                    raise MetaflowException(
-                        "Configuration file '%s' is not valid JSON" % value
-                    ) from e
-                # TODO: Support YAML
-            flow_cls._user_configs[param.name] = value
-        else:
-            if self._parser:
-                value = self._parser(value)
-            else:
-                try:
-                    value = json.loads(value)
-                except json.JSONDecodeError as e:
-                    raise MetaflowException(
-                        "Configuration value for '%s' is not valid JSON" % param.name
-                    ) from e
-                # TODO: Support YAML
-            flow_cls._user_configs[param.name] = value
-        return ConfigValue(value)
+                if self._parsers[name]:
+                    read_value = self._parsers[name](val)
+                else:
+                    try:
+                        read_value = json.loads(val)
+                    except json.JSONDecodeError as e:
+                        raise click.UsageError(
+                            "Configuration value for '%s' is not valid JSON" % name
+                        ) from e
+                    # TODO: Support YAML
+                flow_cls._user_configs[name] = read_value
+                to_return[name] = ConfigValue(read_value)
+        return to_return
 
     def __str__(self):
         return repr(self)
@@ -384,9 +379,12 @@ class Config(Parameter):
             default=default,
             required=required,
             help=help,
-            type=ConfigInput(parser),
+            type=str,
             **kwargs,
         )
+        if isinstance(kwargs.get("default", None), str):
+            kwargs["default"] = json.dumps(kwargs["default"])
+        self.parser = parser
 
     def load_parameter(self, v):
         return v
@@ -394,3 +392,61 @@ class Config(Parameter):
     def __getattr__(self, name):
         ev = DelayEvaluator(self.name, is_var_only=True)
         return ev.__getattr__(name)
+
+
+def config_options(cmd):
+    help_strs = []
+    required_names = []
+    defaults = []
+    config_seen = set()
+    parsers = {}
+    flow_cls = getattr(current_flow, "flow_cls", None)
+    if flow_cls is None:
+        return cmd
+
+    parameters = [p for _, p in flow_cls._get_parameters() if p.IS_FLOW_PARAMETER]
+    # List all the configuration options
+    for arg in parameters[::-1]:
+        kwargs = arg.option_kwargs(False)
+        if arg.name.lower() in config_seen:
+            msg = (
+                "Multiple configurations use the same name '%s'. Note that names are "
+                "case-insensitive. Please change the "
+                "names of some of your configurations" % arg.name
+            )
+            raise MetaflowException(msg)
+        config_seen.add(arg.name.lower())
+        if kwargs["required"]:
+            required_names.append(arg.name)
+        if kwargs.get("default") is not None:
+            defaults.append((arg.name.lower(), kwargs["default"]))
+        else:
+            defaults.append(None)
+        help_strs.append("  - %s: %s" % (arg.name.lower(), kwargs.get("help", "")))
+        parsers[arg.name.lower()] = arg.parser
+
+    print("DEFAULTS %s" % defaults)
+    if not config_seen:
+        # No configurations -- don't add anything
+        return cmd
+
+    help_str = (
+        "Configuration options for the flow. "
+        "Multiple configurations can be specified."
+    )
+    help_str = "\n\n".join([help_str] + help_strs)
+    cmd.params.insert(
+        0,
+        click.Option(
+            ["--config", "config_options"],
+            nargs=2,
+            multiple=True,
+            type=click.Tuple([click.Choice(config_seen), PathOrStr()]),
+            callback=ConfigInput(required_names, parsers).process_configs,
+            help=help_str,
+            envvar="METAFLOW_FLOW_CONFIG",
+            show_default=False,
+            default=defaults,
+        ),
+    )
+    return cmd
