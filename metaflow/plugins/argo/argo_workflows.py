@@ -170,16 +170,16 @@ class ArgoWorkflows(object):
 
         self.kubernetes_labels = self._get_kubernetes_labels()
         self._workflow_template = self._compile_workflow_template()
-        self._cronworkflow_template = self._compile_cronworkflow_template()
+        self._cron_workflow = self._compile_cron_workflow()
         self._sensor = self._compile_sensor()
 
     def __str__(self):
         return str(self._workflow_template)
 
-    def get_cron_workflow_template(self):
-        return self._cronworkflow_template
+    def get_cron_workflow(self):
+        return self._cron_workflow
 
-    def get_event_sensor_template(self):
+    def get_event_sensor(self):
         return self._sensor
 
     def deploy(self):
@@ -350,9 +350,7 @@ class ArgoWorkflows(object):
     def schedule(self):
         try:
             argo_client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
-            argo_client.schedule_workflow_template(
-                self.name, self._cronworkflow_template
-            )
+            argo_client.schedule_workflow_template(self.name, self._cron_workflow)
             # Register sensor.
             # Metaflow will overwrite any existing sensor.
             sensor_name = ArgoWorkflows._sensor_name(self.name)
@@ -2650,7 +2648,7 @@ class ArgoWorkflows(object):
             )
         )
 
-    def _compile_cronworkflow_template(self):
+    def _compile_cron_workflow(self):
         return (
             CronWorkflow()
             .metadata(ObjectMeta().name(self.name))

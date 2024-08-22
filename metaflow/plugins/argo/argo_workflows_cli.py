@@ -222,7 +222,7 @@ def create(
     user_namespace=None,
     only_workflow_template_json=False,
     only_event_sensor_json=False,
-    only_cron_workflow_template_json=False,
+    only_cron_workflow_json=False,
     authorize=None,
     generate_new_token=False,
     given_token=None,
@@ -294,16 +294,14 @@ def create(
     )
 
     only_json = (
-        only_workflow_template_json
-        or only_event_sensor_json
-        or only_cron_workflow_template_json
+        only_workflow_template_json or only_event_sensor_json or only_cron_workflow_json
     )
     if only_workflow_template_json:
         obj.echo_always(str(flow), err=False, no_bold=True)
     if only_event_sensor_json:
-        obj.echo_always(str(flow.get_event_source_template()), err=False, no_bold=True)
-    if only_cron_workflow_template_json:
-        obj.echo_always(str(flow.get_cron_workflow_template()), err=False, no_bold=True)
+        obj.echo_always(str(flow.get_event_source()), err=False, no_bold=True)
+    if only_cron_workflow_json:
+        obj.echo_always(str(flow.get_cron_workflow()), err=False, no_bold=True)
 
     if not only_json:
         flow.deploy()
