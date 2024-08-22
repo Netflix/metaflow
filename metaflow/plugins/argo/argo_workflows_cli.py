@@ -145,10 +145,10 @@ def argo_workflows(obj, name=None):
     help="Print out the Event Sensor JSON sent to Argo Workflows. Do not deploy anything.",
 )
 @click.option(
-    "--only-cron-workflow-template-json",
+    "--only-cron-workflow-json",
     is_flag=True,
     default=False,
-    help="Print out the Argo Cron Workflow Template JSON sent to Argo Workflows. Do not deploy anything.",
+    help="Print out the Argo Cron Workflow JSON sent to Argo Workflows. Do not deploy anything.",
 )
 @click.option(
     "--max-workers",
