@@ -52,8 +52,9 @@ def _write_card_artifacts(
         try:
             with open(file_name, "w") as card_file:
                 card_file.write(card.get())
-        except Exception as e:
-            logging.exception(f"Failed to write card {i} of type {card.type}: {e}")
+        except Exception:
+            logging.error(f"Failed to write card {i} of type {card.type}")
+            raise
         i = i + 1
 
 

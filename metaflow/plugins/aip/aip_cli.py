@@ -361,7 +361,7 @@ def run(
         notify_on_success=notify_on_success,
         sqs_url_on_error=sqs_url_on_error,
         sqs_role_arn_on_error=sqs_role_arn_on_error,
-        add_default_cards=True,
+        add_default_cards=add_default_cards,
     )
 
     if yaml_only:
@@ -559,7 +559,7 @@ def create(
         notify_on_success=notify_on_success,
         sqs_url_on_error=sqs_url_on_error,
         sqs_role_arn_on_error=sqs_role_arn_on_error,
-        add_default_cards=True,
+        add_default_cards=add_default_cards,
     )
 
     if yaml_only:
@@ -680,7 +680,7 @@ def make_flow(
     notify_on_success,
     sqs_url_on_error,
     sqs_role_arn_on_error,
-    add_default_cards=True,
+    add_default_cards,
 ):
     """
     Analogous to step_functions_cli.py
