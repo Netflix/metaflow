@@ -49,8 +49,11 @@ def _write_card_artifacts(
     for card in sorted_cards:
         iter_name = "" if i == 0 else i
         file_name = f"/tmp/outputs/cards/card{iter_name}.html"
-        with open(file_name, "w") as card_file:
-            card_file.write(card.get())
+        try:
+            with open(file_name, "w") as card_file:
+                card_file.write(card.get())
+        except Exception as e:
+            logging.exception(f"Failed to write card {i} of type {card.type}: {e}")
         i = i + 1
 
 
@@ -435,14 +438,18 @@ def aip_metaflow_step(
         with open(output_file, "w") as f:
             f.write(str(values[idx]))
 
-    # get card and write to output file
-    _write_card_artifacts(
-        flow_name,
-        step_name,
-        task_id,
-        passed_in_split_indexes,
-        metaflow_run_id,
-    )
+    # Get card and write to output file
+    try:
+        _write_card_artifacts(
+            flow_name,
+            step_name,
+            task_id,
+            passed_in_split_indexes,
+            metaflow_run_id,
+        )
+    except Exception as e:
+        # Workflow should still succeed even if cards fail to render
+        logging.error(f"Failed to write card artifacts: {e}")
 
 
 if __name__ == "__main__":
