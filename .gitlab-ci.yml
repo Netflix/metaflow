@@ -10,7 +10,7 @@ include:
 variables:
   PY_LIBRARY_NAME: "zillow-metaflow"
   MAJOR_VERSION: "2"
-  MINOR_VERSION: "2"
+  MINOR_VERSION: "3"
   METAFLOW_VERSION_PATH: "setup.py"
   IMAGE_REPOSITORY_TAG_PATH: 'image_tag_file.txt'
   IMAGE_REPOSITORY_TAG_PATH_AIP_STEP: 'image_tag_file_aip_step.txt'
