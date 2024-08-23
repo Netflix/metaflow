@@ -132,12 +132,12 @@ def _step_cli(
             "--max-value-size=0",
             input_paths,
         ]
-        cmd: str = "if ! %s >/dev/null 2>/dev/null; then %s && %s; fi" % (
+        param_cmd: str = "if ! %s >/dev/null 2>/dev/null; then %s && %s; fi" % (
             " ".join(exists),
             export_params,
             " ".join(params),
         )
-        cmds.append(cmd)
+        cmds.append(param_cmd)
 
     top_level: List[str] = [
         "--quiet",
@@ -168,7 +168,6 @@ def _step_cli(
 
     step: List[str] = [
         "--with=aip",
-        "--with 'card:id=default'",
         "step",
         step_name,
         "--run-id %s" % run_id,
@@ -355,7 +354,7 @@ def aip_metaflow_step(
         flow_name,
         is_interruptible,
     )
-    cmd: str = cmd_template.format(
+    step_cmd: str = cmd_template.format(
         run_id=metaflow_run_id,
         passed_in_split_indexes=passed_in_split_indexes,
     )
@@ -388,16 +387,15 @@ def aip_metaflow_step(
         env["METAFLOW_PARAMETERS"] = flow_parameters_json
 
     # TODO: Map username to KFP specific user/profile/namespace
-    # Running Metaflow
-    # KFP orchestrator -> running MF runtime (runs user code, handles state)
+    # Running Metaflow runtime (runs user code, handles state)
     with Popen(
-        cmd, shell=True, universal_newlines=True, executable="/bin/bash", env=env
+        step_cmd, shell=True, universal_newlines=True, executable="/bin/bash", env=env
     ) as process:
         pass
 
     if process.returncode != 0:
         logging.info(f"---- Following command returned: {process.returncode}")
-        logging.info(cmd.replace(" && ", "\n"))
+        logging.info(step_cmd.replace(" && ", "\n"))
         logging.info("----")
         raise Exception("Returned: %s" % process.returncode)
 
@@ -438,7 +436,7 @@ def aip_metaflow_step(
         with open(output_file, "w") as f:
             f.write(str(values[idx]))
 
-    # Get card and write to output file
+    # Write card manifest (html) to Argo output artifact path.
     try:
         _write_card_artifacts(
             flow_name,

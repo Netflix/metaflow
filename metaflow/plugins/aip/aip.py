@@ -317,7 +317,7 @@ class KubeflowPipelines(object):
         ).items():
             workflow["metadata"]["labels"][key] = value
 
-        KubeflowPipelines._add_archive_section_to_cards_artifacts(workflow)
+        KubeflowPipelines._update_cards_artifact_configs(workflow)
 
         if self._exit_handler_created:
             # replace entrypoint content with the exit handler handler content
@@ -422,7 +422,7 @@ class KubeflowPipelines(object):
         return workflow
 
     @staticmethod
-    def _add_archive_section_to_cards_artifacts(workflow: dict):
+    def _update_cards_artifact_configs(workflow: dict):
         # Add "archive" none section to "-cards" artifacts because by default
         # they are tarred and hence not viewable in the Argo UI
         for template in workflow["spec"]["templates"]:
@@ -430,6 +430,7 @@ class KubeflowPipelines(object):
                 for artifact in template["outputs"]["artifacts"]:
                     if "-card" in artifact["name"]:
                         artifact["archive"] = {"none": {}}
+                        artifact["optional"] = True
 
     @staticmethod
     def _config_map(workflow_name: str, max_run_concurrency: int):

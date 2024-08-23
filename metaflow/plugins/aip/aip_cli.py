@@ -260,6 +260,13 @@ def common_create_run_options(default_yaml_kind: str):
             "If not set, the default iam role associated with the pod will be used",
             show_default=True,
         )
+        @click.option(
+            "--add-default-cards",
+            "add_default_cards",
+            default=True,
+            help="Whether to add default card to all workflow steps",
+            show_default=True,
+        )
         @functools.wraps(func)
         def wrapper_common_options(*args, **kwargs):
             return func(*args, **kwargs)
@@ -323,6 +330,7 @@ def run(
     sqs_role_arn_on_error=None,
     argo_wait=False,
     wait_for_completion_timeout=None,
+    add_default_cards=True,
     **kwargs,
 ):
     """
@@ -353,6 +361,7 @@ def run(
         notify_on_success=notify_on_success,
         sqs_url_on_error=sqs_url_on_error,
         sqs_role_arn_on_error=sqs_role_arn_on_error,
+        add_default_cards=True,
     )
 
     if yaml_only:
@@ -516,6 +525,7 @@ def create(
     recurring_run_enable=None,
     recurring_run_cron=None,
     recurring_run_concurrency=None,
+    add_default_cards=True,
     **kwargs,
 ):
     """
@@ -549,6 +559,7 @@ def create(
         notify_on_success=notify_on_success,
         sqs_url_on_error=sqs_url_on_error,
         sqs_role_arn_on_error=sqs_role_arn_on_error,
+        add_default_cards=True,
     )
 
     if yaml_only:
@@ -669,6 +680,7 @@ def make_flow(
     notify_on_success,
     sqs_url_on_error,
     sqs_role_arn_on_error,
+    add_default_cards=True,
 ):
     """
     Analogous to step_functions_cli.py
@@ -682,6 +694,9 @@ def make_flow(
 
     # Attach AIP decorator to the flow
     decorators._attach_decorators(obj.flow, [AIPInternalDecorator.name])
+    if add_default_cards:
+        decorators._attach_decorators(obj.flow, ["card:id=default"])
+
     decorators._init_step_decorators(
         obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
     )
