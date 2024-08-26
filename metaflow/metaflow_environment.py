@@ -94,9 +94,11 @@ class MetaflowEnvironment(object):
             bucket, s3_object = parse_s3_full_path(code_package_url)
             # NOTE: the script quoting is extremely sensitive due to the way shlex.split operates and this being inserted
             # into a quoted command elsewhere.
+            # NOTE: Reason for the extra conditionals in the script are because
+            # Boto3 does not play well with passing None or an empty string to endpoint_url
             return "{python} -c '{script}'".format(
                 python=self._python(),
-                script='import boto3, os; boto3.client(\\"s3\\", endpoint_url=os.getenv(\\"METAFLOW_S3_ENDPOINT_URL\\")).download_file(\\"%s\\", \\"%s\\", \\"job.tar\\")'
+                script='import boto3, os; ep=os.getenv(\\"METAFLOW_S3_ENDPOINT_URL\\"; (boto3.client(\\"s3\\", endpoint_url=ep) if ep else boto3.client(\\"s3\\")).download_file(\\"%s\\", \\"%s\\", \\"job.tar\\")'
                 % (bucket, s3_object),
             )
         elif datastore_type == "azure":
