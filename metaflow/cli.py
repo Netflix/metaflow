@@ -836,7 +836,14 @@ def before_run(obj, tags, decospecs):
     # We explicitly avoid doing this in `start` since it is invoked for every
     # step in the run.
     # Update package to be None. The package is now created in the @package decorator in a separate thread
-    obj.package = None
+    obj.package = MetaflowPackage(
+        obj.flow,
+        obj.environment,
+        obj.echo,
+        obj.package_suffixes,
+        obj.flow_datastore,
+        obj.logger,
+    )
 
 
 @cli.command(help="Print the Metaflow version")

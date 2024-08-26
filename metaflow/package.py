@@ -1,3 +1,4 @@
+import threading
 import importlib
 import os
 import sys
@@ -7,7 +8,7 @@ import json
 from io import BytesIO
 
 from .extension_support import EXT_PKG, package_mfext_all
-from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES
+from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES, DEFAULT_PACKAGE_TIMEOUT
 from .exception import MetaflowException
 from .util import to_unicode
 from . import R
@@ -60,19 +61,60 @@ def walk_without_cycles(top_root):
 
 
 class MetaflowPackage(object):
-    def __init__(self, flow, environment, echo, suffixes=DEFAULT_SUFFIXES_LIST):
+    def __init__(
+        self,
+        flow,
+        environment,
+        echo,
+        suffixes=DEFAULT_SUFFIXES_LIST,
+        flow_datastore=None,
+        logger=None,
+    ):
         self.suffixes = list(set().union(suffixes, DEFAULT_SUFFIXES_LIST))
         self.environment = environment
         self.metaflow_root = os.path.dirname(__file__)
 
         self.flow_name = flow.name
         self._flow = flow
+        self.flow_datastore = flow_datastore
+        self.logger = logger
         self.create_time = time.time()
+        self._is_package_available = False
+        self.blob = None
+        self.package_url = None
+        self.package_sha = None
+
+        # Make package creation and upload asynchronous
+        self._init_thread = threading.Thread(
+            target=self._prepare_and_upload_package,
+            args=(flow, environment, flow_datastore, echo),
+        )
+        self._init_thread.daemon = True
+        self._init_thread.start()
+
+    def _prepare_and_upload_package(self, flow, environment, flow_datastore, echo):
+        self.logger(f"Creating package for flow: {flow.name}")
         environment.init_environment(echo)
         for step in flow:
             for deco in step.decorators:
                 deco.package_init(flow, step.__name__, environment)
-        self.blob = self._make()
+        self.logger(f"Initalized environment and packages for flow: {flow.name}")
+        self.blob = self._create_package()
+        self.logger(f"Package created for flow: {flow.name}")
+
+        if flow_datastore:
+            self.package_url, self.package_sha = flow_datastore.save_data(
+                [self.blob], len_hint=1
+            )[0]
+
+        self._is_package_available = True
+        self.logger(
+            f"Package created and saved successfully, URL: {self.package_url}, SHA: {self.package_sha}, is_package_available: {self.is_package_available}"
+        )
+
+    @property
+    def is_package_available(self):
+        return self._is_package_available
 
     def _walk(self, root, exclude_hidden=True, suffixes=None):
         if suffixes is None:
@@ -162,7 +204,7 @@ class MetaflowPackage(object):
         info.mtime = 1575360000
         tar.addfile(info, buf)
 
-    def _make(self):
+    def _create_package(self):
         def no_mtime(tarinfo):
             # a modification time change should not change the hash of
             # the package. Only content modifications will.
@@ -181,6 +223,32 @@ class MetaflowPackage(object):
         blob = bytearray(buf.getvalue())
         blob[4:8] = [0] * 4  # Reset 4 bytes from offset 4 to account for ts
         return blob
+
+    def wait(self, timeout=DEFAULT_PACKAGE_TIMEOUT):
+        """
+        Wait for the package preparation and upload to complete.
+
+        Parameters
+        ----------
+        timeout : int, default DEFAULT_PACKAGE_TIMEOUT
+            The maximum time to wait for the package preparation and upload to complete.
+
+        Returns
+        -------
+        bool
+            True if the package preparation and upload is complete.
+
+        Raises
+        ------
+        TimeoutError
+            If the package preparation and upload does not complete within the specified timeout.
+        """
+        self._init_thread.join(timeout)
+        if self._init_thread.is_alive():
+            raise TimeoutError(
+                f"Package preparation and upload did not complete within {timeout} seconds."
+            )
+        return True
 
     def __str__(self):
         return "<code package for flow %s (created @ %s)>" % (
