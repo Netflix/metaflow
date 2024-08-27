@@ -402,7 +402,7 @@ class ArgoWorkflows(object):
             sensor_name = ArgoWorkflows._sensor_name(self.name)
             if self._sensor:
                 # The new sensor will go into the sensor namespace specified
-                argo_client.register_sensor(
+                ArgoClient(namespace=ARGO_EVENTS_SENSOR_NAMESPACE).register_sensor(
                     sensor_name, self._sensor.to_json(), ARGO_EVENTS_SENSOR_NAMESPACE
                 )
         except Exception as e:
@@ -2820,7 +2820,7 @@ class ArgoWorkflows(object):
                 # Sensor metadata.
                 ObjectMeta()
                 .name(ArgoWorkflows._sensor_name(self.name))
-                .namespace(KUBERNETES_NAMESPACE)
+                .namespace(ARGO_EVENTS_SENSOR_NAMESPACE)
                 .label("app.kubernetes.io/name", "metaflow-sensor")
                 .label("app.kubernetes.io/part-of", "metaflow")
                 .labels(self.kubernetes_labels)
