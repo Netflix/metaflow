@@ -382,9 +382,9 @@ def to_camelcase(obj):
     if isinstance(obj, dict):
         res = obj.__class__()
         for k in obj:
-            res[
-                re.sub(r"(?!^)_([a-zA-Z])", lambda x: x.group(1).upper(), k)
-            ] = to_camelcase(obj[k])
+            res[re.sub(r"(?!^)_([a-zA-Z])", lambda x: x.group(1).upper(), k)] = (
+                to_camelcase(obj[k])
+            )
     elif isinstance(obj, (list, set, tuple)):
         res = obj.__class__(to_camelcase(v) for v in obj)
     else:
@@ -401,9 +401,9 @@ def to_pascalcase(obj):
     if isinstance(obj, dict):
         res = obj.__class__()
         for k in obj:
-            res[
-                re.sub("([a-zA-Z])", lambda x: x.groups()[0].upper(), k, 1)
-            ] = to_pascalcase(obj[k])
+            res[re.sub("([a-zA-Z])", lambda x: x.groups()[0].upper(), k, 1)] = (
+                to_pascalcase(obj[k])
+            )
     elif isinstance(obj, (list, set, tuple)):
         res = obj.__class__(to_pascalcase(v) for v in obj)
     else:
@@ -424,6 +424,25 @@ def tar_safe_extract(tar, path=".", members=None, *, numeric_owner=False):
         raise Exception("Attempted path traversal in TAR file")
 
     tar.extractall(path, members, numeric_owner=numeric_owner)
+
+
+def to_pod(value):
+    """
+    Convert a python object to plain-old-data (POD) format.
+
+    Parameters
+    ----------
+    value : Any
+        Value to convert to POD format. The value can be a string, number, list,
+        dictionary, or a nested structure of these types.
+    """
+    if isinstance(value, (str, int, float)):
+        return value
+    if isinstance(value, dict):
+        return {to_pod(k): to_pod(v) for k, v in value.items()}
+    if isinstance(value, (list, set, tuple)):
+        return [to_pod(v) for v in value]
+    return str(value)
 
 
 if sys.version_info[:2] > (3, 5):

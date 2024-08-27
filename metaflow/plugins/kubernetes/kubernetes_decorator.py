@@ -97,6 +97,9 @@ class KubernetesDecorator(StepDecorator):
         Shared memory size (in MiB) required for this step
     port: int, optional
         Port number to specify in the Kubernetes job object
+    compute_pool : str, optional, default None
+        Compute pool to be used for for this step.
+        If not specified, any accessible compute pool within the perimeter is used.
     """
 
     name = "kubernetes"
@@ -121,6 +124,8 @@ class KubernetesDecorator(StepDecorator):
         "persistent_volume_claims": None,  # e.g., {"pvc-name": "/mnt/vol", "another-pvc": "/mnt/vol2"}
         "shared_memory": None,
         "port": None,
+        "compute_pool": None,
+        "executable": None,
     }
     package_url = None
     package_sha = None
@@ -152,6 +157,12 @@ class KubernetesDecorator(StepDecorator):
         if isinstance(self.attributes["node_selector"], str):
             self.attributes["node_selector"] = parse_kube_keyvalue_list(
                 self.attributes["node_selector"].split(",")
+            )
+        if self.attributes["compute_pool"]:
+            if self.attributes["node_selector"] is None:
+                self.attributes["node_selector"] = {}
+            self.attributes["node_selector"].update(
+                {"outerbounds.co/compute-pool": self.attributes["compute_pool"]}
             )
 
         if self.attributes["tolerations"]:
@@ -370,9 +381,13 @@ class KubernetesDecorator(StepDecorator):
             cli_args.command_args.append(self.package_sha)
             cli_args.command_args.append(self.package_url)
 
+            # skip certain keys as CLI arguments
+            _skip_keys = ["compute_pool"]
             # --namespace is used to specify Metaflow namespace (a different
             # concept from k8s namespace).
             for k, v in self.attributes.items():
+                if k in _skip_keys:
+                    continue
                 if k == "namespace":
                     cli_args.command_options["k8s_namespace"] = v
                 elif k in {"node_selector"} and v:

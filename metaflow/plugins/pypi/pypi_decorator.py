@@ -24,6 +24,12 @@ class PyPIStepDecorator(StepDecorator):
     name = "pypi"
     defaults = {"packages": {}, "python": None, "disabled": None}  # wheels
 
+    def __init__(self, attributes=None, statically_defined=False):
+        self._user_defined_attributes = (
+            attributes.copy() if attributes is not None else {}
+        )
+        super().__init__(attributes, statically_defined)
+
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         # The init_environment hook for Environment creates the relevant virtual
         # environments. The step_init hook sets up the relevant state for that hook to
@@ -70,9 +76,9 @@ class PyPIStepDecorator(StepDecorator):
         # --environment=pypi to --environment=conda
         _supported_virtual_envs.extend(["pypi"])
 
-        # TODO: Hardcoded for now to support Docker environment.
+        # TODO: Hardcoded for now to support the fast bakery environment.
         # We should introduce a more robust mechanism for appending supported environments, for example from within extensions.
-        _supported_virtual_envs.extend(["docker"])
+        _supported_virtual_envs.extend(["fast-bakery"])
 
         # The --environment= requirement ensures that valid virtual environments are
         # created for every step to execute it, greatly simplifying the @pypi
@@ -87,6 +93,9 @@ class PyPIStepDecorator(StepDecorator):
                     ),
                 )
             )
+
+    def is_attribute_user_defined(self, name):
+        return name in self._user_defined_attributes
 
 
 class PyPIFlowDecorator(FlowDecorator):
@@ -123,9 +132,9 @@ class PyPIFlowDecorator(FlowDecorator):
         # --environment=pypi to --environment=conda
         _supported_virtual_envs.extend(["pypi"])
 
-        # TODO: Hardcoded for now to support Docker environment.
+        # TODO: Hardcoded for now to support the fast bakery environment.
         # We should introduce a more robust mechanism for appending supported environments, for example from within extensions.
-        _supported_virtual_envs.extend(["docker"])
+        _supported_virtual_envs.extend(["fast-bakery"])
 
         # The --environment= requirement ensures that valid virtual environments are
         # created for every step to execute it, greatly simplifying the @conda

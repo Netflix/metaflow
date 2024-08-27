@@ -391,9 +391,9 @@ class MetaflowObject(object):
                     _object=obj,
                     _parent=self,
                     _namespace_check=self._namespace_check,
-                    _current_namespace=self._current_namespace
-                    if self._namespace_check
-                    else None,
+                    _current_namespace=(
+                        self._current_namespace if self._namespace_check else None
+                    ),
                 )
                 for obj in unfiltered_children
             ),
@@ -506,9 +506,9 @@ class MetaflowObject(object):
                 _object=obj,
                 _parent=self,
                 _namespace_check=self._namespace_check,
-                _current_namespace=self._current_namespace
-                if self._namespace_check
-                else None,
+                _current_namespace=(
+                    self._current_namespace if self._namespace_check else None
+                ),
             )
         else:
             raise KeyError(id)
@@ -1027,6 +1027,8 @@ class MetaflowData(object):
         self._artifacts = dict((art.id, art) for art in artifacts)
 
     def __getattr__(self, name: str):
+        if name not in self._artifacts:
+            raise AttributeError(name)
         return self._artifacts[name].data
 
     def __contains__(self, var):

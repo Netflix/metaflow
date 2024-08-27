@@ -4,15 +4,15 @@ import os
 import re
 import shlex
 import sys
-from typing import Tuple, List
 from collections import defaultdict
 from hashlib import sha1
 from math import inf
+from typing import List, Tuple
 
 from metaflow import JSONType, current
-from metaflow.graph import DAGNode
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
+from metaflow.graph import DAGNode, FlowGraph
 from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT,
@@ -22,10 +22,12 @@ from metaflow.metaflow_config import (
     ARGO_EVENTS_SENSOR_NAMESPACE,
     ARGO_EVENTS_SERVICE_ACCOUNT,
     ARGO_EVENTS_WEBHOOK_AUTH,
+    ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT,
     ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
     ARGO_WORKFLOWS_KUBERNETES_SECRETS,
     ARGO_WORKFLOWS_UI_URL,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    AZURE_KEY_VAULT_PREFIX,
     AZURE_STORAGE_BLOB_SERVICE_ENDPOINT,
     CARD_AZUREROOT,
     CARD_GSROOT,
@@ -37,7 +39,6 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
     GCP_SECRET_MANAGER_PREFIX,
-    AZURE_KEY_VAULT_PREFIX,
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
@@ -50,7 +51,6 @@ from metaflow.metaflow_config import (
     SERVICE_INTERNAL_URL,
     UI_URL,
 )
-from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow.metaflow_config_funcs import config_values
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
@@ -58,16 +58,14 @@ from metaflow.plugins.kubernetes.kubernetes import (
     parse_kube_keyvalue_list,
     validate_kube_labels,
 )
-from metaflow.graph import FlowGraph
+from metaflow.plugins.kubernetes.kubernetes_jobsets import KubernetesArgoJobSet
+from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow.util import (
     compress_list,
     dict_to_cli_options,
     to_bytes,
     to_camelcase,
     to_unicode,
-)
-from metaflow.plugins.kubernetes.kubernetes_jobsets import (
-    KubernetesArgoJobSet,
 )
 
 from .argo_client import ArgoClient
@@ -122,6 +120,8 @@ class ArgoWorkflows(object):
         notify_on_success=False,
         notify_slack_webhook_url=None,
         notify_pager_duty_integration_key=None,
+        enable_heartbeat_daemon=True,
+        enable_error_msg_capture=False,
     ):
         # Some high-level notes -
         #
@@ -169,7 +169,8 @@ class ArgoWorkflows(object):
         self.notify_on_success = notify_on_success
         self.notify_slack_webhook_url = notify_slack_webhook_url
         self.notify_pager_duty_integration_key = notify_pager_duty_integration_key
-
+        self.enable_heartbeat_daemon = enable_heartbeat_daemon
+        self.enable_error_msg_capture = enable_error_msg_capture
         self.parameters = self._process_parameters()
         self.triggers, self.trigger_options = self._process_triggers()
         self._schedule, self._timezone = self._get_schedule()
@@ -836,6 +837,12 @@ class ArgoWorkflows(object):
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
+                # OnExit hooks
+                .onExit(
+                    "capture-error-hook-fn-preflight"
+                    if self.enable_error_msg_capture
+                    else None
+                )
                 # Set exit hook handlers if notifications are enabled
                 .hooks(
                     {
@@ -905,6 +912,8 @@ class ArgoWorkflows(object):
                 .templates(self._container_templates())
                 # Exit hook template(s)
                 .templates(self._exit_hook_templates())
+                # Sidecar templates (Daemon Containers)
+                .templates(self._daemon_templates())
             )
         )
 
@@ -1111,7 +1120,7 @@ class ArgoWorkflows(object):
                     "%s-foreach-%s"
                     % (
                         node.name,
-                        "parallel" if node.parallel_foreach else node.foreach_param
+                        "parallel" if node.parallel_foreach else node.foreach_param,
                         # Since foreach's are derived based on `self.next(self.a, foreach="<varname>")`
                         # vs @parallel foreach are done based on `self.next(self.a, num_parallel="<some-number>")`,
                         # we need to ensure that `foreach_template_name` suffix is appropriately set based on the kind
@@ -1317,7 +1326,13 @@ class ArgoWorkflows(object):
                     "Argo Workflows." % (node.type, node.name)
                 )
 
-        templates, _ = _visit(node=self.graph["start"])
+        # Generate daemon tasks
+        daemon_tasks = [
+            DAGTask("%s-task" % daemon_template.name).template(daemon_template.name)
+            for daemon_template in self._daemon_templates()
+        ]
+
+        templates, _ = _visit(node=self.graph["start"], dag_tasks=daemon_tasks)
         return templates
 
     # Visit every node and yield ContainerTemplates.
@@ -1402,7 +1417,7 @@ class ArgoWorkflows(object):
                 task_str = "-".join(
                     [
                         "$TASK_ID_PREFIX",
-                        "{{inputs.parameters.task-id-entropy}}",  # id_base is addition entropy to based on node-name of the workflow
+                        "{{inputs.parameters.task-id-entropy}}",
                         "$TASK_ID_SUFFIX",
                     ]
                 )
@@ -1433,8 +1448,6 @@ class ArgoWorkflows(object):
             user_code_retries = max_user_code_retries
             total_retries = max_user_code_retries + max_error_retries
             # {{retries}} is only available if retryStrategy is specified
-            # and they are only available in the container templates NOT for custom
-            # Kubernetes manifests like Jobsets.
             # For custom kubernetes manifests, we will pass the retryCount as a parameter
             # and use that in the manifest.
             retry_count = (
@@ -1561,8 +1574,7 @@ class ArgoWorkflows(object):
                         )
                     )
                 else:
-                    # When we run Jobsets with Argo Workflows we need to ensure that `input_paths` are generated using the a formulaic approach
-                    # because our current strategy of using volume mounts for outputs won't work with Jobsets
+                    # Handle @parallel where output from volume mount isn't accessible
                     input_paths = (
                         "$(python -m metaflow.plugins.argo.jobset_input_paths %s %s {{inputs.parameters.task-id-entropy}} {{inputs.parameters.num-parallel}})"
                         % (
@@ -1698,21 +1710,30 @@ class ArgoWorkflows(object):
 
             # support Metaflow sandboxes
             env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
+            env["METAFLOW_KUBERNETES_SANDBOX_INIT_SCRIPT"] = (
+                KUBERNETES_SANDBOX_INIT_SCRIPT
+            )
 
             # support for @secret
             env["METAFLOW_DEFAULT_SECRETS_BACKEND_TYPE"] = DEFAULT_SECRETS_BACKEND_TYPE
-            env[
-                "METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION"
-            ] = AWS_SECRETS_MANAGER_DEFAULT_REGION
+            env["METAFLOW_AWS_SECRETS_MANAGER_DEFAULT_REGION"] = (
+                AWS_SECRETS_MANAGER_DEFAULT_REGION
+            )
             env["METAFLOW_GCP_SECRET_MANAGER_PREFIX"] = GCP_SECRET_MANAGER_PREFIX
             env["METAFLOW_AZURE_KEY_VAULT_PREFIX"] = AZURE_KEY_VAULT_PREFIX
 
             # support for Azure
-            env[
-                "METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"
-            ] = AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
+            env["METAFLOW_AZURE_STORAGE_BLOB_SERVICE_ENDPOINT"] = (
+                AZURE_STORAGE_BLOB_SERVICE_ENDPOINT
+            )
             env["METAFLOW_DATASTORE_SYSROOT_AZURE"] = DATASTORE_SYSROOT_AZURE
             env["METAFLOW_CARD_AZUREROOT"] = CARD_AZUREROOT
+            env["METAFLOW_ARGO_WORKFLOWS_KUBERNETES_SECRETS"] = (
+                ARGO_WORKFLOWS_KUBERNETES_SECRETS
+            )
+            env["METAFLOW_ARGO_WORKFLOWS_ENV_VARS_TO_SKIP"] = (
+                ARGO_WORKFLOWS_ENV_VARS_TO_SKIP
+            )
 
             # support for GCP
             env["METAFLOW_DATASTORE_SYSROOT_GS"] = DATASTORE_SYSROOT_GS
@@ -1775,9 +1796,7 @@ class ArgoWorkflows(object):
                 else:
                     # append this only for joins of foreaches, not static splits
                     inputs.append(Parameter("split-cardinality"))
-            # We can use an `elif` condition because the first `if` condition validates if its
-            # a foreach join node, hence we can safely assume that if that condition fails then
-            # we can check if the node is a @parallel node.
+            # check if the node is a @parallel node.
             elif node.parallel_step:
                 inputs.extend(
                     [
@@ -1832,7 +1851,7 @@ class ArgoWorkflows(object):
                         ),
                     ]
                 )
-            # Outputs should be defined over here, Not in the _dag_template for the `num_parallel` stuff.
+            # Outputs should be defined over here and not in the _dag_template for @parallel.
 
             # It makes no sense to set env vars to None (shows up as "None" string)
             # Also we skip some env vars (e.g. in case we want to pull them from KUBERNETES_SECRETS)
@@ -1859,20 +1878,20 @@ class ArgoWorkflows(object):
 
             if tmpfs_enabled and tmpfs_tempdir:
                 env["METAFLOW_TEMPDIR"] = tmpfs_path
+
             # Create a ContainerTemplate for this node. Ideally, we would have
             # liked to inline this ContainerTemplate and avoid scanning the workflow
             # twice, but due to issues with variable substitution, we will have to
             # live with this routine.
             if node.parallel_step:
-
                 # Explicitly add the task-id-hint label. This is important because this label
-                # is returned as an Output parameter of this step and is used subsequently an
-                # an input in the join step. Even the num_parallel is used as an output parameter
+                # is returned as an Output parameter of this step and is used subsequently as an
+                # an input in the join step.
                 kubernetes_labels = self.kubernetes_labels.copy()
                 jobset_name = "{{inputs.parameters.jobset-name}}"
-                kubernetes_labels[
-                    "task_id_entropy"
-                ] = "{{inputs.parameters.task-id-entropy}}"
+                kubernetes_labels["task_id_entropy"] = (
+                    "{{inputs.parameters.task-id-entropy}}"
+                )
                 kubernetes_labels["num_parallel"] = "{{inputs.parameters.num-parallel}}"
                 jobset = KubernetesArgoJobSet(
                     kubernetes_sdk=kubernetes_sdk,
@@ -1896,9 +1915,11 @@ class ArgoWorkflows(object):
                                 list(
                                     []
                                     if not resources.get("secrets")
-                                    else [resources.get("secrets")]
-                                    if isinstance(resources.get("secrets"), str)
-                                    else resources.get("secrets")
+                                    else (
+                                        [resources.get("secrets")]
+                                        if isinstance(resources.get("secrets"), str)
+                                        else resources.get("secrets")
+                                    )
                                 )
                                 + KUBERNETES_SECRETS.split(",")
                                 + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
@@ -1929,7 +1950,6 @@ class ArgoWorkflows(object):
                 for k, v in kubernetes_labels.items():
                     jobset.label(k, v)
 
-                ## -----Jobset specific env vars START here-----
                 jobset.environment_variable(
                     "MF_MASTER_ADDR", jobset.jobset_control_addr
                 )
@@ -1948,7 +1968,6 @@ class ArgoWorkflows(object):
                         "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
                         "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME": "spec.serviceAccountName",
                         "METAFLOW_KUBERNETES_NODE_IP": "status.hostIP",
-                        # `TASK_ID_SUFFIX` is needed for the construction of the task-ids
                         "TASK_ID_SUFFIX": "metadata.annotations['jobset.sigs.k8s.io/job-index']",
                     }
                 )
@@ -1973,8 +1992,7 @@ class ArgoWorkflows(object):
                     )
                 for k, v in annotations.items():
                     jobset.annotation(k, v)
-                ## -----Jobset specific env vars END here-----
-                ## ---- Jobset control/workers specific vars START here ----
+
                 jobset.control.replicas(1)
                 jobset.worker.replicas("{{=asInt(inputs.parameters.workerCount)}}")
                 jobset.control.environment_variable("UBF_CONTEXT", UBF_CONTROL)
@@ -1985,7 +2003,6 @@ class ArgoWorkflows(object):
                 jobset.control.environment_variable("TASK_ID_PREFIX", "control")
                 jobset.worker.environment_variable("TASK_ID_PREFIX", "worker")
 
-                ## ---- Jobset control/workers specific vars END here ----
                 yield (
                     Template(ArgoWorkflows._sanitize(node.name))
                     .resource(
@@ -2012,166 +2029,185 @@ class ArgoWorkflows(object):
                         minutes_between_retries=minutes_between_retries,
                     )
                 )
-                continue
-            yield (
-                Template(self._sanitize(node.name))
-                # Set @timeout values
-                .active_deadline_seconds(run_time_limit)
-                # Set service account
-                .service_account_name(resources["service_account"])
-                # Configure template input
-                .inputs(Inputs().parameters(inputs))
-                # Configure template output
-                .outputs(Outputs().parameters(outputs))
-                # Fail fast!
-                .fail_fast()
-                # Set @retry/@catch values
-                .retry_strategy(
-                    times=total_retries,
-                    minutes_between_retries=minutes_between_retries,
-                )
-                .metadata(
-                    ObjectMeta().annotation("metaflow/step_name", node.name)
-                    # Unfortunately, we can't set the task_id since it is generated
-                    # inside the pod. However, it can be inferred from the annotation
-                    # set by argo-workflows - `workflows.argoproj.io/outputs` - refer
-                    # the field 'task-id' in 'parameters'
-                    # .annotation("metaflow/task_id", ...)
-                    .annotation("metaflow/attempt", retry_count)
-                )
-                # Set emptyDir volume for state management
-                .empty_dir_volume("out")
-                # Set tmpfs emptyDir volume if enabled
-                .empty_dir_volume(
-                    "tmpfs-ephemeral-volume",
-                    medium="Memory",
-                    size_limit=tmpfs_size if tmpfs_enabled else 0,
-                )
-                .empty_dir_volume("dhsm", medium="Memory", size_limit=shared_memory)
-                .pvc_volumes(resources.get("persistent_volume_claims"))
-                # Set node selectors
-                .node_selectors(resources.get("node_selector"))
-                # Set tolerations
-                .tolerations(resources.get("tolerations"))
-                # Set container
-                .container(
-                    # TODO: Unify the logic with kubernetes.py
-                    # Important note - Unfortunately, V1Container uses snakecase while
-                    # Argo Workflows uses camel. For most of the attributes, both cases
-                    # are indistinguishable, but unfortunately, not for all - (
-                    # env_from, value_from, etc.) - so we need to handle the conversion
-                    # ourselves using to_camelcase. We need to be vigilant about
-                    # resources attributes in particular where the keys maybe user
-                    # defined.
-                    to_camelcase(
-                        kubernetes_sdk.V1Container(
-                            name=self._sanitize(node.name),
-                            command=cmds,
-                            ports=[kubernetes_sdk.V1ContainerPort(container_port=port)]
-                            if port
-                            else None,
-                            env=[
-                                kubernetes_sdk.V1EnvVar(name=k, value=str(v))
-                                for k, v in env.items()
-                            ]
-                            # Add environment variables for book-keeping.
-                            # https://argoproj.github.io/argo-workflows/fields/#fields_155
-                            + [
-                                kubernetes_sdk.V1EnvVar(
-                                    name=k,
-                                    value_from=kubernetes_sdk.V1EnvVarSource(
-                                        field_ref=kubernetes_sdk.V1ObjectFieldSelector(
-                                            field_path=str(v)
+            else:
+                yield (
+                    Template(self._sanitize(node.name))
+                    # Set @timeout values
+                    .active_deadline_seconds(run_time_limit)
+                    # Set service account
+                    .service_account_name(resources["service_account"])
+                    # Configure template input
+                    .inputs(Inputs().parameters(inputs))
+                    # Configure template output
+                    .outputs(Outputs().parameters(outputs))
+                    # Fail fast!
+                    .fail_fast()
+                    # Set @retry/@catch values
+                    .retry_strategy(
+                        times=total_retries,
+                        minutes_between_retries=minutes_between_retries,
+                    )
+                    .metadata(
+                        ObjectMeta().annotation("metaflow/step_name", node.name)
+                        # Unfortunately, we can't set the task_id since it is generated
+                        # inside the pod. However, it can be inferred from the annotation
+                        # set by argo-workflows - `workflows.argoproj.io/outputs` - refer
+                        # the field 'task-id' in 'parameters'
+                        # .annotation("metaflow/task_id", ...)
+                        .annotation("metaflow/attempt", retry_count)
+                    )
+                    # Set emptyDir volume for state management
+                    .empty_dir_volume("out")
+                    # Set tmpfs emptyDir volume if enabled
+                    .empty_dir_volume(
+                        "tmpfs-ephemeral-volume",
+                        medium="Memory",
+                        size_limit=tmpfs_size if tmpfs_enabled else 0,
+                    )
+                    .empty_dir_volume("dhsm", medium="Memory", size_limit=shared_memory)
+                    .pvc_volumes(resources.get("persistent_volume_claims"))
+                    # Set node selectors
+                    .node_selectors(resources.get("node_selector"))
+                    # Set tolerations
+                    .tolerations(resources.get("tolerations"))
+                    # Set container
+                    .container(
+                        # TODO: Unify the logic with kubernetes.py
+                        # Important note - Unfortunately, V1Container uses snakecase while
+                        # Argo Workflows uses camel. For most of the attributes, both cases
+                        # are indistinguishable, but unfortunately, not for all - (
+                        # env_from, value_from, etc.) - so we need to handle the conversion
+                        # ourselves using to_camelcase. We need to be vigilant about
+                        # resources attributes in particular where the keys maybe user
+                        # defined.
+                        to_camelcase(
+                            kubernetes_sdk.V1Container(
+                                name=self._sanitize(node.name),
+                                command=cmds,
+                                termination_message_policy="FallbackToLogsOnError",
+                                ports=(
+                                    [
+                                        kubernetes_sdk.V1ContainerPort(
+                                            container_port=port
                                         )
-                                    ),
-                                )
-                                for k, v in {
-                                    "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
-                                    "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
-                                    "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
-                                    "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME": "spec.serviceAccountName",
-                                    "METAFLOW_KUBERNETES_NODE_IP": "status.hostIP",
-                                }.items()
-                            ],
-                            image=resources["image"],
-                            image_pull_policy=resources["image_pull_policy"],
-                            resources=kubernetes_sdk.V1ResourceRequirements(
-                                requests={
-                                    "cpu": str(resources["cpu"]),
-                                    "memory": "%sM" % str(resources["memory"]),
-                                    "ephemeral-storage": "%sM" % str(resources["disk"]),
-                                },
-                                limits={
-                                    "%s.com/gpu".lower()
-                                    % resources["gpu_vendor"]: str(resources["gpu"])
-                                    for k in [0]
-                                    if resources["gpu"] is not None
-                                },
-                            ),
-                            # Configure secrets
-                            env_from=[
-                                kubernetes_sdk.V1EnvFromSource(
-                                    secret_ref=kubernetes_sdk.V1SecretEnvSource(
-                                        name=str(k),
-                                        # optional=True
+                                    ]
+                                    if port
+                                    else None
+                                ),
+                                env=[
+                                    kubernetes_sdk.V1EnvVar(name=k, value=str(v))
+                                    for k, v in env.items()
+                                ]
+                                # Add environment variables for book-keeping.
+                                # https://argoproj.github.io/argo-workflows/fields/#fields_155
+                                + [
+                                    kubernetes_sdk.V1EnvVar(
+                                        name=k,
+                                        value_from=kubernetes_sdk.V1EnvVarSource(
+                                            field_ref=kubernetes_sdk.V1ObjectFieldSelector(
+                                                field_path=str(v)
+                                            )
+                                        ),
                                     )
-                                )
-                                for k in list(
-                                    []
-                                    if not resources.get("secrets")
-                                    else [resources.get("secrets")]
-                                    if isinstance(resources.get("secrets"), str)
-                                    else resources.get("secrets")
-                                )
-                                + KUBERNETES_SECRETS.split(",")
-                                + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
-                                if k
-                            ],
-                            volume_mounts=[
-                                # Assign a volume mount to pass state to the next task.
-                                kubernetes_sdk.V1VolumeMount(
-                                    name="out", mount_path="/mnt/out"
-                                )
-                            ]
-                            # Support tmpfs.
-                            + (
-                                [
+                                    for k, v in {
+                                        "METAFLOW_KUBERNETES_NAMESPACE": "metadata.namespace",
+                                        "METAFLOW_KUBERNETES_POD_NAMESPACE": "metadata.namespace",
+                                        "METAFLOW_KUBERNETES_POD_NAME": "metadata.name",
+                                        "METAFLOW_KUBERNETES_POD_ID": "metadata.uid",
+                                        "METAFLOW_KUBERNETES_SERVICE_ACCOUNT_NAME": "spec.serviceAccountName",
+                                        "METAFLOW_KUBERNETES_NODE_IP": "status.hostIP",
+                                    }.items()
+                                ],
+                                image=resources["image"],
+                                image_pull_policy=resources["image_pull_policy"],
+                                resources=kubernetes_sdk.V1ResourceRequirements(
+                                    requests={
+                                        "cpu": str(resources["cpu"]),
+                                        "memory": "%sM" % str(resources["memory"]),
+                                        "ephemeral-storage": "%sM"
+                                        % str(resources["disk"]),
+                                    },
+                                    limits={
+                                        "%s.com/gpu".lower()
+                                        % resources["gpu_vendor"]: str(resources["gpu"])
+                                        for k in [0]
+                                        if resources["gpu"] is not None
+                                    },
+                                ),
+                                # Configure secrets
+                                env_from=[
+                                    kubernetes_sdk.V1EnvFromSource(
+                                        secret_ref=kubernetes_sdk.V1SecretEnvSource(
+                                            name=str(k),
+                                            # optional=True
+                                        )
+                                    )
+                                    for k in list(
+                                        []
+                                        if not resources.get("secrets")
+                                        else (
+                                            [resources.get("secrets")]
+                                            if isinstance(resources.get("secrets"), str)
+                                            else resources.get("secrets")
+                                        )
+                                    )
+                                    + KUBERNETES_SECRETS.split(",")
+                                    + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
+                                    if k
+                                ],
+                                volume_mounts=[
+                                    # Assign a volume mount to pass state to the next task.
                                     kubernetes_sdk.V1VolumeMount(
-                                        name="tmpfs-ephemeral-volume",
-                                        mount_path=tmpfs_path,
+                                        name="out", mount_path="/mnt/out"
                                     )
                                 ]
-                                if tmpfs_enabled
-                                else []
-                            )
-                            # Support shared_memory
-                            + (
-                                [
-                                    kubernetes_sdk.V1VolumeMount(
-                                        name="dhsm",
-                                        mount_path="/dev/shm",
-                                    )
-                                ]
-                                if shared_memory
-                                else []
-                            )
-                            # Support persistent volume claims.
-                            + (
-                                [
-                                    kubernetes_sdk.V1VolumeMount(
-                                        name=claim, mount_path=path
-                                    )
-                                    for claim, path in resources.get(
-                                        "persistent_volume_claims"
-                                    ).items()
-                                ]
-                                if resources.get("persistent_volume_claims") is not None
-                                else []
-                            ),
-                        ).to_dict()
+                                # Support tmpfs.
+                                + (
+                                    [
+                                        kubernetes_sdk.V1VolumeMount(
+                                            name="tmpfs-ephemeral-volume",
+                                            mount_path=tmpfs_path,
+                                        )
+                                    ]
+                                    if tmpfs_enabled
+                                    else []
+                                )
+                                # Support shared_memory
+                                + (
+                                    [
+                                        kubernetes_sdk.V1VolumeMount(
+                                            name="dhsm",
+                                            mount_path="/dev/shm",
+                                        )
+                                    ]
+                                    if shared_memory
+                                    else []
+                                )
+                                # Support persistent volume claims.
+                                + (
+                                    [
+                                        kubernetes_sdk.V1VolumeMount(
+                                            name=claim, mount_path=path
+                                        )
+                                        for claim, path in resources.get(
+                                            "persistent_volume_claims"
+                                        ).items()
+                                    ]
+                                    if resources.get("persistent_volume_claims")
+                                    is not None
+                                    else []
+                                ),
+                            ).to_dict()
+                        )
                     )
                 )
-            )
+
+    # Return daemon container templates for workflow execution notifications.
+    def _daemon_templates(self):
+        templates = []
+        if self.enable_heartbeat_daemon:
+            templates.append(self._heartbeat_daemon_template())
+        return templates
 
     # Return exit hook templates for workflow execution notifications.
     def _exit_hook_templates(self):
@@ -2199,7 +2235,149 @@ class ArgoWorkflows(object):
                     .success_condition("true == true")
                 )
             )
+        if self.enable_error_msg_capture:
+            templates.extend(self._error_msg_capture_hook_templates())
         return templates
+
+    def _error_msg_capture_hook_templates(self):
+        from kubernetes import client as kubernetes_sdk
+
+        start_step = [step for step in self.graph if step.name == "start"][0]
+        # We want to grab the base image used by the start step, as this is known to be pullable from within the cluster,
+        # and it might contain the required libraries, allowing us to start up faster.
+        resources = dict(
+            [deco for deco in start_step.decorators if deco.name == "kubernetes"][
+                0
+            ].attributes
+        )
+
+        run_id_template = "argo-{{workflow.name}}"
+        metaflow_version = self.environment.get_environment_info()
+        metaflow_version["flow_name"] = self.graph.name
+        metaflow_version["production_token"] = self.production_token
+
+        mflog_expr = export_mflog_env_vars(
+            datastore_type=self.flow_datastore.TYPE,
+            stdout_path="$PWD/.logs/mflog_stdout",
+            stderr_path="$PWD/.logs/mflog_stderr",
+            flow_name=self.flow.name,
+            run_id=run_id_template,
+            step_name="_run_capture_error",
+            task_id="1",
+            retry_count="0",
+        )
+
+        cmds = " && ".join(
+            [
+                # For supporting sandboxes, ensure that a custom script is executed
+                # before anything else is executed. The script is passed in as an
+                # env var.
+                '${METAFLOW_INIT_SCRIPT:+eval \\"${METAFLOW_INIT_SCRIPT}\\"}',
+                "mkdir -p $PWD/.logs",
+                mflog_expr,
+            ]
+            + self.environment.get_package_commands(
+                self.code_package_url, self.flow_datastore.TYPE
+            )[:-1]
+            # Replace the line 'Task in starting'
+            # FIXME: this can be brittle.
+            + ["mflog 'Error capture hook is starting.'"]
+            + ["argo_error=$(python -m 'metaflow.plugins.argo.capture_error')"]
+            + ["export METAFLOW_ARGO_ERROR=$argo_error"]
+            + [
+                """python -c 'import json, os; error_obj=os.getenv(\\"METAFLOW_ARGO_ERROR\\");data=json.loads(error_obj); print(data[\\"message\\"])'"""
+            ]
+            + [
+                'if [ -n \\"${METAFLOW_ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT}\\" ]; then eval \\"${METAFLOW_ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT}\\"; fi'
+            ]
+        )
+
+        # TODO: Also capture the first failed task id
+        cmds = shlex.split('bash -c "%s"' % cmds)
+        env = {
+            # These values are needed by Metaflow to set it's internal
+            # state appropriately.
+            "METAFLOW_CODE_URL": self.code_package_url,
+            "METAFLOW_CODE_SHA": self.code_package_sha,
+            "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
+            "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
+            "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
+            "METAFLOW_USER": "argo-workflows",
+            "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
+            "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
+            "METAFLOW_OWNER": self.username,
+        }
+        # support Metaflow sandboxes
+        env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
+        env["METAFLOW_ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT"] = (
+            ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT
+        )
+
+        env["METAFLOW_WORKFLOW_NAME"] = "{{workflow.name}}"
+        env["METAFLOW_WORKFLOW_NAMESPACE"] = "{{workflow.namespace}}"
+        env["METAFLOW_ARGO_WORKFLOW_FAILURES"] = "{{workflow.failures}}"
+        env = {
+            k: v
+            for k, v in env.items()
+            if v is not None
+            and k not in set(ARGO_WORKFLOWS_ENV_VARS_TO_SKIP.split(","))
+        }
+        return [
+            Template("error-msg-capture-hook").container(
+                to_camelcase(
+                    kubernetes_sdk.V1Container(
+                        name="main",
+                        command=cmds,
+                        image=resources["image"],
+                        env=[
+                            kubernetes_sdk.V1EnvVar(name=k, value=str(v))
+                            for k, v in env.items()
+                        ],
+                        env_from=[
+                            kubernetes_sdk.V1EnvFromSource(
+                                secret_ref=kubernetes_sdk.V1SecretEnvSource(
+                                    name=str(k),
+                                    # optional=True
+                                )
+                            )
+                            for k in list(
+                                []
+                                if not resources.get("secrets")
+                                else (
+                                    [resources.get("secrets")]
+                                    if isinstance(resources.get("secrets"), str)
+                                    else resources.get("secrets")
+                                )
+                            )
+                            + KUBERNETES_SECRETS.split(",")
+                            + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
+                            if k
+                        ],
+                        resources=kubernetes_sdk.V1ResourceRequirements(
+                            # NOTE: base resources for this are kept to a minimum to save on running costs.
+                            # This has an adverse effect on startup time for the daemon, which can be completely
+                            # alleviated by using a base image that has the required dependencies pre-installed
+                            requests={
+                                "cpu": "200m",
+                                "memory": "100Mi",
+                            },
+                            limits={
+                                "cpu": "200m",
+                                "memory": "500Mi",
+                            },
+                        ),
+                    )
+                )
+            ),
+            Template("capture-error-hook-fn-preflight").steps(
+                [
+                    WorkflowStep()
+                    .name("capture-error-hook-fn-preflight")
+                    .template("error-msg-capture-hook")
+                    .when("{{workflow.status}} != Succeeded")
+                ]
+            ),
+        ]
 
     def _pager_duty_alert_template(self):
         # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgx-send-an-alert-event
@@ -2377,6 +2555,137 @@ class ArgoWorkflows(object):
 
         return Template("notify-slack-on-success").http(
             Http("POST").url(self.notify_slack_webhook_url).body(json.dumps(payload))
+        )
+
+    def _heartbeat_daemon_template(self):
+        # Use all the affordances available to _parameters task
+        executable = self.environment.executable("_parameters")
+        run_id = "argo-{{workflow.name}}"
+        entrypoint = [executable, "-m metaflow.plugins.argo.daemon"]
+        heartbeat_cmds = "{entrypoint} --flow_name {flow_name} --run_id {run_id} {tags} heartbeat".format(
+            entrypoint=" ".join(entrypoint),
+            flow_name=self.flow.name,
+            run_id=run_id,
+            tags=" ".join(["--tag %s" % t for t in self.tags]) if self.tags else "",
+        )
+
+        # TODO: we do not really need MFLOG logging for the daemon at the moment, but might be good for the future.
+        # Consider if we can do without this setup.
+        # Configure log capture.
+        mflog_expr = export_mflog_env_vars(
+            datastore_type=self.flow_datastore.TYPE,
+            stdout_path="$PWD/.logs/mflog_stdout",
+            stderr_path="$PWD/.logs/mflog_stderr",
+            flow_name=self.flow.name,
+            run_id=run_id,
+            step_name="_run_heartbeat_daemon",
+            task_id="1",
+            retry_count="0",
+        )
+        # TODO: Can the init be trimmed down?
+        # Can we do without get_package_commands fetching the whole code package?
+        init_cmds = " && ".join(
+            [
+                # For supporting sandboxes, ensure that a custom script is executed
+                # before anything else is executed. The script is passed in as an
+                # env var.
+                '${METAFLOW_INIT_SCRIPT:+eval \\"${METAFLOW_INIT_SCRIPT}\\"}',
+                "mkdir -p $PWD/.logs",
+                mflog_expr,
+            ]
+            + self.environment.get_package_commands(
+                self.code_package_url, self.flow_datastore.TYPE
+            )[:-1]
+            # Replace the line 'Task in starting'
+            # FIXME: this can be brittle.
+            + ["mflog 'Heartbeat daemon is starting.'"]
+        )
+
+        cmd_str = " && ".join([init_cmds, heartbeat_cmds])
+        cmds = shlex.split('bash -c "%s"' % cmd_str)
+
+        # TODO: Check that this is the minimal env.
+        # Env required for sending heartbeats to the metadata service, nothing extra.
+        env = {
+            # These values are needed by Metaflow to set it's internal
+            # state appropriately.
+            "METAFLOW_CODE_URL": self.code_package_url,
+            "METAFLOW_CODE_SHA": self.code_package_sha,
+            "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
+            "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
+            "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
+            "METAFLOW_USER": "argo-workflows",
+            "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
+            "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
+            "METAFLOW_OWNER": self.username,
+        }
+        # support Metaflow sandboxes
+        env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
+
+        # cleanup env values
+        env = {
+            k: v
+            for k, v in env.items()
+            if v is not None
+            and k not in set(ARGO_WORKFLOWS_ENV_VARS_TO_SKIP.split(","))
+        }
+
+        # We want to grab the base image used by the start step, as this is known to be pullable from within the cluster,
+        # and it might contain the required libraries, allowing us to start up faster.
+        start_step = next(step for step in self.flow if step.name == "start")
+        resources = dict(
+            [deco for deco in start_step.decorators if deco.name == "kubernetes"][
+                0
+            ].attributes
+        )
+        from kubernetes import client as kubernetes_sdk
+
+        return DaemonTemplate("heartbeat-daemon").container(
+            to_camelcase(
+                kubernetes_sdk.V1Container(
+                    name="main",
+                    # TODO: Make the image configurable
+                    image=resources["image"],
+                    command=cmds,
+                    env=[
+                        kubernetes_sdk.V1EnvVar(name=k, value=str(v))
+                        for k, v in env.items()
+                    ],
+                    env_from=[
+                        kubernetes_sdk.V1EnvFromSource(
+                            secret_ref=kubernetes_sdk.V1SecretEnvSource(
+                                name=str(k),
+                                # optional=True
+                            )
+                        )
+                        for k in list(
+                            []
+                            if not resources.get("secrets")
+                            else (
+                                [resources.get("secrets")]
+                                if isinstance(resources.get("secrets"), str)
+                                else resources.get("secrets")
+                            )
+                        )
+                        + KUBERNETES_SECRETS.split(",")
+                        + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
+                        if k
+                    ],
+                    resources=kubernetes_sdk.V1ResourceRequirements(
+                        # NOTE: base resources for this are kept to a minimum to save on running costs.
+                        # This has an adverse effect on startup time for the daemon, which can be completely
+                        # alleviated by using a base image that has the required dependencies pre-installed
+                        requests={
+                            "cpu": "200m",
+                            "memory": "100Mi",
+                        },
+                        limits={
+                            "cpu": "200m",
+                            "memory": "100Mi",
+                        },
+                    ),
+                )
+            )
         )
 
     def _compile_sensor(self):
@@ -2833,6 +3142,34 @@ class ObjectMeta(object):
         return json.dumps(self.to_json(), indent=4)
 
 
+class WorkflowStep(object):
+    def __init__(self):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+
+    def name(self, name):
+        self.payload["name"] = str(name)
+        return self
+
+    def template(self, template):
+        self.payload["template"] = str(template)
+        return self
+
+    def when(self, condition):
+        self.payload["when"] = str(condition)
+        return self
+
+    def step(self, expression):
+        self.payload["expression"] = str(expression)
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.to_json(), indent=4)
+
+
 class WorkflowSpec(object):
     # https://argoproj.github.io/argo-workflows/fields/#workflowspec
     # This object sets all Workflow level properties.
@@ -2861,6 +3198,11 @@ class WorkflowSpec(object):
 
     def entrypoint(self, entrypoint):
         self.payload["entrypoint"] = entrypoint
+        return self
+
+    def onExit(self, on_exit_template):
+        if on_exit_template:
+            self.payload["onExit"] = on_exit_template
         return self
 
     def parallelism(self, parallelism):
@@ -2951,6 +3293,25 @@ class Metadata(object):
         return json.dumps(self.to_json(), indent=4)
 
 
+class DaemonTemplate(object):
+    def __init__(self, name):
+        tree = lambda: defaultdict(tree)
+        self.name = name
+        self.payload = tree()
+        self.payload["daemon"] = True
+        self.payload["name"] = name
+
+    def container(self, container):
+        self.payload["container"] = container
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
+
+
 class Template(object):
     # https://argoproj.github.io/argo-workflows/fields/#template
 
@@ -2967,6 +3328,18 @@ class Template(object):
 
     def dag(self, dag_template):
         self.payload["dag"] = dag_template.to_json()
+        return self
+
+    def steps(self, steps):
+        if "steps" not in self.payload:
+            self.payload["steps"] = []
+        # steps is a list of lists.
+        # hence we go over every item in the incoming list
+        # serialize it and then append the list to the payload
+        step_list = []
+        for step in steps:
+            step_list.append(step.to_json())
+        self.payload["steps"].append(step_list)
         return self
 
     def container(self, container):

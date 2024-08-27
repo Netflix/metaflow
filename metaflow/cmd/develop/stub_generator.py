@@ -292,9 +292,11 @@ class StubGenerator:
             try:
                 potential_element = eval(
                     element,
-                    self._current_parent_module.__dict__
-                    if self._current_parent_module
-                    else None,
+                    (
+                        self._current_parent_module.__dict__
+                        if self._current_parent_module
+                        else None
+                    ),
                 )
                 if potential_element:
                     element = potential_element
@@ -555,14 +557,14 @@ class StubGenerator:
                         inspect.Parameter(
                             name=arg_name,
                             kind=inspect.Parameter.KEYWORD_ONLY,
-                            default=default
-                            if default_set
-                            else None
-                            if is_optional
-                            else inspect.Parameter.empty,
-                            annotation=Optional[type_name]
-                            if is_optional
-                            else type_name,
+                            default=(
+                                default
+                                if default_set
+                                else None if is_optional else inspect.Parameter.empty
+                            ),
+                            annotation=(
+                                Optional[type_name] if is_optional else type_name
+                            ),
                         )
                     )
                     if not default_set:
@@ -706,24 +708,31 @@ class StubGenerator:
             result = result + [
                 (
                     inspect.Signature(
-                        parameters=[
-                            inspect.Parameter(
-                                name="f",
-                                kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                                annotation=Optional[typing.Type[FlowSpecDerived]],
-                                default=None
-                                if no_arg_version
-                                else inspect.Parameter.empty,
-                            )
-                        ]
-                        + parameters
-                        if no_arg_version
-                        else [] + parameters,
-                        return_annotation=inspect.Signature.empty
-                        if no_arg_version
-                        else Callable[
-                            [typing.Type[FlowSpecDerived]], typing.Type[FlowSpecDerived]
-                        ],
+                        parameters=(
+                            [
+                                inspect.Parameter(
+                                    name="f",
+                                    kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                                    annotation=Optional[typing.Type[FlowSpecDerived]],
+                                    default=(
+                                        None
+                                        if no_arg_version
+                                        else inspect.Parameter.empty
+                                    ),
+                                )
+                            ]
+                            + parameters
+                            if no_arg_version
+                            else [] + parameters
+                        ),
+                        return_annotation=(
+                            inspect.Signature.empty
+                            if no_arg_version
+                            else Callable[
+                                [typing.Type[FlowSpecDerived]],
+                                typing.Type[FlowSpecDerived],
+                            ]
+                        ),
                     ),
                     "",
                 ),
@@ -732,24 +741,30 @@ class StubGenerator:
             result = result + [
                 (
                     inspect.Signature(
-                        parameters=[
-                            inspect.Parameter(
-                                name="f",
-                                kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                                annotation=Optional[MetaflowStepFunction],
-                                default=None
-                                if no_arg_version
-                                else inspect.Parameter.empty,
-                            )
-                        ]
-                        + parameters
-                        if no_arg_version
-                        else [] + parameters,
-                        return_annotation=inspect.Signature.empty
-                        if no_arg_version
-                        else typing.Callable[
-                            [MetaflowStepFunction], MetaflowStepFunction
-                        ],
+                        parameters=(
+                            [
+                                inspect.Parameter(
+                                    name="f",
+                                    kind=inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                                    annotation=Optional[MetaflowStepFunction],
+                                    default=(
+                                        None
+                                        if no_arg_version
+                                        else inspect.Parameter.empty
+                                    ),
+                                )
+                            ]
+                            + parameters
+                            if no_arg_version
+                            else [] + parameters
+                        ),
+                        return_annotation=(
+                            inspect.Signature.empty
+                            if no_arg_version
+                            else typing.Callable[
+                                [MetaflowStepFunction], MetaflowStepFunction
+                            ]
+                        ),
                     ),
                     "",
                 ),

@@ -650,7 +650,7 @@ def resume(
             )
 
     if step_to_rerun is None:
-        clone_steps = set()
+        steps_to_rerun = set()
     else:
         # validate step name
         if step_to_rerun not in obj.graph.nodes:
@@ -660,7 +660,7 @@ def resume(
                     step_to_rerun, ",".join(list(obj.graph.nodes.keys()))
                 )
             )
-        clone_steps = {step_to_rerun}
+        steps_to_rerun = {step_to_rerun}
 
     if run_id:
         # Run-ids that are provided by the metadata service are always integers.
@@ -688,7 +688,7 @@ def resume(
         clone_run_id=origin_run_id,
         clone_only=clone_only,
         reentrant=reentrant,
-        clone_steps=clone_steps,
+        steps_to_rerun=steps_to_rerun,
         max_workers=max_workers,
         max_num_splits=max_num_splits,
         max_log_size=max_log_size * 1024 * 1024,

@@ -150,6 +150,8 @@ from . import tuple_util
 if sys.version_info >= (3, 7):
     from .runner.metaflow_runner import Runner
     from .runner.nbrun import NBRunner
+    from .runner.deployer import Deployer
+    from .runner.nbdeploy import NBDeployer
 
 __version_addl__ = []
 _ext_debug("Loading top-level modules")

@@ -180,14 +180,15 @@ _plugin_categories = {
     "datastore": lambda x: x.TYPE,
     "secrets_provider": lambda x: x.TYPE,
     "gcp_client_provider": lambda x: x.name,
+    "deployer_impl_provider": lambda x: x.TYPE,
     "azure_client_provider": lambda x: x.name,
     "sidecar": None,
     "logging_sidecar": None,
     "monitor_sidecar": None,
     "aws_client_provider": lambda x: x.name,
-    "cli": lambda x: list(x.commands)[0]
-    if len(x.commands) == 1
-    else "too many commands",
+    "cli": lambda x: (
+        list(x.commands)[0] if len(x.commands) == 1 else "too many commands"
+    ),
 }
 
 

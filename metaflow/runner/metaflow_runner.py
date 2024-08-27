@@ -2,31 +2,12 @@ import importlib
 import os
 import sys
 import tempfile
-import time
 from typing import Dict, Iterator, Optional, Tuple
 
 from metaflow import Run, metadata
 
+from .utils import clear_and_set_os_environ, read_from_file_when_ready
 from .subprocess_manager import CommandManager, SubprocessManager
-
-
-def clear_and_set_os_environ(env: Dict):
-    os.environ.clear()
-    os.environ.update(env)
-
-
-def read_from_file_when_ready(file_path: str, timeout: float = 5):
-    start_time = time.time()
-    with open(file_path, "r", encoding="utf-8") as file_pointer:
-        content = file_pointer.read()
-        while not content:
-            if time.time() - start_time > timeout:
-                raise TimeoutError(
-                    "Timeout while waiting for file content from '%s'" % file_path
-                )
-            time.sleep(0.1)
-            content = file_pointer.read()
-        return content
 
 
 class ExecutingRun(object):
@@ -230,6 +211,8 @@ class Runner(object):
     cwd : Optional[str], default None
         The directory to run the subprocess in; if not specified, the current
         directory is used.
+    file_read_timeout : int, default 3600
+        The timeout until which we try to read the runner attribute file.
     **kwargs : Any
         Additional arguments that you would pass to `python myflow.py` before
         the `run` command.
@@ -242,6 +225,7 @@ class Runner(object):
         profile: Optional[str] = None,
         env: Optional[Dict] = None,
         cwd: Optional[str] = None,
+        file_read_timeout: int = 3600,
         **kwargs
     ):
         # these imports are required here and not at the top
@@ -267,6 +251,7 @@ class Runner(object):
             self.env_vars["METAFLOW_PROFILE"] = profile
 
         self.cwd = cwd
+        self.file_read_timeout = file_read_timeout
         self.spm = SubprocessManager()
         self.top_level_kwargs = kwargs
         self.api = MetaflowAPI.from_cli(self.flow_file, start)
@@ -289,7 +274,9 @@ class Runner(object):
             clear_and_set_os_environ(self.old_env)
 
             # Set the correct metadata from the runner_attribute file corresponding to this run.
-            content = read_from_file_when_ready(tfp_runner_attribute.name, timeout=10)
+            content = read_from_file_when_ready(
+                tfp_runner_attribute.name, timeout=self.file_read_timeout
+            )
             metadata_for_flow, pathspec = content.rsplit(":", maxsplit=1)
             metadata(metadata_for_flow)
             run_object = Run(pathspec, _namespace_check=False)

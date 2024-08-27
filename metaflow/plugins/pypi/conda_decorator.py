@@ -100,9 +100,9 @@ class CondaStepDecorator(StepDecorator):
         # --environment=pypi to --environment=conda
         _supported_virtual_envs.extend(["pypi"])
 
-        # TODO: Hardcoded for now to support Docker environment.
+        # TODO: Hardcoded for now to support the fast bakery environment.
         # We should introduce a more robust mechanism for appending supported environments, for example from within extensions.
-        _supported_virtual_envs.extend(["docker"])
+        _supported_virtual_envs.extend(["fast-bakery"])
 
         # The --environment= requirement ensures that valid virtual environments are
         # created for every step to execute it, greatly simplifying the @conda
@@ -210,7 +210,7 @@ class CondaStepDecorator(StepDecorator):
         self.interpreter = (
             self.environment.interpreter(self.step)
             if not any(
-                decorator.name in ["batch", "kubernetes"]
+                decorator.name in ["batch", "kubernetes", "nvidia", "snowpark", "slurm"]
                 for decorator in next(
                     step for step in self.flow if step.name == self.step
                 ).decorators
@@ -344,9 +344,9 @@ class CondaFlowDecorator(FlowDecorator):
         # --environment=pypi to --environment=conda
         _supported_virtual_envs.extend(["pypi"])
 
-        # TODO: Hardcoded for now to support Docker environment.
+        # TODO: Hardcoded for now to support the fast bakery environment.
         # We should introduce a more robust mechanism for appending supported environments, for example from within extensions.
-        _supported_virtual_envs.extend(["docker"])
+        _supported_virtual_envs.extend(["fast-bakery"])
 
         # The --environment= requirement ensures that valid virtual environments are
         # created for every step to execute it, greatly simplifying the @conda

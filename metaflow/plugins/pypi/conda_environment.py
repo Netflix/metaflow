@@ -268,7 +268,7 @@ class CondaEnvironment(MetaflowEnvironment):
         for decorator in step.decorators:
             # TODO: rather than relying on decorator names, rely on attributes
             #       to make them extensible.
-            if decorator.name in ["batch", "kubernetes", "nvidia"]:
+            if decorator.name in ["batch", "kubernetes", "nvidia", "snowpark", "slurm"]:
                 # TODO: Support arm architectures
                 target_platform = "linux-64"
                 break
@@ -298,9 +298,7 @@ class CondaEnvironment(MetaflowEnvironment):
             lambda f: lambda obj: (
                 {k: f(f)(v) for k, v in sorted(obj.items())}
                 if isinstance(obj, dict)
-                else sorted([f(f)(e) for e in obj])
-                if isinstance(obj, list)
-                else obj
+                else sorted([f(f)(e) for e in obj]) if isinstance(obj, list) else obj
             )
         )
 

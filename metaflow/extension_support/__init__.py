@@ -980,9 +980,9 @@ class _OrigLoader(Loader):
             if self._previously_loaded_module:
                 sys.modules[self._orig_name] = self._previously_loaded_module
             if self._previously_loaded_parent_module:
-                sys.modules[
-                    ".".join(self._orig_name.split(".")[:-1])
-                ] = self._previously_loaded_parent_module
+                sys.modules[".".join(self._orig_name.split(".")[:-1])] = (
+                    self._previously_loaded_parent_module
+                )
 
 
 class _LazyFinder(MetaPathFinder):

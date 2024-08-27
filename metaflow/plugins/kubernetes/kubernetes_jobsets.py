@@ -52,8 +52,6 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
     return decorator
 
 
-CONTROL_JOB_NAME = "control"
-
 JobsetStatus = namedtuple(
     "JobsetStatus",
     [
@@ -586,13 +584,18 @@ class JobSetSpec(object):
                                 containers=[
                                     client.V1Container(
                                         command=self._kwargs["command"],
-                                        ports=[]
-                                        if self._kwargs["port"] is None
-                                        else [
-                                            client.V1ContainerPort(
-                                                container_port=int(self._kwargs["port"])
-                                            )
-                                        ],
+                                        termination_message_policy="FallbackToLogsOnError",
+                                        ports=(
+                                            []
+                                            if self._kwargs["port"] is None
+                                            else [
+                                                client.V1ContainerPort(
+                                                    container_port=int(
+                                                        self._kwargs["port"]
+                                                    )
+                                                )
+                                            ]
+                                        ),
                                         env=[
                                             client.V1EnvVar(name=k, value=str(v))
                                             for k, v in self._kwargs.get(
@@ -756,7 +759,6 @@ class JobSetSpec(object):
                                     is not None
                                     else []
                                 ),
-                                # TODO (savin): Set termination_message_policy
                             ),
                         ),
                     ),
@@ -790,14 +792,14 @@ class KubernetesJobSet(object):
 
         self._jobset_control_addr = _make_domain_name(
             name,
-            CONTROL_JOB_NAME,
+            "control",
             0,
             0,
             namespace,
         )
 
         self._control_spec = JobSetSpec(
-            client.get(), name=CONTROL_JOB_NAME, namespace=namespace, **kwargs
+            client.get(), name="control", namespace=namespace, **kwargs
         )
         self._worker_spec = JobSetSpec(
             client.get(), name="worker", namespace=namespace, **kwargs
@@ -918,14 +920,14 @@ class KubernetesArgoJobSet(object):
 
         self._jobset_control_addr = _make_domain_name(
             name,
-            CONTROL_JOB_NAME,
+            "control",
             0,
             0,
             namespace,
         )
 
         self._control_spec = JobSetSpec(
-            kubernetes_sdk, name=CONTROL_JOB_NAME, namespace=namespace, **kwargs
+            kubernetes_sdk, name="control", namespace=namespace, **kwargs
         )
         self._worker_spec = JobSetSpec(
             kubernetes_sdk, name="worker", namespace=namespace, **kwargs

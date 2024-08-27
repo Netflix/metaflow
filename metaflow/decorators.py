@@ -575,15 +575,13 @@ StepFlag = NewType("StepFlag", bool)
 @overload
 def step(
     f: Callable[[FlowSpecDerived], None]
-) -> Callable[[FlowSpecDerived, StepFlag], None]:
-    ...
+) -> Callable[[FlowSpecDerived, StepFlag], None]: ...
 
 
 @overload
 def step(
     f: Callable[[FlowSpecDerived, Any], None],
-) -> Callable[[FlowSpecDerived, Any, StepFlag], None]:
-    ...
+) -> Callable[[FlowSpecDerived, Any, StepFlag], None]: ...
 
 
 def step(

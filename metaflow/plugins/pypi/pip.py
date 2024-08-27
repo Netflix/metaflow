@@ -121,9 +121,9 @@ class Pip(object):
                     res["url"] = "{vcs}+{url}@{commit_id}{subdir_str}".format(
                         **vcs_info,
                         **res,
-                        subdir_str="#subdirectory=%s" % subdirectory
-                        if subdirectory
-                        else ""
+                        subdir_str=(
+                            "#subdirectory=%s" % subdirectory if subdirectory else ""
+                        )
                     )
                     # used to deduplicate the storage location in case wheel does not
                     # build with enough unique identifiers.

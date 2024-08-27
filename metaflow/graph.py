@@ -3,6 +3,9 @@ import ast
 import re
 
 
+from .util import to_pod
+
+
 def deindent_docstring(doc):
     if doc:
         # Find the indent to remove from the docstring. We consider the following possibilities:
@@ -72,7 +75,6 @@ class DAGNode(object):
         return "%s.%s" % (expr.value.id, expr.attr)
 
     def _parse(self, func_ast):
-
         self.num_args = len(func_ast.args.args)
         tail = func_ast.body[-1]
 
@@ -171,6 +173,8 @@ class FlowGraph(object):
         self.name = flow.__name__
         self.nodes = self._create_nodes(flow)
         self.doc = deindent_docstring(flow.__doc__)
+        # nodes sorted in topological order.
+        self.sorted_nodes = []
         self._traverse_graph()
         self._postprocess()
 
@@ -197,6 +201,7 @@ class FlowGraph(object):
 
     def _traverse_graph(self):
         def traverse(node, seen, split_parents):
+            self.sorted_nodes.append(node.name)
             if node.type in ("split", "foreach"):
                 node.split_parents = split_parents
                 split_parents = split_parents + [node.name]
@@ -262,7 +267,6 @@ class FlowGraph(object):
         )
 
     def output_steps(self):
-
         steps_info = {}
         graph_structure = []
 
@@ -286,7 +290,7 @@ class FlowGraph(object):
                 "decorators": [
                     {
                         "name": deco.name,
-                        "attributes": deco.attributes,
+                        "attributes": to_pod(deco.attributes),
                         "statically_defined": deco.statically_defined,
                     }
                     for deco in node.decorators
