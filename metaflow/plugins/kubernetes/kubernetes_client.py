@@ -1,10 +1,12 @@
+from concurrent.futures import ThreadPoolExecutor
 import os
 import sys
 import time
 
 from metaflow.exception import MetaflowException
+from metaflow.metaflow_config import KUBERNETES_NAMESPACE
 
-from .kubernetes_job import KubernetesJob, KubernetesJobSet
+from .kubernetes_job import KubernetesJob, KubernetesJobSet, RunningJob
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
@@ -28,6 +30,7 @@ class KubernetesClient(object):
                 % sys.executable
             )
         self._refresh_client()
+        self._namespace = KUBERNETES_NAMESPACE
 
     def _refresh_client(self):
         from kubernetes import client, config
@@ -59,6 +62,91 @@ class KubernetesClient(object):
             self._refresh_client()
 
         return self._client
+
+    def _find_active_pods(self, flow_name, run_id=None, user=None):
+        def _request(_continue=None):
+            # handle paginated responses
+            return self._client.CoreV1Api().list_namespaced_pod(
+                namespace=self._namespace,
+                # limited selector support for K8S api. We want to cover multiple statuses: Running / Pending / Unknown
+                field_selector="status.phase!=Succeeded,status.phase!=Failed",
+                limit=1000,
+                _continue=_continue,
+            )
+
+        results = _request()
+
+        if run_id is not None:
+            # handle argo prefixes in run_id
+            run_id = run_id[run_id.startswith("argo-") and len("argo-") :]
+
+        while results.metadata._continue or results.items:
+            for pod in results.items:
+                match = (
+                    # arbitrary pods might have no annotations at all.
+                    pod.metadata.annotations
+                    and pod.metadata.labels
+                    and (
+                        run_id is None
+                        or (pod.metadata.annotations.get("metaflow/run_id") == run_id)
+                        # we want to also match pods launched by argo-workflows
+                        or (
+                            pod.metadata.labels.get("workflows.argoproj.io/workflow")
+                            == run_id
+                        )
+                    )
+                    and (
+                        user is None
+                        or pod.metadata.annotations.get("metaflow/user") == user
+                    )
+                    and (
+                        pod.metadata.annotations.get("metaflow/flow_name") == flow_name
+                    )
+                )
+                if match:
+                    yield pod
+            if not results.metadata._continue:
+                break
+            results = _request(results.metadata._continue)
+
+    def list(self, flow_name, run_id, user):
+        results = self._find_active_pods(flow_name, run_id, user)
+
+        return list(results)
+
+    def kill_pods(self, flow_name, run_id, user, echo):
+        from kubernetes.stream import stream
+
+        api_instance = self._client.CoreV1Api()
+        pods = self._find_active_pods(flow_name, run_id, user)
+
+        def _kill_pod(pod):
+            echo(
+                "Killing Kubernetes pod %s in namespace %s\n"
+                % (pod.metadata.name, pod.metadata.namespace)
+            )
+            try:
+                stream(
+                    api_instance.connect_get_namespaced_pod_exec,
+                    name=pod.metadata.name,
+                    namespace=pod.metadata.namespace,
+                    container="main",  # required for argo-workflows due to multiple containers in a pod
+                    command=[
+                        "/bin/sh",
+                        "-c",
+                        "/sbin/killall5",
+                    ],
+                    stderr=True,
+                    stdin=False,
+                    stdout=True,
+                    tty=False,
+                )
+            except Exception as ex:
+                # best effort kill for pod can fail.
+                echo("failed to kill pod %s: %s" % (pod.metadata.name, str(ex)))
+
+        with ThreadPoolExecutor() as executor:
+            executor.map(_kill_pod, list(pods))
 
     def jobset(self, **kwargs):
         return KubernetesJobSet(self, **kwargs)
