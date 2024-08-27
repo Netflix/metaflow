@@ -1,4 +1,5 @@
 import copy
+from hashlib import sha256
 import json
 import math
 import os
@@ -400,6 +401,7 @@ class Kubernetes(object):
             .annotation("metaflow/attempt", attempt)
             .label("app.kubernetes.io/name", "metaflow-task")
             .label("app.kubernetes.io/part-of", "metaflow")
+            .label("metaflow.org/flow-hash", hashed_label(flow_name))
         )
 
         ## ----------- control/worker specific values START here -----------
@@ -659,6 +661,7 @@ class Kubernetes(object):
             .annotation("metaflow/attempt", attempt)
             .label("app.kubernetes.io/name", "metaflow-task")
             .label("app.kubernetes.io/part-of", "metaflow")
+            .label("metaflow.org/flow-hash", hashed_label(flow_name))
         )
 
         return job
@@ -814,3 +817,11 @@ def parse_kube_keyvalue_list(items: List[str], requires_both: bool = True):
         raise e
     except (AttributeError, IndexError):
         raise KubernetesException("Unable to parse kubernetes list: %s" % items)
+
+
+def hashed_label(text: str):
+    """
+    Hash a name for use as a Kubernetes label.
+    Use the maximum allowed 63 characters for the hash to minimize collisions.
+    """
+    return sha256(text.encode("utf-8")).hexdigest()[:63]
