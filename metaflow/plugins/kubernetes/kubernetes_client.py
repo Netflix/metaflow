@@ -69,7 +69,16 @@ class KubernetesClient(object):
             namespace=self._namespace,
             label_selector="metaflow.org/flow-hash=%s" % flow_hash,
         )
-        return results.items if results else []
+        seen = set()
+
+        def _process_results(result):
+            if result.metadata.annotations["metaflow/run_id"] in seen:
+                return
+            seen.add(result.metadata.annotations["metaflow/run_id"])
+            return result
+
+        # TODO: returned statuses are wrong with naive approach
+        return list(filter(_process_results, results.items))
 
     def jobset(self, **kwargs):
         return KubernetesJobSet(self, **kwargs)

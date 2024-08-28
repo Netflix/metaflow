@@ -389,7 +389,7 @@ def list_runs(obj, pending, running, succeeded, failed, unknown):
             "startedAt: '{startedAt}' "
             "finishedAt: '{finishedAt}' "
             "*{status}*".format(
-                id=execution.metadata.name,
+                id=execution.metadata.annotations["metaflow/run_id"],
                 status=remap_status(execution.status),
                 startedAt=format_timestamp(execution.status.start_time),
                 finishedAt=format_timestamp(execution.status.completion_time),
