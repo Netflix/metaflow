@@ -6,7 +6,7 @@ from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_NAMESPACE
 from .kube_utils import hashed_label
 
-from .kubernetes_job import KubernetesJob, KubernetesJobSet
+from .kubernetes_job import KubernetesJob, KubernetesJobSet, RunningJob
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
@@ -63,7 +63,7 @@ class KubernetesClient(object):
 
         return self._client
 
-    def list(self, flow_name, statuses={}):
+    def list(self, flow_name):
         flow_hash = hashed_label(flow_name)
         results = self._client.BatchV1Api().list_namespaced_job(
             namespace=self._namespace,
@@ -77,8 +77,31 @@ class KubernetesClient(object):
             seen.add(result.metadata.annotations["metaflow/run_id"])
             return result
 
-        # TODO: returned statuses are wrong with naive approach
         return list(filter(_process_results, results.items))
+
+    def kill(self, flow_name, run_id):
+        flow_hash = hashed_label(flow_name)
+        results = self._client.BatchV1Api().list_namespaced_job(
+            namespace=self._namespace,
+            label_selector="metaflow.org/flow-hash=%s" % flow_hash,
+            field_selector="status.successful==0",
+        )
+        # Filter based on run_id in memory in order to not have to introduce yet another label on Kubernetes
+        jobs = [
+            job
+            for job in results.items
+            if job.metadata.annotations["metaflow/run_id"] == run_id
+        ]
+        for job in jobs:
+            r = RunningJob(
+                self,
+                name=job.metadata.name,
+                uid=job.metadata.uid,
+                namespace=job.metadata.namespace,
+            )
+            print(r.status)
+            r.kill()
+        return True if jobs else False
 
     def jobset(self, **kwargs):
         return KubernetesJobSet(self, **kwargs)
