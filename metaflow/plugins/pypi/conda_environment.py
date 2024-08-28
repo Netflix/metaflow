@@ -185,7 +185,10 @@ class CondaEnvironment(MetaflowEnvironment):
         self.logger("Virtual environment(s) bootstrapped!")
 
     def executable(self, step_name, default=None):
-        step = next(step for step in self.flow if step.name == step_name)
+        step = next((step for step in self.flow if step.name == step_name), None)
+        if step is None:
+            # requesting internal steps e.g. _parameters
+            return super().executable(step_name, default)
         id_ = self.get_environment(step).get("id_")
         if id_:
             # bootstrap.py is responsible for ensuring the validity of this executable.
