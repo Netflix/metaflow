@@ -207,6 +207,7 @@ def add_decorator_options(cmd):
     flow_cls = getattr(current_flow, "flow_cls", None)
     if flow_cls is None:
         return cmd
+
     for deco in flow_decorators(flow_cls):
         for option, kwargs in deco.options.items():
             if option in seen:
@@ -219,6 +220,29 @@ def add_decorator_options(cmd):
                 raise MetaflowInternalError(msg)
             else:
                 seen[option] = deco.name
+                cmd.params.insert(0, click.Option(("--" + option,), **kwargs))
+
+    return cmd
+
+
+def add_step_decorator_options(cmd):
+    step_deco_dict = _get_all_step_decos()
+    seen = set()
+    step_deco_names = getattr(current_flow, "unique_step_decos_in_flow", None)
+    if step_deco_names is None:
+        return cmd
+
+    for deco_name in step_deco_names:
+        deco = step_deco_dict[deco_name]
+        for option, kwargs in deco.cli_options.items():
+            if option in seen:
+                msg = (
+                    "Step decorator '%s' uses an option '%s' which is also "
+                    "used by another step decorator. " % (deco.name, option)
+                )
+                raise MetaflowInternalError(msg)
+            else:
+                seen.add(option)
                 cmd.params.insert(0, click.Option(("--" + option,), **kwargs))
     return cmd
 
@@ -256,6 +280,34 @@ class StepDecorator(Decorator):
                   step.__name__ etc., so that we don't have to
                   pass them around with every lifecycle call.
     """
+
+    cli_options = {}
+    # `cli_options` is similar to the one the flow decorator. It will be used to
+    # pass options to the step decorator from the cli.
+
+    @classmethod
+    def step_options_init(cls, flow, options_dict):
+        """
+        Called right after `flow_init` to pass down the options set in the cli.
+        Since step decorators can inject options via `cli_options`, this callback
+        helps set these options for statically set decorators since it is called before
+        the dynamically set decorators are attached (ie. decorators set via `--with`).
+
+        Its a class method to ensure that any decorator even attached via `--with`
+        (given its statically present in the code too) can access the options set in the cli.
+        """
+        pass
+
+    def get_top_level_options(self):
+        """
+        Return a list of option-value pairs that correspond to top-level
+        options that should be passed to subprocesses (tasks). The option
+        names should be a subset of the keys in self.options.
+
+        If the decorator has a non-empty set of options in `self.cli_options`, you
+        probably want to return the assigned values in this method.
+        """
+        return []
 
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
@@ -508,6 +560,14 @@ def _attach_decorators_to_step(step, decospecs):
                 splits[1] if len(splits) > 1 else ""
             )
             step.decorators.append(deco)
+
+
+def _inject_step_decorator_options(flow, deco_options):
+    for step in flow:
+        for deco in step.decorators:
+            deco.step_options_init(flow, deco_options)
+
+    return
 
 
 def _init_flow_decorators(

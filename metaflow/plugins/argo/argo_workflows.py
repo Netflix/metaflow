@@ -1454,6 +1454,9 @@ class ArgoWorkflows(object):
             for deco in flow_decorators(self.flow):
                 top_opts_dict.update(deco.get_top_level_options())
 
+            for decorator in node.decorators:
+                top_opts_dict.update(deco.get_top_level_options())
+
             top_level = list(dict_to_cli_options(top_opts_dict)) + [
                 "--quiet",
                 "--metadata=%s" % self.metadata.TYPE,

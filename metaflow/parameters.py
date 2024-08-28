@@ -46,6 +46,16 @@ ParameterContext = NamedTuple(
 current_flow = local()
 
 
+def _figure_step_decos_for_current_step(flow_cls):
+    deco_set = set()
+    for attr_name in dir(flow_cls):
+        attr = getattr(flow_cls, attr_name)
+        if hasattr(attr, "is_step"):
+            for deco in attr.decorators:
+                deco_set.add(deco.name)
+    return list(deco_set)
+
+
 @contextmanager
 def flow_context(flow_cls):
     """
@@ -58,6 +68,9 @@ def flow_context(flow_cls):
     current_flow.flow_cls_stack = getattr(current_flow, "flow_cls_stack", [])
     current_flow.flow_cls_stack.insert(0, flow_cls)
     current_flow.flow_cls = current_flow.flow_cls_stack[0]
+    current_flow.unique_step_decos_in_flow = _figure_step_decos_for_current_step(
+        flow_cls
+    )
     try:
         yield
     finally:
