@@ -1,12 +1,18 @@
+import datetime
 import os
 import sys
 import time
 import traceback
 
+from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
 import metaflow.tracing as tracing
 from metaflow import JSONTypeClass, util
 from metaflow._vendor import click
-from metaflow.exception import METAFLOW_EXIT_DISALLOW_RETRY, CommandException
+from metaflow.exception import (
+    METAFLOW_EXIT_DISALLOW_RETRY,
+    CommandException,
+    MetaflowException,
+)
 from metaflow.metadata.util import sync_local_metadata_from_datastore
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, KUBERNETES_LABELS
 from metaflow.mflog import TASK_LOG_SOURCE
@@ -305,3 +311,123 @@ def step(
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     finally:
         _sync_metadata()
+
+
+@kubernetes.command(help="List all runs of the flow on Kubernetes.")
+@click.option(
+    "--pending",
+    default=False,
+    is_flag=True,
+    help="List all pending runs of the flow on " "Kubernetes.",
+)
+@click.option(
+    "--running",
+    default=False,
+    is_flag=True,
+    help="List all running runs of the flow on " "Kubernetes.",
+)
+@click.option(
+    "--succeeded",
+    default=False,
+    is_flag=True,
+    help="List all succeeded runs of the flow on " "Kubernetes.",
+)
+@click.option(
+    "--failed",
+    default=False,
+    is_flag=True,
+    help="List all failed runs of the flow on " "Kubernetes.",
+)
+@click.option(
+    "--unknown",
+    default=False,
+    is_flag=True,
+    help="List all runs of the flow in Unknown state on "
+    "Kubernetes."
+    " (These happen when a pods status can not be obtained.)",
+)
+@click.pass_obj
+def list_runs(obj, pending, running, succeeded, failed, unknown):
+    states = []
+    if pending:
+        states.append("Pending")
+    if running:
+        states.append("Running")
+    if succeeded:
+        states.append("Succeeded")
+    if failed:
+        # group errors and failures together
+        states.append("Failed")
+        states.append("Error")
+    if unknown:
+        states.append("Unknown")
+
+    # obj.echo("flow label: %s" % flow_label)
+    kube_client = KubernetesClient()
+    executions = kube_client.list(obj.flow.name, states)
+    found = False
+    # obj.echo("%s" % executions)
+
+    def format_timestamp(timestamp=None):
+        if timestamp is None:
+            return "-"
+        return timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+        # return datetime.strptime(timestamp, )
+
+    def remap_status(status):
+        # remap status for the grouped cases
+        if status.failed:
+            return "Failed"
+        if status.active or not status.succeeded:
+            return "Running"
+        return "Succeeded"
+
+    for execution in executions:
+        found = True
+        obj.echo(
+            "*{id}* "
+            "startedAt: '{startedAt}' "
+            "finishedAt: '{finishedAt}' "
+            "*{status}*".format(
+                id=execution.metadata.name,
+                status=remap_status(execution.status),
+                startedAt=format_timestamp(execution.status.start_time),
+                finishedAt=format_timestamp(execution.status.completion_time),
+            )
+        )
+
+    if not found:
+        if len(states) > 0:
+            status = ""
+            for idx, state in enumerate(set(remap_status(state) for state in states)):
+                if idx == 0:
+                    pass
+                elif idx == len(states) - 1:
+                    status += " and "
+                else:
+                    status += ", "
+                status += "*%s*" % state
+            obj.echo(
+                "No %s executions for *%s* found on Kubernetes."
+                % (status, obj.flow.name)
+            )
+        else:
+            obj.echo("No executions for *%s* found on Kubernetes." % (obj.flow.name))
+
+
+@kubernetes.command(help="Terminate flow execution on Kubernetes.")
+@click.argument("run-id", required=True, type=str)
+@click.pass_obj
+def kill(obj, run_id):
+    # Trim prefix from run_id
+    name = run_id[5:]
+    obj.echo(
+        "Terminating run *{run_id}* for {flow_name} ...".format(
+            run_id=run_id, flow_name=obj.flow.name
+        ),
+        bold=True,
+    )
+
+    # terminated = ArgoWorkflows.terminate(obj.flow.name, name)
+    # if terminated:
+    #     obj.echo("\nRun terminated.")

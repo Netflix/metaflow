@@ -3,6 +3,8 @@ import sys
 import time
 
 from metaflow.exception import MetaflowException
+from metaflow.metaflow_config import KUBERNETES_NAMESPACE
+from .kube_utils import hashed_label
 
 from .kubernetes_job import KubernetesJob, KubernetesJobSet
 
@@ -28,6 +30,7 @@ class KubernetesClient(object):
                 % sys.executable
             )
         self._refresh_client()
+        self._namespace = KUBERNETES_NAMESPACE
 
     def _refresh_client(self):
         from kubernetes import client, config
@@ -59,6 +62,14 @@ class KubernetesClient(object):
             self._refresh_client()
 
         return self._client
+
+    def list(self, flow_name, statuses={}):
+        flow_hash = hashed_label(flow_name)
+        results = self._client.BatchV1Api().list_namespaced_job(
+            namespace=self._namespace,
+            label_selector="metaflow.org/flow-hash=%s" % flow_hash,
+        )
+        return results.items if results else []
 
     def jobset(self, **kwargs):
         return KubernetesJobSet(self, **kwargs)
