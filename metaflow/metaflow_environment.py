@@ -98,7 +98,7 @@ class MetaflowEnvironment(object):
             # Boto3 does not play well with passing None or an empty string to endpoint_url
             return "{python} -c '{script}'".format(
                 python=self._python(),
-                script='import boto3, os; ep=os.getenv(\\"METAFLOW_S3_ENDPOINT_URL\\"); boto3.client(\\"s3\\", **({endpoint_url:ep} if ep else {})).download_file(\\"%s\\", \\"%s\\", \\"job.tar\\")'
+                script='import boto3, os; ep=os.getenv(\\"METAFLOW_S3_ENDPOINT_URL\\"); boto3.client(\\"s3\\", **({\\"endpoint_url\\":ep} if ep else {})).download_file(\\"%s\\", \\"%s\\", \\"job.tar\\")'
                 % (bucket, s3_object),
             )
         elif datastore_type == "azure":
