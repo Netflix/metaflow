@@ -1,0 +1,18 @@
+# refer more at: https://docs.astral.sh/ruff/settings/#format_indent-style
+exclude = [".venv"]
+fix = true
+indent-width = 2
+line-length = 120
+output-format = "grouped"
+preview = true
+required-version = ">=0.0.193"
+respect-gitignore = false
+show-fixes = true
+target-version = "py37"
+[format]
+# Use `\n` line endings for all files
+line-ending = "lf"
+preview = true
+quote-style = "single"
+[lint]
+ignore-init-module-imports = false

@@ -195,7 +195,7 @@ class FilePathClass(click.ParamType):
                 )
 
             # Now that we have done preliminary checks, we will delay uploading it
-            # until later (so it happens after PyLint checks the flow, but we prepare
+            # until later (so it happens after linter, esp. PyLint checks the flow, but we prepare
             # everything for it)
             lambda_ctx = _DelayedExecContext(
                 flow_name=ctx.flow_name,

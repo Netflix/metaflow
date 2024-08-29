@@ -332,6 +332,11 @@ class CondaEnvironment(MetaflowEnvironment):
         config.append("--disable=F0401")
         return config
 
+    def ruff_config(self):  # this is just repetition FWIW, should be merged with 1 'lint' config for pylint, ruff
+        config = super().ruff_config()
+        # modify the config
+        return config
+
     @classmethod
     def get_client_info(cls, flow_name, metadata):
         if cls._filecache is None:

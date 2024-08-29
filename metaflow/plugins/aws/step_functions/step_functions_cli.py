@@ -54,7 +54,8 @@ def cli():
 )
 @click.pass_obj
 def step_functions(obj, name=None):
-    obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
+    # generic 'linter' definition/naming than a hardwired specific linter
+    obj.check(obj.graph, obj.flow, obj.environment, use_linter=obj.use_linter)
     (
         obj.state_machine_name,
         obj.token_prefix,

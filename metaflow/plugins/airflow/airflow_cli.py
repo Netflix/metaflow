@@ -143,7 +143,7 @@ def cli():
 )
 @click.pass_obj
 def airflow(obj, name=None):
-    obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
+    obj.check(obj.graph, obj.flow, obj.environment, use_linter=obj.use_linter)
     obj.dag_name, obj.token_prefix, obj.is_project = resolve_dag_name(name)
 
 

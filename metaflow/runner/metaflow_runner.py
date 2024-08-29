@@ -190,7 +190,7 @@ class Runner(object):
 
     Example:
     ```python
-    with Runner('slowflow.py', pylint=False) as runner:
+    with Runner('slowflow.py', use_linter=False) as runner:
         result = runner.run(alpha=5, tags=["abc", "def"], max_workers=5)
         print(result.run.finished)
     ```

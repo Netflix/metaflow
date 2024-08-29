@@ -1462,7 +1462,7 @@ class ArgoWorkflows(object):
                 "--datastore-root=%s" % self.flow_datastore.datastore_root,
                 "--event-logger=%s" % self.event_logger.TYPE,
                 "--monitor=%s" % self.monitor.TYPE,
-                "--no-pylint",
+                "--no-linter",
                 "--with=argo_workflows_internal:auto-emit-argo-events=%i"
                 % self.auto_emit_argo_events,
             ]
