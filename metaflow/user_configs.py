@@ -372,15 +372,10 @@ class Config(Parameter):
         help: Optional[str] = None,
         required: bool = False,
         parser: Optional[Callable[[str], Dict[str, Any]]] = None,
-        **kwargs: Dict[str, str],
+        **kwargs: Dict[str, str]
     ):
         super(Config, self).__init__(
-            name,
-            default=default,
-            required=required,
-            help=help,
-            type=str,
-            **kwargs,
+            name, default=default, required=required, help=help, type=str, **kwargs
         )
         if isinstance(kwargs.get("default", None), str):
             kwargs["default"] = json.dumps(kwargs["default"])
