@@ -571,10 +571,8 @@ class JobSetSpec(object):
                                 namespace=self._kwargs["namespace"],
                             ),
                             spec=client.V1PodSpec(
-                                ##  --- jobset require podspec deets start----
                                 subdomain=self._kwargs["subdomain"],
                                 set_hostname_as_fqdn=True,
-                                ##  --- jobset require podspec deets end ----
                                 # Timeout is set on the pod and not the job (important!)
                                 active_deadline_seconds=self._kwargs[
                                     "timeout_in_seconds"

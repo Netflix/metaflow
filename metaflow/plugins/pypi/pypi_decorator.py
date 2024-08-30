@@ -93,6 +93,12 @@ class PyPIStepDecorator(StepDecorator):
                     ),
                 )
             )
+        # TODO: This code snippet can be done away with by altering the constructor of
+        #       MetaflowEnvironment. A good first-task exercise.
+        # Avoid circular import
+        from metaflow.plugins.datastores.local_storage import LocalStorage
+
+        environment.set_local_root(LocalStorage.get_datastore_root_from_config(logger))
 
     def is_attribute_user_defined(self, name):
         return name in self._user_defined_attributes
