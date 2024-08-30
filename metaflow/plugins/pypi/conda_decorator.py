@@ -12,7 +12,7 @@ from metaflow.metadata import MetaDatum
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.util import get_metaflow_root
 
-from ... import INFO_FILE
+from ...info_file import INFO_FILE
 
 
 class CondaStepDecorator(StepDecorator):

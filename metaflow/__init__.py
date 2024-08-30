@@ -42,14 +42,9 @@ If you have any questions, feel free to post a bug report/question on the
 Metaflow GitHub page.
 """
 
-import importlib
+import os
 import sys
-import types
 
-from os import path
-
-CURRENT_DIRECTORY = path.dirname(path.abspath(__file__))
-INFO_FILE = path.join(path.dirname(CURRENT_DIRECTORY), "INFO")
 
 from metaflow.extension_support import (
     alias_submodules,
@@ -61,6 +56,8 @@ from metaflow.extension_support import (
     _ext_debug,
 )
 
+from metaflow.metaflow_version import call_git_describe as _call_git_describe
+from metaflow.metaflow_version import format_git_describe as _format_git_describe
 
 # We load the module overrides *first* explicitly. Non overrides can be loaded
 # in toplevel as well but these can be loaded first if needed. Note that those
@@ -164,8 +161,13 @@ for m in _tl_modules:
             alias_submodules(extension_module, tl_package, None, extra_indent=True)
         )
         version_info = getattr(extension_module, "__mf_extensions__", "<unk>")
-        if extension_module.__version__:
-            version_info = "%s(%s)" % (version_info, extension_module.__version__)
+        ext_version = _format_git_describe(
+            _call_git_describe(cwd=os.path.dirname(extension_module.__file__))
+        )
+        if ext_version is None:
+            ext_version = extension_module.__version__
+        if ext_version:
+            version_info = "%s(%s)" % (version_info, ext_version)
         __version_addl__.append(version_info)
 
 if __version_addl__:
@@ -191,6 +193,8 @@ for _n in [
     "extension_module",
     "tl_package",
     "version_info",
+    "_call_git_describe",
+    "_format_git_describe",
 ]:
     try:
         del globals()[_n]

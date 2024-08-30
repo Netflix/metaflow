@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import importlib
-import json
 import os
 import re
 import sys
@@ -11,6 +10,9 @@ from collections import defaultdict, namedtuple
 
 from importlib.abc import MetaPathFinder, Loader
 from itertools import chain
+
+from metaflow.info_file import read_info_file
+
 
 #
 # This file provides the support for Metaflow's extension mechanism which allows
@@ -304,20 +306,16 @@ def _get_extension_packages():
     # If we have an INFO file with the appropriate information (if running from a saved
     # code package for example), we use that directly
     # Pre-compute on _extension_points
-    from metaflow import INFO_FILE
-
-    try:
-        with open(INFO_FILE, encoding="utf-8") as contents:
-            all_pkg, ext_to_pkg = json.load(contents).get("ext_info", (None, None))
-            if all_pkg is not None and ext_to_pkg is not None:
-                _ext_debug("Loading pre-computed information from INFO file")
-                # We need to properly convert stuff in ext_to_pkg
-                for k, v in ext_to_pkg.items():
-                    v = [MFExtPackage(*d) for d in v]
-                    ext_to_pkg[k] = v
-                return all_pkg, ext_to_pkg
-    except IOError:
-        pass
+    info_content = read_info_file()
+    if info_content:
+        all_pkg, ext_to_pkg = info_content.get("ext_info", (None, None))
+        if all_pkg is not None and ext_to_pkg is not None:
+            _ext_debug("Loading pre-computed information from INFO file")
+            # We need to properly convert stuff in ext_to_pkg
+            for k, v in ext_to_pkg.items():
+                v = [MFExtPackage(*d) for d in v]
+                ext_to_pkg[k] = v
+            return all_pkg, ext_to_pkg
 
     # Check if we even have extensions
     try:
