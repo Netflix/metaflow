@@ -698,7 +698,7 @@ class Kubernetes(object):
                     t = time.time()
                 time.sleep(update_delay(time.time() - start_time))
 
-        _make_prefix = lambda: b"[%s] " % util.to_bytes(self._job.id)
+        prefix = lambda: b"[%s] " % util.to_bytes(self._job.id)
 
         stdout_tail = get_log_tailer(stdout_location, self._datastore.TYPE)
         stderr_tail = get_log_tailer(stderr_location, self._datastore.TYPE)
@@ -708,7 +708,7 @@ class Kubernetes(object):
 
         # 2) Tail logs until the job has finished
         tail_logs(
-            prefix=_make_prefix(),
+            prefix=prefix(),
             stdout_tail=stdout_tail,
             stderr_tail=stderr_tail,
             echo=echo,
