@@ -17,7 +17,7 @@ variables:
   # Run on the Internal cluster only on commit.
   # We run the tests via the integration test framework for Non-Prod/Prod.
   DEPLOY_INTERNAL: "true"
-  DEPLOY_REVIEW: "false"
+  DEPLOY_REVIEW: "true"
   DEPLOY_STAGE: "false"
   DEPLOY_PROD: "false"
   DEPLOY_SANDBOX: "false"
@@ -139,8 +139,16 @@ build:publish:
   rules:
     - if: '$PUBLISH == "true"'
 
+test:review:
+  extends:
+    - test:sandbox
+  rules:
+    - if: '$DEPLOY_REVIEW !~ /^true$/i'
+      when: never
+    - if: '$CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH'
+
 test:sandbox:
-  extends: 
+  extends:
     - .devex_sandbox_eks
     - .test
   variables:
@@ -148,7 +156,10 @@ test:sandbox:
     METAFLOW_RUN_URL_PREFIX: "https://metaflow.int.sandbox-k8s.zg-aip.net"
     METAFLOW_KUBERNETES_NAMESPACE: "metaflow-integration-testing-sandbox"
   rules:
-    - if: '$DEPLOY_SANDBOX == "true"'
+    - if: '$DEPLOY_SANDBOX !~ /^true$/i'
+      when: never
+    - &rules-only-default-branch
+      if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH || ($CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH && $DEBUG_CI_DEFAULT_BRANCH =~ /^true$/i)'
 
 test:internal:
   extends: 
@@ -159,7 +170,9 @@ test:internal:
     METAFLOW_RUN_URL_PREFIX: "https://metaflow.int.dev-k8s.zg-aip.net"
     METAFLOW_KUBERNETES_NAMESPACE: "metaflow-integration-testing-internal"
   rules:
-    - if: '$DEPLOY_INTERNAL == "true"'
+    - if: '$DEPLOY_INTERNAL !~ /^true$/i'
+      when: never
+    - *rules-only-default-branch
 
 test:nonprod:
   extends: 
@@ -170,7 +183,9 @@ test:nonprod:
     METAFLOW_RUN_URL_PREFIX: "https://metaflow.int.stage-k8s.zg-aip.net"
     METAFLOW_KUBERNETES_NAMESPACE: "metaflow-integration-testing-stage"
   rules:
-    - if: '$DEPLOY_STAGE == "true"'
+    - if: '$DEPLOY_STAGE !~ /^true$/i'
+      when: never
+    - *rules-only-default-branch
 
 test:prod:
   extends: 
@@ -181,4 +196,6 @@ test:prod:
     METAFLOW_RUN_URL_PREFIX: "https://metaflow.int.prod-k8s.zg-aip.net"
     METAFLOW_KUBERNETES_NAMESPACE: "metaflow-integration-testing-prod"
   rules:
-    - if: '$DEPLOY_PROD == "true"'
+    - if: '$DEPLOY_PROD !~ /^true$/i'
+      when: never
+    - *rules-only-default-branch
