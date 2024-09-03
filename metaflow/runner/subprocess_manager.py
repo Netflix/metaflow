@@ -13,6 +13,7 @@ from typing import Callable, Dict, Iterator, List, Optional, Tuple
 def kill_process_and_descendants(pid, termination_timeout):
     try:
         subprocess.check_call(["pkill", "-TERM", "-P", str(pid)])
+        subprocess.check_call(["kill", "-TERM", str(pid)])
     except subprocess.CalledProcessError:
         pass
 
@@ -20,6 +21,7 @@ def kill_process_and_descendants(pid, termination_timeout):
 
     try:
         subprocess.check_call(["pkill", "-KILL", "-P", str(pid)])
+        subprocess.check_call(["kill", "-KILL", str(pid)])
     except subprocess.CalledProcessError:
         pass
 
