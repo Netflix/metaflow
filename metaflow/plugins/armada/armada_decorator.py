@@ -25,12 +25,10 @@ class ArmadaDecorator(StepDecorator):
         # TODO: What datastore are we going to use? It can't be local...
         # TODO: Will datastores work without additional armada-specific configuration?
         if flow_datastore.TYPE not in ("s3", "azure", "gs"):
-            # FIXME: Actually raise
-            #             raise ArmadaException(
-            #                 "The *@armada* decorator requires --datastore=s3 or "
-            #                 "--datastore=azure or --datastore=gs at the moment."
-            #             )
-            pass
+            raise ArmadaException(
+                "The *@armada* decorator requires --datastore=s3 or "
+                "--datastore=azure or --datastore=gs at the moment."
+            )
 
         # Set internal state.
         self.logger = logger
@@ -82,6 +80,8 @@ class ArmadaDecorator(StepDecorator):
             attributes = {
                 "host": "localhost",
                 "port": "50051",
+                "binoculars_host": "localhost",
+                "binoculars_port": "50053",
             }
 
             cli_args.command_options.update(attributes)

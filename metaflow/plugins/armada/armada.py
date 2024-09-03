@@ -4,6 +4,10 @@ import shlex
 
 from armada_client.client import ArmadaClient
 from armada_client.event import EventType
+from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
+from armada_client.k8s.io.apimachinery.pkg.api.resource import (
+    generated_pb2 as api_resource,
+)
 import grpc
 
 import metaflow.metaflow_config as config
@@ -52,11 +56,11 @@ def create_queue(host, port, queue, priority_factor=1, use_ssl=True):
         code = e.code()
         # Handle queue already existing.
         if code == grpc.StatusCode.ALREADY_EXISTS:
-            # FIXME: Proper logging.
-            print(f"Queue {queue} already exists")
             client.update_queue(queue_request)
         else:
-            raise e
+            raise ArmadaException(e) from e
+    except Exception as e:
+        raise ArmadaException(e) from e
 
 
 def submit_jobs(host, port, queue, job_set_id, job_request_items, use_ssl=True):
@@ -65,7 +69,6 @@ def submit_jobs(host, port, queue, job_set_id, job_request_items, use_ssl=True):
     response = client.submit_jobs(
         queue=queue, job_set_id=job_set_id, job_request_items=job_request_items
     )
-
     # Returns a list of job_ids created for this request.
     return [job_item.job_id for job_item in response.job_response_items]
 
@@ -78,12 +81,6 @@ def create_job_request_item(pod_spec, priority=1):
     return client.create_job_request_item(
         priority=priority, namespace="default", pod_spec=pod_spec
     )
-
-
-from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
-from armada_client.k8s.io.apimachinery.pkg.api.resource import (
-    generated_pb2 as api_resource,
-)
 
 
 def create_armada_pod_spec(container_args, env_vars, secrets):
@@ -105,11 +102,11 @@ def create_armada_pod_spec(container_args, env_vars, secrets):
                 resources=core_v1.ResourceRequirements(
                     requests={
                         "cpu": api_resource.Quantity(string="120m"),
-                        "memory": api_resource.Quantity(string="510Mi"),
+                        "memory": api_resource.Quantity(string="1Gi"),
                     },
                     limits={
                         "cpu": api_resource.Quantity(string="120m"),
-                        "memory": api_resource.Quantity(string="510Mi"),
+                        "memory": api_resource.Quantity(string="1Gi"),
                     },
                 ),
                 env=[core_v1.EnvVar(name=k, value=str(v)) for k, v in env_vars.items()]
@@ -146,6 +143,8 @@ def create_armada_pod_spec(container_args, env_vars, secrets):
                 ],
                 envFrom=[
                     core_v1.EnvFromSource(
+                        # FIXME: Something is weird with armada's version of this object.
+                        # It doesn't seem to have the 'name' field.
                         secretRef=core_v1.SecretEnvSource(
                             name=str(k),
                             # optional=True
@@ -184,7 +183,7 @@ def generate_container_command(
     )
     init_cmds = environment.get_package_commands(code_package_url, datastore.TYPE)
     # FIXME: Should we support python2?
-    init_cmds.append("python3 -m pip install armada_client")
+    init_cmds.append("python3 -m pip install armada_client==0.3.0")
     init_expr = " && ".join(init_cmds)
     step_expr = bash_capture_logs(
         " && ".join(
@@ -220,7 +219,6 @@ def generate_container_command(
     cmd_str = (
         '${METAFLOW_INIT_SCRIPT:+eval \\"${METAFLOW_INIT_SCRIPT}\\"} && %s' % cmd_str
     )
-    print(f"{environment.get_environment_info()}")
     # FIXME: Sleep to make it easy to grab lobs
     return shlex.split('bash -c "sleep 15; %s"' % cmd_str)
 
@@ -250,6 +248,14 @@ def gather_metaflow_config_to_env_vars():
     }
 
 
+TERMINAL_JOB_STATES = (
+    EventType.unable_to_schedule,
+    EventType.failed,
+    EventType.succeeded,
+    EventType.cancelled,
+)
+
+
 def wait_for_job_finish(host, port, queue, job_set_id, job_id, use_ssl=True):
     client = _get_client(host, port, use_ssl)
 
@@ -260,11 +266,26 @@ def wait_for_job_finish(host, port, queue, job_set_id, job_id, use_ssl=True):
         # Look for status events related to our job_id.
         # TODO time-out mechanism.
         if event.message.job_id == job_id:
-            print(event)
-            if event.type in (
-                EventType.unable_to_schedule,
-                EventType.failed,
-                EventType.succeeded,
-                EventType.cancelled,
-            ):
+            if event.type in TERMINAL_JOB_STATES:
                 return event
+
+    raise ArmadaException(
+        "Reached end of event stream without reaching terminal job state"
+    )
+
+
+def wait_for_job_finish_generator(host, port, queue, job_set_id, job_id, use_ssl=True):
+    client = _get_client(host, port, use_ssl)
+
+    events = client.get_job_events_stream(queue, job_set_id)
+
+    for event in events:
+        event = client.unmarshal_event_response(event)
+        # Look for status events related to our job_id.
+        # TODO time-out mechanism.
+        if event.message.job_id == job_id:
+            yield event
+
+    raise ArmadaException(
+        "Reached end of event stream without reaching terminal job state"
+    )

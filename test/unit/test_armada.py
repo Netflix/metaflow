@@ -16,6 +16,16 @@ from metaflow.plugins.armada.armada import (
     ArmadaException,
 )
 
+from metaflow.plugins.armada.binoculars import (
+    logs,
+    log_thread,
+    cordon,
+)
+
+import metaflow.plugins.armada.armada_cli
+import metaflow.plugins.armada.armada_decorator
+import metaflow.plugins.armada.armada
+
 
 def test_armada_create_armada_pod_spec():
     pod_spec = create_armada_pod_spec(["sleep 10"], {"test": "value"}, [])

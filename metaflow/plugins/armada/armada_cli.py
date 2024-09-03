@@ -1,5 +1,8 @@
 import os
 import sys
+from threading import Event, Thread
+
+from armada_client.event import EventType
 
 from metaflow._vendor import click
 from metaflow.exception import MetaflowException
@@ -16,8 +19,11 @@ from .armada import (
     create_armada_pod_spec,
     generate_container_command,
     gather_metaflow_config_to_env_vars,
-    wait_for_job_finish,
+    wait_for_job_finish_generator,
+    TERMINAL_JOB_STATES,
 )
+
+from .binoculars import log_thread
 
 
 @click.group()
@@ -47,6 +53,16 @@ def armada():
 )
 @click.option("--host", default=None, help="The hostname for Armada.")
 @click.option("--port", default=None, help="The port for Armada.")
+@click.option(
+    "--binoculars-host",
+    default=None,
+    help="The hostname for Binoculars (Armada log service).",
+)
+@click.option(
+    "--binoculars-port",
+    default=None,
+    help="The port for Binoculars (Armada log service).",
+)
 @click.option("--run-id", help="Passed to the top-level 'step'.")
 @click.option("--task-id", help="Passed to the top-level 'step'.")
 @click.option("--input-paths", help="Passed to the top-level 'step'.")
@@ -72,6 +88,8 @@ def step(
     job_file,
     host,
     port,
+    binoculars_host,
+    binoculars_port,
     executable,
     **kwargs,
 ):
@@ -86,6 +104,17 @@ def step(
         raise MetaflowException(
             "Port cannot be None. Either use --port or set ARMADA_PORT"
         )
+
+    # TODO: Add warning that step live-logs will not be enabled if binoculars
+    # information is not available.
+    job_logs = True
+    binoculars_hostname = os.getenv("BINOCULARS_HOST", binoculars_host)
+    if binoculars_hostname is None:
+        job_logs = False
+
+    binoculars_portnum = os.getenv("BINOCULARS_PORT", binoculars_port)
+    if binoculars_portnum is None:
+        job_logs = False
 
     if queue == "":
         raise MetaflowException("queue name must be set")
@@ -139,15 +168,40 @@ def step(
     job_ids = submit_jobs(
         hostname, portnum, queue, job_set_id, job_request_items, use_ssl=False
     )
-    print(f"job_ids: {job_ids}")
-    print(f"{kwargs['run_id']}, {step_name}, {kwargs['task_id']}")
     ctx.obj.echo_always(f"Submitted jobs with IDs: {job_ids}")
 
-    # FIXME: Need to await job completion?
-    event = wait_for_job_finish(
+    gen = wait_for_job_finish_generator(
         hostname, portnum, queue, job_set_id, job_ids[0], use_ssl=False
     )
-    print(f"Got job finish: {event.message}")
+
+    done_signal = Event()
+    job_logging_thread = None
+
+    for event in gen:
+        ctx.obj.echo_always(f"Job entered {event.type} state.")
+        if event.type == EventType.running and job_logs:
+            job_logging_thread = Thread(
+                target=log_thread,
+                args=(
+                    binoculars_hostname,
+                    binoculars_portnum,
+                    job_ids[0],
+                    "default",
+                    done_signal,
+                    ctx.obj.echo_always,
+                ),
+                kwargs={"use_ssl": False},
+            )
+            job_logging_thread.start()
+
+        if event.type in TERMINAL_JOB_STATES:
+            ctx.obj.echo_always(f"Job reached terminal state: {event.message}")
+            break
+
+    # Clean up log thread.
+    if job_logs:
+        done_signal.set()
+        job_logging_thread.join()
 
     task_datastore = ctx.obj.flow_datastore.get_task_datastore(
         mode="w",
@@ -157,13 +211,10 @@ def step(
         attempt=int(retry_count),
     )
 
-    # FIXME: Supposed to be done with task...
-    ctx.obj.echo_always("Sync metadata to !")
     sync_local_metadata_to_datastore(DATASTORE_LOCAL_DIR, task_datastore)
 
     def _sync_metadata():
         if ctx.obj.metadata.TYPE == "local":
-            ctx.obj.echo_always("Sync metadata from!")
             sync_local_metadata_from_datastore(
                 DATASTORE_LOCAL_DIR,
                 ctx.obj.flow_datastore.get_task_datastore(
@@ -172,6 +223,5 @@ def step(
                     task_id=kwargs["task_id"],
                 ),
             )
-            ctx.obj.echo_always("Sync done!")
 
     _sync_metadata()
