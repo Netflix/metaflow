@@ -397,6 +397,7 @@ class DeployerImpl(object):
             self.name = content.get("name")
             self.flow_name = content.get("flow_name")
             self.metadata = content.get("metadata")
+            self.additional_metadata = content.get("additional_metadata", {})
 
             if command_obj.process.returncode == 0:
                 deployed_flow = DeployedFlow(deployer=self)
