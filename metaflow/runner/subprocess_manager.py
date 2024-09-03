@@ -14,10 +14,10 @@ def kill_process_and_descendants(pid, termination_timeout):
     try:
         # Get the process group ID (PGID)
         pgid = os.getpgid(pid)
-        
+
         # Send SIGTERM to the entire process group
         os.killpg(pgid, signal.SIGTERM)
-        
+
         # Wait for the specified timeout
         for _ in range(termination_timeout):
             try:
@@ -27,7 +27,7 @@ def kill_process_and_descendants(pid, termination_timeout):
             except OSError:
                 # Process has terminated
                 return
-        
+
         # If we're here, the process group didn't terminate, so use SIGKILL
         os.killpg(pgid, signal.SIGKILL)
     except ProcessLookupError:
