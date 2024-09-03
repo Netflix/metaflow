@@ -3,6 +3,7 @@ import sys
 import time
 import traceback
 
+from metaflow.plugins.kubernetes.kube_utils import parse_cli_options
 from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
 import metaflow.tracing as tracing
 from metaflow import JSONTypeClass, util
@@ -313,10 +314,25 @@ def step(
 
 
 @kubernetes.command(help="List all runs of the flow on Kubernetes.")
+@click.option(
+    "--my-runs",
+    default=False,
+    is_flag=True,
+    help="List all my unfinished tasks.",
+)
+@click.option("--user", default=None, help="List unfinished tasks for the given user.")
+@click.option(
+    "--run-id",
+    default=None,
+    help="List unfinished tasks corresponding to the run id.",
+)
 @click.pass_obj
-def list_runs(obj):
+def list(obj, run_id, user, my_runs):
+    flow_name, run_id, user = parse_cli_options(
+        obj.flow.name, run_id, user, my_runs, obj.echo
+    )
     kube_client = KubernetesClient()
-    executions = kube_client.list(obj.flow.name)
+    executions = kube_client.list(obj.flow.name, run_id, user)
 
     def format_timestamp(timestamp=None):
         if timestamp is None:
@@ -325,31 +341,40 @@ def list_runs(obj):
 
     for execution in executions:
         obj.echo(
-            "Run id: *{id}* "
-            "started at: {startedAt} "
-            "finished at: {finishedAt} ".format(
-                id=execution.metadata.annotations["metaflow/run_id"],
+            "Run: *{run_id}* "
+            "Job: *{job_id}* "
+            "Started At: {startedAt} ".format(
+                run_id=execution.metadata.annotations["metaflow/run_id"],
+                job_id=execution.metadata.name,
                 startedAt=format_timestamp(execution.status.start_time),
-                finishedAt=format_timestamp(execution.status.completion_time),
             )
         )
 
     if not executions:
-        obj.echo("No executions for *%s* found on Kubernetes." % (obj.flow.name))
+        obj.echo("No active jobs found for *%s* on Kubernetes." % (flow_name))
 
 
-@kubernetes.command(help="Kill flow execution on Kubernetes.")
-@click.argument("run-id", required=True, type=str)
+@kubernetes.command(help="Terminate Kubernetes tasks for this flow.")
+@click.option(
+    "--my-runs",
+    default=False,
+    is_flag=True,
+    help="Kill all my unfinished tasks.",
+)
+@click.option(
+    "--user",
+    default=None,
+    help="Terminate unfinished tasks for the given user.",
+)
+@click.option(
+    "--run-id",
+    default=None,
+    help="Terminate unfinished tasks corresponding to the run id.",
+)
 @click.pass_obj
-def kill(obj, run_id):
-    obj.echo(
-        "Terminating run *{run_id}* for {flow_name} ...".format(
-            run_id=run_id, flow_name=obj.flow.name
-        ),
-        bold=True,
+def kill(obj, run_id, user, my_runs):
+    flow_name, run_id, user = parse_cli_options(
+        obj.flow.name, run_id, user, my_runs, obj.echo
     )
-
     kube_client = KubernetesClient()
-    terminated = kube_client.kill(obj.flow.name, run_id)
-    if terminated:
-        obj.echo("\nRun terminated.")
+    kube_client.kill_jobs(obj.flow.name, run_id, user, obj.echo)
