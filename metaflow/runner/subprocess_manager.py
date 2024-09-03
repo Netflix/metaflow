@@ -12,17 +12,26 @@ from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
 def kill_process_and_descendants(pid, termination_timeout):
     try:
-        subprocess.check_call(["pkill", "-TERM", "-P", str(pid)])
-        subprocess.check_call(["kill", "-TERM", str(pid)])
-    except subprocess.CalledProcessError:
-        pass
-
-    time.sleep(termination_timeout)
-
-    try:
-        subprocess.check_call(["pkill", "-KILL", "-P", str(pid)])
-        subprocess.check_call(["kill", "-KILL", str(pid)])
-    except subprocess.CalledProcessError:
+        # Get the process group ID (PGID)
+        pgid = os.getpgid(pid)
+        
+        # Send SIGTERM to the entire process group
+        os.killpg(pgid, signal.SIGTERM)
+        
+        # Wait for the specified timeout
+        for _ in range(termination_timeout):
+            try:
+                # Check if the process still exists
+                os.kill(pid, 0)
+                time.sleep(1)
+            except OSError:
+                # Process has terminated
+                return
+        
+        # If we're here, the process group didn't terminate, so use SIGKILL
+        os.killpg(pgid, signal.SIGKILL)
+    except ProcessLookupError:
+        # Process doesn't exist
         pass
 
 
