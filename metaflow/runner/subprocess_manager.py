@@ -6,11 +6,12 @@ import subprocess
 import sys
 import tempfile
 import threading
-from metaflow._vendor import psutil
 from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
 
 def kill_process_and_descendants(pid, termination_timeout):
+    from metaflow._vendor import psutil
+
     try:
         parent = psutil.Process(pid)
         children = parent.children(recursive=True)
@@ -447,13 +448,13 @@ class CommandManager(object):
         if self.run_called:
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    async def kill(self, termination_timeout: float = 1):
+    async def kill(self, termination_timeout: float = 5):
         """
         Kill the subprocess and its descendants.
 
         Parameters
         ----------
-        termination_timeout : float, default 1
+        termination_timeout : float, default 5
             The time to wait after sending a SIGTERM to the process and its descendants
             before sending a SIGKILL.
         """
