@@ -291,17 +291,23 @@ def create(
                 "due to Kubernetes naming conventions\non Argo Workflows. The "
                 "original flow name is stored in the workflow annotation.\n"
             )
-
-        if ARGO_WORKFLOWS_UI_URL:
-            obj.echo("See the deployed workflow here:", bold=True)
-            argo_workflowtemplate_link = "%s/workflow-templates/%s" % (
-                ARGO_WORKFLOWS_UI_URL.rstrip("/"),
-                KUBERNETES_NAMESPACE,
-            )
+        try:
+            if ARGO_WORKFLOWS_UI_URL:
+                workflow_template_url_values = {
+                    "uri": "workflow-templates",
+                    "namespace": KUBERNETES_NAMESPACE,
+                    "workflow_name": obj.workflow_name,
+                    "suffix": obj.workflow_name,
+                }
+                obj.echo("See the deployed workflow here:", bold=True)
+                argo_workflowtemplate_link = ARGO_WORKFLOWS_UI_URL.rstrip("/").format(
+                    **workflow_template_url_values
+                )
+        except:
             obj.echo(
-                "%s/%s\n\n" % (argo_workflowtemplate_link, obj.workflow_name),
-                indent=True,
+                "workflow template was created - errored in formatting workflow template URL"
             )
+
         flow.schedule()
         obj.echo("What will trigger execution of the workflow:", bold=True)
         obj.echo(flow.trigger_explanation(), indent=True)
@@ -645,7 +651,8 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
     }
 
     response = ArgoWorkflows.trigger(obj.workflow_name, params)
-    run_id = "argo-" + response["metadata"]["name"]
+    argo_workflow_id = response["metadata"]["name"]
+    run_id = "argo-" + argo_workflow_id
 
     if run_id_file:
         with open(run_id_file, "w") as f:
@@ -667,16 +674,26 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
         "(run-id *{run_id}*).".format(name=obj.workflow_name, run_id=run_id),
         bold=True,
     )
+    try:
 
-    run_url = (
-        "%s/%s/%s" % (UI_URL.rstrip("/"), obj.flow.name, run_id) if UI_URL else None
-    )
-
-    if run_url:
-        obj.echo(
-            "See the run in the UI at %s" % run_url,
-            bold=True,
-        )
+        if ARGO_WORKFLOWS_UI_URL:
+            workflow_run_url_values = {
+                "uri": "workflows",
+                "namespace": KUBERNETES_NAMESPACE,
+                "workflow_name": obj.workflow_name,
+                "suffix": argo_workflow_id,
+            }
+            obj.echo(json.dumps(workflow_run_url_values))
+            obj.echo("See the run in the UI at\n:", bold=True)
+            run_url = ARGO_WORKFLOWS_UI_URL.rstrip("/").format(
+                **workflow_run_url_values
+            )
+            obj.echo(
+                "*{run_url}*".format(run_url=run_url),
+                indent=True,
+            )
+    except:
+        obj.echo("run was triggered, errored in formatting workflow URL")
 
 
 @argo_workflows.command(help="Delete the flow on Argo Workflows.")
