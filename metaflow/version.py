@@ -1,1 +1,1 @@
-metaflow_version = "2.12.18"
+metaflow_version = "2.12.19"
