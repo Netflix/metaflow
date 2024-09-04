@@ -6,31 +6,31 @@ import subprocess
 import sys
 import tempfile
 import threading
-import time
+from metaflow._vendor import psutil
 from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
 
 def kill_process_and_descendants(pid, termination_timeout):
     try:
-        # Get the process group ID (PGID)
-        pgid = os.getpgid(pid)
+        parent = psutil.Process(pid)
+        children = parent.children(recursive=True)
 
-        # Send SIGTERM to the entire process group
-        os.killpg(pgid, signal.SIGTERM)
+        # Send SIGTERM
+        parent.terminate()
+        for child in children:
+            child.terminate()
 
-        # Wait for the specified timeout
-        for _ in range(termination_timeout):
-            try:
-                # Check if the process still exists
-                os.kill(pid, 0)
-                time.sleep(1)
-            except OSError:
-                # Process has terminated
-                return
+        _, alive = psutil.wait_procs(children + [parent], timeout=termination_timeout)
 
-        # If we're here, the process group didn't terminate, so use SIGKILL
-        os.killpg(pgid, signal.SIGKILL)
-    except ProcessLookupError:
+        # If the processes are still alive, send SIGKILL
+        if alive:
+            for p in alive:
+                p.kill()
+
+            # Wait again to ensure all processes have been killed
+            psutil.wait_procs(alive, timeout=termination_timeout)
+
+    except psutil.NoSuchProcess:
         # Process doesn't exist
         pass
 
