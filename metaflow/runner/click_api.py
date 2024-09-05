@@ -1,3 +1,4 @@
+import os
 import sys
 
 if sys.version_info < (3, 7):
@@ -142,6 +143,8 @@ loaded_modules = {}
 
 
 def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
+    if not os.path.exists(flow_file):
+        raise FileNotFoundError("Flow file not present at '%s'" % flow_file)
     # Check if the module has already been loaded
     if flow_file in loaded_modules:
         module = loaded_modules[flow_file]
