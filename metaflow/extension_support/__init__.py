@@ -10,6 +10,7 @@ from collections import defaultdict, namedtuple
 
 from importlib.abc import MetaPathFinder, Loader
 from itertools import chain
+from pathlib import Path
 
 from metaflow.info_file import read_info_file
 
@@ -115,17 +116,49 @@ def get_modules(extension_point):
     return modules_to_load
 
 
-def dump_module_info():
-    _filter_files_all()
+def dump_module_info(all_packages=None, pkgs_per_extension_point=None):
+    if all_packages is None:
+        all_packages = _all_packages
+    if pkgs_per_extension_point is None:
+        pkgs_per_extension_point = _pkgs_per_extension_point
+
+    _filter_files_all(all_packages)
     sanitized_all_packages = dict()
     # Strip out root_paths (we don't need it and no need to expose user's dir structure)
-    for k, v in _all_packages.items():
+    for k, v in all_packages.items():
         sanitized_all_packages[k] = {
             "root_paths": None,
             "meta_module": v["meta_module"],
             "files": v["files"],
+            "version": v["version"],
         }
-    return "ext_info", [sanitized_all_packages, _pkgs_per_extension_point]
+    return "ext_info", [sanitized_all_packages, pkgs_per_extension_point]
+
+
+def get_extensions_in_dir(d):
+    if not _mfext_supported:
+        _ext_debug("Not supported for your Python version -- 3.4+ is needed")
+        return None, None
+    return _get_extension_packages(ignore_info_file=True, restrict_to_directories=[d])
+
+
+def extension_info():
+    # Returns the known packages installed so that this information can be
+    # used to recreate an environment if needed.
+    is_incomplete = False
+    parts = []
+    for k, v in _all_packages.items():
+        # _local_ is the marker to mark PYTHONPATH dependencies. We also use it to
+        # mark "not present" since in both cases, the information will be incomplete
+        # and not useful to fully recreate environment
+        vers = v.get("version", "_local_")
+        if vers == "_local_":
+            is_incomplete = True
+        else:
+            parts.append("%s==%s" % (k, vers))
+    if is_incomplete:
+        return "_incomplete_;" + ";".join(parts)
+    return ";".join(parts)
 
 
 def get_aliased_modules():
@@ -136,8 +169,8 @@ def package_mfext_package(package_name):
     from metaflow.util import to_unicode
 
     _ext_debug("Packaging '%s'" % package_name)
-    _filter_files_package(package_name)
     pkg_info = _all_packages.get(package_name, None)
+    _filter_files_package(pkg_info)
     if pkg_info and pkg_info.get("root_paths", None):
         single_path = len(pkg_info["root_paths"]) == 1
         for p in pkg_info["root_paths"]:
@@ -298,7 +331,7 @@ def _ext_debug(*args, **kwargs):
         print(init_str, *args, **kwargs)
 
 
-def _get_extension_packages():
+def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None):
     if not _mfext_supported:
         _ext_debug("Not supported for your Python version -- 3.4+ is needed")
         return {}, {}
@@ -307,7 +340,7 @@ def _get_extension_packages():
     # code package for example), we use that directly
     # Pre-compute on _extension_points
     info_content = read_info_file()
-    if info_content:
+    if not ignore_info_file and info_content:
         all_pkg, ext_to_pkg = info_content.get("ext_info", (None, None))
         if all_pkg is not None and ext_to_pkg is not None:
             _ext_debug("Loading pre-computed information from INFO file")
@@ -329,6 +362,11 @@ def _get_extension_packages():
                 raise
         return {}, {}
 
+    if restrict_to_directories:
+        restrict_to_directories = [
+            Path(p).resolve().as_posix() for p in restrict_to_directories
+        ]
+
     # There are two "types" of packages:
     #   - those installed on the system (distributions)
     #   - those present in the PYTHONPATH
@@ -341,8 +379,12 @@ def _get_extension_packages():
     # At this point, we look at all the paths and create a set. As we find distributions
     # that match it, we will remove from the set and then will be left with any
     # PYTHONPATH "packages"
-    all_paths = set(extensions_module.__path__)
+    all_paths = set(Path(p).resolve().as_posix() for p in extensions_module.__path__)
     _ext_debug("Found packages present at %s" % str(all_paths))
+    if restrict_to_directories:
+        _ext_debug(
+            "Processed packages will be restricted to %s" % str(restrict_to_directories)
+        )
 
     list_ext_points = [x.split(".") for x in _extension_points]
     init_ext_points = [x[0] for x in list_ext_points]
@@ -389,9 +431,20 @@ def _get_extension_packages():
             # This is not 100% accurate because it is possible that at the same
             # location there is a package and a non-package, but this is extremely
             # unlikely so we are going to ignore this case.
-            dist_root = dist.locate_file(EXT_PKG).as_posix()
+            dist_root = dist.locate_file(EXT_PKG).resolve().as_posix()
             all_paths.discard(dist_root)
-            dist_name = dist.metadata["Name"]
+            dist_name = dist.name
+            dist_version = dist.version
+            if restrict_to_directories:
+                parent_dirs = list(
+                    p.as_posix() for p in Path(dist_root).resolve().parents
+                )
+                if all(p not in parent_dirs for p in restrict_to_directories):
+                    _ext_debug(
+                        "Ignoring package at %s as it is not in the considered directories"
+                        % dist_root
+                    )
+                    continue
             if dist_name in mf_ext_packages:
                 _ext_debug(
                     "Ignoring duplicate package '%s' (duplicate paths in sys.path? (%s))"
@@ -535,6 +588,7 @@ def _get_extension_packages():
                 "root_paths": [dist_root],
                 "meta_module": meta_module,
                 "files": files_to_include,
+                "version": dist_version,
             }
     # At this point, we have all the packages that contribute to EXT_PKG,
     # we now check to see if there is an order to respect based on dependencies. We will
@@ -603,6 +657,16 @@ def _get_extension_packages():
     if len(all_paths_list) > 0:
         _ext_debug("Non installed packages present at %s" % str(all_paths))
         for package_count, package_path in enumerate(all_paths_list):
+            if restrict_to_directories:
+                parent_dirs = list(
+                    p.as_posix() for p in Path(package_path).resolve().parents
+                )
+                if all(p not in parent_dirs for p in restrict_to_directories):
+                    _ext_debug(
+                        "Ignoring non-installed package at %s as it is not in "
+                        "the considered directories" % package_path
+                    )
+                    continue
             # We give an alternate name for the visible package name. It is
             # not exposed to the end user but used to refer to the package, and it
             # doesn't provide much additional information to have the full path
@@ -738,6 +802,7 @@ def _get_extension_packages():
                 "root_paths": [package_path],
                 "meta_module": meta_module,
                 "files": files_to_include,
+                "version": "_local_",
             }
 
     # Sanity check that we only have one package per configuration file.
@@ -870,8 +935,7 @@ def _get_extension_config(distribution_name, tl_pkg, extension_point, config_mod
     return None
 
 
-def _filter_files_package(package_name):
-    pkg = _all_packages.get(package_name)
+def _filter_files_package(pkg):
     if pkg and pkg["root_paths"] and pkg["meta_module"]:
         meta_module = _attempt_load_module(pkg["meta_module"])
         if meta_module:
@@ -900,8 +964,8 @@ def _filter_files_package(package_name):
             pkg["files"] = new_files
 
 
-def _filter_files_all():
-    for p in _all_packages:
+def _filter_files_all(all_packages):
+    for p in all_packages.values():
         _filter_files_package(p)
 
 
