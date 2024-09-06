@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 import shutil
 import signal
 import subprocess
@@ -10,29 +11,21 @@ from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
 
 def kill_process_and_descendants(pid, termination_timeout):
-    from metaflow._vendor import psutil
+    # TODO: there's a race condition that new descendants might
+    # spawn b/w the invocations of 'pkill' and 'kill'.
+    # Needs to be fixed in future.
+    try:
+        subprocess.check_call(["pkill", "-TERM", "-P", str(pid)])
+        subprocess.check_call(["kill", "-TERM", str(pid)])
+    except subprocess.CalledProcessError:
+        pass
+
+    time.sleep(termination_timeout)
 
     try:
-        parent = psutil.Process(pid)
-        children = parent.children(recursive=True)
-
-        # Send SIGTERM
-        parent.terminate()
-        for child in children:
-            child.terminate()
-
-        _, alive = psutil.wait_procs(children + [parent], timeout=termination_timeout)
-
-        # If the processes are still alive, send SIGKILL
-        if alive:
-            for p in alive:
-                p.kill()
-
-            # Wait again to ensure all processes have been killed
-            psutil.wait_procs(alive, timeout=termination_timeout)
-
-    except psutil.NoSuchProcess:
-        # Process doesn't exist
+        subprocess.check_call(["pkill", "-KILL", "-P", str(pid)])
+        subprocess.check_call(["kill", "-KILL", str(pid)])
+    except subprocess.CalledProcessError:
         pass
 
 
