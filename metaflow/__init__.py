@@ -103,7 +103,7 @@ from .flowspec import FlowSpec
 
 from .parameters import Parameter, JSONTypeClass
 
-from .user_configs import Config, FlowConfig, config_expr, eval_config
+from .user_configs import Config, config_expr, eval_config
 
 JSONType = JSONTypeClass()
 

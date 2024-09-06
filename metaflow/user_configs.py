@@ -1,5 +1,7 @@
+import collections.abc
 import json
 import os
+import re
 
 from typing import Any, Callable, Dict, List, Optional, Union, TYPE_CHECKING
 
@@ -8,12 +10,13 @@ from metaflow._vendor import click
 
 from .exception import MetaflowException, MetaflowInternalError
 from .parameters import (
-    DelayedEvaluationParameter,
+    DeployTimeField,
     Parameter,
     ParameterContext,
     current_flow,
 )
-import functools
+
+from .util import get_username
 
 if TYPE_CHECKING:
     from metaflow import FlowSpec
@@ -54,7 +57,7 @@ def load_config_values(info_file: Optional[str] = None) -> Optional[Dict[str, An
         return None
 
 
-class ConfigValue:
+class ConfigValue(collections.abc.Mapping):
     # Thin wrapper to allow configuration values to be accessed using a "." notation
     # as well as a [] notation.
 
@@ -72,6 +75,12 @@ class ConfigValue:
             value = ConfigValue(value)
         return value
 
+    def __len__(self):
+        return len(self._data)
+
+    def __iter__(self):
+        return iter(self._data)
+
     def __repr__(self):
         return repr(self._data)
 
@@ -80,9 +89,10 @@ class ConfigValue:
 
 
 class PathOrStr(click.ParamType):
-    name = "ConfigInput"
+    name = "PathOrStr"
 
-    def convert(self, value, param, ctx):
+    @staticmethod
+    def convert_value(value):
         if value is None:
             return None
 
@@ -94,7 +104,7 @@ class PathOrStr(click.ParamType):
 
         if os.path.isfile(value):
             try:
-                with open(value, "r") as f:
+                with open(value, "r", encoding="utf-8") as f:
                     content = f.read()
             except OSError as e:
                 raise click.UsageError(
@@ -102,6 +112,9 @@ class PathOrStr(click.ParamType):
                 ) from e
             return "converted:" + content
         return "converted:" + value
+
+    def convert(self, value, param, ctx):
+        return self.convert_value(value)
 
 
 class ConfigInput:
@@ -118,9 +131,11 @@ class ConfigInput:
     def __init__(
         self,
         req_configs: List[str],
+        defaults: Dict[str, Union[str, Dict[str, Any]]],
         parsers: Dict[str, Callable[[str], Dict[str, Any]]],
     ):
-        self._req_configs = req_configs
+        self._req_configs = set(req_configs)
+        self._defaults = defaults
         self._parsers = parsers
 
     @staticmethod
@@ -144,6 +159,8 @@ class ConfigInput:
         return cls.loaded_configs.get(config_name, None)
 
     def process_configs(self, ctx, param, value):
+        from .cli import echo_always, echo_dev_null  # Prevent circular import
+
         flow_cls = getattr(current_flow, "flow_cls", None)
         if flow_cls is None:
             # This is an error
@@ -151,19 +168,51 @@ class ConfigInput:
                 "Config values should be processed for a FlowSpec"
             )
 
-        # First validate if we have all the required parameters
-        # Here value is a list of tuples. Each tuple has the name of the configuration
-        # and the string representation of the config (it was already read
-        # from a file if applicable).
-        missing = set(self._req_configs) - set([v[0] for v in value])
-        if missing:
-            raise click.UsageError(
-                "Missing required configuration values: %s" % ", ".join(missing)
-            )
-
+        # value is a list of tuples (name, value).
+        # Click will provide:
+        #   - all the defaults if nothing is provided on the command line
+        #   - provide *just* the passed in value if anything is provided on the command
+        #     line.
+        #
+        # We therefore "merge" the defaults with what we are provided by click to form
+        # a full set of values
+        # We therefore get a full set of values where:
+        #  - the name will correspond to the configuration name
+        #  - the value will be the default (including None if there is no default) or
+        #    the string representation of the value (this will always include
+        #    the "converted:" prefix as it will have gone through the PathOrStr
+        #    conversion function). A value of None basically means that the config has
+        #    no default and was not specified on the command line.
         to_return = {}
+
+        merged_configs = dict(self._defaults)
         for name, val in value:
+            # Don't replace by None -- this is needed to avoid replacing a function
+            # default
+            if val:
+                merged_configs[name] = val
+
+        print("PARAMS: %s" % str(ctx.params))
+        missing_configs = set()
+        for name, val in merged_configs.items():
             name = name.lower()
+            # convert is idempotent so if it is already converted, it will just return
+            # the value. This is used to make sure we process the defaults
+            if isinstance(val, DeployTimeField):
+                # We will form our own context and pass it down
+                param_ctx = ParameterContext(
+                    flow_name=ctx.obj.flow.name,
+                    user_name=get_username(),
+                    parameter_name=name,
+                    logger=echo_dev_null if ctx.params["quiet"] else echo_always,
+                    ds_type=ctx.params["datastore"],
+                    configs=None,
+                )
+                val = val.fun(param_ctx)
+            val = PathOrStr.convert_value(val)
+            if val is None:
+                missing_configs.add(name)
+                continue
             val = val[10:]  # Remove the "converted:" prefix
             if val.startswith("kv."):
                 # This means to load it from a file
@@ -187,6 +236,11 @@ class ConfigInput:
                     # TODO: Support YAML
                 flow_cls._user_configs[name] = read_value
                 to_return[name] = ConfigValue(read_value)
+
+        if missing_configs.intersection(self._req_configs):
+            raise click.UsageError(
+                "Missing configuration values for %s" % ", ".join(missing_configs)
+            )
         return to_return
 
     def __str__(self):
@@ -222,13 +276,17 @@ class DelayEvaluator:
     This is used when we want to use config.* values in decorators for example.
     """
 
-    def __init__(self, config_expr: str, is_var_only=True):
-        self._config_expr = config_expr
-        if is_var_only:
+    id_pattern = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+    def __init__(self, ex: str):
+        self._config_expr = ex
+        if self.id_pattern.match(self._config_expr):
+            # This is a variable only so allow things like config_expr("config").var
+            self._is_var_only = True
             self._access = []
         else:
+            self._is_var_only = False
             self._access = None
-        self._is_var_only = is_var_only
 
     def __getattr__(self, name):
         if self._access is None:
@@ -236,7 +294,9 @@ class DelayEvaluator:
         self._access.append(name)
         return self
 
-    def __call__(self):
+    def __call__(self, ctx=None, deploy_time=False):
+        # Two additional arguments are only used by DeployTimeField which will call
+        # this function with those two additional arguments. They are ignored.
         flow_cls = getattr(current_flow, "flow_cls", None)
         if flow_cls is None:
             # We are not executing inside a flow (ie: not the CLI)
@@ -256,6 +316,32 @@ class DelayEvaluator:
 
 
 def config_expr(expr: str) -> DelayEvaluator:
+    """
+    Function to allow you to use an expression involving a config parameter in
+    places where it may not be directory accessible or if you want a more complicated
+    expression than just a single variable.
+
+    You can use it as follows:
+      - When the config is not directly accessible:
+
+            @project(name=config_expr("config").project.name)
+            class MyFlow(FlowSpec):
+                config = Config("config")
+                ...
+      - When you want a more complex expression:
+            class MyFlow(FlowSpec):
+                config = Config("config")
+
+                @environment(vars={"foo": config_expr("config.bar.baz.lower()")})
+                @step
+                def start(self):
+                    ...
+
+    Parameters
+    ----------
+    expr : str
+        Expression using the config values.
+    """
     return DelayEvaluator(expr)
 
 
@@ -302,34 +388,6 @@ def eval_config(f: Callable[["FlowSpec"], "FlowSpec"]) -> "FlowSpec":
     return _wrapper
 
 
-class FlowConfig(DelayEvaluator):
-    def __init__(self, config_name: str):
-        """
-        Small wrapper to allow you to refer to a flow's configuration in a flow-level
-        decorator.
-
-        As an example:
-
-        @project(name=FlowConfig("config").project.name)
-        class MyFlow(FlowSpec):
-            config = Config("config")
-            ...
-
-        This will allow you to specify a `project.name` value in your configuration
-        and have it used in the flow-level decorator.
-
-        Without this construct, it would be difficult to access `config` inside the
-        arguments of the decorator.
-
-        Parameters
-        ----------
-        config_name : str
-            Name of the configuration being used. This should be the name given to
-            the `Config` constructor.
-        """
-        super().__init__(config_name, is_var_only=True)
-
-
 class Config(Parameter):
     """
     Includes a configuration for this flow.
@@ -374,9 +432,12 @@ class Config(Parameter):
         parser: Optional[Callable[[str], Dict[str, Any]]] = None,
         **kwargs: Dict[str, str]
     ):
+
+        print("Config %s, default is %s" % (name, default))
         super(Config, self).__init__(
             name, default=default, required=required, help=help, type=str, **kwargs
         )
+
         if isinstance(kwargs.get("default", None), str):
             kwargs["default"] = json.dumps(kwargs["default"])
         self.parser = parser
@@ -385,14 +446,14 @@ class Config(Parameter):
         return v
 
     def __getattr__(self, name):
-        ev = DelayEvaluator(self.name, is_var_only=True)
+        ev = DelayEvaluator(self.name)
         return ev.__getattr__(name)
 
 
 def config_options(cmd):
     help_strs = []
     required_names = []
-    defaults = []
+    defaults = {}
     config_seen = set()
     parsers = {}
     flow_cls = getattr(current_flow, "flow_cls", None)
@@ -400,8 +461,10 @@ def config_options(cmd):
         return cmd
 
     parameters = [p for _, p in flow_cls._get_parameters() if p.IS_FLOW_PARAMETER]
+    config_opt_required = False
     # List all the configuration options
     for arg in parameters[::-1]:
+        save_default = arg.kwargs.get("default", None)
         kwargs = arg.option_kwargs(False)
         if arg.name.lower() in config_seen:
             msg = (
@@ -413,14 +476,17 @@ def config_options(cmd):
         config_seen.add(arg.name.lower())
         if kwargs["required"]:
             required_names.append(arg.name)
-        if kwargs.get("default") is not None:
-            defaults.append((arg.name.lower(), kwargs["default"]))
-        else:
-            defaults.append(None)
+            if save_default is None:
+                # We need at least one option if we have a required configuration.
+                config_opt_required = True
+        defaults[arg.name.lower()] = save_default
         help_strs.append("  - %s: %s" % (arg.name.lower(), kwargs.get("help", "")))
         parsers[arg.name.lower()] = arg.parser
 
-    print("DEFAULTS %s" % defaults)
+    print(
+        "DEFAULTS %s"
+        % str(dict((k, v if not callable(v) else "FUNC") for k, v in defaults.items()))
+    )
     if not config_seen:
         # No configurations -- don't add anything
         return cmd
@@ -437,11 +503,12 @@ def config_options(cmd):
             nargs=2,
             multiple=True,
             type=click.Tuple([click.Choice(config_seen), PathOrStr()]),
-            callback=ConfigInput(required_names, parsers).process_configs,
+            callback=ConfigInput(required_names, defaults, parsers).process_configs,
             help=help_str,
             envvar="METAFLOW_FLOW_CONFIG",
             show_default=False,
-            default=defaults,
+            default=[(k, v if not callable(v) else None) for k, v in defaults.items()],
+            required=config_opt_required,
         ),
     )
     return cmd
