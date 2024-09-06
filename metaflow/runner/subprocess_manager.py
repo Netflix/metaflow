@@ -1,18 +1,22 @@
 import asyncio
 import os
+import time
 import shutil
 import signal
 import subprocess
 import sys
 import tempfile
 import threading
-import time
 from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
 
 def kill_process_and_descendants(pid, termination_timeout):
+    # TODO: there's a race condition that new descendants might
+    # spawn b/w the invocations of 'pkill' and 'kill'.
+    # Needs to be fixed in future.
     try:
         subprocess.check_call(["pkill", "-TERM", "-P", str(pid)])
+        subprocess.check_call(["kill", "-TERM", str(pid)])
     except subprocess.CalledProcessError:
         pass
 
@@ -20,6 +24,7 @@ def kill_process_and_descendants(pid, termination_timeout):
 
     try:
         subprocess.check_call(["pkill", "-KILL", "-P", str(pid)])
+        subprocess.check_call(["kill", "-KILL", str(pid)])
     except subprocess.CalledProcessError:
         pass
 
@@ -436,13 +441,13 @@ class CommandManager(object):
         if self.run_called:
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    async def kill(self, termination_timeout: float = 1):
+    async def kill(self, termination_timeout: float = 5):
         """
         Kill the subprocess and its descendants.
 
         Parameters
         ----------
-        termination_timeout : float, default 1
+        termination_timeout : float, default 5
             The time to wait after sending a SIGTERM to the process and its descendants
             before sending a SIGKILL.
         """
