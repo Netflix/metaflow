@@ -3,7 +3,7 @@ import json
 from contextlib import contextmanager
 from threading import local
 
-from typing import Any, Callable, Dict, NamedTuple, Optional, Type, Union
+from typing import Any, Callable, Dict, NamedTuple, Optional, TYPE_CHECKING, Type, Union
 
 from metaflow._vendor import click
 
@@ -13,6 +13,9 @@ from .exception import (
     ParameterFieldTypeMismatch,
     MetaflowException,
 )
+
+if TYPE_CHECKING:
+    from .user_configs import ConfigValue
 
 try:
     # Python2
@@ -32,6 +35,7 @@ ParameterContext = NamedTuple(
         ("parameter_name", str),
         ("logger", Callable[..., None]),
         ("ds_type", str),
+        ("configs", "ConfigValue"),
     ],
 )
 
@@ -227,7 +231,9 @@ def deploy_time_eval(value):
 
 
 # this is called by cli.main
-def set_parameter_context(flow_name, echo, datastore):
+def set_parameter_context(flow_name, echo, datastore, configs):
+    from .user_configs import ConfigValue  # Prevent circular dependency
+
     global context_proto
     context_proto = ParameterContext(
         flow_name=flow_name,
@@ -235,6 +241,7 @@ def set_parameter_context(flow_name, echo, datastore):
         parameter_name=None,
         logger=echo,
         ds_type=datastore.TYPE,
+        configs=ConfigValue(dict(configs)),
     )
 
 
@@ -303,8 +310,8 @@ class Parameter(object):
     help : str, optional
         Help text to show in `run --help`.
     required : bool, default False
-        Require that the user specified a value for the parameter.
-        `required=True` implies that the `default` is not used.
+        Require that the user specified a value for the parameter. If a non-None
+        default is specified, that default will be used if no other value is provided
     show_default : bool, default True
         If True, show the default value in the help text.
     """

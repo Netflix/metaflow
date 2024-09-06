@@ -235,11 +235,15 @@ def version(obj):
     invoke_without_command=True,
 )
 @tracing.cli_entrypoint("cli/start")
+# Quiet is eager to make sure it is available when processing --config options since
+# we need it to construct a context to pass to any DeployTimeField for the default
+# value.
 @click.option(
     "--quiet/--not-quiet",
     show_default=True,
     default=False,
     help="Suppress unnecessary messages",
+    is_eager=True,
 )
 @click.option(
     "--metadata",
@@ -255,12 +259,14 @@ def version(obj):
     type=click.Choice(["local"] + [m.TYPE for m in ENVIRONMENTS]),
     help="Execution environment type",
 )
+# See comment for --quiet
 @click.option(
     "--datastore",
     default=DEFAULT_DATASTORE,
     show_default=True,
     type=click.Choice([d.TYPE for d in DATASTORES]),
     help="Data backend type",
+    is_eager=True,
 )
 @click.option("--datastore-root", help="Root path for datastore")
 @click.option(
@@ -400,7 +406,7 @@ def start(
 
     ctx.obj.config_options = config_options
 
-    decorators._resolve_configs(ctx.obj.flow)
+    decorators._init(ctx.obj.flow)
 
     # It is important to initialize flow decorators early as some of the
     # things they provide may be used by some of the objects initialized after.
@@ -424,7 +430,10 @@ def start(
     # initialize current and parameter context for deploy-time parameters
     current._set_env(flow=ctx.obj.flow, is_running=False)
     parameters.set_parameter_context(
-        ctx.obj.flow.name, ctx.obj.echo, ctx.obj.flow_datastore
+        ctx.obj.flow.name,
+        ctx.obj.echo,
+        ctx.obj.flow_datastore,
+        dict(ctx.obj.flow.configs),
     )
 
     if ctx.invoked_subcommand not in ("run", "resume"):

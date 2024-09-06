@@ -20,6 +20,7 @@ from .parameters import (
 )
 
 from .plugins import DATACLIENTS
+from .user_configs import ConfigValue
 from .util import get_username
 
 import functools
@@ -136,6 +137,7 @@ class FilePathClass(click.ParamType):
                 parameter_name=param.name,
                 logger=ctx.obj.echo,
                 ds_type=ctx.obj.datastore_impl.TYPE,
+                configs=ConfigValue(dict(ctx.obj.flow.__class__.configs)),
             )
 
         if len(value) > 0 and (value.startswith("{") or value.startswith('"{')):

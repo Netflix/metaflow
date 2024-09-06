@@ -124,9 +124,10 @@ class Decorator(object):
                 else:
                     raise InvalidDecoratorAttribute(self.name, k, self.defaults)
 
-    def resolve_configs(self):
+    def init(self):
         """
-        Resolve any configuration options that may be set in the decorator's attributes
+        Initializes the decorator. In general, any operation you would do in __init__
+        should be done here.
         """
 
         def _resolve_delayed_evaluator(v):
@@ -544,14 +545,14 @@ def _attach_decorators_to_step(step, decospecs):
             step.decorators.append(deco)
 
 
-def _resolve_configs(flow):
+def _init(flow):
     # We get the datastore for the _parameters step which can contain
     for decorators in flow._flow_decorators.values():
         for deco in decorators:
-            deco.resolve_configs()
+            deco.init()
     for step in flow:
         for deco in step.decorators:
-            deco.resolve_configs()
+            deco.init()
 
 
 def _init_flow_decorators(
