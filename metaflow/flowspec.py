@@ -237,7 +237,8 @@ class FlowSpec(metaclass=_FlowSpecMeta):
             if not param.IS_FLOW_PARAMETER:
                 continue
             to_reset_params.append((var, param))
-            val = config_options[param.name.replace("-", "_").lower()]
+            # Note that a config with no default and not required will be None
+            val = config_options.get(param.name.replace("-", "_").lower())
             if isinstance(val, DelayedEvaluationParameter):
                 val = val()
             setattr(current_cls, var, val)
@@ -278,7 +279,7 @@ class FlowSpec(metaclass=_FlowSpecMeta):
         for var, param in self._get_parameters():
             seen.add(var)
             if param.IS_FLOW_PARAMETER:
-                val = config_options[param.name.replace("-", "_").lower()]
+                val = config_options.get(param.name.replace("-", "_").lower())
             else:
                 val = kwargs[param.name.replace("-", "_").lower()]
             # Support for delayed evaluation of parameters.
@@ -360,6 +361,8 @@ class FlowSpec(metaclass=_FlowSpecMeta):
         return iter(self._steps)
 
     def __getattr__(self, name: str):
+        if name in ("configs", "steps"):
+            return getattr(self.__class__, name)
         if self._datastore and name in self._datastore:
             # load the attribute from the datastore...
             x = self._datastore[name]
