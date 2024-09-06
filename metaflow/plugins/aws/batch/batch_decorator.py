@@ -134,8 +134,8 @@ class BatchDecorator(StepDecorator):
     package_sha = None
     run_time_limit = None
 
-    def resolve_configs(self):
-        super(BatchDecorator, self).resolve_configs()
+    def init(self):
+        super(BatchDecorator, self).init()
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:

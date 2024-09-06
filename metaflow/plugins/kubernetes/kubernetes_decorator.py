@@ -135,8 +135,8 @@ class KubernetesDecorator(StepDecorator):
     package_sha = None
     run_time_limit = None
 
-    def resolve_configs(self):
-        super(KubernetesDecorator, self).resolve_configs()
+    def init(self):
+        super(KubernetesDecorator, self).init()
 
         if not self.attributes["namespace"]:
             self.attributes["namespace"] = KUBERNETES_NAMESPACE
