@@ -64,7 +64,7 @@ class SlurmJob(object):
             # Escape double quotes within the python -c command
             content = content.replace('"', r"\"")
             # Replace outermost double quotes with single quotes
-            return f'python -c "{content}"'
+            return 'python -c "%s"' % content
 
         cmd_str = self.command[-1]
         cmd_str = re.sub(r"python -c '(.*?)'", modify_python_c, cmd_str)
