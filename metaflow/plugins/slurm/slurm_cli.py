@@ -11,7 +11,7 @@ from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.metadata.util import sync_local_metadata_from_datastore
 from metaflow.mflog import TASK_LOG_SOURCE
 
-from .slurm_exceptions import SlurmException
+from .slurm_exceptions import SlurmKilledException
 from .slurm import Slurm
 
 
@@ -238,7 +238,7 @@ def step(
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     try:
         slurm.wait(stdout_location, stderr_location, echo=echo)
-    except SlurmException:
+    except SlurmKilledException:
         # don't retry killed tasks
         traceback.print_exc()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)

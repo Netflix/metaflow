@@ -33,7 +33,7 @@ from metaflow.mflog import (
 )
 
 from .slurm_client import SlurmClient
-from .slurm_exceptions import SlurmException
+from .slurm_exceptions import SlurmException, SlurmKilledException
 from .slurm_job import SlurmJob
 
 # Redirect structured logs to $PWD/.logs/
@@ -299,7 +299,7 @@ class Slurm(object):
         else:
             if self.job.is_running:
                 # Kill the job if it is still running by throwing an exception.
-                raise SlurmException("Task failed!")
+                raise SlurmKilledException("Task failed!")
             echo(
                 "Task finished with message '%s'." % self.job.message,
                 "stderr",

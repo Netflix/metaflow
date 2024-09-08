@@ -8,6 +8,8 @@ SLURM_JOB_SCRIPT_TEMPLATE = """\
 
 {shell_env_setup}
 
+set -e  # Exit immediately if a command exits with a non-zero status
+
 {run_commands}
 
 wait
