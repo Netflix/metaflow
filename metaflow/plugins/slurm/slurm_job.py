@@ -57,7 +57,19 @@ class SlurmJob(object):
         return self.create_slurm_script()
 
     def execute(self):
-        cmd_str = self.command[-1].replace("'", '"')
+        # we need this after we changed bootstrapping code package download in S3
+        # at https://github.com/Netflix/metaflow/commit/70bdff00b7acd516fac3c510e834e50dda0c32aa
+        def modify_python_c(match):
+            content = match.group(1)
+            # Escape double quotes within the python -c command
+            content = content.replace('"', r"\"")
+            # Replace outermost double quotes with single quotes
+            return f'python -c "{content}"'
+
+        cmd_str = self.command[-1]
+        cmd_str = re.sub(r"python -c '(.*?)'", modify_python_c, cmd_str)
+
+        cmd_str = cmd_str.replace("'", '"')
         cmd_str = "mkdir -p %s && cd %s && %s" % (self.name, self.name, cmd_str)
         cmd = "bash -c '%s'" % cmd_str
 
