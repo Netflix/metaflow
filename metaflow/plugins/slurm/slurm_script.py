@@ -1,3 +1,4 @@
+import uuid
 from string import Template
 from typing import Dict, Optional
 
@@ -8,11 +9,44 @@ SLURM_JOB_SCRIPT_TEMPLATE = """\
 
 {shell_env_setup}
 
-set -e  # Exit immediately if a command exits with a non-zero status
+# Create and enter job-specific directory
+JOB_DIR="{job_dir_name}"
 
-{run_commands}
+# Store the full path of the job directory
+FULL_JOB_DIR="$(pwd)/assets/$JOB_DIR"
 
-wait
+# Cleanup flag
+CLEANUP="{cleanup}"
+
+if [ "$CLEANUP" = "true" ]; then
+    # Function to clean up the job directory
+    cleanup() {{
+        echo "Cleaning up job directory... $FULL_JOB_DIR"
+        rm -rf "$FULL_JOB_DIR"
+    }}
+
+    # Set trap to ensure cleanup happens on exit
+    trap cleanup EXIT
+fi
+
+mkdir -p "$FULL_JOB_DIR"
+cd "$FULL_JOB_DIR"
+
+# Main job logic
+main() {{
+    set -e  # Exit immediately if a command exits with a non-zero status
+
+    {run_commands}
+
+    wait
+}}
+
+# Run main logic and capture exit code
+main
+exit_code=$?
+
+# Exit with the code from the main logic
+exit $exit_code
 """
 
 
@@ -20,11 +54,13 @@ class SlurmJobScript(object):
     def __init__(
         self,
         env: Optional[Dict[str, str]] = None,
+        cleanup: bool = False,
         sbatch_options: Optional[Dict[str, str]] = None,
         srun_options: Optional[Dict[str, str]] = None,
         bashrc_path: Optional[str] = "$HOME/.bashrc",
     ):
         self.env_vars = env or {}
+        self.cleanup = cleanup
         self.sbatch_options = sbatch_options or {}
         self.srun_options = srun_options or {}
         self.bashrc_path = bashrc_path
@@ -94,6 +130,10 @@ class SlurmJobScript(object):
             "run_commands": self.get_run_command(
                 command=command,
             ),
+            "job_dir_name": self.sbatch_options.get(
+                "job-name", "job_%s" % uuid.uuid4().hex[:8]
+            ),
+            "cleanup": str(self.cleanup).lower(),
         }
 
         return SLURM_JOB_SCRIPT_TEMPLATE.format(**template_kwargs)

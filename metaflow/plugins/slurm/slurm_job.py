@@ -21,8 +21,8 @@ class SlurmJob(object):
         # and raise SlurmException
         sbatch_options = {
             "job-name": self.name,
-            "output": "%s/stdout" % self.name,
-            "error": "%s/stderr" % self.name,
+            "output": "stdout/%s.stdout" % self.name,
+            "error": "stderr/%s.stderr" % self.name,
             "partition": self.kwargs.get("partition"),
             "nodes": self.kwargs.get("nodes"),
             "ntasks": self.kwargs.get("ntasks"),
@@ -39,7 +39,9 @@ class SlurmJob(object):
         sbatch_options = {k: v for k, v in sbatch_options.items() if v is not None}
 
         self.slurm_job_script = SlurmJobScript(
-            env=self.kwargs.get("environment_variables"), sbatch_options=sbatch_options
+            env=self.kwargs.get("environment_variables"),
+            cleanup=self.client.cleanup,
+            sbatch_options=sbatch_options,
         )
 
         return self
@@ -70,7 +72,6 @@ class SlurmJob(object):
         cmd_str = re.sub(r"python -c '(.*?)'", modify_python_c, cmd_str)
 
         cmd_str = cmd_str.replace("'", '"')
-        cmd_str = "mkdir -p %s && cd %s && %s" % (self.name, self.name, cmd_str)
         cmd = "bash -c '%s'" % cmd_str
 
         slurm_job_id = self.loop.run_until_complete(

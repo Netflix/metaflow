@@ -60,7 +60,6 @@ class SlurmClient(object):
         self.conn = None
 
         self.remote_workdir = remote_workdir
-        # TODO: need to use cleanup...
         self.cleanup = cleanup
 
     async def connect(self):
@@ -86,7 +85,7 @@ class SlurmClient(object):
 
     async def submit(self, job_name: str, slurm_script_contents: str):
         # make sure remote workdir exists..
-        remote_workdir = Path(self.remote_workdir or "~")
+        remote_workdir = Path(self.remote_workdir or "~/metaflow")
 
         cmd_mkdir_remote = "mkdir -p %s" % remote_workdir
         proc_mkdir_remote = await self.conn.run(cmd_mkdir_remote)
