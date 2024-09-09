@@ -103,6 +103,7 @@ if __name__ == "__main__":
         echo "@EXPLICIT" > "$tmpfile";
         ls -d {conda_pkgs_dir}/*/* >> "$tmpfile";
         export PATH=$PATH:$(pwd)/micromamba;
+        export CONDA_PKGS_DIRS=$(pwd)/micromamba/pkgs;
         micromamba create --yes --offline --no-deps --safety-checks=disabled --no-extra-safety-checks --prefix {prefix} --file "$tmpfile";
         rm "$tmpfile"''',
     ]
@@ -123,6 +124,7 @@ if __name__ == "__main__":
             [
                 f"""set -e;
                 export PATH=$PATH:$(pwd)/micromamba;
+                export CONDA_PKGS_DIRS=$(pwd)/micromamba/pkgs;
                 micromamba run --prefix {prefix} python -m pip --disable-pip-version-check install --root-user-action=ignore --no-compile {pypi_pkgs_dir}/*.whl --no-user"""
             ]
         )
