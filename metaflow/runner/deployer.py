@@ -25,6 +25,8 @@ def handle_timeout(
         Temporary file that stores runner attribute data.
     command_obj : CommandManager
         Command manager object that encapsulates the running command details.
+    file_read_timeout : int
+        Timeout for reading the file.
 
     Returns
     -------
