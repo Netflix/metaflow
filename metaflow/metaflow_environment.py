@@ -6,7 +6,6 @@ from .util import get_username
 from . import metaflow_version
 from metaflow.exception import MetaflowException
 from metaflow.extension_support import dump_module_info
-from metaflow.user_configs import dump_config_values
 from metaflow.mflog import BASH_MFLOG
 from . import R
 
@@ -19,7 +18,7 @@ class MetaflowEnvironment(object):
     TYPE = "local"
 
     def __init__(self, flow):
-        self._flow = flow
+        pass
 
     def init_environment(self, echo):
         """
@@ -178,7 +177,7 @@ class MetaflowEnvironment(object):
         ]
         return cmds
 
-    def get_environment_info(self, full_info=False):
+    def get_environment_info(self, include_ext_info=False):
         # note that this dict goes into the code package
         # so variables here should be relatively stable (no
         # timestamps) so the hash won't change all the time
@@ -199,14 +198,10 @@ class MetaflowEnvironment(object):
             env["metaflow_r_version"] = R.metaflow_r_version()
             env["r_version"] = R.r_version()
             env["r_version_code"] = R.r_version_code()
-        if full_info:
+        if include_ext_info:
             # Information about extension modules (to load them in the proper order)
             ext_key, ext_val = dump_module_info()
             env[ext_key] = ext_val
-            # Information about configurations (to be able to reload them)
-            user_configs = dump_config_values(self._flow)
-            if user_configs:
-                env[user_configs[0]] = user_configs[1]
         return env
 
     def executable(self, step_name, default=None):

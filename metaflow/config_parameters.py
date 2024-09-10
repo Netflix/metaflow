@@ -5,7 +5,6 @@ import re
 
 from typing import Any, Callable, Dict, List, Optional, Union, TYPE_CHECKING
 
-from metaflow import INFO_FILE
 from metaflow._vendor import click
 
 from .exception import MetaflowException, MetaflowInternalError
@@ -40,16 +39,20 @@ if TYPE_CHECKING:
 
 #     return tracefunc_closure
 
+CONFIG_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "CONFIG_PARAMETERS"
+)
+
 
 def dump_config_values(flow: "FlowSpec"):
     if flow._user_configs:
-        return "user_configs", flow._user_configs
-    return None, None
+        return {"user_configs": flow._user_configs}
+    return {}
 
 
-def load_config_values(info_file: Optional[str] = None) -> Optional[Dict[str, Any]]:
+def load_config_values(info_file: Optional[str] = None) -> Optional[Dict[Any, Any]]:
     if info_file is None:
-        info_file = INFO_FILE
+        info_file = os.path.basename(CONFIG_FILE)
     try:
         with open(info_file, encoding="utf-8") as contents:
             return json.load(contents).get("user_configs", {})
@@ -58,10 +61,19 @@ def load_config_values(info_file: Optional[str] = None) -> Optional[Dict[str, An
 
 
 class ConfigValue(collections.abc.Mapping):
+    """
+    ConfigValue is a thin wrapper around an arbitrarily nested dictionary-like
+    configuration object. It allows you to access elements of this nested structure
+    using either a "." notation or a [] notation. As an example, if your configuration
+    object is:
+    {"foo": {"bar": 42}}
+    you can access the value 42 using either config["foo"]["bar"] or config.foo.bar.
+    """
+
     # Thin wrapper to allow configuration values to be accessed using a "." notation
     # as well as a [] notation.
 
-    def __init__(self, data: Dict[str, Any]):
+    def __init__(self, data: Dict[Any, Any]):
         self._data = data
 
         for key, value in data.items():
@@ -69,7 +81,20 @@ class ConfigValue(collections.abc.Mapping):
                 value = ConfigValue(value)
             setattr(self, key, value)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: Any) -> Any:
+        """
+        Access an element of this configuration
+
+        Parameters
+        ----------
+        key : Any
+            Element to access
+
+        Returns
+        -------
+        Any
+            Element of the configuration
+        """
         value = self._data[key]
         if isinstance(value, dict):
             value = ConfigValue(value)
@@ -87,12 +112,31 @@ class ConfigValue(collections.abc.Mapping):
     def __str__(self):
         return json.dumps(self._data)
 
+    def to_dict(self) -> Dict[Any, Any]:
+        """
+        Returns a dictionary representation of this configuration object.
+
+        Returns
+        -------
+        Dict[Any, Any]
+            Dictionary equivalent of this configuration object.
+        """
+        return dict(self._data)
+
 
 class PathOrStr(click.ParamType):
+    # Click parameter type for a configuration value -- it can either be the string
+    # representation of the configuration value (like a JSON string or any other
+    # string that the configuration parser can parse) or the path to a file containing
+    # such a content. The value will be initially assumed to be that of a file and will
+    # only be considered not a file if no file exists.
     name = "PathOrStr"
 
     @staticmethod
     def convert_value(value):
+        # Click requires this to be idempotent. We therefore check if the value
+        # starts with "converted:" which is our marker for "we already processed this
+        # value".
         if value is None:
             return None
 
@@ -118,21 +162,22 @@ class PathOrStr(click.ParamType):
 
 
 class ConfigInput:
-    # Contains the values loaded from the INFO file. We make this a class method
-    # so that if there are multiple configs, we just need to read the file once.
-    # It is OK to be globally unique because this is only evoked in scenario A.2 (see
-    # convert method) which means we are already just executing a single task and so
-    # there is no concern about it "leaking" to things running with Runner for example
-    # (ie: even if Runner is evoked in that task, we won't "share" this global value's
-    # usage).
-    loaded_configs = None  # type: Optional[Dict[str, Dict[str, Any]]]
-    info_file = None  # type: Optional[str]
+    # ConfigInput is an internal class responsible for processing all the --config
+    # options. It gathers information from the --local-config-file (to figure out
+    # where options are stored) and is also responsible for processing any `--config`
+    # options and processing the default value of `Config(...)` objects.
+
+    # It will then store this information in the flow spec for use later in processing.
+    # It is stored in the flow spec to avoid being global to support the Runner.
+
+    loaded_configs = None  # type: Optional[Dict[str, Dict[Any, Any]]]
+    config_file = None  # type: Optional[str]
 
     def __init__(
         self,
         req_configs: List[str],
-        defaults: Dict[str, Union[str, Dict[str, Any]]],
-        parsers: Dict[str, Callable[[str], Dict[str, Any]]],
+        defaults: Dict[str, Union[str, Dict[Any, Any]]],
+        parsers: Dict[str, Callable[[str], Dict[Any, Any]]],
     ):
         self._req_configs = set(req_configs)
         self._defaults = defaults
@@ -140,20 +185,24 @@ class ConfigInput:
 
     @staticmethod
     def make_key_name(name: str) -> str:
+        # Special mark to indicate that the configuration value is not content or a file
+        # name but a value that should be read in the config file (effectively where
+        # the value has already been materialized).
         return "kv." + name.lower()
 
     @classmethod
-    def set_info_file(cls, info_file: str):
-        cls.info_file = info_file
+    def set_config_file(cls, config_file: str):
+        cls.config_file = config_file
 
     @classmethod
-    def get_config(cls, config_name: str) -> Optional[Dict[str, Any]]:
+    def get_config(cls, config_name: str) -> Optional[Dict[Any, Any]]:
         if cls.loaded_configs is None:
-            all_configs = load_config_values(cls.info_file)
+            all_configs = load_config_values(cls.config_file)
             if all_configs is None:
                 raise MetaflowException(
                     "Could not load expected configuration values "
-                    "from the INFO file. This is a Metaflow bug. Please contact support."
+                    "from the CONFIG_PARAMETERS file. This is a Metaflow bug. "
+                    "Please contact support."
                 )
             cls.loaded_configs = all_configs
         return cls.loaded_configs.get(config_name, None)
@@ -168,7 +217,8 @@ class ConfigInput:
                 "Config values should be processed for a FlowSpec"
             )
 
-        # value is a list of tuples (name, value).
+        # This function is called by click when processing all the --config options.
+        # The value passed in is a list of tuples (name, value).
         # Click will provide:
         #   - all the defaults if nothing is provided on the command line
         #   - provide *just* the passed in value if anything is provided on the command
@@ -197,9 +247,15 @@ class ConfigInput:
         for name, val in merged_configs.items():
             name = name.lower()
             # convert is idempotent so if it is already converted, it will just return
-            # the value. This is used to make sure we process the defaults
+            # the value. This is used to make sure we process the defaults which do
+            # NOT make it through the PathOrStr convert function
             if isinstance(val, DeployTimeField):
-                # We will form our own context and pass it down
+                # This supports a default value that is a deploy-time field (similar
+                # to Parameter).)
+                # We will form our own context and pass it down -- note that you cannot
+                # use configs in the default value of configs as this introduces a bit
+                # of circularity. Note also that quiet and datastore are *eager*
+                # options so are available here.
                 param_ctx = ParameterContext(
                     flow_name=ctx.obj.flow.name,
                     user_name=get_username(),
@@ -251,14 +307,19 @@ class ConfigInput:
 
 
 class LocalFileInput(click.Path):
+    # Small wrapper around click.Path to set the value from which to read configuration
+    # values. This is set immediately upon processing the --local-config-file
+    # option and will therefore then be available when processing any of the other
+    # --config options (which will call ConfigInput.process_configs
     name = "LocalFileInput"
 
     def convert(self, value, param, ctx):
         super().convert(value, param, ctx)
-        ConfigInput.set_info_file(value)
+        ConfigInput.set_config_file(value)
         # This purposefully returns None which means it is *not* passed down
         # when commands use ctx.parent.parent.params to get all the configuration
-        # values.
+        # values (it becomes hidden because its only purpose is to update the
+        # config file in ConfigInput)
 
     def __str__(self):
         return repr(self)
@@ -267,7 +328,7 @@ class LocalFileInput(click.Path):
         return "LocalFileInput"
 
 
-ConfigArgType = Union[str, Dict[str, Any]]
+ConfigArgType = Union[str, Dict[Any, Any]]
 
 
 class DelayEvaluator:
@@ -402,15 +463,17 @@ class Config(Parameter):
     ----------
     name : str
         User-visible configuration name.
-    default : Union[str, Dict[str, Any], Callable[[ParameterContext], Union[str, Dict[str, Any]]]], optional, default None
+    default : Union[str, Dict[Any, Any], Callable[[ParameterContext], Union[str, Dict[Any, Any]]]], optional, default None
         Default value for the parameter. A function
         implies that the value will be computed using that function.
     help : str, optional, default None
         Help text to show in `run --help`.
     required : bool, default False
-        Require that the user specified a value for the parameter.
-        `required=True` implies that the `default` is not used.
-    parser : Callable[[str], Dict[str, Any]], optional, default None
+        Require that the user specified a value for the parameter. Note that if
+        a default is provided, the required flag is ignored.
+    parser : Callable[[str], Dict[Any, Any]], optional, default None
+        An optional function that can parse the configuration string into an arbitrarily
+        nested dictionary.
     show_default : bool, default True
         If True, show the default value in the help text.
     """
@@ -423,13 +486,13 @@ class Config(Parameter):
         default: Optional[
             Union[
                 str,
-                Dict[str, Any],
-                Callable[[ParameterContext], Union[str, Dict[str, Any]]],
+                Dict[Any, Any],
+                Callable[[ParameterContext], Union[str, Dict[Any, Any]]],
             ]
         ] = None,
         help: Optional[str] = None,
         required: bool = False,
-        parser: Optional[Callable[[str], Dict[str, Any]]] = None,
+        parser: Optional[Callable[[str], Dict[Any, Any]]] = None,
         **kwargs: Dict[str, str]
     ):
 

@@ -42,7 +42,7 @@ from .unbounded_foreach import (
     UBF_TASK,
 )
 
-from .user_configs import ConfigInput, dump_config_values
+from .config_parameters import ConfigInput, dump_config_values
 
 import metaflow.tracing as tracing
 
@@ -426,9 +426,9 @@ class NativeRuntime(object):
             # Configurations are passed through a file to avoid overloading the
             # command-line. We only need to create this file once and it can be reused
             # for any task launch
-            config_key, config_value = dump_config_values(self._flow)
+            config_value = dump_config_values(self._flow)
             if config_value:
-                json.dump({config_key: config_value}, config_file)
+                json.dump(config_value, config_file)
                 config_file.flush()
                 self._config_file_name = config_file.name
             else:
@@ -1466,7 +1466,7 @@ class CLIArgs(object):
             self.top_level_options.update(deco.get_top_level_options())
 
         # We also pass configuration options using the kv.<name> syntax which will cause
-        # the configuration options to be loaded from the INFO file (or local-info-file
+        # the configuration options to be loaded from the CONFIG file (or local-config-file
         # in the case of the local runtime)
         if self.task.flow._user_configs:
             self.top_level_options["config"] = [
@@ -1583,7 +1583,7 @@ class Worker(object):
         # Add user configurations using a file to avoid using up too much space on the
         # command line
         if self._config_file_name:
-            args.top_level_options["local-info-file"] = self._config_file_name
+            args.top_level_options["local-config-file"] = self._config_file_name
         # Pass configuration options
         env.update(args.get_env())
         env["PYTHONUNBUFFERED"] = "x"
