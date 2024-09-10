@@ -262,6 +262,13 @@ UI_URL = from_conf("UI_URL")
 ###
 ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT = from_conf("ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT")
 
+###
+# Config to verify whether resource limits should be enabled
+###
+ARGO_WORKFLOWS_ENABLE_RESOURCE_LIMITS = from_conf(
+    "ARGO_WORKFLOWS_ENABLE_RESOURCE_LIMITS", False
+)
+
 # Contact information displayed when running the `metaflow` command.
 # Value should be a dictionary where:
 #  - key is a string describing contact method

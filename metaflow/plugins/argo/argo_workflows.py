@@ -49,6 +49,7 @@ from metaflow.metaflow_config import (
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
     UI_URL,
+    ARGO_WORKFLOWS_ENABLE_RESOURCE_LIMITS,
 )
 from metaflow.metaflow_config_funcs import config_values
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
@@ -2080,6 +2081,16 @@ class ArgoWorkflows(object):
                                         % resources["gpu_vendor"]: str(resources["gpu"])
                                         for k in [0]
                                         if resources["gpu"] is not None
+                                    }
+                                    + {
+                                        "cpu": str(resources["cpu"])
+                                        for k in [0]
+                                        if ARGO_WORKFLOWS_ENABLE_RESOURCE_LIMITS
+                                    }
+                                    + {
+                                        "memory": "%sM" % str(resources["memory"])
+                                        for k in [0]
+                                        if ARGO_WORKFLOWS_ENABLE_RESOURCE_LIMITS
                                     },
                                 ),
                                 # Configure secrets
