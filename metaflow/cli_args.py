@@ -12,7 +12,14 @@
 # well as the converting of options in runtime.py. We should make it so that we
 # can properly shlex things and un-shlex when using. Ideally this should all be
 # done in one place.
+#
+# NOTE: There is an important between these two as well:
+#  - this one will include local_config_file whereas the other one WILL NOT.
+#    This is because this is used when constructing the parallel UBF command which
+#    executes locally and therefore needs the local_config_file but the other (remote)
+#    commands do not.
 
+from .config_parameters import ConfigInput
 from .util import to_unicode
 
 
@@ -65,6 +72,14 @@ class CLIArgs(object):
             # keyword in Python, so we call it 'decospecs' in click args
             if k == "decospecs":
                 k = "with"
+            if k == "config_options":
+                # Special handling here since we gather them all in one option but actually
+                # need to send them one at a time using --config <name> kv.<name>
+                for config_name in v.keys():
+                    yield "--config"
+                    yield to_unicode(config_name)
+                    yield to_unicode(ConfigInput.make_key_name(config_name))
+                continue
             k = k.replace("_", "-")
             v = v if isinstance(v, (list, tuple, set)) else [v]
             for value in v:

@@ -315,6 +315,10 @@ def dict_to_cli_options(params):
                     yield to_unicode(config_name)
                     yield to_unicode(ConfigInput.make_key_name(config_name))
                 continue
+            if k == "local_config_file":
+                # Skip this value -- it should only be used locally and never when
+                # forming another command line
+                continue
             k = k.replace("_", "-")
             v = v if isinstance(v, (list, tuple, set)) else [v]
             for value in v:
