@@ -20,7 +20,7 @@ from .extension_support import extension_info
 
 from .graph import FlowGraph
 from .unbounded_foreach import UnboundedForeachInput
-from .user_configs import ConfigInput, ConfigValue
+from .config_parameters import ConfigInput, ConfigValue
 from .util import to_pod
 from .metaflow_config import INCLUDE_FOREACH_STACK, MAXIMUM_FOREACH_VALUE_CHARS
 

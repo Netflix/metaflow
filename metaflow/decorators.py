@@ -12,7 +12,7 @@ from .exception import (
 )
 
 from .parameters import current_flow
-from .user_configs import DelayEvaluator
+from .config_parameters import DelayEvaluator
 
 from metaflow._vendor import click
 
