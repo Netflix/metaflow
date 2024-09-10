@@ -15,7 +15,7 @@ from .exception import (
 )
 
 if TYPE_CHECKING:
-    from .user_configs import ConfigValue
+    from .config_parameters import ConfigValue
 
 try:
     # Python2
@@ -232,7 +232,7 @@ def deploy_time_eval(value):
 
 # this is called by cli.main
 def set_parameter_context(flow_name, echo, datastore, configs):
-    from .user_configs import ConfigValue  # Prevent circular dependency
+    from .config_parameters import ConfigValue  # Prevent circular dependency
 
     global context_proto
     context_proto = ParameterContext(

@@ -35,7 +35,7 @@ from .plugins import (
 from .pylint_wrapper import PyLint
 from .R import metaflow_r_version, use_r
 from .util import resolve_identity
-from .user_configs import LocalFileInput, config_options
+from .config_parameters import LocalFileInput, config_options
 
 ERASE_TO_EOL = "\033[K"
 HIGHLIGHT = "red"
@@ -304,11 +304,11 @@ def version(obj):
     help="Monitoring backend type",
 )
 @click.option(
-    "--local-info-file",
+    "--local-config-file",
     type=LocalFileInput(exists=True, readable=True, dir_okay=False, resolve_path=True),
     required=False,
     default=None,
-    help="A filename containing a subset of the INFO file. Internal use only.",
+    help="A filename containing the dumped configuration values. Internal use only.",
     hidden=True,
     is_eager=True,
 )

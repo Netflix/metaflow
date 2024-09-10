@@ -103,7 +103,7 @@ from .flowspec import FlowSpec
 
 from .parameters import Parameter, JSONTypeClass, JSONType
 
-from .user_configs import Config, config_expr, eval_config
+from .config_parameters import Config, config_expr, eval_config
 
 # data layer
 # For historical reasons, we make metaflow.plugins.datatools accessible as
