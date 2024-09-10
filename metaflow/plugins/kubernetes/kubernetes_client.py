@@ -6,7 +6,7 @@ import time
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_NAMESPACE
 
-from .kubernetes_job import KubernetesJob, KubernetesJobSet, RunningJob
+from .kubernetes_job import KubernetesJob, KubernetesJobSet
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
 

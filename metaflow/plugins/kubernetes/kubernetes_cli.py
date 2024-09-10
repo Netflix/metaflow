@@ -8,11 +8,7 @@ from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
 import metaflow.tracing as tracing
 from metaflow import JSONTypeClass, util
 from metaflow._vendor import click
-from metaflow.exception import (
-    METAFLOW_EXIT_DISALLOW_RETRY,
-    CommandException,
-    MetaflowException,
-)
+from metaflow.exception import METAFLOW_EXIT_DISALLOW_RETRY, CommandException
 from metaflow.metadata.util import sync_local_metadata_from_datastore
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, KUBERNETES_LABELS
 from metaflow.mflog import TASK_LOG_SOURCE
