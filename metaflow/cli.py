@@ -325,7 +325,7 @@ def start(
     pylint=None,
     event_logger=None,
     monitor=None,
-    local_info_file=None,
+    local_config_file=None,
     config_options=None,
     **deco_options
 ):

@@ -343,12 +343,9 @@ class LocalFileInput(click.Path):
     name = "LocalFileInput"
 
     def convert(self, value, param, ctx):
-        super().convert(value, param, ctx)
+        v = super().convert(value, param, ctx)
         ConfigInput.set_config_file(value)
-        # This purposefully returns None which means it is *not* passed down
-        # when commands use ctx.parent.parent.params to get all the configuration
-        # values (it becomes hidden because its only purpose is to update the
-        # config file in ConfigInput)
+        return v
 
     def __str__(self):
         return repr(self)
