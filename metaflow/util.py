@@ -297,7 +297,7 @@ def get_metaflow_root():
 
 def dict_to_cli_options(params):
     # Prevent circular imports
-    from metaflow.user_configs import ConfigInput, ConfigValue
+    from metaflow.config_parameters import ConfigInput, ConfigValue
 
     for k, v in params.items():
         # Omit boolean options set to false or None, but preserve options with an empty

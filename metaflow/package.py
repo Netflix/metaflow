@@ -6,6 +6,7 @@ import time
 import json
 from io import BytesIO
 
+from .config_parameters import CONFIG_FILE, dump_config_values
 from .extension_support import EXT_PKG, package_mfext_all
 from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from .exception import MetaflowException
@@ -151,11 +152,23 @@ class MetaflowPackage(object):
             for path_tuple in self._walk(flowdir, suffixes=self.suffixes):
                 yield path_tuple
 
-    def _add_info(self, tar):
-        info = tarfile.TarInfo(os.path.basename(INFO_FILE))
-        env = self.environment.get_environment_info(full_info=True)
+    def _add_configs(self, tar):
         buf = BytesIO()
-        buf.write(json.dumps(env).encode("utf-8"))
+        buf.write(json.dumps(dump_config_values(self._flow)).encode("utf-8"))
+        self._add_file(tar, os.path.basename(CONFIG_FILE), buf)
+
+    def _add_info(self, tar):
+        buf = BytesIO()
+        buf.write(
+            json.dumps(
+                self.environment.get_environment_info(include_ext_info=True)
+            ).encode("utf-8")
+        )
+        self._add_file(tar, os.path.basename(INFO_FILE), buf)
+
+    @staticmethod
+    def _add_file(tar, filename, buf):
+        info = tarfile.TarInfo(filename)
         buf.seek(0)
         info.size = len(buf.getvalue())
         # Setting this default to Dec 3, 2019
@@ -175,6 +188,7 @@ class MetaflowPackage(object):
             fileobj=buf, mode="w:gz", compresslevel=3, dereference=True
         ) as tar:
             self._add_info(tar)
+            self._add_configs(tar)
             for path, arcname in self.path_tuples():
                 tar.add(path, arcname=arcname, recursive=False, filter=no_mtime)
 

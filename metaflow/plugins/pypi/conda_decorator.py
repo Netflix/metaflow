@@ -174,7 +174,9 @@ class CondaStepDecorator(StepDecorator):
                 encoding="utf-8",
             ) as f:
                 f.write(
-                    json.dumps(self.environment.get_environment_info(full_info=True))
+                    json.dumps(
+                        self.environment.get_environment_info(include_ext_info=True)
+                    )
                 )
 
         # Support metaflow extensions.
