@@ -6,7 +6,11 @@ import time
 from collections import namedtuple
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import KUBERNETES_JOBSET_GROUP, KUBERNETES_JOBSET_VERSION
+from metaflow.metaflow_config import (
+    KUBERNETES_JOBSET_GROUP,
+    KUBERNETES_JOBSET_VERSION,
+    ARGO_WORKFLOWS_ENABLE_RESOURCE_LIMITS,
+)
 from metaflow.tracing import inject_tracing_vars
 from metaflow.metaflow_config import KUBERNETES_SECRETS
 
@@ -532,6 +536,24 @@ class JobSetSpec(object):
         )
         return self
 
+    def _curate_resource_limits_dict(self):
+        limits = {}
+        if ARGO_WORKFLOWS_ENABLE_RESOURCE_LIMITS:
+            limits = {
+                "cpu": str(self._kwargs["cpu"]),
+                "memory": "%sM" % str(self._kwargs["memory"]),
+                "ephemeral-storage": "%sM" % str(self._kwargs["disk"]),
+            }
+
+        gpu_limits = {
+            "%s.com/gpu".lower() % self._kwargs["gpu_vendor"]: str(self._kwargs["gpu"])
+            for k in [0]
+            # Don't set GPU limits if gpu isn't specified.
+            if self._kwargs["gpu"] is not None
+        }
+        limits.update(gpu_limits)
+        return limits
+
     def dump(self):
         client = self._kubernetes_sdk
         use_tmpfs = self._kwargs["use_tmpfs"]
@@ -648,15 +670,7 @@ class JobSetSpec(object):
                                                 "ephemeral-storage": "%sM"
                                                 % str(self._kwargs["disk"]),
                                             },
-                                            limits={
-                                                "%s.com/gpu".lower()
-                                                % self._kwargs["gpu_vendor"]: str(
-                                                    self._kwargs["gpu"]
-                                                )
-                                                for k in [0]
-                                                # Don't set GPU limits if gpu isn't specified.
-                                                if self._kwargs["gpu"] is not None
-                                            },
+                                            limits=self._curate_resource_limits_dict(),
                                         ),
                                         volume_mounts=(
                                             [

@@ -2076,22 +2076,7 @@ class ArgoWorkflows(object):
                                         "ephemeral-storage": "%sM"
                                         % str(resources["disk"]),
                                     },
-                                    limits={
-                                        "%s.com/gpu".lower()
-                                        % resources["gpu_vendor"]: str(resources["gpu"])
-                                        for k in [0]
-                                        if resources["gpu"] is not None
-                                    }
-                                    + {
-                                        "cpu": str(resources["cpu"])
-                                        for k in [0]
-                                        if ARGO_WORKFLOWS_ENABLE_RESOURCE_LIMITS
-                                    }
-                                    + {
-                                        "memory": "%sM" % str(resources["memory"])
-                                        for k in [0]
-                                        if ARGO_WORKFLOWS_ENABLE_RESOURCE_LIMITS
-                                    },
+                                    limits=self._curate_resource_limits_dict(resources),
                                 ),
                                 # Configure secrets
                                 env_from=[
@@ -2160,6 +2145,23 @@ class ArgoWorkflows(object):
                         )
                     )
                 )
+
+    def _curate_resource_limits_dict(self, resources):
+        limits = {}
+        if ARGO_WORKFLOWS_ENABLE_RESOURCE_LIMITS:
+            limits = {
+                "cpu": str(resources["cpu"]),
+                "memory": "%sM" % str(resources["memory"]),
+                "ephemeral-storage": "%sM" % str(resources["disk"]),
+            }
+
+        gpu_limits = {
+            "%s.com/gpu".lower() % resources["gpu_vendor"]: str(resources["gpu"])
+            for k in [0]
+            if resources["gpu"] is not None
+        }
+        limits.update(gpu_limits)
+        return limits
 
     # Return daemon container templates for workflow execution notifications.
     def _daemon_templates(self):
