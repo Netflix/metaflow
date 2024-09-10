@@ -33,6 +33,7 @@ from . import procpoll
 from .datastore import TaskDataStoreSet
 from .debug import debug
 from .decorators import flow_decorators
+from .flowspec import _FlowState
 from .mflog import mflog, RUNTIME_LOG_SOURCE
 from .util import to_unicode, compress_list, unicode_type
 from .clone_util import clone_task_helper
@@ -1468,9 +1469,10 @@ class CLIArgs(object):
         # We also pass configuration options using the kv.<name> syntax which will cause
         # the configuration options to be loaded from the CONFIG file (or local-config-file
         # in the case of the local runtime)
-        if self.task.flow._user_configs:
+        configs = self.task.flow._flow_state.get(_FlowState.CONFIGS)
+        if configs:
             self.top_level_options["config"] = [
-                (k, ConfigInput.make_key_name(k)) for k in self.task.flow._user_configs
+                (k, ConfigInput.make_key_name(k)) for k in configs
             ]
 
         self.commands = ["step"]
