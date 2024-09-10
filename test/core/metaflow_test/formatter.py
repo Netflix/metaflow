@@ -85,7 +85,7 @@ class FlowFormatter(object):
             tags.extend(tag.split("(")[0] for tag in step.tags)
 
         yield 0, "# -*- coding: utf-8 -*-"
-        yield 0, "from metaflow import Config, FlowSpec, step, Parameter, project, IncludeFile, JSONType, current, parallel"
+        yield 0, "from metaflow import Config, config_expr, eval_config, FlowSpec, step, Parameter, project, IncludeFile, JSONType, current, parallel"
         yield 0, "from metaflow_test import assert_equals, assert_equals_metadata, assert_exception, ExpectationFailed, is_resumed, ResumeFromHere, TestRetry, try_to_get_card"
         if tags:
             yield 0, "from metaflow import %s" % ",".join(tags)

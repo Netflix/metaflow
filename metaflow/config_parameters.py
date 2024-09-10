@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, List, Optional, Union, TYPE_CHECKING
 from metaflow._vendor import click
 
 from .exception import MetaflowException, MetaflowInternalError
+
 from .parameters import (
     DeployTimeField,
     Parameter,
@@ -45,8 +46,11 @@ CONFIG_FILE = os.path.join(
 
 
 def dump_config_values(flow: "FlowSpec"):
-    if flow._user_configs:
-        return {"user_configs": flow._user_configs}
+    from .flowspec import _FlowState  # Prevent circular import
+
+    configs = flow._flow_state.get(_FlowState.CONFIGS)
+    if configs:
+        return {"user_configs": configs}
     return {}
 
 
@@ -76,10 +80,34 @@ class ConfigValue(collections.abc.Mapping):
     def __init__(self, data: Dict[Any, Any]):
         self._data = data
 
-        for key, value in data.items():
-            if isinstance(value, dict):
-                value = ConfigValue(value)
-            setattr(self, key, value)
+    def __getattr__(self, key: str) -> Any:
+        """
+        Access an element of this configuration
+
+        Parameters
+        ----------
+        key : str
+            Element to access
+
+        Returns
+        -------
+        Any
+            Element of the configuration
+        """
+        if key == "_data":
+            # Called during unpickling. Special case to not run into infinite loop
+            # below.
+            raise AttributeError(key)
+
+        if key in self._data:
+            return self[key]
+        raise AttributeError(key)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # Prevent configuration modification
+        if name == "_data":
+            return super().__setattr__(name, value)
+        raise TypeError("ConfigValue is immutable")
 
     def __getitem__(self, key: Any) -> Any:
         """
@@ -209,6 +237,7 @@ class ConfigInput:
 
     def process_configs(self, ctx, param, value):
         from .cli import echo_always, echo_dev_null  # Prevent circular import
+        from .flowspec import _FlowState  # Prevent circular import
 
         flow_cls = getattr(current_flow, "flow_cls", None)
         if flow_cls is None:
@@ -216,7 +245,7 @@ class ConfigInput:
             raise MetaflowInternalError(
                 "Config values should be processed for a FlowSpec"
             )
-
+        flow_cls._flow_state[_FlowState.CONFIGS] = {}
         # This function is called by click when processing all the --config options.
         # The value passed in is a list of tuples (name, value).
         # Click will provide:
@@ -277,7 +306,7 @@ class ConfigInput:
                     raise click.UsageError(
                         "Could not find configuration '%s' in INFO file" % val
                     )
-                flow_cls._user_configs[name] = read_value
+                flow_cls._flow_state[_FlowState.CONFIGS][name] = read_value
                 to_return[name] = ConfigValue(read_value)
             else:
                 if self._parsers[name]:
@@ -290,7 +319,7 @@ class ConfigInput:
                             "Configuration value for '%s' is not valid JSON" % name
                         ) from e
                     # TODO: Support YAML
-                flow_cls._user_configs[name] = read_value
+                flow_cls._flow_state[_FlowState.CONFIGS][name] = read_value
                 to_return[name] = ConfigValue(read_value)
 
         if missing_configs.intersection(self._req_configs):
@@ -331,6 +360,23 @@ class LocalFileInput(click.Path):
 ConfigArgType = Union[str, Dict[Any, Any]]
 
 
+class MultipleTuple(click.Tuple):
+    # Small wrapper around a click.Tuple to allow the environment variable for
+    # configurations to be a JSON string. Otherwise the default behavior is splitting
+    # by whitespace which is totally not what we want
+    # You can now pass multiple configuration options through an environment variable
+    # using something like:
+    # METAFLOW_FLOW_CONFIG='{"config1": "filenameforconfig1.json", "config2": {"key1": "value1"}}'
+
+    def split_envvar_value(self, rv):
+        loaded = json.loads(rv)
+        return list(
+            item if isinstance(item, str) else json.dumps(item)
+            for pair in loaded.items()
+            for item in pair
+        )
+
+
 class DelayEvaluator:
     """
     Small wrapper that allows the evaluation of a Config() value in a delayed manner.
@@ -356,6 +402,8 @@ class DelayEvaluator:
         return self
 
     def __call__(self, ctx=None, deploy_time=False):
+        from .flowspec import _FlowState  # Prevent circular import
+
         # Two additional arguments are only used by DeployTimeField which will call
         # this function with those two additional arguments. They are ignored.
         flow_cls = getattr(current_flow, "flow_cls", None)
@@ -372,7 +420,10 @@ class DelayEvaluator:
         return eval(
             self._config_expr,
             globals(),
-            {k: ConfigValue(v) for k, v in flow_cls._user_configs.items()},
+            {
+                k: ConfigValue(v)
+                for k, v in flow_cls._flow_state.get(_FlowState.CONFIGS, {}).items()
+            },
         )
 
 
@@ -443,7 +494,9 @@ def eval_config(f: Callable[["FlowSpec"], "FlowSpec"]) -> "FlowSpec":
     """
 
     def _wrapper(flow_spec: "FlowSpec"):
-        flow_spec._config_funcs.append(f)
+        from .flowspec import _FlowState
+
+        flow_spec._flow_state.setdefault(_FlowState.CONFIG_FUNCS, []).append(f)
         return flow_spec
 
     return _wrapper
@@ -565,7 +618,7 @@ def config_options(cmd):
             ["--config", "config_options"],
             nargs=2,
             multiple=True,
-            type=click.Tuple([click.Choice(config_seen), PathOrStr()]),
+            type=MultipleTuple([click.Choice(config_seen), PathOrStr()]),
             callback=ConfigInput(required_names, defaults, parsers).process_configs,
             help=help_str,
             envvar="METAFLOW_FLOW_CONFIG",

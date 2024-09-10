@@ -4,6 +4,7 @@ import sys
 import traceback
 import reprlib
 
+from enum import Enum
 from itertools import islice
 from types import FunctionType, MethodType
 from typing import TYPE_CHECKING, Any, Callable, Generator, List, Optional, Tuple
@@ -66,23 +67,26 @@ class ParallelUBF(UnboundedForeachInput):
         return item or 0  # item is None for the control task, but it is also split 0
 
 
+class _FlowState(Enum):
+    CONFIGS = 1
+    CONFIG_FUNCS = 2
+    CACHED_PARAMETERS = 3
+
+
 class FlowSpecMeta(type):
     def __new__(cls, name, bases, dct):
         f = super().__new__(cls, name, bases, dct)
-        # This makes sure to give _flow_decorators to each
-        # child class (and not share it with the FlowSpec base
-        # class). This is important to not make a "global"
-        # _flow_decorators. Same deal with user configurations
+        # We store some state in the flow class itself. This is primarily used to
+        # attach global state to a flow. It is *not* an actual global because of
+        # Runner/NBRunner. This is also created here in the meta class to avoid it being
+        # shared between different children classes.
+
+        # We should move _flow_decorators into this structure as well but keeping it
+        # out to limit the changes for now.
         f._flow_decorators = {}
-        f._user_configs = {}
 
-        # We also cache parameter names to avoid having to recompute what is a parameter
-        # in the dir of a flow
-        f._cached_parameters = None
-
-        # Finally attach all functions that need to be evaluated once user configurations
-        # are available
-        f._config_funcs = []
+        # Keys are _FlowState enum values
+        f._flow_state = {}
 
         return f
 
@@ -113,8 +117,8 @@ class FlowSpecMeta(type):
         Tuple[str, ConfigValue]
             Iterates over the configurations of the flow
         """
-        # When configs are parsed, they are loaded in _user_configs
-        for name, value in cls._user_configs.items():
+        # When configs are parsed, they are loaded in _flow_state[_FlowState.CONFIGS]
+        for name, value in cls._flow_state.get(_FlowState.CONFIGS, {}).items():
             yield name, ConfigValue(value)
 
     @property
@@ -153,9 +157,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
         "_cached_input",
         "_graph",
         "_flow_decorators",
-        "_user_configs",
-        "_cached_parameters",
-        "_config_funcs",
+        "_flow_state",
         "_steps",
         "index",
         "input",
@@ -224,7 +226,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
         current_cls = self.__class__
 
         # Fast path for no user configurations
-        if not self._config_funcs:
+        if not self._flow_state.get(_FlowState.CONFIG_FUNCS):
             return self
 
         # We need to convert all the user configurations from DelayedEvaluationParameters
@@ -246,7 +248,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
         # Run all the functions. They will now be able to access the configuration
         # values directly from the class
-        for func in self._config_funcs:
+        for func in self._flow_state[_FlowState.CONFIG_FUNCS]:
             current_cls = func(current_cls)
 
         # Reset all configs that were already present in the class.
@@ -257,7 +259,8 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
         # We reset cached_parameters on the very off chance that the user added
         # more configurations based on the configuration
-        current_cls._cached_parameters = None
+        if _FlowState.CACHED_PARAMETERS in current_cls._flow_state:
+            del current_cls._flow_state[_FlowState.CACHED_PARAMETERS]
 
         # Set the current flow class we are in (the one we just created)
         parameters.replace_flow_context(current_cls)
@@ -328,8 +331,9 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
     @classmethod
     def _get_parameters(cls):
-        if cls._cached_parameters is not None:
-            for var in cls._cached_parameters:
+        cached = cls._flow_state.get(_FlowState.CACHED_PARAMETERS)
+        if cached is not None:
+            for var in cached:
                 yield var, getattr(cls, var)
             return
         build_list = []
@@ -343,7 +347,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
             if isinstance(val, Parameter):
                 build_list.append(var)
                 yield var, val
-        cls._cached_parameters = build_list
+        cls._flow_state[_FlowState.CACHED_PARAMETERS] = build_list
 
     def _set_datastore(self, datastore):
         self._datastore = datastore
