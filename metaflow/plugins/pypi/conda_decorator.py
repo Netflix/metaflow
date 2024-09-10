@@ -49,13 +49,22 @@ class CondaStepDecorator(StepDecorator):
     # CONDA_CHANNELS in their environment. For pinning specific packages to specific
     # conda channels, users can specify channel::package as the package name.
 
-    def init(self):
-        super(CondaStepDecorator, self).init()
-
+    def __init__(self, attributes=None, statically_defined=False):
         self._user_defined_attributes = (
             attributes.copy() if attributes is not None else {}
         )
-        super(CondaStepDecorator, self).__init__(attributes, statically_defined)
+        super(CondaFlowDecorator, self).__init__(attributes, statically_defined)
+
+    def init(self):
+        super(CondaStepDecorator, self).init()
+
+        # We have to go back and fixup _user_defined_attributes for potential
+        # config resolution
+        self._user_defined_attributes = {
+            k: v
+            for k, v in self.attributes.items()
+            if k in self._user_defined_attributes
+        }
 
         # Support legacy 'libraries=' attribute for the decorator.
         self.attributes["packages"] = {
