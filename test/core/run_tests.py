@@ -209,7 +209,13 @@ def run_test(formatter, context, debug, checks, env_base, executor):
             else:
                 cmd = context["pre_command"]["command"]
             called_processes.append(
-                subprocess.run(cmd, env=env, capture_output=True, check=False)
+                subprocess.run(
+                    cmd,
+                    env=env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False,
+                )
             )
             if called_processes[-1].returncode and not context["pre_command"].get(
                 "ignore_errors", False
@@ -223,7 +229,11 @@ def run_test(formatter, context, debug, checks, env_base, executor):
         if executor == "cli":
             called_processes.append(
                 subprocess.run(
-                    run_cmd("run"), env=env, capture_output=True, check=False
+                    run_cmd("run"),
+                    env=env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False,
                 )
             )
         elif executor == "api":
@@ -262,7 +272,8 @@ def run_test(formatter, context, debug, checks, env_base, executor):
                                 ),
                             ),
                             env=env,
-                            capture_output=True,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
                             check=False,
                         )
                     )
@@ -308,7 +319,13 @@ def run_test(formatter, context, debug, checks, env_base, executor):
             cmd = [python, "check_flow.py", check["class"], run_id]
             cmd.extend(context["top_options"])
             called_processes.append(
-                subprocess.run(cmd, env=env, capture_output=True, check=False)
+                subprocess.run(
+                    cmd,
+                    env=env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False,
+                )
             )
             if called_processes[-1].returncode:
                 log(
