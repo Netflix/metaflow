@@ -53,7 +53,7 @@ class CondaStepDecorator(StepDecorator):
         self._user_defined_attributes = (
             attributes.copy() if attributes is not None else {}
         )
-        super(CondaFlowDecorator, self).__init__(attributes, statically_defined)
+        super(CondaStepDecorator, self).__init__(attributes, statically_defined)
 
     def init(self):
         super(CondaStepDecorator, self).init()
@@ -343,12 +343,22 @@ class CondaFlowDecorator(FlowDecorator):
         "disabled": None,
     }
 
+    def __init__(self, attributes=None, statically_defined=False):
+        self._user_defined_attributes = (
+            attributes.copy() if attributes is not None else {}
+        )
+        super(CondaFlowDecorator, self).__init__(attributes, statically_defined)
+
     def init(self):
         super(CondaFlowDecorator, self).init()
 
-        self._user_defined_attributes = (
-            self.attributes.copy() if self.attributes is not None else {}
-        )
+        # We have to go back and fixup _user_defined_attributes for potential
+        # config resolution
+        self._user_defined_attributes = {
+            k: v
+            for k, v in self.attributes.items()
+            if k in self._user_defined_attributes
+        }
 
         # Support legacy 'libraries=' attribute for the decorator.
         self.attributes["packages"] = {
