@@ -72,6 +72,9 @@ class KubernetesClient(object):
             # limited selector support for K8S api. We want to cover multiple statuses: Running / Pending / Unknown
             field_selector="status.phase!=Succeeded,status.phase!=Failed",
         )
+        if run_id is not None:
+            # handle argo prefixes in run_id
+            run_id = run_id[run_id.startswith("argo-") and len("argo-") :]
         for pod in results.items:
             match = (
                 run_id is None
@@ -79,9 +82,7 @@ class KubernetesClient(object):
                 # we want to also match pods launched by argo-workflows
                 or (pod.metadata.labels.get("workflows.argoproj.io/workflow") == run_id)
             ) and (
-                user is None
-                or (pod.metadata.annotations.get("metaflow/user") == user)
-                or (pod.metadata.annotations.get("metaflow/owner") == user)
+                user is None or pod.metadata.annotations.get("metaflow/user") == user
             )
             if match:
                 yield pod
