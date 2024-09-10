@@ -350,6 +350,12 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
                 ext_to_pkg[k] = v
             return all_pkg, ext_to_pkg
 
+    # Late import to prevent some circular nastiness
+    if restrict_to_directories is None:
+        from metaflow.metaflow_config import EXTENSIONS_SEARCH_DIRS
+
+        restrict_to_directories = EXTENSIONS_SEARCH_DIRS
+
     # Check if we even have extensions
     try:
         extensions_module = importlib.import_module(EXT_PKG)

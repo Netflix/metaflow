@@ -25,6 +25,11 @@ DATASTORE_LOCAL_DIR = ".metaflow"
 # Local configuration file (in .metaflow) containing overrides per-project
 LOCAL_CONFIG_FILE = "config.json"
 
+###
+# Extensions
+###
+# Advanced setting -- used to restrict where Metaflow looks for extensions.
+EXTENSIONS_SEARCH_DIRS = from_conf("EXTENSIONS_SEARCH_DIRS", [])
 
 ###
 # Default configuration
