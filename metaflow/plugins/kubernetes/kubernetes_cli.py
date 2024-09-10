@@ -332,29 +332,33 @@ def list(obj, run_id, user, my_runs):
         obj.flow.name, run_id, user, my_runs, obj.echo
     )
     kube_client = KubernetesClient()
-    executions = kube_client.list(obj.flow.name, run_id, user)
+    pods = kube_client.list(obj.flow.name, run_id, user)
 
     def format_timestamp(timestamp=None):
         if timestamp is None:
             return "-"
         return timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
-    for execution in executions:
+    for pod in pods:
         obj.echo(
             "Run: *{run_id}* "
-            "Job: *{job_id}* "
-            "Started At: {startedAt} ".format(
-                run_id=execution.metadata.annotations["metaflow/run_id"],
-                job_id=execution.metadata.name,
-                startedAt=format_timestamp(execution.status.start_time),
+            "Pod: *{pod_id}* "
+            "Started At: {startedAt} "
+            "Status: *{status}*".format(
+                run_id=pod.metadata.annotations["metaflow/run_id"],
+                pod_id=pod.metadata.name,
+                startedAt=format_timestamp(pod.status.start_time),
+                status=pod.status.phase,
             )
         )
 
-    if not executions:
+    if not pods:
         obj.echo("No active jobs found for *%s* on Kubernetes." % (flow_name))
 
 
-@kubernetes.command(help="Terminate Kubernetes tasks for this flow.")
+@kubernetes.command(
+    help="Terminate Kubernetes tasks for this flow. Only terminates current tasks, but will not affect future ones from retries."
+)
 @click.option(
     "--my-runs",
     default=False,
@@ -377,4 +381,4 @@ def kill(obj, run_id, user, my_runs):
         obj.flow.name, run_id, user, my_runs, obj.echo
     )
     kube_client = KubernetesClient()
-    kube_client.kill_jobs(obj.flow.name, run_id, user, obj.echo)
+    kube_client.kill_pods(flow_name, run_id, user, obj.echo)

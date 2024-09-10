@@ -64,47 +64,59 @@ class KubernetesClient(object):
 
         return self._client
 
-    def _find_active_jobs(self, flow_name, run_id=None, user=None, field_selector=None):
+    def _find_active_pods(self, flow_name, run_id=None, user=None):
         flow_hash = hashed_label(flow_name)
-        results = self._client.BatchV1Api().list_namespaced_job(
+        results = self._client.CoreV1Api().list_namespaced_pod(
             namespace=self._namespace,
             label_selector="metaflow.org/flow-hash=%s" % flow_hash,
-            field_selector=field_selector,
+            # limited selector support for K8S api. We want to cover multiple statuses: Running / Pending / Unknown
+            field_selector="status.phase!=Succeeded,status.phase!=Failed",
         )
-        for job in results.items:
+        for pod in results.items:
             match = (
-                job.status.active
-                and (
-                    run_id is None
-                    or job.metadata.annotations["metaflow/run_id"] == run_id
-                )
-                and (user is None or job.metadata.annotations["metaflow/user"] == user)
-            )
+                run_id is None or pod.metadata.annotations["metaflow/run_id"] == run_id
+            ) and (user is None or pod.metadata.annotations["metaflow/user"] == user)
             if match:
-                yield job
+                yield pod
 
     def list(self, flow_name, run_id, user):
-        results = self._find_active_jobs(flow_name, run_id, user)
+        results = self._find_active_pods(flow_name, run_id, user)
 
         return list(results)
 
-    def kill_jobs(self, flow_name, run_id, user, echo):
-        jobs = self._find_active_jobs(
-            flow_name, run_id, user, field_selector="status.successful==0"
-        )
+    def kill_pods(self, flow_name, run_id, user, echo):
+        from kubernetes.stream import stream
 
-        def _kill_job(job):
-            r = RunningJob(
-                self,
-                name=job.metadata.name,
-                uid=job.metadata.uid,
-                namespace=job.metadata.namespace,
+        api_instance = self._client.CoreV1Api()
+        pods = self._find_active_pods(flow_name, run_id, user)
+
+        def _kill_pod(pod):
+            echo(
+                "Attempting to kill pod %s in namespace %s"
+                % (pod.metadata.name, pod.metadata.namespace)
             )
-            r.kill()
-            echo("killed %s" % r.id if not r.is_running else "failed to kill %s" % r.id)
+            try:
+                stream(
+                    api_instance.connect_get_namespaced_pod_exec,
+                    name=pod.metadata.name,
+                    namespace=pod.metadata.namespace,
+                    command=[
+                        "/bin/sh",
+                        "-c",
+                        "/sbin/killall5",
+                    ],
+                    stderr=True,
+                    stdin=False,
+                    stdout=True,
+                    tty=False,
+                )
+                echo("killed pod %s" % pod.metadata.name)
+            except Exception as ex:
+                # best effort kill for pod can fail.
+                echo("failed to kill pod: %s" % str(ex))
 
         with ThreadPoolExecutor() as executor:
-            executor.map(_kill_job, jobs)
+            executor.map(_kill_pod, list(pods))
 
     def jobset(self, **kwargs):
         return KubernetesJobSet(self, **kwargs)
