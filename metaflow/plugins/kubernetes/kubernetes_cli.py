@@ -345,7 +345,10 @@ def list(obj, run_id, user, my_runs):
             "Pod: *{pod_id}* "
             "Started At: {startedAt} "
             "Status: *{status}*".format(
-                run_id=pod.metadata.annotations["metaflow/run_id"],
+                run_id=pod.metadata.annotations.get(
+                    "metaflow/run_id",
+                    pod.metadata.labels.get("workflows.argoproj.io/workflow"),
+                ),
                 pod_id=pod.metadata.name,
                 startedAt=format_timestamp(pod.status.start_time),
                 status=pod.status.phase,

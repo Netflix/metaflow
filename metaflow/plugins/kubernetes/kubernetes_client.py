@@ -74,8 +74,15 @@ class KubernetesClient(object):
         )
         for pod in results.items:
             match = (
-                run_id is None or pod.metadata.annotations["metaflow/run_id"] == run_id
-            ) and (user is None or pod.metadata.annotations["metaflow/user"] == user)
+                run_id is None
+                or (pod.metadata.annotations.get("metaflow/run_id") == run_id)
+                # we want to also match pods launched by argo-workflows
+                or (pod.metadata.labels.get("workflows.argoproj.io/workflow") == run_id)
+            ) and (
+                user is None
+                or (pod.metadata.annotations.get("metaflow/user") == user)
+                or (pod.metadata.annotations.get("metaflow/owner") == user)
+            )
             if match:
                 yield pod
 
@@ -100,6 +107,7 @@ class KubernetesClient(object):
                     api_instance.connect_get_namespaced_pod_exec,
                     name=pod.metadata.name,
                     namespace=pod.metadata.namespace,
+                    container="main",  # required for argo-workflows due to multiple containers in a pod
                     command=[
                         "/bin/sh",
                         "-c",
