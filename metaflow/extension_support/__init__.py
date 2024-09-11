@@ -83,6 +83,11 @@ EXT_EXCLUDE_SUFFIXES = [".pyc"]
 # To get verbose messages, set METAFLOW_DEBUG_EXT to 1
 DEBUG_EXT = os.environ.get("METAFLOW_DEBUG_EXT", False)
 
+# This is extracted only from environment variable and here separately from
+# metaflow_config to prevent nasty circular dependencies
+EXTENSIONS_SEARCH_DIRS = os.environ.get("METAFLOW_EXTENSIONS_SEARCH_DIRS", "").split(
+    os.pathsep
+)
 
 MFExtPackage = namedtuple("MFExtPackage", "package_name tl_package config_module")
 MFExtModule = namedtuple("MFExtModule", "tl_package module")
@@ -351,9 +356,7 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
             return all_pkg, ext_to_pkg
 
     # Late import to prevent some circular nastiness
-    if restrict_to_directories is None:
-        from metaflow.metaflow_config import EXTENSIONS_SEARCH_DIRS
-
+    if restrict_to_directories is None and EXTENSIONS_SEARCH_DIRS != [""]:
         restrict_to_directories = EXTENSIONS_SEARCH_DIRS
 
     # Check if we even have extensions
