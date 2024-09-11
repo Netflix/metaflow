@@ -401,6 +401,9 @@ class Kubernetes(object):
             .label("app.kubernetes.io/name", "metaflow-task")
             .label("app.kubernetes.io/part-of", "metaflow")
         )
+        # We need this task-id set so that all the nodes are aware of the control
+        # task's task-id. These "MF_" variables populate the `current.parallel` namedtuple
+        jobset.environment_variable("MF_PARALLEL_CONTROL_TASK_ID", str(task_id))
 
         ## ----------- control/worker specific values START here -----------
         # We will now set the appropriate command for the control/worker job

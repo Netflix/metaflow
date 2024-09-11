@@ -4,7 +4,9 @@ from typing import Any, Optional, TYPE_CHECKING
 
 from metaflow.metaflow_config import TEMPDIR
 
-Parallel = namedtuple("Parallel", ["main_ip", "num_nodes", "node_index"])
+Parallel = namedtuple(
+    "Parallel", ["main_ip", "num_nodes", "node_index", "control_task_id"]
+)
 
 if TYPE_CHECKING:
     import metaflow

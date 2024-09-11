@@ -24,6 +24,8 @@ class ParallelDecorator(StepDecorator):
                     The total number of tasks created by @parallel
                 - node_index : int
                     The index of the current task in all the @parallel tasks.
+                - control_task_id : Optional[str]
+                    The task ID of the control task. Available to all tasks.
 
     is_parallel -> bool
         True if the current step is a @parallel step.
@@ -67,6 +69,7 @@ class ParallelDecorator(StepDecorator):
                     main_ip=os.environ.get("MF_PARALLEL_MAIN_IP", "127.0.0.1"),
                     num_nodes=int(os.environ.get("MF_PARALLEL_NUM_NODES", "1")),
                     node_index=int(os.environ.get("MF_PARALLEL_NODE_INDEX", "0")),
+                    control_task_id=os.environ.get("MF_PARALLEL_CONTROL_TASK_ID", None),
                 )
             ),
         )
@@ -177,6 +180,7 @@ def _local_multinode_control_task_step_func(
     num_parallel = foreach_iter.num_parallel
     os.environ["MF_PARALLEL_NUM_NODES"] = str(num_parallel)
     os.environ["MF_PARALLEL_MAIN_IP"] = "127.0.0.1"
+    os.environ["MF_PARALLEL_CONTROL_TASK_ID"] = str(current.task_id)
 
     run_id = current.run_id
     step_name = current.step_name

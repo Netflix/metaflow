@@ -1905,6 +1905,12 @@ class ArgoWorkflows(object):
                 jobset.environment_variable(
                     "MF_WORLD_SIZE", "{{inputs.parameters.num-parallel}}"
                 )
+                # We need this task-id set so that all the nodes are aware of the control
+                # task's task-id. These "MF_" variables populate the `current.parallel` namedtuple
+                jobset.environment_variable(
+                    "MF_PARALLEL_CONTROL_TASK_ID",
+                    "control-{{inputs.parameters.task-id-entropy}}-0",
+                )
                 # for k, v in .items():
                 jobset.environment_variables_from_selectors(
                     {
