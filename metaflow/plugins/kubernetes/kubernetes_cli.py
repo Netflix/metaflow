@@ -379,5 +379,12 @@ def kill(obj, run_id, user, my_runs):
     flow_name, run_id, user = parse_cli_options(
         obj.flow.name, run_id, user, my_runs, obj.echo
     )
+
+    if run_id is not None and run_id.startswith("argo-") or user == "argo-workflows":
+        raise CommandException(
+            "Killing pods launched by Argo Workflows is not supported. "
+            "Use *argo-workflows terminate* instead."
+        )
+
     kube_client = KubernetesClient()
     kube_client.kill_pods(flow_name, run_id, user, obj.echo)

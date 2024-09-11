@@ -121,8 +121,6 @@ class KubernetesClient(object):
         job_api = self._client.BatchV1Api()
         pods = self._find_active_pods(flow_name, run_id, user)
 
-        workflows_to_terminate = set()
-
         def _kill_pod(pod):
             echo("Killing Kubernetes pod %s\n" % pod.metadata.name)
             try:
@@ -130,7 +128,6 @@ class KubernetesClient(object):
                     api_instance.connect_get_namespaced_pod_exec,
                     name=pod.metadata.name,
                     namespace=pod.metadata.namespace,
-                    container="main",  # required for argo-workflows due to multiple containers in a pod
                     command=[
                         "/bin/sh",
                         "-c",
@@ -143,38 +140,20 @@ class KubernetesClient(object):
                 )
             except Exception:
                 # best effort kill for pod can fail.
-                # Pod can be operated by kubernetes directly or argo-workflows.
-                # This affects how we can terminate the job.
-                argo_workflow_name = pod.metadata.labels and pod.metadata.labels.get(
-                    "workflows.argoproj.io/workflow"
-                )
-                if argo_workflow_name:
-                    # dedup workflow names to be terminated
-                    workflows_to_terminate.add(argo_workflow_name)
-                else:
-                    try:
-                        # Metaflows Kubernetes job names are always a subset of the task pods name.
-                        job_name = pod.metadata.name[:-6]
-                        job_api.patch_namespaced_job(
-                            name=job_name,
-                            namespace=pod.metadata.namespace,
-                            field_manager="metaflow",
-                            body={"spec": {"parallelism": 0}},
-                        )
-                    except Exception as e:
-                        echo("failed to kill pod %s - %s" % (pod.metadata.name, str(e)))
+                try:
+                    # Metaflows Kubernetes job names are always a subset of the task pods name.
+                    job_name = pod.metadata.name[:-6]
+                    job_api.patch_namespaced_job(
+                        name=job_name,
+                        namespace=pod.metadata.namespace,
+                        field_manager="metaflow",
+                        body={"spec": {"parallelism": 0}},
+                    )
+                except Exception as e:
+                    echo("failed to kill pod %s - %s" % (pod.metadata.name, str(e)))
 
         with ThreadPoolExecutor() as executor:
             executor.map(_kill_pod, list(pods))
-
-        # terminate argo workflows
-        if workflows_to_terminate:
-            from metaflow.plugins.argo.argo_client import ArgoClient
-
-            argo_client = ArgoClient(self._namespace)
-            for name in workflows_to_terminate:
-                echo("terminating workflow: %s" % name)
-                argo_client.terminate_workflow(name)
 
     def jobset(self, **kwargs):
         return KubernetesJobSet(self, **kwargs)
