@@ -151,6 +151,7 @@ if sys.version_info >= (3, 7):
     from .runner.nbdeploy import NBDeployer
 
 __version_addl__ = []
+__version_override__ = None
 _ext_debug("Loading top-level modules")
 for m in _tl_modules:
     extension_module = load_module(m)
@@ -164,11 +165,15 @@ for m in _tl_modules:
         ext_version = _format_git_describe(
             _call_git_describe(cwd=os.path.dirname(extension_module.__file__))
         )
+        ext_override = None
         if ext_version is None:
-            ext_version = extension_module.__version__
-        if ext_version:
-            version_info = "%s(%s)" % (version_info, ext_version)
-        __version_addl__.append(version_info)
+            ext_version = getattr(extension_module, "__version__", "<unk>")
+            ext_override = getattr(extension_module, "__name_override__", None)
+        if ext_override:
+            __version_override__ = "%s %s" % (ext_override, ext_version)
+            __version_addl__.clear()
+        else:
+            __version_addl__.append("%s(%s)" % (version_info, ext_version))
 
 if __version_addl__:
     __version_addl__ = ";".join(__version_addl__)

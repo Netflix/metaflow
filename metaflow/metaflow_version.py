@@ -153,13 +153,14 @@ def get_version(public=False):
     import metaflow
 
     version_addl = metaflow.__version_addl__
+    version_override = metaflow.__version_override__
 
     version = format_git_describe(
         call_git_describe(cwd=path.dirname(metaflow.__file__)), public=public
     )
 
     if version is None:
-        version = metaflow.__version__
+        version = version_override or metaflow.__version__
 
     if version_addl:
         return "+".join([version, version_addl])
