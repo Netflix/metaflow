@@ -309,7 +309,7 @@ def step(
         _sync_metadata()
 
 
-@kubernetes.command(help="List all runs of the flow on Kubernetes.")
+@kubernetes.command(help="List unfinished Kubernetes tasks of this flow.")
 @click.option(
     "--my-runs",
     default=False,
@@ -352,11 +352,11 @@ def list(obj, run_id, user, my_runs):
         )
 
     if not pods:
-        obj.echo("No active jobs found for *%s* on Kubernetes." % (flow_name))
+        obj.echo("No active Kubernetes pods found.")
 
 
 @kubernetes.command(
-    help="Terminate Kubernetes tasks for this flow. Only terminates current tasks, but will not affect future ones from retries."
+    help="Terminate unfinished Kubernetes tasks of this flow. Killed pods may result in newer attempts when using @retry."
 )
 @click.option(
     "--my-runs",

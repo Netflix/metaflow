@@ -121,10 +121,7 @@ class KubernetesClient(object):
         pods = self._find_active_pods(flow_name, run_id, user)
 
         def _kill_pod(pod):
-            echo(
-                "Killing Kubernetes pod %s in namespace %s\n"
-                % (pod.metadata.name, pod.metadata.namespace)
-            )
+            echo("Killing Kubernetes pod %s\n" % pod.metadata.name)
             try:
                 stream(
                     api_instance.connect_get_namespaced_pod_exec,
@@ -143,7 +140,7 @@ class KubernetesClient(object):
                 )
             except Exception as ex:
                 # best effort kill for pod can fail.
-                echo("failed to kill pod %s: %s" % (pod.metadata.name, str(ex)))
+                echo("failed to kill pod %s - %s" % (pod.metadata.name, str(ex)))
 
         with ThreadPoolExecutor() as executor:
             executor.map(_kill_pod, list(pods))
