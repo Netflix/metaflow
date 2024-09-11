@@ -60,6 +60,8 @@ def call_git_describe(abbrev=7, cwd=None):
     """return the string output of git describe"""
     try:
         if cwd is None:
+            # NOTE: This path is currently unused -- it is here as backward compatibility
+            # as cwd was not always passed in the call to call_git_describe
             cwd = CURRENT_DIRECTORY
             # first, make sure we are actually in a Metaflow repo,
             # not some other repo
@@ -67,7 +69,6 @@ def call_git_describe(abbrev=7, cwd=None):
             reponame = (
                 check_output(arguments, cwd=cwd, stderr=DEVNULL).decode("ascii").strip()
             )
-            print("For %s got reponame: %s" % (cwd, reponame))
             if path.basename(reponame) != "metaflow":
                 return None
         # Else we assume that we are in a proper repo
@@ -94,7 +95,7 @@ def format_git_describe(git_str, public=False):
     if len(splits) == 4:
         # Formatted as <tag>-<post>-<hash>-dirty
         tag, post, h = splits[:3]
-        dirty = "-dirty"
+        dirty = splits[3]
     else:
         # Formatted as <tag>-<post>-<hash>
         tag, post, h = splits
@@ -135,10 +136,11 @@ def get_version(public=False):
     """
 
     # To get the version we do the following:
-    #  - First check if we have an INFO file with it. If so, use that as it is
+    #  - First check if we have an INFO file present. If so, use that as it is
     #    the most reliable way to get the version. In particular, when running remotely,
-    #    metaflow is installed in a directory and if any extension using distutils,
-    #    querying the version directly would fail to produce the correct result
+    #    metaflow is installed in a directory and if any extension is using distutils to
+    #    determine its version, this would return None and querying the version directly
+    #    from the extension would fail to produce the correct result
     #  - Check if we are in the GIT repository and if so, use the git describe
     #  - If we don't have an INFO file, we look at the version information that is
     #    populated by metaflow and the extensions.
