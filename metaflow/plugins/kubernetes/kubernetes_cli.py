@@ -8,7 +8,7 @@ from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
 import metaflow.tracing as tracing
 from metaflow import JSONTypeClass, util
 from metaflow._vendor import click
-from metaflow.exception import METAFLOW_EXIT_DISALLOW_RETRY, CommandException
+from metaflow.exception import METAFLOW_EXIT_DISALLOW_RETRY, MetaflowException
 from metaflow.metadata.util import sync_local_metadata_from_datastore
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, KUBERNETES_LABELS
 from metaflow.mflog import TASK_LOG_SOURCE
@@ -381,7 +381,7 @@ def kill(obj, run_id, user, my_runs):
     )
 
     if run_id is not None and run_id.startswith("argo-") or user == "argo-workflows":
-        raise CommandException(
+        raise MetaflowException(
             "Killing pods launched by Argo Workflows is not supported. "
             "Use *argo-workflows terminate* instead."
         )
