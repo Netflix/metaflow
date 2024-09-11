@@ -118,6 +118,7 @@ class KubernetesClient(object):
         from kubernetes.stream import stream
 
         api_instance = self._client.CoreV1Api()
+        job_api = self._client.BatchV1Api()
         pods = self._find_active_pods(flow_name, run_id, user)
 
         def _kill_pod(pod):
@@ -127,7 +128,6 @@ class KubernetesClient(object):
                     api_instance.connect_get_namespaced_pod_exec,
                     name=pod.metadata.name,
                     namespace=pod.metadata.namespace,
-                    container="main",  # required for argo-workflows due to multiple containers in a pod
                     command=[
                         "/bin/sh",
                         "-c",
@@ -138,9 +138,19 @@ class KubernetesClient(object):
                     stdout=True,
                     tty=False,
                 )
-            except Exception as ex:
+            except Exception:
                 # best effort kill for pod can fail.
-                echo("failed to kill pod %s - %s" % (pod.metadata.name, str(ex)))
+                try:
+                    # Metaflows Kubernetes job names are always a subset of the task pods name.
+                    job_name = pod.metadata.name[:-6]
+                    job_api.patch_namespaced_job(
+                        name=job_name,
+                        namespace=pod.metadata.namespace,
+                        field_manager="metaflow",
+                        body={"spec": {"parallelism": 0}},
+                    )
+                except Exception as e:
+                    echo("failed to kill pod %s - %s" % (pod.metadata.name, str(e)))
 
         with ThreadPoolExecutor() as executor:
             executor.map(_kill_pod, list(pods))
