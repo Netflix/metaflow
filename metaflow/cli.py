@@ -444,6 +444,7 @@ def start(
         )
         if all_decospecs:
             decorators._attach_decorators(ctx.obj.flow, all_decospecs)
+            decorators._init(ctx.obj.flow, only_non_static=True)
             # Regenerate graph if we attached more decorators
             ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
 
