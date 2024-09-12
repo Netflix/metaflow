@@ -319,6 +319,7 @@ def make_flow(
 
     # Attach AWS Batch decorator to the flow
     decorators._attach_decorators(obj.flow, [BatchDecorator.name])
+    decorators._init(obj.flow, only_non_static=True)
     decorators._init_step_decorators(
         obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
     )
