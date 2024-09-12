@@ -545,14 +545,16 @@ def _attach_decorators_to_step(step, decospecs):
             step.decorators.append(deco)
 
 
-def _init(flow):
+def _init(flow, only_non_static=False):
     # We get the datastore for the _parameters step which can contain
     for decorators in flow._flow_decorators.values():
         for deco in decorators:
-            deco.init()
-    for step in flow:
-        for deco in step.decorators:
-            deco.init()
+            if not only_non_static or not deco.statically_defined:
+                deco.init()
+    for flowstep in flow:
+        for deco in flowstep.decorators:
+            if not only_non_static or not deco.statically_defined:
+                deco.init()
 
 
 def _init_flow_decorators(

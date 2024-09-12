@@ -431,6 +431,7 @@ def step(
 
     if decospecs:
         decorators._attach_decorators_to_step(func, decospecs)
+        decorators._init(ctx.obj.flow, only_non_static=True)
 
     step_kwargs = ctx.params
     # Remove argument `step_name` from `step_kwargs`.
@@ -822,6 +823,7 @@ def before_run(obj, tags, decospecs):
     )
     if all_decospecs:
         decorators._attach_decorators(obj.flow, all_decospecs)
+        decorators._init(obj.flow, only_non_static=True)
         obj.graph = FlowGraph(obj.flow.__class__)
 
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
@@ -1068,6 +1070,7 @@ def start(
         )
         if all_decospecs:
             decorators._attach_decorators(ctx.obj.flow, all_decospecs)
+            decorators._init(ctx.obj.flow, only_non_static=True)
             # Regenerate graph if we attached more decorators
             ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
 
