@@ -999,9 +999,7 @@ class KubeflowPipelines(object):
         )
         self._set_container_labels(resource)
 
-        volume = PipelineVolume(
-            name=f"{volume_name}-volume", pvc=resource.outputs["name"]
-        )
+        volume = PipelineVolume(name=f"{volume_name}", pvc=resource.outputs["name"])
         return (resource, volume)
 
     @staticmethod
