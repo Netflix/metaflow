@@ -399,7 +399,9 @@ class DeployerImpl(object):
             self.name = content.get("name")
             self.flow_name = content.get("flow_name")
             self.metadata = content.get("metadata")
-            self.additional_metadata = content.get("additional_metadata", {})
+            # Additional info is used to pass additional deployer specific information.
+            # It is used in non-OSS deployers (extensions).
+            self.additional_info = content.get("additional_info", {})
 
             if command_obj.process.returncode == 0:
                 deployed_flow = DeployedFlow(deployer=self)
