@@ -141,8 +141,10 @@ class KubernetesClient(object):
             except Exception:
                 # best effort kill for pod can fail.
                 try:
-                    # Metaflows Kubernetes job names are always a subset of the task pods name.
-                    job_name = pod.metadata.name[:-6]
+                    # Metaflows Kubernetes job names are of the format
+                    # t-{uid}-{k8s_job_generate_name_suffix}-{k8s_pod_generate_name_suffix}
+                    # so we can infer the job name from the pod name by dropping the last suffix
+                    job_name = "-".join(pod.metadata.name.split("-")[:-1])
                     job_api.patch_namespaced_job(
                         name=job_name,
                         namespace=pod.metadata.namespace,
