@@ -162,10 +162,10 @@ for m in _tl_modules:
             alias_submodules(extension_module, tl_package, None, extra_indent=True)
         )
         version_info = getattr(extension_module, "__mf_extensions__", "<unk>")
-        ext_version = _format_git_describe(
-            _call_git_describe(cwd=os.path.dirname(extension_module.__file__))
-        )
         ext_override = None
+        ext_version = _format_git_describe(
+            _call_git_describe(file_to_check=extension_module.__file__)
+        )
         if ext_version is None:
             ext_version = getattr(extension_module, "__version__", "<unk>")
             ext_override = getattr(extension_module, "__name_override__", None)

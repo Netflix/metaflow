@@ -7,7 +7,7 @@ See the documentation of get_version for more information
 
 # This file is adapted from https://github.com/aebrahim/python-git-version
 
-from subprocess import check_output, CalledProcessError, DEVNULL
+import subprocess
 from os import path, name, environ, listdir
 
 from metaflow.info_file import CURRENT_DIRECTORY, read_info_file
@@ -56,24 +56,29 @@ if name == "nt":
     GIT_COMMAND = find_git_on_windows()
 
 
-def call_git_describe(abbrev=7, cwd=None):
+def call_git_describe(file_to_check, abbrev=7):
     """return the string output of git describe"""
     try:
-        if cwd is None:
-            # NOTE: This path is currently unused -- it is here as backward compatibility
-            # as cwd was not always passed in the call to call_git_describe
-            cwd = CURRENT_DIRECTORY
-            # first, make sure we are actually in a Metaflow repo,
-            # not some other repo
-            arguments = [GIT_COMMAND, "rev-parse", "--show-toplevel"]
-            reponame = (
-                check_output(arguments, cwd=cwd, stderr=DEVNULL).decode("ascii").strip()
-            )
-            if path.basename(reponame) != "metaflow":
-                return None
-        # Else we assume that we are in a proper repo
+        wd = path.dirname(file_to_check)
+        filename = path.basename(file_to_check)
 
-        arguments = [
+        # First check if the file is tracked in the GIT repository we are in
+        # We do this because in some setups and for some bizarre reason, python files
+        # are installed directly into a git repository (I am looking at you brew). We
+        # don't want to consider this a GIT install in that case.
+        args = [GIT_COMMAND, "ls-files", "--error-unmatch", filename]
+        git_return_code = subprocess.run(
+            args,
+            cwd=wd,
+            stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            check=False,
+        ).returncode
+
+        if git_return_code != 0:
+            return None
+
+        args = [
             GIT_COMMAND,
             "describe",
             "--tags",
@@ -81,9 +86,13 @@ def call_git_describe(abbrev=7, cwd=None):
             "--long",
             "--abbrev=%d" % abbrev,
         ]
-        return check_output(arguments, cwd=cwd, stderr=DEVNULL).decode("ascii").strip()
+        return (
+            subprocess.check_output(args, cwd=wd, stderr=subprocess.DEVNULL)
+            .decode("ascii")
+            .strip()
+        )
 
-    except (OSError, CalledProcessError) as e:
+    except (OSError, subprocess.CalledProcessError):
         return None
 
 
@@ -156,7 +165,7 @@ def get_version(public=False):
     version_override = metaflow.__version_override__
 
     version = format_git_describe(
-        call_git_describe(cwd=path.dirname(metaflow.__file__)), public=public
+        call_git_describe(file_to_check=metaflow.__file__), public=public
     )
 
     if version is None:
