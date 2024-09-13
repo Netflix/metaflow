@@ -25,6 +25,8 @@ def handle_timeout(
         Temporary file that stores runner attribute data.
     command_obj : CommandManager
         Command manager object that encapsulates the running command details.
+    file_read_timeout : int
+        Timeout for reading the file.
 
     Returns
     -------
@@ -397,6 +399,9 @@ class DeployerImpl(object):
             self.name = content.get("name")
             self.flow_name = content.get("flow_name")
             self.metadata = content.get("metadata")
+            # Additional info is used to pass additional deployer specific information.
+            # It is used in non-OSS deployers (extensions).
+            self.additional_info = content.get("additional_info", {})
 
             if command_obj.process.returncode == 0:
                 deployed_flow = DeployedFlow(deployer=self)
