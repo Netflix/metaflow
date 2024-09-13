@@ -48,6 +48,12 @@ def read_from_file_when_ready(
         content = file_pointer.read()
         while not content:
             if command_obj.process.poll() is not None:
+                # Check to make sure the file hasn't been read yet to avoid a race
+                # where the file is written between the end of this while loop and the
+                # poll call above.
+                content = file_pointer.read()
+                if content:
+                    break
                 raise CalledProcessError(
                     command_obj.process.returncode, command_obj.command
                 )
