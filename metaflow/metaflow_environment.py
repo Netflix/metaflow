@@ -5,12 +5,9 @@ import sys
 from .util import get_username
 from . import metaflow_version
 from metaflow.exception import MetaflowException
-from metaflow.extension_support import dump_module_info, extension_info
+from metaflow.extension_support import dump_module_info
 from metaflow.mflog import BASH_MFLOG
 from . import R
-
-version_cache = None
-extension_info_cache = None
 
 
 class InvalidEnvironmentException(MetaflowException):
@@ -181,13 +178,6 @@ class MetaflowEnvironment(object):
         return cmds
 
     def get_environment_info(self, include_ext_info=False):
-        global version_cache
-        global extension_info_cache
-        if version_cache is None:
-            version_cache = metaflow_version.get_version()
-        if extension_info_cache is None:
-            extension_info_cache = extension_info()
-
         # note that this dict goes into the code package
         # so variables here should be relatively stable (no
         # timestamps) so the hash won't change all the time
@@ -201,8 +191,7 @@ class MetaflowEnvironment(object):
             "use_r": R.use_r(),
             "python_version": sys.version,
             "python_version_code": "%d.%d.%d" % sys.version_info[:3],
-            "metaflow_version": version_cache,
-            "installed_extensions": extension_info_cache,
+            "metaflow_version": metaflow_version.get_version(),
             "script": os.path.basename(os.path.abspath(sys.argv[0])),
         }
         if R.use_r():

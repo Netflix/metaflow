@@ -62,6 +62,9 @@ __all__ = (
     "load_module",
     "get_modules",
     "dump_module_info",
+    "get_extensions_in_dir",
+    "extension_info",
+    "update_package_info",
     "get_aliased_modules",
     "package_mfext_package",
     "package_mfext_all",
@@ -90,7 +93,7 @@ EXTENSIONS_SEARCH_DIRS = os.environ.get("METAFLOW_EXTENSIONS_SEARCH_DIRS", "").s
 )
 
 MFExtPackage = namedtuple("MFExtPackage", "package_name tl_package config_module")
-MFExtModule = namedtuple("MFExtModule", "tl_package module")
+MFExtModule = namedtuple("MFExtModule", "package_name tl_package module")
 
 
 def load_module(module_name):
@@ -136,6 +139,8 @@ def dump_module_info(all_packages=None, pkgs_per_extension_point=None):
             "meta_module": v["meta_module"],
             "files": v["files"],
             "version": v["version"],
+            "reported_version": v.get("reported_version", "<unk>"),
+            "user_visible_name": v.get("user_visible_name", "<unk>"),
         }
     return "ext_info", [sanitized_all_packages, pkgs_per_extension_point]
 
@@ -147,23 +152,36 @@ def get_extensions_in_dir(d):
     return _get_extension_packages(ignore_info_file=True, restrict_to_directories=[d])
 
 
-def extension_info():
-    # Returns the known packages installed so that this information can be
-    # used to recreate an environment if needed.
-    is_incomplete = False
-    parts = []
-    for k, v in _all_packages.items():
-        # _local_ is the marker to mark PYTHONPATH dependencies. We also use it to
-        # mark "not present" since in both cases, the information will be incomplete
-        # and not useful to fully recreate environment
-        vers = v.get("version", "_local_")
-        if vers == "_local_":
-            is_incomplete = True
-        else:
-            parts.append("%s==%s" % (k, vers))
-    if is_incomplete:
-        return "_incomplete_;" + ";".join(parts)
-    return ";".join(parts)
+def extension_info(packages=None):
+    if packages is None:
+        packages = _all_packages
+    # Returns information about installed extensions so it it can be stored in
+    # _graph_info.
+    return {
+        "installed": {
+            k: {
+                "version": v["version"],
+                "reported_version": v.get("reported_version", "<unk>"),
+                "user_visible_name": v.get("user_visible_name", "<unk>"),
+            }
+            for k, v in packages.items()
+        },
+    }
+
+
+def update_package_info(pkg_to_update=None, package_name=None, **kwargs):
+    pkg = None
+    if pkg_to_update:
+        pkg = pkg_to_update
+    elif package_name:
+        pkg = _all_packages.get(package_name)
+    for k, v in kwargs.items():
+        if k in pkg:
+            raise ValueError(
+                "Trying to overwrite existing key '%s' for package %s" % (k, str(pkg))
+            )
+        pkg[k] = v
+    return pkg
 
 
 def get_aliased_modules():
@@ -940,7 +958,9 @@ def _get_extension_config(distribution_name, tl_pkg, extension_point, config_mod
             _ext_debug("Package '%s' is rooted at %s" % (distribution_name, root_paths))
             _all_packages[distribution_name]["root_paths"] = root_paths
 
-        return MFExtModule(tl_package=tl_pkg, module=extension_module)
+        return MFExtModule(
+            package_name=distribution_name, tl_package=tl_pkg, module=extension_module
+        )
     return None
 
 

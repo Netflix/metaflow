@@ -617,8 +617,6 @@ class MetadataProvider(object):
         sys_info[identity_type] = identity_value
         if env["metaflow_version"]:
             sys_info["metaflow_version"] = env["metaflow_version"]
-        if env["installed_extensions"]:
-            sys_info["installed_extensions"] = env["installed_extensions"]
         if "metaflow_r_version" in env:
             sys_info["metaflow_r_version"] = env["metaflow_r_version"]
         if "r_version_code" in env:
