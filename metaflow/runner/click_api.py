@@ -13,6 +13,7 @@ import importlib
 import inspect
 import itertools
 import uuid
+import json
 from collections import OrderedDict
 from typing import Any, Callable, Dict, List, Optional
 from typing import OrderedDict as TOrderedDict
@@ -38,6 +39,9 @@ from metaflow.exception import MetaflowException
 from metaflow.includefile import FilePathClass
 from metaflow.parameters import JSONTypeClass, flow_context
 
+# Define a recursive type alias for JSON
+JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
+
 click_to_python_types = {
     StringParamType: str,
     IntParamType: int,
@@ -49,7 +53,7 @@ click_to_python_types = {
     Tuple: tuple,
     Choice: str,
     File: str,
-    JSONTypeClass: str,
+    JSONTypeClass: JSON,
     FilePathClass: str,
 }
 
@@ -82,6 +86,11 @@ def _method_sanity_check(
                 "Invalid type for '%s', expected: '%s', default is '%s'"
                 % (supplied_k, annotations[supplied_k], defaults[supplied_k])
             )
+
+        # because Click expects stringified JSON..
+        supplied_v = (
+            json.dumps(supplied_v) if annotations[supplied_k] == JSON else supplied_v
+        )
 
         if supplied_k in possible_arg_params:
             cli_name = possible_arg_params[supplied_k].opts[0].strip("-")
