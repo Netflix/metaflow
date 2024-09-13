@@ -5,6 +5,8 @@ import time
 import importlib
 import functools
 import tempfile
+
+from subprocess import CalledProcessError
 from typing import Optional, Dict, ClassVar
 
 from metaflow.exception import MetaflowNotFound
@@ -41,10 +43,10 @@ def handle_timeout(
     """
     try:
         content = read_from_file_when_ready(
-            tfp_runner_attribute.name, timeout=file_read_timeout
+            tfp_runner_attribute.name, command_obj, timeout=file_read_timeout
         )
         return content
-    except TimeoutError as e:
+    except (CalledProcessError, TimeoutError) as e:
         stdout_log = open(command_obj.log_files["stdout"]).read()
         stderr_log = open(command_obj.log_files["stderr"]).read()
         command = " ".join(command_obj.command)

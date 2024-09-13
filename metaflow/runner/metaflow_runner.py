@@ -2,6 +2,8 @@ import importlib
 import os
 import sys
 import tempfile
+
+from subprocess import CalledProcessError
 from typing import Dict, Iterator, Optional, Tuple
 
 from metaflow import Run, metadata
@@ -275,13 +277,13 @@ class Runner(object):
 
             # Set the correct metadata from the runner_attribute file corresponding to this run.
             content = read_from_file_when_ready(
-                tfp_runner_attribute.name, timeout=self.file_read_timeout
+                tfp_runner_attribute.name, command_obj, timeout=self.file_read_timeout
             )
             metadata_for_flow, pathspec = content.rsplit(":", maxsplit=1)
             metadata(metadata_for_flow)
             run_object = Run(pathspec, _namespace_check=False)
             return ExecutingRun(self, command_obj, run_object)
-        except TimeoutError as e:
+        except (CalledProcessError, TimeoutError) as e:
             stdout_log = open(command_obj.log_files["stdout"]).read()
             stderr_log = open(command_obj.log_files["stderr"]).read()
             command = " ".join(command_obj.command)
