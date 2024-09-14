@@ -125,7 +125,8 @@ class TestTypeClass(click.ParamType):
         return "Dataset"
 
 
-class ResourcesFlow(FlowSpec):
+# AIP-8595(talebz): To validate that volume names are truncated to 63 characters
+class ResourcesFlowLooooooooooooooooooooooongNaaaaaaaaaaaaaaaaaaaaame(FlowSpec):
     json_param: Dict = Parameter(
         "json_param", default=default_dict, type=TestTypeClass()
     )
@@ -216,4 +217,4 @@ class ResourcesFlow(FlowSpec):
 
 
 if __name__ == "__main__":
-    ResourcesFlow()
+    ResourcesFlowLooooooooooooooooooooooongNaaaaaaaaaaaaaaaaaaaaame()
