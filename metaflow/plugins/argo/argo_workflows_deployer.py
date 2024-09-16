@@ -4,6 +4,7 @@ import tempfile
 from typing import Optional, ClassVar
 
 from metaflow.client.core import get_metadata
+from metaflow.exception import MetaflowException
 from metaflow.plugins.argo.argo_client import ArgoClient
 from metaflow.metaflow_config import KUBERNETES_NAMESPACE
 from metaflow.plugins.argo.argo_workflows import ArgoWorkflows
@@ -228,6 +229,11 @@ def delete(instance: DeployedFlow, **kwargs):
 def from_deployment(identifier: str, metadata: str = None):
     client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
     workflow_template = client.get_workflow_template(identifier)
+
+    if workflow_template is None:
+        raise MetaflowException(
+            "No deployed workflow found with the name: %s" % identifier
+        )
 
     metadata_annotations = workflow_template.get("metadata", {}).get("annotations", {})
 
