@@ -225,7 +225,7 @@ def delete(instance: DeployedFlow, **kwargs):
     return command_obj.process.returncode == 0
 
 
-def from_deployment(identifier: str):
+def from_deployment(identifier: str, metadata: str = None):
     client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
     workflow_template = client.get_workflow_template(identifier)
 
@@ -265,8 +265,10 @@ def from_deployment(identifier: str):
         d.name = identifier
         d.flow_name = flow_name
 
-        # TODO: get original metadata somehow..
-        d.metadata = get_metadata()
+        if metadata is None:
+            d.metadata = get_metadata()
+        else:
+            d.metadata = metadata
 
     df = DeployedFlow(deployer=d)
     d._enrich_deployed_flow(df)
