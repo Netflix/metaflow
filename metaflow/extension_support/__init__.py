@@ -460,8 +460,8 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
             # unlikely so we are going to ignore this case.
             dist_root = dist.locate_file(EXT_PKG).resolve().as_posix()
             all_paths.discard(dist_root)
-            dist_name = dist.name
-            dist_version = dist.version
+            dist_name = dist.metadata["Name"]
+            dist_version = dist.metadata["Version"]
             if restrict_to_directories:
                 parent_dirs = list(
                     p.as_posix() for p in Path(dist_root).resolve().parents
