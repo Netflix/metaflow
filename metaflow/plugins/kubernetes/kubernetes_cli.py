@@ -3,10 +3,12 @@ import sys
 import time
 import traceback
 
+from metaflow.plugins.kubernetes.kube_utils import parse_cli_options
+from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
 import metaflow.tracing as tracing
 from metaflow import JSONTypeClass, util
 from metaflow._vendor import click
-from metaflow.exception import METAFLOW_EXIT_DISALLOW_RETRY, CommandException
+from metaflow.exception import METAFLOW_EXIT_DISALLOW_RETRY, MetaflowException
 from metaflow.metadata.util import sync_local_metadata_from_datastore
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, KUBERNETES_LABELS
 from metaflow.mflog import TASK_LOG_SOURCE
@@ -305,3 +307,84 @@ def step(
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     finally:
         _sync_metadata()
+
+
+@kubernetes.command(help="List unfinished Kubernetes tasks of this flow.")
+@click.option(
+    "--my-runs",
+    default=False,
+    is_flag=True,
+    help="List all my unfinished tasks.",
+)
+@click.option("--user", default=None, help="List unfinished tasks for the given user.")
+@click.option(
+    "--run-id",
+    default=None,
+    help="List unfinished tasks corresponding to the run id.",
+)
+@click.pass_obj
+def list(obj, run_id, user, my_runs):
+    flow_name, run_id, user = parse_cli_options(
+        obj.flow.name, run_id, user, my_runs, obj.echo
+    )
+    kube_client = KubernetesClient()
+    pods = kube_client.list(obj.flow.name, run_id, user)
+
+    def format_timestamp(timestamp=None):
+        if timestamp is None:
+            return "-"
+        return timestamp.strftime("%Y-%m-%d %H:%M:%S")
+
+    for pod in pods:
+        obj.echo(
+            "Run: *{run_id}* "
+            "Pod: *{pod_id}* "
+            "Started At: {startedAt} "
+            "Status: *{status}*".format(
+                run_id=pod.metadata.annotations.get(
+                    "metaflow/run_id",
+                    pod.metadata.labels.get("workflows.argoproj.io/workflow"),
+                ),
+                pod_id=pod.metadata.name,
+                startedAt=format_timestamp(pod.status.start_time),
+                status=pod.status.phase,
+            )
+        )
+
+    if not pods:
+        obj.echo("No active Kubernetes pods found.")
+
+
+@kubernetes.command(
+    help="Terminate unfinished Kubernetes tasks of this flow. Killed pods may result in newer attempts when using @retry."
+)
+@click.option(
+    "--my-runs",
+    default=False,
+    is_flag=True,
+    help="Kill all my unfinished tasks.",
+)
+@click.option(
+    "--user",
+    default=None,
+    help="Terminate unfinished tasks for the given user.",
+)
+@click.option(
+    "--run-id",
+    default=None,
+    help="Terminate unfinished tasks corresponding to the run id.",
+)
+@click.pass_obj
+def kill(obj, run_id, user, my_runs):
+    flow_name, run_id, user = parse_cli_options(
+        obj.flow.name, run_id, user, my_runs, obj.echo
+    )
+
+    if run_id is not None and run_id.startswith("argo-") or user == "argo-workflows":
+        raise MetaflowException(
+            "Killing pods launched by Argo Workflows is not supported. "
+            "Use *argo-workflows terminate* instead."
+        )
+
+    kube_client = KubernetesClient()
+    kube_client.kill_pods(flow_name, run_id, user, obj.echo)
