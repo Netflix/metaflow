@@ -17,7 +17,9 @@ from metaflow.runner.deployer import (
 )
 
 
-def generate_fake_flow_file_contents(param_info: dict):
+def generate_fake_flow_file_contents(
+    flow_name: str, param_info: dict, project_name: str = None
+):
     params_code = ""
     for _, param_details in param_info.items():
         param_name = param_details["name"]
@@ -26,10 +28,12 @@ def generate_fake_flow_file_contents(param_info: dict):
         param_required = param_details["is_required"]
         params_code += f"    {param_name} = Parameter('{param_name}', type={param_type}, help='{param_help}', required={param_required})\n"
 
-    contents = f"""\
-from metaflow import FlowSpec, Parameter, step
+    project_decorator = f"@project(name='{project_name}')\n" if project_name else ""
 
-class DummyParameterFlow(FlowSpec):
+    contents = f"""\
+from metaflow import FlowSpec, Parameter, step, project
+
+{project_decorator}class {flow_name}(FlowSpec):
 {params_code}
     @step
     def start(self):
@@ -40,7 +44,7 @@ class DummyParameterFlow(FlowSpec):
         pass
 
 if __name__ == '__main__':
-    DummyParameterFlow()
+    {flow_name}()
 """
     return contents
 
@@ -224,23 +228,40 @@ def delete(instance: DeployedFlow, **kwargs):
 def from_deployment(identifier: str):
     client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
     workflow_template = client.get_workflow_template(identifier)
+
     metadata_annotations = workflow_template.get("metadata", {}).get("annotations", {})
 
-    flow_name = metadata_annotations.get("metaflow/flow_name", {})
+    flow_name = metadata_annotations.get("metaflow/flow_name", "")
     parameters = json.loads(metadata_annotations.get("metaflow/parameters", {}))
 
-    fake_flow_file_contents = generate_fake_flow_file_contents(parameters)
+    # these two only exist if @project decorator is used..
+    branch_name = metadata_annotations.get("metaflow/branch_name", None)
+    project_name = metadata_annotations.get("metaflow/project_name", None)
+
+    project_kwargs = {}
+    if branch_name is not None:
+        if branch_name.startswith("prod."):
+            project_kwargs["production"] = True
+            project_kwargs["branch"] = branch_name[len("prod.") :]
+        elif branch_name.startswith("test."):
+            project_kwargs["branch"] = branch_name[len("test.") :]
+        elif branch_name == "prod":
+            project_kwargs["production"] = True
+
+    fake_flow_file_contents = generate_fake_flow_file_contents(
+        flow_name=flow_name, param_info=parameters, project_name=project_name
+    )
 
     # TODO: how to clean-up the temp file?
     with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as fake_flow_file:
         with open(fake_flow_file.name, "w") as fp:
             fp.write(fake_flow_file_contents)
 
-        # TODO: pass "branch" or "name" accordingly if @project was used
-        # assumes @project is not used as of now..
-        d = Deployer(fake_flow_file.name).argo_workflows(name=identifier)
+        if branch_name is not None:
+            d = Deployer(fake_flow_file.name, **project_kwargs).argo_workflows()
+        else:
+            d = Deployer(fake_flow_file.name).argo_workflows(name=identifier)
 
-        # d.name might change if we implement the above todo
         d.name = identifier
         d.flow_name = flow_name
 
