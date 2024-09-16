@@ -15,6 +15,9 @@ from .exception import (
     MissingInMergeArtifactsException,
     UnhandledInMergeArtifactsException,
 )
+
+from .extension_support import extension_info
+
 from .graph import FlowGraph
 from .unbounded_foreach import UnboundedForeachInput
 from .util import to_pod
@@ -208,6 +211,7 @@ class FlowSpec(metaclass=_FlowSpecMeta):
                 for deco in flow_decorators(self)
                 if not deco.name.startswith("_")
             ],
+            "extensions": extension_info(),
         }
         self._graph_info = graph_info
 

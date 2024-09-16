@@ -34,7 +34,7 @@ from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
 from metaflow.unbounded_foreach import CONTROL_TASK_TAG
 from metaflow.util import cached_property, is_stringish, resolve_identity, to_unicode
 
-from .. import INFO_FILE
+from ..info_file import INFO_FILE
 from .filecache import FileCache
 
 try:

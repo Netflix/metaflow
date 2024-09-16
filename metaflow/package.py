@@ -10,7 +10,8 @@ from .extension_support import EXT_PKG, package_mfext_all
 from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from .exception import MetaflowException
 from .util import to_unicode
-from . import R, INFO_FILE
+from . import R
+from .info_file import INFO_FILE
 
 DEFAULT_SUFFIXES_LIST = DEFAULT_PACKAGE_SUFFIXES.split(",")
 METAFLOW_SUFFIXES_LIST = [".py", ".html", ".css", ".js"]
