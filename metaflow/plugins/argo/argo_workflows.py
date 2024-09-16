@@ -2558,8 +2558,8 @@ class ArgoWorkflows(object):
         cmd_str = " && ".join([init_cmds, heartbeat_cmds])
         cmds = shlex.split('bash -c "%s"' % cmd_str)
 
-        # TODO: Check that this is the minimal env.
         # Env required for sending heartbeats to the metadata service, nothing extra.
+        # prod token / runtime info is required to correctly register flow branches
         env = {
             # These values are needed by Metaflow to set it's internal
             # state appropriately.
@@ -2571,7 +2571,10 @@ class ArgoWorkflows(object):
             "METAFLOW_USER": "argo-workflows",
             "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
             "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
+            "METAFLOW_KUBERNETES_WORKLOAD": 1,
+            "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
             "METAFLOW_OWNER": self.username,
+            "METAFLOW_PRODUCTION_TOKEN": self.production_token,
         }
         # support Metaflow sandboxes
         env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
