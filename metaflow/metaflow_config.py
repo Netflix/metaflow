@@ -25,7 +25,6 @@ DATASTORE_LOCAL_DIR = ".metaflow"
 # Local configuration file (in .metaflow) containing overrides per-project
 LOCAL_CONFIG_FILE = "config.json"
 
-
 ###
 # Default configuration
 ###

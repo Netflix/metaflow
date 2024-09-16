@@ -45,7 +45,6 @@ Metaflow GitHub page.
 import os
 import sys
 
-
 from metaflow.extension_support import (
     alias_submodules,
     get_modules,
@@ -55,9 +54,6 @@ from metaflow.extension_support import (
     EXT_PKG,
     _ext_debug,
 )
-
-from metaflow.metaflow_version import call_git_describe as _call_git_describe
-from metaflow.metaflow_version import format_git_describe as _format_git_describe
 
 # We load the module overrides *first* explicitly. Non overrides can be loaded
 # in toplevel as well but these can be loaded first if needed. Note that those
@@ -76,9 +72,14 @@ try:
             )
         tl_module = m.module.__dict__.get("toplevel", None)
         if tl_module is not None:
-            _tl_modules.append(".".join([EXT_PKG, m.tl_package, "toplevel", tl_module]))
+            _tl_modules.append(
+                (
+                    m.package_name,
+                    ".".join([EXT_PKG, m.tl_package, "toplevel", tl_module]),
+                )
+            )
     _ext_debug("Got overrides to load: %s" % _override_modules)
-    _ext_debug("Got top-level imports: %s" % _tl_modules)
+    _ext_debug("Got top-level imports: %s" % str(_tl_modules))
 except Exception as e:
     _ext_debug("Error in importing toplevel/overrides: %s" % e)
 
@@ -150,9 +151,9 @@ if sys.version_info >= (3, 7):
     from .runner.deployer import Deployer
     from .runner.nbdeploy import NBDeployer
 
-__version_addl__ = []
+__ext_tl_modules__ = []
 _ext_debug("Loading top-level modules")
-for m in _tl_modules:
+for pkg_name, m in _tl_modules:
     extension_module = load_module(m)
     if extension_module:
         tl_package = m.split(".")[1]
@@ -160,20 +161,7 @@ for m in _tl_modules:
         lazy_load_aliases(
             alias_submodules(extension_module, tl_package, None, extra_indent=True)
         )
-        version_info = getattr(extension_module, "__mf_extensions__", "<unk>")
-        ext_version = _format_git_describe(
-            _call_git_describe(file_to_check=extension_module.__file__)
-        )
-        if ext_version is None:
-            ext_version = getattr(extension_module, "__version__", "<unk>")
-        if ext_version:
-            version_info = "%s(%s)" % (version_info, ext_version)
-        __version_addl__.append(version_info)
-
-if __version_addl__:
-    __version_addl__ = ";".join(__version_addl__)
-else:
-    __version_addl__ = None
+        __ext_tl_modules__.append((pkg_name, extension_module))
 
 # Erase all temporary names to avoid leaking things
 for _n in [
@@ -193,8 +181,6 @@ for _n in [
     "extension_module",
     "tl_package",
     "version_info",
-    "_call_git_describe",
-    "_format_git_describe",
 ]:
     try:
         del globals()[_n]

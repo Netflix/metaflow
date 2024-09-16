@@ -10,7 +10,12 @@ See the documentation of get_version for more information
 import subprocess
 from os import path, name, environ, listdir
 
+from metaflow.extension_support import update_package_info
 from metaflow.info_file import CURRENT_DIRECTORY, read_info_file
+
+
+# True/False correspond to the value `public`` in get_version
+_version_cache = {True: None, False: None}
 
 __all__ = ("get_version",)
 
@@ -104,7 +109,7 @@ def format_git_describe(git_str, public=False):
     if len(splits) == 4:
         # Formatted as <tag>-<post>-<hash>-dirty
         tag, post, h = splits[:3]
-        dirty = splits[3]
+        dirty = "-" + splits[3]
     else:
         # Formatted as <tag>-<post>-<hash>
         tag, post, h = splits
@@ -144,33 +149,61 @@ def get_version(public=False):
 
     """
 
+    global _version_cache
+
     # To get the version we do the following:
-    #  - First check if we have an INFO file present. If so, use that as it is
+    #  - Check if we have a cached version. If so, return that
+    #  - Then check if we have an INFO file present. If so, use that as it is
     #    the most reliable way to get the version. In particular, when running remotely,
     #    metaflow is installed in a directory and if any extension is using distutils to
     #    determine its version, this would return None and querying the version directly
     #    from the extension would fail to produce the correct result
-    #  - Check if we are in the GIT repository and if so, use the git describe
+    #  - Then if we are in the GIT repository and if so, use the git describe
     #  - If we don't have an INFO file, we look at the version information that is
     #    populated by metaflow and the extensions.
+
+    if _version_cache[public] is not None:
+        return _version_cache[public]
+
     version = (
         read_info_version()
     )  # Version info is cached in INFO file; includes extension info
+
     if version:
+        _version_cache[public] = version
         return version
 
+    # Get the version for Metaflow, favor the GIT version
     import metaflow
-
-    version_addl = metaflow.__version_addl__
 
     version = format_git_describe(
         call_git_describe(file_to_check=metaflow.__file__), public=public
     )
-
     if version is None:
         version = metaflow.__version__
 
-    if version_addl:
-        return "+".join([version, version_addl])
+    # Look for extensions and compute their versions. Properly formed extensions have
+    # a toplevel file which will contain a __mf_extensions__ value and a __version__
+    # value. We already saved the properly formed modules when loading metaflow in
+    # __ext_tl_modules__.
+    ext_versions = []
+    for pkg_name, extension_module in metaflow.__ext_tl_modules__:
+        ext_name = getattr(extension_module, "__mf_extensions__", "<unk>")
+        ext_version = format_git_describe(
+            call_git_describe(file_to_check=extension_module.__file__), public=public
+        )
+        if ext_version is None:
+            ext_version = getattr(extension_module, "__version__", "<unk>")
+        # Update the package information about reported version for the extension
+        update_package_info(
+            package_name=pkg_name,
+            user_visible_name=ext_name,
+            reported_version=ext_version,
+        )
+        ext_versions.append("%s(%s)" % (ext_name, ext_version))
 
+    # We now have all the information about extensions so we can form the final string
+    if ext_versions:
+        version = version + "+" + ";".join(ext_versions)
+    _version_cache[public] = version
     return version
