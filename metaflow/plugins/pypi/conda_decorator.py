@@ -353,9 +353,8 @@ class CondaFlowDecorator(FlowDecorator):
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
     ):
-        # NOTE: This makes sure that using conda_base marks all steps as executing with conda,
-        # without relying on --environment conda setting decospecs.
-        # Important for extensions implementing custom virtual environments
+        # NOTE: Important for extensions implementing custom virtual environments.
+        # Without this steps will not have an implicit conda step decorator on them unless the environment adds one in its decospecs.
         from metaflow import decorators
 
         decorators._attach_decorators(flow, ["conda"])
