@@ -957,7 +957,9 @@ class KubeflowPipelines(object):
         size: str,
         volume_type: Optional[str],
     ) -> Tuple[ResourceOp, PipelineVolume]:
-        volume_name = "{{pod.name}}"
+        # AIP-8595(talebz): to avoid volume name "must be no more than 63 characters error"
+        # truncate from the beginning (the suffix has more entropy)
+        volume_name = "{{=sprig.trunc(-63, pod.name)}}"
         attribute_outputs = {"size": "{.status.capacity.storage}"}
         requested_resources = V1ResourceRequirements(requests={"storage": size})
 
@@ -999,9 +1001,7 @@ class KubeflowPipelines(object):
         )
         self._set_container_labels(resource)
 
-        volume = PipelineVolume(
-            name=f"{volume_name}-volume", pvc=resource.outputs["name"]
-        )
+        volume = PipelineVolume(name=f"{volume_name}", pvc=resource.outputs["name"])
         return (resource, volume)
 
     @staticmethod
