@@ -463,6 +463,15 @@ class ArgoWorkflows(object):
             else:
                 param_type = str(param.kwargs.get("type").__name__)
 
+            extra_attrs = {}
+            if isinstance(param.kwargs.get("type"), FilePathClass):
+                extra_attrs["is_text"] = getattr(
+                    param.kwargs.get("type"), "_is_text", True
+                )
+                extra_attrs["encoding"] = getattr(
+                    param.kwargs.get("type"), "_encoding", "utf-8"
+                )
+
             is_required = param.kwargs.get("required", False)
             # Throw an exception if a schedule is set for a flow with required
             # parameters with no defaults. We currently don't have any notion
@@ -488,6 +497,9 @@ class ArgoWorkflows(object):
                 description=param.kwargs.get("help"),
                 is_required=is_required,
             )
+
+            if extra_attrs:
+                parameters[param.name]["extra_attrs"] = extra_attrs
         return parameters
 
     def _process_triggers(self):
