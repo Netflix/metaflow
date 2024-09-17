@@ -31,7 +31,7 @@ def generate_fake_flow_file_contents(
         if param_type == "JSON":
             params_code += f"    {param_name} = Parameter('{param_name}', type=JSONType, help='{param_help}', required={param_required})\n"
         elif param_type == "FilePath":
-            # ideally, it should also have info about 'is_text' and 'encoding'..
+            # TODO: ideally, it should also have info about 'is_text' and 'encoding'..
             # but this is not present in the param_info..
             params_code += f"    {param_name} = IncludeFile('{param_name}', help='{param_help}', required={param_required})\n"
         else:
@@ -239,9 +239,7 @@ def from_deployment(identifier: str, metadata: str = None):
     workflow_template = client.get_workflow_template(identifier)
 
     if workflow_template is None:
-        raise MetaflowException(
-            "No deployed workflow found with the name: %s" % identifier
-        )
+        raise MetaflowException("No deployed flow found for: %s" % identifier)
 
     metadata_annotations = workflow_template.get("metadata", {}).get("annotations", {})
 

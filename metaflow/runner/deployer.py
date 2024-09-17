@@ -283,7 +283,7 @@ class DeployedFlow(object):
             from metaflow.plugins.argo.argo_workflows_deployer import from_deployment
 
             return from_deployment(identifier, metadata)
-        raise NotImplementedError("This method is not available for type: %s" % type_)
+        raise NotImplementedError("This method is not available for: %s" % type_)
 
     def _enrich_object(self, env):
         """
