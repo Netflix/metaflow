@@ -74,4 +74,9 @@ async def async_read_from_file_when_ready(
     await asyncio.wait_for(command_obj.process.wait(), timeout)
 
     with open(file_path, "r", encoding="utf-8") as file_pointer:
-        return file_pointer.read()
+        content = file_pointer.read()
+        if not content:
+            raise CalledProcessError(
+                command_obj.process.returncode, command_obj.command
+            )
+        return content
