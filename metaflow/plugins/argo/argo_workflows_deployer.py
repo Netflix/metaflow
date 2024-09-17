@@ -266,30 +266,27 @@ def from_deployment(identifier: str, metadata: str = None):
         flow_name=flow_name, param_info=parameters, project_name=project_name
     )
 
-    try:
-        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as fake_flow_file:
-            with open(fake_flow_file.name, "w") as fp:
-                fp.write(fake_flow_file_contents)
+    with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as fake_flow_file:
+        with open(fake_flow_file.name, "w") as fp:
+            fp.write(fake_flow_file_contents)
 
-            if branch_name is not None:
-                d = Deployer(fake_flow_file.name, **project_kwargs).argo_workflows()
-            else:
-                d = Deployer(fake_flow_file.name).argo_workflows(name=identifier)
+        if branch_name is not None:
+            d = Deployer(fake_flow_file.name, **project_kwargs).argo_workflows()
+        else:
+            d = Deployer(fake_flow_file.name).argo_workflows(name=identifier)
 
-            d.name = identifier
-            d.flow_name = flow_name
+        d.name = identifier
+        d.flow_name = flow_name
 
-            if metadata is None:
-                d.metadata = get_metadata()
-            else:
-                d.metadata = metadata
+        if metadata is None:
+            d.metadata = get_metadata()
+        else:
+            d.metadata = metadata
 
-        df = DeployedFlow(deployer=d)
-        d._enrich_deployed_flow(df)
+    df = DeployedFlow(deployer=d)
+    d._enrich_deployed_flow(df)
 
-        return df
-    finally:
-        os.unlink(fake_flow_file.name)
+    return df
 
 
 def trigger(instance: DeployedFlow, **kwargs):
