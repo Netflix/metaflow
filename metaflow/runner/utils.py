@@ -64,3 +64,14 @@ def read_from_file_when_ready(
             time.sleep(0.1)
             content = file_pointer.read()
         return content
+
+
+async def async_read_from_file_when_ready(
+    file_path: str, command_obj: "CommandManager", timeout: float = 5
+):
+    import asyncio
+
+    await asyncio.wait_for(command_obj.process.wait(), timeout)
+
+    with open(file_path, "r", encoding="utf-8") as file_pointer:
+        return file_pointer.read()

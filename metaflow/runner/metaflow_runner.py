@@ -8,7 +8,11 @@ from typing import Dict, Iterator, Optional, Tuple
 
 from metaflow import Run, metadata
 
-from .utils import clear_and_set_os_environ, read_from_file_when_ready
+from .utils import (
+    clear_and_set_os_environ,
+    read_from_file_when_ready,
+    async_read_from_file_when_ready,
+)
 from .subprocess_manager import CommandManager, SubprocessManager
 
 
@@ -294,6 +298,28 @@ class Runner(object):
                 error_message += "\nStderr:\n%s\n" % stderr_log
             raise RuntimeError(error_message) from e
 
+    async def __async_get_executing_run(self, tfp_runner_attribute, command_obj):
+        try:
+            clear_and_set_os_environ(self.old_env)
+
+            content = await async_read_from_file_when_ready(
+                tfp_runner_attribute.name, command_obj, timeout=self.file_read_timeout
+            )
+            metadata_for_flow, pathspec = content.rsplit(":", maxsplit=1)
+            metadata(metadata_for_flow)
+            run_object = Run(pathspec, _namespace_check=False)
+            return ExecutingRun(self, command_obj, run_object)
+        except (CalledProcessError, TimeoutError) as e:
+            stdout_log = open(command_obj.log_files["stdout"]).read()
+            stderr_log = open(command_obj.log_files["stderr"]).read()
+            command = " ".join(command_obj.command)
+            error_message = "Error executing: '%s':\n" % command
+            if stdout_log.strip():
+                error_message += "\nStdout:\n%s\n" % stdout_log
+            if stderr_log.strip():
+                error_message += "\nStderr:\n%s\n" % stderr_log
+            raise RuntimeError(error_message) from e
+
     def run(self, **kwargs) -> ExecutingRun:
         """
         Blocking execution of the run. This method will wait until
@@ -395,7 +421,9 @@ class Runner(object):
             )
             command_obj = self.spm.get(pid)
 
-            return self.__get_executing_run(tfp_runner_attribute, command_obj)
+            return await self.__async_get_executing_run(
+                tfp_runner_attribute, command_obj
+            )
 
     async def async_resume(self, **kwargs):
         """
@@ -430,7 +458,9 @@ class Runner(object):
             )
             command_obj = self.spm.get(pid)
 
-            return self.__get_executing_run(tfp_runner_attribute, command_obj)
+            return await self.__async_get_executing_run(
+                tfp_runner_attribute, command_obj
+            )
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.spm.cleanup()
