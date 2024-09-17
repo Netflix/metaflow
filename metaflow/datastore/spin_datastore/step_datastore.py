@@ -38,6 +38,11 @@ class SpinStepDatastore(SpinDatastore):
                 f"`{self.step_name}`."
             )
 
+        raise AttributeError(
+            f"Attribute '{name}' not found in the previous execution of the task for "
+            f"`{self.step_name}`."
+        )
+
     @property
     def previous_task(self):
         # Since this is not a join step, we can safely assume that there is only one
