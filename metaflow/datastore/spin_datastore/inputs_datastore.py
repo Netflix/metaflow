@@ -1,4 +1,4 @@
-from .spin_datastore import SpinDatastore
+from . import SpinDatastore
 
 
 class SpinInput(object):

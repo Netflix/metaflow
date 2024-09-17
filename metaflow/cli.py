@@ -409,6 +409,8 @@ def spin(
     **kwargs,
 ):
     from .spin_utils import SpinParserValidator
+    from metaflow.datastore.spin_datastore.step_datastore import SpinStepDatastore
+    from metaflow.datastore.spin_datastore.inputs_datastore import SpinInputsDatastore
 
     # We first validate that appropriate parameters are passed
     spin_parser_validator = SpinParserValidator(
@@ -425,6 +427,12 @@ def spin(
 
     # We now set the parameters and the constants for the flowx
     ctx.obj.flow._set_constants(ctx.obj.graph, kwargs)
+    step_datastore, join_inputs_datastore = None, None
+    # We now generate the input datastore for our spin task
+    if spin_parser_validator.step_type == "join":
+        join_inputs_datastore = SpinInputsDatastore(spin_parser_validator)
+    else:
+        step_datastore = SpinStepDatastore(spin_parser_validator)
 
     # We first modify the environment, metadata, monitor and event logger to be local
     ctx.obj.environment = [
@@ -505,11 +513,13 @@ def spin(
     print("New Run ID: ", new_run_id)
     print("New Task ID: ", new_task_id)
 
-    # task.run_baby_step(
-    #     spin_parser_validator=spin_parser_validator,
-    #     new_task_id=new_task_id,
-    #     new_run_id=new_run_id,
-    # )
+    task.run_baby_step(
+        spin_parser_validator=spin_parser_validator,
+        new_task_id=new_task_id,
+        new_run_id=new_run_id,
+        step_datastore=step_datastore,
+        join_inputs_datastore=join_inputs_datastore,
+    )
 
 
 # TODO - move step and init under a separate 'internal' subcommand

@@ -379,19 +379,25 @@ class MetaflowTask(object):
         spin_parser_validator,
         new_task_id,
         new_run_id,
+        step_datastore=None,
+        join_inputs_datastore=None,
     ):
         step_func = getattr(self.flow, step_name)
         decorators = step_func.decorators
 
-        node = self.flow._graph[step_name]
-        join_type = None
-        if node.type == "join":
-            join_type = self.flow._graph[node.split_parents[-1]].type
-        if join_type:
+        # initialize output datastore
+        output = self.flow_datastore.get_task_datastore(
+            run_id, step_name, task_id, attempt=retry_count, mode="w"
+        )
+
+        output.init_task()
+
+        if spin_parser_validator.step_type == "join":
             # Set inputs
-            pass
+            self.flow._set_datastore(output)
         else:
-            pass
+            # Set inputs
+            self.flow._set_datastore(step_datastore)
 
         for deco in decorators:
             deco.task_pre_step(
@@ -424,7 +430,7 @@ class MetaflowTask(object):
             )
         try:
             if join_type:
-                self._exec_step_function(step_func, input_obj)
+                self._exec_step_function(step_func, join_inputs_datastore)
             else:
                 self._exec_step_function(step_func)
 
