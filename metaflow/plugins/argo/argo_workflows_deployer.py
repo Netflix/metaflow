@@ -27,12 +27,20 @@ def generate_fake_flow_file_contents(
         param_type = param_details["type"]
         param_help = param_details["description"]
         param_required = param_details["is_required"]
-        params_code += f"    {param_name} = Parameter('{param_name}', type={param_type}, help='{param_help}', required={param_required})\n"
+
+        if param_type == "JSON":
+            params_code += f"    {param_name} = Parameter('{param_name}', type=JSONType, help='{param_help}', required={param_required})\n"
+        elif param_type == "FilePath":
+            # ideally, it should also have info about 'is_text' and 'encoding'..
+            # but this is not present in the param_info..
+            params_code += f"    {param_name} = IncludeFile('{param_name}', help='{param_help}', required={param_required})\n"
+        else:
+            params_code += f"    {param_name} = Parameter('{param_name}', type={param_type}, help='{param_help}', required={param_required})\n"
 
     project_decorator = f"@project(name='{project_name}')\n" if project_name else ""
 
     contents = f"""\
-from metaflow import FlowSpec, Parameter, step, project
+from metaflow import FlowSpec, Parameter, IncludeFile, JSONType, step, project
 
 {project_decorator}class {flow_name}(FlowSpec):
 {params_code}
