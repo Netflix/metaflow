@@ -374,6 +374,92 @@ class MetaflowTask(object):
                     )
                 )
 
+    def run_baby_step(
+        self,
+        spin_parser_validator,
+        new_task_id,
+        new_run_id,
+    ):
+        step_func = getattr(self.flow, step_name)
+        decorators = step_func.decorators
+
+        node = self.flow._graph[step_name]
+        join_type = None
+        if node.type == "join":
+            join_type = self.flow._graph[node.split_parents[-1]].type
+        if join_type:
+            # Set inputs
+            pass
+        else:
+            pass
+
+        for deco in decorators:
+            deco.task_pre_step(
+                step_name,
+                output,
+                self.metadata,
+                run_id,
+                task_id,
+                self.flow,
+                self.flow._graph,
+                retry_count,
+                max_user_code_retries,
+                self.ubf_context,
+                inputs,
+            )
+
+        for deco in decorators:
+            # decorators can actually decorate the step function,
+            # or they can replace it altogether. This functionality
+            # is used e.g. by catch_decorator which switches to a
+            # fallback code if the user code has failed too many
+            # times.
+            step_func = deco.task_decorate(
+                step_func,
+                self.flow,
+                self.flow._graph,
+                retry_count,
+                max_user_code_retries,
+                self.ubf_context,
+            )
+        try:
+            if join_type:
+                self._exec_step_function(step_func, input_obj)
+            else:
+                self._exec_step_function(step_func)
+
+            for deco in decorators:
+                deco.task_post_step(
+                    step_name,
+                    self.flow,
+                    self.flow._graph,
+                    retry_count,
+                    max_user_code_retries,
+                )
+
+            self.flow._task_ok = True
+            self.flow._success = True
+        except Exception as ex:
+            exception_handled = False
+            for deco in decorators:
+                res = deco.task_exception(
+                    ex,
+                    step_name,
+                    self.flow,
+                    self.flow._graph,
+                    retry_count,
+                    max_user_code_retries,
+                )
+                exception_handled = bool(res) or exception_handled
+
+            if exception_handled:
+                self.flow._task_ok = True
+            else:
+                self.flow._task_ok = False
+                self.flow._exception = MetaflowExceptionWrapper(ex)
+                print("%s failed:" % self.flow, file=sys.stderr)
+                raise
+
     def run_step(
         self,
         step_name,

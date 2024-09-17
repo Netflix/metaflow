@@ -4,6 +4,7 @@ import sys
 import traceback
 from datetime import datetime
 from functools import wraps
+from collections import namedtuple
 
 import metaflow.tracing as tracing
 from metaflow._vendor import click
@@ -46,6 +47,7 @@ from .util import (
     get_latest_run_id,
     resolve_identity,
     write_latest_run_id,
+    REQUIRED_ANCESTORS,
 )
 
 ERASE_TO_EOL = "\033[K"
@@ -55,6 +57,7 @@ INDENT = " " * 4
 LOGGER_TIMESTAMP = "magenta"
 LOGGER_COLOR = "green"
 LOGGER_BAD_COLOR = "red"
+
 
 try:
     # Python 2
@@ -302,6 +305,211 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
         with open(file, "wb") as f:
             pickle.dump(output, f, protocol=pickle.HIGHEST_PROTOCOL)
         echo("Artifacts written to *%s*" % file)
+
+
+@cli.command(
+    help="Command used to spin up a single task based on the artifacts from "
+    "a previous run or artifacts provided by the user."
+)
+@click.argument("step-name")
+@click.option(
+    "--metadata",
+    default="local",
+    show_default=True,
+    help="Metadata service type",
+)
+@click.option(
+    "--environment",
+    default="local",
+    show_default=True,
+    help="Execution environment type",
+)
+@click.option(
+    "--datastore",
+    default="local",
+    show_default=True,
+    help="Data backend type",
+)
+@click.option("--datastore-root", help="Root path for datastore")
+@click.option(
+    "--event-logger",
+    default="nullSidecarLogger",
+    show_default=True,
+    help="type of event logger used",
+)
+@click.option(
+    "--monitor",
+    default="nullSidecarMonitor",
+    show_default=True,
+    help="Monitoring backend type",
+)
+@click.option(
+    "--run-id",
+    default=None,
+    required=True,
+    help="Run ID of a previous execution to fetch the artifacts from.",
+)
+@click.option(
+    "--ancestor-tasks",
+    type=str,
+    default=None,
+    show_default=True,
+    help="A JSON string consisting of the key-value pairs of the ancestor tasks.",
+)
+@click.option(
+    "--foreach-index",
+    type=int,
+    default=None,
+    show_default=True,
+    help="For-each index to use for the spin task",
+)
+@click.option(
+    "--foreach-var",
+    type=int,
+    default=None,
+    show_default=True,
+    help="For-each variable to use for the spin task",
+)
+@click.option(
+    "--artifacts",
+    type=str,
+    default=None,
+    help="A JSON string consisting of the key-value pairs of the artifacts.",
+)
+@click.option(
+    "--artifacts-module",
+    type=str,
+    default=None,
+    help="A python module that contains the artifacts in a dictionary called `mf_artifacts`.",
+)
+@click.option(
+    "--skip-decorators",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Skip decorators attached to the step.",
+)
+@click.pass_context
+def spin(
+    ctx,
+    step_name,
+    metadata,
+    environment,
+    datastore,
+    datastore_root,
+    event_logger,
+    monitor,
+    run_id=None,
+    ancestor_tasks=None,
+    foreach_index=None,
+    foreach_var=None,
+    artifacts=None,
+    artifacts_module=None,
+    skip_decorators=False,
+    **kwargs,
+):
+    from .spin_utils import SpinParserValidator
+
+    # We first validate that appropriate parameters are passed
+    spin_parser_validator = SpinParserValidator(
+        ctx,
+        step_name,
+        run_id,
+        ancestor_tasks=ancestor_tasks,
+        artifacts=artifacts,
+        artifacts_module=artifacts_module,
+        foreach_index=foreach_index,
+        foreach_var=foreach_var,
+    )
+    spin_parser_validator.validate()
+
+    # We now set the parameters and the constants for the flowx
+    ctx.obj.flow._set_constants(ctx.obj.graph, kwargs)
+
+    # We first modify the environment, metadata, monitor and event logger to be local
+    ctx.obj.environment = [
+        e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == environment
+    ][0](ctx.obj.flow)
+    ctx.obj.environment.validate_environment(ctx.obj.logger, datastore)
+
+    ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == metadata][0](
+        ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
+    )
+
+    ctx.obj.monitor = MONITOR_SIDECARS[monitor](
+        flow=ctx.obj.flow, env=ctx.obj.environment
+    )
+    ctx.obj.monitor.start()
+
+    ctx.obj.event_logger = LOGGING_SIDECARS[event_logger](
+        flow=ctx.obj.flow, env=ctx.obj.environment
+    )
+    ctx.obj.event_logger.start()
+
+    ctx.obj.datastore_impl = [d for d in DATASTORES if d.TYPE == datastore][0]
+
+    if datastore_root is None:
+        datastore_root = ctx.obj.datastore_impl.get_datastore_root_from_config(
+            ctx.obj.echo
+        )
+        print("Datastore Root: ", datastore_root)
+    if datastore_root is None:
+        raise CommandException(
+            "Could not find the location of the datastore -- did you correctly set the "
+            "METAFLOW_DATASTORE_SYSROOT_%s environment variable?" % datastore.upper()
+        )
+    ctx.obj.datastore_impl.datastore_root = datastore_root
+
+    FlowDataStore.default_storage_impl = ctx.obj.datastore_impl
+    ctx.obj.flow_datastore = FlowDataStore(
+        ctx.obj.flow.name,
+        ctx.obj.environment,
+        ctx.obj.metadata,
+        ctx.obj.event_logger,
+        ctx.obj.monitor,
+    )
+
+    # Initialize the system logger and monitor, these are no-ops for spin tasks (for now)
+    _system_logger.init_system_logger(ctx.obj.flow.name, ctx.obj.event_logger)
+    _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
+
+    # Create a new run_id for the spin task
+    # new_run_id is separate from the run_id that is passed in as an argument, since the spin task
+    # uses the passed in run_id to fetch the artifacts from the previous run
+    new_run_id = ctx.obj.metadata.new_run_id()
+
+    # We also create a new task_id for the spin task
+    new_task_id = str(ctx.obj.metadata.new_task_id(new_run_id, step_name))
+
+    # If we have decorators like @conda, @pypi, or any that need packaging, we package the code
+    ctx.obj.package = MetaflowPackage(
+        ctx.obj.flow, ctx.obj.environment, ctx.obj.echo, ctx.obj.package_suffixes
+    )
+
+    # Call runtime_init for the spin step here as we are not executing it via the runtime
+    step_func = getattr(ctx.obj.flow, step_name)
+    for deco in step_func.decorators:
+        deco.runtime_init(flow, graph, ctx.obj.package, new_run_id)
+
+    task = MetaflowTask(
+        ctx.obj.flow,
+        ctx.obj.flow_datastore,  # local datastore
+        ctx.obj.metadata,  # local metadata provider
+        ctx.obj.environment,  # local environment
+        ctx.obj.echo,
+        ctx.obj.event_logger,  # null logger
+        ctx.obj.monitor,  # null monitor
+        None,  # no unbounded foreach context
+    )
+    print("Task: ", task)
+    print("New Run ID: ", new_run_id)
+    print("New Task ID: ", new_task_id)
+
+    # task.run_baby_step(
+    #     spin_parser_validator=spin_parser_validator,
+    #     new_task_id=new_task_id,
+    #     new_run_id=new_run_id,
+    # )
 
 
 # TODO - move step and init under a separate 'internal' subcommand
@@ -750,7 +958,7 @@ def run(
     run_id_file=None,
     runner_attribute_file=None,
     user_namespace=None,
-    **kwargs
+    **kwargs,
 ):
     if user_namespace is not None:
         namespace(user_namespace or None)
@@ -928,7 +1136,7 @@ def start(
     pylint=None,
     event_logger=None,
     monitor=None,
-    **deco_options
+    **deco_options,
 ):
     global echo
     if quiet:
