@@ -277,7 +277,9 @@ class DeployedFlow(object):
 
     @staticmethod
     def from_deployment(
-        identifier: str, metadata: str = None, type_: str = "argo-workflows"
+        identifier: str,
+        metadata: str = None,
+        type_: str = "argo-workflows",  # TODO: use a metaflow config variable for `type_`
     ):
         if type_ == "argo-workflows":
             from metaflow.plugins.argo.argo_workflows_deployer import from_deployment
