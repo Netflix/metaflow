@@ -1,6 +1,7 @@
 import inspect
 import ast
 import re
+import textwrap
 
 
 from .util import to_pod
@@ -156,18 +157,6 @@ class DAGNode(object):
         )
 
 
-class StepVisitor(ast.NodeVisitor):
-    def __init__(self, nodes, flow):
-        self.nodes = nodes
-        self.flow = flow
-        super(StepVisitor, self).__init__()
-
-    def visit_FunctionDef(self, node):
-        func = getattr(self.flow, node.name)
-        if hasattr(func, "is_step"):
-            self.nodes[node.name] = DAGNode(node, func.decorators, func.__doc__)
-
-
 class FlowGraph(object):
     def __init__(self, flow):
         self.name = flow.__name__
@@ -179,13 +168,14 @@ class FlowGraph(object):
         self._postprocess()
 
     def _create_nodes(self, flow):
-        module = __import__(flow.__module__)
-        tree = ast.parse(inspect.getsource(module)).body
-        root = [n for n in tree if isinstance(n, ast.ClassDef) and n.name == self.name][
-            0
-        ]
         nodes = {}
-        StepVisitor(nodes, flow).visit(root)
+        for element in dir(flow):
+            func = getattr(flow, element)
+            if hasattr(func, "is_step"):
+                source_code = textwrap.dedent(inspect.getsource(func))
+                function_ast = ast.parse(source_code).body[0]
+                node = DAGNode(function_ast, func.decorators, func.__doc__)
+                nodes[element] = node
         return nodes
 
     def _postprocess(self):
