@@ -31,9 +31,10 @@ def generate_fake_flow_file_contents(
         if param_type == "JSON":
             params_code += f"    {param_name} = Parameter('{param_name}', type=JSONType, help='{param_help}', required={param_required})\n"
         elif param_type == "FilePath":
-            # TODO: ideally, it should also have info about 'is_text' and 'encoding'..
-            # but this is not present in the param_info..
-            params_code += f"    {param_name} = IncludeFile('{param_name}', help='{param_help}', required={param_required})\n"
+            param_attrs = param_details["extra_attrs"]
+            is_text = param_attrs.get("is_text", True)
+            encoding = param_attrs.get("encoding", "utf-8")
+            params_code += f"    {param_name} = IncludeFile('{param_name}', is_text={is_text}, encoding='{encoding}', help='{param_help}', required={param_required})\n"
         else:
             params_code += f"    {param_name} = Parameter('{param_name}', type={param_type}, help='{param_help}', required={param_required})\n"
 
