@@ -77,7 +77,6 @@ class SpinDatastore(object):
         from metaflow import Step
 
         def _parse_foreach_stack(foreach_stack):
-            print("Foreach Stack: ", foreach_stack.data)
             return {
                 entry.step: {
                     "task_val": entry.value,
@@ -117,10 +116,6 @@ class SpinDatastore(object):
             for step_name, required_ancestor in required_ancestors.items():
                 if step_name not in foreach_stack:
                     return False
-                print("In _is_ancestor")
-                print(
-                    f"Step Name: {step_name}, required_ancestor: {required_ancestor}, foreach_stack: {foreach_stack[step_name]}"
-                )
                 if (
                     "task_val" in required_ancestor
                     and str(required_ancestor["task_val"])
@@ -142,11 +137,7 @@ class SpinDatastore(object):
             required_ancestor_tasks_parsed = _parse_required_ancestor_tasks(
                 self.required_ancestor_tasks
             )
-            # print("-" * 100)
-            # print("Task: ", task)
             foreach_stack_parsed = _parse_foreach_stack(foreach_stack)
-            # print("Required Ancestor Tasks Parsed: ", required_ancestor_tasks_parsed)
-            # print("Foreach Stack Parsed: ", foreach_stack_parsed)
             if _is_ancestor(foreach_stack_parsed, required_ancestor_tasks_parsed):
                 previous_tasks.append(task)
 

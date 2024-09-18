@@ -93,7 +93,7 @@ class SpinStepDatastore(SpinDatastore):
             return self._previous_task
 
         prev_step_name = self.previous_steps[0]
-        self._previous_task = self.get_all_previous_tasks(prev_step_name)
+        self._previous_task = self.get_all_previous_tasks(prev_step_name)[0]
         return self._previous_task
 
     def get(self, key, default=None):
