@@ -176,6 +176,9 @@ class ArgoWorkflows(object):
     def __str__(self):
         return str(self._workflow_template)
 
+    def get_all_entities(self):
+        return [self._workflow_template, self._cron_workflow, self._sensor]
+
     def get_cron_workflow(self):
         return self._cron_workflow
 

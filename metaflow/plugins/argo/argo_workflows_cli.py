@@ -3,6 +3,8 @@ import json
 import platform
 import re
 import sys
+import os
+import json
 from hashlib import sha1
 
 from metaflow import JSONType, Run, current, decorators, parameters
@@ -126,29 +128,17 @@ def argo_workflows(obj, name=None):
     "to the given tag. See run --help for more information.",
 )
 @click.option(
-    "--only-json",
-    is_flag=True,
-    default=False,
-    help="Only print out JSON sent to Argo Workflows. Do not deploy anything.",
-)
-@click.option(
     "--only-workflow-template-json",
     "--only-json",
     is_flag=True,
     default=False,
-    help="Print out the Argo Workflow Template JSON sent to Argo Workflows. Do not deploy anything.",
+    help="Only print out the ArgoWorkflowTemplate JSON sent to Argo Workflows. Do not deploy anything.",
 )
 @click.option(
-    "--only-event-sensor-json",
+    "--only-json-output-directory",
     is_flag=True,
-    default=False,
-    help="Print out the Event Sensor JSON sent to Argo Workflows. Do not deploy anything.",
-)
-@click.option(
-    "--only-cron-workflow-json",
-    is_flag=True,
-    default=False,
-    help="Print out the Argo Cron Workflow JSON sent to Argo Workflows. Do not deploy anything.",
+    default=None,
+    help="Save all Argo Workflow k8s Template JSONs sent to Argo Workflows in this directory. Do not deploy anything.",
 )
 @click.option(
     "--max-workers",
@@ -221,8 +211,7 @@ def create(
     tags=None,
     user_namespace=None,
     only_workflow_template_json=False,
-    only_event_sensor_json=False,
-    only_cron_workflow_json=False,
+    only_json_output_directory=None,
     authorize=None,
     generate_new_token=False,
     given_token=None,
@@ -294,56 +283,63 @@ def create(
     )
 
     only_json = (
-        only_workflow_template_json or only_event_sensor_json or only_cron_workflow_json
+        only_workflow_template_json or only_json_output_directory
     )
     if only_workflow_template_json:
         obj.echo_always(str(flow), err=False, no_bold=True)
-    if only_event_sensor_json:
-        obj.echo_always(str(flow.get_event_source()), err=False, no_bold=True)
-    if only_cron_workflow_json:
-        obj.echo_always(str(flow.get_cron_workflow()), err=False, no_bold=True)
+    elif only_json_output_directory:
+        def _save_json_to_directory(dir, obj):
+            os.makedirs(dir, exist_ok=True)
+            filename = f'{obj["kind"]}.{obj["metadata"]["name"]}.json'
+            path = os.path.join(dir, filename)
+            with open(path, 'w') as f:
+                json.dump(obj, f)
+        for e in flow.get_all_entities():
+            _save_json_to_directory(only_json_output_directory, e.to_json())
 
-    if not only_json:
-        flow.deploy()
+    if only_json:
+        return;
+
+    flow.deploy()
+    obj.echo(
+        "Workflow *{workflow_name}* "
+        "for flow *{name}* pushed to "
+        "Argo Workflows successfully.\n".format(
+            workflow_name=obj.workflow_name, name=current.flow_name
+        ),
+        bold=True,
+    )
+    if obj._is_workflow_name_modified:
         obj.echo(
-            "Workflow *{workflow_name}* "
-            "for flow *{name}* pushed to "
-            "Argo Workflows successfully.\n".format(
-                workflow_name=obj.workflow_name, name=current.flow_name
-            ),
-            bold=True,
+            "Note that the flow was deployed with a modified name "
+            "due to Kubernetes naming conventions\non Argo Workflows. The "
+            "original flow name is stored in the workflow annotation.\n"
         )
-        if obj._is_workflow_name_modified:
-            obj.echo(
-                "Note that the flow was deployed with a modified name "
-                "due to Kubernetes naming conventions\non Argo Workflows. The "
-                "original flow name is stored in the workflow annotation.\n"
-            )
 
-        if ARGO_WORKFLOWS_UI_URL:
-            obj.echo("See the deployed workflow here:", bold=True)
-            argo_workflowtemplate_link = "%s/workflow-templates/%s" % (
-                ARGO_WORKFLOWS_UI_URL.rstrip("/"),
-                KUBERNETES_NAMESPACE,
-            )
-            obj.echo(
-                "%s/%s\n\n" % (argo_workflowtemplate_link, obj.workflow_name),
-                indent=True,
-            )
-        flow.schedule()
-        obj.echo("What will trigger execution of the workflow:", bold=True)
-        obj.echo(flow.trigger_explanation(), indent=True)
+    if ARGO_WORKFLOWS_UI_URL:
+        obj.echo("See the deployed workflow here:", bold=True)
+        argo_workflowtemplate_link = "%s/workflow-templates/%s" % (
+            ARGO_WORKFLOWS_UI_URL.rstrip("/"),
+            KUBERNETES_NAMESPACE,
+        )
+        obj.echo(
+            "%s/%s\n\n" % (argo_workflowtemplate_link, obj.workflow_name),
+            indent=True,
+        )
+    flow.schedule()
+    obj.echo("What will trigger execution of the workflow:", bold=True)
+    obj.echo(flow.trigger_explanation(), indent=True)
 
-        # TODO: Print events emitted by execution of this flow
+    # TODO: Print events emitted by execution of this flow
 
-        # response = ArgoWorkflows.trigger(obj.workflow_name)
-        # run_id = "argo-" + response["metadata"]["name"]
+    # response = ArgoWorkflows.trigger(obj.workflow_name)
+    # run_id = "argo-" + response["metadata"]["name"]
 
-        # obj.echo(
-        #     "Workflow *{name}* triggered on Argo Workflows "
-        #     "(run-id *{run_id}*).".format(name=obj.workflow_name, run_id=run_id),
-        #     bold=True,
-        # )
+    # obj.echo(
+    #     "Workflow *{name}* triggered on Argo Workflows "
+    #     "(run-id *{run_id}*).".format(name=obj.workflow_name, run_id=run_id),
+    #     bold=True,
+    # )
 
 
 def check_python_version(obj):
