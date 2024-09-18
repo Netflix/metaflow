@@ -136,9 +136,7 @@ class SubprocessManager(object):
 
         self.commands[pid] = command_obj
 
-        command_obj.process.wait()
-        command_obj.stdout_thread.join()
-        command_obj.stderr_thread.join()
+        command_obj.sync_wait()
 
         return pid
 
@@ -195,7 +193,7 @@ class SubprocessManager(object):
         for v in self.commands.values():
             v.cleanup()
 
-    def kill(self, termination_timeout: float = 5):
+    async def kill(self, termination_timeout: float = 5):
         """
         Kill all managed subprocesses and their descendants.
 
@@ -205,19 +203,31 @@ class SubprocessManager(object):
             The time to wait after sending a SIGTERM to a subprocess and its descendants
             before sending a SIGKILL.
         """
-        pids = [v.process.pid for v in self.commands.values()]
 
+        pids = [v.process.pid for v in self.commands.values() if v.process is not None]
+        await async_kill_processes_and_descendants(pids, 5)
+
+    def sync_kill(self, termination_timeout: float = 5):
+        """
+        Kill all managed subprocesses and their descendants synchronously.
+
+        Parameters
+        ----------
+        termination_timeout : float, default 5
+            The time to wait after sending a SIGTERM to a subprocess and its descendants
+            before sending a SIGKILL.
+        """
+        pids = [v.process.pid for v in self.commands.values() if v.process is not None]
         kill_processes_and_descendants(
             pids,
             termination_timeout,
         )
 
     def _handle_sigint(self, signum, frame):
-        self.kill()
+        self.sync_kill()
 
     async def _async_handle_sigint(self):
-        pids = [v.process.pid for v in self.commands.values()]
-        await async_kill_processes_and_descendants(pids, 5)
+        await self.kill()
 
 
 class CommandManager(object):
@@ -302,6 +312,20 @@ class CommandManager(object):
                     "within %s seconds." % (self.process.pid, command_string, timeout)
                 )
 
+    def sync_wait(self):
+        """
+        Wait for the subprocess to finish synchronously.
+
+        You can only call `sync_wait` if `run` has already been called.
+        """
+
+        if not self.run_called:
+            raise RuntimeError("No command run yet to wait for...")
+
+        self.process.wait()
+        self.stdout_thread.join()
+        self.stderr_thread.join()
+
     def run(self, show_output: bool = False, wait: bool = True) -> int:
         """
         Run the subprocess synchronously. This can only be called once.
@@ -316,8 +340,7 @@ class CommandManager(object):
         wait : bool, default True
             Wait for the process to finish before returning.
             If false, the process will run in the background. You can then wait on
-            the process (using `wait`) or kill it (using `kill`).
-            Log forwarding threads `stdout_thread` and `stderr_thread` should be joined.
+            the process (using `sync_wait`) or kill it (using `sync_kill`).
         """
 
         if not self.run_called:
@@ -538,6 +561,26 @@ class CommandManager(object):
 
         if self.process is not None:
             kill_process_and_descendants(self.process.pid, termination_timeout)
+        else:
+            print("No process to kill.")
+
+    def sync_kill(self, termination_timeout: float = 5):
+        """
+        Kill the subprocess and its descendants synchronously.
+
+        Parameters
+        ----------
+        termination_timeout : float, default 5
+            The time to wait after sending a SIGTERM to the process and its descendants
+            before sending a SIGKILL.
+        """
+
+        if self.process is not None:
+            send_signals(self.process.pid, "-TERM")
+
+            time.sleep(termination_timeout)
+
+            send_signals(self.process.pid, "-KILL")
         else:
             print("No process to kill.")
 
