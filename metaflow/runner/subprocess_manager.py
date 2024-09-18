@@ -14,11 +14,15 @@ def send_signals(pid, signal):
     # TODO: there's a race condition that new descendants might
     # spawn b/w the invocations of 'pkill' and 'kill'.
     # Needs to be fixed in future.
-    try:
-        subprocess.call(["pkill", signal, "-P", str(pid)])
-        subprocess.check_call(["kill", signal, str(pid)])
-    except subprocess.CalledProcessError:
-        pass
+    retcode = subprocess.call(["pkill", signal, "-P", str(pid)])
+    # 2: Invalid options
+    # 3: No processes matched
+    if retcode == 2 or retcode == 3:
+        print(f"'pkill {signal} -P {pid}' failed with return code: {retcode}.")
+
+    retcode = subprocess.call(["kill", signal, str(pid)])
+    if retcode != 0:
+        print(f"'kill {signal} {pid}' failed with return code: {retcode}.")
 
 
 def kill_process_and_descendants(pid, termination_timeout):
