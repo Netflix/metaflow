@@ -13,16 +13,16 @@ class SpinParserValidator(object):
         artifacts=None,
         artifacts_module=None,
         foreach_index=None,
-        foreach_var=None,
+        foreach_value=None,
     ):
         self.ctx = ctx
         self.step_name = step_name
         self.run_id = run_id
         self.ancestor_tasks = ancestor_tasks
-        self.artifacts = artifacts
+        self.artifacts = artifacts if artifacts else []
         self.artifacts_module = artifacts_module
-        self.foreach_index = foreach_index
-        self.foreach_var = foreach_var
+        self._foreach_index = foreach_index
+        self._foreach_value = foreach_value
         self._task = None
         self._previous_steps = None
         self._graph_info = None
@@ -31,6 +31,19 @@ class SpinParserValidator(object):
         self._parsed_ancestor_tasks = None
         self._required_ancestor_tasks = None
         self._previous_steps_task = None
+
+    @property
+    def foreach_var(self):
+        return self.foreach_stack[-1].var
+
+    @property
+    def foreach_index(self):
+        return self._foreach_index
+
+    @property
+    def foreach_value(self):
+        # TODO: Generate the foreach_index corresponding to this value
+        return self._foreach_value
 
     @property
     def task(self):
@@ -189,11 +202,11 @@ class SpinParserValidator(object):
             )
             if cur_foreach_step_name == self.step_name:
                 if cur_foreach_step_name in self.parsed_ancestor_tasks:
-                    if self.foreach_var:
+                    if self.foreach_value:
                         raise CommandException(
                             f"*`{self.step_name}`* is the start of a new for-each loop and you cannot provide "
                             f"*`{self.step_name}`* as an ancestor task for itself. You have provided "
-                            f"the foreach variable *`{self.foreach_var}`* for the foreach loop variable "
+                            f"the foreach variable *`{self.foreach_value}`* for the foreach loop variable "
                             f"*`{cur_foreach_step_var}`* already."
                         )
                     raise CommandException(
@@ -229,8 +242,6 @@ class SpinParserValidator(object):
         # Reverse the required ancestor tasks since we will always iterate from the oldest ancestor
         required_ancestor_tasks = required_ancestor_tasks[::-1]
         self._display_required_params(required_ancestor_tasks)
-        print(required_ancestor_tasks)
-        print(self.parsed_ancestor_tasks)
         return required_ancestor_tasks
 
     def _display_required_params(self, required_ancestor_tasks):
@@ -246,9 +257,9 @@ class SpinParserValidator(object):
                 indent=True,
             )
         if self.is_linear_foreach:
-            if self.foreach_var:
+            if self.foreach_value:
                 self.ctx.obj.echo(
-                    f"Using value *`{self.foreach_var}`* corresponding to the foreach variable "
+                    f"Using value *`{self.foreach_value}`* corresponding to the foreach variable "
                     f"*`{self.foreach_step_var}`* for *{self.step_name}*.",
                     indent=True,
                 )
@@ -281,7 +292,7 @@ class SpinParserValidator(object):
         # If the spin step is the start of a new for-each loop, we need to provide either the foreach_index or the
         # foreach_var corresponding to the foreach variable. Raise an error if neither is provided.
         if (
-            self.foreach_var is None
+            self.foreach_value is None
             and self.foreach_index is None
             and self.is_linear_foreach
         ):
@@ -290,7 +301,7 @@ class SpinParserValidator(object):
                 f" or the *`foreach_var`* corresponding to the foreach variable *`{self.foreach_step_var}`*."
             )
 
-        if not self.is_linear_foreach and (self.foreach_var or self.foreach_index):
+        if not self.is_linear_foreach and (self.foreach_value or self.foreach_index):
             raise CommandException(
                 f"Cannot provide *`foreach_index`* or *`foreach_var`* for *{self.step_name}*. "
                 f"Only steps that are the start of a new for-each loop can have a *`foreach_index`* or *`foreach_var`*."
@@ -300,8 +311,6 @@ class SpinParserValidator(object):
         # since we can directly fetch the input artifacts from the task_id
         # Only applicable for steps that are not join steps
         if self.step_type != "join":
-            print("I am here")
-            print(self.previous_steps)
             # It is not a join step, so it will have at most one previous step
             prev_step_name = self.previous_steps[0]
             if prev_step_name in self.parsed_ancestor_tasks:
@@ -322,9 +331,15 @@ class SpinParserValidator(object):
                     ]
                     from metaflow import Task
 
-                    self._previous_steps_task = Task(
-                        f"{self.flow_name}/{self.run_id}/{prev_step_name}/{task_val}"
-                    )
+                    try:
+                        self._previous_steps_task = Task(
+                            f"{self.flow_name}/{self.run_id}/{prev_step_name}/{task_val}"
+                        )
+                    except Exception as e:
+                        raise CommandException(
+                            f"Task with task_id *`{task_val}`* for *`{prev_step_name}`* not found for flow "
+                            f"*`{self.flow_name}`* and run *`{self.run_id}`*."
+                        )
                     return
 
         # Verify that all the required ancestor tasks are provided

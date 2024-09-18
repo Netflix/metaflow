@@ -871,7 +871,6 @@ class NativeRuntime(object):
     def _launch_workers(self):
         while self._run_queue and self._active_tasks[0] < self._max_workers:
             step, task_kwargs = self._queue_pop()
-            print("step", step, "task_kwargs", task_kwargs)
             # Initialize the task (which can be expensive using remote datastores)
             # before launching the worker so that cost is amortized over time, instead
             # of doing it during _queue_push.

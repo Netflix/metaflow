@@ -382,15 +382,24 @@ class MetaflowTask(object):
         step_datastore=None,
         join_inputs_datastore=None,
     ):
-        step_func = getattr(self.flow, step_name)
+        step_func = getattr(self.flow, spin_parser_validator.step_name)
         decorators = step_func.decorators
 
         # initialize output datastore
         output = self.flow_datastore.get_task_datastore(
-            run_id, step_name, task_id, attempt=retry_count, mode="w"
+            new_run_id, spin_parser_validator.step_name, new_task_id, 0, mode="w"
         )
 
         output.init_task()
+
+        # How we access the input and index attributes depends on the execution context.
+        # If spin is set to True, we short-circuit attribute access to getatttr directly
+        # Also set the other attributes that are needed for the task to execute
+        self.flow._spin = True
+        self.flow._current_step = spin_parser_validator.step_name
+        self.flow._success = False
+        self.flow._task_ok = None
+        self.flow._exception = None
 
         if spin_parser_validator.step_type == "join":
             # Set inputs
@@ -398,6 +407,9 @@ class MetaflowTask(object):
         else:
             # Set inputs
             self.flow._set_datastore(step_datastore)
+            if step_datastore.is_foreach_step:
+                setattr(self.flow, "_spin_input", step_datastore.input)
+                setattr(self.flow, "_spin_index", step_datastore.index)
 
         for deco in decorators:
             deco.task_pre_step(
@@ -429,7 +441,7 @@ class MetaflowTask(object):
                 self.ubf_context,
             )
         try:
-            if join_type:
+            if spin_parser_validator.step_type == "join":
                 self._exec_step_function(step_func, join_inputs_datastore)
             else:
                 self._exec_step_function(step_func)
@@ -465,6 +477,10 @@ class MetaflowTask(object):
                 self.flow._exception = MetaflowExceptionWrapper(ex)
                 print("%s failed:" % self.flow, file=sys.stderr)
                 raise
+        finally:
+            # TODO: Persist the output artifacts to local datastore
+            # output.persist(self.flow)
+            pass
 
     def run_step(
         self,

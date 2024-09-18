@@ -44,18 +44,22 @@ class StaticSpinInputsDatastore(SpinDatastore):
 
         input_step = SpinInput(
             self.spin_parser_validator.artifacts["join"][name],
-            self.previous_tasks[name],
+            self.get_all_previous_tasks[name],
         )
         setattr(self, name, input_step)
         return input_step
 
+    def __iter__(self):
+        for prev_step_name in self.previous_steps:
+            yield self[prev_step_name]
+
     @property
-    def previous_tasks(self):
+    def get_all_previous_tasks(self):
         if self._previous_tasks:
             return self._previous_tasks
 
         for prev_step_name in self.previous_steps:
-            previous_task = self.previous_tasks(prev_step_name)
+            previous_task = self.get_all_previous_tasks(prev_step_name)
             self._previous_tasks[prev_step_name] = previous_task
         return self._previous_tasks
 
@@ -66,22 +70,22 @@ class SpinInputsDatastore(SpinDatastore):
         self._previous_tasks = None
 
     def __getitem__(self, idx):
-        _item_task = self.previous_tasks[idx]
+        _item_task = self.get_all_previous_tasks[idx]
         _item_artifacts = self.spin_parser_validator.artifacts[idx]
         return SpinInput(_item_artifacts, _item_task)
 
     def __iter__(self):
-        for idx in range(len(self.previous_tasks)):
+        for idx in range(len(self.get_all_previous_tasks)):
             yield self[idx]
 
     @property
-    def previous_tasks(self):
+    def get_all_previous_tasks(self):
         if self._previous_tasks:
             return self._previous_tasks
 
         # This a join step for a foreach split, so only has one previous step
         prev_step_name = self.previous_steps[0]
-        self._previous_tasks = self.previous_tasks(prev_step_name)
+        self._previous_tasks = self.get_all_previous_tasks(prev_step_name)
         # Sort the tasks by index
         self._previous_tasks = sorted(self._previous_tasks, key=lambda x: x.index)
         return self._previous_tasks

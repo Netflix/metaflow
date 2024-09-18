@@ -1,6 +1,7 @@
 import inspect
 import json
 import sys
+import time
 import traceback
 from datetime import datetime
 from functools import wraps
@@ -364,11 +365,11 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
     help="For-each index to use for the spin task",
 )
 @click.option(
-    "--foreach-var",
+    "--foreach-value",
     type=int,
     default=None,
     show_default=True,
-    help="For-each variable to use for the spin task",
+    help="The value of the for-each variable to use for the spin task",
 )
 @click.option(
     "--artifacts",
@@ -402,7 +403,7 @@ def spin(
     run_id=None,
     ancestor_tasks=None,
     foreach_index=None,
-    foreach_var=None,
+    foreach_value=None,
     artifacts=None,
     artifacts_module=None,
     skip_decorators=False,
@@ -421,9 +422,12 @@ def spin(
         artifacts=artifacts,
         artifacts_module=artifacts_module,
         foreach_index=foreach_index,
-        foreach_var=foreach_var,
+        foreach_value=foreach_value,
     )
+    start_time = time.time()
     spin_parser_validator.validate()
+    end_validation_time = time.time()
+    print(f"Validation Time: {end_validation_time - start_time}")
 
     # We now set the parameters and the constants for the flowx
     ctx.obj.flow._set_constants(ctx.obj.graph, kwargs)
@@ -509,10 +513,11 @@ def spin(
         ctx.obj.monitor,  # null monitor
         None,  # no unbounded foreach context
     )
-    print("Task: ", task)
     print("New Run ID: ", new_run_id)
     print("New Task ID: ", new_task_id)
-
+    end_task_init_time = time.time()
+    print(f"Task Init Time: {end_task_init_time - end_validation_time}")
+    print("-" * 100)
     task.run_baby_step(
         spin_parser_validator=spin_parser_validator,
         new_task_id=new_task_id,
@@ -520,6 +525,9 @@ def spin(
         step_datastore=step_datastore,
         join_inputs_datastore=join_inputs_datastore,
     )
+    print("-" * 100)
+    end_time = time.time()
+    print(f"Total Time: {end_time - start_time}")
 
 
 # TODO - move step and init under a separate 'internal' subcommand
