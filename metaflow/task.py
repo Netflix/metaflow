@@ -411,6 +411,20 @@ class MetaflowTask(object):
                 setattr(self.flow, "_spin_input", step_datastore.input)
                 setattr(self.flow, "_spin_index", step_datastore.index)
 
+        current._set_env(
+            flow=self.flow,
+            run_id=new_run_id,
+            step_name=spin_parser_validator.step_name,
+            task_id=new_task_id,
+            retry_count=0,
+            namespace=resolve_identity(),
+            username=get_username(),
+            metadata_str="%s@%s"
+            % (self.metadata.__class__.TYPE, self.metadata.__class__.INFO),
+            is_running=True,
+        )
+        current._update_env({"is_spin": True})
+
         for deco in decorators:
             deco.task_pre_step(
                 step_name,
