@@ -496,10 +496,8 @@ class ArgoWorkflows(object):
                 type=param_type,
                 description=param.kwargs.get("help"),
                 is_required=is_required,
+                **extra_attrs
             )
-
-            if extra_attrs:
-                parameters[param.name]["extra_attrs"] = extra_attrs
         return parameters
 
     def _process_triggers(self):
