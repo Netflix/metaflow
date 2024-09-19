@@ -4,6 +4,7 @@ import platform
 import re
 import sys
 from hashlib import sha1
+from time import sleep
 
 from metaflow import JSONType, Run, current, decorators, parameters
 from metaflow._vendor import click
@@ -957,6 +958,31 @@ def list_workflow_templates(obj, all=None):
     templates = ArgoWorkflows.list_templates(obj.flow.name, all)
     for template_name in templates:
         obj.echo_always(template_name)
+
+
+# Internal CLI command to run a heartbeat daemon in an Argo Workflows Daemon container.
+@argo_workflows.command(hidden=True, help="start heartbeat process for a run")
+@click.option("--run_id", required=True)
+@click.option(
+    "--tag",
+    "tags",
+    multiple=True,
+    default=None,
+    help="Annotate all objects produced by Argo Workflows runs "
+    "with the given tag. You can specify this option multiple "
+    "times to attach multiple tags.",
+)
+@click.pass_obj
+def heartbeat(obj, run_id, tags=None):
+    # Try to register a run in case the start task has not taken care of it yet.
+    obj.metadata.register_run_id(run_id, tags)
+    # Start run heartbeat
+    obj.metadata.start_run_heartbeat(obj.flow.name, run_id)
+    # Keepalive loop
+    while True:
+        # Do not pollute daemon logs with anything unnecessary,
+        # as they might be extremely long running.
+        sleep(10)
 
 
 def validate_run_id(

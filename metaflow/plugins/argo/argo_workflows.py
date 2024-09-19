@@ -2522,10 +2522,29 @@ class ArgoWorkflows(object):
         # Use all the affordances available to _parameters task
         executable = self.environment.executable("_parameters")
         run_id = "argo-{{workflow.name}}"
-        entrypoint = [executable, "-m metaflow.plugins.argo.daemon"]
-        heartbeat_cmds = "{entrypoint} --flow_name {flow_name} --run_id {run_id} {tags} heartbeat".format(
+        script_name = os.path.basename(sys.argv[0])
+        entrypoint = [executable, script_name]
+        # FlowDecorators can define their own top-level options. These might affect run level information
+        # so it is important to pass these to the heartbeat process as well, as it might be the first task to register a run.
+        top_opts_dict = {}
+        for deco in flow_decorators(self.flow):
+            top_opts_dict.update(deco.get_top_level_options())
+
+        top_level = list(dict_to_cli_options(top_opts_dict)) + [
+            "--quiet",
+            "--metadata=%s" % self.metadata.TYPE,
+            "--environment=%s" % self.environment.TYPE,
+            "--datastore=%s" % self.flow_datastore.TYPE,
+            "--datastore-root=%s" % self.flow_datastore.datastore_root,
+            "--event-logger=%s" % self.event_logger.TYPE,
+            "--monitor=%s" % self.monitor.TYPE,
+            "--no-pylint",
+            "--with=argo_workflows_internal:auto-emit-argo-events=%i"
+            % self.auto_emit_argo_events,
+        ]
+        heartbeat_cmds = "{entrypoint} {top_level} argo-workflows heartbeat --run_id {run_id} {tags}".format(
             entrypoint=" ".join(entrypoint),
-            flow_name=self.flow.name,
+            top_level=" ".join(top_level) if top_level else "",
             run_id=run_id,
             tags=" ".join(["--tag %s" % t for t in self.tags]) if self.tags else "",
         )
@@ -2576,12 +2595,16 @@ class ArgoWorkflows(object):
             "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
             "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
             "METAFLOW_USER": "argo-workflows",
+            "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
+            "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
             "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
             "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
+            "METAFLOW_CARD_S3ROOT": CARD_S3ROOT,
             "METAFLOW_KUBERNETES_WORKLOAD": 1,
+            "METAFLOW_KUBERNETES_FETCH_EC2_METADATA": KUBERNETES_FETCH_EC2_METADATA,
             "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
             "METAFLOW_OWNER": self.username,
-            "METAFLOW_PRODUCTION_TOKEN": self.production_token,
+            "METAFLOW_PRODUCTION_TOKEN": self.production_token,  # Used in identity resolving. This affects system tags.
         }
         # support Metaflow sandboxes
         env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
