@@ -197,8 +197,8 @@ def get_version(public=False):
         # Update the package information about reported version for the extension
         update_package_info(
             package_name=pkg_name,
-            user_visible_name=ext_name,
-            reported_version=ext_version,
+            extension_name=ext_name,
+            package_version=ext_version,
         )
         ext_versions.append("%s(%s)" % (ext_name, ext_version))
 
