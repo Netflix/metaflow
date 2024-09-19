@@ -2517,12 +2517,29 @@ class ArgoWorkflows(object):
         run_id = "argo-{{workflow.name}}"
         script_name = os.path.basename(sys.argv[0])
         entrypoint = [executable, script_name]
-        heartbeat_cmds = (
-            "{entrypoint} argo-workflows heartbeat --run_id {run_id} {tags}".format(
-                entrypoint=" ".join(entrypoint),
-                run_id=run_id,
-                tags=" ".join(["--tag %s" % t for t in self.tags]) if self.tags else "",
-            )
+        # FlowDecorators can define their own top-level options. These might affect run level information
+        # so it is important to pass these to the heartbeat process as well, as it might be the first task to register a run.
+        top_opts_dict = {}
+        for deco in flow_decorators(self.flow):
+            top_opts_dict.update(deco.get_top_level_options())
+
+        top_level = list(dict_to_cli_options(top_opts_dict)) + [
+            "--quiet",
+            "--metadata=%s" % self.metadata.TYPE,
+            "--environment=%s" % self.environment.TYPE,
+            "--datastore=%s" % self.flow_datastore.TYPE,
+            "--datastore-root=%s" % self.flow_datastore.datastore_root,
+            "--event-logger=%s" % self.event_logger.TYPE,
+            "--monitor=%s" % self.monitor.TYPE,
+            "--no-pylint",
+            "--with=argo_workflows_internal:auto-emit-argo-events=%i"
+            % self.auto_emit_argo_events,
+        ]
+        heartbeat_cmds = "{entrypoint} {top_level} argo-workflows heartbeat --run_id {run_id} {tags}".format(
+            entrypoint=" ".join(entrypoint),
+            top_level=" ".join(top_level) if top_level else "",
+            run_id=run_id,
+            tags=" ".join(["--tag %s" % t for t in self.tags]) if self.tags else "",
         )
 
         # TODO: we do not really need MFLOG logging for the daemon at the moment, but might be good for the future.
