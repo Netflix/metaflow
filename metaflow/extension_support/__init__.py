@@ -139,8 +139,8 @@ def dump_module_info(all_packages=None, pkgs_per_extension_point=None):
             "meta_module": v["meta_module"],
             "files": v["files"],
             "version": v["version"],
-            "reported_version": v.get("reported_version", "<unk>"),
-            "user_visible_name": v.get("user_visible_name", "<unk>"),
+            "package_version": v.get("package_version", "<unk>"),
+            "extension_name": v.get("extension_name", "<unk>"),
         }
     return "ext_info", [sanitized_all_packages, pkgs_per_extension_point]
 
@@ -160,9 +160,9 @@ def extension_info(packages=None):
     return {
         "installed": {
             k: {
-                "version": v["version"],
-                "reported_version": v.get("reported_version", "<unk>"),
-                "user_visible_name": v.get("user_visible_name", "<unk>"),
+                "dist_version": v["version"],
+                "package_version": v.get("package_version", "<unk>"),
+                "extension_name": v.get("extension_name", "<unk>"),
             }
             for k, v in packages.items()
         },
