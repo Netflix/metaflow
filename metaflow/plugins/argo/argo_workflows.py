@@ -2515,12 +2515,14 @@ class ArgoWorkflows(object):
         # Use all the affordances available to _parameters task
         executable = self.environment.executable("_parameters")
         run_id = "argo-{{workflow.name}}"
-        entrypoint = [executable, "-m metaflow.plugins.argo.daemon"]
-        heartbeat_cmds = "{entrypoint} --flow_name {flow_name} --run_id {run_id} {tags} heartbeat".format(
-            entrypoint=" ".join(entrypoint),
-            flow_name=self.flow.name,
-            run_id=run_id,
-            tags=" ".join(["--tag %s" % t for t in self.tags]) if self.tags else "",
+        script_name = os.path.basename(sys.argv[0])
+        entrypoint = [executable, script_name]
+        heartbeat_cmds = (
+            "{entrypoint} argo-workflows heartbeat --run_id {run_id} {tags}".format(
+                entrypoint=" ".join(entrypoint),
+                run_id=run_id,
+                tags=" ".join(["--tag %s" % t for t in self.tags]) if self.tags else "",
+            )
         )
 
         # TODO: we do not really need MFLOG logging for the daemon at the moment, but might be good for the future.
@@ -2569,12 +2571,15 @@ class ArgoWorkflows(object):
             "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
             "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
             "METAFLOW_USER": "argo-workflows",
+            "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
+            "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
             "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
             "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
+            "METAFLOW_CARD_S3ROOT": CARD_S3ROOT,
             "METAFLOW_KUBERNETES_WORKLOAD": 1,
+            "METAFLOW_KUBERNETES_FETCH_EC2_METADATA": KUBERNETES_FETCH_EC2_METADATA,
             "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
             "METAFLOW_OWNER": self.username,
-            "METAFLOW_PRODUCTION_TOKEN": self.production_token,
         }
         # support Metaflow sandboxes
         env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
