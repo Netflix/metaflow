@@ -455,22 +455,19 @@ class ArgoWorkflows(object):
                 )
             seen.add(norm)
 
-            if param.kwargs.get("type") == JSONType or isinstance(
-                param.kwargs.get("type"), FilePathClass
-            ):
-                # Special-case this to avoid touching core
-                param_type = str(param.kwargs.get("type").name)
-            else:
-                param_type = str(param.kwargs.get("type").__name__)
-
             extra_attrs = {}
-            if isinstance(param.kwargs.get("type"), FilePathClass):
+            if param.kwargs.get("type") == JSONType:
+                param_type = str(param.kwargs.get("type").name)
+            elif isinstance(param.kwargs.get("type"), FilePathClass):
+                param_type = str(param.kwargs.get("type").name)
                 extra_attrs["is_text"] = getattr(
                     param.kwargs.get("type"), "_is_text", True
                 )
                 extra_attrs["encoding"] = getattr(
                     param.kwargs.get("type"), "_encoding", "utf-8"
                 )
+            else:
+                param_type = str(param.kwargs.get("type").__name__)
 
             is_required = param.kwargs.get("required", False)
             # Throw an exception if a schedule is set for a flow with required
