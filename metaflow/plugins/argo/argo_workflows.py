@@ -2597,7 +2597,7 @@ class ArgoWorkflows(object):
             "METAFLOW_KUBERNETES_FETCH_EC2_METADATA": KUBERNETES_FETCH_EC2_METADATA,
             "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
             "METAFLOW_OWNER": self.username,
-            "METAFLOW_PRODUCTION_TOKEN": self.production_token,  # Important for identity resolving as this affecs system tags.
+            "METAFLOW_PRODUCTION_TOKEN": self.production_token,  # Used in identity resolving. This affects system tags.
         }
         # support Metaflow sandboxes
         env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
