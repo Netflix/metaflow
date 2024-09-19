@@ -7,12 +7,11 @@ import sys
 from collections import defaultdict
 from hashlib import sha1
 from math import inf
-from typing import List, Tuple
 
 from metaflow import JSONType, current
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
-from metaflow.graph import DAGNode, FlowGraph
+from metaflow.graph import FlowGraph
 from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT,
@@ -41,7 +40,6 @@ from metaflow.metaflow_config import (
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
-    KUBERNETES_NODE_SELECTOR,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     KUBERNETES_SECRETS,
     S3_ENDPOINT_URL,
@@ -172,10 +170,20 @@ class ArgoWorkflows(object):
 
         self.kubernetes_labels = self._get_kubernetes_labels()
         self._workflow_template = self._compile_workflow_template()
+        self._cron_workflow = self._compile_cron_workflow()
         self._sensor = self._compile_sensor()
 
     def __str__(self):
         return str(self._workflow_template)
+
+    def get_all_entities(self):
+        return [self._workflow_template, self._cron_workflow, self._sensor]
+
+    def get_cron_workflow(self):
+        return self._cron_workflow
+
+    def get_event_sensor(self):
+        return self._sensor
 
     def deploy(self):
         try:
@@ -307,7 +315,7 @@ class ArgoWorkflows(object):
             try:
                 # Check that the workflow was deployed through Metaflow
                 workflow_template["metadata"]["annotations"]["metaflow/owner"]
-            except KeyError as e:
+            except KeyError:
                 raise ArgoWorkflowsException(
                     "An existing non-metaflow workflow with the same name as "
                     "*%s* already exists in Argo Workflows. \nPlease modify the "
@@ -345,9 +353,7 @@ class ArgoWorkflows(object):
     def schedule(self):
         try:
             argo_client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
-            argo_client.schedule_workflow_template(
-                self.name, self._schedule, self._timezone
-            )
+            argo_client.schedule_workflow_template(self.name, self._cron_workflow)
             # Register sensor.
             # Metaflow will overwrite any existing sensor.
             sensor_name = ArgoWorkflows._sensor_name(self.name)
@@ -408,7 +414,7 @@ class ArgoWorkflows(object):
                         "metaflow/production_token"
                     ],
                 )
-            except KeyError as e:
+            except KeyError:
                 raise ArgoWorkflowsException(
                     "An existing non-metaflow workflow with the same name as "
                     "*%s* already exists in Argo Workflows. \nPlease modify the "
@@ -2652,6 +2658,19 @@ class ArgoWorkflows(object):
             )
         )
 
+    def _compile_cron_workflow(self):
+        return (
+            CronWorkflow()
+            .metadata(ObjectMeta().name(self.name))
+            .spec(
+                CronWorkflowSpec()
+                .suspend(self._schedule is None)
+                .schedule(self._schedule)
+                .timezone(self._timezone)
+                .workflow_template_ref_name(self.name)
+            )
+        )
+
     def _compile_sensor(self):
         # This method compiles a Metaflow @trigger decorator into Argo Events Sensor.
         #
@@ -2751,8 +2770,6 @@ class ArgoWorkflows(object):
                 "sdk (https://pypi.org/project/kubernetes/) first."
             )
 
-        labels = {"app.kubernetes.io/part-of": "metaflow"}
-
         annotations = {
             "metaflow/production_token": self.production_token,
             "metaflow/owner": self.username,
@@ -2769,7 +2786,7 @@ class ArgoWorkflows(object):
             )
 
         # Useful to paint the UI
-        trigger_annotations = {
+        {
             "metaflow/triggered_by": json.dumps(
                 [
                     {key: trigger.get(key) for key in ["name", "type"]}
@@ -3036,6 +3053,7 @@ class ArgoWorkflows(object):
 # TODO: Autogenerate them, maybe?
 
 
+
 class WorkflowTemplate(object):
     # https://argoproj.github.io/argo-workflows/fields/#workflowtemplate
 
@@ -3051,6 +3069,62 @@ class WorkflowTemplate(object):
 
     def spec(self, workflow_spec):
         self.payload["spec"] = workflow_spec.to_json()
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
+
+
+class CronWorkflow(object):
+    # https://argo-workflows.readthedocs.io/en/latest/fields/#cronworkflow
+
+    def __init__(self):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+        self.payload["apiVersion"] = "argoproj.io/v1alpha1"
+        self.payload["kind"] = "CronWorkflow"
+
+    def metadata(self, object_meta):
+        self.payload["metadata"] = object_meta.to_json()
+        return self
+
+    def spec(self, cron_workflow_spec):
+        self.payload["spec"] = cron_workflow_spec.to_json()
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
+
+
+class CronWorkflowSpec(object):
+    # https://argo-workflows.readthedocs.io/en/latest/fields/#cronworkflowspec
+
+    def __init__(self):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+
+    def schedule(self, schedule):
+        self.payload["schedule"] = schedule
+        return self
+
+    def timezone(self, timezone):
+        self.payload["timezone"] = timezone
+        return self
+
+    def suspend(self, suspend):
+        self.payload["suspend"] = suspend
+        return self
+
+    def workflow_template_ref_name(self, workflow_template_ref_name):
+        self.payload["workflowSpec"]["workflowTemplateRef"][
+            "name"
+        ] = workflow_template_ref_name
         return self
 
     def to_json(self):
@@ -3259,8 +3333,8 @@ class Metadata(object):
 
 class DaemonTemplate(object):
     def __init__(self, name):
-        tree = lambda: defaultdict(tree)
         self.name = name
+        tree = lambda: defaultdict(tree)
         self.payload = tree()
         self.payload["daemon"] = True
         self.payload["name"] = name
