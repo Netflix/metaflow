@@ -295,6 +295,8 @@ class ArgoClient(object):
                 "suspend": schedule is None,
                 "schedule": schedule,
                 "timezone": timezone,
+                "failedJobsHistoryLimit": 10000,  # default is unfortunately 1
+                "successfulJobsHistoryLimit": 10000,  # default is unfortunately 3
                 "workflowSpec": {"workflowTemplateRef": {"name": name}},
             },
         }
