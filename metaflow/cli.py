@@ -1,18 +1,20 @@
 import inspect
-import os
 import sys
 import traceback
 from datetime import datetime
 from functools import wraps
 
+import metaflow.linters.lint
 import metaflow.tracing as tracing
 from metaflow._vendor import click
 
-from . import decorators, lint, metaflow_version, namespace, parameters, plugins
+from . import decorators, metaflow_version, namespace, parameters, plugins
 from .cli_args import cli_args
-from .datastore import FlowDataStore, TaskDataStore, TaskDataStoreSet
+from .datastore import FlowDataStore, TaskDataStoreSet
 from .exception import CommandException, MetaflowException
 from .graph import FlowGraph
+# factory pattern to support multiple(instantiable, wrappers for) Linters
+from .linters.linter_interface import LinterType, LinterFactory, LinterConfig
 from .metaflow_config import (
     DECOSPECS,
     DEFAULT_DATASTORE,
@@ -21,11 +23,11 @@ from .metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_MONITOR,
     DEFAULT_PACKAGE_SUFFIXES,
+    FLOW_VALIDATORS  # could be 'FLOW_LINTERS', too- they help choose linter type
 )
 from .metaflow_current import current
 from metaflow.system import _system_monitor, _system_logger
 from .metaflow_environment import MetaflowEnvironment
-from .mflog import LOG_SOURCES, mflog
 from .package import MetaflowPackage
 from .plugins import (
     DATASTORES,
@@ -34,7 +36,6 @@ from .plugins import (
     METADATA_PROVIDERS,
     MONITOR_SIDECARS,
 )
-from .pylint_wrapper import PyLint
 from .R import metaflow_r_version, use_r
 from .runtime import NativeRuntime
 from .tagging_util import validate_tags
@@ -145,16 +146,18 @@ def cli(ctx):
     pass
 
 
-@cli.command(help="Check that the flow is valid (default).")
+# D.R.Y and config-drive it, because there may be 2/multiple Linters
+@cli.command(help=str(FLOW_VALIDATORS["validators"][FLOW_VALIDATORS["DEFAULT"]]["help"]["command"]))
 @click.option(
     "--warnings/--no-warnings",
     default=False,
     show_default=True,
-    help="Show all Pylint warnings, not just errors.",
+    help=FLOW_VALIDATORS["validators"][FLOW_VALIDATORS["DEFAULT"]]["help"]["option"],
 )
 @click.pass_obj
 def check(obj, warnings=False):
-    _check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint, warnings=warnings)
+    # is linter being used- we must get names correct/meaningful (+ type annotations)
+    _check(obj.graph, obj.flow, obj.environment, use_linter=obj.use_linter, warnings=warnings)
     fname = inspect.getfile(obj.flow.__class__)
     echo(
         "\n*'{cmd} show'* shows a description of this flow.\n"
@@ -344,8 +347,8 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
     multiple=True,
     default=None,
     help="Annotate this run with the given tag. You can specify "
-    "this option multiple times to attach multiple tags in "
-    "the task.",
+         "this option multiple times to attach multiple tags in "
+         "the task.",
 )
 @click.option(
     "--namespace",
@@ -818,7 +821,7 @@ def before_run(obj, tags, decospecs):
         decorators._attach_decorators(obj.flow, all_decospecs)
         obj.graph = FlowGraph(obj.flow.__class__)
 
-    obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
+    obj.check(obj.graph, obj.flow, obj.environment, linter=obj.linter)
     # obj.environment.init_environment(obj.logger)
 
     decorators._init_step_decorators(
@@ -891,10 +894,11 @@ def version(obj):
     callback=config_merge_cb,
 )
 @click.option(
-    "--pylint/--no-pylint",
+    "--linter/--no-linter",
+    "use_linter",
     default=True,
     show_default=True,
-    help="Run Pylint on the flow if pylint is installed.",
+    help="Run a linter on the flow if one is installed.",
 )
 @click.option(
     "--event-logger",
@@ -920,7 +924,7 @@ def start(
     datastore_root=None,
     decospecs=None,
     package_suffixes=None,
-    pylint=None,
+    use_linter=None,
     event_logger=None,
     monitor=None,
     **deco_options
@@ -947,7 +951,7 @@ def start(
     ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
     ctx.obj.logger = logger
     ctx.obj.check = _check
-    ctx.obj.pylint = pylint
+    ctx.obj.use_linter = use_linter
     ctx.obj.top_cli = cli
     ctx.obj.package_suffixes = package_suffixes.split(",")
     ctx.obj.reconstruct_cli = _reconstruct_cli
@@ -1060,41 +1064,26 @@ def _reconstruct_cli(params):
                     yield str(value)
 
 
-def _check(graph, flow, environment, pylint=True, warnings=False, **kwargs):
-    echo("Validating your flow...", fg="magenta", bold=False)
-    linter = lint.linter
+def _check(graph, flow, environment, use_linter=True, warnings=False, **kwargs):
+    echo(f'Validating your flow ...', fg="magenta", bold=False)
+    linter = metaflow.linters.lint.linter  # killing ambiguity
     # TODO set linter settings
     linter.run_checks(graph, **kwargs)
     echo("The graph looks good!", fg="green", bold=True, indent=True)
-    if pylint:
-        echo("Running pylint...", fg="magenta", bold=False)
+    if use_linter:  # instantiate Linter/Wrapper from Factory, run its 'lint' method
+        linter_name = FLOW_VALIDATORS["DEFAULT"]
+        echo(f'Linting with {linter_name}...', fg="magenta", bold=False)
         fname = inspect.getfile(flow.__class__)
-        pylint = PyLint(fname)
-        if pylint.has_pylint():
-            pylint_is_happy, pylint_exception_msg = pylint.run(
-                warnings=warnings,
-                pylint_config=environment.pylint_config(),
-                logger=echo_always,
-            )
-
-            if pylint_is_happy:
-                echo("Pylint is happy!", fg="green", bold=True, indent=True)
-            else:
-                echo(
-                    "Pylint couldn't analyze your code.\n\tPylint exception: %s"
-                    % pylint_exception_msg,
-                    fg="red",
-                    bold=True,
-                    indent=True,
-                )
-                echo("Skipping Pylint checks.", fg="red", bold=True, indent=True)
-        else:
-            echo(
-                "Pylint not found, so extra checks are disabled.",
-                fg="green",
-                indent=True,
-                bold=False,
-            )
+        linter_choice = LinterType.from_string(linter_name.lower())
+        linter_config = LinterConfig.from_enum(environment, linter_choice)
+        LinterFactory.get_linter(linter_choice).lint(
+            fname,
+            warnings=warnings,
+            lint_config=linter_config,
+            logger=echo_always,
+        )
+    else:
+        echo('No Linter supplied. Skipping lints.', fg="yellow")
 
 
 def print_metaflow_exception(ex):

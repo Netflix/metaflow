@@ -15,7 +15,7 @@
                 "--datastore=local",
                 "--environment=local",
                 "--event-logger=nullSidecarLogger",
-                "--no-pylint",
+                "--no-linter",
                 "--quiet"
             ],
             "run_options": [
@@ -48,7 +48,7 @@
                 "--datastore=local",
                 "--environment=local",
                 "--event-logger=nullSidecarLogger",
-                "--no-pylint",
+                "--no-linter",
                 "--quiet"
             ],
             "run_options": [
@@ -79,7 +79,7 @@
                 "--datastore=azure",
                 "--environment=local",
                 "--event-logger=nullSidecarLogger",
-                "--no-pylint",
+                "--no-linter",
                 "--quiet"
             ],
             "run_options": [
@@ -110,7 +110,7 @@
                 "--datastore=local",
                 "--environment=local",
                 "--event-logger=nullSidecarLogger",
-                "--no-pylint",
+                "--no-linter",
                 "--quiet"
             ],
             "run_options": [
@@ -132,7 +132,7 @@
             "python": "python3",
             "top_options": [
                 "--event-logger=nullSidecarLogger",
-                "--no-pylint",
+                "--no-linter",
                 "--quiet",
                 "--with=batch",
                 "--datastore=s3"
@@ -170,7 +170,7 @@
             "python": "python3",
             "top_options": [
                 "--event-logger=nullSidecarLogger",
-                "--no-pylint",
+                "--no-linter",
                 "--quiet",
                 "--with=kubernetes:memory=256,disk=1024",
                 "--datastore=s3"

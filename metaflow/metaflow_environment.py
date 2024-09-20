@@ -53,6 +53,13 @@ class MetaflowEnvironment(object):
         """
         return []
 
+    # TODO: this must be unified as '1 linter config' for pylint, ruff
+    def ruff_config(self):
+        """
+        Environment may override ruff config.
+        """
+        return []
+
     def pylint_config(self):
         """
         Environment may override pylint config.

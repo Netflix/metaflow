@@ -80,7 +80,7 @@ def cli():
 @click.pass_obj
 def argo_workflows(obj, name=None):
     check_python_version(obj)
-    obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
+    obj.check(obj.graph, obj.flow, obj.environment, use_linter=obj.use_linter)
     (
         obj.workflow_name,
         obj.token_prefix,

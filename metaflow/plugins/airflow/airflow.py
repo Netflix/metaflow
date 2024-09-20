@@ -552,7 +552,7 @@ class Airflow(object):
             "--datastore-root=%s" % self.flow_datastore.datastore_root,
             "--event-logger=%s" % self.event_logger.TYPE,
             "--monitor=%s" % self.monitor.TYPE,
-            "--no-pylint",
+            "--no-lint",
             "--with=airflow_internal",
         ]
 

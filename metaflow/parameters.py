@@ -415,7 +415,7 @@ class Parameter(object):
             self.kwargs.get("default", ""), strtype
         )
 
-    # this is needed to appease Pylint for JSONType'd parameters,
+    # this is needed to appease linters esp. Pylint for JSONType'd parameters,
     # which may do self.param['foobar']
     def __getitem__(self, x):
         pass

@@ -1431,7 +1431,7 @@ class CLIArgs(object):
             "metadata": self.task.metadata_type,
             "environment": self.task.environment_type,
             "datastore": self.task.datastore_type,
-            "pylint": False,
+            "use_linter": False,
             "event-logger": self.task.event_logger_type,
             "monitor": self.task.monitor_type,
             "datastore-root": self.task.datastore_sysroot,

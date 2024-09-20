@@ -42,7 +42,22 @@ DEFAULT_AZURE_CLIENT_PROVIDER = from_conf(
 DEFAULT_GCP_CLIENT_PROVIDER = from_conf("DEFAULT_GCP_CLIENT_PROVIDER", "gcp-default")
 DEFAULT_SECRETS_BACKEND_TYPE = from_conf("DEFAULT_SECRETS_BACKEND_TYPE")
 DEFAULT_SECRETS_ROLE = from_conf("DEFAULT_SECRETS_ROLE")
-
+# configuration for Linter/Validators
+FLOW_VALIDATORS = from_conf("FLOW_VALIDATORS", {
+    "DEFAULT": "ruff", "validators": {
+        "pylint": {
+            "help": {
+                "command": "Check that the flow is valid (pylint).",
+                "option": "Show all Pylint warnings, not just errors."
+            }
+        }, "ruff": {
+            "help": {
+                "command": "Check that the flow is valid (ruff).",
+                "option": "Show all Ruff warnings, not just errors."
+            }
+        }
+    }
+})
 ###
 # User configuration
 ###

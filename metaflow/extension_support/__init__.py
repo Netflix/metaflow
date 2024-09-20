@@ -55,7 +55,7 @@ from metaflow.info_file import read_info_file
 #       - package_mfext_package: allows the packaging of a single extension
 #       - package_mfext_all: packages all extensions
 #
-# The get_aliases_modules is used by Pylint to ignore some of the errors arising from
+# The get_aliases_modules is used by Linters(esp Pylint) to ignore some of the errors arising from
 # aliasing packages
 
 __all__ = (
