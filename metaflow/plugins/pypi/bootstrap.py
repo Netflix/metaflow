@@ -89,7 +89,7 @@ if __name__ == "__main__":
         # TODO: micromamba installation can be pawned off to micromamba.py
         f"""set -e;
         if ! command -v micromamba >/dev/null 2>&1; then
-            mkdir micromamba;
+            mkdir -p micromamba;
             python -c "import requests, bz2, sys; data = requests.get('https://micro.mamba.pm/api/micromamba/{architecture}/1.5.7').content; sys.stdout.buffer.write(bz2.decompress(data))" | tar -xv -C $(pwd)/micromamba bin/micromamba --strip-components 1;
             export PATH=$PATH:$(pwd)/micromamba;
             if ! command -v micromamba >/dev/null 2>&1; then
