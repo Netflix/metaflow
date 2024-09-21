@@ -195,11 +195,14 @@ def get_version(public=False):
         if ext_version is None:
             ext_version = getattr(extension_module, "__version__", "<unk>")
         # Update the package information about reported version for the extension
-        update_package_info(
-            package_name=pkg_name,
-            extension_name=ext_name,
-            package_version=ext_version,
-        )
+        # (only for the full info which is called at least once -- if we update more
+        # it will error out since we can only update_package_info once)
+        if not public:
+            update_package_info(
+                package_name=pkg_name,
+                extension_name=ext_name,
+                package_version=ext_version,
+            )
         ext_versions.append("%s(%s)" % (ext_name, ext_version))
 
     # We now have all the information about extensions so we can form the final string
