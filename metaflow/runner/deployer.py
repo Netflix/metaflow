@@ -209,7 +209,7 @@ class TriggeredRun(object):
             elif callable(v):
                 setattr(self, k, functools.partial(v, self))
             else:
-                setattr(self.__class__, k, property(fget=lambda _, v=v: v))
+                setattr(self, k, v)
 
     def wait_for_run(self, timeout=None):
         """
@@ -287,7 +287,7 @@ class DeployedFlow(object):
             elif callable(v):
                 setattr(self, k, functools.partial(v, self))
             else:
-                setattr(self.__class__, k, property(fget=lambda _, v=v: v))
+                setattr(self, k, v)
 
 
 class DeployerImpl(object):
