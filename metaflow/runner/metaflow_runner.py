@@ -8,7 +8,7 @@ from typing import Dict, Iterator, Optional, Tuple
 
 from metaflow import Run, metadata
 
-from .utils import handle_timeout
+from .utils import handle_timeout, clear_and_set_os_environ
 from .subprocess_manager import CommandManager, SubprocessManager
 
 
@@ -268,11 +268,21 @@ class Runner(object):
         return self
 
     def __get_executing_run(self, tfp_runner_attribute, command_obj):
+        # When two 'Runner' executions are done sequentially i.e. one after the other
+        # the 2nd run kinda uses the 1st run's previously set metadata and
+        # environment variables.
+
+        # It is thus necessary to set them to correct values before we return
+        # the Run object.
+
         content = handle_timeout(
             tfp_runner_attribute, command_obj, self.file_read_timeout
         )
         content = json.loads(content)
         pathspec = "%s/%s" % (content.get("flow_name"), content.get("run_id"))
+
+        # Set the environment variables to what they were before the run executed.
+        clear_and_set_os_environ(self.old_env)
 
         # Set the correct metadata from the runner_attribute file corresponding to this run.
         metadata_for_flow = content.get("metadata")
