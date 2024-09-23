@@ -667,9 +667,9 @@ class Image(UserComponent):
     def update(
         self,
         image: Union[
-            matplotlib.figure.Figure,
-            matplotlib.axes.Axes,
-            matplotlib.axes._subplots.AxesSubplot,
+            "matplotlib.figure.Figure",
+            "matplotlib.axes.Axes",
+            "matplotlib.axes._subplots.AxesSubplot",
             bytes,
             str,
         ],
