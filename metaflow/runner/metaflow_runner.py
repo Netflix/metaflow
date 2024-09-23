@@ -4,10 +4,9 @@ import sys
 import json
 import tempfile
 
-from subprocess import CalledProcessError
 from typing import Dict, Iterator, Optional, Tuple
 
-from metaflow import Run
+from metaflow import Run, metadata
 
 from .utils import handle_timeout
 from .subprocess_manager import CommandManager, SubprocessManager
@@ -274,6 +273,11 @@ class Runner(object):
         )
         content = json.loads(content)
         pathspec = "%s/%s" % (content.get("flow_name"), content.get("run_id"))
+
+        # Set the correct metadata from the runner_attribute file corresponding to this run.
+        metadata_for_flow = content.get("metadata")
+        metadata(metadata_for_flow)
+
         run_object = Run(pathspec, _namespace_check=False)
         return ExecutingRun(self, command_obj, run_object)
 
