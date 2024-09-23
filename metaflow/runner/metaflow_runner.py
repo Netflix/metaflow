@@ -7,9 +7,9 @@ import tempfile
 from subprocess import CalledProcessError
 from typing import Dict, Iterator, Optional, Tuple
 
-from metaflow import Run, metadata
+from metaflow import Run
 
-from .utils import clear_and_set_os_environ, read_from_file_when_ready
+from .utils import handle_timeout
 from .subprocess_manager import CommandManager, SubprocessManager
 
 
@@ -269,38 +269,13 @@ class Runner(object):
         return self
 
     def __get_executing_run(self, tfp_runner_attribute, command_obj):
-        # When two 'Runner' executions are done sequentially i.e. one after the other
-        # the 2nd run kinda uses the 1st run's previously set metadata and
-        # environment variables.
-
-        # It is thus necessary to set them to correct values before we return
-        # the Run object.
-        try:
-            # Set the environment variables to what they were before the run executed.
-            clear_and_set_os_environ(self.old_env)
-
-            # Set the correct metadata from the runner_attribute file corresponding to this run.
-            content = read_from_file_when_ready(
-                tfp_runner_attribute.name, command_obj, timeout=self.file_read_timeout
-            )
-            content = json.loads(content)
-            run_id = content.get("run_id")
-            flow_name = content.get("flow_name")
-            metadata_for_flow = content.get("metadata")
-            pathspec = "%s/%s" % (flow_name, run_id)
-            metadata(metadata_for_flow)
-            run_object = Run(pathspec, _namespace_check=False)
-            return ExecutingRun(self, command_obj, run_object)
-        except (CalledProcessError, TimeoutError) as e:
-            stdout_log = open(command_obj.log_files["stdout"]).read()
-            stderr_log = open(command_obj.log_files["stderr"]).read()
-            command = " ".join(command_obj.command)
-            error_message = "Error executing: '%s':\n" % command
-            if stdout_log.strip():
-                error_message += "\nStdout:\n%s\n" % stdout_log
-            if stderr_log.strip():
-                error_message += "\nStderr:\n%s\n" % stderr_log
-            raise RuntimeError(error_message) from e
+        content = handle_timeout(
+            tfp_runner_attribute, command_obj, self.file_read_timeout
+        )
+        content = json.loads(content)
+        pathspec = "%s/%s" % (content.get("flow_name"), content.get("run_id"))
+        run_object = Run(pathspec, _namespace_check=False)
+        return ExecutingRun(self, command_obj, run_object)
 
     def run(self, **kwargs) -> ExecutingRun:
         """
