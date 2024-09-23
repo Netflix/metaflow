@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     import metaflow
@@ -14,7 +14,7 @@ class MetaflowCard(object):
     After a task with `@card(type=T, options=S)` finishes executing, Metaflow instantiates
     a subclass `C` of `MetaflowCard` that has its `type` attribute set to `T`, i.e. `C.type=T`.
     The constructor is given the options dictionary `S` that contains arbitrary
-    JSON-encodable data that is passed to the instance, parametrizing the card. The subclass
+    JSON-encodable data that is passed to the instance, parameterizing the card. The subclass
     may override the constructor to capture and process the options.
 
     The subclass needs to implement a `render(task)` method that produces the card
@@ -25,11 +25,6 @@ class MetaflowCard(object):
     type : str
         Card type string. Note that this should be a globally unique name, similar to a
         Python package name, to avoid name clashes between different custom cards.
-
-    Parameters
-    ----------
-    options : Dict
-        JSON-encodable dictionary containing user-definable options for the class.
     """
 
     # RELOAD_POLICY determines whether UIs should
@@ -66,7 +61,27 @@ class MetaflowCard(object):
     # FIXME document runtime_data
     runtime_data = None
 
-    def __init__(self, options={}, components=[], graph=None):
+    def __init__(
+        self,
+        options: Optional[Dict[Any, Any]] = None,
+        components: Optional[List["MetaflowCardComponent"]] = None,
+        graph: Optional[Dict[str, Any]] = None,
+    ):
+        """
+        Card base type.
+
+        Parameters
+        ----------
+        options : Dict[Any, Any], optional, default None
+            Options for the card
+        components : List[MetaflowCardComponent], optional, default None
+            Initial components for this card. Other components can then be added using
+            the `append` call.
+        graph : Dict[str, Any], optional, default None
+            The graph for the current flow. Each item in the dictionary will be keyed
+            by the step's name and the value will contain information about the decorators
+            on the step and various other information about the step.
+        """
         pass
 
     def _get_mustache(self):

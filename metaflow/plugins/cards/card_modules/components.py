@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Union
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, Union
 from .basic import (
     LogComponent,
     ErrorComponent,
@@ -38,6 +38,15 @@ def _warning_with_component(component, msg):
     component._warned_once = True
 
 
+if TYPE_CHECKING:
+    import altair
+    import matplotlib.axes
+    import matplotlib.axes._subplots
+    import matplotlib.figure
+    import PIL
+    import pandas
+
+
 class UserComponent(MetaflowCardComponent):
 
     _warned_once = False
@@ -71,25 +80,36 @@ class Artifact(UserComponent):
     from datetime import datetime
     current.card.append(Artifact({'now': datetime.utcnow()}))
     ```
-
-    Parameters
-    ----------
-    artifact : object
-        Any Python object.
-    name : str, optional
-        Optional label for the object.
-    compressed : bool, default: True
-        Use a truncated representation.
     """
 
     REALTIME_UPDATABLE = True
 
-    def update(self, artifact):
+    def update(self, artifact: Any):
+        """
+        Update the artifact being represented by the `Artifact` component.
+
+        Parameters
+        ----------
+        artifact : Any
+            Artifact to be represented by this component.
+        """
         self._artifact = artifact
 
     def __init__(
         self, artifact: Any, name: Optional[str] = None, compressed: bool = True
     ):
+        """
+        Construct an `Artifact` card component.
+
+        Parameters
+        ----------
+        artifact : Any
+            Any Python object.
+        name : str, optional
+            Optional label for the object.
+        compressed : bool, default: True
+            Use a truncated representation.
+        """
         self._artifact = artifact
         self._name = name
         self._task_to_dict = TaskToDict(only_repr=compressed)
@@ -138,13 +158,6 @@ class Table(UserComponent):
         )
     )
     ```
-
-    Parameters
-    ----------
-    data : List[List[str or MetaflowCardComponent]], optional
-        List (rows) of lists (columns). Each item can be a string or a `MetaflowCardComponent`.
-    headers : List[str], optional
-        Optional header row for the table.
     """
 
     REALTIME_UPDATABLE = True
@@ -163,6 +176,20 @@ class Table(UserComponent):
         headers: Optional[List[str]] = None,
         disable_updates: bool = False,
     ):
+        """
+        Construct a `Table` card component.
+
+        Parameters
+        ----------
+        data : List[List[Union[str, MetaflowCardComponent]]], optional, default None
+            List (rows) of lists (columns). Each item can be a string or a `MetaflowCardComponent`.
+        headers : List[str], optional, default None
+            Optional header row for the table.
+        disable_updates : bool, optional, default False
+            A card can never be updated but the components inside the Table could. If this
+            flag is set to True, even the components within the table will not be
+            updated in real time.
+        """
         data = data or [[]]
         headers = headers or []
         header_bool, data_bool = TableComponent.validate(headers, data)
@@ -179,18 +206,23 @@ class Table(UserComponent):
     @classmethod
     def from_dataframe(
         cls,
-        dataframe=None,
+        dataframe: Optional["pandas.DataFrame"] = None,
         truncate: bool = True,
-    ):
+    ) -> "Table":
         """
         Create a `Table` based on a Pandas dataframe.
 
         Parameters
         ----------
-        dataframe : Optional[pandas.DataFrame]
+        dataframe : pandas.DataFrame, optional, default None
             Pandas dataframe.
-        truncate : bool, default: True
-            Truncate large dataframe instead of showing all rows (default: True).
+        truncate : bool, default True
+            Truncate large dataframe instead of showing all rows
+
+        Returns
+        -------
+        Table
+            Table object.
         """
         task_to_dict = TaskToDict()
         object_type = task_to_dict.object_type(dataframe)
@@ -286,13 +318,6 @@ class Image(UserComponent):
         )
     )
     ```
-
-    Parameters
-    ----------
-    src : bytes
-        The image data in `bytes`.
-    label : str
-        Optional label for the image.
     """
 
     REALTIME_UPDATABLE = True
@@ -376,7 +401,24 @@ class Image(UserComponent):
                     "String %s is invalid base64 string" % src,
                 )
 
-    def __init__(self, src=None, label=None, disable_updates: bool = True):
+    def __init__(
+        self,
+        src: Optional[bytes] = None,
+        label: Optional[str] = None,
+        disable_updates: bool = True,
+    ):
+        """
+        Construct an `Image` card component.
+
+        Parameters
+        ----------
+        src : bytes, optional, default None
+            The image data in `bytes`.
+        label : str, optional, default None
+            Label for the image.
+        disable_updates : bool, default True
+            Disable realtime updates for the image.
+        """
         if disable_updates:
             self.REALTIME_UPDATABLE = False
         self._set_image_src(src, label=label)
@@ -518,8 +560,11 @@ class Image(UserComponent):
 
     @classmethod
     def from_pil_image(
-        cls, pilimage, label: Optional[str] = None, disable_updates: bool = False
-    ):
+        cls,
+        pilimage: "PIL.Image",
+        label: Optional[str] = None,
+        disable_updates: bool = False,
+    ) -> "Image":
         """
         Create an `Image` from a PIL image.
 
@@ -527,8 +572,15 @@ class Image(UserComponent):
         ----------
         pilimage : PIL.Image
             a PIL image object.
-        label : str, optional
+        label : str, optional, default None
             Optional label for the image.
+        disable_updates : bool, default False
+            Disable realtime updates for the image.
+
+        Returns
+        -------
+        Image
+            Image object.
         """
         try:
             parsed_image, error_comp = cls._parse_pil_image(pilimage)
@@ -552,17 +604,31 @@ class Image(UserComponent):
 
     @classmethod
     def from_matplotlib(
-        cls, plot, label: Optional[str] = None, disable_updates: bool = False
-    ):
+        cls,
+        plot: Union[
+            "matplotlib.figure.Figure",
+            "matplotlib.axes.Axes",
+            "matplotlib.axes._subplots.AxesSubplot",
+        ],
+        label: Optional[str] = None,
+        disable_updates: bool = False,
+    ) -> "Image":
         """
         Create an `Image` from a Matplotlib plot.
 
         Parameters
         ----------
-        plot :  matplotlib.figure.Figure or matplotlib.axes.Axes or matplotlib.axes._subplots.AxesSubplot
+        plot : Union[matplotlib.figure.Figure, matplotlib.axes.Axes, matplotlib.axes._subplots.AxesSubplot]
             a PIL axes (plot) object.
-        label : str, optional
+        label : str, optional, default None
             Optional label for the image.
+        disable_updates : bool, default False
+            Disable realtime updates for the image.
+
+        Returns
+        -------
+        Image
+            Image object.
         """
         try:
             parsed_image, error_comp = cls._parse_matplotlib(plot)
@@ -598,16 +664,28 @@ class Image(UserComponent):
             self.render_fail_headline("`Image` Component `src` argument is `None`"), ""
         ).render()
 
-    def update(self, image, label=None):
+    def update(
+        self,
+        image: Union[
+            matplotlib.figure.Figure,
+            matplotlib.axes.Axes,
+            matplotlib.axes._subplots.AxesSubplot,
+            bytes,
+            str,
+        ],
+        label: Optional[str] = None,
+    ):
         """
         Update the image.
 
+        This is not allowed if the image was constructed with `disable_updates=True`.
+
         Parameters
         ----------
-        image : PIL.Image or matplotlib.figure.Figure or matplotlib.axes.Axes or matplotlib.axes._subplots.AxesSubplot or bytes or str
-            The updated image object
-        label : str, optional
-            Optional label for the image.
+        image : Union[matplotlib.figure.Figure, matplotlib.axes.Axes, matplotlib.axes._subplots.AxesSubplot, bytes, str]
+            The updated image object.
+        label : str, optional, default None
+            Label for the image.
         """
         if not self.REALTIME_UPDATABLE:
             msg = (
@@ -623,14 +701,11 @@ class Image(UserComponent):
 
 class Error(UserComponent):
     """
-    This class helps visualize Error's on the `MetaflowCard`. It can help catch and print stack traces to errors that happen in `@step` code.
+    This class helps visualize Error's on the `MetaflowCard`.
+    It can help catch and print stack traces to errors that happen in `@step` code.
 
-    ### Parameters
-    - `exception` (Exception) : The `Exception` to visualize. This value will be `repr`'d before passed down to `MetaflowCard`
-    - `title` (str) : The title that will appear over the visualized  `Exception`.
-
-    ### Usage
-    ```python
+    Example:
+    ```
     @card
     @step
     def my_step(self):
@@ -648,6 +723,17 @@ class Error(UserComponent):
     """
 
     def __init__(self, exception, title=None):
+        """
+        Construct an `Error` card component.
+
+        Parameters
+        ----------
+        exception : Exception
+            The `Exception` to visualize. This value will be `repr`'d
+            before being passed down to `MetaflowCard`
+        title : str, optional, default None
+            The title that will appear over the visualized exception.
+        """
         self._exception = exception
         self._title = title
 
@@ -666,19 +752,32 @@ class Markdown(UserComponent):
         Markdown("# This is a header appended from `@step` code")
     )
     ```
-
-    Parameters
-    ----------
-    text : str
-        Text formatted in Markdown.
     """
 
     REALTIME_UPDATABLE = True
 
-    def update(self, text=None):
+    def update(self, text: Optional[str] = None):
+        """
+        Update the `Markdown` text
+
+        Parameters
+        ----------
+        text : str, optional, default None
+            New text for the `Markdown` component.
+        """
         self._text = text
 
-    def __init__(self, text=None):
+    def __init__(self, text: Optional[str] = None):
+        """
+        Construct a `Markdown` card component.
+
+
+        Parameters
+        ----------
+        text : str, optional, default None
+            Text formatted in Markdown.
+        """
+
         self._text = text
 
     @with_default_component_id
@@ -709,19 +808,6 @@ class ProgressBar(UserComponent):
         progress_bar.update(i, metadata="%s items/s" % i)
 
     ```
-
-    Parameters
-    ----------
-    max : int
-        The maximum value of the progress bar.
-    label : str, optional
-        Optional label for the progress bar.
-    value : int, optional
-        Optional initial value of the progress bar.
-    unit : str, optional
-        Optional unit for the progress bar.
-    metadata : str, optional
-        Optional additional information to show on the progress bar.
     """
 
     type = "progressBar"
@@ -731,18 +817,44 @@ class ProgressBar(UserComponent):
     def __init__(
         self,
         max: int = 100,
-        label: str = None,
+        label: Optional[str] = None,
         value: int = 0,
-        unit: str = None,
-        metadata: str = None,
+        unit: Optional[str] = None,
+        metadata: Optional[str] = None,
     ):
+        """
+        Construct a `ProgressBar` card component.
+
+        Parameters
+        ----------
+        max : int, default 100
+            The maximum value of the progress bar.
+        label : str, optional, default None
+            Optional label for the progress bar.
+        value : int, default 0
+            Optional initial value of the progress bar.
+        unit : str, optional, default None
+            Optional unit for the progress bar.
+        metadata : str, optional, default None
+            Optional additional information to show on the progress bar.
+        """
         self._label = label
         self._max = max
         self._value = value
         self._unit = unit
         self._metadata = metadata
 
-    def update(self, new_value: int, metadata: str = None):
+    def update(self, new_value: int, metadata: Optional[str] = None):
+        """
+        Update the value on the progress bar.
+
+        Parameters
+        ----------
+        new_value : int
+            New value for the progress bar.
+        metadata : str, optional, default None
+            New metadata to show. If None, the previous metadata will be retained.
+        """
         self._value = new_value
         if metadata is not None:
             self._metadata = metadata
@@ -770,19 +882,32 @@ class VegaChart(UserComponent):
 
     REALTIME_UPDATABLE = True
 
-    def __init__(self, spec: dict, show_controls: bool = False):
+    def __init__(
+        self, spec: Union[Dict[Any, Any], "altair.Chart"], show_controls: bool = False
+    ):
+        """
+        Construct a `VegaChart` card component.
+
+        Parameters
+        ----------
+        spec : Union[Dict[Any, Any], altair.Chart]
+            The specification for the chart.
+        show_controls : bool, default False
+            If True, chart controls will be shown.
+        """
         self._spec = spec
         self._show_controls = show_controls
         self._chart_inside_table = False
 
-    def update(self, spec=None):
+    def update(self, spec: Optional[Union[Dict[Any, Any], "altair.Chart"]] = None):
         """
         Update the chart.
 
         Parameters
         ----------
-        spec : dict or altair.Chart
-            The updated chart spec or an altair Chart Object.
+        spec : Union[Dict[Any, Any], altair.Chart], optional, default None
+            The updated chart spec or an altair Chart Object. If None, the chart
+            will not be updated
         """
         _spec = spec
         if self._object_is_altair_chart(spec):
@@ -801,7 +926,20 @@ class VegaChart(UserComponent):
         return True
 
     @classmethod
-    def from_altair_chart(cls, altair_chart):
+    def from_altair_chart(cls, altair_chart: "altair.Chart") -> "VegaChart":
+        """
+        Create a `VegaChart` from an Altair chart.
+
+        Parameters
+        ----------
+        altair_chart : altair.Chart
+            Source Altair chart.
+
+        Returns
+        -------
+        VegaChart
+            VegaChart object.
+        """
         if not cls._object_is_altair_chart(altair_chart):
             raise ValueError(_full_classname(altair_chart) + " is not an altair chart")
         altair_chart_dict = altair_chart.to_dict()

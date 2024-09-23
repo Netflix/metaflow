@@ -38,8 +38,8 @@ class TestEditableCard(MetaflowCard):
 
     ALLOW_USER_COMPONENTS = True
 
-    def __init__(self, options={}, components=[], graph=None):
-        self._components = components
+    def __init__(self, options=None, components=None, graph=None):
+        self._components = components if components else []
 
     def render(self, task):
         return self.seperator.join([str(comp) for comp in self._components])
@@ -52,8 +52,8 @@ class TestEditableCard2(MetaflowCard):
 
     ALLOW_USER_COMPONENTS = True
 
-    def __init__(self, options={}, components=[], graph=None):
-        self._components = components
+    def __init__(self, options=None, components=None, graph=None):
+        self._components = components if components else []
 
     def render(self, task):
         return self.seperator.join([str(comp) for comp in self._components])
@@ -64,8 +64,8 @@ class TestNonEditableCard(MetaflowCard):
 
     seperator = "$&#!!@*"
 
-    def __init__(self, options={}, components=[], graph=None):
-        self._components = components
+    def __init__(self, options=None, components=None, graph=None):
+        self._components = components if components else []
 
     def render(self, task):
         return self.seperator.join([str(comp) for comp in self._components])
@@ -74,7 +74,9 @@ class TestNonEditableCard(MetaflowCard):
 class TestMockCard(MetaflowCard):
     type = "test_mock_card"
 
-    def __init__(self, options={"key": "dummy_key"}, **kwargs):
+    def __init__(self, options=None, components=None, graph=None):
+        if options is None:
+            options = {"key": "dummy_key"}
         self._key = options["key"]
 
     def render(self, task):
@@ -93,7 +95,9 @@ class TestErrorCard(MetaflowCard):
 class TestTimeoutCard(MetaflowCard):
     type = "test_timeout_card"
 
-    def __init__(self, options={"timeout": 50}, **kwargs):
+    def __init__(self, options=None, components=None, graph=None):
+        if options is None:
+            options = {"timeout": 50}
         super().__init__()
         self._timeout = 10
         if "timeout" in options:
@@ -193,8 +197,8 @@ class TestRefreshComponentCard(MetaflowCard):
 
     type = "test_component_refresh_card"
 
-    def __init__(self, options={}, components=[], graph=None):
-        self._components = components
+    def __init__(self, options=None, components=None, graph=None):
+        self._components = components if components else []
 
     def render(self, task) -> str:
         # Calling `render`/`render_runtime` wont require the `data` object
