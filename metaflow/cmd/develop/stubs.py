@@ -170,7 +170,7 @@ def install(ctx: Any, force: bool):
                     "Metaflow stubs are already installed and valid -- use --force to reinstall"
                 )
             return
-    mf_version, _ = get_mf_version()
+    mf_version, _ = get_mf_version(True)
     with tempfile.TemporaryDirectory() as tmp_dir:
         with open(os.path.join(tmp_dir, "setup.py"), "w") as f:
             f.write(
@@ -261,10 +261,10 @@ def split_version(vers: str) -> Tuple[str, Optional[str]]:
     return vers_split[0], vers_split[1]
 
 
-def get_mf_version() -> Tuple[str, Optional[str]]:
+def get_mf_version(public: bool = False) -> Tuple[str, Optional[str]]:
     from metaflow.metaflow_version import get_version
 
-    return split_version(get_version())
+    return split_version(get_version(public))
 
 
 def get_stubs_version(stubs_root_path: Optional[str]) -> Tuple[str, Optional[str]]:

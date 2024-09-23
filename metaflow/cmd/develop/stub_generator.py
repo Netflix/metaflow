@@ -115,6 +115,11 @@ class StubGenerator:
         :type members_from_other_modules: List[str]
         """
 
+        # Let metaflow know we are in stubgen mode. This is sometimes useful to skip
+        # some processing like loading libraries, etc. It is used in Metaflow extensions
+        # so do not remove even if you do not see a use for it directly in the code.
+        os.environ["METAFLOW_STUBGEN"] = "1"
+
         self._write_generated_for = include_generated_for
         self._pending_modules = ["metaflow"]  # type: List[str]
         self._pending_modules.extend(get_aliased_modules())
@@ -397,6 +402,18 @@ class StubGenerator:
         # Add metaclass
         name_with_module = self._get_element_name_with_module(clazz.__class__)
         buff.write("metaclass=" + name_with_module + "):\n")
+
+        # Add class docstring
+        if clazz.__doc__:
+            buff.write('%s"""\n' % TAB)
+            my_doc = cast(str, deindent_docstring(clazz.__doc__))
+            init_blank = True
+            for line in my_doc.split("\n"):
+                if init_blank and len(line.strip()) == 0:
+                    continue
+                init_blank = False
+                buff.write("%s%s\n" % (TAB, line.rstrip()))
+            buff.write('%s"""\n' % TAB)
 
         # For NamedTuple, we have __annotations__ but no __init__. In that case,
         # we are going to "create" a __init__ function with the annotations
