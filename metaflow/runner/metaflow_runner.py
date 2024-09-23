@@ -1,6 +1,7 @@
 import importlib
 import os
 import sys
+import json
 import tempfile
 
 from subprocess import CalledProcessError
@@ -102,16 +103,19 @@ class ExecutingRun(object):
         for executing the run.
 
         The return value is one of the following strings:
+        - `timeout` indicates that the run timed out.
         - `running` indicates a currently executing run.
         - `failed` indicates a failed run.
-        - `successful` a successful run.
+        - `successful` indicates a successful run.
 
         Returns
         -------
         str
             The current status of the run.
         """
-        if self.command_obj.process.returncode is None:
+        if self.command_obj.timeout:
+            return "timeout"
+        elif self.command_obj.process.returncode is None:
             return "running"
         elif self.command_obj.process.returncode != 0:
             return "failed"
@@ -279,7 +283,11 @@ class Runner(object):
             content = read_from_file_when_ready(
                 tfp_runner_attribute.name, command_obj, timeout=self.file_read_timeout
             )
-            metadata_for_flow, pathspec = content.rsplit(":", maxsplit=1)
+            content = json.loads(content)
+            run_id = content.get("run_id")
+            flow_name = content.get("flow_name")
+            metadata_for_flow = content.get("metadata")
+            pathspec = "%s/%s" % (flow_name, run_id)
             metadata(metadata_for_flow)
             run_object = Run(pathspec, _namespace_check=False)
             return ExecutingRun(self, command_obj, run_object)

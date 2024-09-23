@@ -1,6 +1,7 @@
 import os
 import ast
 import time
+import asyncio
 
 from subprocess import CalledProcessError
 from typing import Dict, TYPE_CHECKING
@@ -40,6 +41,13 @@ def clear_and_set_os_environ(env: Dict):
     os.environ.update(env)
 
 
+def check_process_status(command_obj: "CommandManager"):
+    if isinstance(command_obj.process, asyncio.subprocess.Process):
+        return command_obj.process.returncode is not None
+    else:
+        return command_obj.process.poll() is not None
+
+
 def read_from_file_when_ready(
     file_path: str, command_obj: "CommandManager", timeout: float = 5
 ):
@@ -47,7 +55,7 @@ def read_from_file_when_ready(
     with open(file_path, "r", encoding="utf-8") as file_pointer:
         content = file_pointer.read()
         while not content:
-            if command_obj.process.poll() is not None:
+            if check_process_status(command_obj):
                 # Check to make sure the file hasn't been read yet to avoid a race
                 # where the file is written between the end of this while loop and the
                 # poll call above.

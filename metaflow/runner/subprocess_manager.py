@@ -170,6 +170,7 @@ class CommandManager(object):
 
         self.process = None
         self.run_called: bool = False
+        self.timeout: bool = False
         self.log_files: Dict[str, str] = {}
 
         signal.signal(signal.SIGINT, self._handle_sigint)
@@ -214,6 +215,7 @@ class CommandManager(object):
                 else:
                     await asyncio.wait_for(self.emit_logs(stream), timeout)
             except asyncio.TimeoutError:
+                self.timeout = True
                 command_string = " ".join(self.command)
                 await self.kill()
                 print(
