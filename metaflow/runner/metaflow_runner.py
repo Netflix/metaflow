@@ -10,6 +10,7 @@ from metaflow import Run, metadata
 
 from .utils import handle_timeout, async_handle_timeout, clear_and_set_os_environ
 from .subprocess_manager import CommandManager, SubprocessManager
+from .signal_manager import SignalManager
 
 
 class ExecutingRun(object):
@@ -231,6 +232,7 @@ class Runner(object):
         env: Optional[Dict] = None,
         cwd: Optional[str] = None,
         file_read_timeout: int = 3600,
+        signal_manager: Optional[SignalManager] = None,
         **kwargs
     ):
         # these imports are required here and not at the top
@@ -257,7 +259,7 @@ class Runner(object):
 
         self.cwd = cwd
         self.file_read_timeout = file_read_timeout
-        self.spm = SubprocessManager()
+        self.spm = SubprocessManager(signal_manager=signal_manager)
         self.top_level_kwargs = kwargs
         self.api = MetaflowAPI.from_cli(self.flow_file, start)
 
