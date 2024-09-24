@@ -10,6 +10,7 @@ import threading
 from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
 from .utils import check_process_exited
+from .signal_manager import SignalManager
 
 
 def kill_processes_and_descendants(pids: List[str], termination_timeout: float):
@@ -62,26 +63,10 @@ class SubprocessManager(object):
     CommandManager objects, each of which manages an individual subprocess.
     """
 
-    def __init__(self):
+    def __init__(self, signal_manager: SignalManager = None):
         self.commands: Dict[int, CommandManager] = {}
-
-        try:
-            loop = asyncio.get_running_loop()
-            loop.add_signal_handler(
-                signal.SIGINT,
-                lambda: asyncio.create_task(self._async_handle_sigint()),
-            )
-        except RuntimeError:
-            signal.signal(signal.SIGINT, self._handle_sigint)
-
-    async def _async_handle_sigint(self):
-        pids = [
-            str(command.process.pid)
-            for command in self.commands.values()
-            if command.process and not check_process_exited(command)
-        ]
-        if pids:
-            await async_kill_processes_and_descendants(pids, termination_timeout=2)
+        self.signal_manager = signal_manager or SignalManager()
+        self.signal_manager.add_signal_handler(signal.SIGINT, self._handle_sigint)
 
     def _handle_sigint(self, signum, frame):
         pids = [
@@ -89,7 +74,14 @@ class SubprocessManager(object):
             for command in self.commands.values()
             if command.process and not check_process_exited(command)
         ]
-        if pids:
+        if not pids:
+            return
+
+        if self.signal_manager.event_loop is not None:
+            self.signal_manager.event_loop.create_task(
+                async_kill_processes_and_descendants(pids, termination_timeout=2)
+            )
+        else:
             kill_processes_and_descendants(pids, termination_timeout=2)
 
     async def __aenter__(self) -> "SubprocessManager":
@@ -184,7 +176,8 @@ class SubprocessManager(object):
         return self.commands.get(pid, None)
 
     def cleanup(self) -> None:
-        """Clean up log files for all running subprocesses."""
+        """Clean up signal handler and log files for all running subprocesses."""
+        self.signal_manager.remove_signal_handler(signal.SIGINT, self._handle_sigint)
 
         for v in self.commands.values():
             v.cleanup()
