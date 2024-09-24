@@ -1,14 +1,14 @@
 import importlib
 import os
 import sys
+import json
 import tempfile
 
-from subprocess import CalledProcessError
 from typing import Dict, Iterator, Optional, Tuple
 
 from metaflow import Run, metadata
 
-from .utils import clear_and_set_os_environ, read_from_file_when_ready
+from .utils import handle_timeout, clear_and_set_os_environ
 from .subprocess_manager import CommandManager, SubprocessManager
 
 
@@ -102,16 +102,19 @@ class ExecutingRun(object):
         for executing the run.
 
         The return value is one of the following strings:
+        - `timeout` indicates that the run timed out.
         - `running` indicates a currently executing run.
         - `failed` indicates a failed run.
-        - `successful` a successful run.
+        - `successful` indicates a successful run.
 
         Returns
         -------
         str
             The current status of the run.
         """
-        if self.command_obj.process.returncode is None:
+        if self.command_obj.timeout:
+            return "timeout"
+        elif self.command_obj.process.returncode is None:
             return "running"
         elif self.command_obj.process.returncode != 0:
             return "failed"
@@ -271,28 +274,22 @@ class Runner(object):
 
         # It is thus necessary to set them to correct values before we return
         # the Run object.
-        try:
-            # Set the environment variables to what they were before the run executed.
-            clear_and_set_os_environ(self.old_env)
 
-            # Set the correct metadata from the runner_attribute file corresponding to this run.
-            content = read_from_file_when_ready(
-                tfp_runner_attribute.name, command_obj, timeout=self.file_read_timeout
-            )
-            metadata_for_flow, pathspec = content.rsplit(":", maxsplit=1)
-            metadata(metadata_for_flow)
-            run_object = Run(pathspec, _namespace_check=False)
-            return ExecutingRun(self, command_obj, run_object)
-        except (CalledProcessError, TimeoutError) as e:
-            stdout_log = open(command_obj.log_files["stdout"]).read()
-            stderr_log = open(command_obj.log_files["stderr"]).read()
-            command = " ".join(command_obj.command)
-            error_message = "Error executing: '%s':\n" % command
-            if stdout_log.strip():
-                error_message += "\nStdout:\n%s\n" % stdout_log
-            if stderr_log.strip():
-                error_message += "\nStderr:\n%s\n" % stderr_log
-            raise RuntimeError(error_message) from e
+        content = handle_timeout(
+            tfp_runner_attribute, command_obj, self.file_read_timeout
+        )
+        content = json.loads(content)
+        pathspec = "%s/%s" % (content.get("flow_name"), content.get("run_id"))
+
+        # Set the environment variables to what they were before the run executed.
+        clear_and_set_os_environ(self.old_env)
+
+        # Set the correct metadata from the runner_attribute file corresponding to this run.
+        metadata_for_flow = content.get("metadata")
+        metadata(metadata_for_flow)
+
+        run_object = Run(pathspec, _namespace_check=False)
+        return ExecutingRun(self, command_obj, run_object)
 
     def run(self, **kwargs) -> ExecutingRun:
         """

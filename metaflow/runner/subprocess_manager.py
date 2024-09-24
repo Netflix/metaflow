@@ -42,6 +42,19 @@ class SubprocessManager(object):
     def __init__(self):
         self.commands: Dict[int, CommandManager] = {}
 
+        try:
+            loop = asyncio.get_running_loop()
+            loop.add_signal_handler(
+                signal.SIGINT,
+                lambda: self._handle_sigint(signum=signal.SIGINT, frame=None),
+            )
+        except RuntimeError:
+            signal.signal(signal.SIGINT, self._handle_sigint)
+
+    def _handle_sigint(self, signum, frame):
+        for each_command in self.commands.values():
+            each_command.kill(termination_timeout=2)
+
     async def __aenter__(self) -> "SubprocessManager":
         return self
 
@@ -83,6 +96,7 @@ class SubprocessManager(object):
         command_obj = CommandManager(command, env, cwd)
         pid = command_obj.run(show_output=show_output)
         self.commands[pid] = command_obj
+        command_obj.sync_wait()
         return pid
 
     async def async_run_command(
@@ -169,10 +183,11 @@ class CommandManager(object):
         self.cwd = cwd if cwd is not None else os.getcwd()
 
         self.process = None
+        self.stdout_thread = None
+        self.stderr_thread = None
         self.run_called: bool = False
+        self.timeout: bool = False
         self.log_files: Dict[str, str] = {}
-
-        signal.signal(signal.SIGINT, self._handle_sigint)
 
     async def __aenter__(self) -> "CommandManager":
         return self
@@ -214,12 +229,21 @@ class CommandManager(object):
                 else:
                     await asyncio.wait_for(self.emit_logs(stream), timeout)
             except asyncio.TimeoutError:
+                self.timeout = True
                 command_string = " ".join(self.command)
-                await self.kill()
+                self.kill(termination_timeout=2)
                 print(
                     "Timeout: The process (PID %d; command: '%s') did not complete "
                     "within %s seconds." % (self.process.pid, command_string, timeout)
                 )
+
+    def sync_wait(self):
+        if not self.run_called:
+            raise RuntimeError("No command run yet to wait for...")
+
+        self.process.wait()
+        self.stdout_thread.join()
+        self.stderr_thread.join()
 
     def run(self, show_output: bool = False):
         """
@@ -265,22 +289,17 @@ class CommandManager(object):
 
                 self.run_called = True
 
-                stdout_thread = threading.Thread(
+                self.stdout_thread = threading.Thread(
                     target=stream_to_stdout_and_file,
                     args=(self.process.stdout, stdout_logfile),
                 )
-                stderr_thread = threading.Thread(
+                self.stderr_thread = threading.Thread(
                     target=stream_to_stdout_and_file,
                     args=(self.process.stderr, stderr_logfile),
                 )
 
-                stdout_thread.start()
-                stderr_thread.start()
-
-                self.process.wait()
-
-                stdout_thread.join()
-                stderr_thread.join()
+                self.stdout_thread.start()
+                self.stderr_thread.start()
 
                 return self.process.pid
             except Exception as e:
@@ -441,13 +460,13 @@ class CommandManager(object):
         if self.run_called:
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    async def kill(self, termination_timeout: float = 5):
+    def kill(self, termination_timeout: float = 2):
         """
         Kill the subprocess and its descendants.
 
         Parameters
         ----------
-        termination_timeout : float, default 5
+        termination_timeout : float, default 2
             The time to wait after sending a SIGTERM to the process and its descendants
             before sending a SIGKILL.
         """
@@ -456,9 +475,6 @@ class CommandManager(object):
             kill_process_and_descendants(self.process.pid, termination_timeout)
         else:
             print("No process to kill.")
-
-    def _handle_sigint(self, signum, frame):
-        asyncio.create_task(self.kill())
 
 
 async def main():
