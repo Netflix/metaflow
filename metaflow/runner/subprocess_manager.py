@@ -29,6 +29,31 @@ def kill_process_and_descendants(pid, termination_timeout):
         pass
 
 
+async def async_send_signals(pids, signal):
+    pkill_processes = [
+        await asyncio.create_subprocess_exec("pkill", signal, "-P", str(pid))
+        for pid in pids
+    ]
+
+    for proc in pkill_processes:
+        await proc.wait()
+
+    kill_processes = [
+        await asyncio.create_subprocess_exec("kill", signal, str(pid)) for pid in pids
+    ]
+
+    for proc in kill_processes:
+        await proc.wait()
+
+
+async def async_kill_processes_and_descendants(pids, termination_timeout):
+    await async_send_signals(pids, "-TERM")
+
+    await asyncio.sleep(termination_timeout)
+
+    await async_send_signals(pids, "-KILL")
+
+
 class LogReadTimeoutError(Exception):
     """Exception raised when reading logs times out."""
 
@@ -46,10 +71,16 @@ class SubprocessManager(object):
             loop = asyncio.get_running_loop()
             loop.add_signal_handler(
                 signal.SIGINT,
-                lambda: self._handle_sigint(signum=signal.SIGINT, frame=None),
+                lambda: asyncio.create_task(self._async_handle_sigint()),
             )
         except RuntimeError:
             signal.signal(signal.SIGINT, self._handle_sigint)
+
+    async def _async_handle_sigint(self):
+        pids = [
+            command.process.pid for command in self.commands.values() if command.process
+        ]
+        await async_kill_processes_and_descendants(pids, termination_timeout=2)
 
     def _handle_sigint(self, signum, frame):
         for each_command in self.commands.values():
