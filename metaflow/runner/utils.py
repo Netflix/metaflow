@@ -69,6 +69,32 @@ def read_from_file_when_ready(
         return content
 
 
+async def async_read_from_file_when_ready(
+    file_path: str, command_obj: "CommandManager", timeout: float = 5
+):
+    await asyncio.wait_for(command_obj.process.wait(), timeout)
+
+    with open(file_path, "r", encoding="utf-8") as file_pointer:
+        content = file_pointer.read()
+        if not content:
+            raise CalledProcessError(
+                command_obj.process.returncode, command_obj.command
+            )
+        return content
+
+
+def handle_process_error(command_obj: "CommandManager"):
+    stdout_log = open(command_obj.log_files["stdout"]).read()
+    stderr_log = open(command_obj.log_files["stderr"]).read()
+    command = " ".join(command_obj.command)
+    error_message = "Error executing: '%s':\n" % command
+    if stdout_log.strip():
+        error_message += "\nStdout:\n%s\n" % stdout_log
+    if stderr_log.strip():
+        error_message += "\nStderr:\n%s\n" % stderr_log
+    raise RuntimeError(error_message)
+
+
 def handle_timeout(
     tfp_runner_attribute, command_obj: "CommandManager", file_read_timeout: int
 ):
@@ -102,12 +128,41 @@ def handle_timeout(
         )
         return content
     except (CalledProcessError, TimeoutError) as e:
-        stdout_log = open(command_obj.log_files["stdout"]).read()
-        stderr_log = open(command_obj.log_files["stderr"]).read()
-        command = " ".join(command_obj.command)
-        error_message = "Error executing: '%s':\n" % command
-        if stdout_log.strip():
-            error_message += "\nStdout:\n%s\n" % stdout_log
-        if stderr_log.strip():
-            error_message += "\nStderr:\n%s\n" % stderr_log
-        raise RuntimeError(error_message) from e
+        handle_process_error(command_obj)
+        raise RuntimeError from e
+
+
+async def async_handle_timeout(
+    tfp_runner_attribute, command_obj: "CommandManager", file_read_timeout: int
+):
+    """
+    Handle the timeout for a running subprocess command that reads a file
+    and raises an error with appropriate logs if a TimeoutError occurs.
+
+    Parameters
+    ----------
+    tfp_runner_attribute : NamedTemporaryFile
+        Temporary file that stores runner attribute data.
+    command_obj : CommandManager
+        Command manager object that encapsulates the running command details.
+    file_read_timeout : int
+        Timeout for reading the file.
+
+    Returns
+    -------
+    str
+        Content read from the temporary file.
+
+    Raises
+    ------
+    RuntimeError
+        If a TimeoutError occurs, it raises a RuntimeError with the command's
+        stdout and stderr logs.
+    """
+    try:
+        return await async_read_from_file_when_ready(
+            tfp_runner_attribute.name, command_obj, timeout=file_read_timeout
+        )
+    except (CalledProcessError, TimeoutError) as e:
+        handle_process_error(command_obj)
+        raise RuntimeError from e
