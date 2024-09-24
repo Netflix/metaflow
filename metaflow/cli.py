@@ -1,5 +1,5 @@
 import inspect
-import json
+import os
 import sys
 import traceback
 from datetime import datetime
@@ -7,7 +7,6 @@ from functools import wraps
 
 import metaflow.tracing as tracing
 from metaflow._vendor import click
-from metaflow.client.core import get_metadata
 
 from . import decorators, lint, metaflow_version, namespace, parameters, plugins
 from .cli_args import cli_args
@@ -699,17 +698,15 @@ def resume(
     runtime.print_workflow_info()
 
     runtime.persist_constants()
-
-    if runner_attribute_file:
-        with open(runner_attribute_file, "w") as f:
-            json.dump(
-                {
-                    "run_id": runtime.run_id,
-                    "flow_name": obj.flow.name,
-                    "metadata": get_metadata(),
-                },
-                f,
-            )
+    write_file(
+        runner_attribute_file,
+        "%s@%s:%s"
+        % (
+            obj.metadata.__class__.TYPE,
+            obj.metadata.__class__.INFO,
+            "/".join((obj.flow.name, runtime.run_id)),
+        ),
+    )
 
     # We may skip clone-only resume if this is not a resume leader,
     # and clone is already complete.
@@ -777,17 +774,15 @@ def run(
     obj.flow._set_constants(obj.graph, kwargs)
     runtime.print_workflow_info()
     runtime.persist_constants()
-
-    if runner_attribute_file:
-        with open(runner_attribute_file, "w") as f:
-            json.dump(
-                {
-                    "run_id": runtime.run_id,
-                    "flow_name": obj.flow.name,
-                    "metadata": get_metadata(),
-                },
-                f,
-            )
+    write_file(
+        runner_attribute_file,
+        "%s@%s:%s"
+        % (
+            obj.metadata.__class__.TYPE,
+            obj.metadata.__class__.INFO,
+            "/".join((obj.flow.name, runtime.run_id)),
+        ),
+    )
     runtime.execute()
 
 
