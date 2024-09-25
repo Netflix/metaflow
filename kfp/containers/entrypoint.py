@@ -14,7 +14,9 @@
 
 from typing import Dict, NamedTuple, Optional, Union
 
-from absl import logging
+# talebz: remove the need for absl by using logging instead
+# from absl import logging
+import logging
 import fire
 from google.protobuf import json_format
 import os

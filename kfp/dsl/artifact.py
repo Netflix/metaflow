@@ -15,7 +15,9 @@
 
 from typing import Any, Dict, Optional
 
-from absl import logging
+# talebz: remove the need for absl by using logging instead
+# from absl import logging
+import logging
 import enum
 import importlib
 import jsonschema

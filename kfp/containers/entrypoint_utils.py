@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from absl import logging
+# talebz: remove the need for absl by using logging instead
+# from absl import logging
+import logging
 import importlib
 import sys
 from typing import Callable, Dict, Optional, Union
