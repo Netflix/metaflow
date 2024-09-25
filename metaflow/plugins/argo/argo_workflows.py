@@ -765,9 +765,7 @@ class ArgoWorkflows(object):
                     Arguments().parameters(
                         [
                             Parameter(parameter["name"])
-                            .value(
-                                "%s" % parameter["value"]
-                            )  # double quoting the default value is required for Argo UI and cronworkflows
+                            .value(parameter["value"])
                             .description(parameter.get("description"))
                             # TODO: Better handle IncludeFile in Argo Workflows UI.
                             for parameter in self.parameters.values()
