@@ -1410,6 +1410,8 @@ class KubeflowPipelines(object):
         preceding_component_inputs: List[str],
         preceding_component_outputs_dict: Dict[str, dsl.PipelineParam],
     ) -> ContainerOp:
+        card_decos = [deco for deco in node.decorators if deco.name == "card"]
+
         # TODO (hariharans): https://zbrt.atl.zillow.net/browse/AIP-5406
         #   (Title: Clean up output formatting of workflow and pod specs in container op)
         # double json.dumps() to ensure we have the correct quotation marks
@@ -1453,6 +1455,8 @@ class KubeflowPipelines(object):
             metaflow_execution_cmd += " --is-join-step"
         if self.add_default_card:
             metaflow_execution_cmd += " --add-default-card"
+        if not card_decos:
+            metaflow_execution_cmd += " --skip-card-artifacts"
 
         metaflow_execution_cmd += ' --preceding_component_outputs_dict "'
         for key in preceding_component_outputs_dict:
@@ -1480,7 +1484,6 @@ class KubeflowPipelines(object):
             None if node.name == "start" else {"flow_parameters_json": "None"}
         )
 
-        card_decos = [deco for deco in node.decorators if deco.name == "card"]
         file_outputs: Dict[str, str] = {
             f"card-{i}": f"/tmp/outputs/cards/card-{i}.html"
             for i in range(len(card_decos))

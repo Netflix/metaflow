@@ -35,10 +35,22 @@ def _write_card_artifacts(
     passed_in_split_indexes: str,
     run_id: str,
 ):
+    """
+    Add card artifacts to step outputs. This function depends on Metaflow backend.
+
+    Cards are still available to view through Metaflow UI or Metaflow CLI even if this function fails.
+    Therefore, all exceptions are caught and logged, instead of raised.
+    """
+
     task_id_template: str = f"{task_id}.{passed_in_split_indexes}".strip(".")
     pathspec = f"{flow_name}/{run_id}/{step_name}/{task_id_template}"
 
-    cards: List[Card] = list(get_cards(pathspec))
+    try:
+        cards: List[Card] = list(get_cards(pathspec))
+    except Exception as e:
+        # Workflow should still succeed even if cards fail to render
+        logging.exception(f"Failed to get card artifacts for {pathspec}: {e}")
+
     # sort such that the default card is first
     sorted_cards = sorted(
         cards, key=lambda card: (card.type != "default", cards.index(card))
@@ -278,6 +290,7 @@ def _command(
 @click.option("--is-interruptible/--not-interruptible", default=False)
 @click.option("--is-join-step", is_flag=True, default=False)
 @click.option("--add-default-card", is_flag=True, default=False)
+@click.option("--skip-card-artifacts", is_flag=True, default=False)
 def aip_metaflow_step(
     volume_dir: str,
     environment: str,
@@ -304,6 +317,7 @@ def aip_metaflow_step(
     is_interruptible: bool,
     is_join_step: bool,
     add_default_card: bool,
+    skip_card_artifacts: bool,
 ) -> None:
     """
     (1) Renders and runs the Metaflow package_commands and Metaflow step
@@ -440,7 +454,7 @@ def aip_metaflow_step(
             f.write(str(values[idx]))
 
     # Write card manifest (html) to Argo output artifact path.
-    try:
+    if skip_card_artifacts:
         _write_card_artifacts(
             flow_name,
             step_name,
@@ -448,9 +462,6 @@ def aip_metaflow_step(
             passed_in_split_indexes,
             metaflow_run_id,
         )
-    except Exception as e:
-        # Workflow should still succeed even if cards fail to render
-        logging.exception(f"Failed to write card artifacts: {e}")
 
 
 if __name__ == "__main__":
