@@ -263,7 +263,7 @@ def common_create_run_options(default_yaml_kind: str):
         @click.option(
             "--add-default-cards",
             "add_default_cards",
-            default=True,
+            default=from_conf("METAFLOW_AIP_ADD_DEFAULT_CARDS", default=True),
             help="Whether to add default card to all workflow steps",
             show_default=True,
         )
