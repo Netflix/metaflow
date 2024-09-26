@@ -69,6 +69,7 @@ def _step_cli(
     max_user_code_retries: int,
     workflow_name: str,
     script_name: str,
+    add_default_card: bool,
 ) -> str:
     """
     Analogous to step_functions.py
@@ -166,6 +167,7 @@ def _step_cli(
 
     step: List[str] = [
         "--with=aip",
+        "--with 'card:id=default'" if add_default_card else "",
         "step",
         step_name,
         "--run-id %s" % run_id,
@@ -275,6 +277,7 @@ def _command(
 @click.option("--workflow_name")
 @click.option("--is-interruptible/--not-interruptible", default=False)
 @click.option("--is-join-step", is_flag=True, default=False)
+@click.option("--add-default-cards", is_flag=True, default=False)
 def aip_metaflow_step(
     volume_dir: str,
     environment: str,
@@ -300,6 +303,7 @@ def aip_metaflow_step(
     workflow_name: str,
     is_interruptible: bool,
     is_join_step: bool,
+    add_default_cards: bool,
 ) -> None:
     """
     (1) Renders and runs the Metaflow package_commands and Metaflow step
@@ -331,6 +335,7 @@ def aip_metaflow_step(
         user_code_retries,
         workflow_name,
         script_name,
+        add_default_cards,
     )
 
     # expose passed KFP passed in arguments as environment variables to
