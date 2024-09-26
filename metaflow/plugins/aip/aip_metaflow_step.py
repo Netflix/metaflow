@@ -44,18 +44,15 @@ def _write_card_artifacts(
         cards, key=lambda card: (card.type != "default", cards.index(card))
     )
 
-    i = 0
     pathlib.Path("/tmp/outputs/cards/").mkdir(parents=True, exist_ok=True)
-    for card in sorted_cards:
-        iter_name = "" if i == 0 else i
-        file_name = f"/tmp/outputs/cards/card{iter_name}.html"
+    for index, card in enumerate(sorted_cards):
+        file_name = f"/tmp/outputs/cards/card{index}.html"
         try:
             with open(file_name, "w") as card_file:
                 card_file.write(card.get())
         except Exception:
-            logging.error(f"Failed to write card {i} of type {card.type}")
+            logging.error(f"Failed to write card {index} of type {card.type}")
             raise
-        i = i + 1
 
 
 def _step_cli(
