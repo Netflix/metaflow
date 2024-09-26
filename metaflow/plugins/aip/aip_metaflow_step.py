@@ -51,7 +51,7 @@ def _write_card_artifacts(
             with open(file_name, "w") as card_file:
                 card_file.write(card.get())
         except Exception:
-            logging.error(f"Failed to write card {index} of type {card.type}")
+            logging.exception(f"Failed to write card {index} of type {card.type}")
             raise
 
 
@@ -445,7 +445,7 @@ def aip_metaflow_step(
         )
     except Exception as e:
         # Workflow should still succeed even if cards fail to render
-        logging.error(f"Failed to write card artifacts: {e}")
+        logging.exception(f"Failed to write card artifacts: {e}")
 
 
 if __name__ == "__main__":
