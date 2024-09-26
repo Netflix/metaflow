@@ -2627,50 +2627,54 @@ class ArgoWorkflows(object):
         )
         from kubernetes import client as kubernetes_sdk
 
-        return DaemonTemplate("heartbeat-daemon").container(
-            to_camelcase(
-                kubernetes_sdk.V1Container(
-                    name="main",
-                    # TODO: Make the image configurable
-                    image=resources["image"],
-                    command=cmds,
-                    env=[
-                        kubernetes_sdk.V1EnvVar(name=k, value=str(v))
-                        for k, v in env.items()
-                    ],
-                    env_from=[
-                        kubernetes_sdk.V1EnvFromSource(
-                            secret_ref=kubernetes_sdk.V1SecretEnvSource(
-                                name=str(k),
-                                # optional=True
+        return (
+            DaemonTemplate("heartbeat-daemon")
+            .service_account_name(resources["service_account"])
+            .container(
+                to_camelcase(
+                    kubernetes_sdk.V1Container(
+                        name="main",
+                        # TODO: Make the image configurable
+                        image=resources["image"],
+                        command=cmds,
+                        env=[
+                            kubernetes_sdk.V1EnvVar(name=k, value=str(v))
+                            for k, v in env.items()
+                        ],
+                        env_from=[
+                            kubernetes_sdk.V1EnvFromSource(
+                                secret_ref=kubernetes_sdk.V1SecretEnvSource(
+                                    name=str(k),
+                                    # optional=True
+                                )
                             )
-                        )
-                        for k in list(
-                            []
-                            if not resources.get("secrets")
-                            else (
-                                [resources.get("secrets")]
-                                if isinstance(resources.get("secrets"), str)
-                                else resources.get("secrets")
+                            for k in list(
+                                []
+                                if not resources.get("secrets")
+                                else (
+                                    [resources.get("secrets")]
+                                    if isinstance(resources.get("secrets"), str)
+                                    else resources.get("secrets")
+                                )
                             )
-                        )
-                        + KUBERNETES_SECRETS.split(",")
-                        + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
-                        if k
-                    ],
-                    resources=kubernetes_sdk.V1ResourceRequirements(
-                        # NOTE: base resources for this are kept to a minimum to save on running costs.
-                        # This has an adverse effect on startup time for the daemon, which can be completely
-                        # alleviated by using a base image that has the required dependencies pre-installed
-                        requests={
-                            "cpu": "200m",
-                            "memory": "100Mi",
-                        },
-                        limits={
-                            "cpu": "200m",
-                            "memory": "100Mi",
-                        },
-                    ),
+                            + KUBERNETES_SECRETS.split(",")
+                            + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
+                            if k
+                        ],
+                        resources=kubernetes_sdk.V1ResourceRequirements(
+                            # NOTE: base resources for this are kept to a minimum to save on running costs.
+                            # This has an adverse effect on startup time for the daemon, which can be completely
+                            # alleviated by using a base image that has the required dependencies pre-installed
+                            requests={
+                                "cpu": "200m",
+                                "memory": "100Mi",
+                            },
+                            limits={
+                                "cpu": "200m",
+                                "memory": "100Mi",
+                            },
+                        ),
+                    )
                 )
             )
         )
@@ -3290,6 +3294,10 @@ class DaemonTemplate(object):
 
     def container(self, container):
         self.payload["container"] = container
+        return self
+
+    def service_account_name(self, service_account_name):
+        self.payload["serviceAccountName"] = service_account_name
         return self
 
     def to_json(self):
