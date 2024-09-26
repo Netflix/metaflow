@@ -454,7 +454,7 @@ def aip_metaflow_step(
             f.write(str(values[idx]))
 
     # Write card manifest (html) to Argo output artifact path.
-    if skip_card_artifacts:
+    if not skip_card_artifacts:
         _write_card_artifacts(
             flow_name,
             step_name,
