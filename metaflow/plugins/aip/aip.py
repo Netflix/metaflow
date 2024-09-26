@@ -1482,7 +1482,7 @@ class KubeflowPipelines(object):
 
         card_decos = [deco for deco in node.decorators if deco.name == "card"]
         file_outputs: Dict[str, str] = {
-            f"card{i}": f"/tmp/outputs/cards/card{i}.html"
+            f"card-{i}": f"/tmp/outputs/cards/card-{i}.html"
             for i in range(len(card_decos))
         }
 

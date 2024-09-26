@@ -46,7 +46,7 @@ def _write_card_artifacts(
 
     pathlib.Path("/tmp/outputs/cards/").mkdir(parents=True, exist_ok=True)
     for index, card in enumerate(sorted_cards):
-        file_name = f"/tmp/outputs/cards/card{index}.html"
+        file_name = f"/tmp/outputs/cards/card-{index}.html"
         try:
             with open(file_name, "w") as card_file:
                 card_file.write(card.get())
