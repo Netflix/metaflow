@@ -866,7 +866,13 @@ class KubernetesJobSet(object):
             spec=dict(
                 replicatedJobs=[self.control.dump(), self.worker.dump()],
                 suspend=False,
-                startupPolicy=None,
+                startupPolicy=dict(
+                    # We explicitly set an InOrder Startup policy so that
+                    # we can ensure that the control pod starts before the worker pods.
+                    # This is required so that when worker pods try to access the control's IP
+                    # we are able to resolve the control's IP address.
+                    startupPolicyOrder="InOrder"
+                ),
                 successPolicy=None,
                 # The Failure Policy helps setting the number of retries for the jobset.
                 # but we don't rely on it and instead rely on either the local scheduler
