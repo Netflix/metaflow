@@ -261,9 +261,9 @@ def common_create_run_options(default_yaml_kind: str):
             show_default=True,
         )
         @click.option(
-            "--add-default-cards",
-            "add_default_cards",
-            default=from_conf("METAFLOW_AIP_ADD_DEFAULT_CARDS", default=True),
+            "--add-default-card",
+            "add_default_card",
+            default=from_conf("METAFLOW_AIP_ADD_DEFAULT_CARD", default=True),
             help="Whether to add default card to all workflow steps",
             show_default=True,
         )
@@ -330,7 +330,7 @@ def run(
     sqs_role_arn_on_error=None,
     argo_wait=False,
     wait_for_completion_timeout=None,
-    add_default_cards=True,
+    add_default_card=True,
     **kwargs,
 ):
     """
@@ -361,7 +361,7 @@ def run(
         notify_on_success=notify_on_success,
         sqs_url_on_error=sqs_url_on_error,
         sqs_role_arn_on_error=sqs_role_arn_on_error,
-        add_default_cards=add_default_cards,
+        add_default_card=add_default_card,
     )
 
     if yaml_only:
@@ -525,7 +525,7 @@ def create(
     recurring_run_enable=None,
     recurring_run_cron=None,
     recurring_run_concurrency=None,
-    add_default_cards=True,
+    add_default_card=True,
     **kwargs,
 ):
     """
@@ -559,7 +559,7 @@ def create(
         notify_on_success=notify_on_success,
         sqs_url_on_error=sqs_url_on_error,
         sqs_role_arn_on_error=sqs_role_arn_on_error,
-        add_default_cards=add_default_cards,
+        add_default_card=add_default_card,
     )
 
     if yaml_only:
@@ -680,7 +680,7 @@ def make_flow(
     notify_on_success,
     sqs_url_on_error,
     sqs_role_arn_on_error,
-    add_default_cards,
+    add_default_card,
 ):
     """
     Analogous to step_functions_cli.py
@@ -694,7 +694,7 @@ def make_flow(
 
     # Attach AIP decorator to the flow
     decorators._attach_decorators(obj.flow, [AIPInternalDecorator.name])
-    if add_default_cards:
+    if add_default_card:
         decorators._attach_decorators(obj.flow, ["card:id=default"])
 
     decorators._init_step_decorators(
@@ -740,5 +740,5 @@ def make_flow(
         notify_on_success=notify_on_success,
         sqs_url_on_error=sqs_url_on_error,
         sqs_role_arn_on_error=sqs_role_arn_on_error,
-        add_default_cards=add_default_cards,
+        add_default_card=add_default_card,
     )

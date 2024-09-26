@@ -173,7 +173,7 @@ class KubeflowPipelines(object):
         notify_on_success=None,
         sqs_url_on_error=None,
         sqs_role_arn_on_error=None,
-        add_default_cards=False,
+        add_default_card=False,
         **kwargs,
     ):
         """
@@ -205,7 +205,7 @@ class KubeflowPipelines(object):
         self.notify_on_success = notify_on_success
         self.sqs_url_on_error = sqs_url_on_error
         self.sqs_role_arn_on_error = sqs_role_arn_on_error
-        self.add_default_cards = add_default_cards
+        self.add_default_card = add_default_card
         self._client = None
         self._exit_handler_created = False
 
@@ -1451,8 +1451,8 @@ class KubeflowPipelines(object):
             metaflow_execution_cmd += " --is_split_index"
         if node.type == "join":
             metaflow_execution_cmd += " --is-join-step"
-        if self.add_default_cards:
-            metaflow_execution_cmd += " --add-default-cards"
+        if self.add_default_card:
+            metaflow_execution_cmd += " --add-default-card"
 
         metaflow_execution_cmd += ' --preceding_component_outputs_dict "'
         for key in preceding_component_outputs_dict:

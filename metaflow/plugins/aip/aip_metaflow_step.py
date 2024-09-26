@@ -277,7 +277,7 @@ def _command(
 @click.option("--workflow_name")
 @click.option("--is-interruptible/--not-interruptible", default=False)
 @click.option("--is-join-step", is_flag=True, default=False)
-@click.option("--add-default-cards", is_flag=True, default=False)
+@click.option("--add-default-card", is_flag=True, default=False)
 def aip_metaflow_step(
     volume_dir: str,
     environment: str,
@@ -303,7 +303,7 @@ def aip_metaflow_step(
     workflow_name: str,
     is_interruptible: bool,
     is_join_step: bool,
-    add_default_cards: bool,
+    add_default_card: bool,
 ) -> None:
     """
     (1) Renders and runs the Metaflow package_commands and Metaflow step
@@ -335,7 +335,7 @@ def aip_metaflow_step(
         user_code_retries,
         workflow_name,
         script_name,
-        add_default_cards,
+        add_default_card,
     )
 
     # expose passed KFP passed in arguments as environment variables to
