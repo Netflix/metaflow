@@ -1476,14 +1476,11 @@ class KubeflowPipelines(object):
             None if node.name == "start" else {"flow_parameters_json": "None"}
         )
 
+        card_decos = [deco for deco in node.decorators if deco.name == "card"]
         file_outputs: Dict[str, str] = {
-            "card": "/tmp/outputs/cards/card.html",
+            f"card{i}": f"/tmp/outputs/cards/card{i}.html"
+            for i in range(len(card_decos))
         }
-        i = 1  # the default card would be i == 0
-        for deco in node.decorators:
-            if deco.name == "card":
-                file_outputs[f"card{i}"] = f"/tmp/outputs/cards/card{i}.html"
-                i = i + 1
 
         if node.type == "foreach":
             file_outputs["foreach_splits"] = "/tmp/outputs/foreach_splits/data"
