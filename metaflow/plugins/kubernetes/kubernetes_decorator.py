@@ -543,7 +543,11 @@ class KubernetesDecorator(StepDecorator):
 
 # TODO: Unify this method with the multi-node setup in @batch
 def _setup_multinode_environment():
-    # FIXME: what about MF_MASTER_PORT
+    # TODO [FIXME SOON]
+    # Even if Kubernetes may deploy control pods before worker pods, there is always a
+    # possibility that the worker pods may start before the control. In the case that this happens,
+    # the worker pods will not be able to resolve the control pod's IP address and this will cause
+    # the worker pods to fail. This function should account for this in the near future.
     import socket
 
     try:
