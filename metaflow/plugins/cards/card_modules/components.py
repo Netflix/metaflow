@@ -186,8 +186,8 @@ class Table(UserComponent):
         headers : List[str], optional, default None
             Optional header row for the table.
         disable_updates : bool, optional, default False
-            A card can never be updated but the components inside the Table could. If this
-            flag is set to True, even the components within the table will not be
+            A Table component can never be updated but the components inside the Table could.
+            If this flag is set to True, even the components within the table will not be
             updated in real time.
         """
         data = data or [[]]
@@ -206,7 +206,7 @@ class Table(UserComponent):
     @classmethod
     def from_dataframe(
         cls,
-        dataframe: Optional["pandas.DataFrame"] = None,
+        dataframe: "pandas.DataFrame",
         truncate: bool = True,
     ) -> "Table":
         """
@@ -214,7 +214,7 @@ class Table(UserComponent):
 
         Parameters
         ----------
-        dataframe : pandas.DataFrame, optional, default None
+        dataframe : pandas.DataFrame
             Pandas dataframe.
         truncate : bool, default True
             Truncate large dataframe instead of showing all rows
@@ -403,7 +403,7 @@ class Image(UserComponent):
 
     def __init__(
         self,
-        src: Optional[bytes] = None,
+        src: bytes,
         label: Optional[str] = None,
         disable_updates: bool = True,
     ):
@@ -412,7 +412,7 @@ class Image(UserComponent):
 
         Parameters
         ----------
-        src : bytes, optional, default None
+        src : bytes
             The image data in `bytes`.
         label : str, optional, default None
             Label for the image.
@@ -767,14 +767,14 @@ class Markdown(UserComponent):
         """
         self._text = text
 
-    def __init__(self, text: Optional[str] = None):
+    def __init__(self, text: str):
         """
         Construct a `Markdown` card component.
 
 
         Parameters
         ----------
-        text : str, optional, default None
+        text : str
             Text formatted in Markdown.
         """
 

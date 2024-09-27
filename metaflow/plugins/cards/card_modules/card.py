@@ -25,6 +25,11 @@ class MetaflowCard(object):
     type : str
         Card type string. Note that this should be a globally unique name, similar to a
         Python package name, to avoid name clashes between different custom cards.
+
+    Parameters
+    ----------
+    options : Dict[Any, Any], optional, default None
+        Options for the card
     """
 
     # RELOAD_POLICY determines whether UIs should
@@ -67,21 +72,6 @@ class MetaflowCard(object):
         components: Optional[List["MetaflowCardComponent"]] = None,
         graph: Optional[Dict[str, Any]] = None,
     ):
-        """
-        Card base type.
-
-        Parameters
-        ----------
-        options : Dict[Any, Any], optional, default None
-            Options for the card
-        components : List[MetaflowCardComponent], optional, default None
-            Initial components for this card. Other components can then be added using
-            the `append` call.
-        graph : Dict[str, Any], optional, default None
-            The graph for the current flow. Each item in the dictionary will be keyed
-            by the step's name and the value will contain information about the decorators
-            on the step and various other information about the step.
-        """
         pass
 
     def _get_mustache(self):
@@ -111,7 +101,7 @@ class MetaflowCard(object):
         """
         return NotImplementedError()
 
-    def render_runtime(self, task, data):
+    def render_runtime(self, task: "metaflow.Task", data: Dict[str, Any]) -> str:
         """
         Produces a HTML of card contents during runtime of the task.
 
@@ -122,19 +112,24 @@ class MetaflowCard(object):
         task : Task
             A `Task` object that allows you to access data from Task during runtime
 
-        data : Dict
-            Data object that is passed to the card during runtime. The dictionary will be of the form:
+        data : Dict[str, Any]
+            Data object that is passed to the card during runtime. The dictionary will
+            be of the form:
             ```python
             {
                 "user": user_data, # any passed to `current.card.refresh` function
                 "components": component_dict, # all rendered REALTIME_UPDATABLE components
                 "render_seq": seq,
-                # `render_seq` is a counter that is incremented every time `render_runtime` is called.
-                # If a metaflow card has a RELOAD_POLICY_ALWAYS set then the reload token will be set to this value
-                # so that the card reload on the UI everytime `render_runtime` is called.
+                # `render_seq` is a counter that is incremented every time
+                # `render_runtime` is called.
+                # If a metaflow card has a RELOAD_POLICY_ALWAYS set then the reload
+                # token will be set to this value
+                # so that the card reloads on the UI every time `render_runtime` is called.
                 "component_update_ts": 1727369970,
-                # `component_update_ts` is the timestamp of the last time the component array was modified.
-                # `component_update_ts` can get used by the `reload_content_token` to make decisions on weather to
+                # `component_update_ts` is the timestamp of the last time the component
+                # array was modified.
+                # `component_update_ts` can get used by the `reload_content_token` to
+                # make decisions on weather to
                 # reload the card on the UI when component array has changed.
                 "mode": mode,
             }
@@ -146,14 +141,17 @@ class MetaflowCard(object):
         """
         raise NotImplementedError()
 
-    def refresh(self, task, data):
+    def refresh(self, task: "metaflow.Task", data: Dict[str, Any]) -> Dict[Any, Any]:
         """
         Refresh the card contents during runtime of the task.
 
-        This function returns a dictionary that will be passed down to the HTML returned by `render_runtime` function.
-        The return value will be passed to the `metaflow_card_update` Javascript function inside the HTML returned by `render_runtime` function.
+        This function returns a dictionary that will be passed down to the HTML
+        returned by `render_runtime` function.
+        The return value will be passed to the `metaflow_card_update` Javascript
+        function inside the HTML returned by `render_runtime` function.
 
-        Subclasses override this method when users wish to have realtime updates with cards.
+        Subclasses override this method when users wish to have realtime updates with
+        cards.
 
         Parameters
         ----------
@@ -161,18 +159,23 @@ class MetaflowCard(object):
             A `Task` object that allows you to access data from Task during runtime
 
         data : Dict
-            Data object that is passed to the card during runtime. The dictionary will be of the form:
+            Data object that is passed to the card during runtime. The dictionary will
+            be of the form:
             ```python
             {
                 "user": user_data, # any passed to `current.card.refresh` function
                 "components": component_dict, # all rendered REALTIME_UPDATABLE components
                 "render_seq": seq,
-                # `render_seq` is a counter that is incremented every time `render_runtime` is called.
-                # If a metaflow card has a RELOAD_POLICY_ALWAYS set then the reload token will be set to this value
-                # so that the card reload on the UI everytime `render_runtime` is called.
+                # `render_seq` is a counter that is incremented every time
+                # `render_runtime` is called.
+                # If a metaflow card has a RELOAD_POLICY_ALWAYS set then the reload
+                # token will be set to this value
+                # so that the card reloads on the UI every time `render_runtime` is called.
                 "component_update_ts": 1727369970,
-                # `component_update_ts` is the timestamp of the last time the component array was modified.
-                # `component_update_ts` can get used by the `reload_content_token` to make decisions on weather to
+                # `component_update_ts` is the timestamp of the last time the component
+                # array was modified.
+                # `component_update_ts` can get used by the `reload_content_token` to
+                # make decisions on weather to
                 # reload the card on the UI when component array has changed.
                 "mode": mode,
             }
@@ -180,38 +183,48 @@ class MetaflowCard(object):
 
         Returns
         -------
-        Dict
-            Dictionary that will be passed down to the HTML returned by `render_runtime` function.
+        Dict[Any, Any]
+            Dictionary that will be passed down to the HTML returned by `render_runtime`
+            function.
         """
         raise NotImplementedError()
 
-    def reload_content_token(self, task, data):
+    def reload_content_token(self, task: "metaflow.Task", data: Dict[str, Any]) -> str:
         """
         This function will create a token that will be embedded in the HTML of the card.
-        Based on the value of this token, the UI will decide whether to refetch the card's HTML or not.
-        This function will be called when the `MetaflowCard.RELOAD_POLICY` set to `onchange` (i.e. `MetaflowCard.RELOAD_POLICY_ONCHANGE`)
-        The `data` object passed to this function can help in making decisions on whether to reload the card or not.
+        Based on the value of this token, the UI will decide whether to refetch the
+        card's HTML or not.
+        This function will be called when the `MetaflowCard.RELOAD_POLICY` is set to
+        `onchange` (i.e. `MetaflowCard.RELOAD_POLICY_ONCHANGE`)
+        The `data` object passed to this function can help in making decisions on
+        whether to reload the card or not.
 
-        Subclasses override this method when users wish control when the card should be reloaded on the UI.
+        Subclasses override this method when users wish control when the card should be
+        reloaded in the UI.
 
         Parameters
         ----------
         task : Task
             A `Task` object that allows you to access data from Task during runtime
 
-        data : Dict
-            Data object that is passed to the card during runtime. The dictionary will be of the form:
+        data : Dict[str, Any]
+            Data object that is passed to the card during runtime. The dictionary will
+            be of the form:
             ```python
             {
                 "user": user_data, # any passed to `current.card.refresh` function
                 "components": component_dict, # all rendered REALTIME_UPDATABLE components
                 "render_seq": seq,
-                # `render_seq` is a counter that is incremented every time `render_runtime` is called.
-                # If a metaflow card has a RELOAD_POLICY_ALWAYS set then the reload token will be set to this value
-                # so that the card reload on the UI everytime `render_runtime` is called.
+                # `render_seq` is a counter that is incremented every time
+                # `render_runtime` is called.
+                # If a metaflow card has a RELOAD_POLICY_ALWAYS set then the reload
+                # token will be set to this value
+                # so that the card reloads on the UI every time `render_runtime` is called.
                 "component_update_ts": 1727369970,
-                # `component_update_ts` is the timestamp of the last time the component array was modified.
-                # `component_update_ts` can get used by the `reload_content_token` to make decisions on weather to
+                # `component_update_ts` is the timestamp of the last time the component
+                # array was modified.
+                # `component_update_ts` can get used by the `reload_content_token` to
+                # make decisions on weather to
                 # reload the card on the UI when component array has changed.
                 "mode": mode,
             }
@@ -245,11 +258,15 @@ class MetaflowCardComponent(object):
             raise TypeError("Component ID must be a string")
         self._component_id = value
 
-    def update(self, *args, **kwargs):
+    def update(self, *args, **kwargs) -> None:
         """
-        Helps update the internal state of a component when the component is set to `REALTIME_UPDATABLE=True`
-        When components get updated during runtime, the `current.card.refresh` function will ensure that the updated component is passed to the card.
-        Subclasses override this method when users wish to update the component during runtime.
+        Helps update the internal state of a component when the component is set to
+        `REALTIME_UPDATABLE=True`
+
+        When components get updated during runtime, the `current.card.refresh` function
+        will ensure that the updated component is passed to the card.
+        Subclasses override this method when users wish to update the component
+        during runtime.
 
         Returns
         -------
@@ -258,13 +275,14 @@ class MetaflowCardComponent(object):
         """
         raise NotImplementedError()
 
-    def render(self) -> Union[str, Dict]:
+    def render(self) -> Union[str, Dict[Any, Any]]:
         """
-        Converts the component to a string or a dictionary so that it's content can be passed down to the MetaflowCard.
+        Converts the component to a string or a dictionary so that its content can be
+        passed down to the MetaflowCard.
 
         Returns
         -------
-        Union[str, Dict]
+        Union[str, Dict[Any, ANy]]
             The component content as a string or a dictionary
         """
         raise NotImplementedError()
