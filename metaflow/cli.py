@@ -699,6 +699,15 @@ def resume(
     runtime.print_workflow_info()
 
     runtime.persist_constants()
+    _system_logger.log_event(
+        level="info",
+        module="metaflow.resume",
+        name="graph_info",
+        payload={
+            "run_id": str(runtime.run_id),
+            "msg": str(obj.flow._graph_info),
+        },
+    )
 
     if runner_attribute_file:
         with open(runner_attribute_file, "w") as f:
@@ -775,6 +784,15 @@ def run(
     write_file(run_id_file, runtime.run_id)
 
     obj.flow._set_constants(obj.graph, kwargs)
+    _system_logger.log_event(
+        level="info",
+        module="metaflow.run",
+        name="graph_info",
+        payload={
+            "run_id": str(runtime.run_id),
+            "msg": str(obj.flow._graph_info),
+        },
+    )
     runtime.print_workflow_info()
     runtime.persist_constants()
 
