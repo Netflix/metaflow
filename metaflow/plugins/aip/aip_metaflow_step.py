@@ -37,10 +37,9 @@ def _write_card_artifacts(
     run_id: str,
 ):
     """
-    Add card artifacts to step outputs. This function depends on Metaflow backend.
-
-    Cards are still available to view through Metaflow UI or Metaflow CLI even if this function fails.
-    Therefore, all exceptions are caught and logged, instead of raised.
+    Pull card artifacts from datastore and add them to the Argo artifact output path.
+    Cards should already be uploaded to the datastore as part of the @card decorator.
+    No exception is thrown: cards are available to view through Metaflow UI or CLI even if this function fails.
     """
 
     task_id_template: str = f"{task_id}.{passed_in_split_indexes}".strip(".")
