@@ -518,7 +518,7 @@ def spin(
     end_task_init_time = time.time()
     print(f"Task Init Time: {end_task_init_time - end_validation_time}")
     print("-" * 100)
-    task.run_baby_step(
+    task.run_spin_step(
         spin_parser_validator=spin_parser_validator,
         new_task_id=new_task_id,
         new_run_id=new_run_id,

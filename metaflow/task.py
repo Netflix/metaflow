@@ -374,7 +374,7 @@ class MetaflowTask(object):
                     )
                 )
 
-    def run_baby_step(
+    def run_spin_step(
         self,
         spin_parser_validator,
         new_task_id,
