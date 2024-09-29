@@ -390,6 +390,20 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
     show_default=True,
     help="Skip decorators attached to the step.",
 )
+@click.option(
+    "--run-id-file",
+    default=None,
+    show_default=True,
+    type=str,
+    help="Write the ID of this run to the file specified.",
+)
+@click.option(
+    "--runner-attribute-file",
+    default=None,
+    show_default=True,
+    type=str,
+    help="Write the metadata and pathspec of this run to the file specified. Used internally for Metaflow's Runner API.",
+)
 @click.pass_context
 def spin(
     ctx,
@@ -407,8 +421,11 @@ def spin(
     artifacts=None,
     artifacts_module=None,
     skip_decorators=False,
+    run_id_file=None,
+    runner_attribute_file=None,
     **kwargs,
 ):
+    # TODO: skip_decorators is not used for now, but we might need it in the future
     from .spin_utils import SpinParserValidator
     from metaflow.datastore.spin_datastore.step_datastore import SpinStepDatastore
     from metaflow.datastore.spin_datastore.inputs_datastore import SpinInputsDatastore
@@ -427,7 +444,6 @@ def spin(
     start_time = time.time()
     spin_parser_validator.validate()
     end_validation_time = time.time()
-    print(f"Validation Time: {end_validation_time - start_time}")
 
     # We now set the parameters and the constants for the flowx
     ctx.obj.flow._set_constants(ctx.obj.graph, kwargs)
@@ -464,7 +480,6 @@ def spin(
         datastore_root = ctx.obj.datastore_impl.get_datastore_root_from_config(
             ctx.obj.echo
         )
-        print("Datastore Root: ", datastore_root)
     if datastore_root is None:
         raise CommandException(
             "Could not find the location of the datastore -- did you correctly set the "
@@ -513,11 +528,34 @@ def spin(
         ctx.obj.monitor,  # null monitor
         None,  # no unbounded foreach context
     )
-    print("New Run ID: ", new_run_id)
-    print("New Task ID: ", new_task_id)
     end_task_init_time = time.time()
+    ctx.obj.logger(
+        f"Spinning up step `{step_name}` with run_id {new_run_id} and task_id {new_task_id}",
+        system_msg=True,
+    )
+    print("Datastore Root: ", datastore_root)
+    print(f"Validation Time: {end_validation_time - start_time}")
     print(f"Task Init Time: {end_task_init_time - end_validation_time}")
     print("-" * 100)
+    write_latest_run_id(ctx.obj, new_run_id)
+    write_file(run_id_file, new_run_id)
+
+    local_metadata = (
+        f"{ctx.obj.metadata.__class__.TYPE}@{ctx.obj.metadata.__class__.INFO}"
+    )
+    if runner_attribute_file:
+        with open(runner_attribute_file, "w") as f:
+            json.dump(
+                {
+                    "task_id": new_task_id,
+                    "step_name": step_name,
+                    "run_id": new_run_id,
+                    "flow_name": ctx.obj.flow.name,
+                    "metadata": local_metadata,
+                },
+                f,
+            )
+
     task.run_spin_step(
         spin_parser_validator=spin_parser_validator,
         new_task_id=new_task_id,

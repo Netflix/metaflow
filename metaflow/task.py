@@ -393,7 +393,7 @@ class MetaflowTask(object):
         output.init_task()
 
         # How we access the input and index attributes depends on the execution context.
-        # If spin is set to True, we short-circuit attribute access to getatttr directly
+        # If spin is set to True, we short-circuit attribute access to getattr directly
         # Also set the other attributes that are needed for the task to execute
         self.flow._spin = True
         self.flow._current_step = spin_parser_validator.step_name
