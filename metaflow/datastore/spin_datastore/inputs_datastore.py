@@ -8,7 +8,7 @@ class SpinInput(object):
 
     def __getattr__(self, name):
         # We always look for any artifacts provided by the user first
-        if name in self.artifacts:
+        if self.artifacts is not None and name in self.artifacts:
             return self.artifacts[name]
 
         if self.task is None:
@@ -17,7 +17,7 @@ class SpinInput(object):
             )
 
         try:
-            return __getattr__(self.task.artifacts, name)
+            return getattr(self.task.artifacts, name).data
         except AttributeError:
             raise AttributeError(
                 f"Attribute '{name}' not found in the previous execution of the task for "
@@ -25,8 +25,8 @@ class SpinInput(object):
             )
 
         raise AttributeError(
-            f"Attribute '{name}' not found in the previous execution of the task for "
-            f"`{self.step_name}`."
+            f"Attribute '{name}' not found in the artifacts provided by the user or in the"
+            f"the previous execution of the task for `{self.step_name}`"
         )
 
 
@@ -69,17 +69,21 @@ class SpinInputsDatastore(SpinDatastore):
         super(SpinInputsDatastore, self).__init__(spin_parser_validator)
         self._previous_tasks = None
 
+    def __len__(self):
+        return len(self.get_previous_tasks)
+
     def __getitem__(self, idx):
-        _item_task = self.get_all_previous_tasks[idx]
-        _item_artifacts = self.spin_parser_validator.artifacts[idx]
+        _item_task = self.get_previous_tasks[idx]
+        _item_artifacts = self.spin_parser_validator.artifacts
+        # _item_artifacts = self.spin_parser_validator.artifacts[idx]
         return SpinInput(_item_artifacts, _item_task)
 
     def __iter__(self):
-        for idx in range(len(self.get_all_previous_tasks)):
+        for idx in range(len(self.get_previous_tasks)):
             yield self[idx]
 
     @property
-    def get_all_previous_tasks(self):
+    def get_previous_tasks(self):
         if self._previous_tasks:
             return self._previous_tasks
 

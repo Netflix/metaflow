@@ -159,7 +159,8 @@ class SpinParserValidator(object):
             ancestor_tasks = _json.loads(self.ancestor_tasks)
         except (ValueError, TypeError):
             raise CommandException(
-                "Invalid JSON format for *`ancestor_tasks`*. Please provide a valid JSON string."
+                f"Step *`{self.step_name}`* needs to be spun with ancestor tasks and Invalid JSON format for "
+                "*`ancestor_tasks`*. Please provide a valid JSON string."
             )
         ancestor_tasks_parsed = {}
         for ancestor_task, ancestor_task_val in ancestor_tasks.items():

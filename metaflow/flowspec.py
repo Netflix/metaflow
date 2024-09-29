@@ -350,6 +350,9 @@ class FlowSpec(metaclass=_FlowSpecMeta):
         List[Tuple[int, int, Any]]
             An array describing the current stack of foreach steps.
         """
+        # TODO: Add stubs for the spin command
+        # if self._spin:
+        #     return ...
         return [
             (frame.index, frame.num_splits, self._find_input(stack_index=i))
             for i, frame in enumerate(self._foreach_stack)

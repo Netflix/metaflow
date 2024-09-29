@@ -401,6 +401,7 @@ class MetaflowTask(object):
         self.flow._task_ok = None
         self.flow._exception = None
 
+        # TODO: Set the foreach_stack attribute for flowspec
         if spin_parser_validator.step_type == "join":
             # Set inputs
             self.flow._set_datastore(output)
