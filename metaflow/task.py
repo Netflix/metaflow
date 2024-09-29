@@ -493,9 +493,20 @@ class MetaflowTask(object):
                 print("%s failed:" % self.flow, file=sys.stderr)
                 raise
         finally:
-            # TODO: Persist the output artifacts to local datastore
-            # output.persist(self.flow)
-            pass
+            output.persist(self.flow)
+            output.done()
+
+            # final decorator hook: The task results are now
+            # queryable through the client API / datastore
+            for deco in decorators:
+                deco.task_finished(
+                    step_name,
+                    self.flow,
+                    self.flow._graph,
+                    self.flow._task_ok,
+                    retry_count,
+                    max_user_code_retries,
+                )
 
     def run_step(
         self,
