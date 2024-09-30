@@ -7,6 +7,11 @@ class SpinStepDatastore(SpinDatastore):
         self._previous_task = None
         self._data = {}
 
+        # Set them to empty dictionaries in order to persist artifacts
+        # See `persist` method in `TaskDatastore` for more details
+        self._objects = {}
+        self._info = {}
+
     def __contains__(self, name):
         try:
             _ = self.__getattr__(name)

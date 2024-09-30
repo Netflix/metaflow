@@ -14,6 +14,8 @@ class SpinParserValidator(object):
         artifacts_module=None,
         foreach_index=None,
         foreach_value=None,
+        skip_decorators=False,
+        step_func=None,
     ):
         self.ctx = ctx
         self.step_name = step_name
@@ -21,6 +23,8 @@ class SpinParserValidator(object):
         self.ancestor_tasks = ancestor_tasks
         self.artifacts = artifacts if artifacts else []
         self.artifacts_module = artifacts_module
+        self.skip_decorators = skip_decorators
+        self.step_func = step_func
         self._foreach_index = foreach_index
         self._foreach_value = foreach_value
         self._task = None
@@ -31,6 +35,7 @@ class SpinParserValidator(object):
         self._parsed_ancestor_tasks = None
         self._required_ancestor_tasks = None
         self._previous_steps_task = None
+        self._step_decorators = None
 
     @property
     def foreach_var(self):
@@ -60,6 +65,19 @@ class SpinParserValidator(object):
         step = Step(f"{self.ctx.obj.flow.name}/{self.run_id}/{self.step_name}")
         self._task = next(iter(step.tasks()))
         return self._task
+
+    @property
+    def step_decorators(self):
+        if self.skip_decorators:
+            return []
+        if self._step_decorators:
+            return self._step_decorators
+        decorators = []
+        for decorator in self.step_func.decorators:
+            if decorator.name in ["environment", "pypi", "conda"]:
+                decorators.append(decorator)
+        self._step_decorators = decorators
+        return self._step_decorators
 
     @property
     def flow_name(self):

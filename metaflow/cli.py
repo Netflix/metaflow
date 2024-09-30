@@ -1,3 +1,4 @@
+import os
 import inspect
 import json
 import sys
@@ -314,35 +315,13 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
 )
 @click.argument("step-name")
 @click.option(
-    "--metadata",
-    default="local",
-    show_default=True,
-    help="Metadata service type",
-)
-@click.option(
-    "--environment",
-    default="local",
-    show_default=True,
-    help="Execution environment type",
-)
-@click.option(
-    "--datastore",
-    default="local",
-    show_default=True,
-    help="Data backend type",
-)
-@click.option("--datastore-root", help="Root path for datastore")
-@click.option(
-    "--event-logger",
-    default="nullSidecarLogger",
-    show_default=True,
-    help="type of event logger used",
-)
-@click.option(
-    "--monitor",
-    default="nullSidecarMonitor",
-    show_default=True,
-    help="Monitoring backend type",
+    "--tag",
+    "tags",
+    multiple=True,
+    default=None,
+    help="Annotate this run with the given tag. You can specify "
+    "this option multiple times to attach multiple tags in "
+    "the run.",
 )
 @click.option(
     "--run-id",
@@ -408,12 +387,8 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
 def spin(
     ctx,
     step_name,
-    metadata,
-    environment,
-    datastore,
-    datastore_root,
-    event_logger,
-    monitor,
+    tags=None,
+    decospecs=None,
     run_id=None,
     ancestor_tasks=None,
     foreach_index=None,
@@ -431,6 +406,7 @@ def spin(
     from metaflow.datastore.spin_datastore.inputs_datastore import SpinInputsDatastore
 
     # We first validate that appropriate parameters are passed
+    step_func = getattr(ctx.obj.flow, step_name)
     spin_parser_validator = SpinParserValidator(
         ctx,
         step_name,
@@ -440,12 +416,15 @@ def spin(
         artifacts_module=artifacts_module,
         foreach_index=foreach_index,
         foreach_value=foreach_value,
+        skip_decorators=skip_decorators,
+        step_func=step_func,
     )
     start_time = time.time()
     spin_parser_validator.validate()
     end_validation_time = time.time()
 
-    # We now set the parameters and the constants for the flowx
+    # We now set the parameters, step_name, and the constants for the flow
+    ctx.obj.step_name = step_name
     ctx.obj.flow._set_constants(ctx.obj.graph, kwargs)
     step_datastore, join_inputs_datastore = None, None
     # We now generate the input datastore for our spin task
@@ -454,70 +433,21 @@ def spin(
     else:
         step_datastore = SpinStepDatastore(spin_parser_validator)
 
-    # We first modify the environment, metadata, monitor and event logger to be local
-    ctx.obj.environment = [
-        e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == environment
-    ][0](ctx.obj.flow)
-    ctx.obj.environment.validate_environment(ctx.obj.logger, datastore)
-
-    ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == metadata][0](
-        ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
-    )
-
-    ctx.obj.monitor = MONITOR_SIDECARS[monitor](
-        flow=ctx.obj.flow, env=ctx.obj.environment
-    )
-    ctx.obj.monitor.start()
-
-    ctx.obj.event_logger = LOGGING_SIDECARS[event_logger](
-        flow=ctx.obj.flow, env=ctx.obj.environment
-    )
-    ctx.obj.event_logger.start()
-
-    ctx.obj.datastore_impl = [d for d in DATASTORES if d.TYPE == datastore][0]
-
-    if datastore_root is None:
-        datastore_root = ctx.obj.datastore_impl.get_datastore_root_from_config(
-            ctx.obj.echo
-        )
-    if datastore_root is None:
-        raise CommandException(
-            "Could not find the location of the datastore -- did you correctly set the "
-            "METAFLOW_DATASTORE_SYSROOT_%s environment variable?" % datastore.upper()
-        )
-    ctx.obj.datastore_impl.datastore_root = datastore_root
-
-    FlowDataStore.default_storage_impl = ctx.obj.datastore_impl
-    ctx.obj.flow_datastore = FlowDataStore(
-        ctx.obj.flow.name,
-        ctx.obj.environment,
-        ctx.obj.metadata,
-        ctx.obj.event_logger,
-        ctx.obj.monitor,
-    )
-
-    # Initialize the system logger and monitor, these are no-ops for spin tasks (for now)
-    _system_logger.init_system_logger(ctx.obj.flow.name, ctx.obj.event_logger)
-    _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
+    # Additional validation for tags, instantiating step decorators, and MetaflowPackage
+    before_run_or_spin(ctx.obj, tags, decospecs, is_spin=True)
 
     # Create a new run_id for the spin task
     # new_run_id is separate from the run_id that is passed in as an argument, since the spin task
     # uses the passed in run_id to fetch the artifacts from the previous run
     new_run_id = ctx.obj.metadata.new_run_id()
 
-    # We also create a new task_id for the spin task
-    new_task_id = str(ctx.obj.metadata.new_task_id(new_run_id, step_name))
-
-    # If we have decorators like @conda, @pypi, or any that need packaging, we package the code
-    ctx.obj.package = MetaflowPackage(
-        ctx.obj.flow, ctx.obj.environment, ctx.obj.echo, ctx.obj.package_suffixes
-    )
-
     # Call runtime_init for the spin step here as we are not executing it via the runtime
-    step_func = getattr(ctx.obj.flow, step_name)
     for deco in step_func.decorators:
         print(f"deco is {deco}, step_name is {step_name}, calling runtime_init")
         deco.runtime_init(ctx.obj.flow, ctx.obj.graph, ctx.obj.package, new_run_id)
+
+    # We also create a new task_id for the spin task
+    new_task_id = str(ctx.obj.metadata.new_task_id(new_run_id, step_name))
 
     task = MetaflowTask(
         ctx.obj.flow,
@@ -534,7 +464,7 @@ def spin(
         f"Spinning up step `{step_name}` with run_id {new_run_id} and task_id {new_task_id}",
         system_msg=True,
     )
-    print("Datastore Root: ", datastore_root)
+    print("Datastore Root: ", ctx.obj.datastore_impl.datastore_root)
     print(f"Validation Time: {end_validation_time - start_time}")
     print(f"Task Init Time: {end_task_init_time - end_validation_time}")
     print("-" * 100)
@@ -906,7 +836,7 @@ def resume(
     resume_identifier=None,
     runner_attribute_file=None,
 ):
-    before_run(obj, tags, decospecs)
+    before_run_or_spin(obj, tags, decospecs)
 
     if origin_run_id is None:
         origin_run_id = get_latest_run_id(obj.echo, obj.flow.name)
@@ -1019,7 +949,7 @@ def run(
 ):
     if user_namespace is not None:
         namespace(user_namespace or None)
-    before_run(obj, tags, decospecs)
+    before_run_or_spin(obj, tags, decospecs)
 
     runtime = NativeRuntime(
         obj.flow,
@@ -1062,7 +992,7 @@ def write_file(file_path, content):
             f.write(str(content))
 
 
-def before_run(obj, tags, decospecs):
+def before_run_or_spin(obj, tags, decospecs, is_spin=False):
     validate_tags(tags)
 
     # There's a --with option both at the top-level and for the run
@@ -1091,9 +1021,22 @@ def before_run(obj, tags, decospecs):
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     # obj.environment.init_environment(obj.logger)
 
-    decorators._init_step_decorators(
-        obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
-    )
+    # In case of spin subcommand, we don't want to init step decorators
+    # for all steps in the flow. We only want to init step decorators for
+    # the step that is being spun up.
+    if not is_spin:
+        decorators._init_step_decorators(
+            obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
+        )
+    else:
+        decorators._init_step_decorator(
+            obj.flow,
+            obj.step_name,
+            obj.environment,
+            obj.flow_datastore,
+            obj.logger,
+            obj.step_name,
+        )
 
     obj.metadata.add_sticky_tags(tags=tags)
 
@@ -1230,14 +1173,10 @@ def start(
     ctx.obj.event_logger = LOGGING_SIDECARS[event_logger](
         flow=ctx.obj.flow, env=ctx.obj.environment
     )
-    ctx.obj.event_logger.start()
-    _system_logger.init_system_logger(ctx.obj.flow.name, ctx.obj.event_logger)
 
     ctx.obj.monitor = MONITOR_SIDECARS[monitor](
         flow=ctx.obj.flow, env=ctx.obj.environment
     )
-    ctx.obj.monitor.start()
-    _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
 
     ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == metadata][0](
         ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
@@ -1266,20 +1205,49 @@ def start(
         ctx.obj.monitor,
     )
 
-    # It is important to initialize flow decorators early as some of the
-    # things they provide may be used by some of the objects initialized after.
-    decorators._init_flow_decorators(
-        ctx.obj.flow,
-        ctx.obj.graph,
-        ctx.obj.environment,
-        ctx.obj.flow_datastore,
-        ctx.obj.metadata,
-        ctx.obj.logger,
-        echo,
-        deco_options,
-    )
+    if ctx.invoked_subcommand == "spin":
+        # In the case of spin subcommand, we override the event logger, monitor, metadata
+        # and datastore with the local versions.
+        event_logger = "nullSidecarLogger"
+        monitor = "nullSidecarMonitor"
+        metadata = "local"
+        datastore = "local"
 
-    # In the case of run/resume, we will want to apply the TL decospecs
+        ctx.obj.event_logger = LOGGING_SIDECARS[event_logger](
+            flow=ctx.obj.flow, env=ctx.obj.environment
+        )
+
+        ctx.obj.monitor = MONITOR_SIDECARS[monitor](
+            flow=ctx.obj.flow, env=ctx.obj.environment
+        )
+
+        ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == metadata][0](
+            ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
+        )
+
+        ctx.obj.datastore_impl = [d for d in DATASTORES if d.TYPE == datastore][0]
+        datastore_root = ctx.obj.datastore_impl.get_datastore_root_from_config(
+            ctx.obj.echo
+        )
+        ctx.obj.datastore_impl.datastore_root = datastore_root
+        print(f"datastore root inside start: {datastore_root}")
+
+        FlowDataStore.default_storage_impl = ctx.obj.datastore_impl
+        ctx.obj.flow_datastore = FlowDataStore(
+            ctx.obj.flow.name,
+            ctx.obj.environment,
+            ctx.obj.metadata,
+            ctx.obj.event_logger,
+            ctx.obj.monitor,
+        )
+
+    ctx.obj.event_logger.start()
+    _system_logger.init_system_logger(ctx.obj.flow.name, ctx.obj.event_logger)
+
+    ctx.obj.monitor.start()
+    _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
+
+    # In the case of run/resume/spin, we will want to apply the TL decospecs
     # *after* the run decospecs so that they don't take precedence. In other
     # words, for the same decorator, we want `myflow.py run --with foo` to
     # take precedence over any other `foo` decospec
@@ -1291,9 +1259,24 @@ def start(
         ctx.obj.flow.name, ctx.obj.echo, ctx.obj.flow_datastore
     )
 
-    if ctx.invoked_subcommand not in ("run", "resume"):
-        # run/resume are special cases because they can add more decorators with --with,
-        # so they have to take care of themselves.
+    # It is important to initialize flow decorators early as some of the
+    # things they provide may be used by some of the objects initialized after.
+    # In case of spin subcommand, we want to initialize flow decorators after
+    # the metadata, environment, and datastore are modified.
+    decorators._init_flow_decorators(
+        ctx.obj.flow,
+        ctx.obj.graph,
+        ctx.obj.environment,
+        ctx.obj.flow_datastore,
+        ctx.obj.metadata,
+        ctx.obj.logger,
+        echo,
+        deco_options,
+    )
+
+    if ctx.invoked_subcommand not in ("run", "resume", "spin"):
+        # run/resume/spin are special cases because they can add more decorators with
+        # --with, so they have to take care of themselves.
         all_decospecs = ctx.obj.tl_decospecs + list(
             ctx.obj.environment.decospecs() or []
         )

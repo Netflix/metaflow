@@ -426,7 +426,7 @@ class MetaflowTask(object):
         )
         current._update_env({"is_spin": True})
 
-        for deco in decorators:
+        for deco in spin_parser_validator.step_decorators:
             deco.task_pre_step(
                 step_name=spin_parser_validator.step_name,
                 task_datastore=output,
@@ -441,7 +441,7 @@ class MetaflowTask(object):
                 inputs=join_inputs_datastore,
             )
 
-        for deco in decorators:
+        for deco in spin_parser_validator.step_decorators:
             # decorators can actually decorate the step function,
             # or they can replace it altogether. This functionality
             # is used e.g. by catch_decorator which switches to a
@@ -461,7 +461,7 @@ class MetaflowTask(object):
             else:
                 self._exec_step_function(step_func)
 
-            for deco in decorators:
+            for deco in spin_parser_validator.step_decorators:
                 deco.task_post_step(
                     step_name=spin_parser_validator.step_name,
                     flow=self.flow,
@@ -474,7 +474,7 @@ class MetaflowTask(object):
             self.flow._success = True
         except Exception as ex:
             exception_handled = False
-            for deco in decorators:
+            for deco in spin_parser_validator.step_decorators:
                 res = deco.task_exception(
                     exception=ex,
                     step_name=spin_parser_validator.step_name,
@@ -498,7 +498,7 @@ class MetaflowTask(object):
 
             # final decorator hook: The task results are now
             # queryable through the client API / datastore
-            for deco in decorators:
+            for deco in spin_parser_validator.step_decorators:
                 deco.task_finished(
                     step_name=spin_parser_validator.step_name,
                     flow=self.flow,

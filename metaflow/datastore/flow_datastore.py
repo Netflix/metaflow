@@ -67,9 +67,6 @@ class FlowDataStore(object):
     def datastore_root(self):
         return self._storage_impl.datastore_root
 
-    def get_local_spin_datastore():
-        pass
-
     def get_task_datastores(
         self,
         run_id=None,

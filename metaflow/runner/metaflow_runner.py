@@ -398,7 +398,6 @@ class Runner(object):
         metadata(metadata_for_flow)
 
         task_object = Task(pathspec, _namespace_check=False)
-        print("Task object is: ", task_object)
         return ExecutingTask(self, command_obj, task_object)
 
     def run(self, **kwargs) -> ExecutingRun:
