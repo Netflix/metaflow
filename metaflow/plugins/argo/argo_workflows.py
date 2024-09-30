@@ -1490,7 +1490,11 @@ class ArgoWorkflows(object):
                         # {{foo.bar['param_name']}}.
                         # https://argoproj.github.io/argo-events/tutorials/02-parameterization/
                         # http://masterminds.github.io/sprig/strings.html
-                        "--%s={{workflow.parameters.%s}}"
+                        (
+                            "--%s='{{workflow.parameters.%s}}'"
+                            if parameter["type"] == "JSON"
+                            else "--%s={{workflow.parameters.%s}}"
+                        )
                         % (parameter["name"], parameter["name"])
                         for parameter in self.parameters.values()
                     ]
