@@ -2358,7 +2358,7 @@ class Metaflow(object):
         Flow
             Flow with the given name.
         """
-        return Flow(id)
+        return Flow(name)
 
 
 _CLASSES["flow"] = Flow
