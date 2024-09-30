@@ -423,8 +423,8 @@ class MetaflowTask(object):
             metadata_str="%s@%s"
             % (self.metadata.__class__.TYPE, self.metadata.__class__.INFO),
             is_running=True,
+            is_spin=True,
         )
-        current._update_env({"is_spin": True})
 
         for deco in spin_parser_validator.step_decorators:
             deco.task_pre_step(

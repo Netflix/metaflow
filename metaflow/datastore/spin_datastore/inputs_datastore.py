@@ -44,7 +44,7 @@ class StaticSpinInputsDatastore(SpinDatastore):
 
         input_step = SpinInput(
             self.spin_parser_validator.artifacts["join"][name],
-            self.get_all_previous_tasks[name],
+            self.get_previous_tasks[name],
         )
         setattr(self, name, input_step)
         return input_step
@@ -53,8 +53,11 @@ class StaticSpinInputsDatastore(SpinDatastore):
         for prev_step_name in self.previous_steps:
             yield self[prev_step_name]
 
+    def __len__(self):
+        return len(self.get_previous_tasks)
+
     @property
-    def get_all_previous_tasks(self):
+    def get_previous_tasks(self):
         if self._previous_tasks:
             return self._previous_tasks
 

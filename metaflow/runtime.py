@@ -170,6 +170,9 @@ class NativeRuntime(object):
                 deco.runtime_init(flow, graph, package, self._run_id)
 
     def _new_task(self, step, input_paths=None, **kwargs):
+        # print(f"Step is: {step}")
+        # print(f"Input paths are: {input_paths}")
+        # print(f"Kwargs are: {kwargs}")
         if input_paths is None:
             may_clone = True
         else:
