@@ -525,6 +525,15 @@ class NativeRuntime(object):
                 "The *end* step was not successful by the end of flow."
             )
 
+        _system_logger.log_event(
+            level="info",
+            module="metaflow.runtime",
+            name="end",
+            payload={
+                "run_id": str(self._run_id),
+            },
+        )
+
     def _killall(self):
         # If we are here, all children have received a signal and are shutting down.
         # We want to give them an opportunity to do so and then kill

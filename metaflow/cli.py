@@ -699,15 +699,6 @@ def resume(
     runtime.print_workflow_info()
 
     runtime.persist_constants()
-    _system_logger.log_event(
-        level="info",
-        module="metaflow.resume",
-        name="graph_info",
-        payload={
-            "run_id": str(runtime.run_id),
-            "msg": str(obj.flow._graph_info),
-        },
-    )
 
     if runner_attribute_file:
         with open(runner_attribute_file, "w") as f:
