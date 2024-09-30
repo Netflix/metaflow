@@ -214,7 +214,33 @@ class TriggeredRun(object):
             return None
 
 
-class DeployedFlow(object):
+class LazyDeploymentMethod:
+    def __init__(self, module_path, func_name):
+        self.module_path = module_path
+        self.func_name = func_name
+        self.func = None
+
+    def __call__(self, *args, **kwargs):
+        if self.func is None:
+            module = importlib.import_module(self.module_path)
+            self.func = getattr(module, self.func_name)
+        return self.func(*args, **kwargs)
+
+
+class DeploymentMethodsMeta(type):
+    from metaflow.plugins import FROM_DEPLOYMENT_PROVIDERS
+
+    def __new__(mcs, name, bases, dct):
+        cls = super().__new__(mcs, name, bases, dct)
+
+        for each_method_name, each_method_path in mcs.FROM_DEPLOYMENT_PROVIDERS.items():
+            lazy_method = LazyDeploymentMethod(each_method_path, "from_deployment")
+            setattr(cls, each_method_name, staticmethod(lazy_method))
+
+        return cls
+
+
+class DeployedFlow(metaclass=DeploymentMethodsMeta):
     """
     DeployedFlow class represents a flow that has been deployed.
 
