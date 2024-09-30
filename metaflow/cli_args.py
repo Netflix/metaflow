@@ -19,7 +19,7 @@
 #    executes locally and therefore needs the local_config_file but the other (remote)
 #    commands do not.
 
-from .config_parameters import ConfigInput
+from .user_configs.config_options import ConfigInput
 from .util import to_unicode
 
 
@@ -72,11 +72,13 @@ class CLIArgs(object):
             # keyword in Python, so we call it 'decospecs' in click args
             if k == "decospecs":
                 k = "with"
-            if k == "config_options":
+            if k in ("config_file_options", "config_value_options"):
                 # Special handling here since we gather them all in one option but actually
-                # need to send them one at a time using --config <name> kv.<name>
+                # need to send them one at a time using --config-value <name> kv.<name>.
+                # Note it can be either config_file_options or config_value_options depending
+                # on click processing order.
                 for config_name in v.keys():
-                    yield "--config"
+                    yield "--config-value"
                     yield to_unicode(config_name)
                     yield to_unicode(ConfigInput.make_key_name(config_name))
                 continue

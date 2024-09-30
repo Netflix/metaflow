@@ -14,6 +14,7 @@ from .parameters import DelayedEvaluationParameter, Parameter
 from .exception import (
     MetaflowException,
     MissingInMergeArtifactsException,
+    MetaflowInternalError,
     UnhandledInMergeArtifactsException,
 )
 
@@ -21,7 +22,12 @@ from .extension_support import extension_info
 
 from .graph import FlowGraph
 from .unbounded_foreach import UnboundedForeachInput
-from .config_parameters import ConfigInput, ConfigValue
+from .user_configs.config_decorators import (
+    FlowConfigDecorator,
+    FlowSpecProxy,
+    StepConfigDecorator,
+    StepProxy,
+)
 from .util import to_pod
 from .metaflow_config import INCLUDE_FOREACH_STACK, MAXIMUM_FOREACH_VALUE_CHARS
 
@@ -68,7 +74,7 @@ class ParallelUBF(UnboundedForeachInput):
 
 class _FlowState(Enum):
     CONFIGS = 1
-    CONFIG_FUNCS = 2
+    CONFIG_DECORATORS = 2
     CACHED_PARAMETERS = 3
 
 
@@ -88,52 +94,6 @@ class _FlowSpecMeta(type):
         f._flow_state = {}
 
         return f
-
-    @property
-    def configs(cls) -> Generator[Tuple[str, "ConfigValue"], None, None]:
-        """
-        Iterate over all user configurations in this flow
-
-        Use this to parameterize your flow based on configuration. As an example:
-        ```
-        def parametrize(flow):
-            val = next(flow.configs)[1].steps.start.cpu
-            flow.start = environment(vars={'mycpu': val})(flow.start)
-            return flow
-
-        @parametrize
-        class TestFlow(FlowSpec):
-            config = Config('myconfig.json')
-
-            @step
-            def start(self):
-                pass
-        ```
-        can be used to add an environment decorator to the `start` step.
-
-        Yields
-        ------
-        Tuple[str, ConfigValue]
-            Iterates over the configurations of the flow
-        """
-        # When configs are parsed, they are loaded in _flow_state[_FlowState.CONFIGS]
-        for name, value in cls._flow_state.get(_FlowState.CONFIGS, {}).items():
-            yield name, ConfigValue(value)
-
-    @property
-    def steps(cls) -> Generator[Tuple[str, Any], None, None]:
-        """
-        Iterate over all the steps in this flow
-
-        Yields
-        ------
-        Tuple[str, Any]
-            A tuple with the step name and the step itself
-        """
-        for var in dir(cls):
-            potential_step = getattr(cls, var)
-            if callable(potential_step) and hasattr(potential_step, "is_step"):
-                yield var, potential_step
 
 
 class FlowSpec(metaclass=_FlowSpecMeta):
@@ -221,11 +181,11 @@ class FlowSpec(metaclass=_FlowSpecMeta):
                 )
             seen.add(norm)
 
-    def _process_config_funcs(self, config_options):
+    def _process_config_decorators(self, config_options):
         current_cls = self.__class__
 
         # Fast path for no user configurations
-        if not self._flow_state.get(_FlowState.CONFIG_FUNCS):
+        if not self._flow_state.get(_FlowState.CONFIG_DECORATORS):
             return self
 
         # We need to convert all the user configurations from DelayedEvaluationParameters
@@ -245,10 +205,29 @@ class FlowSpec(metaclass=_FlowSpecMeta):
                 val = val()
             setattr(current_cls, var, val)
 
-        # Run all the functions. They will now be able to access the configuration
-        # values directly from the class
-        for func in self._flow_state[_FlowState.CONFIG_FUNCS]:
-            current_cls = func(current_cls)
+        # Run all the decorators
+        for deco in self._flow_state[_FlowState.CONFIG_DECORATORS]:
+            if isinstance(deco, FlowConfigDecorator):
+                # Sanity check to make sure we are applying the decorator to the right
+                # class
+                if not deco._flow_cls == current_cls and not issubclass(
+                    current_cls, deco._flow_cls
+                ):
+                    raise MetaflowInternalError(
+                        "FlowConfigDecorator registered on the wrong flow -- "
+                        "expected %s but got %s"
+                        % (deco._flow_cls.__name__, current_cls.__name__)
+                    )
+                deco.evaluate(FlowSpecProxy(current_cls))
+            elif isinstance(deco, StepConfigDecorator):
+                # Again some sanity checks
+                if deco._flow_cls != current_cls:
+                    raise MetaflowInternalError(
+                        "StepConfigDecorator registered on the wrong flow -- "
+                        "expected %s but got %s"
+                        % (deco._flow_cls.__name__, current_cls.__name__)
+                    )
+                deco.evaluate(StepConfigDecorator(deco._my_step))
 
         # Reset all configs that were already present in the class.
         # TODO: This means that users can't override configs directly. Not sure if this

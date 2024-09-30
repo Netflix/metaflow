@@ -12,7 +12,7 @@ from .exception import (
 )
 
 from .parameters import current_flow
-from .config_parameters import DelayEvaluator
+from .user_configs.config_parameters import DelayEvaluator
 
 from metaflow._vendor import click
 
@@ -116,10 +116,12 @@ class Decorator(object):
     def __init__(self, attributes=None, statically_defined=False):
         self.attributes = self.defaults.copy()
         self.statically_defined = statically_defined
+        self._user_defined_attributes = set()
 
         if attributes:
             for k, v in attributes.items():
-                if k in self.defaults:
+                self._user_defined_attributes.add(k)
+                if k in self.defaults or k.startswith("_unpacked_delayed_"):
                     self.attributes[k] = v
                 else:
                     raise InvalidDecoratorAttribute(self.name, k, self.defaults)
@@ -146,7 +148,27 @@ class Decorator(object):
                 return {_resolve_delayed_evaluator(x) for x in v}
             return v
 
+        # Expand any eventual _unpacked_delayed_ attributes. These are special attributes
+        # that allow the delay unpacking of configuration values.
+        delayed_upack_keys = [
+            k for k in self.attributes if k.startswith("_unpacked_delayed_")
+        ]
+        if delayed_upack_keys:
+            for k in delayed_upack_keys:
+                unpacked = _resolve_delayed_evaluator(self.attributes[k])
+                for uk, uv in unpacked.items():
+                    if uk in self._user_defined_attributes:
+                        raise SyntaxError(
+                            "keyword argument repeated: %s" % uk, "<unk.py>", 0, "<unk>"
+                        )
+                    self._user_defined_attributes.add(uk)
+                    self.attributes[uk] = uv
+                del self.attributes[k]
+
+        # Now resolve all attributes
         for k, v in self.attributes.items():
+            # This is a special attribute that means we are going to unpack
+            # the configuration valu
             self.attributes[k] = _resolve_delayed_evaluator(v)
 
     @classmethod
@@ -460,6 +482,7 @@ def _base_step_decorator(decotype, *args, **kwargs):
     Decorator prototype for all step decorators. This function gets specialized
     and imported for all decorators types by _import_plugin_decorators().
     """
+
     if args:
         # No keyword arguments specified for the decorator, e.g. @foobar.
         # The first argument is the function to be decorated.
