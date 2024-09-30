@@ -17,7 +17,7 @@ from .parameters import (
     Parameter,
     ParameterContext,
 )
-from .config_parameters import ConfigValue
+from .user_configs.config_parameters import ConfigValue
 from .util import get_username
 
 import functools
