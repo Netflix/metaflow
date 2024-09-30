@@ -44,7 +44,8 @@ from .unbounded_foreach import (
     UBF_TASK,
 )
 
-from .config_parameters import ConfigInput, dump_config_values
+from .user_configs.config_options import ConfigInput
+from .user_configs.config_parameters import dump_config_values
 
 import metaflow.tracing as tracing
 
@@ -1527,7 +1528,7 @@ class CLIArgs(object):
         # in the case of the local runtime)
         configs = self.task.flow._flow_state.get(_FlowState.CONFIGS)
         if configs:
-            self.top_level_options["config"] = [
+            self.top_level_options["config-value"] = [
                 (k, ConfigInput.make_key_name(k)) for k in configs
             ]
 

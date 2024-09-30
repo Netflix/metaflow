@@ -15,7 +15,7 @@ from .exception import (
 )
 
 if TYPE_CHECKING:
-    from .config_parameters import ConfigValue
+    from .user_configs.config_parameters import ConfigValue
 
 try:
     # Python2
@@ -232,7 +232,9 @@ def deploy_time_eval(value):
 
 # this is called by cli.main
 def set_parameter_context(flow_name, echo, datastore, configs):
-    from .config_parameters import ConfigValue  # Prevent circular dependency
+    from .user_configs.config_parameters import (
+        ConfigValue,
+    )  # Prevent circular dependency
 
     global context_proto
     context_proto = ParameterContext(
@@ -328,7 +330,9 @@ class Parameter(object):
                 int,
                 bool,
                 Dict[str, Any],
-                Callable[[], Union[str, float, int, bool, Dict[str, Any]]],
+                Callable[
+                    [ParameterContext], Union[str, float, int, bool, Dict[str, Any]]
+                ],
             ]
         ] = None,
         type: Optional[

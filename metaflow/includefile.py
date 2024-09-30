@@ -20,7 +20,7 @@ from .parameters import (
 )
 
 from .plugins import DATACLIENTS
-from .config_parameters import ConfigValue
+from .user_configs.config_parameters import ConfigValue
 from .util import get_username
 
 import functools
