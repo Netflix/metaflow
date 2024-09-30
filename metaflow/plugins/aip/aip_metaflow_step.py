@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import pathlib
+import time
 from subprocess import Popen
 from typing import Dict, List
 
@@ -44,17 +45,19 @@ def _write_card_artifacts(
 
     task_id_template: str = f"{task_id}.{passed_in_split_indexes}".strip(".")
     pathspec = f"{flow_name}/{run_id}/{step_name}/{task_id_template}"
+    workaround_instruction = "Please view cards through Metaflow UI, or refer to https://docs.metaflow.org/metaflow/visualizing-results/effortless-task-inspection-with-default-cards#accessing-cards-via-an-api"
 
     retry_limit = 3
     cards: List[Card] = []
     for attempt in range(retry_limit):
         try:
+            if attempt > 0:
+                time.sleep(1)  # Spacing out retries to the backend / datastore
             cards: List[Card] = list(get_cards(pathspec))
         except:
             if attempt == retry_limit - 1:  # Last attempt failed
                 logging.exception(
-                    f"Failed to get cards from Metaflow backend for pathspec {pathspec}"
-                    "Please view cards through Metaflow UI, or refer to https://docs.metaflow.org/metaflow/visualizing-results/effortless-task-inspection-with-default-cards#accessing-cards-via-an-api"
+                    f"Failed to get cards from Metaflow backend for pathspec {pathspec}. {workaround_instruction}"
                 )
             continue
         break
@@ -75,8 +78,7 @@ def _write_card_artifacts(
                 card_file.write(card.get())
         except Exception:
             logging.exception(
-                f"Failed to write card {index} of type {card.type} to Argo artifact output."
-                "Please view cards through Metaflow UI, or refer to https://docs.metaflow.org/metaflow/visualizing-results/effortless-task-inspection-with-default-cards#accessing-cards-via-an-api"
+                f"Failed to write card {index} of type {card.type} to Argo artifact output. {workaround_instruction}"
             )
             raise
 
