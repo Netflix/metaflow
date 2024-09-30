@@ -253,7 +253,18 @@ class Micromamba(object):
             try:
                 output = json.loads(e.output)
                 err = []
+                v_pkgs = ["__cuda", "__glibc"]
                 for error in output.get("solver_problems", []):
+                    # raise a specific error message for virtual package related errors
+                    match = next((p for p in v_pkgs if p in error), None)
+                    if match is not None:
+                        raise MicromambaException(
+                            [
+                                error,
+                                "Please set the environment variable CONDA_OVERRIDE_%s to a specific version"
+                                % (match[2:].upper()),
+                            ]
+                        )
                     err.append(error)
                 raise MicromambaException(
                     msg.format(
