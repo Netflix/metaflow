@@ -516,7 +516,8 @@ def spin(
     # Call runtime_init for the spin step here as we are not executing it via the runtime
     step_func = getattr(ctx.obj.flow, step_name)
     for deco in step_func.decorators:
-        deco.runtime_init(flow, graph, ctx.obj.package, new_run_id)
+        print(f"deco is {deco}, step_name is {step_name}, calling runtime_init")
+        deco.runtime_init(ctx.obj.flow, ctx.obj.graph, ctx.obj.package, new_run_id)
 
     task = MetaflowTask(
         ctx.obj.flow,

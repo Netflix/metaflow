@@ -428,17 +428,17 @@ class MetaflowTask(object):
 
         for deco in decorators:
             deco.task_pre_step(
-                step_name,
-                output,
-                self.metadata,
-                run_id,
-                task_id,
-                self.flow,
-                self.flow._graph,
-                retry_count,
-                max_user_code_retries,
-                self.ubf_context,
-                inputs,
+                step_name=spin_parser_validator.step_name,
+                task_datastore=output,
+                metadata=self.metadata,
+                run_id=new_run_id,
+                task_id=new_task_id,
+                flow=self.flow,
+                graph=self.flow._graph,
+                retry_count=0,
+                max_user_code_retries=1,
+                ubf_context=self.ubf_context,
+                inputs=join_inputs_datastore,
             )
 
         for deco in decorators:
@@ -448,12 +448,12 @@ class MetaflowTask(object):
             # fallback code if the user code has failed too many
             # times.
             step_func = deco.task_decorate(
-                step_func,
-                self.flow,
-                self.flow._graph,
-                retry_count,
-                max_user_code_retries,
-                self.ubf_context,
+                step_func=step_func,
+                flow=self.flow,
+                graph=self.flow._graph,
+                retry_count=0,
+                max_user_code_retries=1,
+                ubf_context=self.ubf_context,
             )
         try:
             if spin_parser_validator.step_type == "join":
@@ -463,11 +463,11 @@ class MetaflowTask(object):
 
             for deco in decorators:
                 deco.task_post_step(
-                    step_name,
-                    self.flow,
-                    self.flow._graph,
-                    retry_count,
-                    max_user_code_retries,
+                    step_name=spin_parser_validator.step_name,
+                    flow=self.flow,
+                    graph=self.flow._graph,
+                    retry_count=0,
+                    max_user_code_retries=1,
                 )
 
             self.flow._task_ok = True
@@ -476,12 +476,12 @@ class MetaflowTask(object):
             exception_handled = False
             for deco in decorators:
                 res = deco.task_exception(
-                    ex,
-                    step_name,
-                    self.flow,
-                    self.flow._graph,
-                    retry_count,
-                    max_user_code_retries,
+                    exception=ex,
+                    step_name=spin_parser_validator.step_name,
+                    flow=self.flow,
+                    graph=self.flow._graph,
+                    retry_count=0,
+                    max_user_code_retries=1,
                 )
                 exception_handled = bool(res) or exception_handled
 
@@ -500,12 +500,12 @@ class MetaflowTask(object):
             # queryable through the client API / datastore
             for deco in decorators:
                 deco.task_finished(
-                    step_name,
-                    self.flow,
-                    self.flow._graph,
-                    self.flow._task_ok,
-                    retry_count,
-                    max_user_code_retries,
+                    step_name=spin_parser_validator.step_name,
+                    flow=self.flow,
+                    graph=self.flow._graph,
+                    is_task_ok=self.flow._task_ok,
+                    retry_count=0,
+                    max_user_code_retries=1,
                 )
 
     def run_step(
