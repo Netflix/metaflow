@@ -1,5 +1,6 @@
 import asyncio
 import os
+import shlex
 import time
 import shutil
 import signal
@@ -67,6 +68,7 @@ class SubprocessManager(object):
         env: Optional[Dict[str, str]] = None,
         cwd: Optional[str] = None,
         show_output: bool = False,
+        shell: bool = False,
     ) -> int:
         """
         Run a command synchronously and return its process ID.
@@ -87,6 +89,9 @@ class SubprocessManager(object):
             CommandManager object:
                 - command_obj.log_files["stdout"]
                 - command_obj.log_files["stderr"]
+        shell : bool, default False
+            Whether to run the command in a shell or not.
+            Forwarding the command to shell can provide a performance improvement.
         Returns
         -------
         int
@@ -94,7 +99,7 @@ class SubprocessManager(object):
         """
 
         command_obj = CommandManager(command, env, cwd)
-        pid = command_obj.run(show_output=show_output)
+        pid = command_obj.run(show_output=show_output, shell=shell)
         self.commands[pid] = command_obj
         command_obj.sync_wait()
         return pid
@@ -245,7 +250,7 @@ class CommandManager(object):
         self.stdout_thread.join()
         self.stderr_thread.join()
 
-    def run(self, show_output: bool = False):
+    def run(self, show_output: bool = False, shell=False):
         """
         Run the subprocess synchronously. This can only be called once.
 
@@ -258,6 +263,9 @@ class CommandManager(object):
             They can be accessed later by reading the files present in:
                 - self.log_files["stdout"]
                 - self.log_files["stderr"]
+        shell : bool, default False
+            Whether to run the command in a shell or not.
+            Forwarding the command to shell can provide a performance improvement.
         """
 
         if not self.run_called:
@@ -274,15 +282,27 @@ class CommandManager(object):
                 pipe.close()
 
             try:
-                self.process = subprocess.Popen(
-                    self.command,
-                    cwd=self.cwd,
-                    env=self.env,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    bufsize=1,
-                    universal_newlines=True,
-                )
+                if shell:
+                    self.process = subprocess.Popen(
+                        shlex.join(self.command),
+                        cwd=self.cwd,
+                        env=self.env,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        bufsize=1,
+                        universal_newlines=True,
+                        shell=True,
+                    )
+                else:
+                    self.process = subprocess.Popen(
+                        self.command,
+                        cwd=self.cwd,
+                        env=self.env,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        bufsize=1,
+                        universal_newlines=True,
+                    )
 
                 self.log_files["stdout"] = stdout_logfile
                 self.log_files["stderr"] = stderr_logfile
