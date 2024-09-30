@@ -6,7 +6,7 @@ import time
 import json
 from io import BytesIO
 
-from .config_parameters import CONFIG_FILE, dump_config_values
+from .user_configs.config_parameters import CONFIG_FILE, dump_config_values
 from .extension_support import EXT_PKG, package_mfext_all
 from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from .exception import MetaflowException

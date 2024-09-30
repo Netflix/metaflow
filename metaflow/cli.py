@@ -13,6 +13,7 @@ from . import decorators, lint, metaflow_version, namespace, parameters, plugins
 from .cli_args import cli_args
 from .datastore import FlowDataStore, TaskDataStore, TaskDataStoreSet
 from .exception import CommandException, MetaflowException
+from .flowspec import _FlowState
 from .graph import FlowGraph
 from .metaflow_config import (
     DECOSPECS,
@@ -47,7 +48,8 @@ from .util import (
     resolve_identity,
     write_latest_run_id,
 )
-from .config_parameters import LocalFileInput, config_options
+from .user_configs.config_options import LocalFileInput, config_options
+from .user_configs.config_parameters import ConfigValue
 
 ERASE_TO_EOL = "\033[K"
 HIGHLIGHT = "red"
@@ -950,7 +952,8 @@ def start(
     event_logger=None,
     monitor=None,
     local_config_file=None,
-    config_options=None,
+    config_file_options=None,
+    config_value_options=None,
     **deco_options
 ):
     global echo
@@ -972,7 +975,12 @@ def start(
     # process all those decorators that the user added that will modify the flow based
     # on those configurations. It is important to do this as early as possible since it
     # actually modifies the flow itself
-    ctx.obj.flow = ctx.obj.flow._process_config_funcs(config_options)
+
+    # When we process the options, the first one processed will return None and the
+    # second one processed will return the actual options. The order of processing
+    # depends on what (and in what order) the user specifies on the command line.
+    config_options = config_file_options or config_value_options
+    ctx.obj.flow = ctx.obj.flow._process_config_decorators(config_options)
 
     cli_args._set_top_kwargs(ctx.params)
     ctx.obj.echo = echo
@@ -1059,7 +1067,12 @@ def start(
         ctx.obj.flow.name,
         ctx.obj.echo,
         ctx.obj.flow_datastore,
-        dict(ctx.obj.flow.configs),
+        {
+            k: ConfigValue(v)
+            for k, v in ctx.obj.flow.__class__._flow_state.get(
+                _FlowState.CONFIGS, {}
+            ).items()
+        },
     )
 
     if ctx.invoked_subcommand not in ("run", "resume"):

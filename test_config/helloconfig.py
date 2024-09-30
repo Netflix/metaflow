@@ -8,7 +8,8 @@ from metaflow import (
     step,
     project,
     config_expr,
-    eval_config,
+    FlowConfigDecorator,
+    StepConfigDecorator,
     titus,
 )
 
@@ -37,26 +38,21 @@ default_config = {
 silly_config = "baz:awesome"
 
 
-def titus_or_not(flow):
-    to_replace = []
-    for name, s in flow.steps:
-        if name in flow.config.run_on_titus:
-            to_replace.append((name, titus(cpu=flow.config.cpu_count)(s)))
-    for name, val in to_replace:
-        setattr(flow, name, val)
-    return flow
+class TitusOrNot(FlowConfigDecorator):
+    def evaluate(self, flow_proxy):
+        for name, s in flow_proxy.steps:
+            if name in flow_proxy.config.run_on_titus:
+                s.add_decorator(titus, cpu=flow_proxy.config.cpu_count)
 
 
-def add_env_to_start(flow):
-    # Add a decorator directly to a step
-    flow.start = environment(vars={"hello": config_expr("config").env_to_start})(
-        flow.start
-    )
-    return flow
+class AddEnvToStart(FlowConfigDecorator):
+    def evaluate(self, flow_proxy):
+        s = flow_proxy.start
+        s.add_decorator(environment, vars={"hello": flow_proxy.config.env_to_start})
 
 
-@eval_config(titus_or_not)
-@add_env_to_start
+@TitusOrNot()
+@AddEnvToStart()
 @project(name=config_expr("config").project_name)
 class HelloConfig(FlowSpec):
     """
@@ -72,7 +68,7 @@ class HelloConfig(FlowSpec):
 
     default_from_func = Parameter("default_from_func", default=param_func, type=int)
 
-    config = Config("config", default=default_config, help="Help for config")
+    config = Config("config", default_value=default_config, help="Help for config")
     sconfig = Config(
         "sconfig",
         default="sillyconfig.txt",
@@ -80,9 +76,11 @@ class HelloConfig(FlowSpec):
         help="Help for sconfig",
         required=True,
     )
-    config2 = Config("config2", required=True)
+    config2 = Config("config2")
 
-    config3 = Config("config3", default=config_func)
+    config3 = Config("config3", default_value=config_func)
+
+    env_config = Config("env_config", default_value={"vars": {"name": "Romain"}})
 
     @step
     def start(self):
@@ -125,6 +123,7 @@ class HelloConfig(FlowSpec):
         )
         self.next(self.end)
 
+    @environment(**env_config)
     @step
     def end(self):
         """
@@ -132,7 +131,7 @@ class HelloConfig(FlowSpec):
         last step in the flow.
 
         """
-        print("HelloFlow is all done")
+        print("HelloFlow is all done for %s" % os.environ.get("name"))
 
 
 if __name__ == "__main__":
