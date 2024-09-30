@@ -385,5 +385,3 @@ class ArgoWorkflowsDeployer(DeployerImpl):
                 "delete": delete,
             }
         )
-
-        setattr(DeployedFlow, "from_deployment", staticmethod(from_deployment))
