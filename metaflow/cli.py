@@ -40,7 +40,7 @@ from .plugins import (
 )
 from .pylint_wrapper import PyLint
 from .R import metaflow_r_version, use_r
-from .runtime import NativeRuntime
+from .runtime import NativeRuntime, SpinRuntime
 from .tagging_util import validate_tags
 from .task import MetaflowTask
 from .unbounded_foreach import UBF_CONTROL, UBF_TASK
@@ -436,67 +436,72 @@ def spin(
     # Additional validation for tags, instantiating step decorators, and MetaflowPackage
     before_run_or_spin(ctx.obj, tags, decospecs, is_spin=True)
 
-    # Create a new run_id for the spin task
-    # new_run_id is separate from the run_id that is passed in as an argument, since the spin task
-    # uses the passed in run_id to fetch the artifacts from the previous run
-    new_run_id = ctx.obj.metadata.new_run_id()
-
-    # Call runtime_init for the spin step here as we are not executing it via the runtime
-    for deco in step_func.decorators:
-        print(f"deco is {deco}, step_name is {step_name}, calling runtime_init")
-        deco.runtime_init(ctx.obj.flow, ctx.obj.graph, ctx.obj.package, new_run_id)
-
-    # We also create a new task_id for the spin task
-    new_task_id = str(ctx.obj.metadata.new_task_id(new_run_id, step_name))
-
-    task = MetaflowTask(
+    spin_runtime = SpinRuntime(
         ctx.obj.flow,
-        ctx.obj.flow_datastore,  # local datastore
-        ctx.obj.metadata,  # local metadata provider
-        ctx.obj.environment,  # local environment
-        ctx.obj.echo,
-        ctx.obj.event_logger,  # null logger
-        ctx.obj.monitor,  # null monitor
-        None,  # no unbounded foreach context
-    )
-    end_task_init_time = time.time()
-    ctx.obj.logger(
-        f"Spinning up step `{step_name}` with run_id {new_run_id} and task_id {new_task_id}",
-        system_msg=True,
-    )
-    print("Datastore Root: ", ctx.obj.datastore_impl.datastore_root)
-    print(f"Validation Time: {end_validation_time - start_time}")
-    print(f"Task Init Time: {end_task_init_time - end_validation_time}")
-    print("-" * 100)
-    write_latest_run_id(ctx.obj, new_run_id)
-    write_file(run_id_file, new_run_id)
-
-    local_metadata = (
-        f"{ctx.obj.metadata.__class__.TYPE}@{ctx.obj.metadata.__class__.INFO}"
-    )
-    if runner_attribute_file:
-        with open(runner_attribute_file, "w") as f:
-            json.dump(
-                {
-                    "task_id": new_task_id,
-                    "step_name": step_name,
-                    "run_id": new_run_id,
-                    "flow_name": ctx.obj.flow.name,
-                    "metadata": local_metadata,
-                },
-                f,
-            )
-
-    task.run_spin_step(
+        ctx.obj.graph,
+        ctx.obj.flow_datastore,
+        ctx.obj.metadata,
+        ctx.obj.environment,
+        ctx.obj.package,
+        ctx.obj.logger,
+        ctx.obj.entrypoint,
+        ctx.obj.event_logger,
+        ctx.obj.monitor,
         spin_parser_validator=spin_parser_validator,
-        new_task_id=new_task_id,
-        new_run_id=new_run_id,
         step_datastore=step_datastore,
         join_inputs_datastore=join_inputs_datastore,
+        step_func=step_func,
     )
-    print("-" * 100)
-    end_time = time.time()
-    print(f"Total Time: {end_time - start_time}")
+    spin_runtime.execute()
+
+    # task = MetaflowTask(
+    #     ctx.obj.flow,
+    #     ctx.obj.flow_datastore,  # local datastore
+    #     ctx.obj.metadata,  # local metadata provider
+    #     ctx.obj.environment,  # local environment
+    #     ctx.obj.echo,
+    #     ctx.obj.event_logger,  # null logger
+    #     ctx.obj.monitor,  # null monitor
+    #     None,  # no unbounded foreach context
+    # )
+    # end_task_init_time = time.time()
+    # ctx.obj.logger(
+    #     f"Spinning up step `{step_name}` with run_id {new_run_id} and task_id {new_task_id}",
+    #     system_msg=True,
+    # )
+    # print("Datastore Root: ", ctx.obj.datastore_impl.datastore_root)
+    # print(f"Validation Time: {end_validation_time - start_time}")
+    # print(f"Task Init Time: {end_task_init_time - end_validation_time}")
+    # print("-" * 100)
+    # write_latest_run_id(ctx.obj, new_run_id)
+    # write_file(run_id_file, new_run_id)
+    #
+    # local_metadata = (
+    #     f"{ctx.obj.metadata.__class__.TYPE}@{ctx.obj.metadata.__class__.INFO}"
+    # )
+    # if runner_attribute_file:
+    #     with open(runner_attribute_file, "w") as f:
+    #         json.dump(
+    #             {
+    #                 "task_id": new_task_id,
+    #                 "step_name": step_name,
+    #                 "run_id": new_run_id,
+    #                 "flow_name": ctx.obj.flow.name,
+    #                 "metadata": local_metadata,
+    #             },
+    #             f,
+    #         )
+    #
+    # task.run_spin_step(
+    #     spin_parser_validator=spin_parser_validator,
+    #     new_task_id=new_task_id,
+    #     new_run_id=new_run_id,
+    #     step_datastore=step_datastore,
+    #     join_inputs_datastore=join_inputs_datastore,
+    # )
+    # print("-" * 100)
+    # end_time = time.time()
+    # print(f"Total Time: {end_time - start_time}")
 
 
 # TODO - move step and init under a separate 'internal' subcommand
@@ -1240,6 +1245,7 @@ def start(
             ctx.obj.event_logger,
             ctx.obj.monitor,
         )
+        print(f"Flow Datastore: {ctx.obj.flow_datastore}")
 
     ctx.obj.event_logger.start()
     _system_logger.init_system_logger(ctx.obj.flow.name, ctx.obj.event_logger)
@@ -1263,6 +1269,7 @@ def start(
     # things they provide may be used by some of the objects initialized after.
     # In case of spin subcommand, we want to initialize flow decorators after
     # the metadata, environment, and datastore are modified.
+    print(f"Before init flow decorators: {ctx.obj.flow}")
     decorators._init_flow_decorators(
         ctx.obj.flow,
         ctx.obj.graph,
@@ -1273,6 +1280,7 @@ def start(
         echo,
         deco_options,
     )
+    print(f"After init flow decorators: {ctx.obj.flow}")
 
     if ctx.invoked_subcommand not in ("run", "resume", "spin"):
         # run/resume/spin are special cases because they can add more decorators with

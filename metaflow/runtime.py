@@ -59,6 +59,150 @@ mflog_msg = partial(mflog.decorate, RUNTIME_LOG_SOURCE)
 # TODO option: output dot graph periodically about execution
 
 
+class SpinRuntime(object):
+    def __init__(
+        self,
+        flow,
+        graph,
+        flow_datastore,
+        metadata,
+        environment,
+        package,
+        logger,
+        entrypoint,
+        event_logger,
+        monitor,
+        spin_parser_validator,
+        step_datastore,
+        join_inputs_datastore,
+        step_func,
+    ):
+        self._flow = flow
+        self._step_func = step_func
+        self._graph = graph
+        self._flow_datastore = flow_datastore
+        self._metadata = metadata
+        self._environment = environment
+        self._package = package
+        self._logger = logger
+        self._entrypoint = entrypoint
+        self._event_logger = event_logger
+        self._monitor = monitor
+        self._input_paths = None
+        self.spin_parser_validator = spin_parser_validator
+        self.step_datastore = step_datastore
+        self.join_inputs_datastore = join_inputs_datastore
+
+        # Create a new run_id for the spin task
+        # new_run_id is separate from the run_id that is passed in as an argument, since the spin task
+        # uses the passed in run_id to fetch the artifacts from the previous run
+        self._new_run_id = self._metadata.new_run_id()
+
+        # Call runtime_init for the spin step here as we are not executing it via the NativeRuntime
+        for deco in self.spin_parser_validator.step_decorators:
+            print(f"deco is {deco}, step_name is {step_name}, calling runtime_init")
+            deco.runtime_init(self._flow, self._graph, self._package, self._new_run_id)
+
+        print(f"New run id is: {self._new_run_id}")
+
+    @property
+    def step_name(self):
+        return self.spin_parser_validator.step_name
+
+    @property
+    def input_paths(self):
+        def _format_input_paths(task):
+            return "/".join(task.path_components[1:])
+
+        if self._input_paths:
+            return self._input_paths
+
+        # Special logic for start step
+        if self.step_name == "start":
+            from metaflow import Step
+
+            task = Step(f"{self._flow.name}/{self.prev_run_id}/_parameters").task
+            self._input_paths = [_format_input_paths(task)]
+        elif self.spin_parser_validator.step_type == "join":
+            self._input_paths = []
+            for task in self.join_inputs_datastore.get_previous_tasks:
+                self._input_paths.append(_format_input_paths(task))
+        else:
+            self._input_paths = [
+                _format_input_paths(self.step_datastore.previous_task())
+            ]
+        print(f"Input paths are: {self._input_paths}")
+        return self._input_paths
+
+    @property
+    def split_index(self):
+        print(f"Split index is: {self.spin_parser_validator.foreach_index}")
+        return self.spin_parser_validator.foreach_index
+
+    def _new_task(self, step, input_paths=None, **kwargs):
+        return Task(
+            self._flow_datastore,
+            self._flow,
+            step,
+            self._new_run_id,
+            self._metadata,
+            self._environment,
+            self._entrypoint,
+            self._event_logger,
+            self._monitor,
+            input_paths=self.input_paths,
+            decos=self.spin_parser_validator.step_decorators,
+            logger=self._logger,
+            split_index=self.split_index,
+            **kwargs,
+        )
+
+    def execute(self):
+        # We also create a new task_id for the spin task
+        self._new_task_id = str(
+            self._metadata.new_task_id(self._new_run_id, self.step_name)
+        )
+        print(f"New task id is: {self._new_task_id}")
+
+        task = self._new_task(self.step_name, {})
+        for deco in self.spin_parser_validator.step_decorators:
+            deco.runtime_task_created(
+                self._ds,
+                self._new_task_id,
+                self.split_index,
+                self.input_paths,
+                is_cloned=False,
+                ubf_context=None,
+            )
+
+        args = CLIArgs(task)
+        env = dict(os.environ)
+
+        for deco in self.spin_parser_validator.step_decorators:
+            deco.runtime_step_cli(
+                args,
+                task.retries,
+                task.user_code_retries,
+                task.ubf_context,
+            )
+
+        # We now set the command to be spin_internal to execute our spin step
+        cli_args.commands = ["spin-internal"]
+        env.update(args.get_env())
+        env["PYTHONUNBUFFERED"] = "x"
+        cmdline = args.get_args()
+        print(f"Command line is: {cmdline}")
+        # debug.subcommand_exec(cmdline)
+        # return subprocess.Popen(
+        #     cmdline,
+        #     env=env,
+        #     bufsize=1,
+        #     stdin=subprocess.PIPE,
+        #     stderr=subprocess.PIPE,
+        #     stdout=subprocess.PIPE,
+        # )
+
+
 class NativeRuntime(object):
     def __init__(
         self,
