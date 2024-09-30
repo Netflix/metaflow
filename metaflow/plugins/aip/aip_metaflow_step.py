@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import pathlib
+import time
 from subprocess import Popen
 from typing import Dict, List
 
@@ -25,6 +26,7 @@ from metaflow.plugins.aip.aip_constants import (
     AIP_JOIN_METAFLOW_S3OP_NUM_WORKERS,
 )
 from metaflow.plugins.cards.card_client import get_cards, Card
+from metaflow.plugins.cards.exception import CardNotPresentException
 from ... import R, metaflow_version
 
 
@@ -35,23 +37,50 @@ def _write_card_artifacts(
     passed_in_split_indexes: str,
     run_id: str,
 ):
+    """
+    Pull card artifacts from datastore and add them to the Argo artifact output path.
+    Cards should already be uploaded to the datastore as part of the @card decorator.
+    No exception is thrown: cards are available to view through Metaflow UI or CLI even if this function fails.
+    """
+
     task_id_template: str = f"{task_id}.{passed_in_split_indexes}".strip(".")
     pathspec = f"{flow_name}/{run_id}/{step_name}/{task_id_template}"
+    workaround_instruction = "Please view cards through Metaflow UI, or refer to https://docs.metaflow.org/metaflow/visualizing-results/effortless-task-inspection-with-default-cards#accessing-cards-via-an-api"
 
-    cards: List[Card] = list(get_cards(pathspec))
+    retry_limit = 3
+    cards: List[Card] = []
+    for attempt in range(retry_limit):
+        try:
+            if attempt > 0:
+                time.sleep(1)  # Spacing out retries to the backend / datastore
+            cards: List[Card] = list(get_cards(pathspec))
+        except:
+            if attempt == retry_limit - 1:  # Last attempt failed
+                logging.exception(
+                    f"Failed to get cards from Metaflow backend for pathspec {pathspec}. {workaround_instruction}"
+                )
+            continue
+        break
+
+    if not cards:
+        return
+
     # sort such that the default card is first
     sorted_cards = sorted(
         cards, key=lambda card: (card.type != "default", cards.index(card))
     )
 
-    i = 0
     pathlib.Path("/tmp/outputs/cards/").mkdir(parents=True, exist_ok=True)
-    for card in sorted_cards:
-        iter_name = "" if i == 0 else i
-        file_name = f"/tmp/outputs/cards/card{iter_name}.html"
-        with open(file_name, "w") as card_file:
-            card_file.write(card.get())
-        i = i + 1
+    for index, card in enumerate(sorted_cards):
+        file_name = f"/tmp/outputs/cards/card-{index}.html"
+        try:
+            with open(file_name, "w") as card_file:
+                card_file.write(card.get())
+        except Exception:
+            logging.exception(
+                f"Failed to write card {index} of type {card.type} to Argo artifact output. {workaround_instruction}"
+            )
+            raise
 
 
 def _step_cli(
@@ -68,6 +97,7 @@ def _step_cli(
     max_user_code_retries: int,
     workflow_name: str,
     script_name: str,
+    add_default_card: bool,
 ) -> str:
     """
     Analogous to step_functions.py
@@ -165,7 +195,7 @@ def _step_cli(
 
     step: List[str] = [
         "--with=aip",
-        "--with 'card:id=default'",
+        "--with 'card:id=default'" if add_default_card else "",
         "step",
         step_name,
         "--run-id %s" % run_id,
@@ -275,6 +305,8 @@ def _command(
 @click.option("--workflow_name")
 @click.option("--is-interruptible/--not-interruptible", default=False)
 @click.option("--is-join-step", is_flag=True, default=False)
+@click.option("--add-default-card", is_flag=True, default=False)
+@click.option("--skip-card-artifacts", is_flag=True, default=False)
 def aip_metaflow_step(
     volume_dir: str,
     environment: str,
@@ -300,6 +332,8 @@ def aip_metaflow_step(
     workflow_name: str,
     is_interruptible: bool,
     is_join_step: bool,
+    add_default_card: bool,
+    skip_card_artifacts: bool,
 ) -> None:
     """
     (1) Renders and runs the Metaflow package_commands and Metaflow step
@@ -331,6 +365,7 @@ def aip_metaflow_step(
         user_code_retries,
         workflow_name,
         script_name,
+        add_default_card,
     )
 
     # expose passed KFP passed in arguments as environment variables to
@@ -385,8 +420,7 @@ def aip_metaflow_step(
         env["METAFLOW_PARAMETERS"] = flow_parameters_json
 
     # TODO: Map username to KFP specific user/profile/namespace
-    # Running Metaflow
-    # KFP orchestrator -> running MF runtime (runs user code, handles state)
+    # Running Metaflow runtime (runs user code, handles state)
     with Popen(
         cmd, shell=True, universal_newlines=True, executable="/bin/bash", env=env
     ) as process:
@@ -435,14 +469,15 @@ def aip_metaflow_step(
         with open(output_file, "w") as f:
             f.write(str(values[idx]))
 
-    # get card and write to output file
-    _write_card_artifacts(
-        flow_name,
-        step_name,
-        task_id,
-        passed_in_split_indexes,
-        metaflow_run_id,
-    )
+    # Write card manifest (html) to Argo output artifact path.
+    if not skip_card_artifacts:
+        _write_card_artifacts(
+            flow_name,
+            step_name,
+            task_id,
+            passed_in_split_indexes,
+            metaflow_run_id,
+        )
 
 
 if __name__ == "__main__":

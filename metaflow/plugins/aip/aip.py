@@ -173,6 +173,7 @@ class KubeflowPipelines(object):
         notify_on_success=None,
         sqs_url_on_error=None,
         sqs_role_arn_on_error=None,
+        add_default_card=False,
         **kwargs,
     ):
         """
@@ -204,6 +205,7 @@ class KubeflowPipelines(object):
         self.notify_on_success = notify_on_success
         self.sqs_url_on_error = sqs_url_on_error
         self.sqs_role_arn_on_error = sqs_role_arn_on_error
+        self.add_default_card = add_default_card
         self._client = None
         self._exit_handler_created = False
 
@@ -317,7 +319,7 @@ class KubeflowPipelines(object):
         ).items():
             workflow["metadata"]["labels"][key] = value
 
-        KubeflowPipelines._add_archive_section_to_cards_artifacts(workflow)
+        KubeflowPipelines._update_cards_artifact_configs(workflow)
 
         if self._exit_handler_created:
             # replace entrypoint content with the exit handler handler content
@@ -422,7 +424,7 @@ class KubeflowPipelines(object):
         return workflow
 
     @staticmethod
-    def _add_archive_section_to_cards_artifacts(workflow: dict):
+    def _update_cards_artifact_configs(workflow: dict):
         # Add "archive" none section to "-cards" artifacts because by default
         # they are tarred and hence not viewable in the Argo UI
         for template in workflow["spec"]["templates"]:
@@ -430,6 +432,7 @@ class KubeflowPipelines(object):
                 for artifact in template["outputs"]["artifacts"]:
                     if "-card" in artifact["name"]:
                         artifact["archive"] = {"none": {}}
+                        artifact["optional"] = True
 
     @staticmethod
     def _config_map(workflow_name: str, max_run_concurrency: int):
@@ -1407,6 +1410,8 @@ class KubeflowPipelines(object):
         preceding_component_inputs: List[str],
         preceding_component_outputs_dict: Dict[str, dsl.PipelineParam],
     ) -> ContainerOp:
+        card_decos = [deco for deco in node.decorators if deco.name == "card"]
+
         # TODO (hariharans): https://zbrt.atl.zillow.net/browse/AIP-5406
         #   (Title: Clean up output formatting of workflow and pod specs in container op)
         # double json.dumps() to ensure we have the correct quotation marks
@@ -1448,6 +1453,10 @@ class KubeflowPipelines(object):
             metaflow_execution_cmd += " --is_split_index"
         if node.type == "join":
             metaflow_execution_cmd += " --is-join-step"
+        if self.add_default_card:
+            metaflow_execution_cmd += " --add-default-card"
+        if not card_decos:
+            metaflow_execution_cmd += " --skip-card-artifacts"
 
         metaflow_execution_cmd += ' --preceding_component_outputs_dict "'
         for key in preceding_component_outputs_dict:
@@ -1476,13 +1485,9 @@ class KubeflowPipelines(object):
         )
 
         file_outputs: Dict[str, str] = {
-            "card": "/tmp/outputs/cards/card.html",
+            f"card-{i}": f"/tmp/outputs/cards/card-{i}.html"
+            for i in range(len(card_decos))
         }
-        i = 1  # the default card would be i == 0
-        for deco in node.decorators:
-            if deco.name == "card":
-                file_outputs[f"card{i}"] = f"/tmp/outputs/cards/card{i}.html"
-                i = i + 1
 
         if node.type == "foreach":
             file_outputs["foreach_splits"] = "/tmp/outputs/foreach_splits/data"
