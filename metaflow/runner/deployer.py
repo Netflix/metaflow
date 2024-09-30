@@ -229,13 +229,23 @@ class LazyDeploymentMethod:
 
 class DeploymentMethodsMeta(type):
     from metaflow.plugins import FROM_DEPLOYMENT_PROVIDERS
+    from metaflow.metaflow_config import FROM_DEPLOYMENT_IMPL
 
     def __new__(mcs, name, bases, dct):
         cls = super().__new__(mcs, name, bases, dct)
 
-        for each_method_name, each_method_path in mcs.FROM_DEPLOYMENT_PROVIDERS.items():
-            lazy_method = LazyDeploymentMethod(each_method_path, "from_deployment")
-            setattr(cls, each_method_name, staticmethod(lazy_method))
+        def from_deployment(identifier, metadata=None, impl=None):
+            if impl is None:
+                impl = mcs.FROM_DEPLOYMENT_IMPL
+
+            if impl not in mcs.FROM_DEPLOYMENT_PROVIDERS:
+                raise ValueError("This method is not available for: %s" % impl)
+
+            module_path = mcs.FROM_DEPLOYMENT_PROVIDERS[impl]
+            lazy_method = LazyDeploymentMethod(module_path, "from_deployment")
+            return lazy_method(identifier=identifier, metadata=metadata)
+
+        setattr(cls, "from_deployment", staticmethod(from_deployment))
 
         return cls
 

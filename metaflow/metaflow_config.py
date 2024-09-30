@@ -411,6 +411,13 @@ AIRFLOW_KUBERNETES_KUBECONFIG_CONTEXT = from_conf(
 
 
 ###
+# From Deployment configuration
+###
+# From Deployment Configuration for DeployedFlow
+FROM_DEPLOYMENT_IMPL = from_conf("FROM_DEPLOYMENT_IMPL", "argo-workflows")
+
+
+###
 # Conda configuration
 ###
 # Conda package root location on S3

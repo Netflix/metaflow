@@ -158,7 +158,7 @@ def get_plugin_cli():
 
 # just a normal dictionary, not a plugin since there is no class..
 FROM_DEPLOYMENT_PROVIDERS = {
-    "from_argo_workflows_deployment": "metaflow.plugins.argo.argo_workflows_deployer",
+    "argo-workflows": "metaflow.plugins.argo.argo_workflows_deployer",
 }
 
 
