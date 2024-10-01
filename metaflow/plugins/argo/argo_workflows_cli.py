@@ -179,7 +179,7 @@ def argo_workflows(obj, name=None):
 )
 @click.option(
     "--enable-heartbeat-daemon/--no-enable-heartbeat-daemon",
-    default=True,
+    default=False,
     show_default=True,
     help="Use a daemon container to broadcast heartbeats.",
 )
