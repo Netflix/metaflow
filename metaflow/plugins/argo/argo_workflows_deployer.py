@@ -65,6 +65,7 @@ def from_deployment(identifier: str, metadata: Optional[str] = None):
     metadata_annotations = workflow_template.get("metadata", {}).get("annotations", {})
 
     flow_name = metadata_annotations.get("metaflow/flow_name", "")
+    username = metadata_annotations.get("metaflow/owner", "")
     parameters = json.loads(metadata_annotations.get("metaflow/parameters", {}))
 
     # these two only exist if @project decorator is used..
@@ -90,9 +91,13 @@ def from_deployment(identifier: str, metadata: Optional[str] = None):
             fp.write(fake_flow_file_contents)
 
         if branch_name is not None:
-            d = Deployer(fake_flow_file.name, **project_kwargs).argo_workflows()
+            d = Deployer(
+                fake_flow_file.name, env={"METAFLOW_USER": username}, **project_kwargs
+            ).argo_workflows()
         else:
-            d = Deployer(fake_flow_file.name).argo_workflows(name=identifier)
+            d = Deployer(
+                fake_flow_file.name, env={"METAFLOW_USER": username}
+            ).argo_workflows(name=identifier)
 
         d.name = identifier
         d.flow_name = flow_name
