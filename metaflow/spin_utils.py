@@ -8,7 +8,7 @@ class SpinParserValidator(object):
         self,
         ctx,
         step_name,
-        run_id,
+        prev_run_id,
         ancestor_tasks=None,
         artifacts=None,
         artifacts_module=None,
@@ -19,7 +19,7 @@ class SpinParserValidator(object):
     ):
         self.ctx = ctx
         self.step_name = step_name
-        self.run_id = run_id
+        self.run_id = prev_run_id
         self.ancestor_tasks = ancestor_tasks
         self.artifacts = artifacts if artifacts else []
         self.artifacts_module = artifacts_module

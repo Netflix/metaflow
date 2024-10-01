@@ -111,28 +111,31 @@ class SpinRuntime(object):
 
     @property
     def input_paths(self):
-        def _format_input_paths(task):
-            return "/".join(task.path_components[1:])
-
-        if self._input_paths:
-            return self._input_paths
-
-        # Special logic for start step
-        if self.step_name == "start":
-            from metaflow import Step
-
-            task = Step(f"{self._flow.name}/{self.prev_run_id}/_parameters").task
-            self._input_paths = [_format_input_paths(task)]
-        elif self.spin_parser_validator.step_type == "join":
-            self._input_paths = []
-            for task in self.join_inputs_datastore.get_previous_tasks:
-                self._input_paths.append(_format_input_paths(task))
-        else:
-            self._input_paths = [
-                _format_input_paths(self.step_datastore.previous_task())
-            ]
-        print(f"Input paths are: {self._input_paths}")
-        return self._input_paths
+        # For spin steps, we don't need to fetch the input paths
+        # But if we do need to fetch the input paths, we can use the following code
+        # def _format_input_paths(task):
+        #     return "/".join(task.path_components[1:])
+        #
+        # if self._input_paths:
+        #     return self._input_paths
+        #
+        # start_time = time.time()
+        # # Special logic for start step
+        # if self.step_name == "start":
+        #     from metaflow import Step
+        #
+        #     task = Step(f"{self._flow.name}/{self.prev_run_id}/_parameters").task
+        #     self._input_paths = [_format_input_paths(task)]
+        # elif self.spin_parser_validator.step_type == "join":
+        #     self._input_paths = []
+        #     for task in self.join_inputs_datastore.get_previous_tasks:
+        #         self._input_paths.append(_format_input_paths(task))
+        # else:
+        #     self._input_paths = [
+        #         _format_input_paths(self.step_datastore.previous_task())
+        #     ]
+        # return self._input_paths
+        return []
 
     @property
     def split_index(self):
@@ -158,16 +161,12 @@ class SpinRuntime(object):
         )
 
     def execute(self):
-        # We also create a new task_id for the spin task
-        self._new_task_id = str(
-            self._metadata.new_task_id(self._new_run_id, self.step_name)
-        )
-        print(f"New task id is: {self._new_task_id}")
-
         task = self._new_task(self.step_name, {})
+        print(f"New task id is: {task.task_id}")
         for deco in self.spin_parser_validator.step_decorators:
             deco.runtime_task_created(
                 self._ds,
+                task.task_id,
                 self._new_task_id,
                 self.split_index,
                 self.input_paths,
@@ -187,7 +186,7 @@ class SpinRuntime(object):
             )
 
         # We now set the command to be spin_internal to execute our spin step
-        cli_args.commands = ["spin-internal"]
+        args.commands = ["spin-internal"]
         env.update(args.get_env())
         env["PYTHONUNBUFFERED"] = "x"
         cmdline = args.get_args()
@@ -1635,6 +1634,7 @@ class CLIArgs(object):
         args.extend(self.commands)
         args.extend(self.command_args)
         args.extend(_options(self.command_options))
+        print(f"Command Options: {self.command_options}")
         return args
 
     def get_env(self):

@@ -151,6 +151,11 @@ def cli(ctx):
     pass
 
 
+# @cli.group(help="Commands related to Spin step")
+# def spin():
+#     pass
+
+
 @cli.command(help="Check that the flow is valid (default).")
 @click.option(
     "--warnings/--no-warnings",
@@ -324,7 +329,7 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
     "the run.",
 )
 @click.option(
-    "--run-id",
+    "--prev-run-id",
     default=None,
     required=True,
     help="Run ID of a previous execution to fetch the artifacts from.",
@@ -389,7 +394,7 @@ def spin(
     step_name,
     tags=None,
     decospecs=None,
-    run_id=None,
+    prev_run_id=None,
     ancestor_tasks=None,
     foreach_index=None,
     foreach_value=None,
@@ -410,7 +415,7 @@ def spin(
     spin_parser_validator = SpinParserValidator(
         ctx,
         step_name,
-        run_id,
+        prev_run_id,
         ancestor_tasks=ancestor_tasks,
         artifacts=artifacts,
         artifacts_module=artifacts_module,
@@ -422,6 +427,7 @@ def spin(
     start_time = time.time()
     spin_parser_validator.validate()
     end_validation_time = time.time()
+    ctx.obj.echo(f"Validation Time: {end_validation_time - start_time}")
 
     # We now set the parameters, step_name, and the constants for the flow
     ctx.obj.step_name = step_name
@@ -453,6 +459,10 @@ def spin(
         step_func=step_func,
     )
     spin_runtime.execute()
+    end_spin_init_time = time.time()
+    ctx.obj.echo(
+        f"Spin Runtime Initialization Time: {end_spin_init_time - end_validation_time}"
+    )
 
     # task = MetaflowTask(
     #     ctx.obj.flow,
@@ -503,6 +513,14 @@ def spin(
     # end_time = time.time()
     # print(f"Total Time: {end_time - start_time}")
 
+
+# @spin.command(help="Internal command to execute a single spin task.", hidden=True)
+# @click.argument("step-name")
+# def spin_internal(
+#     ctx,
+#     step_name,
+# ):
+#     pass
 
 # TODO - move step and init under a separate 'internal' subcommand
 
@@ -1269,7 +1287,6 @@ def start(
     # things they provide may be used by some of the objects initialized after.
     # In case of spin subcommand, we want to initialize flow decorators after
     # the metadata, environment, and datastore are modified.
-    print(f"Before init flow decorators: {ctx.obj.flow}")
     decorators._init_flow_decorators(
         ctx.obj.flow,
         ctx.obj.graph,
@@ -1280,7 +1297,6 @@ def start(
         echo,
         deco_options,
     )
-    print(f"After init flow decorators: {ctx.obj.flow}")
 
     if ctx.invoked_subcommand not in ("run", "resume", "spin"):
         # run/resume/spin are special cases because they can add more decorators with
