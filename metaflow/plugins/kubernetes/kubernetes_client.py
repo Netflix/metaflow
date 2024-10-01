@@ -121,10 +121,7 @@ class KubernetesClient(object):
         job_api = self._client.BatchV1Api()
         pods = self._find_active_pods(flow_name, run_id, user)
 
-        active_pods = False
-
         def _kill_pod(pod):
-            active_pods = True
             echo("Killing Kubernetes pod %s\n" % pod.metadata.name)
             try:
                 stream(
@@ -158,10 +155,10 @@ class KubernetesClient(object):
                     echo("failed to kill pod %s - %s" % (pod.metadata.name, str(e)))
 
         with ThreadPoolExecutor() as executor:
-            executor.map(_kill_pod, pods)
+            operated_pods = list(executor.map(_kill_pod, pods))
 
-        if not active_pods:
-            echo("No active Kubernetes pods found for run *%s*" % run_id)
+            if not operated_pods:
+                echo("No active Kubernetes pods found for run *%s*" % run_id)
 
     def jobset(self, **kwargs):
         return KubernetesJobSet(self, **kwargs)
