@@ -180,6 +180,10 @@ class MetaflowTask(object):
         # 2) join - pop the topmost frame from the stack
         # 3) step following a split - push a new frame in the stack
 
+        # We have a non-modifying case (case 4)) where we propagate the
+        # foreach-stack information to all tasks in the foreach. This is
+        # then used later to write the foreach-stack metadata for that task
+
         # case 1) - reset the stack
         if step_name == "start":
             self.flow._foreach_stack = []
@@ -264,6 +268,9 @@ class MetaflowTask(object):
             stack = inputs[0]["_foreach_stack"]
             stack.append(frame)
             self.flow._foreach_stack = stack
+        # case 4) - propagate in the foreach nest
+        elif "_foreach_stack" in inputs[0]:
+            self.flow._foreach_stack = inputs[0]["_foreach_stack"]
 
     def _clone_flow(self, datastore):
         x = self.flow.__class__(use_cli=False)
