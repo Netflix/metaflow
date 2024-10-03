@@ -2633,6 +2633,9 @@ class ArgoWorkflows(object):
 
         return (
             DaemonTemplate("heartbeat-daemon")
+            # NOTE: Even though a retry strategy does not work for Argo daemon containers,
+            # this has the side-effect of protecting the exit hooks of the workflow from failing in case the daemon container errors out.
+            .retry_strategy(10, 1)
             .service_account_name(resources["service_account"])
             .container(
                 to_camelcase(
@@ -3302,6 +3305,15 @@ class DaemonTemplate(object):
 
     def service_account_name(self, service_account_name):
         self.payload["serviceAccountName"] = service_account_name
+        return self
+
+    def retry_strategy(self, times, minutes_between_retries):
+        if times > 0:
+            self.payload["retryStrategy"] = {
+                "retryPolicy": "Always",
+                "limit": times,
+                "backoff": {"duration": "%sm" % minutes_between_retries},
+            }
         return self
 
     def to_json(self):
