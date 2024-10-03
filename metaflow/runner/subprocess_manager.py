@@ -29,6 +29,22 @@ def kill_process_and_descendants(pid, termination_timeout):
         pass
 
 
+def kill_processes_and_descendants(pids: List[str], termination_timeout: float):
+    try:
+        subprocess.check_call(["pkill", "-TERM", "-P", *pids])
+        subprocess.check_call(["kill", "-TERM", *pids])
+    except subprocess.CalledProcessError:
+        pass
+
+    time.sleep(termination_timeout)
+
+    try:
+        subprocess.check_call(["pkill", "-KILL", "-P", *pids])
+        subprocess.check_call(["kill", "-KILL", *pids])
+    except subprocess.CalledProcessError:
+        pass
+
+
 async def async_kill_processes_and_descendants(
     pids: List[str], termination_timeout: float
 ):
@@ -78,8 +94,12 @@ class SubprocessManager(object):
         await async_kill_processes_and_descendants(pids, termination_timeout=2)
 
     def _handle_sigint(self, signum, frame):
-        for each_command in self.commands.values():
-            each_command.kill(termination_timeout=2)
+        pids = [
+            str(command.process.pid)
+            for command in self.commands.values()
+            if command.process
+        ]
+        kill_processes_and_descendants(pids, termination_timeout=2)
 
     async def __aenter__(self) -> "SubprocessManager":
         return self
