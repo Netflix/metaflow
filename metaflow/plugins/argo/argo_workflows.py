@@ -7,7 +7,7 @@ import sys
 from collections import defaultdict
 from hashlib import sha1
 from math import inf
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 from metaflow import JSONType, current
 from metaflow.decorators import flow_decorators
@@ -854,11 +854,7 @@ class ArgoWorkflows(object):
                         #          there is an explicit exit hook. as and when this
                         #          bug is patched, we should remove this effectively
                         #          no-op hook.
-                        **(
-                            {"exit": LifecycleHook().template("exit-hook-hack")}
-                            if self.notify_on_error or self.notify_on_success
-                            else {}
-                        ),
+                        **({"exit": LifecycleHook().template("delete-hb-resources")}),
                     }
                 )
                 # Top-level DAG template(s)
@@ -1282,10 +1278,16 @@ class ArgoWorkflows(object):
                 )
 
         # Generate daemon tasks
-        daemon_tasks = [
-            DAGTask("%s-task" % daemon_template.name).template(daemon_template.name)
-            for daemon_template in self._daemon_templates()
-        ]
+        daemon_templates = self._daemon_templates()
+        daemon_tasks = (
+            [
+                DAGTask("%s-task" % daemon_templates[0].name).template(
+                    daemon_templates[0].name
+                )
+            ]
+            if daemon_templates
+            else []
+        )
 
         templates, _ = _visit(node=self.graph["start"], dag_tasks=daemon_tasks)
         return templates
@@ -2171,7 +2173,7 @@ class ArgoWorkflows(object):
     def _daemon_templates(self):
         templates = []
         if self.enable_heartbeat_daemon:
-            templates.append(self._heartbeat_daemon_template())
+            templates = self._heartbeat_daemon_template()
         return templates
 
     # Return exit hook templates for workflow execution notifications.
@@ -2183,23 +2185,6 @@ class ArgoWorkflows(object):
         if self.notify_on_success:
             templates.append(self._slack_success_template())
             templates.append(self._pager_duty_change_template())
-        if self.notify_on_error or self.notify_on_success:
-            # Warning: terrible hack to workaround a bug in Argo Workflow where the
-            #          templates listed above do not execute unless there is an
-            #          explicit exit hook. as and when this bug is patched, we should
-            #          remove this effectively no-op template.
-            # Note: We use the Http template because changing this to an actual no-op container had the side-effect of
-            # leaving LifecycleHooks in a pending state even when they have finished execution.
-            templates.append(
-                Template("exit-hook-hack").http(
-                    Http("GET")
-                    .url(
-                        self.notify_slack_webhook_url
-                        or "https://events.pagerduty.com/v2/enqueue"
-                    )
-                    .success_condition("true == true")
-                )
-            )
         if self.enable_error_msg_capture:
             templates.extend(self._error_msg_capture_hook_templates())
         return templates
@@ -2631,58 +2616,154 @@ class ArgoWorkflows(object):
         )
         from kubernetes import client as kubernetes_sdk
 
-        return (
-            DaemonTemplate("heartbeat-daemon")
-            .retry_strategy(10, 1)
-            .service_account_name(resources["service_account"])
-            .container(
-                to_camelcase(
-                    kubernetes_sdk.V1Container(
-                        name="main",
-                        # TODO: Make the image configurable
-                        image=resources["image"],
-                        command=cmds,
-                        env=[
-                            kubernetes_sdk.V1EnvVar(name=k, value=str(v))
-                            for k, v in env.items()
-                        ],
-                        env_from=[
-                            kubernetes_sdk.V1EnvFromSource(
-                                secret_ref=kubernetes_sdk.V1SecretEnvSource(
-                                    name=str(k),
-                                    # optional=True
-                                )
-                            )
-                            for k in list(
-                                []
-                                if not resources.get("secrets")
-                                else (
-                                    [resources.get("secrets")]
-                                    if isinstance(resources.get("secrets"), str)
-                                    else resources.get("secrets")
-                                )
-                            )
-                            + KUBERNETES_SECRETS.split(",")
-                            + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
-                            if k
-                        ],
-                        resources=kubernetes_sdk.V1ResourceRequirements(
-                            # NOTE: base resources for this are kept to a minimum to save on running costs.
-                            # This has an adverse effect on startup time for the daemon, which can be completely
-                            # alleviated by using a base image that has the required dependencies pre-installed
-                            requests={
-                                "cpu": "200m",
-                                "memory": "100Mi",
-                            },
-                            limits={
-                                "cpu": "200m",
-                                "memory": "100Mi",
-                            },
-                        ),
+        daemon_container = to_camelcase(
+            kubernetes_sdk.V1Container(
+                name="main",
+                # TODO: Make the image configurable
+                image=resources["image"],
+                command=cmds,
+                env=[
+                    kubernetes_sdk.V1EnvVar(name=k, value=str(v))
+                    for k, v in env.items()
+                ],
+                env_from=[
+                    kubernetes_sdk.V1EnvFromSource(
+                        secret_ref=kubernetes_sdk.V1SecretEnvSource(
+                            name=str(k),
+                            # optional=True
+                        )
                     )
-                )
+                    for k in list(
+                        []
+                        if not resources.get("secrets")
+                        else (
+                            [resources.get("secrets")]
+                            if isinstance(resources.get("secrets"), str)
+                            else resources.get("secrets")
+                        )
+                    )
+                    + KUBERNETES_SECRETS.split(",")
+                    + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
+                    if k
+                ],
+                resources=kubernetes_sdk.V1ResourceRequirements(
+                    # NOTE: base resources for this are kept to a minimum to save on running costs.
+                    # This has an adverse effect on startup time for the daemon, which can be completely
+                    # alleviated by using a base image that has the required dependencies pre-installed
+                    requests={
+                        "cpu": "200m",
+                        "memory": "100Mi",
+                    },
+                    limits={
+                        "cpu": "200m",
+                        "memory": "100Mi",
+                    },
+                ),
             )
         )
+        create_service = (
+            ResourceTemplate("create-hb-service")
+            .action("create")
+            .manifest(
+                {
+                    "apiVersion": "v1",
+                    "kind": "Service",
+                    "metadata": {
+                        "name": "test-hb-service",
+                        "labels": {"app": "test-hb-service"},
+                    },
+                    "spec": {"clusterIP": None, "selector": {"app": "test-hb-service"}},
+                }
+            )
+        )
+        create_stateful_set = (
+            ResourceTemplate("create-hb-stateful-set")
+            .action("create")
+            .manifest(
+                {
+                    "apiVersion": "apps/v1",
+                    "kind": "StatefulSet",
+                    "metadata": {"name": "test-hb-statefulset"},
+                    "spec": {
+                        "selector": {"matchLabels": {"app": "test-hb-service"}},
+                        "serviceName": "test-hb-service",
+                        "template": {
+                            "metadata": {"labels": {"app": "test-hb-service"}},
+                            "spec": {
+                                "terminationGracePPeriodSeconds": 10,
+                                "containers": [daemon_container],
+                            },
+                        },
+                    },
+                }
+            )
+        )
+        wait_stateful_set = (
+            ResourceTemplate("wait-hb-stateful-set")
+            .action("get")
+            .success_condition("status.readyReplicas==1")
+            .manifest(
+                {
+                    "apiVersion": "apps/v1",
+                    "kind": "StatefulSet",
+                    "metadata": {"name": "test-hb-statefulset"},
+                }
+            )
+        )
+        delete_service = (
+            ResourceTemplate("delete-hb-service")
+            .action("delete")
+            .flags(["--ignore-not-found"])
+            .manifest(
+                {
+                    "apiVersion": "v1",
+                    "kind": "Service",
+                    "metadata": {"name": "test-hb-service"},
+                }
+            )
+        )
+        delete_stateful_set = (
+            ResourceTemplate("delete-hb-stateful-set")
+            .action("delete")
+            .flags(["--ignore-not-found"])
+            .manifest(
+                {
+                    "apiVersion": "apps/v1",
+                    "kind": "StatefulSet",
+                    "metadata": {"name": "test-hb-statefulset"},
+                }
+            )
+        )
+
+        create_and_wait_resources = Template("create-and-wait-hb-resources").steps(
+            [
+                WorkflowStep().name("create-hb-service").template("create-hb-service"),
+                WorkflowStep()
+                .name("create-hb-stateful-set")
+                .template("create-hb-stateful-set"),
+                WorkflowStep()
+                .name("wait-hb-stateful-set")
+                .template("wait-hb-stateful-set"),
+            ]
+        )
+        delete_resources = Template("delete-hb-resources").steps(
+            [
+                WorkflowStep().name("delete-hb-service").template("delete-hb-service"),
+                WorkflowStep()
+                .name("delete-hb-stateful-set")
+                .template("delete-hb-stateful-set"),
+            ]
+        )
+
+        return [
+            create_and_wait_resources,  # keep the template that should be added to dag as first.
+            create_service,
+            create_stateful_set,
+            wait_stateful_set,
+            delete_service,
+            delete_stateful_set,
+            delete_resources,  # have the exit hook template as the last one
+        ]
 
     def _compile_sensor(self):
         # This method compiles a Metaflow @trigger decorator into Argo Events Sensor.
@@ -3321,11 +3402,51 @@ class DaemonTemplate(object):
         return json.dumps(self.payload, indent=4)
 
 
+class ResourceTemplate(object):
+    def __init__(self, name):
+        tree = lambda: defaultdict(tree)
+        self.name = name
+        self.payload = tree()
+        self.payload["resource"] = {}
+        self.payload["name"] = name
+
+    def action(self, action):
+        self.payload["resource"]["action"] = action
+        return self
+
+    def manifest(self, manifest: Dict):
+        from kubernetes import client
+        import json
+
+        data = json.dumps(client.ApiClient().sanitize_for_serialization(manifest))
+        self.payload["resource"]["manifest"] = data
+        return self
+
+    def flags(self, flags: List[str]):
+        self.payload["resource"]["flags"] = flags
+        return self
+
+    def success_condition(self, condition):
+        self.payload["resource"]["successCondition"] = condition
+        return self
+
+    def service_account_name(self, service_account_name):
+        self.payload["serviceAccountName"] = service_account_name
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
+
+
 class Template(object):
     # https://argoproj.github.io/argo-workflows/fields/#template
 
     def __init__(self, name):
         tree = lambda: defaultdict(tree)
+        self.name = name
         self.payload = tree()
         self.payload["name"] = name
 
