@@ -235,6 +235,10 @@ def parse_add_to_docs(
     return add_to_docs
 
 
+def add_indent(indentation: str, text: str) -> str:
+    return "\n".join([indentation + line for line in text.splitlines()])
+
+
 class StubGenerator:
     """
     This class takes the name of a library as input and a directory as output.
@@ -469,6 +473,9 @@ class StubGenerator:
                     self._typing_imports.add(splits[0])
 
         if isinstance(element, str):
+            # Special case for self referential things (particularly in a class)
+            if element == self._current_name:
+                return '"%s"' % element
             # We first try to eval the annotation because with the annotations future
             # it is always a string
             try:
@@ -625,9 +632,9 @@ class StubGenerator:
             self._addl_deployer[clazz_type] = (
                 inspect.Signature(
                     parameters=parameters,
-                    return_annotation=typing.Type[Deployer],
+                    return_annotation="Deployer",
                 ),
-                docs["func_doc"],
+                docs["func_doc"] + "\n\n" + docs["param_doc"],
             )
             for method_name, method_info in parse_add_to_docs(
                 docs["add_to_deployed_flow_doc"]
@@ -732,7 +739,7 @@ class StubGenerator:
         elif clazz == Deployer:
             for impl_name, func_info in self._addl_deployer.items():
                 if isinstance(func_info, str):
-                    buff.write(self._injected_stubs[func_info])
+                    buff.write(add_indent(TAB, self._injected_stubs[func_info]))
                 else:
                     sign, doc = func_info
                     buff.write(
@@ -1153,6 +1160,7 @@ class StubGenerator:
     def _generate_stubs(self):
         for name, attr in self._current_objects.items():
             self._current_parent_module = inspect.getmodule(attr)
+            self._current_name = name
             if inspect.isclass(attr):
                 self._stubs.append(self._generate_class_stub(name, attr))
             elif inspect.isfunction(attr):
@@ -1203,7 +1211,6 @@ class StubGenerator:
                 else:
                     func_stub, is_injected = self._generate_function_stub(name, attr)
                     if is_injected:
-                        print("INJECTING TO %s.%s" % (self._current_module_name, name))
                         self._injected_stubs[
                             "%s.%s" % (self._current_module_name, name)
                         ] = func_stub

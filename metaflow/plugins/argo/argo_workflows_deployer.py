@@ -252,10 +252,32 @@ class ArgoWorkflowsDeployer(DeployerImpl):
     """
     Deployer implementation for Argo Workflows.
 
-    Attributes
-    ----------
-    TYPE : ClassVar[Optional[str]]
-        The type of the deployer, which is "argo-workflows".
+    MF Add To DeployedFlow
+    ----------------------
+        production_token -> str
+            The production token for the workflow
+
+            @@ Returns
+            ----------
+            str
+                The production token for the workflow.
+
+        #metaflow.plugins.argo.argo_workflows_deployer.trigger
+        #metaflow.plugins.argo.argo_workflows_deployer.delete
+
+    MF Add To TriggeredRun
+    ----------------------
+        status -> str
+            The status of the triggered run.
+
+            @@ Returns
+            ----------
+            str
+                The status of the triggered run.
+
+        #metaflow.plugins.argo.argo_workflows_deployer.terminate
+        #metaflow.plugins.argo.argo_workflows_deployer.suspend
+        #metaflow.plugins.argo.argo_workflows_deployer.unsuspend
     """
 
     TYPE: ClassVar[Optional[str]] = "argo-workflows"

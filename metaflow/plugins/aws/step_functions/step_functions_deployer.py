@@ -212,10 +212,23 @@ class StepFunctionsDeployer(DeployerImpl):
     """
     Deployer implementation for AWS Step Functions.
 
-    Attributes
-    ----------
-    TYPE : ClassVar[Optional[str]]
-        The type of the deployer, which is "step-functions".
+    MF Add To DeployedFlow
+    ----------------------
+        production_token -> str
+            The production token for the workflow
+
+            @@ Returns
+            ----------
+            str
+                The production token for the workflow.
+
+        #metaflow.plugins.aws.step_functions.step_functions_deployer.trigger
+        #metaflow.plugins.aws.step_functions.step_functions_deployer.delete
+        #metaflow.plugins.aws.step_functions.step_functions_deployer.list_runs
+
+    MF Add To TriggeredRun
+    ----------------------
+        #metaflow.plugins.aws.step_functions.step_functions_deployer.terminate
     """
 
     TYPE: ClassVar[Optional[str]] = "step-functions"
