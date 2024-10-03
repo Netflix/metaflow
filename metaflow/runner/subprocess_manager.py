@@ -29,29 +29,22 @@ def kill_process_and_descendants(pid, termination_timeout):
         pass
 
 
-async def async_send_signals(pids, signal):
-    pkill_processes = [
-        await asyncio.create_subprocess_exec("pkill", signal, "-P", str(pid))
-        for pid in pids
-    ]
+async def async_kill_processes_and_descendants(
+    pids: List[str], termination_timeout: float
+):
+    sub_term = await asyncio.create_subprocess_exec("pkill", "-TERM", "-P", *pids)
+    await sub_term.wait()
 
-    for proc in pkill_processes:
-        await proc.wait()
-
-    kill_processes = [
-        await asyncio.create_subprocess_exec("kill", signal, str(pid)) for pid in pids
-    ]
-
-    for proc in kill_processes:
-        await proc.wait()
-
-
-async def async_kill_processes_and_descendants(pids, termination_timeout):
-    await async_send_signals(pids, "-TERM")
+    main_term = await asyncio.create_subprocess_exec("kill", "-TERM", *pids)
+    await main_term.wait()
 
     await asyncio.sleep(termination_timeout)
 
-    await async_send_signals(pids, "-KILL")
+    sub_kill = await asyncio.create_subprocess_exec("pkill", "-KILL", "-P", *pids)
+    await sub_kill.wait()
+
+    main_kill = await asyncio.create_subprocess_exec("kill", "-KILL", *pids)
+    await main_kill.wait()
 
 
 class LogReadTimeoutError(Exception):
@@ -78,7 +71,9 @@ class SubprocessManager(object):
 
     async def _async_handle_sigint(self):
         pids = [
-            command.process.pid for command in self.commands.values() if command.process
+            str(command.process.pid)
+            for command in self.commands.values()
+            if command.process
         ]
         await async_kill_processes_and_descendants(pids, termination_timeout=2)
 
