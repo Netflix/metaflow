@@ -2633,6 +2633,8 @@ class ArgoWorkflows(object):
 
         return (
             DaemonTemplate("heartbeat-daemon")
+            # NOTE: Even though a retry strategy does not work for Argo daemon containers,
+            # this has the side-effect of protecting the exit hooks of the workflow from failing in case the daemon container errors out.
             .retry_strategy(10, 1)
             .service_account_name(resources["service_account"])
             .container(
