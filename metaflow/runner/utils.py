@@ -92,7 +92,7 @@ async def async_read_from_file_when_ready(
         return content
 
 
-def handle_process_error(
+def make_process_error_message(
     command_obj: "metaflow.runner.subprocess_manager.CommandManager",
 ):
     stdout_log = open(command_obj.log_files["stdout"], encoding="utf-8").read()
@@ -103,6 +103,7 @@ def handle_process_error(
         error_message += "\nStdout:\n%s\n" % stdout_log
     if stderr_log.strip():
         error_message += "\nStderr:\n%s\n" % stderr_log
+    return error_message
 
 
 def handle_timeout(
@@ -140,8 +141,7 @@ def handle_timeout(
         )
         return content
     except (CalledProcessError, TimeoutError) as e:
-        handle_process_error(command_obj)
-        raise RuntimeError from e
+        raise RuntimeError(make_process_error_message(command_obj)) from e
 
 
 async def async_handle_timeout(
@@ -178,8 +178,7 @@ async def async_handle_timeout(
             tfp_runner_attribute.name, command_obj, timeout=file_read_timeout
         )
     except (CalledProcessError, TimeoutError) as e:
-        handle_process_error(command_obj)
-        raise RuntimeError from e
+        raise RuntimeError(make_process_error_message(command_obj)) from e
 
 
 def get_lower_level_group(
