@@ -81,14 +81,23 @@ async def async_read_from_file_when_ready(
     command_obj: "metaflow.runner.subprocess_manager.CommandManager",
     timeout: float = 5,
 ):
-    await asyncio.wait_for(command_obj.process.wait(), timeout)
-
+    start_time = time.time()
     with open(file_path, "r", encoding="utf-8") as file_pointer:
         content = file_pointer.read()
-        if not content:
-            raise CalledProcessError(
-                command_obj.process.returncode, command_obj.command
-            )
+        while not content:
+            if check_process_status(command_obj):
+                content = file_pointer.read()
+                if content:
+                    break
+                raise CalledProcessError(
+                    command_obj.process.returncode, command_obj.command
+                )
+            if time.time() - start_time > timeout:
+                raise TimeoutError(
+                    "Timeout while waiting for file content from '%s'" % file_path
+                )
+            await asyncio.sleep(0.1)
+            content = file_pointer.read()
         return content
 
 
