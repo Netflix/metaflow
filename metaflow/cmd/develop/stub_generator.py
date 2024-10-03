@@ -31,15 +31,23 @@ from metaflow import FlowSpec, step
 from metaflow.debug import debug
 from metaflow.decorators import Decorator, FlowDecorator
 from metaflow.extension_support import get_aliased_modules
-from metaflow.graph import deindent_docstring
+from metaflow.metaflow_current import Current
 from metaflow.metaflow_version import get_version
+from metaflow.runner.deployer import DeployedFlow, Deployer, DeployerImpl, TriggeredRun
 
 TAB = "    "
 METAFLOW_CURRENT_MODULE_NAME = "metaflow.metaflow_current"
+METAFLOW_DEPLOYER_MODULE_NAME = "metaflow.runner.deployer"
 
 param_section_header = re.compile(r"Parameters\s*\n----------\s*\n", flags=re.M)
 add_to_current_header = re.compile(
     r"MF Add To Current\s*\n-----------------\s*\n", flags=re.M
+)
+add_to_deployed_flow_header = re.compile(
+    r"MF Add To DeployedFlow\s*\n----------------------\s*\n", flags=re.M
+)
+add_to_triggered_run_header = re.compile(
+    r"MF Add To TriggeredRun\s*\n----------------------\s*\n", flags=re.M
 )
 non_indented_line = re.compile(r"^\S+.*$")
 param_name_type = re.compile(r"^(?P<name>\S+)(?:\s*:\s*(?P<type>.*))?$")
@@ -55,6 +63,20 @@ MetaflowStepFunction = Union[
     Callable[[FlowSpecDerived, StepFlag], None],
     Callable[[FlowSpecDerived, Any, StepFlag], None],
 ]
+
+
+# Object that has start() and end() like a Match object to make the code simpler when
+# we are parsing different sections of doc
+class StartEnd:
+    def __init__(self, start: int, end: int):
+        self._start = start
+        self._end = end
+
+    def start(self):
+        return self._start
+
+    def end(self):
+        return self._end
 
 
 def type_var_to_str(t: TypeVar) -> str:
@@ -90,6 +112,127 @@ def descend_object(object: str, options: Iterable[str]):
         if len(new_object) == 0 or new_object[1] != "_":
             return True
     return False
+
+
+def parse_params_from_doc(doc: str) -> Tuple[List[inspect.Parameter], bool]:
+    parameters = []
+    no_arg_version = True
+    for line in doc.splitlines():
+        if non_indented_line.match(line):
+            match = param_name_type.match(line)
+            arg_name = type_name = is_optional = default = None
+            default_set = False
+            if match is not None:
+                arg_name = match.group("name")
+                type_name = match.group("type")
+                if type_name is not None:
+                    type_detail = type_annotations.match(type_name)
+                    if type_detail is not None:
+                        type_name = type_detail.group("type")
+                        is_optional = type_detail.group("optional") is not None
+                        default = type_detail.group("default")
+                        if default:
+                            default_set = True
+                        try:
+                            default = eval(default)
+                        except:
+                            pass
+                        try:
+                            type_name = eval(type_name)
+                        except:
+                            pass
+                parameters.append(
+                    inspect.Parameter(
+                        name=arg_name,
+                        kind=inspect.Parameter.KEYWORD_ONLY,
+                        default=(
+                            default
+                            if default_set
+                            else None if is_optional else inspect.Parameter.empty
+                        ),
+                        annotation=(Optional[type_name] if is_optional else type_name),
+                    )
+                )
+                if not default_set:
+                    # If we don't have a default set for any parameter, we can't
+                    # have a no-arg version since the function would be incomplete
+                    no_arg_version = False
+    return parameters, no_arg_version
+
+
+def split_docs(
+    raw_doc: str, boundaries: List[Tuple[str, Union[StartEnd, re.Match]]]
+) -> Dict[str, str]:
+    docs = dict()
+    boundaries.sort(key=lambda x: x[1].start())
+
+    section_start = 0
+    for idx in range(1, len(boundaries)):
+        docs[boundaries[idx - 1][0]] = raw_doc[
+            section_start : boundaries[idx][1].start()
+        ]
+        section_start = boundaries[idx][1].end()
+    docs[boundaries[-1][0]] = raw_doc[section_start:]
+    return docs
+
+
+def parse_add_to_docs(
+    raw_doc: str,
+) -> Dict[str, Union[Tuple[inspect.Signature, str], str]]:
+    prop = None
+    return_type = None
+    property_indent = None
+    doc = []
+    add_to_docs = dict()  # type: Dict[str, Union[str, Tuple[inspect.Signature, str]]]
+
+    def _add():
+        if prop:
+            add_to_docs[prop] = (
+                inspect.Signature(
+                    [
+                        inspect.Parameter(
+                            "self", inspect.Parameter.POSITIONAL_OR_KEYWORD
+                        )
+                    ],
+                    return_annotation=return_type,
+                ),
+                "\n".join(doc),
+            )
+
+    for line in raw_doc.splitlines():
+        # Parse stanzas that look like the following:
+        # <property-name> -> type
+        # indented doc string
+        if property_indent is not None and (
+            line.startswith(property_indent + " ") or line.strip() == ""
+        ):
+            offset = len(property_indent)
+            if line.lstrip().startswith("@@ "):
+                line = line.replace("@@ ", "")
+            doc.append(line[offset:].rstrip())
+        else:
+            if line.strip() == 0:
+                continue
+            if prop:
+                # Ends a property stanza
+                _add()
+            # Now start a new one
+            line = line.rstrip()
+            property_indent = line[: len(line) - len(line.lstrip())]
+            # Either this has a -> to denote a property or it is a pure name
+            # to denote a reference to a function (starting with #)
+            line = line.lstrip()
+            if line.startswith("#"):
+                # The name of the function is the last part like metaflow.deployer.run
+                add_to_docs[line.split(".")[-1]] = line[1:]
+                continue
+            # This is a line so we split it using "->"
+            prop, return_type = line.split("->")
+            prop = prop.strip()
+            return_type = return_type.strip()
+            doc = []
+    _add()
+    return add_to_docs
 
 
 class StubGenerator:
@@ -163,12 +306,46 @@ class StubGenerator:
                 "metaflow._vendor",
             ]
         )
+
+        # NOTE: the : at the beginning of the string is normal -- we will match
+        # this string with the annotation string for the type. See _generate_function_stub
+        self._injected_types = set(
+            [
+                ": metaflow.runner.deployer.TriggeredRun",
+                ": metaflow.runner.deployer.DeployedFlow",
+                ": metaflow.metaflow_current.Current",
+            ]
+        )
         self._done_modules = set()  # type: Set[str]
         self._output_dir = output_dir
         self._mf_version = get_version()
+
+        # Contains information to add to the Current object (injected by decorators)
         self._addl_current = (
             dict()
-        )  # type: Dict[str, Dict[str, Tuple[inspect.Signature, str]]]
+        )  # type: Dict[str, Dict[str, Union[Tuple[inspect.Signature, str], str]]]
+
+        # Contains methods to inject in the Deployer object (injected by DeployerImpl)
+        self._addl_deployer = (
+            dict()
+        )  # type: Dict[str, Union[Tuple[inspect.Signature, str], str]]
+
+        # Same for methods injected to the DeployedFlow object
+        self._addl_deployed_flow = (
+            dict()
+        )  # type: Dict[Tuple[str, str], Union[Tuple[inspect.Signature, str], str]]
+
+        # And finally, same for TriggeredRun
+        self._addl_triggered_run = (
+            dict()
+        )  # type: Dict[Tuple[str, str], Union[Tuple[inspect.Signature, str], str]]
+
+        # Contains relevant generated stubs so we can reference to them from
+        # the DeployedFlow or TriggeredRun classes. This will effectively contain
+        # stubs where the first argument is one of self._injected_types
+        # The key is the FQN of the function and the value is the stub that can
+        # be used as is (first argument is already a `self`)
+        self._injected_stubs = {}  # type: Dict[str, str]
 
         self._reset()
 
@@ -390,6 +567,78 @@ class StubGenerator:
         return annotation_string
 
     def _generate_class_stub(self, name: str, clazz: type) -> str:
+        if issubclass(clazz, DeployerImpl):
+            # This is a special case -- the init method will be injected in the
+            # Deployer class as from_TYPE
+            # We will only parse the class docstring which will contain the parameters
+            # as well as anything added to the triggeredrun and deployedflow objects
+            clazz_doc = clazz.__doc__
+            print("In Class %s with doc %s" % (name, clazz_doc))
+            if clazz.TYPE is None:
+                # Base DeployerImpl class -- we skip
+                return ""
+            clazz_type = clazz.TYPE.replace("-", "_")
+            if not clazz_doc:
+                # There is no doc -- this is probably a problem but can't do much
+                return ""
+            clazz_doc = inspect.cleandoc(clazz_doc)
+            docs = split_docs(
+                clazz_doc,
+                [
+                    ("func_doc", StartEnd(0, 0)),
+                    (
+                        "param_doc",
+                        param_section_header.search(clazz_doc)
+                        or StartEnd(len(clazz_doc), len(clazz_doc)),
+                    ),
+                    (
+                        "add_to_deployed_flow_doc",
+                        add_to_deployed_flow_header.search(clazz_doc)
+                        or StartEnd(len(clazz_doc), len(clazz_doc)),
+                    ),
+                    (
+                        "add_to_triggered_run_doc",
+                        add_to_triggered_run_header.search(clazz_doc)
+                        or StartEnd(len(clazz_doc), len(clazz_doc)),
+                    ),
+                ],
+            )
+
+            # We are expecting the doc to follow the following format:
+            # <doc for the function>
+            # Parameters
+            # ----------
+            # <Parameters for the function>
+            # MF Add To DeployedFlow
+            # ----------------------
+            # <Things to add to the DeployedFlow object>
+            # MF Add To TriggeredRun
+            # ----------------------
+            # <Things to add to the TriggeredRun object>
+            #
+            # For both of the DeployedFlow or TriggeredRun part, it can either be the
+            # name of a function (which we will have extracted or will extract in
+            # self._injected_stubs) or a property (regular values can still be
+            # documented as properties).
+            #
+            parameters, _ = parse_params_from_doc(docs["param_doc"])
+            self._addl_deployer[clazz_type] = (
+                inspect.Signature(
+                    parameters=parameters,
+                    return_annotation=typing.Type[Deployer],
+                ),
+                docs["func_doc"],
+            )
+            for method_name, method_info in parse_add_to_docs(
+                docs["add_to_deployed_flow_doc"]
+            ).items():
+                self._addl_deployed_flow[(clazz_type, method_name)] = method_info
+            for method_name, method_info in parse_add_to_docs(
+                docs["add_to_triggered_run_doc"]
+            ).items():
+                self._addl_triggered_run[(clazz_type, method_name)] = method_info
+            return ""
+
         buff = StringIO()
         # Class prototype
         buff.write("class " + name.split(".")[-1] + "(")
@@ -406,7 +655,7 @@ class StubGenerator:
         # Add class docstring
         if clazz.__doc__:
             buff.write('%s"""\n' % TAB)
-            my_doc = cast(str, deindent_docstring(clazz.__doc__))
+            my_doc = inspect.cleandoc(clazz.__doc__)
             init_blank = True
             for line in my_doc.split("\n"):
                 if init_blank and len(line.strip()) == 0:
@@ -439,36 +688,34 @@ class StubGenerator:
                     buff.write(
                         self._generate_function_stub(
                             key, element, indentation=TAB, deco=func_deco
-                        )
+                        )[0]
                     )
             elif isinstance(element, property):
                 if element.fget:
                     buff.write(
                         self._generate_function_stub(
                             key, element.fget, indentation=TAB, deco="@property"
-                        )
+                        )[0]
                     )
                 if element.fset:
                     buff.write(
                         self._generate_function_stub(
                             key, element.fset, indentation=TAB, deco="@%s.setter" % key
-                        )
+                        )[0]
                     )
 
-        # Special handling for the current module
-        if (
-            self._current_module_name == METAFLOW_CURRENT_MODULE_NAME
-            and name == "Current"
-        ):
+        # Special handling of classes that have injected methods
+        if clazz == Current:
             # Multiple decorators can add the same object (trigger and trigger_on_finish)
             # as examples so we sort it out.
             resulting_dict = (
                 dict()
             )  # type Dict[str, List[inspect.Signature, str, List[str]]]
-            for project_name, addl_current in self._addl_current.items():
+            for deco_name, addl_current in self._addl_current.items():
+                # TODO: For now, we assume all current functions are explicit (no references)
                 for name, (sign, doc) in addl_current.items():
                     r = resulting_dict.setdefault(name, [sign, doc, []])
-                    r[2].append("@%s" % project_name)
+                    r[2].append("@%s" % deco_name)
             for name, (sign, doc, decos) in resulting_dict.items():
                 buff.write(
                     self._generate_function_stub(
@@ -479,8 +726,53 @@ class StubGenerator:
                         % (", or ".join(decos), "" if len(decos) == 1 else "s")
                         + doc,
                         deco="@property",
-                    )
+                    )[0]
                 )
+        # Special handling of the Deployer, DeployedFlow and TriggeredRun classes
+        elif clazz == Deployer:
+            for impl_name, func_info in self._addl_deployer.items():
+                if isinstance(func_info, str):
+                    buff.write(self._injected_stubs[func_info])
+                else:
+                    sign, doc = func_info
+                    buff.write(
+                        self._generate_function_stub(
+                            impl_name, sign=[sign], indentation=TAB, doc=doc
+                        )[0]
+                    )
+        elif clazz == DeployedFlow:
+            for (impl_name, func_name), func_info in self._addl_deployed_flow.items():
+                if isinstance(func_info, str):
+                    buff.write(self._injected_stubs[func_info])
+                else:
+                    sign, doc = func_info
+                    buff.write(
+                        self._generate_function_stub(
+                            "%s_%s" % (impl_name, func_name),
+                            sign=[sign],
+                            indentation=TAB,
+                            doc="(for a DeployedFlow returned with `Deployer().%s()` -- "
+                            "accessed as %s)\n\n" % (impl_name, func_name) + doc,
+                        )[0]
+                    )
+        elif clazz == TriggeredRun:
+            for (impl_name, func_name), func_info in self._addl_triggered_run.items():
+                if isinstance(func_info, str):
+                    buff.write(self._injected_stubs[func_info])
+                else:
+                    sign, doc = func_info
+                    buff.write(
+                        self._generate_function_stub(
+                            "%s_%s" % (impl_name, func_name),
+                            sign=[sign],
+                            indentation=TAB,
+                            doc="(for a TriggeredRun returned from a DeployedFlow returned "
+                            "through `Deployer().%s()` -- accessed as %s)\n\n"
+                            % (impl_name, func_name)
+                            + doc,
+                        )[0]
+                    )
+
         if init_func is None and annotation_dict:
             buff.write(
                 self._generate_function_stub(
@@ -505,7 +797,7 @@ class StubGenerator:
                         )
                     ],
                     indentation=TAB,
-                )
+                )[0]
             )
         buff.write("%s...\n" % TAB)
 
@@ -527,121 +819,31 @@ class StubGenerator:
             self._typevars["StepFlag"] = StepFlag
 
         raw_doc = inspect.cleandoc(raw_doc)
-        has_parameters = param_section_header.search(raw_doc)
-        has_add_to_current = add_to_current_header.search(raw_doc)
+        section_boundaries = [
+            ("func_doc", StartEnd(0, 0)),
+            (
+                "param_doc",
+                param_section_header.search(raw_doc)
+                or StartEnd(len(raw_doc), len(raw_doc)),
+            ),
+            (
+                "add_to_current_doc",
+                add_to_current_header.search(raw_doc)
+                or StartEnd(len(raw_doc), len(raw_doc)),
+            ),
+        ]
 
-        if has_parameters and has_add_to_current:
-            doc = raw_doc[has_parameters.end() : has_add_to_current.start()]
-            add_to_current_doc = raw_doc[has_add_to_current.end() :]
-            raw_doc = raw_doc[: has_add_to_current.start()]
-        elif has_parameters:
-            doc = raw_doc[has_parameters.end() :]
-            add_to_current_doc = None
-        elif has_add_to_current:
-            add_to_current_doc = raw_doc[has_add_to_current.end() :]
-            raw_doc = raw_doc[: has_add_to_current.start()]
-            doc = ""
-        else:
-            doc = ""
-            add_to_current_doc = None
-        parameters = []
-        no_arg_version = True
-        for line in doc.splitlines():
-            if non_indented_line.match(line):
-                match = param_name_type.match(line)
-                arg_name = type_name = is_optional = default = None
-                default_set = False
-                if match is not None:
-                    arg_name = match.group("name")
-                    type_name = match.group("type")
-                    if type_name is not None:
-                        type_detail = type_annotations.match(type_name)
-                        if type_detail is not None:
-                            type_name = type_detail.group("type")
-                            is_optional = type_detail.group("optional") is not None
-                            default = type_detail.group("default")
-                            if default:
-                                default_set = True
-                            try:
-                                default = eval(default)
-                            except:
-                                pass
-                            try:
-                                type_name = eval(type_name)
-                            except:
-                                pass
-                    parameters.append(
-                        inspect.Parameter(
-                            name=arg_name,
-                            kind=inspect.Parameter.KEYWORD_ONLY,
-                            default=(
-                                default
-                                if default_set
-                                else None if is_optional else inspect.Parameter.empty
-                            ),
-                            annotation=(
-                                Optional[type_name] if is_optional else type_name
-                            ),
-                        )
-                    )
-                    if not default_set:
-                        # If we don't have a default set for any parameter, we can't
-                        # have a no-arg version since the decorator would be incomplete
-                        no_arg_version = False
-        if add_to_current_doc:
-            current_property = None
-            current_return_type = None
-            current_property_indent = None
-            current_doc = []
-            add_to_current = dict()  # type: Dict[str, Tuple[inspect.Signature, str]]
+        docs = split_docs(raw_doc, section_boundaries)
 
-            def _add():
-                if current_property:
-                    add_to_current[current_property] = (
-                        inspect.Signature(
-                            [
-                                inspect.Parameter(
-                                    "self", inspect.Parameter.POSITIONAL_OR_KEYWORD
-                                )
-                            ],
-                            return_annotation=current_return_type,
-                        ),
-                        "\n".join(current_doc),
-                    )
+        parameters, no_arg_version = parse_params_from_doc(docs["param_doc"])
 
-            for line in add_to_current_doc.splitlines():
-                # Parse stanzas that look like the following:
-                # <property-name> -> type
-                # indented doc string
-                if current_property_indent is not None and (
-                    line.startswith(current_property_indent + " ") or line.strip() == ""
-                ):
-                    offset = len(current_property_indent)
-                    if line.lstrip().startswith("@@ "):
-                        line = line.replace("@@ ", "")
-                    current_doc.append(line[offset:].rstrip())
-                else:
-                    if line.strip() == 0:
-                        continue
-                    if current_property:
-                        # Ends a property stanza
-                        _add()
-                    # Now start a new one
-                    line = line.rstrip()
-                    current_property_indent = line[: len(line) - len(line.lstrip())]
-                    # This is a line so we split it using "->"
-                    current_property, current_return_type = line.split("->")
-                    current_property = current_property.strip()
-                    current_return_type = current_return_type.strip()
-                    current_doc = []
-            _add()
-
-            self._addl_current[name] = add_to_current
+        if docs["add_to_current_doc"]:
+            self._addl_current[name] = parse_add_to_docs(docs["add_to_current_doc"])
 
         result = []
         if no_arg_version:
             if is_flow_decorator:
-                if has_parameters:
+                if docs["param_doc"]:
                     result.append(
                         (
                             inspect.Signature(
@@ -670,7 +872,7 @@ class StubGenerator:
                     ),
                 )
             else:
-                if has_parameters:
+                if docs["param_doc"]:
                     result.append(
                         (
                             inspect.Signature(
@@ -792,8 +994,8 @@ class StubGenerator:
             result = result[1:]
         # Add doc to first and last overloads. Jedi uses the last one and pycharm
         # the first one. Go figure.
-        result[0] = (result[0][0], raw_doc)
-        result[-1] = (result[-1][0], raw_doc)
+        result[0] = (result[0][0], docs["func_doc"])
+        result[-1] = (result[-1][0], docs["func_doc"])
         return result
 
     def _generate_function_stub(
@@ -868,8 +1070,9 @@ class StubGenerator:
             # In 3.7, NamedTuples have properties that then give an operator.itemgetter
             # which doesn't have a signature. We ignore for now. It doesn't have much
             # value
-            return ""
+            return "", False
         doc = doc or func.__doc__
+        is_injected_function = False
         indentation = indentation or ""
 
         # Deal with overload annotations -- the last one will be non overloaded and
@@ -890,6 +1093,15 @@ class StubGenerator:
             kw_only_param = False
             for i, (par_name, parameter) in enumerate(my_sign.parameters.items()):
                 annotation = self._exploit_annotation(parameter.annotation)
+                if annotation in self._injected_types:
+                    # We are going to write "self" since this is meant to be injected
+                    # in another class. We will also add this to the injected_stubs
+                    is_injected_function = True
+                    buff.write("self")
+                    if i < len(my_sign.parameters) - 1:
+                        buff.write(", ")
+                    continue
+
                 default = exploit_default(parameter.default)
 
                 if kw_only_param and parameter.kind != inspect.Parameter.KEYWORD_ONLY:
@@ -922,7 +1134,7 @@ class StubGenerator:
 
             if (count == 0 or count == len(sign) - 1) and doc is not None:
                 buff.write('%s%s"""\n' % (indentation, TAB))
-                my_doc = cast(str, deindent_docstring(doc))
+                my_doc = inspect.cleandoc(doc)
                 init_blank = True
                 for line in my_doc.split("\n"):
                     if init_blank and len(line.strip()) == 0:
@@ -931,7 +1143,7 @@ class StubGenerator:
                     buff.write("%s%s%s\n" % (indentation, TAB, line.rstrip()))
                 buff.write('%s%s"""\n' % (indentation, TAB))
             buff.write("%s%s...\n" % (indentation, TAB))
-        return buff.getvalue()
+        return buff.getvalue(), is_injected_function
 
     def _generate_generic_stub(self, element_name: str, element: Any) -> str:
         return "{0}: {1}\n".format(
@@ -986,10 +1198,17 @@ class StubGenerator:
                                 ),
                                 inspect.signature(attr),
                             ],
-                        )
+                        )[0]
                     )
                 else:
-                    self._stubs.append(self._generate_function_stub(name, attr))
+                    func_stub, is_injected = self._generate_function_stub(name, attr)
+                    if is_injected:
+                        print("INJECTING TO %s.%s" % (self._current_module_name, name))
+                        self._injected_stubs[
+                            "%s.%s" % (self._current_module_name, name)
+                        ] = func_stub
+                    else:
+                        self._stubs.append(func_stub)
             elif isinstance(attr, functools.partial):
                 if issubclass(attr.args[0], Decorator):
                     # Special case where we are going to extract the parameters from
@@ -1006,7 +1225,7 @@ class StubGenerator:
                                 func=attr.func,
                                 sign=[r[0] for r in res],
                                 doc=res[-1][1],
-                            )
+                            )[0]
                         )
                     else:
                         # print(
@@ -1018,7 +1237,7 @@ class StubGenerator:
                     self._stubs.append(
                         self._generate_function_stub(
                             name, attr.func, doc=attr.args[0].__doc__
-                        )
+                        )[0]
                     )
             elif not inspect.ismodule(attr):
                 self._stubs.append(self._generate_generic_stub(name, attr))
@@ -1036,17 +1255,26 @@ class StubGenerator:
                 "%s %s"
                 % (self._mf_version, datetime.fromtimestamp(time.time()).isoformat())
             )
-        while len(self._pending_modules) != 0:
-            module_name = self._pending_modules.pop(0)
+        post_process_modules = []
+        while len(self._pending_modules) != 0 or len(post_process_modules) != 0:
+            if len(self._pending_modules) == 0:
+                module_name = post_process_modules.pop(0)
+            else:
+                module_name = self._pending_modules.pop(0)
             # Skip vendored stuff
             if module_name.startswith("metaflow._vendor"):
                 continue
-            # We delay current module
+            # We delay current module and deployer module to the end since they
+            # depend on info we gather elsewhere
             if (
-                module_name == METAFLOW_CURRENT_MODULE_NAME
-                and len(set(self._pending_modules)) > 1
+                module_name
+                in (
+                    METAFLOW_CURRENT_MODULE_NAME,
+                    METAFLOW_DEPLOYER_MODULE_NAME,
+                )
+                and len(self._pending_modules) != 0
             ):
-                self._pending_modules.append(module_name)
+                post_process_modules.append(module_name)
                 continue
             if module_name in self._done_modules:
                 continue

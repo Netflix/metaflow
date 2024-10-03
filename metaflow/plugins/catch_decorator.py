@@ -21,7 +21,7 @@ class FailureHandledByCatch(MetaflowException):
 
 class CatchDecorator(StepDecorator):
     """
-    Specifies that the step will success under all circumstances.
+    Specifies that the step will succeed under all circumstances.
 
     The decorator will create an optional artifact, specified by `var`, which
     contains the exception raised. You can use it to detect the presence
