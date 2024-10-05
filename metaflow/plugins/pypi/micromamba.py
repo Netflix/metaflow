@@ -270,15 +270,22 @@ class Micromamba(object):
                         except ValueError:
                             vpkg_version = None
                         raise MicromambaException(
-                            "Please set the environment variable CONDA_OVERRIDE_{var} to a specific version{version} of {name}.\n"
-                            "Here is an example of supplying environment variables through the command line -\n\n"
+                            "{msg}\n\n"
+                            "*Please set the environment variable CONDA_OVERRIDE_{var} to a specific version{version} of {name}.*\n\n"
+                            "Here is an example of supplying environment variables through the command line\n"
                             "CONDA_OVERRIDE_{var}=<{name}-version> python flow.py <args>".format(
+                                msg=msg.format(
+                                    cmd=" ".join(e.cmd),
+                                    code=e.returncode,
+                                    output=e.output.decode(),
+                                    stderr=error,
+                                ),
                                 var=vpkg_name.upper(),
                                 version=(
-                                    "" if not vpkg_version else (" (%s)" % vpkg_version)
+                                    "" if not vpkg_version else f" ({vpkg_version})"
                                 ),
                                 name=vpkg_name,
-                            ),
+                            )
                         )
                     err.append(error)
                 raise MicromambaException(
