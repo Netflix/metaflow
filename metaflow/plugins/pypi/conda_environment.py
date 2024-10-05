@@ -5,9 +5,7 @@ import functools
 import io
 import json
 import os
-import sys
 import tarfile
-import time
 from concurrent.futures import ThreadPoolExecutor
 from hashlib import sha256
 from io import BufferedIOBase, BytesIO
@@ -150,6 +148,9 @@ class CondaEnvironment(MetaflowEnvironment):
                 (
                     package["path"],
                     # Lazily fetch package from the interweb if needed.
+                    # TODO: Depending on the len_hint, the package might be downloaded from
+                    #       the interweb prematurely. save_bytes needs to be adjusted to handle
+                    #       this scenario.
                     LazyOpen(
                         package["local_path"],
                         "rb",
@@ -427,7 +428,7 @@ class CondaEnvironment(MetaflowEnvironment):
 
 
 class LazyOpen(BufferedIOBase):
-    def __init__(self, filename, mode="rb", url=None):
+    def __init__(self, filename=None, mode="rb", url=None):
         super().__init__()
         self.filename = filename
         self.mode = mode

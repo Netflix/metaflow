@@ -1,3 +1,4 @@
+import functools
 import json
 import os
 import subprocess
@@ -101,12 +102,6 @@ class Micromamba(object):
         # Unfortunately all the packages need to be catalogued in package cache
         # because of which this function can't be parallelized
 
-        # Micromamba is painfully slow in determining if many packages are infact
-        # already cached. As a perf heuristic, we check if the environment already
-        # exists to short circuit package downloads.
-        if self.path_to_environment(id_, platform):
-            return
-
         prefix = "{env_dirs}/{keyword}/{platform}/{id}".format(
             env_dirs=self.info()["envs_dirs"][0],
             platform=platform,
@@ -114,8 +109,17 @@ class Micromamba(object):
             id=id_,
         )
 
-        # Another forced perf heuristic to skip cross-platform downloads.
+        # Micromamba is painfully slow in determining if many packages are infact
+        # already cached. As a perf heuristic, we check if the environment already
+        # exists to short circuit package downloads.
+
+        # cheap check
         if os.path.exists(f"{prefix}/fake.done"):
+            return
+
+        # somewhat expensive check
+        # TODO: make this less expensive
+        if self.path_to_environment(id_, platform):
             return
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -175,9 +179,11 @@ class Micromamba(object):
             cmd.append("{url}".format(**package))
         self._call(cmd, env)
 
+    @functools.lru_cache(maxsize=None)
     def info(self):
         return self._call(["config", "list", "-a"])
 
+    @functools.lru_cache(maxsize=None)
     def path_to_environment(self, id_, platform=None):
         if platform is None:
             platform = self.platform()
@@ -186,6 +192,7 @@ class Micromamba(object):
             keyword="metaflow",  # indicates metaflow generated environment
             id=id_,
         )
+        # TODO: make this call less expensive
         for env in self._call(["env", "list"])["envs"]:
             # TODO: Check bin/python is available as a heuristic for well formed env
             if env.endswith(suffix):
@@ -199,18 +206,23 @@ class Micromamba(object):
         }
         directories = self.info()["pkgs_dirs"]
         # search all package caches for packages
-        metadata = {
-            url: os.path.join(d, file)
+        file_to_path = {}
+
+        for d in directories:
+            if os.path.isdir(d):
+                try:
+                    with os.scandir(d) as entries:
+                        for entry in entries:
+                            if entry.is_file():
+                                # Prefer the first occurrence if the file exists in multiple directories
+                                file_to_path.setdefault(entry.name, entry.path)
+                except OSError:
+                    continue
+        return {
+            # set package tarball local paths to None if package tarballs are missing
+            url: file_to_path.get(file)
             for url, file in packages_to_filenames.items()
-            for d in directories
-            if os.path.isdir(d)
-            and file in os.listdir(d)
-            and os.path.isfile(os.path.join(d, file))
         }
-        # set package tarball local paths to None if package tarballs are missing
-        for url in packages_to_filenames:
-            metadata.setdefault(url, None)
-        return metadata
 
     def interpreter(self, id_):
         return os.path.join(self.path_to_environment(id_), "bin/python")

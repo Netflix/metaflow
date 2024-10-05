@@ -20,9 +20,15 @@ from . import MAGIC_FILE, _datastore_packageroot
 # Bootstraps a valid conda virtual environment composed of conda and pypi packages
 
 
-def print_timer(operation, start_time):
-    duration = time.time() - start_time
-    print(f"Time taken for {operation}: {duration:.2f} seconds")
+def timer(func):
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        duration = time.time() - start_time
+        # print(f"Time taken for {func.__name__}: {duration:.2f} seconds")
+        return result
+
+    return wrapper
 
 
 if __name__ == "__main__":
@@ -89,6 +95,7 @@ if __name__ == "__main__":
             print("Stderr:", result.stderr)
             sys.exit(1)
 
+    @timer
     def install_micromamba(architecture):
         # TODO: check if mamba or conda are already available on the image
         micromamba_dir = os.path.join(os.getcwd(), "micromamba")
@@ -116,30 +123,56 @@ if __name__ == "__main__":
         os.environ["PATH"] += os.pathsep + os.path.dirname(micromamba_path)
         return micromamba_path
 
+    @timer
     def download_conda_packages(storage, packages, dest_dir):
+
+        def process_conda_package(args):
+            # Ensure that conda packages go into architecture specific folders.
+            # The path looks like REPO/CHANNEL/CONDA_SUBDIR/PACKAGE. We trick
+            # Micromamba into believing that all packages are coming from a local
+            # channel - the only hurdle is ensuring that packages are organised
+            # properly.
+            key, tmpfile, dest_dir = args
+            dest = os.path.join(dest_dir, "/".join(key.split("/")[-2:]))
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            shutil.move(tmpfile, dest)
+
         os.makedirs(dest_dir, exist_ok=True)
         with storage.load_bytes([package["path"] for package in packages]) as results:
-            for key, tmpfile, _ in results:
-                # Ensure that conda packages go into architecture specific folders.
-                # The path looks like REPO/CHANNEL/CONDA_SUBDIR/PACKAGE. We trick
-                # Micromamba into believing that all packages are coming from a local
-                # channel - the only hurdle is ensuring that packages are organised
-                # properly.
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                executor.map(
+                    process_conda_package,
+                    [(key, tmpfile, dest_dir) for key, tmpfile, _ in results],
+                )
+            # for key, tmpfile, _ in results:
 
-                # TODO: consider RAM disk
-                dest = os.path.join(dest_dir, "/".join(key.split("/")[-2:]))
-                os.makedirs(os.path.dirname(dest), exist_ok=True)
-                shutil.move(tmpfile, dest)
+            #     # TODO: consider RAM disk
+            #     dest = os.path.join(dest_dir, "/".join(key.split("/")[-2:]))
+            #     os.makedirs(os.path.dirname(dest), exist_ok=True)
+            #     shutil.move(tmpfile, dest)
         return dest_dir
 
+    @timer
     def download_pypi_packages(storage, packages, dest_dir):
+
+        def process_pypi_package(args):
+            key, tmpfile, dest_dir = args
+            dest = os.path.join(dest_dir, os.path.basename(key))
+            shutil.move(tmpfile, dest)
+
         os.makedirs(dest_dir, exist_ok=True)
         with storage.load_bytes([package["path"] for package in packages]) as results:
-            for key, tmpfile, _ in results:
-                dest = os.path.join(dest_dir, os.path.basename(key))
-                shutil.move(tmpfile, dest)
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                executor.map(
+                    process_pypi_package,
+                    [(key, tmpfile, dest_dir) for key, tmpfile, _ in results],
+                )
+            # for key, tmpfile, _ in results:
+            #     dest = os.path.join(dest_dir, os.path.basename(key))
+            #     shutil.move(tmpfile, dest)
         return dest_dir
 
+    @timer
     def create_conda_environment(prefix, conda_pkgs_dir):
         cmd = f'''set -e;
             tmpfile=$(mktemp);
@@ -151,14 +184,16 @@ if __name__ == "__main__":
             rm "$tmpfile"'''
         run_cmd(cmd)
 
+    @timer
     def install_pypi_packages(prefix, pypi_pkgs_dir):
+
         cmd = f"""set -e;
             export PATH=$PATH:$(pwd)/micromamba;
             export CONDA_PKGS_DIRS=$(pwd)/micromamba/pkgs;
             micromamba run --prefix {prefix} python -m pip --disable-pip-version-check install --root-user-action=ignore --no-compile --no-index --no-cache-dir --no-deps --prefer-binary --find-links={pypi_pkgs_dir} {pypi_pkgs_dir}/*.whl --no-user"""
         run_cmd(cmd)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         # install micromamba, download conda and pypi packages in parallel
         future_install_micromamba = executor.submit(install_micromamba, architecture)
         future_download_conda_packages = executor.submit(
