@@ -374,7 +374,7 @@ class CondaEnvironment(MetaflowEnvironment):
                 'DISABLE_TRACING=True python -m metaflow.plugins.pypi.bootstrap "%s" %s "%s" linux-64'
                 % (self.flow.name, id_, self.datastore_type),
                 "echo 'Environment bootstrapped.'",
-                "export PATH=$PATH:$(pwd)/micromamba",
+                "export PATH=$PATH:$(pwd)/micromamba/bin",
             ]
         else:
             # for @conda/@pypi(disabled=True).

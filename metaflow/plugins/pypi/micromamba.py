@@ -33,6 +33,7 @@ class Micromamba(object):
             os.path.expanduser(_home),
             "micromamba",
         )
+
         self.bin = (
             which(os.environ.get("METAFLOW_PATH_TO_MICROMAMBA") or "micromamba")
             or which("./micromamba")  # to support remote execution
