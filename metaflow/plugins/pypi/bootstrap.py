@@ -26,7 +26,6 @@ def print_timer(operation, start_time):
 
 
 if __name__ == "__main__":
-    total_start_time = time.time()
     if len(sys.argv) != 5:
         print("Usage: bootstrap.py <flow_name> <id> <datastore_type> <architecture>")
         sys.exit(1)
@@ -81,11 +80,9 @@ if __name__ == "__main__":
         env = json.load(f)[id_][architecture]
 
     def run_cmd(cmd):
-        cmd_start_time = time.time()
         result = subprocess.run(
             cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         )
-        print_timer(f"Command: {cmd}", cmd_start_time)
         if result.returncode != 0:
             print(f"Bootstrap failed while executing: {cmd}")
             print("Stdout:", result.stdout)
@@ -94,7 +91,6 @@ if __name__ == "__main__":
 
     def install_micromamba(architecture):
         # TODO: check if mamba or conda are already available on the image
-        micromamba_timer = time.time()
         micromamba_dir = os.path.join(os.getcwd(), "micromamba")
         micromamba_path = os.path.join(micromamba_dir, "bin", "micromamba")
 
@@ -118,11 +114,9 @@ if __name__ == "__main__":
             raise Exception("Failed to install Micromamba!")
 
         os.environ["PATH"] += os.pathsep + os.path.dirname(micromamba_path)
-        print_timer("Downloading micromamba", micromamba_timer)
         return micromamba_path
 
     def download_conda_packages(storage, packages, dest_dir):
-        download_start_time = time.time()
         os.makedirs(dest_dir, exist_ok=True)
         with storage.load_bytes([package["path"] for package in packages]) as results:
             for key, tmpfile, _ in results:
@@ -136,17 +130,14 @@ if __name__ == "__main__":
                 dest = os.path.join(dest_dir, "/".join(key.split("/")[-2:]))
                 os.makedirs(os.path.dirname(dest), exist_ok=True)
                 shutil.move(tmpfile, dest)
-        print_timer("Downloading conda packages", download_start_time)
         return dest_dir
 
     def download_pypi_packages(storage, packages, dest_dir):
-        download_start_time = time.time()
         os.makedirs(dest_dir, exist_ok=True)
         with storage.load_bytes([package["path"] for package in packages]) as results:
             for key, tmpfile, _ in results:
                 dest = os.path.join(dest_dir, os.path.basename(key))
                 shutil.move(tmpfile, dest)
-        print_timer("Downloading pypi packages", download_start_time)
         return dest_dir
 
     def create_conda_environment(prefix, conda_pkgs_dir):
@@ -198,6 +189,3 @@ if __name__ == "__main__":
         else:
             # wait for conda environment to be created
             future_create_conda_environment.result()
-
-    total_time = time.time() - total_start_time
-    print(f"{total_time:.2f}")
