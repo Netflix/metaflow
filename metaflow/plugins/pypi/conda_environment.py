@@ -6,7 +6,8 @@ import io
 import json
 import os
 import tarfile
-from concurrent.futures import ThreadPoolExecutor
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from hashlib import sha256
 from io import BufferedIOBase, BytesIO
 from itertools import chain
@@ -107,6 +108,7 @@ class CondaEnvironment(MetaflowEnvironment):
             )
 
         def cache(storage, results, type_):
+
             def _path(url, local_path):
                 # Special handling for VCS packages
                 if url.startswith("git+"):
@@ -167,23 +169,51 @@ class CondaEnvironment(MetaflowEnvironment):
                 if id_ in dirty:
                     self.write_to_environment_manifest([id_, platform, type_], packages)
 
-        # First resolve environments through Conda, before PyPI.
+        storage = None
+        if self.datastore_type not in ["local"]:
+            # Initialize storage for caching if using a remote datastore
+            storage = self.datastore(_datastore_packageroot(self.datastore, echo))
+
         self.logger("Bootstrapping virtual environment(s) ...")
+        # First resolve environments through Conda, before PyPI.
         for solver in ["conda", "pypi"]:
             with ThreadPoolExecutor() as executor:
-                results = list(
-                    executor.map(lambda x: solve(*x, solver), environments(solver))
-                )
-            _ = list(map(lambda x: self.solvers[solver].download(*x), results))
-            with ThreadPoolExecutor() as executor:
-                _ = list(
-                    executor.map(lambda x: self.solvers[solver].create(*x), results)
-                )
-            if self.datastore_type not in ["local"]:
-                # Cache packages only when a remote datastore is in play.
-                storage = self.datastore(_datastore_packageroot(self.datastore, echo))
-                cache(storage, results, solver)
+                # parallel solves
+                solves = [
+                    executor.submit(lambda x: solve(*x, solver), env)
+                    for env in environments(solver)
+                ]
+                for future in as_completed(solves):
+                    result = future.result()
+                    # sequential downloads
+                    self.solvers[solver].download(*result)
+                    # parallel creates
+                    executor.submit(self.solvers[solver].create, *result)
+                    if storage:
+                        # parallel cache
+                        executor.submit(cache, storage, [result], solver)
+                executor.shutdown(wait=True)
+                # _ = [future.result() for future in as_completed(creates)]
+
         self.logger("Virtual environment(s) bootstrapped!")
+
+        # First resolve environments through Conda, before PyPI.
+        # self.logger("Bootstrapping virtual environment(s) ...")
+        # for solver in ["conda", "pypi"]:
+        #     with ThreadPoolExecutor() as executor:
+        #         results = list(
+        #             executor.map(lambda x: solve(*x, solver), environments(solver))
+        #         )
+        #     _ = list(map(lambda x: self.solvers[solver].download(*x), results))
+        #     with ThreadPoolExecutor() as executor:
+        #         _ = list(
+        #             executor.map(lambda x: self.solvers[solver].create(*x), results)
+        #         )
+        #     if self.datastore_type not in ["local"]:
+        #         # Cache packages only when a remote datastore is in play.
+        #         storage = self.datastore(_datastore_packageroot(self.datastore, echo))
+        #         cache(storage, results, solver)
+        # self.logger("Virtual environment(s) bootstrapped!")
 
     def executable(self, step_name, default=None):
         step = next((step for step in self.flow if step.name == step_name), None)
@@ -425,6 +455,17 @@ class CondaEnvironment(MetaflowEnvironment):
                     raise
             finally:
                 fcntl.flock(f, fcntl.LOCK_UN)
+
+
+class Processor(object):
+
+    def __init__(self, solver, max_workers):
+        self.solver = solver
+        self.max_workers = max_workers
+        self.executor = ThreadPoolExecutor(max_workers=max_workers)
+
+    def process(self, env):
+        self.executor.submit(self.solver.process, env)
 
 
 class LazyOpen(BufferedIOBase):

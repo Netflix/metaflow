@@ -101,7 +101,6 @@ class Micromamba(object):
     def download(self, id_, packages, python, platform):
         # Unfortunately all the packages need to be catalogued in package cache
         # because of which this function can't be parallelized
-
         prefix = "{env_dirs}/{keyword}/{platform}/{id}".format(
             env_dirs=self.info()["envs_dirs"][0],
             platform=platform,
