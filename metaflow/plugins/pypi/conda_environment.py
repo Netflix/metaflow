@@ -231,8 +231,9 @@ class CondaEnvironment(MetaflowEnvironment):
                         executor.submit(cache, storage, [result], solver)
                 executor.shutdown(wait=True)
 
+        elapsed = time.time() - start_time
         self.logger(
-            f"Virtual environment(s) bootstrapped in {time.time() - start_time:.2f}s!",
+            f"Virtual environment(s) bootstrapped{f' in {elapsed:.2f}s' if elapsed >= 1 else ''}!",
             fg="green",
             bold=True,
             indent=True,
