@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 
 from metaflow.exception import MetaflowException
 from metaflow.util import which
@@ -21,7 +22,7 @@ class MicromambaException(MetaflowException):
 
 
 class Micromamba(object):
-    def __init__(self):
+    def __init__(self, logger=None):
         # micromamba is a tiny version of the mamba package manager and comes with
         # metaflow specific performance enhancements.
 
@@ -34,6 +35,18 @@ class Micromamba(object):
             os.path.expanduser(_home),
             "micromamba",
         )
+
+        if logger:
+            self.logger = functools.partial(
+                logger,
+                fg="yellow",
+                bold=False,
+                indent=True,
+                overwrite=True,
+                animate=True,
+            )
+        else:
+            self.logger = lambda *args, **kwargs: None  # No-op logger if not provided
 
         self.bin = (
             which(os.environ.get("METAFLOW_PATH_TO_MICROMAMBA") or "micromamba")
@@ -67,6 +80,8 @@ class Micromamba(object):
         #    environment
         # 4. Multiple solves can progress at the same time while relying on the same
         #    index
+        self.logger(f"Solving {platform} virtual environment {id_} ...")
+        start_time = time.time()
         with tempfile.TemporaryDirectory() as tmp_dir:
             env = {
                 "MAMBA_ADD_PIP_AS_PYTHON_DEPENDENCY": "true",
@@ -93,10 +108,14 @@ class Micromamba(object):
                 cmd.append("python==%s" % python)
             # TODO: Ensure a human readable message is returned when the environment
             #       can't be resolved for any and all reasons.
-            return [
+            solve = [
                 {k: v for k, v in item.items() if k in ["url"]}
                 for item in self._call(cmd, env)["actions"]["LINK"]
             ]
+            self.logger(
+                f"Solved {platform} virtual environment {id_} in {time.time() - start_time:.2f}s!"
+            )
+            return solve
 
     def download(self, id_, packages, python, platform):
         # Unfortunately all the packages need to be catalogued in package cache
@@ -121,6 +140,8 @@ class Micromamba(object):
         if self.path_to_environment(id_, platform):
             return
 
+        self.logger(f"Downloading {platform} virtual environment {id_} ...")
+        start_time = time.time()
         with tempfile.TemporaryDirectory() as tmp_dir:
             env = {
                 "CONDA_SUBDIR": platform,
@@ -140,6 +161,9 @@ class Micromamba(object):
                 cmd.append("{url}".format(**package))
 
             self._call(cmd, env)
+            self.logger(
+                f"Downloaded {platform} virtual environment {id_} in {time.time() - start_time:.2f}s!"
+            )
             # Perf optimization to skip cross-platform downloads.
             if platform != self.platform():
                 os.makedirs(prefix, exist_ok=True) or open(
@@ -152,6 +176,8 @@ class Micromamba(object):
         if platform != self.platform() or self.path_to_environment(id_, platform):
             return
 
+        self.logger(f"Creating {platform} virtual environment {id_} ...")
+        start_time = time.time()
         prefix = "{env_dirs}/{keyword}/{platform}/{id}".format(
             env_dirs=self.info()["envs_dirs"][0],
             platform=platform,
@@ -177,6 +203,9 @@ class Micromamba(object):
         for package in packages:
             cmd.append("{url}".format(**package))
         self._call(cmd, env)
+        self.logger(
+            f"Created {platform} virtual environment {id_} in {time.time() - start_time:.2f}s!"
+        )
 
     @functools.lru_cache(maxsize=None)
     def info(self):

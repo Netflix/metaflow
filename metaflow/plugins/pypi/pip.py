@@ -1,9 +1,11 @@
+import functools
 import json
 import os
 import re
 import shutil
 import subprocess
 import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor
 from itertools import chain, product
 from urllib.parse import unquote
@@ -50,12 +52,25 @@ INSTALLATION_MARKER = "{prefix}/.pip/id"
 
 
 class Pip(object):
-    def __init__(self, micromamba=None):
+    def __init__(self, micromamba=None, logger=None):
         # pip is assumed to be installed inside a conda environment managed by
         # micromamba. pip commands are executed using `micromamba run --prefix`
-        self.micromamba = micromamba or Micromamba()
+        self.micromamba = micromamba or Micromamba(logger)
+        if logger:
+            self.logger = functools.partial(
+                logger,
+                fg="yellow",
+                bold=False,
+                indent=True,
+                overwrite=True,
+                animate=True,
+            )
+        else:
+            self.logger = lambda *args, **kwargs: None  # No-op logger if not provided
 
     def solve(self, id_, packages, python, platform):
+        self.logger(f"Solving {platform} PyPI packages for {id_} ...")
+        start_time = time.time()
         prefix = self.micromamba.path_to_environment(id_)
         if prefix is None:
             msg = "Unable to locate a Micromamba managed virtual environment\n"
@@ -130,6 +145,9 @@ class Pip(object):
                     res["hash"] = vcs_info["commit_id"]
                 return res
 
+            self.logger(
+                f"Solved {platform} PyPI packages for {id_} in {time.time() - start_time:.2f}s!"
+            )
             with open(report, mode="r", encoding="utf-8") as f:
                 return [
                     _format(item["download_info"]) for item in json.load(f)["install"]
@@ -142,6 +160,8 @@ class Pip(object):
         if os.path.isfile(metadata_file):
             return
 
+        self.logger(f"Downloading {platform} PyPI packages for {id_} ...")
+        start_time = time.time()
         metadata = {}
         custom_index_url, extra_index_urls = self.indices(prefix)
 
@@ -231,6 +251,9 @@ class Pip(object):
                 prefix=prefix, wheel=unquote(package["url"].split("/")[-1])
             )
         self._call(prefix, cmd)
+        self.logger(
+            f"Downloaded {platform} PyPI packages for {id_} in {time.time() - start_time:.2f}s!"
+        )
         # write the url to wheel mappings in a magic location
         with open(metadata_file, "w") as file:
             file.write(json.dumps(metadata))
@@ -245,6 +268,8 @@ class Pip(object):
         # Pip can't install packages if the underlying virtual environment doesn't
         # share the same platform
         if self.micromamba.platform() == platform:
+            self.logger(f"Installing {platform} PyPI packages for {id_} ...")
+            start_time = time.time()
             cmd = [
                 "install",
                 "--no-compile",
@@ -256,6 +281,9 @@ class Pip(object):
             for package in packages:
                 cmd.append(metadata[package["url"]])
             self._call(prefix, cmd)
+            self.logger(
+                f"Installed {platform} PyPI packages for {id_} in {time.time() - start_time:.2f}s!"
+            )
         with open(installation_marker, "w") as file:
             file.write(json.dumps({"id": id_}))
 

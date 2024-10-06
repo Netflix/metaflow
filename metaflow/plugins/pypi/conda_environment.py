@@ -5,9 +5,13 @@ import functools
 import io
 import json
 import os
+import signal
+import sys
 import tarfile
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import wraps
 from hashlib import sha256
 from io import BufferedIOBase, BytesIO
 from itertools import chain
@@ -49,7 +53,7 @@ class CondaEnvironment(MetaflowEnvironment):
 
     def validate_environment(self, logger, datastore_type):
         self.datastore_type = datastore_type
-        self.logger = logger
+        # self.logger = logger
 
         # Avoiding circular imports.
         from metaflow.plugins import DATASTORES
@@ -61,8 +65,19 @@ class CondaEnvironment(MetaflowEnvironment):
         from .micromamba import Micromamba
         from .pip import Pip
 
-        micromamba = Micromamba()
-        self.solvers = {"conda": micromamba, "pypi": Pip(micromamba)}
+        print_lock = threading.Lock()
+
+        def make_thread_safe(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                with print_lock:
+                    return func(*args, **kwargs)
+
+            return wrapper
+
+        self.logger = make_thread_safe(logger)
+        micromamba = Micromamba(self.logger)
+        self.solvers = {"conda": micromamba, "pypi": Pip(micromamba, self.logger)}
 
     def init_environment(self, echo, only_steps=None):
         # The implementation optimizes for latency to ensure as many operations can
@@ -108,6 +123,15 @@ class CondaEnvironment(MetaflowEnvironment):
             )
 
         def cache(storage, results, type_):
+            self.logger(
+                "Caching packages ...",
+                fg="yellow",
+                bold=False,
+                indent=True,
+                overwrite=True,
+                animate=True,
+            )
+            start_time = time.time()
 
             def _path(url, local_path):
                 # Special handling for VCS packages
@@ -167,14 +191,27 @@ class CondaEnvironment(MetaflowEnvironment):
             )
             for id_, packages, _, platform in results:
                 if id_ in dirty:
+                    cached = True
                     self.write_to_environment_manifest([id_, platform, type_], packages)
+            if cached:
+                self.logger(
+                    f"Cached packages in {time.time() - start_time:.2f}s!",
+                    fg="yellow",
+                    bold=False,
+                    indent=True,
+                    overwrite=True,
+                    animate=True,
+                )
 
         storage = None
         if self.datastore_type not in ["local"]:
             # Initialize storage for caching if using a remote datastore
             storage = self.datastore(_datastore_packageroot(self.datastore, echo))
 
-        self.logger("Bootstrapping virtual environment(s) ...")
+        self.logger(
+            "Bootstrapping virtual environment(s) ...", fg="magenta", bold=False
+        )
+        start_time = time.time()
         # First resolve environments through Conda, before PyPI.
         for solver in ["conda", "pypi"]:
             with ThreadPoolExecutor() as executor:
@@ -193,27 +230,14 @@ class CondaEnvironment(MetaflowEnvironment):
                         # parallel cache
                         executor.submit(cache, storage, [result], solver)
                 executor.shutdown(wait=True)
-                # _ = [future.result() for future in as_completed(creates)]
 
-        self.logger("Virtual environment(s) bootstrapped!")
-
-        # First resolve environments through Conda, before PyPI.
-        # self.logger("Bootstrapping virtual environment(s) ...")
-        # for solver in ["conda", "pypi"]:
-        #     with ThreadPoolExecutor() as executor:
-        #         results = list(
-        #             executor.map(lambda x: solve(*x, solver), environments(solver))
-        #         )
-        #     _ = list(map(lambda x: self.solvers[solver].download(*x), results))
-        #     with ThreadPoolExecutor() as executor:
-        #         _ = list(
-        #             executor.map(lambda x: self.solvers[solver].create(*x), results)
-        #         )
-        #     if self.datastore_type not in ["local"]:
-        #         # Cache packages only when a remote datastore is in play.
-        #         storage = self.datastore(_datastore_packageroot(self.datastore, echo))
-        #         cache(storage, results, solver)
-        # self.logger("Virtual environment(s) bootstrapped!")
+        self.logger(
+            f"Virtual environment(s) bootstrapped in {time.time() - start_time:.2f}s!",
+            fg="green",
+            bold=True,
+            indent=True,
+            overwrite=True,
+        )
 
     def executable(self, step_name, default=None):
         step = next((step for step in self.flow if step.name == step_name), None)

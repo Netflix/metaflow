@@ -8,6 +8,7 @@ from functools import wraps
 import metaflow.tracing as tracing
 from metaflow._vendor import click
 from metaflow.client.core import get_metadata
+from metaflow.system import _system_logger, _system_monitor
 
 from . import decorators, lint, metaflow_version, namespace, parameters, plugins
 from .cli_args import cli_args
@@ -24,7 +25,6 @@ from .metaflow_config import (
     DEFAULT_PACKAGE_SUFFIXES,
 )
 from .metaflow_current import current
-from metaflow.system import _system_monitor, _system_logger
 from .metaflow_environment import MetaflowEnvironment
 from .mflog import LOG_SOURCES, mflog
 from .package import MetaflowPackage
@@ -68,20 +68,86 @@ def echo_dev_null(*args, **kwargs):
     pass
 
 
+import shutil
+import threading
+import time
+from itertools import cycle
+
+_animation_thread = None
+_animation_stop = threading.Event()
+_default_spinner = cycle(["-", "\\", "|", "/"])
+
+
+def _animate(get_frame, line, err, kwargs, indent):
+    while not _animation_stop.is_set():
+        frame = get_frame(line)
+        if indent:
+            frame = INDENT + frame
+        terminal_width, _ = shutil.get_terminal_size()
+        frame = frame.ljust(terminal_width)[:terminal_width]
+        click.secho(f"\r{frame}", nl=False, err=err, **kwargs)
+        click.get_text_stream("stderr" if err else "stdout").flush()
+        time.sleep(0.1)
+
+
 def echo_always(line, **kwargs):
+    global _animation_thread, _animation_stop
+
     kwargs["err"] = kwargs.get("err", True)
-    if kwargs.pop("indent", None):
-        line = "\n".join(INDENT + x for x in line.splitlines())
-    if "nl" not in kwargs or kwargs["nl"]:
+    overwrite = kwargs.pop("overwrite", False)
+    animate = kwargs.pop("animate", None)
+    indent = kwargs.pop("indent", False)
+
+    if _animation_thread is not None:
+        _animation_stop.set()
+        _animation_thread.join()
+        _animation_thread = None
+        _animation_stop.clear()
+        click.echo("\r", nl=False, err=kwargs["err"])
+
+    if indent:
+        if animate:
+            # For animated output, we prepend INDENT in the animation function
+            pass
+        else:
+            line = INDENT + line
+
+    animation_kwargs = {
+        "fg": kwargs.get("fg"),
+        "bg": kwargs.get("bg"),
+        "bold": kwargs.get("bold", False),
+        "underline": kwargs.get("underline", False),
+    }
+
+    if animate:
+        if animate is True:
+            get_frame = lambda line: f"{next(_default_spinner)} {line}"
+        else:
+            get_frame = animate
+        _animation_stop.clear()
+        _animation_thread = threading.Thread(
+            target=_animate,
+            args=(get_frame, line, kwargs["err"], animation_kwargs, indent),
+        )
+        _animation_thread.start()
+        return
+
+    if overwrite:
+        terminal_width, _ = shutil.get_terminal_size()
+        line = line.ljust(terminal_width)[:terminal_width]
+        click.echo("\r", nl=False, err=kwargs["err"])
+    elif "nl" not in kwargs or kwargs["nl"]:
         line += ERASE_TO_EOL
+
     top = kwargs.pop("padding_top", None)
     bottom = kwargs.pop("padding_bottom", None)
     highlight = kwargs.pop("highlight", HIGHLIGHT)
-    if top:
+
+    if top and not overwrite:
         click.secho(ERASE_TO_EOL, **kwargs)
 
     hl_bold = kwargs.pop("highlight_bold", True)
-    nl = kwargs.pop("nl", True)
+    nl = kwargs.pop("nl", True) and not overwrite
     fg = kwargs.pop("fg", None)
     bold = kwargs.pop("bold", False)
     kwargs["nl"] = False
@@ -104,8 +170,10 @@ def echo_always(line, **kwargs):
     if nl:
         kwargs["nl"] = True
         click.secho("", **kwargs)
-    if bottom:
+    if bottom and not overwrite:
         click.secho(ERASE_TO_EOL, **kwargs)
+    if overwrite:
+        click.get_text_stream("stderr" if kwargs["err"] else "stdout").flush()
 
 
 def logger(body="", system_msg=False, head="", bad=False, timestamp=True, nl=True):
@@ -960,7 +1028,7 @@ def start(
     ctx.obj.environment = [
         e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == environment
     ][0](ctx.obj.flow)
-    ctx.obj.environment.validate_environment(ctx.obj.logger, datastore)
+    ctx.obj.environment.validate_environment(echo, datastore)
 
     ctx.obj.event_logger = LOGGING_SIDECARS[event_logger](
         flow=ctx.obj.flow, env=ctx.obj.environment
