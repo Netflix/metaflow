@@ -5,8 +5,6 @@ import functools
 import io
 import json
 import os
-import signal
-import sys
 import tarfile
 import threading
 import time

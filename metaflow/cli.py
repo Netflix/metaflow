@@ -1,9 +1,13 @@
 import inspect
 import json
+import shutil
 import sys
+import threading
+import time
 import traceback
 from datetime import datetime
 from functools import wraps
+from itertools import cycle
 
 import metaflow.tracing as tracing
 from metaflow._vendor import click
@@ -67,11 +71,6 @@ except ImportError:
 def echo_dev_null(*args, **kwargs):
     pass
 
-
-import shutil
-import threading
-import time
-from itertools import cycle
 
 _animation_thread = None
 _animation_stop = threading.Event()
