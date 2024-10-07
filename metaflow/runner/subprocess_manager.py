@@ -78,8 +78,9 @@ class SubprocessManager(object):
             return
 
         if self.signal_manager.event_loop is not None:
-            self.signal_manager.event_loop.create_task(
-                async_kill_processes_and_descendants(pids, termination_timeout=2)
+            asyncio.run_coroutine_threadsafe(
+                async_kill_processes_and_descendants(pids, termination_timeout=2),
+                self.signal_manager.event_loop,
             )
         else:
             kill_processes_and_descendants(pids, termination_timeout=2)
