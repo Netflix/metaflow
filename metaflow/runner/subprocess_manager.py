@@ -9,6 +9,8 @@ import tempfile
 import threading
 from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
+from .utils import check_process_exited
+
 
 def kill_process_and_descendants(pid, termination_timeout):
     # TODO: there's a race condition that new descendants might
@@ -89,7 +91,7 @@ class SubprocessManager(object):
         pids = [
             str(command.process.pid)
             for command in self.commands.values()
-            if command.process
+            if command.process and not check_process_exited(command)
         ]
         await async_kill_processes_and_descendants(pids, termination_timeout=2)
 
@@ -97,7 +99,7 @@ class SubprocessManager(object):
         pids = [
             str(command.process.pid)
             for command in self.commands.values()
-            if command.process
+            if command.process and not check_process_exited(command)
         ]
         kill_processes_and_descendants(pids, termination_timeout=2)
 
