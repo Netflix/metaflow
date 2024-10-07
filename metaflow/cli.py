@@ -253,6 +253,12 @@ def output_dot(obj):
 @click.pass_obj
 def dump(obj, input_path, private=None, max_value_size=None, include=None, file=None):
     output = {}
+    
+    if file is not None and max_value_size is not None:
+        raise CommandException("max_value_size set to None when a file variable is provided will get replace the file variable")
+    elif file is not None:
+        max_value_size = float('inf')
+    
     kwargs = {
         "show_private": private,
         "max_value_size": max_value_size,
