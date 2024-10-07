@@ -140,7 +140,10 @@ class Pip(object):
         metadata_file = METADATA_FILE.format(prefix=prefix)
         # download packages only if they haven't ever been downloaded before
         if os.path.isfile(metadata_file):
-            return
+            with open(metadata_file, "r") as file:
+                metadata = json.load(file)
+                if all(package["url"] in metadata for package in packages):
+                    return
 
         metadata = {}
         custom_index_url, extra_index_urls = self.indices(prefix)
