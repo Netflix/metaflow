@@ -36,7 +36,7 @@ def format_flowfile(cell):
     return "\n".join(lines)
 
 
-def check_process_status(command_obj: "CommandManager"):
+def check_process_exited(command_obj: "CommandManager"):
     if isinstance(command_obj.process, asyncio.subprocess.Process):
         return command_obj.process.returncode is not None
     else:
@@ -50,7 +50,7 @@ def read_from_file_when_ready(
     with open(file_path, "r", encoding="utf-8") as file_pointer:
         content = file_pointer.read()
         while not content:
-            if check_process_status(command_obj):
+            if check_process_exited(command_obj):
                 # Check to make sure the file hasn't been read yet to avoid a race
                 # where the file is written between the end of this while loop and the
                 # poll call above.
@@ -76,7 +76,7 @@ async def async_read_from_file_when_ready(
     with open(file_path, "r", encoding="utf-8") as file_pointer:
         content = file_pointer.read()
         while not content:
-            if check_process_status(command_obj):
+            if check_process_exited(command_obj):
                 content = file_pointer.read()
                 if content:
                     break
