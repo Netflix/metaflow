@@ -93,7 +93,8 @@ class SubprocessManager(object):
             for command in self.commands.values()
             if command.process and not check_process_exited(command)
         ]
-        await async_kill_processes_and_descendants(pids, termination_timeout=2)
+        if pids:
+            await async_kill_processes_and_descendants(pids, termination_timeout=2)
 
     def _handle_sigint(self, signum, frame):
         pids = [
@@ -101,7 +102,8 @@ class SubprocessManager(object):
             for command in self.commands.values()
             if command.process and not check_process_exited(command)
         ]
-        kill_processes_and_descendants(pids, termination_timeout=2)
+        if pids:
+            kill_processes_and_descendants(pids, termination_timeout=2)
 
     async def __aenter__(self) -> "SubprocessManager":
         return self
