@@ -3,14 +3,17 @@ import sys
 import json
 import time
 import importlib
-import functools
 import tempfile
 
-from typing import Optional, Dict, ClassVar
+from typing import Optional, Dict, ClassVar, TYPE_CHECKING
 
 from metaflow.exception import MetaflowNotFound
+from metaflow.metaflow_config import DEFAULT_FROM_DEPLOYMENT_IMPL
 from metaflow.runner.subprocess_manager import SubprocessManager
 from metaflow.runner.utils import handle_timeout
+
+if TYPE_CHECKING:
+    import metaflow
 
 
 def get_lower_level_group(
@@ -47,7 +50,38 @@ def get_lower_level_group(
     return getattr(api(**top_level_kwargs), _type)(**deployer_kwargs)
 
 
-class Deployer(object):
+class DeployerMeta(type):
+    def __new__(mcs, name, bases, dct):
+        cls = super().__new__(mcs, name, bases, dct)
+
+        from metaflow.plugins import DEPLOYER_IMPL_PROVIDERS
+
+        def _injected_method(deployer_class):
+            def f(self, **deployer_kwargs):
+                return deployer_class(
+                    deployer_kwargs=deployer_kwargs,
+                    flow_file=self.flow_file,
+                    show_output=self.show_output,
+                    profile=self.profile,
+                    env=self.env,
+                    cwd=self.cwd,
+                    file_read_timeout=self.file_read_timeout,
+                    **self.top_level_kwargs
+                )
+
+            return f
+
+        for provider_class in DEPLOYER_IMPL_PROVIDERS:
+            # TYPE is the name of the CLI groups i.e.
+            # `argo-workflows` instead of `argo_workflows`
+            # The injected method names replace '-' by '_' though.
+            method_name = provider_class.TYPE.replace("-", "_")
+            setattr(cls, method_name, _injected_method(provider_class))
+
+        return cls
+
+
+class Deployer(metaclass=DeployerMeta):
     """
     Use the `Deployer` class to configure and access one of the production
     orchestrators supported by Metaflow.
@@ -91,51 +125,11 @@ class Deployer(object):
         self.file_read_timeout = file_read_timeout
         self.top_level_kwargs = kwargs
 
-        from metaflow.plugins import DEPLOYER_IMPL_PROVIDERS
-
-        for provider_class in DEPLOYER_IMPL_PROVIDERS:
-            # TYPE is the name of the CLI groups i.e.
-            # `argo-workflows` instead of `argo_workflows`
-            # The injected method names replace '-' by '_' though.
-            method_name = provider_class.TYPE.replace("-", "_")
-            setattr(Deployer, method_name, self.__make_function(provider_class))
-
-    def __make_function(self, deployer_class):
-        """
-        Create a function for the given deployer class.
-
-        Parameters
-        ----------
-        deployer_class : Type[DeployerImpl]
-            Deployer implementation class.
-
-        Returns
-        -------
-        Callable
-            Function that initializes and returns an instance of the deployer class.
-        """
-
-        def f(self, **deployer_kwargs):
-            return deployer_class(
-                deployer_kwargs=deployer_kwargs,
-                flow_file=self.flow_file,
-                show_output=self.show_output,
-                profile=self.profile,
-                env=self.env,
-                cwd=self.cwd,
-                file_read_timeout=self.file_read_timeout,
-                **self.top_level_kwargs
-            )
-
-        return f
-
 
 class TriggeredRun(object):
     """
-    TriggeredRun class represents a run that has been triggered on a production orchestrator.
-
-    Only when the `start` task starts running, the `run` object corresponding to the run
-    becomes available.
+    TriggeredRun class represents a run that has been triggered on a
+    production orchestrator.
     """
 
     def __init__(
@@ -149,31 +143,18 @@ class TriggeredRun(object):
         self.pathspec = content_json.get("pathspec")
         self.name = content_json.get("name")
 
-    def _enrich_object(self, env):
-        """
-        Enrich the TriggeredRun object with additional properties and methods.
-
-        Parameters
-        ----------
-        env : dict
-            Environment dictionary containing properties and methods to add.
-        """
-        for k, v in env.items():
-            if isinstance(v, property):
-                setattr(self.__class__, k, v)
-            elif callable(v):
-                setattr(self, k, functools.partial(v, self))
-            else:
-                setattr(self, k, v)
-
-    def wait_for_run(self, timeout=None):
+    def wait_for_run(self, timeout: Optional[int] = None):
         """
         Wait for the `run` property to become available.
 
+        The `run` property becomes available only after the `start` task of the triggered
+        flow starts running.
+
         Parameters
         ----------
-        timeout : int, optional
-            Maximum time to wait for the `run` to become available, in seconds. If None, wait indefinitely.
+        timeout : int, optional, default None
+            Maximum time to wait for the `run` to become available, in seconds. If
+            None, wait indefinitely.
 
         Raises
         ------
@@ -194,7 +175,7 @@ class TriggeredRun(object):
             time.sleep(check_interval)
 
     @property
-    def run(self):
+    def run(self) -> Optional["metaflow.Run"]:
         """
         Retrieve the `Run` object for the triggered run.
 
@@ -214,35 +195,62 @@ class TriggeredRun(object):
             return None
 
 
-class DeployedFlow(object):
+class DeployedFlowMeta(type):
+    def __new__(mcs, name, bases, dct):
+        cls = super().__new__(mcs, name, bases, dct)
+
+        from metaflow.plugins import DEPLOYER_IMPL_PROVIDERS
+
+        allowed_providers = dict(
+            {
+                provider.TYPE.replace("-", "_"): provider
+                for provider in DEPLOYER_IMPL_PROVIDERS
+            }
+        )
+
+        def _default_injected_method():
+            def f(
+                identifier: str,
+                metadata: Optional[str] = None,
+                impl: str = DEFAULT_FROM_DEPLOYMENT_IMPL.replace("-", "_"),
+            ):
+                if impl in allowed_providers:
+                    return allowed_providers[impl].DEPLOYED_FLOW_TYPE.from_deployment(
+                        identifier, metadata, impl
+                    )
+
+            return f
+
+        setattr(cls, "from_deployment", _default_injected_method())
+
+        return cls
+
+
+class DeployedFlow(metaclass=DeployedFlowMeta):
     """
     DeployedFlow class represents a flow that has been deployed.
 
-    Parameters
-    ----------
-    deployer : DeployerImpl
-        Instance of the deployer implementation.
+    This class is not meant to be instantiated directly. Instead, it is returned from
+    methods of `Deployer`.
     """
 
     def __init__(self, deployer: "DeployerImpl"):
         self.deployer = deployer
+        self.name = self.deployer.name
+        self.flow_name = self.deployer.flow_name
+        self.metadata = self.deployer.metadata
 
-    def _enrich_object(self, env):
-        """
-        Enrich the DeployedFlow object with additional properties and methods.
+    @staticmethod
+    def from_deployment(
+        identifier: str,
+        metadata: str = None,
+        impl: str = "argo-workflows",
+    ):
+        if impl == "argo-workflows":  # TODO: use a metaflow config variable for `impl`
+            from metaflow.plugins.argo.argo_workflows_deployer import from_deployment
 
-        Parameters
-        ----------
-        env : dict
-            Environment dictionary containing properties and methods to add.
-        """
-        for k, v in env.items():
-            if isinstance(v, property):
-                setattr(self.__class__, k, v)
-            elif callable(v):
-                setattr(self, k, functools.partial(v, self))
-            else:
-                setattr(self, k, v)
+            return from_deployment(identifier, metadata)
+        raise NotImplementedError("This method is not available for: %s" % impl)
 
 
 class DeployerImpl(object):
@@ -272,6 +280,7 @@ class DeployerImpl(object):
     """
 
     TYPE: ClassVar[Optional[str]] = None
+    DEPLOYED_FLOW_TYPE: ClassVar[Optional[DeployedFlow]] = None
 
     def __init__(
         self,
@@ -285,7 +294,8 @@ class DeployerImpl(object):
     ):
         if self.TYPE is None:
             raise ValueError(
-                "DeployerImpl doesn't have a 'TYPE' to target. Please use a sub-class of DeployerImpl."
+                "DeployerImpl doesn't have a 'TYPE' to target. Please use a sub-class "
+                "of DeployerImpl."
             )
 
         if "metaflow.cli" in sys.modules:
@@ -314,7 +324,7 @@ class DeployerImpl(object):
 
     def create(self, **kwargs) -> DeployedFlow:
         """
-        Create a deployed flow using the deployer implementation.
+        Create a sub-class of a `DeployedFlow` depending on the deployer implementation.
 
         Parameters
         ----------
@@ -332,6 +342,11 @@ class DeployerImpl(object):
         Exception
             If there is an error during deployment.
         """
+        # Sub-classes should implement this by simply calling _create and pass the
+        # proper class as the DeployedFlow to return.
+        raise NotImplementedError
+
+    def _create(self, create_class: type(DeployedFlow), **kwargs) -> DeployedFlow:
         with tempfile.TemporaryDirectory() as temp_dir:
             tfp_runner_attribute = tempfile.NamedTemporaryFile(
                 dir=temp_dir, delete=False
@@ -361,22 +376,9 @@ class DeployerImpl(object):
             self.additional_info = content.get("additional_info", {})
 
             if command_obj.process.returncode == 0:
-                deployed_flow = DeployedFlow(deployer=self)
-                self._enrich_deployed_flow(deployed_flow)
-                return deployed_flow
+                return create_class(deployer=self)
 
         raise Exception("Error deploying %s to %s" % (self.flow_file, self.TYPE))
-
-    def _enrich_deployed_flow(self, deployed_flow: DeployedFlow):
-        """
-        Enrich the DeployedFlow object with additional properties and methods.
-
-        Parameters
-        ----------
-        deployed_flow : DeployedFlow
-            The DeployedFlow object to enrich.
-        """
-        raise NotImplementedError
 
     def __exit__(self, exc_type, exc_value, traceback):
         """
