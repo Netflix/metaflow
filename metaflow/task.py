@@ -709,24 +709,29 @@ class MetaflowTask(object):
                         name="end",
                         payload={**task_payload, "msg": "Task ended"},
                     )
-
-                attempt_ok = str(bool(self.flow._task_ok))
-                self.metadata.register_metadata(
-                    run_id,
-                    step_name,
-                    task_id,
-                    [
-                        MetaDatum(
-                            field="attempt_ok",
-                            value=attempt_ok,
-                            type="internal_attempt_status",
-                            tags=["attempt_id:{0}".format(retry_count)],
-                        )
-                    ],
-                )
+                try:
+                    # persisting might fail due to unpicklable artifacts.
+                    output.persist(self.flow)
+                except Exception as ex:
+                    self.flow._task_ok = False
+                    raise ex
+                finally:
+                    attempt_ok = str(bool(self.flow._task_ok))
+                    self.metadata.register_metadata(
+                        run_id,
+                        step_name,
+                        task_id,
+                        [
+                            MetaDatum(
+                                field="attempt_ok",
+                                value=attempt_ok,
+                                type="internal_attempt_status",
+                                tags=["attempt_id:{0}".format(retry_count)],
+                            )
+                        ],
+                    )
 
                 output.save_metadata({"task_end": {}})
-                output.persist(self.flow)
 
                 # this writes a success marker indicating that the
                 # "transaction" is done
