@@ -71,14 +71,11 @@ class ArmadaDecorator(StepDecorator):
 
     def __init__(self, attributes=None, statically_defined=False):
         super(ArmadaDecorator, self).__init__(attributes, statically_defined)
-        print(attributes)
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
-        if flow_datastore.TYPE not in ("s3", "azure", "gs"):
-            raise ArmadaException(
-                "The *@armada* decorator requires --datastore=s3 or "
-                "--datastore=azure or --datastore=gs at the moment."
-            )
+        # TODO: Support other datastores?
+        if flow_datastore.TYPE not in ("s3"):
+            raise ArmadaException("The *@armada* decorator requires --datastore=s3.")
 
         # Set internal state.
         self.logger = logger
@@ -139,7 +136,6 @@ class ArmadaDecorator(StepDecorator):
             cli_args.command_args.append(self.attributes["queue"])
             cli_args.command_args.append(self.attributes["job_set_id"])
             cli_args.entrypoint[0] = sys.executable
-            print(cli_args)
 
     def task_pre_step(
         self,
@@ -155,12 +151,10 @@ class ArmadaDecorator(StepDecorator):
         ubf_context,
         inputs,
     ):
-        print("armada_decorator.py: task_pre_step!")
         self.metadata = metadata
         self.task_datastore = task_datastore
 
         meta = {}
-        # meta["armada-job-id"] = os.environ["METAFLOW_ARMADA_JOB_ID"]
         entries = [
             MetaDatum(
                 field=k, value=v, type=k, tags=["attempt_id:{0}".format(retry_count)]
@@ -170,36 +164,6 @@ class ArmadaDecorator(StepDecorator):
 
         # Register book-keeping metadata for debugging.
         self.metadata.register_metadata(run_id, step_name, task_id, entries)
-        # FIXME: Do we need to predicate this on an environment variable being set?
-        # if "METAFLOW_ARMADA_WORKLOAD" in os.environ:
-        # TODO: Modify these to match any information we get from Armada.
-        #         meta = {}
-        #         meta["ARMADA-pod-name"] = os.environ["METAFLOW_ARMADA_POD_NAME"]
-        #         meta["ARMADA-pod-namespace"] = os.environ["METAFLOW_ARMADA_POD_NAMESPACE"]
-        #         meta["ARMADA-pod-id"] = os.environ["METAFLOW_ARMADA_POD_ID"]
-        #         meta["ARMADA-pod-service-account-name"] = os.environ[
-        #             "METAFLOW_ARMADA_SERVICE_ACCOUNT_NAME"
-        #         ]
-        #         meta["ARMADA-node-ip"] = os.environ["METAFLOW_ARMADA_NODE_IP"]
-        #
-        #         # TODO: Need a way to fetch Armada metadata
-        #         # if ARMADA_FETCH_EC2_METADATA:
-        #         #    instance_meta = get_ec2_instance_metadata()
-        #         #    meta.update(instance_meta)
-        #
-        #         entries = [
-        #             MetaDatum(field=k, value=v, type=k, tags=[])
-        #             for k, v in meta.items()
-        #             if v is not None
-        #         ]
-        #         # Register book-keeping metadata for debugging.
-        #         print("armada_decorator.py: task_pre_step: register_metadata")
-        #         metadata.register_metadata(run_id, step_name, task_id, entries)
-
-        # Start MFLog sidecar to collect task logs.
-        # TODO: # Do we need an Armada log sidecar?
-        # self._save_logs_sidecar = Sidecar("save_logs_periodically")
-        # self._save_logs_sidecar.start()
 
     def task_finished(
         self, step_name, flow, graph, is_task_ok, retry_count, max_retries
@@ -227,8 +191,6 @@ class ArmadaDecorator(StepDecorator):
         except:
             # Best effort kill
             pass
-
-        pass
 
     @classmethod
     def _save_package_once(cls, flow_datastore, package):

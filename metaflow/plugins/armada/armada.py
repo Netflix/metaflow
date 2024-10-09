@@ -242,6 +242,7 @@ def gather_metaflow_config_to_env_vars():
         "METAFLOW_CARD_GSROOT": config.CARD_GSROOT,
         "METAFLOW_INIT_SCRIPT": 'echo "init script"',  # config.KUBERNETES_SANDBOX_INIT_SCRIPT,
         "METAFLOW_OTEL_ENDPOINT": config.OTEL_ENDPOINT,
+        "METAFLOW_ARMADA_WORKLOAD": 1,
     }
 
 

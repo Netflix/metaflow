@@ -238,7 +238,7 @@ def step(
             break
 
     # Clean up log thread.
-    if job_logs:
+    if job_logs and job_logging_thread is not None:
         done_signal.set()
         job_logging_thread.join()
 
