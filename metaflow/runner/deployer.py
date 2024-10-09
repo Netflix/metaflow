@@ -1,14 +1,14 @@
 import json
 import time
 
-from typing import Optional, Dict, TYPE_CHECKING
+from typing import ClassVar, Dict, Optional, TYPE_CHECKING
 
 from metaflow.exception import MetaflowNotFound
 from metaflow.metaflow_config import DEFAULT_FROM_DEPLOYMENT_IMPL
 
 if TYPE_CHECKING:
     import metaflow
-    from .deployer_impl import DeployerImpl
+    import metaflow.runner.deployer_impl
 
 
 class DeployerMeta(type):
@@ -17,7 +17,7 @@ class DeployerMeta(type):
 
         from metaflow.plugins import DEPLOYER_IMPL_PROVIDERS
 
-        def _injected_method(deployer_class):
+        def _injected_method(method_name, deployer_class):
             def f(self, **deployer_kwargs):
                 return deployer_class(
                     deployer_kwargs=deployer_kwargs,
@@ -31,6 +31,7 @@ class DeployerMeta(type):
                 )
 
             f.__doc__ = provider_class.__doc__ or ""
+            f.__name__ = method_name
             return f
 
         for provider_class in DEPLOYER_IMPL_PROVIDERS:
@@ -38,7 +39,7 @@ class DeployerMeta(type):
             # `argo-workflows` instead of `argo_workflows`
             # The injected method names replace '-' by '_' though.
             method_name = provider_class.TYPE.replace("-", "_")
-            setattr(cls, method_name, _injected_method(provider_class))
+            setattr(cls, method_name, _injected_method(method_name, provider_class))
 
         return cls
 
@@ -96,7 +97,7 @@ class TriggeredRun(object):
 
     def __init__(
         self,
-        deployer: "DeployerImpl",
+        deployer: "metaflow.runner.deployer_impl.DeployerImpl",
         content: str,
     ):
         self.deployer = deployer
@@ -160,74 +161,84 @@ class TriggeredRun(object):
 class DeployedFlowMeta(type):
     def __new__(mcs, name, bases, dct):
         cls = super().__new__(mcs, name, bases, dct)
+        if not bases:
+            # Inject methods only in DeployedFlow and not any of its
+            # subclasses
+            from metaflow.plugins import DEPLOYER_IMPL_PROVIDERS
 
-        from metaflow.plugins import DEPLOYER_IMPL_PROVIDERS
+            allowed_providers = dict(
+                {
+                    provider.TYPE.replace("-", "_"): provider
+                    for provider in DEPLOYER_IMPL_PROVIDERS
+                }
+            )
 
-        allowed_providers = dict(
-            {
-                provider.TYPE.replace("-", "_"): provider
-                for provider in DEPLOYER_IMPL_PROVIDERS
-            }
-        )
+            def _default_injected_method():
+                def f(
+                    cls,
+                    identifier: str,
+                    metadata: Optional[str] = None,
+                    impl: str = DEFAULT_FROM_DEPLOYMENT_IMPL.replace("-", "_"),
+                ) -> "DeployedFlow":
+                    """
+                    Retrieves a `DeployedFlow` object from an identifier and optional
+                    metadata. The `impl` parameter specifies the deployer implementation
+                    to use (like `argo-workflows`).
 
-        def _default_injected_method():
-            def f(
-                identifier: str,
-                metadata: Optional[str] = None,
-                impl: str = DEFAULT_FROM_DEPLOYMENT_IMPL.replace("-", "_"),
-            ) -> "DeployedFlow":
-                """
-                Retrieves a `DeployedFlow` object from an identifier and optional
-                metadata. The `impl` parameter specifies the deployer implementation
-                to use (like `argo-workflows`).
+                    Parameters
+                    ----------
+                    identifier : str
+                        Deployer specific identifier for the workflow to retrieve
+                    metadata : str, optional, default None
+                        Optional deployer specific metadata.
+                    impl : str, optional, default given by METAFLOW_DEFAULT_FROM_DEPLOYMENT_IMPL
+                        The default implementation to use if not specified
 
-                See also `from_*` methods for the DeployedFlow for deployer specific
-                implementations.
+                    Returns
+                    -------
+                    DeployedFlow
+                        A `DeployedFlow` object representing the deployed flow corresponding
+                        to the identifier
+                    """
+                    if impl in allowed_providers:
+                        return (
+                            allowed_providers[impl]
+                            .deployed_flow_type()
+                            .from_deployment(identifier, metadata)
+                        )
+                    else:
+                        raise ValueError(
+                            f"No deployer '{impl}' exists; valid deployers are: "
+                            f"{list(allowed_providers.keys())}"
+                        )
 
-                Parameters
-                ----------
-                identifier : str
-                    Deployer specific identifier for the workflow to retrieve
-                metadata : str, optional, default None
-                    Optional deployer specific metadata.
-                impl : str, optional, default given by METAFLOW_DEFAULT_FROM_DEPLOYMENT_IMPL
-                    The default implementation to use if not specified
+                f.__name__ = "from_deployment"
+                return f
 
-                Returns
-                -------
-                DeployedFlow
-                    A `DeployedFlow` object representing the deployed flow corresponding
-                    to the identifier
-                """
-                if impl in allowed_providers:
+            def _per_type_injected_method(method_name, impl):
+                def f(
+                    cls,
+                    identifier: str,
+                    metadata: Optional[str] = None,
+                ):
                     return (
                         allowed_providers[impl]
                         .deployed_flow_type()
                         .from_deployment(identifier, metadata)
                     )
-                else:
-                    raise ValueError(
-                        f"No deployer '{impl}' exists; valid deployers are: "
-                        f"{list(allowed_providers.keys())}"
-                    )
 
-            return f
+                f.__name__ = method_name
+                return f
 
-        def _per_type_injected_method(impl):
-            def f(identifier: str, metadata: Optional[str] = None):
-                return (
-                    allowed_providers[impl]
-                    .deployed_flow_type()
-                    .from_deployment(identifier, metadata)
+            setattr(cls, "from_deployment", classmethod(_default_injected_method()))
+
+            for impl in allowed_providers:
+                method_name = f"from_{impl}"
+                setattr(
+                    cls,
+                    method_name,
+                    classmethod(_per_type_injected_method(method_name, impl)),
                 )
-
-            return f
-
-        setattr(cls, "from_deployment", staticmethod(_default_injected_method()))
-
-        for impl in allowed_providers:
-            method_name = f"from_{impl}"
-            setattr(cls, method_name, staticmethod(_per_type_injected_method(impl)))
 
         return cls
 
@@ -240,7 +251,10 @@ class DeployedFlow(metaclass=DeployedFlowMeta):
     methods of `Deployer`.
     """
 
-    def __init__(self, deployer: "DeployerImpl"):
+    # This should match the TYPE value in DeployerImpl for proper stub generation
+    TYPE: ClassVar[Optional[str]] = None
+
+    def __init__(self, deployer: "metaflow.runner.deployer_impl.DeployerImpl"):
         self.deployer = deployer
         self.name = self.deployer.name
         self.flow_name = self.deployer.flow_name
