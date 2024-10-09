@@ -7,9 +7,9 @@ from subprocess import CalledProcessError
 from typing import Any, Dict, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from tempfile import NamedTemporaryFile
-    from .subprocess_manager import CommandManager
-    from .click_api import MetaflowAPI
+    import tempfile
+    import metaflow.runner.subprocess_manager
+    import metaflow.runner.click_api
 
 
 def get_current_cell(ipython):
@@ -39,7 +39,9 @@ def format_flowfile(cell):
     return "\n".join(lines)
 
 
-def check_process_status(command_obj: "CommandManager"):
+def check_process_status(
+    command_obj: "metaflow.runner.subprocess_manager.CommandManager",
+):
     if isinstance(command_obj.process, asyncio.subprocess.Process):
         return command_obj.process.returncode is not None
     else:
@@ -47,7 +49,9 @@ def check_process_status(command_obj: "CommandManager"):
 
 
 def read_from_file_when_ready(
-    file_path: str, command_obj: "CommandManager", timeout: float = 5
+    file_path: str,
+    command_obj: "metaflow.runner.subprocess_manager.CommandManager",
+    timeout: float = 5,
 ):
     start_time = time.time()
     with open(file_path, "r", encoding="utf-8") as file_pointer:
@@ -73,8 +77,8 @@ def read_from_file_when_ready(
 
 
 def handle_timeout(
-    tfp_runner_attribute: "NamedTemporaryFile",
-    command_obj: "CommandManager",
+    tfp_runner_attribute: "tempfile._TemporaryFileWrapper[str]",
+    command_obj: "metaflow.runner.subprocess_manager.CommandManager",
     file_read_timeout: int,
 ):
     """
@@ -119,11 +123,11 @@ def handle_timeout(
 
 
 def get_lower_level_group(
-    api: "MetaflowAPI",
+    api: "metaflow.runner.click_api.MetaflowAPI",
     top_level_kwargs: Dict[str, Any],
     sub_command: str,
     sub_command_kwargs: Dict[str, Any],
-) -> "MetaflowAPI":
+) -> "metaflow.runner.click_api.MetaflowAPI":
     """
     Retrieve a lower-level group from the API based on the type and provided arguments.
 

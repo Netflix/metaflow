@@ -3,7 +3,7 @@ from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING, Type
 from metaflow.runner.deployer_impl import DeployerImpl
 
 if TYPE_CHECKING:
-    from .step_functions_deployer_objects import StepFunctionsDeployedFlow
+    import metaflow.plugins.aws.step_functions.step_functions_deployer_objects
 
 
 class StepFunctionsDeployer(DeployerImpl):
@@ -32,12 +32,23 @@ class StepFunctionsDeployer(DeployerImpl):
         return self._deployer_kwargs
 
     @staticmethod
-    def deployed_flow_type() -> Type["StepFunctionsDeployedFlow"]:
+    def deployed_flow_type() -> (
+        Type[
+            "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.StepFunctionsDeployedFlow"
+        ]
+    ):
         from .step_functions_deployer_objects import StepFunctionsDeployedFlow
 
         return StepFunctionsDeployedFlow
 
-    def create(self, **kwargs) -> "StepFunctionsDeployedFlow":
+    def create(
+        self, **kwargs
+    ) -> "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.StepFunctionsDeployedFlow":
         from .step_functions_deployer_objects import StepFunctionsDeployedFlow
 
         return self._create(StepFunctionsDeployedFlow, **kwargs)
+
+
+_addl_stubgen_modules = [
+    "metaflow.plugins.aws.step_functions.step_functions_deployer_objects"
+]
