@@ -9,6 +9,12 @@ if TYPE_CHECKING:
 class ArgoWorkflowsDeployer(DeployerImpl):
     """
     Deployer implementation for Argo Workflows.
+
+    Parameters
+    ----------
+    name : str, optional, default None
+        Argo workflow name. The name of the flow is used if not specified.
+
     """
 
     TYPE: ClassVar[Optional[str]] = "argo-workflows"
@@ -38,6 +44,23 @@ class ArgoWorkflowsDeployer(DeployerImpl):
         return ArgoWorkflowsDeployedFlow
 
     def create(self, **kwargs) -> "ArgoWorkflowsDeployedFlow":
+        """
+        Create a new ArgoWorkflow deployment.
+
+        TODO: Complete all parameters. I'd also update the signature with the
+        arguments instead of the generic `**kwargs`.
+
+        Parameters
+        ----------
+        authorize : str, optional, default None
+            Authorize using this production token
+
+        Returns
+        -------
+        ArgoWorkflowsDeployedFlow
+            The Flow deployed to Argo Workflows.
+        """
+
         # Prevent circular import
         from .argo_workflows_deployer_objects import ArgoWorkflowsDeployedFlow
 
