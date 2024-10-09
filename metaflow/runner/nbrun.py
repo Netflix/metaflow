@@ -5,8 +5,6 @@ from typing import Dict, Optional
 from metaflow import Runner
 from metaflow.runner.utils import get_current_cell, format_flowfile
 
-DEFAULT_DIR = tempfile.gettempdir()
-
 
 class NBRunnerInitializationError(Exception):
     """Custom exception for errors during NBRunner initialization."""
@@ -43,8 +41,8 @@ class NBRunner(object):
         Additional environment variables to set for the Run. This overrides the
         environment set for this process.
     base_dir : Optional[str], default None
-        The directory to run the subprocess in; if not specified, a temporary
-        directory is used.
+        The directory to run the subprocess in; if not specified, the current
+        working directory is used.
     file_read_timeout : int, default 3600
         The timeout until which we try to read the runner attribute file.
     **kwargs : Any
@@ -59,7 +57,7 @@ class NBRunner(object):
         show_output: bool = True,
         profile: Optional[str] = None,
         env: Optional[Dict] = None,
-        base_dir: str = DEFAULT_DIR,
+        base_dir: Optional[str] = None,
         file_read_timeout: int = 3600,
         **kwargs,
     ):
@@ -84,7 +82,7 @@ class NBRunner(object):
         if profile:
             self.env_vars["METAFLOW_PROFILE"] = profile
 
-        self.base_dir = base_dir
+        self.base_dir = base_dir if base_dir is not None else os.getcwd()
         self.file_read_timeout = file_read_timeout
 
         if not self.cell:

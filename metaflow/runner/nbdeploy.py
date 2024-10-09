@@ -5,8 +5,6 @@ from typing import Dict, Optional
 from metaflow import Deployer
 from metaflow.runner.utils import get_current_cell, format_flowfile
 
-DEFAULT_DIR = tempfile.gettempdir()
-
 
 class NBDeployerInitializationError(Exception):
     """Custom exception for errors during NBDeployer initialization."""
@@ -46,8 +44,8 @@ class NBDeployer(object):
         Additional environment variables to set. This overrides the
         environment set for this process.
     base_dir : Optional[str], default None
-        The directory to run the subprocess in; if not specified, a temporary
-        directory is used.
+        The directory to run the subprocess in; if not specified, the current
+        working directory is used.
     **kwargs : Any
         Additional arguments that you would pass to `python myflow.py` i.e. options
         listed in `python myflow.py --help`
@@ -60,7 +58,7 @@ class NBDeployer(object):
         show_output: bool = True,
         profile: Optional[str] = None,
         env: Optional[Dict] = None,
-        base_dir: str = DEFAULT_DIR,
+        base_dir: Optional[str] = None,
         file_read_timeout: int = 3600,
         **kwargs,
     ):
@@ -78,7 +76,7 @@ class NBDeployer(object):
         self.show_output = show_output
         self.profile = profile
         self.env = env
-        self.cwd = base_dir
+        self.cwd = base_dir if base_dir is not None else os.getcwd()
         self.file_read_timeout = file_read_timeout
         self.top_level_kwargs = kwargs
 
