@@ -16,7 +16,6 @@ from io import BytesIO
 from functools import partial
 from concurrent import futures
 
-from metaflow.system import _system_logger
 from metaflow.datastore.exceptions import DataException
 from contextlib import contextmanager
 
@@ -88,15 +87,6 @@ class NativeRuntime(object):
         else:
             self._run_id = run_id
             metadata.register_run_id(run_id)
-
-        _system_logger.log_event(
-            level="info",
-            module="metaflow.runtime",
-            name="start",
-            payload={
-                "run_id": str(self._run_id),
-            },
-        )
 
         self._flow = flow
         self._graph = graph
@@ -524,15 +514,6 @@ class NativeRuntime(object):
             raise MetaflowInternalError(
                 "The *end* step was not successful by the end of flow."
             )
-
-        _system_logger.log_event(
-            level="info",
-            module="metaflow.runtime",
-            name="end",
-            payload={
-                "run_id": str(self._run_id),
-            },
-        )
 
     def _killall(self):
         # If we are here, all children have received a signal and are shutting down.

@@ -716,6 +716,15 @@ def resume(
     if runtime.should_skip_clone_only_execution():
         return
 
+    _system_logger.log_event(
+        level="info",
+        module="metaflow.resume",
+        name="start",
+        payload={
+            "run_id": str(runtime.run_id),
+        },
+    )
+
     with runtime.run_heartbeat():
         if clone_only:
             runtime.clone_original_run()
@@ -778,7 +787,7 @@ def run(
     _system_logger.log_event(
         level="info",
         module="metaflow.run",
-        name="graph_info",
+        name="start",
         payload={
             "run_id": str(runtime.run_id),
             "msg": str(obj.flow._graph_info),
