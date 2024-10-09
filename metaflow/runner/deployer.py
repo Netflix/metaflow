@@ -8,6 +8,7 @@ import tempfile
 from typing import Optional, Dict, ClassVar, TYPE_CHECKING
 
 from metaflow.exception import MetaflowNotFound
+from metaflow.metaflow_config import DEFAULT_FROM_DEPLOYMENT_IMPL
 from metaflow.runner.subprocess_manager import SubprocessManager
 from metaflow.runner.utils import handle_timeout
 
@@ -49,7 +50,38 @@ def get_lower_level_group(
     return getattr(api(**top_level_kwargs), _type)(**deployer_kwargs)
 
 
-class Deployer(object):
+class DeployerMeta(type):
+    def __new__(mcs, name, bases, dct):
+        cls = super().__new__(mcs, name, bases, dct)
+
+        from metaflow.plugins import DEPLOYER_IMPL_PROVIDERS
+
+        def _injected_method(deployer_class):
+            def f(self, **deployer_kwargs):
+                return deployer_class(
+                    deployer_kwargs=deployer_kwargs,
+                    flow_file=self.flow_file,
+                    show_output=self.show_output,
+                    profile=self.profile,
+                    env=self.env,
+                    cwd=self.cwd,
+                    file_read_timeout=self.file_read_timeout,
+                    **self.top_level_kwargs
+                )
+
+            return f
+
+        for provider_class in DEPLOYER_IMPL_PROVIDERS:
+            # TYPE is the name of the CLI groups i.e.
+            # `argo-workflows` instead of `argo_workflows`
+            # The injected method names replace '-' by '_' though.
+            method_name = provider_class.TYPE.replace("-", "_")
+            setattr(cls, method_name, _injected_method(provider_class))
+
+        return cls
+
+
+class Deployer(metaclass=DeployerMeta):
     """
     Use the `Deployer` class to configure and access one of the production
     orchestrators supported by Metaflow.
@@ -92,44 +124,6 @@ class Deployer(object):
         self.cwd = cwd
         self.file_read_timeout = file_read_timeout
         self.top_level_kwargs = kwargs
-
-        from metaflow.plugins import DEPLOYER_IMPL_PROVIDERS
-
-        for provider_class in DEPLOYER_IMPL_PROVIDERS:
-            # TYPE is the name of the CLI groups i.e.
-            # `argo-workflows` instead of `argo_workflows`
-            # The injected method names replace '-' by '_' though.
-            method_name = provider_class.TYPE.replace("-", "_")
-            setattr(Deployer, method_name, self._make_function(provider_class))
-
-    def _make_function(self, deployer_class):
-        """
-        Create a function for the given deployer class.
-
-        Parameters
-        ----------
-        deployer_class : Type[DeployerImpl]
-            Deployer implementation class.
-
-        Returns
-        -------
-        Callable
-            Function that initializes and returns an instance of the deployer class.
-        """
-
-        def f(self, **deployer_kwargs):
-            return deployer_class(
-                deployer_kwargs=deployer_kwargs,
-                flow_file=self.flow_file,
-                show_output=self.show_output,
-                profile=self.profile,
-                env=self.env,
-                cwd=self.cwd,
-                file_read_timeout=self.file_read_timeout,
-                **self.top_level_kwargs
-            )
-
-        return f
 
 
 class TriggeredRun(object):
@@ -201,7 +195,38 @@ class TriggeredRun(object):
             return None
 
 
-class DeployedFlow(object):
+class DeployedFlowMeta(type):
+    def __new__(mcs, name, bases, dct):
+        cls = super().__new__(mcs, name, bases, dct)
+
+        from metaflow.plugins import DEPLOYER_IMPL_PROVIDERS
+
+        allowed_providers = dict(
+            {
+                provider.TYPE.replace("-", "_"): provider
+                for provider in DEPLOYER_IMPL_PROVIDERS
+            }
+        )
+
+        def _default_injected_method():
+            def f(
+                identifier: str,
+                metadata: Optional[str] = None,
+                impl: str = DEFAULT_FROM_DEPLOYMENT_IMPL.replace("-", "_"),
+            ):
+                if impl in allowed_providers:
+                    return allowed_providers[impl].DEPLOYED_FLOW_TYPE.from_deployment(
+                        identifier, metadata, impl
+                    )
+
+            return f
+
+        setattr(cls, "from_deployment", _default_injected_method())
+
+        return cls
+
+
+class DeployedFlow(metaclass=DeployedFlowMeta):
     """
     DeployedFlow class represents a flow that has been deployed.
 
@@ -211,6 +236,21 @@ class DeployedFlow(object):
 
     def __init__(self, deployer: "DeployerImpl"):
         self.deployer = deployer
+        self.name = self.deployer.name
+        self.flow_name = self.deployer.flow_name
+        self.metadata = self.deployer.metadata
+
+    @staticmethod
+    def from_deployment(
+        identifier: str,
+        metadata: str = None,
+        impl: str = "argo-workflows",
+    ):
+        if impl == "argo-workflows":  # TODO: use a metaflow config variable for `impl`
+            from metaflow.plugins.argo.argo_workflows_deployer import from_deployment
+
+            return from_deployment(identifier, metadata)
+        raise NotImplementedError("This method is not available for: %s" % impl)
 
 
 class DeployerImpl(object):
@@ -240,6 +280,7 @@ class DeployerImpl(object):
     """
 
     TYPE: ClassVar[Optional[str]] = None
+    DEPLOYED_FLOW_TYPE: ClassVar[Optional[DeployedFlow]] = None
 
     def __init__(
         self,
