@@ -306,8 +306,6 @@ class MetaflowTask(object):
             "origin_run_id": origin_run_id,
             "origin_task_id": origin_task_id,
         }
-        _system_logger.update_context(task_payload)
-        _system_monitor.update_context(task_payload)
 
         msg = "Cloning task from {}/{}/{}/{} to {}/{}/{}/{}".format(
             self.flow.name,
