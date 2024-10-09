@@ -50,6 +50,14 @@ class StepFunctionsTriggeredRun(TriggeredRun):
 
 
 class StepFunctionsDeployedFlow(DeployedFlow):
+    @classmethod
+    def from_deployment(
+        cls, identifier: str, metadata: Optional[str] = None, _="argo-workflows"
+    ):
+        raise NotImplementedError(
+            "from_deployment is not implemented for StepFunctions"
+        )
+
     @property
     def production_token(self: DeployedFlow) -> Optional[str]:
         """
@@ -222,6 +230,7 @@ class StepFunctionsDeployer(DeployerImpl):
     """
 
     TYPE: ClassVar[Optional[str]] = "step-functions"
+    DEPLOYED_FLOW_TYPE: ClassVar[Optional[DeployedFlow]] = StepFunctionsDeployedFlow
 
     def __init__(self, deployer_kwargs, **kwargs):
         """

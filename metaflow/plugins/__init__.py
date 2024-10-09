@@ -156,12 +156,6 @@ def get_plugin_cli():
     return resolve_plugins("cli")
 
 
-# just a normal dictionary, not a plugin since there is no class..
-FROM_DEPLOYMENT_PROVIDERS = {
-    "argo-workflows": "metaflow.plugins.argo.argo_workflows_deployer",
-}
-
-
 STEP_DECORATORS = resolve_plugins("step_decorator")
 FLOW_DECORATORS = resolve_plugins("flow_decorator")
 ENVIRONMENTS = resolve_plugins("environment")

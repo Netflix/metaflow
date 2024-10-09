@@ -43,6 +43,10 @@ DEFAULT_GCP_CLIENT_PROVIDER = from_conf("DEFAULT_GCP_CLIENT_PROVIDER", "gcp-defa
 DEFAULT_SECRETS_BACKEND_TYPE = from_conf("DEFAULT_SECRETS_BACKEND_TYPE")
 DEFAULT_SECRETS_ROLE = from_conf("DEFAULT_SECRETS_ROLE")
 
+DEFAULT_FROM_DEPLOYMENT_IMPL = from_conf(
+    "DEFAULT_FROM_DEPLOYMENT_IMPL", "argo-workflows"
+)
+
 ###
 # User configuration
 ###
@@ -408,13 +412,6 @@ AIRFLOW_KUBERNETES_KUBECONFIG_FILE = from_conf("AIRFLOW_KUBERNETES_KUBECONFIG_FI
 AIRFLOW_KUBERNETES_KUBECONFIG_CONTEXT = from_conf(
     "AIRFLOW_KUBERNETES_KUBECONFIG_CONTEXT"
 )
-
-
-###
-# From Deployment configuration
-###
-# From Deployment Configuration for DeployedFlow
-FROM_DEPLOYMENT_IMPL = from_conf("FROM_DEPLOYMENT_IMPL", "argo-workflows")
 
 
 ###
