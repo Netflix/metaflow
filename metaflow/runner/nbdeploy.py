@@ -45,7 +45,7 @@ class NBDeployer(object):
         environment set for this process.
     base_dir : Optional[str], default None
         The directory to run the subprocess in; if not specified, the current
-        directory is used.
+        working directory is used.
     **kwargs : Any
         Additional arguments that you would pass to `python myflow.py` i.e. options
         listed in `python myflow.py --help`

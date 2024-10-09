@@ -42,7 +42,7 @@ class NBRunner(object):
         environment set for this process.
     base_dir : Optional[str], default None
         The directory to run the subprocess in; if not specified, the current
-        directory is used.
+        working directory is used.
     file_read_timeout : int, default 3600
         The timeout until which we try to read the runner attribute file.
     **kwargs : Any
