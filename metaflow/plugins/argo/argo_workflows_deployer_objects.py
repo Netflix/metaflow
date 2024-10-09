@@ -1,7 +1,7 @@
 import sys
 import json
 import tempfile
-from typing import Optional
+from typing import ClassVar, Optional
 
 from metaflow.client.core import get_metadata
 from metaflow.exception import MetaflowException
@@ -187,6 +187,8 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
 
 
 class ArgoWorkflowsDeployedFlow(DeployedFlow):
+
+    TYPE: ClassVar[Optional[str]] = "argo-workflows"
 
     @classmethod
     def from_deployment(cls, identifier: str, metadata: Optional[str] = None):

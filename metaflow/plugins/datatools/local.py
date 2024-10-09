@@ -81,6 +81,8 @@ class Local(object):
     In the future, we may want to allow it to be used in a way similar to the S3() client.
     """
 
+    TYPE = "local"
+
     @staticmethod
     def _makedirs(path):
         try:

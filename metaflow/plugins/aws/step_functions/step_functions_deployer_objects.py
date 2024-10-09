@@ -1,7 +1,7 @@
 import sys
 import json
 import tempfile
-from typing import Optional, List
+from typing import ClassVar, Optional, List
 
 from metaflow.plugins.aws.step_functions.step_functions import StepFunctions
 from metaflow.runner.deployer import DeployedFlow, TriggeredRun
@@ -46,6 +46,9 @@ class StepFunctionsTriggeredRun(TriggeredRun):
 
 
 class StepFunctionsDeployedFlow(DeployedFlow):
+
+    TYPE: ClassVar[Optional[str]] = "step-functions"
+
     @classmethod
     def from_deployment(cls, identifier: str, metadata: Optional[str] = None):
         raise NotImplementedError(

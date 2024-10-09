@@ -10,7 +10,7 @@ from .subprocess_manager import SubprocessManager
 from .utils import get_lower_level_group, handle_timeout
 
 if TYPE_CHECKING:
-    from .deployer import DeployedFlow
+    import metaflow.runner.deployer
 
 # NOTE: This file is separate from the deployer.py file to prevent circular imports.
 # This file is needed in any of the DeployerImpl implementations
@@ -88,13 +88,13 @@ class DeployerImpl(object):
         raise NotImplementedError
 
     @staticmethod
-    def deployed_flow_type() -> Type["DeployedFlow"]:
+    def deployed_flow_type() -> Type["metaflow.runner.deployer.DeployedFlow"]:
         raise NotImplementedError
 
     def __enter__(self) -> "DeployerImpl":
         return self
 
-    def create(self, **kwargs) -> "DeployedFlow":
+    def create(self, **kwargs) -> "metaflow.runner.deployer.DeployedFlow":
         """
         Create a sub-class of a `DeployedFlow` depending on the deployer implementation.
 
@@ -118,7 +118,9 @@ class DeployerImpl(object):
         # proper class as the DeployedFlow to return.
         raise NotImplementedError
 
-    def _create(self, create_class: Type["DeployedFlow"], **kwargs) -> "DeployedFlow":
+    def _create(
+        self, create_class: Type["metaflow.runner.deployer.DeployedFlow"], **kwargs
+    ) -> "metaflow.runner.deployer.DeployedFlow":
         with tempfile.TemporaryDirectory() as temp_dir:
             tfp_runner_attribute = tempfile.NamedTemporaryFile(
                 dir=temp_dir, delete=False

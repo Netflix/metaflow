@@ -1,6 +1,7 @@
 from collections import namedtuple
 import gzip
 
+import importlib
 import io
 import json
 import os
@@ -17,6 +18,8 @@ from .parameters import (
     Parameter,
     ParameterContext,
 )
+
+from .plugins import DATACLIENTS
 from .util import get_username
 
 import functools
@@ -47,16 +50,6 @@ _DelayedExecContext = namedtuple(
 
 
 # From here on out, this is the IncludeFile implementation.
-from metaflow.plugins.datatools import Local, S3
-from metaflow.plugins.azure.includefile_support import Azure
-from metaflow.plugins.gcp.includefile_support import GS
-
-DATACLIENTS = {
-    "local": Local,
-    "s3": S3,
-    "azure": Azure,
-    "gs": GS,
-}
 
 
 class IncludedFile(object):
