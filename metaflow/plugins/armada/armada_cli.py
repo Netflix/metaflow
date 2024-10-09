@@ -23,7 +23,7 @@ from .armada import (
     TERMINAL_JOB_STATES,
 )
 
-from .binoculars import log_thread
+from .logging import log_thread
 
 
 @click.group()
@@ -44,9 +44,14 @@ def armada():
 @click.argument("step-name")
 @click.argument("code-package-sha")
 @click.argument("code-package-url")
+@click.option(
+    "--secrets",
+    multiple=True,
+    default=None,
+    help="Secrets for pod launched under Armada.",
+)
 @click.argument("queue", required=True)
 @click.argument("job-set-id", required=True)
-@click.argument("job-file", required=True)
 @click.option(
     "--executable",
     help="Executable requirement for Armada Kubernetes pod.",
@@ -54,14 +59,24 @@ def armada():
 @click.option("--host", default=None, help="The hostname for Armada.")
 @click.option("--port", default=None, help="The port for Armada.")
 @click.option(
-    "--binoculars-host",
+    "--logging-host",
     default=None,
-    help="The hostname for Binoculars (Armada log service).",
+    help="The hostname of the Armada logging host.",
 )
 @click.option(
-    "--binoculars-port",
+    "--logging-port",
     default=None,
-    help="The port for Binoculars (Armada log service).",
+    help="The port for Armada logging port.",
+)
+@click.option("--cpu", help="CPU requirement for Armada job.")
+@click.option("--disk", help="Disk requirement for Armada job.")
+@click.option("--memory", help="Memory requirement for Armada job.")
+@click.option("--gpu", help="GPU requirement for Armada job.")
+@click.option("--gpu-vendor", help="GPU vendor requirement for Armada job.")
+@click.option(
+    "--insecure-no-ssl",
+    is_flag=True,
+    help="Turn off SSL for Armada connections. Useful for local debugging.",
 )
 @click.option("--run-id", help="Passed to the top-level 'step'.")
 @click.option("--task-id", help="Passed to the top-level 'step'.")
@@ -72,7 +87,7 @@ def armada():
 @click.option(
     "--tag", multiple=True, default=None, help="Passed to the top-level 'step'."
 )
-@click.option("--namespace", default=None, help="Passed to the top-level 'step'.")
+@click.option("--namespace", default="default", help="Passed to the top-level 'step'.")
 @click.option("--retry-count", default=0, help="Passed to the top-level 'step'.")
 @click.option(
     "--max-user-code-retries", default=0, help="Passed to the top-level 'step'."
@@ -85,11 +100,16 @@ def step(
     code_package_url,
     queue,
     job_set_id,
-    job_file,
     host,
     port,
-    binoculars_host,
-    binoculars_port,
+    logging_host,
+    logging_port,
+    cpu,
+    disk,
+    memory,
+    gpu,
+    gpu_vendor,
+    insecure_no_ssl,
     executable,
     **kwargs,
 ):
@@ -105,23 +125,23 @@ def step(
             "Port cannot be None. Either use --port or set ARMADA_PORT"
         )
 
-    # TODO: Add warning that step live-logs will not be enabled if binoculars
-    # information is not available.
     job_logs = True
-    binoculars_hostname = os.getenv("BINOCULARS_HOST", binoculars_host)
-    if binoculars_hostname is None:
+    logging_hostname = os.getenv("LOGGING_HOST", logging_host)
+    if logging_hostname is None:
         job_logs = False
 
-    binoculars_portnum = os.getenv("BINOCULARS_PORT", binoculars_port)
-    if binoculars_portnum is None:
+    logging_portnum = os.getenv("LOGGING_PORT", logging_port)
+    if logging_portnum is None:
         job_logs = False
+
+    if not job_logs:
+        ctx.obj.echo_always(
+            "Logging host and port are not set, logging for armada jobs "
+            "will not be available."
+        )
 
     if queue == "":
         raise MetaflowException("queue name must be set")
-
-    # with open(job_file, "r", encoding="utf-8") as f:
-    # TODO: Read and verify.
-    # job_contents = f.read()
 
     retry_count = int(kwargs.get("retry_count", 0))
     _ = ctx.obj.flow_datastore.get_task_datastore(
@@ -158,44 +178,63 @@ def step(
     env_vars["METAFLOW_CODE_URL"] = code_package_url
     env_vars["METAFLOW_CODE_DS"] = ctx.obj.flow_datastore.TYPE
     env_vars["METAFLOW_USER"] = util.get_username()
-    # FIXME: Is this right?
     env_vars["METAFLOW_DEFAULT_DATASTORE"] = ctx.obj.flow_datastore.TYPE
 
-    job_request_items = create_armada_pod_spec(container_cmd, env_vars, [])
+    # TODO: Better secrets injection/support other storage backends.
+    env_vars["AWS_ACCESS_KEY_ID"] = os.environ["AWS_ACCESS_KEY_ID"]
+    env_vars["AWS_SECRET_ACCESS_KEY"] = os.environ["AWS_SECRET_ACCESS_KEY"]
+    env_vars["AWS_DEFAULT_REGION"] = os.environ["AWS_DEFAULT_REGION"]
 
-    # FIXME: We should probably limit submission to one job per step (ie the
-    # step itself executing under armada)
-    job_ids = submit_jobs(
-        hostname, portnum, queue, job_set_id, job_request_items, use_ssl=False
+    job_request_items = create_armada_pod_spec(
+        step_name,
+        kwargs["run_id"],
+        {
+            "cpu": cpu,
+            "disk": disk,
+            "memory": memory,
+            "gpu": gpu,
+            "gpu_vendor": gpu_vendor,
+        },
+        container_cmd,
+        env_vars,
+        [],
     )
-    ctx.obj.echo_always(f"Submitted jobs with IDs: {job_ids}")
+
+    use_ssl = True
+    if insecure_no_ssl:
+        use_ssl = False
+
+    # Note that only one armada job is created per metaflow step.
+    job_ids = submit_jobs(
+        hostname, portnum, queue, job_set_id, job_request_items, use_ssl=use_ssl
+    )
+    ctx.obj.echo_always(f"Submitted job with ID: {job_ids[0]}")
 
     gen = wait_for_job_finish_generator(
-        hostname, portnum, queue, job_set_id, job_ids[0], use_ssl=False
+        hostname, portnum, queue, job_set_id, job_ids[0], use_ssl=use_ssl
     )
 
     done_signal = Event()
     job_logging_thread = None
 
     for event in gen:
-        ctx.obj.echo_always(f"Job entered {event.type} state.")
+        ctx.obj.echo_always(f"Armada job entered {event.type} state.")
         if event.type == EventType.running and job_logs:
             job_logging_thread = Thread(
                 target=log_thread,
                 args=(
-                    binoculars_hostname,
-                    binoculars_portnum,
+                    logging_hostname,
+                    logging_portnum,
                     job_ids[0],
-                    "default",
                     done_signal,
                     ctx.obj.echo_always,
                 ),
-                kwargs={"use_ssl": False},
+                kwargs={"use_ssl": use_ssl},
             )
             job_logging_thread.start()
 
         if event.type in TERMINAL_JOB_STATES:
-            ctx.obj.echo_always(f"Job reached terminal state: {event.message}")
+            ctx.obj.echo_always(f"Armada job reached terminal state: {event.message}")
             break
 
     # Clean up log thread.
