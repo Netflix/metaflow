@@ -489,7 +489,7 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
             # contributes to. This is to enable multiple namespace packages to contribute
             # to the same extension point (for example, you may have multiple packages
             # that have plugins)
-            for f in dist.files:
+            for f in dist.files or []:
                 parts = list(f.parts)
 
                 if len(parts) > 1 and parts[0] == EXT_PKG:
