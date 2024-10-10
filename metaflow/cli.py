@@ -13,6 +13,7 @@ from . import decorators, lint, metaflow_version, namespace, parameters, plugins
 from .cli_args import cli_args
 from .datastore import FlowDataStore, TaskDataStore, TaskDataStoreSet
 from .exception import CommandException, MetaflowException
+from .flowspec import _FlowState
 from .graph import FlowGraph
 from .metaflow_config import (
     DECOSPECS,
@@ -47,6 +48,8 @@ from .util import (
     resolve_identity,
     write_latest_run_id,
 )
+from .user_configs.config_options import LocalFileInput, config_options
+from .user_configs.config_parameters import ConfigValue
 
 ERASE_TO_EOL = "\033[K"
 HIGHLIGHT = "red"
@@ -430,6 +433,7 @@ def step(
 
     if decospecs:
         decorators._attach_decorators_to_step(func, decospecs)
+        decorators._init(ctx.obj.flow, only_non_static=True)
 
     step_kwargs = ctx.params
     # Remove argument `step_name` from `step_kwargs`.
@@ -523,7 +527,7 @@ def init(obj, run_id=None, task_id=None, tags=None, **kwargs):
         obj.monitor,
         run_id=run_id,
     )
-    obj.flow._set_constants(obj.graph, kwargs)
+    obj.flow._set_constants(obj.graph, kwargs, obj.config_options)
     runtime.persist_constants(task_id=task_id)
 
 
@@ -774,7 +778,7 @@ def run(
     write_latest_run_id(obj, runtime.run_id)
     write_file(run_id_file, runtime.run_id)
 
-    obj.flow._set_constants(obj.graph, kwargs)
+    obj.flow._set_constants(obj.graph, kwargs, obj.config_options)
     runtime.print_workflow_info()
     runtime.persist_constants()
 
@@ -821,6 +825,7 @@ def before_run(obj, tags, decospecs):
     )
     if all_decospecs:
         decorators._attach_decorators(obj.flow, all_decospecs)
+        decorators._init(obj.flow, only_non_static=True)
         obj.graph = FlowGraph(obj.flow.__class__)
 
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
@@ -847,17 +852,24 @@ def version(obj):
 
 
 @tracing.cli_entrypoint("cli/start")
+# NOTE: add_decorator_options should be TL because it checks to make sure
+# that no option conflict with the ones below
 @decorators.add_decorator_options
+@config_options
 @click.command(
     cls=click.CommandCollection,
     sources=[cli] + plugins.get_plugin_cli(),
     invoke_without_command=True,
 )
+# Quiet is eager to make sure it is available when processing --config options since
+# we need it to construct a context to pass to any DeployTimeField for the default
+# value.
 @click.option(
     "--quiet/--not-quiet",
     show_default=True,
     default=False,
     help="Suppress unnecessary messages",
+    is_eager=True,
 )
 @click.option(
     "--metadata",
@@ -873,12 +885,14 @@ def version(obj):
     type=click.Choice(["local"] + [m.TYPE for m in ENVIRONMENTS]),
     help="Execution environment type",
 )
+# See comment for --quiet
 @click.option(
     "--datastore",
     default=DEFAULT_DATASTORE,
     show_default=True,
     type=click.Choice([d.TYPE for d in DATASTORES]),
     help="Data backend type",
+    is_eager=True,
 )
 @click.option("--datastore-root", help="Root path for datastore")
 @click.option(
@@ -915,6 +929,15 @@ def version(obj):
     type=click.Choice(MONITOR_SIDECARS),
     help="Monitoring backend type",
 )
+@click.option(
+    "--local-config-file",
+    type=LocalFileInput(exists=True, readable=True, dir_okay=False, resolve_path=True),
+    required=False,
+    default=None,
+    help="A filename containing the dumped configuration values. Internal use only.",
+    hidden=True,
+    is_eager=True,
+)
 @click.pass_context
 def start(
     ctx,
@@ -928,6 +951,9 @@ def start(
     pylint=None,
     event_logger=None,
     monitor=None,
+    local_config_file=None,
+    config_file_options=None,
+    config_value_options=None,
     **deco_options
 ):
     global echo
@@ -945,11 +971,22 @@ def start(
     echo(" executing *%s*" % ctx.obj.flow.name, fg="magenta", nl=False)
     echo(" for *%s*" % resolve_identity(), fg="magenta")
 
+    # At this point, we are able to resolve the user-configuration options so we can
+    # process all those decorators that the user added that will modify the flow based
+    # on those configurations. It is important to do this as early as possible since it
+    # actually modifies the flow itself
+
+    # When we process the options, the first one processed will return None and the
+    # second one processed will return the actual options. The order of processing
+    # depends on what (and in what order) the user specifies on the command line.
+    config_options = config_file_options or config_value_options
+    ctx.obj.flow = ctx.obj.flow._process_config_decorators(config_options)
+
     cli_args._set_top_kwargs(ctx.params)
     ctx.obj.echo = echo
     ctx.obj.echo_always = echo_always
     ctx.obj.is_quiet = quiet
-    ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
+    ctx.obj.graph = ctx.obj.flow._graph
     ctx.obj.logger = logger
     ctx.obj.check = _check
     ctx.obj.pylint = pylint
@@ -1001,6 +1038,10 @@ def start(
         ctx.obj.monitor,
     )
 
+    ctx.obj.config_options = config_options
+
+    decorators._init(ctx.obj.flow)
+
     # It is important to initialize flow decorators early as some of the
     # things they provide may be used by some of the objects initialized after.
     decorators._init_flow_decorators(
@@ -1023,7 +1064,15 @@ def start(
     # initialize current and parameter context for deploy-time parameters
     current._set_env(flow=ctx.obj.flow, is_running=False)
     parameters.set_parameter_context(
-        ctx.obj.flow.name, ctx.obj.echo, ctx.obj.flow_datastore
+        ctx.obj.flow.name,
+        ctx.obj.echo,
+        ctx.obj.flow_datastore,
+        {
+            k: ConfigValue(v)
+            for k, v in ctx.obj.flow.__class__._flow_state.get(
+                _FlowState.CONFIGS, {}
+            ).items()
+        },
     )
 
     if ctx.invoked_subcommand not in ("run", "resume"):
@@ -1034,6 +1083,7 @@ def start(
         )
         if all_decospecs:
             decorators._attach_decorators(ctx.obj.flow, all_decospecs)
+            decorators._init(ctx.obj.flow, only_non_static=True)
             # Regenerate graph if we attached more decorators
             ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
 

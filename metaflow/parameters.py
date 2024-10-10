@@ -3,7 +3,7 @@ import json
 from contextlib import contextmanager
 from threading import local
 
-from typing import Any, Callable, Dict, NamedTuple, Optional, Type, Union
+from typing import Any, Callable, Dict, NamedTuple, Optional, TYPE_CHECKING, Type, Union
 
 from metaflow._vendor import click
 
@@ -13,6 +13,9 @@ from .exception import (
     ParameterFieldTypeMismatch,
     MetaflowException,
 )
+
+if TYPE_CHECKING:
+    from .user_configs.config_parameters import ConfigValue
 
 try:
     # Python2
@@ -32,6 +35,7 @@ ParameterContext = NamedTuple(
         ("parameter_name", str),
         ("logger", Callable[..., None]),
         ("ds_type", str),
+        ("configs", "ConfigValue"),
     ],
 )
 
@@ -70,6 +74,16 @@ def flow_context(flow_cls):
 
 
 context_proto = None
+
+
+def replace_flow_context(flow_cls):
+    """
+    Replace the current flow context with a new flow class. This is used
+    when we change the current flow class after having run user configuration functions
+    """
+    current_flow.flow_cls_stack = current_flow.flow_cls_stack[1:]
+    current_flow.flow_cls_stack.insert(0, flow_cls)
+    current_flow.flow_cls = current_flow.flow_cls_stack[0]
 
 
 class JSONTypeClass(click.ParamType):
@@ -204,12 +218,18 @@ class DeployTimeField(object):
 def deploy_time_eval(value):
     if isinstance(value, DeployTimeField):
         return value(deploy_time=True)
+    elif isinstance(value, DelayedEvaluationParameter):
+        return value(return_str=True)
     else:
         return value
 
 
 # this is called by cli.main
-def set_parameter_context(flow_name, echo, datastore):
+def set_parameter_context(flow_name, echo, datastore, configs):
+    from .user_configs.config_parameters import (
+        ConfigValue,
+    )  # Prevent circular dependency
+
     global context_proto
     context_proto = ParameterContext(
         flow_name=flow_name,
@@ -217,6 +237,7 @@ def set_parameter_context(flow_name, echo, datastore):
         parameter_name=None,
         logger=echo,
         ds_type=datastore.TYPE,
+        configs=ConfigValue(dict(configs)),
     )
 
 
@@ -285,11 +306,13 @@ class Parameter(object):
     help : str, optional
         Help text to show in `run --help`.
     required : bool, default False
-        Require that the user specified a value for the parameter.
-        `required=True` implies that the `default` is not used.
+        Require that the user specified a value for the parameter. If a non-None
+        default is specified, that default will be used if no other value is provided
     show_default : bool, default True
         If True, show the default value in the help text.
     """
+
+    IS_FLOW_PARAMETER = False
 
     def __init__(
         self,
@@ -301,7 +324,9 @@ class Parameter(object):
                 int,
                 bool,
                 Dict[str, Any],
-                Callable[[], Union[str, float, int, bool, Dict[str, Any]]],
+                Callable[
+                    [ParameterContext], Union[str, float, int, bool, Dict[str, Any]]
+                ],
             ]
         ] = None,
         type: Optional[
@@ -431,7 +456,9 @@ def add_custom_parameters(deploy_mode=False):
         flow_cls = getattr(current_flow, "flow_cls", None)
         if flow_cls is None:
             return cmd
-        parameters = [p for _, p in flow_cls._get_parameters()]
+        parameters = [
+            p for _, p in flow_cls._get_parameters() if not p.IS_FLOW_PARAMETER
+        ]
         for arg in parameters[::-1]:
             kwargs = arg.option_kwargs(deploy_mode)
             cmd.params.insert(0, click.Option(("--" + arg.name,), **kwargs))

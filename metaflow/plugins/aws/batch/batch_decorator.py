@@ -134,8 +134,8 @@ class BatchDecorator(StepDecorator):
     package_sha = None
     run_time_limit = None
 
-    def __init__(self, attributes=None, statically_defined=False):
-        super(BatchDecorator, self).__init__(attributes, statically_defined)
+    def init(self):
+        super(BatchDecorator, self).init()
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:

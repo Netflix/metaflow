@@ -4,15 +4,17 @@ import sys
 import traceback
 import reprlib
 
+from enum import Enum
 from itertools import islice
 from types import FunctionType, MethodType
-from typing import Any, Callable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Generator, List, Optional, Tuple
 
 from . import cmd_with_io, parameters
 from .parameters import DelayedEvaluationParameter, Parameter
 from .exception import (
     MetaflowException,
     MissingInMergeArtifactsException,
+    MetaflowInternalError,
     UnhandledInMergeArtifactsException,
 )
 
@@ -20,6 +22,12 @@ from .extension_support import extension_info
 
 from .graph import FlowGraph
 from .unbounded_foreach import UnboundedForeachInput
+from .user_configs.config_decorators import (
+    FlowConfigDecorator,
+    FlowSpecProxy,
+    StepConfigDecorator,
+    StepProxy,
+)
 from .util import to_pod
 from .metaflow_config import INCLUDE_FOREACH_STACK, MAXIMUM_FOREACH_VALUE_CHARS
 
@@ -64,14 +72,27 @@ class ParallelUBF(UnboundedForeachInput):
         return item or 0  # item is None for the control task, but it is also split 0
 
 
+class _FlowState(Enum):
+    CONFIGS = 1
+    CONFIG_DECORATORS = 2
+    CACHED_PARAMETERS = 3
+
+
 class _FlowSpecMeta(type):
     def __new__(cls, name, bases, dct):
         f = super().__new__(cls, name, bases, dct)
-        # This makes sure to give _flow_decorators to each
-        # child class (and not share it with the FlowSpec base
-        # class). This is important to not make a "global"
-        # _flow_decorators
+        # We store some state in the flow class itself. This is primarily used to
+        # attach global state to a flow. It is *not* an actual global because of
+        # Runner/NBRunner. This is also created here in the meta class to avoid it being
+        # shared between different children classes.
+
+        # We should move _flow_decorators into this structure as well but keeping it
+        # out to limit the changes for now.
         f._flow_decorators = {}
+
+        # Keys are _FlowState enum values
+        f._flow_state = {}
+
         return f
 
 
@@ -95,6 +116,7 @@ class FlowSpec(metaclass=_FlowSpecMeta):
         "_cached_input",
         "_graph",
         "_flow_decorators",
+        "_flow_state",
         "_steps",
         "index",
         "input",
@@ -147,14 +169,7 @@ class FlowSpec(metaclass=_FlowSpecMeta):
             fname = fname[:-1]
         return os.path.basename(fname)
 
-    def _set_constants(self, graph, kwargs):
-        from metaflow.decorators import (
-            flow_decorators,
-        )  # To prevent circular dependency
-
-        # Persist values for parameters and other constants (class level variables)
-        # only once. This method is called before persist_constants is called to
-        # persist all values set using setattr
+    def _check_parameters(self):
         seen = set()
         for var, param in self._get_parameters():
             norm = param.name.lower()
@@ -165,13 +180,90 @@ class FlowSpec(metaclass=_FlowSpecMeta):
                     "case-insensitive." % param.name
                 )
             seen.add(norm)
-        seen.clear()
+
+    def _process_config_decorators(self, config_options):
+        current_cls = self.__class__
+
+        # Fast path for no user configurations
+        if not self._flow_state.get(_FlowState.CONFIG_DECORATORS):
+            return self
+
+        # We need to convert all the user configurations from DelayedEvaluationParameters
+        # to actual values so they can be used as is in the config functions.
+
+        # We then reset them to be proper parameters so they can be re-evaluated in
+        # _set_constants
+        to_reset_params = []
+        self._check_parameters()
+        for var, param in self._get_parameters():
+            if not param.IS_FLOW_PARAMETER:
+                continue
+            to_reset_params.append((var, param))
+            # Note that a config with no default and not required will be None
+            val = config_options.get(param.name.replace("-", "_").lower())
+            if isinstance(val, DelayedEvaluationParameter):
+                val = val()
+            setattr(current_cls, var, val)
+
+        # Run all the decorators
+        for deco in self._flow_state[_FlowState.CONFIG_DECORATORS]:
+            if isinstance(deco, FlowConfigDecorator):
+                # Sanity check to make sure we are applying the decorator to the right
+                # class
+                if not deco._flow_cls == current_cls and not issubclass(
+                    current_cls, deco._flow_cls
+                ):
+                    raise MetaflowInternalError(
+                        "FlowConfigDecorator registered on the wrong flow -- "
+                        "expected %s but got %s"
+                        % (deco._flow_cls.__name__, current_cls.__name__)
+                    )
+                deco.evaluate(FlowSpecProxy(current_cls))
+            elif isinstance(deco, StepConfigDecorator):
+                # Again some sanity checks
+                if deco._flow_cls != current_cls:
+                    raise MetaflowInternalError(
+                        "StepConfigDecorator registered on the wrong flow -- "
+                        "expected %s but got %s"
+                        % (deco._flow_cls.__name__, current_cls.__name__)
+                    )
+                deco.evaluate(StepConfigDecorator(deco._my_step))
+
+        # Reset all configs that were already present in the class.
+        # TODO: This means that users can't override configs directly. Not sure if this
+        # is a pattern we want to support
+        for var, param in to_reset_params:
+            setattr(current_cls, var, param)
+
+        # We reset cached_parameters on the very off chance that the user added
+        # more configurations based on the configuration
+        if _FlowState.CACHED_PARAMETERS in current_cls._flow_state:
+            del current_cls._flow_state[_FlowState.CACHED_PARAMETERS]
+
+        # Set the current flow class we are in (the one we just created)
+        parameters.replace_flow_context(current_cls)
+        return current_cls(use_cli=False)
+
+    def _set_constants(self, graph, kwargs, config_options):
+        from metaflow.decorators import (
+            flow_decorators,
+        )  # To prevent circular dependency
+
+        # Persist values for parameters and other constants (class level variables)
+        # only once. This method is called before persist_constants is called to
+        # persist all values set using setattr
+        self._check_parameters()
+
+        seen = set()
         self._success = True
 
         parameters_info = []
         for var, param in self._get_parameters():
             seen.add(var)
-            val = kwargs[param.name.replace("-", "_").lower()]
+            if param.IS_FLOW_PARAMETER:
+                val = config_options.get(param.name.replace("-", "_").lower())
+            else:
+                val = kwargs[param.name.replace("-", "_").lower()]
             # Support for delayed evaluation of parameters.
             if isinstance(val, DelayedEvaluationParameter):
                 val = val()
@@ -217,6 +309,12 @@ class FlowSpec(metaclass=_FlowSpecMeta):
 
     @classmethod
     def _get_parameters(cls):
+        cached = cls._flow_state.get(_FlowState.CACHED_PARAMETERS)
+        if cached is not None:
+            for var in cached:
+                yield var, getattr(cls, var)
+            return
+        build_list = []
         for var in dir(cls):
             if var[0] == "_" or var in cls._NON_PARAMETERS:
                 continue
@@ -225,7 +323,9 @@ class FlowSpec(metaclass=_FlowSpecMeta):
             except:
                 continue
             if isinstance(val, Parameter):
+                build_list.append(var)
                 yield var, val
+        cls._flow_state[_FlowState.CACHED_PARAMETERS] = build_list
 
     def _set_datastore(self, datastore):
         self._datastore = datastore
@@ -244,6 +344,8 @@ class FlowSpec(metaclass=_FlowSpecMeta):
         return iter(self._steps)
 
     def __getattr__(self, name: str):
+        if name in ("configs", "steps"):
+            return getattr(self.__class__, name)
         if self._datastore and name in self._datastore:
             # load the attribute from the datastore...
             x = self._datastore[name]
