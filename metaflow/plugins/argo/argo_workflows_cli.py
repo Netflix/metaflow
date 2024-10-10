@@ -1016,13 +1016,7 @@ def validate_run_id(
 
     if project_name is not None:
         # Verify we are operating on the correct project.
-        # Perform match with separators to avoid substrings matching
-        # e.g. 'test_proj' and 'test_project' should count as a mismatch.
-        project_part = "%s." % sanitize_for_argo(project_name)
-        if (
-            current.get("project_name") != project_name
-            and project_part not in workflow_name
-        ):
+        if current.get("project_name") != project_name:
             raise RunIdMismatch(
                 "The workflow belongs to the project *%s*. "
                 "Please use the project decorator or --name to target the correct project"
@@ -1030,13 +1024,7 @@ def validate_run_id(
             )
 
         # Verify we are operating on the correct branch.
-        # Perform match with separators to avoid substrings matching.
-        # e.g. 'user.tes' and 'user.test' should count as a mismatch.
-        branch_part = ".%s." % sanitize_for_argo(branch_name)
-        if (
-            current.get("branch_name") != branch_name
-            and branch_part not in workflow_name
-        ):
+        if current.get("branch_name") != branch_name:
             raise RunIdMismatch(
                 "The workflow belongs to the branch *%s*. "
                 "Please use --branch, --production or --name to target the correct branch"
