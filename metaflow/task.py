@@ -544,9 +544,6 @@ class MetaflowTask(object):
             "project_flow_name": current.get("project_flow_name"),
             "trace_id": trace_id or None,
         }
-
-        _system_logger.update_context(task_payload)
-        _system_monitor.update_context(task_payload)
         start = time.time()
         self.metadata.start_task_heartbeat(self.flow.name, run_id, step_name, task_id)
         with self.monitor.measure("metaflow.task.duration"):
@@ -591,7 +588,8 @@ class MetaflowTask(object):
                         {
                             "parameter_names": self._init_parameters(
                                 inputs[0], passdown=True
-                            )
+                            ),
+                            "graph_info": self.flow._graph_info,
                         }
                     )
                 else:
@@ -615,7 +613,8 @@ class MetaflowTask(object):
                             {
                                 "parameter_names": self._init_parameters(
                                     inputs[0], passdown=False
-                                )
+                                ),
+                                "graph_info": self.flow._graph_info,
                             }
                         )
 
