@@ -716,6 +716,11 @@ class MetaflowTask(object):
                     self.flow._task_ok = False
                     raise ex
                 finally:
+                    # The attempt_ok metadata is used to determine task status so it is important
+                    # we ensure that it is written even in case of preceding failures.
+                    # f.ex. failing to serialize artifacts leads to a non-zero exit code for the process,
+                    # even if user code finishes successfully. Flow execution will not continue due to the exit,
+                    # so arguably we should mark the task as failed.
                     attempt_ok = str(bool(self.flow._task_ok))
                     self.metadata.register_metadata(
                         run_id,
