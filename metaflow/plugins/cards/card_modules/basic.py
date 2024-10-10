@@ -546,10 +546,10 @@ class ErrorCard(MetaflowCard):
 
     RELOAD_POLICY = MetaflowCard.RELOAD_POLICY_ONCHANGE
 
-    def __init__(self, options={}, components=[], graph=None):
+    def __init__(self, options=None, components=None, graph=None):
         self._only_repr = True
         self._graph = None if graph is None else transform_flow_graph(graph)
-        self._components = components
+        self._components = components if components else []
 
     def reload_content_token(self, task, data):
         """
@@ -602,12 +602,12 @@ class DefaultCardJSON(MetaflowCard):
 
     type = "default_json"
 
-    def __init__(self, options=dict(only_repr=True), components=[], graph=None):
+    def __init__(self, options=None, components=None, graph=None):
         self._only_repr = True
         self._graph = None if graph is None else transform_flow_graph(graph)
-        if "only_repr" in options:
+        if options and "only_repr" in options:
             self._only_repr = options["only_repr"]
-        self._components = components
+        self._components = components if components else []
 
     def render(self, task):
         final_component_dict = TaskInfoComponent(
@@ -629,12 +629,12 @@ class DefaultCard(MetaflowCard):
 
     type = "default"
 
-    def __init__(self, options=dict(only_repr=True), components=[], graph=None):
+    def __init__(self, options=None, components=None, graph=None):
         self._only_repr = True
         self._graph = None if graph is None else transform_flow_graph(graph)
-        if "only_repr" in options:
+        if options and "only_repr" in options:
             self._only_repr = options["only_repr"]
-        self._components = components
+        self._components = components if components else []
 
     def render(self, task, runtime=False):
         RENDER_TEMPLATE = read_file(RENDER_TEMPLATE_PATH)
@@ -688,12 +688,12 @@ class BlankCard(MetaflowCard):
 
     type = "blank"
 
-    def __init__(self, options=dict(title=""), components=[], graph=None):
+    def __init__(self, options=None, components=None, graph=None):
         self._graph = None if graph is None else transform_flow_graph(graph)
         self._title = ""
-        if "title" in options:
+        if options and "title" in options:
             self._title = options["title"]
-        self._components = components
+        self._components = components if components else []
 
     def render(self, task, components=[], runtime=False):
         RENDER_TEMPLATE = read_file(RENDER_TEMPLATE_PATH)
