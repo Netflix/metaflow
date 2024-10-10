@@ -1552,6 +1552,9 @@ class Worker(object):
                     self.task.ubf_context,
                 )
         env.update(args.get_env())
+        # We add another environment variable that tells us whether we are executing in the main process or
+        # in a subprocess
+        env["METAFLOW_SUBPROCESS"] = "1"
         env["PYTHONUNBUFFERED"] = "x"
         tracing.inject_tracing_vars(env)
         # NOTE bufsize=1 below enables line buffering which is required
