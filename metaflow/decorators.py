@@ -562,6 +562,21 @@ def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
             )
 
 
+def _init_step_decorator(flow, graph, environment, flow_datastore, logger, step_name):
+    for step in flow:
+        if step.__name__ == step_name:
+            for deco in step.decorators:
+                deco.step_init(
+                    flow,
+                    graph,
+                    step.__name__,
+                    step.decorators,
+                    environment,
+                    flow_datastore,
+                    logger,
+                )
+
+
 FlowSpecDerived = TypeVar("FlowSpecDerived", bound=FlowSpec)
 
 # The StepFlag is a "fake" input item to be able to distinguish

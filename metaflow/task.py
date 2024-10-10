@@ -374,6 +374,140 @@ class MetaflowTask(object):
                     )
                 )
 
+    def run_spin_step(
+        self,
+        spin_parser_validator,
+        new_task_id,
+        new_run_id,
+        step_datastore=None,
+        join_inputs_datastore=None,
+    ):
+        step_func = getattr(self.flow, spin_parser_validator.step_name)
+        decorators = step_func.decorators
+
+        # initialize output datastore
+        output = self.flow_datastore.get_task_datastore(
+            new_run_id, spin_parser_validator.step_name, new_task_id, 0, mode="w"
+        )
+
+        output.init_task()
+
+        # How we access the input and index attributes depends on the execution context.
+        # If spin is set to True, we short-circuit attribute access to getattr directly
+        # Also set the other attributes that are needed for the task to execute
+        self.flow._spin = True
+        self.flow._current_step = spin_parser_validator.step_name
+        self.flow._success = False
+        self.flow._task_ok = None
+        self.flow._exception = None
+
+        # TODO: Set the foreach_stack attribute for flowspec
+        if spin_parser_validator.step_type == "join":
+            # Set inputs
+            self.flow._set_datastore(output)
+        else:
+            # Set inputs
+            self.flow._set_datastore(step_datastore)
+            if step_datastore.is_foreach_step:
+                setattr(self.flow, "_spin_input", step_datastore.input)
+                setattr(self.flow, "_spin_index", step_datastore.index)
+
+        current._set_env(
+            flow=self.flow,
+            run_id=new_run_id,
+            step_name=spin_parser_validator.step_name,
+            task_id=new_task_id,
+            retry_count=0,
+            namespace=resolve_identity(),
+            username=get_username(),
+            metadata_str="%s@%s"
+            % (self.metadata.__class__.TYPE, self.metadata.__class__.INFO),
+            is_running=True,
+            is_spin=True,
+        )
+
+        for deco in spin_parser_validator.step_decorators:
+            deco.task_pre_step(
+                step_name=spin_parser_validator.step_name,
+                task_datastore=output,
+                metadata=self.metadata,
+                run_id=new_run_id,
+                task_id=new_task_id,
+                flow=self.flow,
+                graph=self.flow._graph,
+                retry_count=0,
+                max_user_code_retries=1,
+                ubf_context=self.ubf_context,
+                inputs=join_inputs_datastore,
+            )
+
+        for deco in spin_parser_validator.step_decorators:
+            # decorators can actually decorate the step function,
+            # or they can replace it altogether. This functionality
+            # is used e.g. by catch_decorator which switches to a
+            # fallback code if the user code has failed too many
+            # times.
+            step_func = deco.task_decorate(
+                step_func=step_func,
+                flow=self.flow,
+                graph=self.flow._graph,
+                retry_count=0,
+                max_user_code_retries=1,
+                ubf_context=self.ubf_context,
+            )
+        try:
+            if spin_parser_validator.step_type == "join":
+                self._exec_step_function(step_func, join_inputs_datastore)
+            else:
+                self._exec_step_function(step_func)
+
+            for deco in spin_parser_validator.step_decorators:
+                deco.task_post_step(
+                    step_name=spin_parser_validator.step_name,
+                    flow=self.flow,
+                    graph=self.flow._graph,
+                    retry_count=0,
+                    max_user_code_retries=1,
+                )
+
+            self.flow._task_ok = True
+            self.flow._success = True
+        except Exception as ex:
+            exception_handled = False
+            for deco in spin_parser_validator.step_decorators:
+                res = deco.task_exception(
+                    exception=ex,
+                    step_name=spin_parser_validator.step_name,
+                    flow=self.flow,
+                    graph=self.flow._graph,
+                    retry_count=0,
+                    max_user_code_retries=1,
+                )
+                exception_handled = bool(res) or exception_handled
+
+            if exception_handled:
+                self.flow._task_ok = True
+            else:
+                self.flow._task_ok = False
+                self.flow._exception = MetaflowExceptionWrapper(ex)
+                print("%s failed:" % self.flow, file=sys.stderr)
+                raise
+        finally:
+            output.persist(self.flow)
+            output.done()
+
+            # final decorator hook: The task results are now
+            # queryable through the client API / datastore
+            for deco in spin_parser_validator.step_decorators:
+                deco.task_finished(
+                    step_name=spin_parser_validator.step_name,
+                    flow=self.flow,
+                    graph=self.flow._graph,
+                    is_task_ok=self.flow._task_ok,
+                    retry_count=0,
+                    max_user_code_retries=1,
+                )
+
     def run_step(
         self,
         step_name,
