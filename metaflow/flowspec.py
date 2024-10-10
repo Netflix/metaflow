@@ -95,6 +95,7 @@ class FlowSpec(metaclass=_FlowSpecMeta):
         "_cached_input",
         "_graph",
         "_flow_decorators",
+        "_orig_artifacts",
         "_steps",
         "index",
         "input",
@@ -123,6 +124,8 @@ class FlowSpec(metaclass=_FlowSpecMeta):
 
         self._graph = FlowGraph(self.__class__)
         self._steps = [getattr(self, node.name) for node in self._graph]
+
+        self._orig_artifacts = {}
 
         if use_cli:
             with parameters.flow_context(self.__class__) as _:
@@ -244,14 +247,34 @@ class FlowSpec(metaclass=_FlowSpecMeta):
         return iter(self._steps)
 
     def __getattr__(self, name: str):
+        # Late import to prevent circular deps
+        from .datastore.artifacts import MetaflowArtifact
+
         if self._datastore and name in self._datastore:
             # load the attribute from the datastore...
             x = self._datastore[name]
             # ...and cache it in the object for faster access
-            setattr(self, name, x)
-            return x
+            # For MetaflowArtifact, we extract the representation of it to present to
+            # the user but also store the original MetaflowArtifact for later use
+            if isinstance(x, MetaflowArtifact):
+                x_repr = x.get_representation(name)
+                self._orig_artifacts[name] = x
+            else:
+                x_repr = x
+            setattr(self, name, x_repr)
+            return x_repr
         else:
             raise AttributeError("Flow %s has no attribute '%s'" % (self.name, name))
+
+    def __setattr__(self, name: str, value: Any):
+        # Late import to prevent circular deps
+        from .datastore.artifacts import MetaflowArtifact
+
+        if isinstance(value, MetaflowArtifact) and name not in self._orig_artifacts:
+            self._orig_artifacts[name] = value
+            super().__setattr__(name, value.get_representation(name))
+        else:
+            super().__setattr__(name, value)
 
     def cmd(self, cmdline, input={}, output=[]):
         """
