@@ -67,10 +67,11 @@ class ExecutingRun(object):
 
         Parameters
         ----------
-        timeout : Optional[float], default None
-            The maximum time to wait for the run to finish.
-            If the timeout is reached, the run is terminated
-        stream : Optional[str], default None
+        timeout : float, optional, default None
+            The maximum time, in seconds, to wait for the run to finish.
+            If the timeout is reached, the run is terminated. If not specified, wait
+            forever.
+        stream : str, optional, default None
             If specified, the specified stream is printed to stdout. `stream` can
             be one of `stdout` or `stderr`.
 
@@ -167,7 +168,7 @@ class ExecutingRun(object):
         ----------
         stream : str
             The stream to stream logs from. Can be one of `stdout` or `stderr`.
-        position : Optional[int], default None
+        position : int, optional, default None
             The position in the log file to start streaming from. If None, it starts
             from the beginning of the log file. This allows resuming streaming from
             a previously known position
@@ -207,13 +208,13 @@ class Runner(object):
     show_output : bool, default True
         Show the 'stdout' and 'stderr' to the console by default,
         Only applicable for synchronous 'run' and 'resume' functions.
-    profile : Optional[str], default None
+    profile : str, optional, default None
         Metaflow profile to use to run this run. If not specified, the default
         profile is used (or the one already set using `METAFLOW_PROFILE`)
-    env : Optional[Dict], default None
+    env : Dict[str, str], optional, default None
         Additional environment variables to set for the Run. This overrides the
         environment set for this process.
-    cwd : Optional[str], default None
+    cwd : str, optional, default None
         The directory to run the subprocess in; if not specified, the current
         directory is used.
     file_read_timeout : int, default 3600
@@ -228,7 +229,7 @@ class Runner(object):
         flow_file: str,
         show_output: bool = True,
         profile: Optional[str] = None,
-        env: Optional[Dict] = None,
+        env: Optional[Dict[str, str]] = None,
         cwd: Optional[str] = None,
         file_read_timeout: int = 3600,
         **kwargs
