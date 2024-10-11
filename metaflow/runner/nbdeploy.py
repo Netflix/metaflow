@@ -117,6 +117,12 @@ class NBDeployer(object):
             **kwargs,
         )
 
+    def __getattr__(self, name):
+        """
+        Forward all attribute access to the underlying `Deployer` instance.
+        """
+        return getattr(self.deployer, name)
+
     def cleanup(self):
         """
         Delete any temporary files created during execution.
