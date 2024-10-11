@@ -47,9 +47,7 @@ class StepFunctionsTriggeredRun(TriggeredRun):
 
 class StepFunctionsDeployedFlow(DeployedFlow):
     @classmethod
-    def from_deployment(
-        cls, identifier: str, metadata: Optional[str] = None, _="argo-workflows"
-    ):
+    def from_deployment(cls, identifier: str, metadata: Optional[str] = None):
         raise NotImplementedError(
             "from_deployment is not implemented for StepFunctions"
         )
