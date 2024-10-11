@@ -193,6 +193,10 @@ class MetaflowAPI(object):
     def chain(self):
         return self._chain
 
+    @property
+    def name(self):
+        return self._API_NAME
+
     @classmethod
     def from_cli(cls, flow_file: str, cli_collection: Callable) -> Callable:
         flow_cls = extract_flow_class_from_file(flow_file)
