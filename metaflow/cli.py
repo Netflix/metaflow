@@ -116,13 +116,6 @@ def config_merge_cb(ctx, param, value):
     # command line.
     # NOTE: Assumes that ctx.auto_envvar_prefix is set to METAFLOW (same as in
     # from_conf)
-
-    # Special case where DECOSPECS and value are the same. This happens
-    # when there is no --with option at the TL and DECOSPECS is read from
-    # the env var. In this case, click also passes it as value
-    splits = DECOSPECS.split()
-    if len(splits) == len(value) and all([a == b for (a, b) in zip(splits, value)]):
-        return value
     return tuple(list(value) + DECOSPECS.split())
 
 
@@ -221,7 +214,6 @@ def output_dot(obj):
     )
     echo_always(obj.graph.output_dot(), err=False)
 
-
 @cli.command(help="Print the Metaflow version")
 @click.pass_obj
 def version(obj):
@@ -284,7 +276,6 @@ def version(obj):
     multiple=True,
     help="Add a decorator to all steps. You can specify this option "
     "multiple times to attach multiple decorators in steps.",
-    callback=config_merge_cb,
 )
 @click.option(
     "--pylint/--no-pylint",
@@ -333,6 +324,7 @@ def start(
     config_value=None,
     **deco_options
 ):
+    
     if quiet:
         echo = echo_dev_null
     else:
