@@ -257,10 +257,6 @@ class StepDecorator(Decorator):
                   pass them around with every lifecycle call.
     """
 
-    # bookkeeping for decorators that determine step execution remotely
-    step_remote_execution = False
-    target_platform = None
-
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
     ):
