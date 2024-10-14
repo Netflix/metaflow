@@ -272,6 +272,7 @@ class CondaEnvironment(MetaflowEnvironment):
             if getattr(decorator, "support_conda", None):
                 # TODO: Support arm architectures
                 target_platform = getattr(decorator, "target_platform", "linux-64")
+                break
 
         environment["conda"]["platforms"] = [target_platform]
         if "pypi" in environment:
