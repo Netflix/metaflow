@@ -133,6 +133,8 @@ class BatchDecorator(StepDecorator):
     package_url = None
     package_sha = None
     run_time_limit = None
+    step_remote_execution = True
+    target_platform = "linux-64"
 
     def __init__(self, attributes=None, statically_defined=False):
         super(BatchDecorator, self).__init__(attributes, statically_defined)

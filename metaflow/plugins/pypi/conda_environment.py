@@ -269,12 +269,9 @@ class CondaEnvironment(MetaflowEnvironment):
         # Resolve `linux-64` Conda environments if @batch or @kubernetes are in play
         target_platform = conda_platform()
         for decorator in step.decorators:
-            # TODO: rather than relying on decorator names, rely on attributes
-            #       to make them extensible.
-            if decorator.name in ["batch", "kubernetes", "nvidia", "snowpark", "slurm"]:
+            if decorator.step_remote_execution:
                 # TODO: Support arm architectures
-                target_platform = "linux-64"
-                break
+                target_platform = decorator.target_platform or "linux-64"
 
         environment["conda"]["platforms"] = [target_platform]
         if "pypi" in environment:
