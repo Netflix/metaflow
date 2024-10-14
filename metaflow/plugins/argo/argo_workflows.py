@@ -2431,7 +2431,7 @@ class ArgoWorkflows(object):
         Use Slack's Block Kit to add general information about the environment and
         execution metadata, including a link to the UI and an optional message.
         """
-        ui_link = "%s%s/argo-{{workflow.name}}" % (UI_URL, self.flow.name)
+        ui_link = "%s/%s/argo-{{workflow.name}}" % (UI_URL.rstrip("/"), self.flow.name)
         # fmt: off
         if getattr(current, "project_name", None):
             # Add @project metadata when available.
