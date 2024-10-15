@@ -107,6 +107,10 @@ def kill(ctx, run_id, user, my_runs):
     "--image",
     help="Docker image requirement for AWS Batch. In name:version format.",
 )
+@click.option(
+    "--repo-creds-secret",
+    help="Secret containing credentials if using a private image repository",
+)
 @click.option("--iam-role", help="IAM role requirement for AWS Batch.")
 @click.option(
     "--execution-role",
@@ -189,6 +193,7 @@ def step(
     code_package_url,
     executable=None,
     image=None,
+    repo_creds_secret=None,
     iam_role=None,
     execution_role=None,
     cpu=None,
@@ -345,6 +350,7 @@ def step(
                 log_driver=log_driver,
                 log_options=log_options,
                 num_parallel=num_parallel,
+                repo_creds_secret=repo_creds_secret,
             )
     except Exception:
         traceback.print_exc()
