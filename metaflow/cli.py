@@ -835,7 +835,8 @@ def before_run(obj, tags, decospecs):
     # Package working directory only once per run.
     # We explicitly avoid doing this in `start` since it is invoked for every
     # step in the run.
-    # Update package to be None. The package is now created in the @package decorator in a separate thread
+    # The packaging now happens in a separate thread, from the very beginning
+    # for both local and remote runs.
     obj.package = MetaflowPackage(
         obj.flow,
         obj.environment,
@@ -979,10 +980,6 @@ def start(
     )
     ctx.obj.monitor.start()
     _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
-
-    # Add package suffixes and echo to the flow object as they are used by decorators
-    ctx.obj.flow.package_suffixes = ctx.obj.package_suffixes
-    ctx.obj.flow.echo = echo
 
     ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == metadata][0](
         ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
