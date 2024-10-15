@@ -269,7 +269,9 @@ class CondaEnvironment(MetaflowEnvironment):
         # Resolve `linux-64` Conda environments if @batch or @kubernetes are in play
         target_platform = conda_platform()
         for decorator in step.decorators:
-            if getattr(decorator, "support_conda", None):
+            if getattr(
+                decorator, "supports_conda_environment", None
+            ) or decorator.name in ["nvidia", "snowpark", "slurm"]:
                 # TODO: Support arm architectures
                 target_platform = getattr(decorator, "target_platform", "linux-64")
                 break

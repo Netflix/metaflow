@@ -135,7 +135,7 @@ class BatchDecorator(StepDecorator):
     run_time_limit = None
 
     # Conda environment support
-    support_conda = True
+    supports_conda_environment = True
     target_platform = "linux-64"
 
     def __init__(self, attributes=None, statically_defined=False):
