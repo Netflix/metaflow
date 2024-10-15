@@ -489,6 +489,8 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
             # contributes to. This is to enable multiple namespace packages to contribute
             # to the same extension point (for example, you may have multiple packages
             # that have plugins)
+            if not dist.files:
+                _ext_debug("Invalid package seen '%s' at '%s': no file list found in metadata" % (dist_name, dist_root))
             for f in dist.files or []:
                 parts = list(f.parts)
 
