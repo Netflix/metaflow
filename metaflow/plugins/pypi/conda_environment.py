@@ -270,7 +270,7 @@ class CondaEnvironment(MetaflowEnvironment):
         target_platform = conda_platform()
         for decorator in step.decorators:
             if getattr(
-                decorator, "supports_conda_environment", None
+                decorator, "supports_conda_environment", False
             ) or decorator.name in ["nvidia", "snowpark", "slurm"]:
                 # TODO: Support arm architectures
                 target_platform = getattr(decorator, "target_platform", "linux-64")
