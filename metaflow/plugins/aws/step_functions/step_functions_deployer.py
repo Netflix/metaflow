@@ -1,4 +1,4 @@
-from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING, Type
 
 from metaflow.runner.deployer_impl import DeployerImpl
 
@@ -31,8 +31,8 @@ class StepFunctionsDeployer(DeployerImpl):
     def deployer_kwargs(self) -> Dict[str, Any]:
         return self._deployer_kwargs
 
-    @property
-    def deployed_flow_type(self) -> "StepFunctionsDeployedFlow":
+    @staticmethod
+    def deployed_flow_type() -> Type["StepFunctionsDeployedFlow"]:
         from .step_functions_deployer_objects import StepFunctionsDeployedFlow
 
         return StepFunctionsDeployedFlow
