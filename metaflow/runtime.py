@@ -1498,11 +1498,6 @@ class CLIArgs(object):
             self.env["METAFLOW_CODE_SHA"] = self.package.package_sha
             self.env["METAFLOW_CODE_URL"] = self.package.package_url
             self.env["METAFLOW_CODE_DS"] = self.flow_datastore.TYPE
-            print(f"MetaflowCodePackage.package_sha: {self.package.package_sha}")
-            print(f"MetaflowCodePackage.package_url: {self.package.package_url}")
-            print(
-                f"MetaflowCodePackage.flow_datastore.TYPE: {self.flow_datastore.TYPE}"
-            )
         return self.env
 
     def __str__(self):
