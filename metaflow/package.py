@@ -5,10 +5,12 @@ import sys
 import tarfile
 import time
 import json
+import traceback
 from io import BytesIO
 
+from typing import Optional
 from .extension_support import EXT_PKG, package_mfext_all
-from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES, DEFAULT_PACKAGE_TIMEOUT
+from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from .exception import MetaflowException
 from .util import to_unicode
 from . import R
@@ -16,6 +18,20 @@ from .info_file import INFO_FILE
 
 DEFAULT_SUFFIXES_LIST = DEFAULT_PACKAGE_SUFFIXES.split(",")
 METAFLOW_SUFFIXES_LIST = [".py", ".html", ".css", ".js"]
+
+
+class MetaflowPackageTimeoutError(MetaflowException):
+    headline = "Package preparation and upload timed out"
+
+    def __init__(self, msg):
+        super(MetaflowPackageTimeoutError, self).__init__(msg)
+
+
+class MetaflowPackageUploadFailed(MetaflowException):
+    headline = "Package upload failed"
+
+    def __init__(self, msg):
+        super(MetaflowPackageUploadFailed, self).__init__(msg)
 
 
 class NonUniqueFileNameToFilePathMappingException(MetaflowException):
@@ -79,10 +95,11 @@ class MetaflowPackage(object):
         self.flow_datastore = flow_datastore
         self.logger = logger
         self.create_time = time.time()
-        self._is_package_available = False
+        self._is_package_available = None
         self.blob = None
         self.package_url = None
         self.package_sha = None
+        self.exception = None
 
         # Make package creation and upload asynchronous
         self._init_thread = threading.Thread(
@@ -93,27 +110,42 @@ class MetaflowPackage(object):
         self._init_thread.start()
 
     def _prepare_and_upload_package(self, flow, environment, flow_datastore, echo):
-        self.logger(f"Creating package for flow: {flow.name}")
-        environment.init_environment(echo)
-        for step in flow:
-            for deco in step.decorators:
-                deco.package_init(flow, step.__name__, environment)
-        self.logger(f"Initalized environment and packages for flow: {flow.name}")
-        self.blob = self._create_package()
-        self.logger(f"Package created for flow: {flow.name}")
+        try:
+            environment.init_environment(echo)
+            for step in flow:
+                for deco in step.decorators:
+                    deco.package_init(flow, step.__name__, environment)
+            self.blob = self._create_package()
 
-        if flow_datastore:
-            self.package_url, self.package_sha = flow_datastore.save_data(
-                [self.blob], len_hint=1
-            )[0]
+            if flow_datastore:
+                self.package_url, self.package_sha = flow_datastore.save_data(
+                    [self.blob], len_hint=1
+                )[0]
 
-        self._is_package_available = True
-        self.logger(
-            f"Package created and saved successfully, URL: {self.package_url}, SHA: {self.package_sha}, is_package_available: {self.is_package_available}"
-        )
+            self._is_package_available = True
+            self.logger(
+                f"Package created and uploaded successfully at URL: {self.package_url}"
+            )
+        except Exception as e:
+            self._is_package_available = False
+            self.exception = MetaflowPackageUploadFailed(str(e))
+            self.logger(
+                f"Package creation/upload failed for flow: {flow.name}, error: {traceback.format_exc()}"
+            )
 
     @property
-    def is_package_available(self):
+    def is_package_available(self) -> Optional[bool]:
+        """
+        Returns the status of the package preparation and upload.
+
+        If the package preparation and upload is complete, returns True.
+        If the package preparation and upload failed, returns False.
+        If the package preparation and upload is still in progress, returns None.
+
+        Returns
+        -------
+        Optional[bool], default None
+        """
         return self._is_package_available
 
     def _walk(self, root, exclude_hidden=True, suffixes=None):
@@ -204,6 +236,13 @@ class MetaflowPackage(object):
         info.mtime = 1575360000
         tar.addfile(info, buf)
 
+    def _format_size(self, size_in_bytes):
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
+            if size_in_bytes < 1024.0:
+                return f"{size_in_bytes:.2f} {unit}"
+            size_in_bytes /= 1024.0
+        return f"{size_in_bytes:.2f} PB"
+
     def _create_package(self):
         def no_mtime(tarinfo):
             # a modification time change should not change the hash of
@@ -221,16 +260,24 @@ class MetaflowPackage(object):
                 tar.add(path, arcname=arcname, recursive=False, filter=no_mtime)
 
         blob = bytearray(buf.getvalue())
+
+        if len(blob) > 100 * 1024.0**2:
+            self.logger(
+                f"The package size exceeds 100MB. The package size is {self._format_size(len(blob))}. "
+                "This may lead to slower upload times for remote runs or no uploads for local runs. "
+                "Consider reducing the package size."
+            )
+
         blob[4:8] = [0] * 4  # Reset 4 bytes from offset 4 to account for ts
         return blob
 
-    def wait(self, timeout=DEFAULT_PACKAGE_TIMEOUT):
+    def wait(self, timeout: Optional[int] = None) -> bool:
         """
         Wait for the package preparation and upload to complete.
 
         Parameters
         ----------
-        timeout : int, default DEFAULT_PACKAGE_TIMEOUT
+        timeout : int, optional, default None
             The maximum time to wait for the package preparation and upload to complete.
 
         Returns
@@ -245,9 +292,11 @@ class MetaflowPackage(object):
         """
         self._init_thread.join(timeout)
         if self._init_thread.is_alive():
-            raise TimeoutError(
-                f"Package preparation and upload did not complete within {timeout} seconds."
+            raise MetaflowPackageTimeoutError(
+                f"Package preparation and upload timed outer after {timeout} seconds."
             )
+        if self.exception:
+            raise self.exception
         return True
 
     def __str__(self):

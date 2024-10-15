@@ -234,11 +234,7 @@ class BatchDecorator(StepDecorator):
             # code locally.
             cli_args.commands = ["batch", "step"]
             if not self.package.is_package_available:
-                self.logger(f"Waiting for package to be available for {self.step}...")
                 self.package.wait()
-                self.logger(
-                    f"Package is now available for {self.step} with URL: {self.package.package_url} and SHA: {self.package.package_sha}"
-                )
             cli_args.command_args.append(self.package.package_sha)
             cli_args.command_args.append(self.package.package_url)
             cli_args.command_options.update(self.attributes)

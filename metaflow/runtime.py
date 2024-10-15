@@ -93,6 +93,7 @@ class NativeRuntime(object):
         self._flow_datastore = flow_datastore
         self._metadata = metadata
         self._environment = environment
+        self._package = package
         self._logger = logger
         self._max_workers = max_workers
         self._active_tasks = dict()  # Key: step name;
@@ -901,7 +902,7 @@ class NativeRuntime(object):
             )
             return
 
-        worker = Worker(task, self._max_log_size)
+        worker = Worker(task, self._flow_datastore, self._package, self._max_log_size)
         for fd in worker.fds():
             self._workers[fd] = worker
             self._poll.add(fd)
@@ -1423,8 +1424,10 @@ class CLIArgs(object):
     for step execution in StepDecorator.runtime_step_cli().
     """
 
-    def __init__(self, task):
+    def __init__(self, task, flow_datastore, package):
         self.task = task
+        self.flow_datastore = flow_datastore
+        self.package = package
         self.entrypoint = list(task.entrypoint)
         self.top_level_options = {
             "quiet": True,
@@ -1491,6 +1494,15 @@ class CLIArgs(object):
         return args
 
     def get_env(self):
+        if self.package.is_package_available:
+            self.env["METAFLOW_CODE_SHA"] = self.package.package_sha
+            self.env["METAFLOW_CODE_URL"] = self.package.package_url
+            self.env["METAFLOW_CODE_DS"] = self.flow_datastore.TYPE
+            print(f"MetaflowCodePackage.package_sha: {self.package.package_sha}")
+            print(f"MetaflowCodePackage.package_url: {self.package.package_url}")
+            print(
+                f"MetaflowCodePackage.flow_datastore.TYPE: {self.flow_datastore.TYPE}"
+            )
         return self.env
 
     def __str__(self):
@@ -1498,8 +1510,10 @@ class CLIArgs(object):
 
 
 class Worker(object):
-    def __init__(self, task, max_logs_size):
+    def __init__(self, task, flow_datastore, package, max_logs_size):
         self.task = task
+        self.flow_datastore = flow_datastore
+        self.package = package
         self._proc = self._launch()
 
         if task.retries > task.user_code_retries:
@@ -1531,7 +1545,7 @@ class Worker(object):
         # not it is properly shut down)
 
     def _launch(self):
-        args = CLIArgs(self.task)
+        args = CLIArgs(self.task, self.flow_datastore, self.package)
         env = dict(os.environ)
 
         if self.task.clone_run_id:
@@ -1552,9 +1566,6 @@ class Worker(object):
                     self.task.ubf_context,
                 )
         env.update(args.get_env())
-        # We add another environment variable that tells us whether we are executing in the main process or
-        # in a subprocess
-        env["METAFLOW_SUBPROCESS"] = "1"
         env["PYTHONUNBUFFERED"] = "x"
         tracing.inject_tracing_vars(env)
         # NOTE bufsize=1 below enables line buffering which is required
