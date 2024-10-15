@@ -87,8 +87,8 @@ class DeployerImpl(object):
     def deployer_kwargs(self) -> Dict[str, Any]:
         raise NotImplementedError
 
-    @property
-    def deployed_flow_type(self) -> "DeployedFlow":
+    @staticmethod
+    def deployed_flow_type() -> Type["DeployedFlow"]:
         raise NotImplementedError
 
     def __enter__(self) -> "DeployerImpl":

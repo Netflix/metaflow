@@ -27,9 +27,10 @@ class DeployerMeta(type):
                     env=self.env,
                     cwd=self.cwd,
                     file_read_timeout=self.file_read_timeout,
-                    **self.top_level_kwargs
+                    **self.top_level_kwargs,
                 )
 
+            f.__doc__ = provider_class.__doc__ or ""
             return f
 
         for provider_class in DEPLOYER_IMPL_PROVIDERS:
@@ -76,7 +77,7 @@ class Deployer(metaclass=DeployerMeta):
         env: Optional[Dict] = None,
         cwd: Optional[str] = None,
         file_read_timeout: int = 3600,
-        **kwargs
+        **kwargs,
     ):
         self.flow_file = flow_file
         self.show_output = show_output
@@ -174,15 +175,59 @@ class DeployedFlowMeta(type):
                 identifier: str,
                 metadata: Optional[str] = None,
                 impl: str = DEFAULT_FROM_DEPLOYMENT_IMPL.replace("-", "_"),
-            ):
+            ) -> "DeployedFlow":
+                """
+                Retrieves a `DeployedFlow` object from an identifier and optional
+                metadata. The `impl` parameter specifies the deployer implementation
+                to use (like `argo-workflows`).
+
+                See also `from_*` methods for the DeployedFlow for deployer specific
+                implementations.
+
+                Parameters
+                ----------
+                identifier : str
+                    Deployer specific identifier for the workflow to retrieve
+                metadata : str, optional, default None
+                    Optional deployer specific metadata.
+                impl : str, optional, default given by METAFLOW_DEFAULT_FROM_DEPLOYMENT_IMPL
+                    The default implementation to use if not specified
+
+                Returns
+                -------
+                DeployedFlow
+                    A `DeployedFlow` object representing the deployed flow corresponding
+                    to the identifier
+                """
                 if impl in allowed_providers:
-                    return allowed_providers[impl].deployed_flow_type.from_deployment(
-                        identifier, metadata, impl
+                    return (
+                        allowed_providers[impl]
+                        .deployed_flow_type()
+                        .from_deployment(identifier, metadata)
+                    )
+                else:
+                    raise ValueError(
+                        f"No deployer '{impl}' exists; valid deployers are: "
+                        f"{list(allowed_providers.keys())}"
                     )
 
             return f
 
-        setattr(cls, "from_deployment", _default_injected_method())
+        def _per_type_injected_method(impl):
+            def f(identifier: str, metadata: Optional[str] = None):
+                return (
+                    allowed_providers[impl]
+                    .deployed_flow_type()
+                    .from_deployment(identifier, metadata)
+                )
+
+            return f
+
+        setattr(cls, "from_deployment", staticmethod(_default_injected_method()))
+
+        for impl in allowed_providers:
+            method_name = f"from_{impl}"
+            setattr(cls, method_name, staticmethod(_per_type_injected_method(impl)))
 
         return cls
 
