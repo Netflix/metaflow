@@ -391,8 +391,10 @@ class KubernetesDecorator(StepDecorator):
             # to execute on Kubernetes anymore. We can execute possible fallback
             # code locally.
             cli_args.commands = ["kubernetes", "step"]
-            cli_args.command_args.append(self.package_sha)
-            cli_args.command_args.append(self.package_url)
+            if not self.package.is_package_available:
+                self.package.wait()
+            cli_args.command_args.append(self.package.package_sha)
+            cli_args.command_args.append(self.package.package_url)
 
             # skip certain keys as CLI arguments
             _skip_keys = ["compute_pool", "hostname_resolution_timeout"]
