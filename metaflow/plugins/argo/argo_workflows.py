@@ -2288,7 +2288,9 @@ class ArgoWorkflows(object):
             and k not in set(ARGO_WORKFLOWS_ENV_VARS_TO_SKIP.split(","))
         }
         return [
-            Template("error-msg-capture-hook").container(
+            Template("error-msg-capture-hook")
+            .service_account_name(resources["service_account"])
+            .container(
                 to_camelcase(
                     kubernetes_sdk.V1Container(
                         name="main",
