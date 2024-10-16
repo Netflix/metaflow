@@ -707,6 +707,19 @@ class JobSetSpec(object):
                                             if self._kwargs["persistent_volume_claims"]
                                             is not None
                                             else []
+                                        )
+                                        + (
+                                            [
+                                                client.V1VolumeMount(
+                                                    mount_path=vals.path, name=name
+                                                )
+                                                for name, vals in self._kwargs[
+                                                    "ephemeral_volume_claims"
+                                                ].items()
+                                            ]
+                                            if self._kwargs["ephemeral_volume_claims"]
+                                            is not None
+                                            else []
                                         ),
                                     )
                                 ],
@@ -770,6 +783,25 @@ class JobSetSpec(object):
                                         ].keys()
                                     ]
                                     if self._kwargs["persistent_volume_claims"]
+                                    is not None
+                                    else []
+                                )
+                                + (
+                                    [
+                                        client.V1Volume(
+                                            name=name,
+                                            ephemeral=client.V1EphemeralVolumeSource(
+                                                    volume_claim_template=client.V1PersistentVolumeClaimTemplate(
+                                                            metadata=vals["metadata"] if "metadata" in vals else None,
+                                                            spec=vals.spec,
+                                                    )
+                                            ),
+                                        )
+                                        for name, vals in self._kwargs[
+                                            "ephemeral_volume_claims"
+                                        ].items()
+                                    ]
+                                    if self._kwargs["ephemeral_volume_claims"]
                                     is not None
                                     else []
                                 ),
