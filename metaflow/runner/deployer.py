@@ -160,7 +160,9 @@ class TriggeredRun(object):
 class DeployedFlowMeta(type):
     def __new__(mcs, name, bases, dct):
         cls = super().__new__(mcs, name, bases, dct)
-        if "from_deployment" not in dct:
+        if not bases:
+            # Inject methods only in DeployedFlow and not any of its
+            # subclasses
             from metaflow.plugins import DEPLOYER_IMPL_PROVIDERS
 
             allowed_providers = dict(
