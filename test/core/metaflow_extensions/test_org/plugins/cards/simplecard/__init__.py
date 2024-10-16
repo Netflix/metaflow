@@ -7,8 +7,12 @@ class TestNonEditableImportCard(MetaflowCard):
 
     ALLOW_USER_COMPONENTS = False
 
-    def __init__(self, options={}, components=[], graph=None):
-        self._options, self._components, self._graph = options, components, graph
+    def __init__(self, options=None, components=None, graph=None):
+        self._options, self._components, self._graph = (
+            options if options else {},
+            components if components else [],
+            graph,
+        )
 
     def render(self, task):
         return task.pathspec
