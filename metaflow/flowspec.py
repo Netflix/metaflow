@@ -120,6 +120,7 @@ class FlowSpec(metaclass=_FlowSpecMeta):
         self._datastore = None
         self._transition = None
         self._cached_input = {}
+        self._spin = False
 
         self._graph = FlowGraph(self.__class__)
         self._steps = [getattr(self, node.name) for node in self._graph]
@@ -276,6 +277,8 @@ class FlowSpec(metaclass=_FlowSpecMeta):
         int, optional
             Index of the task in a foreach step.
         """
+        if self._spin:
+            return getattr(self, "_spin_index")
         if self._foreach_stack:
             return self._foreach_stack[-1].index
 
@@ -296,6 +299,8 @@ class FlowSpec(metaclass=_FlowSpecMeta):
         object, optional
             Input passed to the foreach task.
         """
+        if self._spin:
+            return getattr(self, "_spin_input")
         return self._find_input()
 
     def foreach_stack(self) -> Optional[List[Tuple[int, int, Any]]]:
@@ -345,12 +350,16 @@ class FlowSpec(metaclass=_FlowSpecMeta):
         List[Tuple[int, int, Any]]
             An array describing the current stack of foreach steps.
         """
+        # TODO: Add stubs for the spin command
+        # if self._spin:
+        #     return ...
         return [
             (frame.index, frame.num_splits, self._find_input(stack_index=i))
             for i, frame in enumerate(self._foreach_stack)
         ]
 
     def _find_input(self, stack_index=None):
+
         if stack_index is None:
             stack_index = len(self._foreach_stack) - 1
 

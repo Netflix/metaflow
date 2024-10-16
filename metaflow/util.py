@@ -7,9 +7,14 @@ import base64
 from functools import wraps
 from io import BytesIO
 from itertools import takewhile
+from collections import namedtuple
 import re
 
 from metaflow.exception import MetaflowUnknownUser, MetaflowInternalError
+
+REQUIRED_ANCESTORS = namedtuple(
+    "RequiredAncestors", ["step_name", "task_specifier", "value"]
+)
 
 try:
     # python2
