@@ -135,6 +135,10 @@ class KubernetesDecorator(StepDecorator):
     package_sha = None
     run_time_limit = None
 
+    # Conda environment support
+    supports_conda_environment = True
+    target_platform = "linux-64"
+
     def __init__(self, attributes=None, statically_defined=False):
         super(KubernetesDecorator, self).__init__(attributes, statically_defined)
 
