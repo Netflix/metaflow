@@ -11,6 +11,15 @@ from ..parameters import DeployTimeField, ParameterContext, current_flow
 from ..util import get_username
 
 
+_CONVERT_PREFIX = "@!c!@:"
+_DEFAULT_PREFIX = "@!d!@:"
+_NO_FILE = "@!n!@"
+
+_CONVERTED_DEFAULT = _CONVERT_PREFIX + _DEFAULT_PREFIX
+_CONVERTED_NO_FILE = _CONVERT_PREFIX + _NO_FILE
+_CONVERTED_DEFAULT_NO_FILE = _CONVERTED_DEFAULT + _NO_FILE
+
+
 def _load_config_values(info_file: Optional[str] = None) -> Optional[Dict[Any, Any]]:
     if info_file is None:
         info_file = os.path.basename(CONFIG_FILE)
@@ -25,41 +34,67 @@ class ConvertPath(click.Path):
     name = "ConvertPath"
 
     def convert(self, value, param, ctx):
-        if isinstance(value, str) and value.startswith("converted:"):
+        if isinstance(value, str) and value.startswith(_CONVERT_PREFIX):
             return value
-        v = super().convert(value, param, ctx)
-        return self.convert_value(v)
+        is_default = False
+        if value and value.startswith(_DEFAULT_PREFIX):
+            is_default = True
+            value = super().convert(value[len(_DEFAULT_PREFIX) :], param, ctx)
+        return self.convert_value(value, is_default)
 
     @staticmethod
-    def convert_value(value):
+    def mark_as_default(value):
+        if value is None:
+            return None
+        return _DEFAULT_PREFIX + str(value)
+
+    @staticmethod
+    def convert_value(value, is_default):
+        default_str = _DEFAULT_PREFIX if is_default else ""
         if value is None:
             return None
         try:
             with open(value, "r", encoding="utf-8") as f:
                 content = f.read()
         except OSError:
-            return "converted:!!NO_FILE!!%s" % value
-        return "converted:" + content
+            return _CONVERT_PREFIX + default_str + _NO_FILE + value
+        return _CONVERT_PREFIX + default_str + content
 
 
 class ConvertDictOrStr(click.ParamType):
     name = "ConvertDictOrStr"
 
     def convert(self, value, param, ctx):
-        return self.convert_value(value)
+        is_default = False
+        if isinstance(value, str):
+            if value.startswith(_CONVERT_PREFIX):
+                return value
+            if value.startswith(_DEFAULT_PREFIX):
+                is_default = True
+
+        return self.convert_value(value, is_default)
 
     @staticmethod
-    def convert_value(value):
+    def convert_value(value, is_default):
+        default_str = _DEFAULT_PREFIX if is_default else ""
         if value is None:
             return None
 
         if isinstance(value, dict):
-            return "converted:" + json.dumps(value)
+            return _CONVERT_PREFIX + default_str + json.dumps(value)
 
-        if value.startswith("converted:"):
+        if value.startswith(_CONVERT_PREFIX):
             return value
 
-        return "converted:" + value
+        return _CONVERT_PREFIX + default_str + value
+
+    @staticmethod
+    def mark_as_default(value):
+        if value is None:
+            return None
+        if isinstance(value, dict):
+            return _DEFAULT_PREFIX + json.dumps(value)
+        return _DEFAULT_PREFIX + str(value)
 
 
 class MultipleTuple(click.Tuple):
@@ -155,34 +190,37 @@ class ConfigInput:
         # *then* merge with the defaults to form a full set of values.
         # We therefore get a full set of values where:
         #  - the name will correspond to the configuration name
-        #  - the value will be the default (including None if there is no default) or
-        #    the string representation of the value (this will always include
-        #    the "converted:" prefix as it will have gone through the ConvertPath or
-        #    ConvertDictOrStr conversion function).
-        #    A value of None basically means that the config has
-        #    no default and was not specified on the command line.
+        #  - the value will be:
+        #       - the default (including None if there is no default). If the default is
+        #         not None, it will start with _CONVERTED_DEFAULT since Click will make
+        #         the value go through ConvertPath or ConvertDictOrStr
+        #  - the actual value passed through prefixed with _CONVERT_PREFIX
 
         print("Got arg name %s and values %s" % (param.name, str(value)))
         do_return = self._value_values is None and self._path_values is None
+        # We only keep around non default values. We could simplify by checking just one
+        # value and if it is default it means all are but this doesn't seem much more effort
+        # and is clearer
         if param.name == "config_value_options":
-            self._value_values = {k.lower(): v for k, v in value if v is not None}
+            self._value_values = {
+                k.lower(): v
+                for k, v in value
+                if v is not None and not v.startswith(_CONVERTED_DEFAULT)
+            }
         else:
-            self._path_values = {k.lower(): v for k, v in value if v is not None}
+            self._path_values = {
+                k.lower(): v
+                for k, v in value
+                if v is not None and not v.startswith(_CONVERTED_DEFAULT)
+            }
         if do_return:
             # One of config_value_options or config_file_options will be None
             return None
 
         # The second go around, we process all the values and merge them.
-        # Check that the user didn't provide *both* a path and a value. We know that
-        # defaults are not both non None (this is an error) so if they are both
-        # non-None (and actual files) here, it means the user explicitly provided both.
+        # Check that the user didn't provide *both* a path and a value.
         common_keys = set(self._value_values or []).intersection(
-            [
-                k
-                for k, v in self._path_values.items()
-                if v and not v.startswith("converted:!!NO_FILE!!")
-            ]
-            or []
+            [k for k, v in self._path_values.items()] or []
         )
         if common_keys:
             raise click.UsageError(
@@ -190,9 +228,6 @@ class ConfigInput:
                 "Found such values for '%s'" % "', '".join(common_keys)
             )
 
-        # NOTE: Important to start with _path_values as they can have the
-        # NO_FILE special value. They will be used (and trigger an error) iff there is
-        # no other value provided.
         all_values = dict(self._path_values or {})
         all_values.update(self._value_values or {})
 
@@ -224,22 +259,26 @@ class ConfigInput:
                     val = val.fun(param_ctx)
                 if is_path:
                     # This is a file path
-                    merged_configs[n] = ConvertPath.convert_value(val)
+                    merged_configs[n] = ConvertPath.convert_value(val, False)
                 else:
                     # This is a value
-                    merged_configs[n] = ConvertDictOrStr.convert_value(val)
+                    merged_configs[n] = ConvertDictOrStr.convert_value(val, False)
 
         missing_configs = set()
         no_file = []
+        no_default_file = []
         msgs = []
         for name, val in merged_configs.items():
             if val is None:
                 missing_configs.add(name)
                 continue
-            if val.startswith("converted:!!NO_FILE!!"):
+            if val.startswith(_CONVERTED_NO_FILE):
                 no_file.append(name)
                 continue
-            val = val[10:]  # Remove the "converted:" prefix
+            if val.startswith(_CONVERTED_DEFAULT_NO_FILE):
+                no_default_file.append(name)
+                continue
+            val = val[len(_CONVERT_PREFIX) :]  # Remove the _CONVERT_PREFIX
             if val.startswith("kv."):
                 # This means to load it from a file
                 read_value = self.get_config(val[3:])
@@ -271,7 +310,12 @@ class ConfigInput:
         for missing in no_file:
             msgs.append(
                 "configuration file '%s' could not be read for '%s'"
-                % (merged_configs[missing][21:], missing)
+                % (merged_configs[missing][len(_CONVERTED_NO_FILE) :], missing)
+            )
+        for missing in no_default_file:
+            msgs.append(
+                "default configuration file '%s' could not be read for '%s'"
+                % (merged_configs[missing][len(_CONVERTED_DEFAULT_NO_FILE) :], missing)
             )
         if msgs:
             raise click.UsageError(
@@ -318,7 +362,6 @@ def config_options(cmd):
     parameters = [p for _, p in flow_cls._get_parameters() if p.IS_FLOW_PARAMETER]
     # List all the configuration options
     for arg in parameters[::-1]:
-        save_default = arg.kwargs.get("default", None)
         kwargs = arg.option_kwargs(False)
         if arg.name.lower() in config_seen:
             msg = (
@@ -330,7 +373,11 @@ def config_options(cmd):
         config_seen.add(arg.name.lower())
         if kwargs["required"]:
             required_names.append(arg.name)
-        defaults[arg.name.lower()] = (save_default, arg._default_is_file)
+
+        defaults[arg.name.lower()] = (
+            arg.kwargs.get("default", None),
+            arg._default_is_file,
+        )
         help_strs.append("  - %s: %s" % (arg.name.lower(), kwargs.get("help", "")))
         parsers[arg.name.lower()] = arg.parser
 
@@ -357,7 +404,14 @@ def config_options(cmd):
             envvar="METAFLOW_FLOW_CONFIG_VALUE",
             show_default=False,
             default=[
-                (k, v[0] if not callable(v[0]) and not v[1] else None)
+                (
+                    k,
+                    (
+                        ConvertDictOrStr.mark_as_default(v[0])
+                        if not callable(v[0]) and not v[1]
+                        else None
+                    ),
+                )
                 for k, v in defaults.items()
             ],
             required=False,
@@ -375,7 +429,14 @@ def config_options(cmd):
             envvar="METAFLOW_FLOW_CONFIG",
             show_default=False,
             default=[
-                (k, v[0] if not callable(v) and v[1] else None)
+                (
+                    k,
+                    (
+                        ConvertPath.mark_as_default(v[0])
+                        if not callable(v) and v[1]
+                        else None
+                    ),
+                )
                 for k, v in defaults.items()
             ],
             required=False,
