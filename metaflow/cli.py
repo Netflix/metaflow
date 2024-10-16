@@ -716,6 +716,20 @@ def resume(
     if runtime.should_skip_clone_only_execution():
         return
 
+    current._update_env(
+        {
+            "run_id": runtime.run_id,
+        }
+    )
+    _system_logger.log_event(
+        level="info",
+        module="metaflow.resume",
+        name="start",
+        payload={
+            "msg": "Resuming run",
+        },
+    )
+
     with runtime.run_heartbeat():
         if clone_only:
             runtime.clone_original_run()
@@ -775,6 +789,19 @@ def run(
     write_file(run_id_file, runtime.run_id)
 
     obj.flow._set_constants(obj.graph, kwargs)
+    current._update_env(
+        {
+            "run_id": runtime.run_id,
+        }
+    )
+    _system_logger.log_event(
+        level="info",
+        module="metaflow.run",
+        name="start",
+        payload={
+            "msg": "Starting run",
+        },
+    )
     runtime.print_workflow_info()
     runtime.persist_constants()
 
