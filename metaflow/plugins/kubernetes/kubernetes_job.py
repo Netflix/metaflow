@@ -16,7 +16,9 @@ from .kubernetes_jobsets import (
 )  # We need this import for Kubernetes Client.
 
 from .kube_utils import qos_requests_and_limits
-
+from .constants import (
+    _VOLUME_CLAIM_TEMPLATE_DEFAULTS
+)
 
 class KubernetesJobException(MetaflowException):
     headline = "Kubernetes job error"
@@ -209,7 +211,7 @@ class KubernetesJob(object):
                             + (
                                 [
                                     client.V1VolumeMount(
-                                        mount_path=vals.path, name=name
+                                        mount_path=vals["path"], name=name
                                     )
                                     for name, vals in self._kwargs[
                                         "ephemeral_volume_claims"
@@ -286,8 +288,8 @@ class KubernetesJob(object):
                                 name=name,
                                 ephemeral=client.V1EphemeralVolumeSource(
                                         volume_claim_template=client.V1PersistentVolumeClaimTemplate(
-                                                metadata=vals["metadata"] if "metadata" in vals else None,
-                                                spec=vals.spec,
+                                                metadata=vals.get("metadata", {}),
+                                                spec={**vals.get("spec", {}), **_VOLUME_CLAIM_TEMPLATE_DEFAULTS},
                                         )
                                 ),
                             )

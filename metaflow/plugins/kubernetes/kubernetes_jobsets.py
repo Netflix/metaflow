@@ -10,6 +10,9 @@ from metaflow.tracing import inject_tracing_vars
 from metaflow.metaflow_config import KUBERNETES_SECRETS
 
 from .kube_utils import qos_requests_and_limits
+from .constants import (
+    _VOLUME_CLAIM_TEMPLATE_DEFAULTS
+)
 
 
 class KubernetesJobsetException(MetaflowException):
@@ -792,8 +795,8 @@ class JobSetSpec(object):
                                             name=name,
                                             ephemeral=client.V1EphemeralVolumeSource(
                                                     volume_claim_template=client.V1PersistentVolumeClaimTemplate(
-                                                            metadata=vals["metadata"] if "metadata" in vals else None,
-                                                            spec=vals.spec,
+                                                            metadata=vals.get("metadata", {}),
+                                                            spec={**vals.get("spec", {}), **_VOLUME_CLAIM_TEMPLATE_DEFAULTS},
                                                     )
                                             ),
                                         )
