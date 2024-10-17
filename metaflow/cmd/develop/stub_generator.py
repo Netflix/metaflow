@@ -33,7 +33,8 @@ from metaflow.decorators import Decorator, FlowDecorator
 from metaflow.extension_support import get_aliased_modules
 from metaflow.metaflow_current import Current
 from metaflow.metaflow_version import get_version
-from metaflow.runner.deployer import DeployedFlow, Deployer, DeployerImpl, TriggeredRun
+from metaflow.runner.deployer import DeployedFlow, Deployer, TriggeredRun
+from metaflow.runner.deployer_impl import DeployerImpl
 
 TAB = "    "
 METAFLOW_CURRENT_MODULE_NAME = "metaflow.metaflow_current"
