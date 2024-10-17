@@ -11,7 +11,7 @@ from metaflow.metaflow_config import KUBERNETES_SECRETS
 
 from .kube_utils import qos_requests_and_limits
 from .constants import (
-    _VOLUME_CLAIM_TEMPLATE_DEFAULTS
+    VOLUME_CLAIM_TEMPLATE_DEFAULTS
 )
 
 
@@ -714,7 +714,7 @@ class JobSetSpec(object):
                                         + (
                                             [
                                                 client.V1VolumeMount(
-                                                    mount_path=vals.path, name=name
+                                                    mount_path=vals["path"], name=name
                                                 )
                                                 for name, vals in self._kwargs[
                                                     "ephemeral_volume_claims"
@@ -795,8 +795,8 @@ class JobSetSpec(object):
                                             name=name,
                                             ephemeral=client.V1EphemeralVolumeSource(
                                                     volume_claim_template=client.V1PersistentVolumeClaimTemplate(
-                                                            metadata=vals.get("metadata", {}),
-                                                            spec={**vals.get("spec", {}), **_VOLUME_CLAIM_TEMPLATE_DEFAULTS},
+                                                            metadata=vals.get("metadata", None),
+                                                            spec={**vals.get("spec", {}), **VOLUME_CLAIM_TEMPLATE_DEFAULTS},
                                                     )
                                             ),
                                         )

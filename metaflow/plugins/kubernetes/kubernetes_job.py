@@ -17,7 +17,7 @@ from .kubernetes_jobsets import (
 
 from .kube_utils import qos_requests_and_limits
 from .constants import (
-    _VOLUME_CLAIM_TEMPLATE_DEFAULTS
+    VOLUME_CLAIM_TEMPLATE_DEFAULTS
 )
 
 class KubernetesJobException(MetaflowException):
@@ -289,7 +289,7 @@ class KubernetesJob(object):
                                 ephemeral=client.V1EphemeralVolumeSource(
                                         volume_claim_template=client.V1PersistentVolumeClaimTemplate(
                                                 metadata=vals.get("metadata", {}),
-                                                spec={**vals.get("spec", {}), **_VOLUME_CLAIM_TEMPLATE_DEFAULTS},
+                                                spec={**vals.get("spec", {}), **VOLUME_CLAIM_TEMPLATE_DEFAULTS},
                                         )
                                 ),
                             )

@@ -58,6 +58,7 @@ from metaflow.plugins.kubernetes.kubernetes import (
     parse_kube_keyvalue_list,
     validate_kube_labels,
 )
+from metaflow.plugins.kubernetes.constants import VOLUME_CLAIM_TEMPLATE_DEFAULTS
 from metaflow.plugins.kubernetes.kubernetes_jobsets import KubernetesArgoJobSet
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow.user_configs.config_options import ConfigInput
@@ -2221,9 +2222,9 @@ class ArgoWorkflows(object):
                                 + (
                                     [
                                         kubernetes_sdk.V1VolumeMount(
-                                            name=claim, mount_path=values.path
+                                            name=name, mount_path=values["path"]
                                         )
-                                        for claim, values in resources.get(
+                                        for name, values in resources.get(
                                             "ephemeral_volume_claims"
                                         ).items()
                                     ]
@@ -3532,7 +3533,7 @@ class Template(object):
             self.payload["volumes"] = []
         for name, values in claims.items():
             self.payload["volumes"].append(
-                {"name": name, "ephemeral": {"metadata": values["metadata"], "spec": values["spec"]}}
+                {"name": name, "ephemeral": {"volumeClaimTemplate": {"metadata": values.get("metadata", None), "spec": {**values.get("spec", {"abc": "def"}), **VOLUME_CLAIM_TEMPLATE_DEFAULTS}}}}
             )
         return self
 

@@ -1,4 +1,4 @@
-_VOLUME_CLAIM_TEMPLATE_DEFAULTS = {
+VOLUME_CLAIM_TEMPLATE_DEFAULTS = {
     "accessModes": [ "ReadWriteOnce" ],
     "resources": {
         "requests": {
@@ -6,3 +6,4 @@ _VOLUME_CLAIM_TEMPLATE_DEFAULTS = {
         }
     }
 }
+
