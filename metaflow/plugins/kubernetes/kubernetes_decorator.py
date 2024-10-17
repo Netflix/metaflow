@@ -438,7 +438,11 @@ class KubernetesDecorator(StepDecorator):
                         "=".join([key, str(val)]) if val else key
                         for key, val in v.items()
                     ]
-                elif k in ["tolerations", "persistent_volume_claims", "ephemeral_volume_claims"]:
+                elif k in [
+                    "tolerations",
+                    "persistent_volume_claims",
+                    "ephemeral_volume_claims",
+                ]:
                     cli_args.command_options[k] = json.dumps(v)
                 else:
                     cli_args.command_options[k] = v

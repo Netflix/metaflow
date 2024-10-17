@@ -10,9 +10,7 @@ from metaflow.tracing import inject_tracing_vars
 from metaflow.metaflow_config import KUBERNETES_SECRETS
 
 from .kube_utils import qos_requests_and_limits
-from .constants import (
-    VOLUME_CLAIM_TEMPLATE_DEFAULTS
-)
+from .constants import VOLUME_CLAIM_TEMPLATE_DEFAULTS
 
 
 class KubernetesJobsetException(MetaflowException):
@@ -794,10 +792,13 @@ class JobSetSpec(object):
                                         client.V1Volume(
                                             name=name,
                                             ephemeral=client.V1EphemeralVolumeSource(
-                                                    volume_claim_template=client.V1PersistentVolumeClaimTemplate(
-                                                            metadata=vals.get("metadata", None),
-                                                            spec={**vals.get("spec", {}), **VOLUME_CLAIM_TEMPLATE_DEFAULTS},
-                                                    )
+                                                volume_claim_template=client.V1PersistentVolumeClaimTemplate(
+                                                    metadata=vals.get("metadata", None),
+                                                    spec={
+                                                        **vals.get("spec", {}),
+                                                        **VOLUME_CLAIM_TEMPLATE_DEFAULTS,
+                                                    },
+                                                )
                                             ),
                                         )
                                         for name, vals in self._kwargs[

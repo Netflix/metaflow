@@ -3533,7 +3533,18 @@ class Template(object):
             self.payload["volumes"] = []
         for name, values in claims.items():
             self.payload["volumes"].append(
-                {"name": name, "ephemeral": {"volumeClaimTemplate": {"metadata": values.get("metadata", None), "spec": {**values.get("spec", {"abc": "def"}), **VOLUME_CLAIM_TEMPLATE_DEFAULTS}}}}
+                {
+                    "name": name,
+                    "ephemeral": {
+                        "volumeClaimTemplate": {
+                            "metadata": values.get("metadata", None),
+                            "spec": {
+                                **values.get("spec", {"abc": "def"}),
+                                **VOLUME_CLAIM_TEMPLATE_DEFAULTS,
+                            },
+                        }
+                    },
+                }
             )
         return self
 
