@@ -149,6 +149,7 @@ if sys.version_info >= (3, 7):
     from .runner.metaflow_runner import Runner
     from .runner.nbrun import NBRunner
     from .runner.deployer import Deployer
+    from .runner.deployer import DeployedFlow
     from .runner.nbdeploy import NBDeployer
 
 __ext_tl_modules__ = []
