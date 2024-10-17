@@ -10,6 +10,8 @@ from metaflow.metaflow_config import KUBERNETES_JOBSET_GROUP, KUBERNETES_JOBSET_
 from metaflow.tracing import inject_tracing_vars
 from metaflow.metaflow_config import KUBERNETES_SECRETS
 
+from .constants import VOLUME_CLAIM_TEMPLATE_DEFAULTS
+
 
 class KubernetesJobsetException(MetaflowException):
     headline = "Kubernetes jobset error"
@@ -691,6 +693,19 @@ class JobSetSpec(object):
                                             if self._kwargs["persistent_volume_claims"]
                                             is not None
                                             else []
+                                        )
+                                        + (
+                                            [
+                                                client.V1VolumeMount(
+                                                    mount_path=vals["path"], name=name
+                                                )
+                                                for name, vals in self._kwargs[
+                                                    "ephemeral_volume_claims"
+                                                ].items()
+                                            ]
+                                            if self._kwargs["ephemeral_volume_claims"]
+                                            is not None
+                                            else []
                                         ),
                                     )
                                 ],
@@ -754,6 +769,28 @@ class JobSetSpec(object):
                                         ].keys()
                                     ]
                                     if self._kwargs["persistent_volume_claims"]
+                                    is not None
+                                    else []
+                                )
+                                + (
+                                    [
+                                        client.V1Volume(
+                                            name=name,
+                                            ephemeral=client.V1EphemeralVolumeSource(
+                                                volume_claim_template=client.V1PersistentVolumeClaimTemplate(
+                                                    metadata=vals.get("metadata", None),
+                                                    spec={
+                                                        **vals.get("spec", {}),
+                                                        **VOLUME_CLAIM_TEMPLATE_DEFAULTS,
+                                                    },
+                                                )
+                                            ),
+                                        )
+                                        for name, vals in self._kwargs[
+                                            "ephemeral_volume_claims"
+                                        ].items()
+                                    ]
+                                    if self._kwargs["ephemeral_volume_claims"]
                                     is not None
                                     else []
                                 ),

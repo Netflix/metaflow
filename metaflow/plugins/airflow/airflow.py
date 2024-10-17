@@ -666,6 +666,7 @@ class Airflow(object):
                     "use_tmpfs",
                     "tmpfs_size",
                     "persistent_volume_claims",
+                    "ephemeral_volume_claims",
                     "image_pull_policy",
                 ]:
                     if kube_deco[attr]:

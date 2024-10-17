@@ -21,6 +21,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_PERSISTENT_VOLUME_CLAIMS,
+    KUBERNETES_EPHEMERAL_VOLUME_CLAIMS,
     KUBERNETES_PORT,
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SHARED_MEMORY,
@@ -97,6 +98,9 @@ class KubernetesDecorator(StepDecorator):
     persistent_volume_claims : Dict[str, str], optional, default None
         A map (dictionary) of persistent volumes to be mounted to the pod for this step. The map is from persistent
         volumes to the path to which the volume is to be mounted, e.g., `{'pvc-name': '/path/to/mount/on'}`.
+    ephemeral_volume_claims: Dict[str, Any], optional, default None
+        A map (dictionary) of ephemeral volumes to be mounted to the pod for this step. The map is a name
+        to a dictionary containing the key 'path' (required), 'metadata' (optional), and 'spec' (optional).
     shared_memory: int, optional
         Shared memory size (in MiB) required for this step
     port: int, optional
@@ -126,6 +130,7 @@ class KubernetesDecorator(StepDecorator):
         "tmpfs_size": None,
         "tmpfs_path": "/metaflow_temp",
         "persistent_volume_claims": None,  # e.g., {"pvc-name": "/mnt/vol", "another-pvc": "/mnt/vol2"}
+        "ephemeral_volume_claims": None,  # e.g., {"ephemeral-name": {"path": "/mnt/vol", "spec": {"storage_class_name": "my_storage_class"}}}
         "shared_memory": None,
         "port": None,
         "compute_pool": None,
@@ -158,6 +163,13 @@ class KubernetesDecorator(StepDecorator):
         ):
             self.attributes["persistent_volume_claims"] = json.loads(
                 KUBERNETES_PERSISTENT_VOLUME_CLAIMS
+            )
+        if (
+            not self.attributes["ephemeral_volume_claims"]
+            and KUBERNETES_EPHEMERAL_VOLUME_CLAIMS
+        ):
+            self.attributes["ephemeral_volume_claims"] = json.loads(
+                KUBERNETES_EPHEMERAL_VOLUME_CLAIMS
             )
         if not self.attributes["image_pull_policy"] and KUBERNETES_IMAGE_PULL_POLICY:
             self.attributes["image_pull_policy"] = KUBERNETES_IMAGE_PULL_POLICY
@@ -403,7 +415,11 @@ class KubernetesDecorator(StepDecorator):
                         "=".join([key, str(val)]) if val else key
                         for key, val in v.items()
                     ]
-                elif k in ["tolerations", "persistent_volume_claims"]:
+                elif k in [
+                    "tolerations",
+                    "persistent_volume_claims",
+                    "ephemeral_volume_claims",
+                ]:
                     cli_args.command_options[k] = json.dumps(v)
                 else:
                     cli_args.command_options[k] = v
