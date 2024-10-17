@@ -267,13 +267,6 @@ class Runner(object):
         return self
 
     def __get_executing_run(self, tfp_runner_attribute, command_obj):
-        # When two 'Runner' executions are done sequentially i.e. one after the other
-        # the 2nd run kinda uses the 1st run's previously set metadata and
-        # environment variables.
-
-        # It is thus necessary to set them to correct values before we return
-        # the Run object.
-
         content = handle_timeout(
             tfp_runner_attribute, command_obj, self.file_read_timeout
         )
