@@ -1951,6 +1951,7 @@ class ArgoWorkflows(object):
                     tmpfs_path=tmpfs_path,
                     timeout_in_seconds=run_time_limit,
                     persistent_volume_claims=resources["persistent_volume_claims"],
+                    ephemeral_volume_claims=resources["ephemeral_volume_claims"],
                     shared_memory=shared_memory,
                     port=port,
                     qos=resources["qos"],
@@ -2084,6 +2085,7 @@ class ArgoWorkflows(object):
                     )
                     .empty_dir_volume("dhsm", medium="Memory", size_limit=shared_memory)
                     .pvc_volumes(resources.get("persistent_volume_claims"))
+                    .ephemeral_volume_claims(resources.get("ephemeral_volume_claims"))
                     # Set node selectors
                     .node_selectors(resources.get("node_selector"))
                     # Set tolerations
@@ -2212,6 +2214,20 @@ class ArgoWorkflows(object):
                                         ).items()
                                     ]
                                     if resources.get("persistent_volume_claims")
+                                    is not None
+                                    else []
+                                )
+                                # Support ephemeral volume claims.
+                                + (
+                                    [
+                                        kubernetes_sdk.V1VolumeMount(
+                                            name=claim, mount_path=values.path
+                                        )
+                                        for claim, values in resources.get(
+                                            "ephemeral_volume_claims"
+                                        ).items()
+                                    ]
+                                    if resources.get("ephemeral_volume_claims")
                                     is not None
                                     else []
                                 ),
@@ -3497,6 +3513,26 @@ class Template(object):
         for claim in pvcs.keys():
             self.payload["volumes"].append(
                 {"name": claim, "persistentVolumeClaim": {"claimName": claim}}
+            )
+        return self
+
+    def ephemeral_volume_claims(self, claims=None):
+        """
+        Create and attach Ephemeral Volume Claims as volumes.
+
+        Parameters:
+        -----------
+        claims: Optional[Dict]
+            a dictionary of ephemeral volumes name's to the paths they should be mounted to. e.g.
+            {"claim-1": {"path": "/mnt/path1", "spec": {"storageClassName": "my-claim"}, "metadata": {"labels": ["abc123"]}}}
+        """
+        if claims is None:
+            return self
+        if "volumes" not in self.payload:
+            self.payload["volumes"] = []
+        for name, values in claims.items():
+            self.payload["volumes"].append(
+                {"name": name, "ephemeral": {"metadata": values["metadata"], "spec": values["spec"]}}
             )
         return self
 
