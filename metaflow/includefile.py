@@ -143,7 +143,7 @@ class FilePathClass(click.ParamType):
                 parameter_name=param.name,
                 logger=ctx.obj.echo,
                 ds_type=ctx.obj.datastore_impl.TYPE,
-                configs=ConfigValue(dict(ctx.obj.flow.configs)),
+                configs=None,
             )
 
         if len(value) > 0 and (value.startswith("{") or value.startswith('"{')):
