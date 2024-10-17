@@ -8,8 +8,8 @@ from metaflow import (
     step,
     project,
     config_expr,
-    FlowConfigDecorator,
-    StepConfigDecorator,
+    CustomFlowDecorator,
+    CustomStepDecorator,
     titus,
 )
 
@@ -38,14 +38,14 @@ default_config = {
 silly_config = "baz:awesome"
 
 
-class TitusOrNot(FlowConfigDecorator):
+class TitusOrNot(CustomFlowDecorator):
     def evaluate(self, flow_proxy):
         for name, s in flow_proxy.steps:
             if name in flow_proxy.config.run_on_titus:
                 s.add_decorator(titus, cpu=flow_proxy.config.cpu_count)
 
 
-class AddEnvToStart(FlowConfigDecorator):
+class AddEnvToStart(CustomFlowDecorator):
     def evaluate(self, flow_proxy):
         s = flow_proxy.start
         s.add_decorator(environment, vars={"hello": flow_proxy.config.env_to_start})
