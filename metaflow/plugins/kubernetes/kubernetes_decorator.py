@@ -279,9 +279,10 @@ class KubernetesDecorator(StepDecorator):
 
         for deco in decos:
             if isinstance(deco, ResourcesDecorator):
+                self.attributes["gpu"] = None
                 for k, v in deco.attributes.items():
-                    # If GPU count is specified, explicitly set it in self.attributes.
-                    if k == "gpu" and v != None:
+                    # If GPU count is specified and non-zero, explicitly set it in self.attributes.
+                    if k == "gpu" and v:
                         self.attributes["gpu"] = v
 
                     if k in self.attributes:
