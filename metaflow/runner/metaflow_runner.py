@@ -8,8 +8,9 @@ from typing import Dict, Iterator, Optional, Tuple
 
 from metaflow import Run, metadata
 
-from .utils import handle_timeout, clear_and_set_os_environ
+from .utils import handle_timeout, async_handle_timeout, clear_and_set_os_environ
 from .subprocess_manager import CommandManager, SubprocessManager
+from .signal_manager import SignalManager
 
 
 class ExecutingRun(object):
@@ -231,6 +232,7 @@ class Runner(object):
         env: Optional[Dict] = None,
         cwd: Optional[str] = None,
         file_read_timeout: int = 3600,
+        signal_manager: Optional[SignalManager] = None,
         **kwargs
     ):
         # these imports are required here and not at the top
@@ -257,7 +259,7 @@ class Runner(object):
 
         self.cwd = cwd
         self.file_read_timeout = file_read_timeout
-        self.spm = SubprocessManager()
+        self.spm = SubprocessManager(signal_manager=signal_manager)
         self.top_level_kwargs = kwargs
         self.api = MetaflowAPI.from_cli(self.flow_file, start)
 
@@ -266,6 +268,14 @@ class Runner(object):
 
     async def __aenter__(self) -> "Runner":
         return self
+
+    def __restore_env_and_metadata(self, content):
+        # Set the environment variables to what they were before the run executed.
+        clear_and_set_os_environ(self.old_env)
+
+        # Set the correct metadata from the runner_attribute file corresponding to this run.
+        metadata_for_flow = content.get("metadata")
+        metadata(metadata_for_flow)
 
     def __get_executing_run(self, tfp_runner_attribute, command_obj):
         # When two 'Runner' executions are done sequentially i.e. one after the other
@@ -279,15 +289,22 @@ class Runner(object):
             tfp_runner_attribute, command_obj, self.file_read_timeout
         )
         content = json.loads(content)
+
+        self.__restore_env_and_metadata(content)
+
         pathspec = "%s/%s" % (content.get("flow_name"), content.get("run_id"))
+        run_object = Run(pathspec, _namespace_check=False)
+        return ExecutingRun(self, command_obj, run_object)
 
-        # Set the environment variables to what they were before the run executed.
-        clear_and_set_os_environ(self.old_env)
+    async def __async_get_executing_run(self, tfp_runner_attribute, command_obj):
+        content = await async_handle_timeout(
+            tfp_runner_attribute, command_obj, self.file_read_timeout
+        )
+        content = json.loads(content)
 
-        # Set the correct metadata from the runner_attribute file corresponding to this run.
-        metadata_for_flow = content.get("metadata")
-        metadata(metadata_for_flow)
+        self.__restore_env_and_metadata(content)
 
+        pathspec = "%s/%s" % (content.get("flow_name"), content.get("run_id"))
         run_object = Run(pathspec, _namespace_check=False)
         return ExecutingRun(self, command_obj, run_object)
 
@@ -392,7 +409,9 @@ class Runner(object):
             )
             command_obj = self.spm.get(pid)
 
-            return self.__get_executing_run(tfp_runner_attribute, command_obj)
+            return await self.__async_get_executing_run(
+                tfp_runner_attribute, command_obj
+            )
 
     async def async_resume(self, **kwargs):
         """
@@ -427,7 +446,9 @@ class Runner(object):
             )
             command_obj = self.spm.get(pid)
 
-            return self.__get_executing_run(tfp_runner_attribute, command_obj)
+            return await self.__async_get_executing_run(
+                tfp_runner_attribute, command_obj
+            )
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.spm.cleanup()
