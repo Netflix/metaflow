@@ -272,8 +272,9 @@ def run_all(ok_tests, ok_contexts, ok_graphs, debug, num_parallel, inherit_env):
 
     if debug or num_parallel is None:
         for test in tests:
+            test_env = base_env.copy()
             failed.extend(
-                run_test_cases((test, ok_contexts, ok_graphs, debug, base_env))
+                run_test_cases((test, ok_contexts, ok_graphs, debug, test_env))
             )
     else:
         args = [(test, ok_contexts, ok_graphs, debug, base_env) for test in tests]
