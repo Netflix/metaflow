@@ -12,25 +12,6 @@ from typing import Callable, Dict, Iterator, List, Optional, Tuple
 from .utils import check_process_exited
 
 
-def kill_process_and_descendants(pid, termination_timeout):
-    # TODO: there's a race condition that new descendants might
-    # spawn b/w the invocations of 'pkill' and 'kill'.
-    # Needs to be fixed in future.
-    try:
-        subprocess.check_call(["pkill", "-TERM", "-P", str(pid)])
-        subprocess.check_call(["kill", "-TERM", str(pid)])
-    except subprocess.CalledProcessError:
-        pass
-
-    time.sleep(termination_timeout)
-
-    try:
-        subprocess.check_call(["pkill", "-KILL", "-P", str(pid)])
-        subprocess.check_call(["kill", "-KILL", str(pid)])
-    except subprocess.CalledProcessError:
-        pass
-
-
 def kill_processes_and_descendants(pids: List[str], termination_timeout: float):
     # TODO: there's a race condition that new descendants might
     # spawn b/w the invocations of 'pkill' and 'kill'.
@@ -528,7 +509,7 @@ class CommandManager(object):
         """
 
         if self.process is not None:
-            kill_process_and_descendants(self.process.pid, termination_timeout)
+            kill_processes_and_descendants([str(self.process.pid)], termination_timeout)
         else:
             print("No process to kill.")
 
