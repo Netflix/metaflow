@@ -32,6 +32,9 @@ def kill_process_and_descendants(pid, termination_timeout):
 
 
 def kill_processes_and_descendants(pids: List[str], termination_timeout: float):
+    # TODO: there's a race condition that new descendants might
+    # spawn b/w the invocations of 'pkill' and 'kill'.
+    # Needs to be fixed in future.
     try:
         subprocess.check_call(["pkill", "-TERM", "-P", *pids])
         subprocess.check_call(["kill", "-TERM", *pids])
@@ -50,6 +53,9 @@ def kill_processes_and_descendants(pids: List[str], termination_timeout: float):
 async def async_kill_processes_and_descendants(
     pids: List[str], termination_timeout: float
 ):
+    # TODO: there's a race condition that new descendants might
+    # spawn b/w the invocations of 'pkill' and 'kill'.
+    # Needs to be fixed in future.
     sub_term = await asyncio.create_subprocess_exec("pkill", "-TERM", "-P", *pids)
     await sub_term.wait()
 
