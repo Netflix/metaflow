@@ -138,7 +138,20 @@ def config_merge_cb(ctx, param, value):
     splits = DECOSPECS.split()
     if len(splits) == len(value) and all([a == b for (a, b) in zip(splits, value)]):
         return value
-    return tuple(list(value) + DECOSPECS.split())
+
+    # Another special case where DECOSPECS collides with existing value.
+    # In this case, we do not want the implicitly added DECOSPECS overwrites the value.
+    # We dedupe based on the decorator name.
+    existing_decospecs = set()
+    for val in value:
+        existing_decospecs.add(val.split(":")[0])
+
+    filtered_decospecs = []
+    for s in DECOSPECS.split():
+        deco_name = s.split(":")[0]
+        if deco_name not in existing_decospecs:
+            filtered_decospecs.append(s)
+    return tuple(list(value) + filtered_decospecs)
 
 
 @click.group()
@@ -823,6 +836,8 @@ def before_run(obj, tags, decospecs):
         decorators._attach_decorators(obj.flow, all_decospecs)
         obj.graph = FlowGraph(obj.flow.__class__)
 
+    print("graph: ", obj.graph)
+
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     # obj.environment.init_environment(obj.logger)
 
@@ -930,6 +945,7 @@ def start(
     monitor=None,
     **deco_options
 ):
+    print("decospecs: ", decospecs)
     global echo
     if quiet:
         echo = echo_dev_null
