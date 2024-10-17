@@ -793,7 +793,6 @@ class JobSetSpec(object):
                                             name=name,
                                             ephemeral=client.V1EphemeralVolumeSource(
                                                 volume_claim_template=client.V1PersistentVolumeClaimTemplate(
-                                                    metadata=vals.get("metadata", None),
                                                     spec={
                                                         **vals.get("spec", {}),
                                                         **VOLUME_CLAIM_TEMPLATE_DEFAULTS,

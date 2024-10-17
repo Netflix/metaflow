@@ -140,7 +140,7 @@ class KubernetesDecorator(StepDecorator):
         "tmpfs_size": None,
         "tmpfs_path": "/metaflow_temp",
         "persistent_volume_claims": None,  # e.g., {"pvc-name": "/mnt/vol", "another-pvc": "/mnt/vol2"}
-        "ephemeral_volume_claims": None,  # e.g., {"ephemeral-name": {"path": "/mnt/vol", "spec": {"storage_class_name": "my_storage_class"}}}
+        "ephemeral_volume_claims": None,  # e.g., {"ephemeral-name": {"path": "/mnt/vol", "spec": {"storageClassName": "my_storage_class"}}}
         "shared_memory": None,
         "port": None,
         "compute_pool": None,

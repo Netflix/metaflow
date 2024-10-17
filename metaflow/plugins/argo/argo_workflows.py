@@ -3537,9 +3537,8 @@ class Template(object):
                     "name": name,
                     "ephemeral": {
                         "volumeClaimTemplate": {
-                            "metadata": values.get("metadata", None),
                             "spec": {
-                                **values.get("spec", {"abc": "def"}),
+                                **values.get("spec", {}),
                                 **VOLUME_CLAIM_TEMPLATE_DEFAULTS,
                             },
                         }
