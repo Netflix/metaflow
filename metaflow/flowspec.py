@@ -23,10 +23,10 @@ from .extension_support import extension_info
 from .graph import FlowGraph
 from .unbounded_foreach import UnboundedForeachInput
 from .user_configs.config_decorators import (
-    FlowConfigDecorator,
-    FlowSpecProxy,
-    StepConfigDecorator,
-    StepProxy,
+    CustomFlowDecorator,
+    CustomStepDecorator,
+    MutableFlow,
+    MutableStep,
 )
 from .util import to_pod
 from .metaflow_config import INCLUDE_FOREACH_STACK, MAXIMUM_FOREACH_VALUE_CHARS
@@ -208,27 +208,27 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
         # Run all the decorators
         for deco in self._flow_state[_FlowState.CONFIG_DECORATORS]:
-            if isinstance(deco, FlowConfigDecorator):
+            if isinstance(deco, CustomFlowDecorator):
                 # Sanity check to make sure we are applying the decorator to the right
                 # class
                 if not deco._flow_cls == current_cls and not issubclass(
                     current_cls, deco._flow_cls
                 ):
                     raise MetaflowInternalError(
-                        "FlowConfigDecorator registered on the wrong flow -- "
+                        "CustomFlowDecorator registered on the wrong flow -- "
                         "expected %s but got %s"
                         % (deco._flow_cls.__name__, current_cls.__name__)
                     )
-                deco.evaluate(FlowSpecProxy(current_cls))
-            elif isinstance(deco, StepConfigDecorator):
+                deco.evaluate(MutableFlow(current_cls))
+            elif isinstance(deco, CustomStepDecorator):
                 # Again some sanity checks
                 if deco._flow_cls != current_cls:
                     raise MetaflowInternalError(
-                        "StepConfigDecorator registered on the wrong flow -- "
+                        "CustomStepDecorator registered on the wrong flow -- "
                         "expected %s but got %s"
                         % (deco._flow_cls.__name__, current_cls.__name__)
                     )
-                deco.evaluate(StepConfigDecorator(deco._my_step))
+                deco.evaluate(CustomStepDecorator(deco._my_step))
 
         # Reset all configs that were already present in the class.
         # TODO: This means that users can't override configs directly. Not sure if this
