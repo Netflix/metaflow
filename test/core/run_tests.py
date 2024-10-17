@@ -156,99 +156,118 @@ def run_test(formatter, context, debug, checks, env_base, executor):
 
         path = os.path.join(tempdir, "test_flow.py")
 
-        env = {}
-        env.update(env_base)
-        # expand environment variables
-        # nonce can be used to insert entropy in env vars.
-        # This is useful e.g. for separating S3 paths of
-        # runs, which may have clashing run_ids
-        env.update(
-            dict(
-                (k, v.format(nonce=str(uuid.uuid4())))
-                for k, v in context["env"].items()
+        original_env = os.environ.copy()
+        try:
+            # allow passenv = USER in tox.ini to work..
+            env = {"USER": original_env.get("USER")}
+            env.update(env_base)
+            # expand environment variables
+            # nonce can be used to insert entropy in env vars.
+            # This is useful e.g. for separating S3 paths of
+            # runs, which may have clashing run_ids
+            env.update(
+                dict(
+                    (k, v.format(nonce=str(uuid.uuid4())))
+                    for k, v in context["env"].items()
+                )
             )
-        )
 
-        pythonpath = os.environ.get("PYTHONPATH", ".")
-        env.update(
-            {
-                "LANG": "en_US.UTF-8",
-                "LC_ALL": "en_US.UTF-8",
-                "PATH": os.environ.get("PATH", "."),
-                "PYTHONIOENCODING": "utf_8",
-                "PYTHONPATH": "%s:%s" % (package, pythonpath),
-            }
-        )
+            pythonpath = os.environ.get("PYTHONPATH", ".")
+            env.update(
+                {
+                    "LANG": "en_US.UTF-8",
+                    "LC_ALL": "en_US.UTF-8",
+                    "PATH": os.environ.get("PATH", "."),
+                    "PYTHONIOENCODING": "utf_8",
+                    "PYTHONPATH": "%s:%s" % (package, pythonpath),
+                }
+            )
 
-        if "pre_command" in context:
-            if context["pre_command"].get("metaflow_command"):
-                cmd = [context["python"], "test_flow.py"]
+            os.environ.clear()
+            os.environ.update(env)
+
+            if "pre_command" in context:
+                if context["pre_command"].get("metaflow_command"):
+                    cmd = [context["python"], "test_flow.py"]
+                    cmd.extend(context["top_options"])
+                    cmd.extend(context["pre_command"]["command"])
+                else:
+                    cmd = context["pre_command"]["command"]
+                pre_ret = subprocess.call(cmd, env=env)
+                if pre_ret and not context["pre_command"].get("ignore_errors", False):
+                    log("pre-command failed", formatter, context)
+                    return pre_ret, path
+
+            # run flow
+            if executor == "cli":
+                flow_ret = subprocess.call(run_cmd("run"), env=env)
+            elif executor == "api":
+                top_level_dict, run_level_dict = construct_arg_dicts_from_click_api()
+                runner = Runner(
+                    "test_flow.py", show_output=True, env=env, **top_level_dict
+                )
+                result = runner.run(**run_level_dict)
+                flow_ret = result.command_obj.process.returncode
+
+            if flow_ret:
+                if formatter.should_fail:
+                    log("Flow failed as expected.")
+                elif formatter.should_resume:
+                    log("Resuming flow", formatter, context)
+                    if executor == "cli":
+                        flow_ret = subprocess.call(
+                            run_cmd(
+                                "resume",
+                                (
+                                    [formatter.resume_step]
+                                    if formatter.resume_step
+                                    else []
+                                ),
+                            ),
+                            env=env,
+                        )
+                    elif executor == "api":
+                        _, resume_level_dict = construct_arg_dicts_from_click_api()
+                        if formatter.resume_step:
+                            resume_level_dict["step_to_rerun"] = formatter.resume_step
+                        result = runner.resume(**resume_level_dict)
+                        flow_ret = result.command_obj.process.returncode
+                else:
+                    log("flow failed", formatter, context)
+                    return flow_ret, path
+            elif formatter.should_fail:
+                log(
+                    "The flow should have failed but it didn't. Error!",
+                    formatter,
+                    context,
+                )
+                return 1, path
+
+            # check results
+            run_id = open("run-id").read()
+            ret = 0
+            for check_name in context["checks"]:
+                check = checks[check_name]
+                python = check["python"]
+                cmd = [python, "check_flow.py", check["class"], run_id]
                 cmd.extend(context["top_options"])
-                cmd.extend(context["pre_command"]["command"])
-            else:
-                cmd = context["pre_command"]["command"]
-            pre_ret = subprocess.call(cmd, env=env)
-            if pre_ret and not context["pre_command"].get("ignore_errors", False):
-                log("pre-command failed", formatter, context)
-                return pre_ret, path
-
-        # run flow
-        if executor == "cli":
-            flow_ret = subprocess.call(run_cmd("run"), env=env)
-        elif executor == "api":
-            top_level_dict, run_level_dict = construct_arg_dicts_from_click_api()
-            runner = Runner("test_flow.py", show_output=True, env=env, **top_level_dict)
-            result = runner.run(**run_level_dict)
-            flow_ret = result.command_obj.process.returncode
-
-        if flow_ret:
-            if formatter.should_fail:
-                log("Flow failed as expected.")
-            elif formatter.should_resume:
-                log("Resuming flow", formatter, context)
-                if executor == "cli":
-                    flow_ret = subprocess.call(
-                        run_cmd(
-                            "resume",
-                            [formatter.resume_step] if formatter.resume_step else [],
-                        ),
-                        env=env,
+                check_ret = subprocess.call(cmd, env=env)
+                if check_ret:
+                    log(
+                        "checker '%s' says that results failed" % check_name,
+                        formatter,
+                        context,
                     )
-                elif executor == "api":
-                    _, resume_level_dict = construct_arg_dicts_from_click_api()
-                    if formatter.resume_step:
-                        resume_level_dict["step_to_rerun"] = formatter.resume_step
-                    result = runner.resume(**resume_level_dict)
-                    flow_ret = result.command_obj.process.returncode
-            else:
-                log("flow failed", formatter, context)
-                return flow_ret, path
-        elif formatter.should_fail:
-            log("The flow should have failed but it didn't. Error!", formatter, context)
-            return 1, path
-
-        # check results
-        run_id = open("run-id").read()
-        ret = 0
-        for check_name in context["checks"]:
-            check = checks[check_name]
-            python = check["python"]
-            cmd = [python, "check_flow.py", check["class"], run_id]
-            cmd.extend(context["top_options"])
-            check_ret = subprocess.call(cmd, env=env)
-            if check_ret:
-                log(
-                    "checker '%s' says that results failed" % check_name,
-                    formatter,
-                    context,
-                )
-                ret = check_ret
-            else:
-                log(
-                    "checker '%s' says that results are ok" % check_name,
-                    formatter,
-                    context,
-                )
+                    ret = check_ret
+                else:
+                    log(
+                        "checker '%s' says that results are ok" % check_name,
+                        formatter,
+                        context,
+                    )
+        finally:
+            os.environ.clear()
+            os.environ.update(original_env)
 
         return ret, path
     finally:
@@ -272,9 +291,8 @@ def run_all(ok_tests, ok_contexts, ok_graphs, debug, num_parallel, inherit_env):
 
     if debug or num_parallel is None:
         for test in tests:
-            test_env = base_env.copy()
             failed.extend(
-                run_test_cases((test, ok_contexts, ok_graphs, debug, test_env))
+                run_test_cases((test, ok_contexts, ok_graphs, debug, base_env))
             )
     else:
         args = [(test, ok_contexts, ok_graphs, debug, base_env) for test in tests]
