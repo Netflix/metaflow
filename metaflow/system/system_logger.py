@@ -38,11 +38,18 @@ class SystemLogger(object):
         from .system_utils import init_environment_outside_flow
         from metaflow.plugins import LOGGING_SIDECARS
         from metaflow.metaflow_config import DEFAULT_EVENT_LOGGER
+        from metaflow.metaflow_current import current
 
         self._flow_name = "not_a_real_flow"
         _flow = DummyFlow(self._flow_name)
         _environment = init_environment_outside_flow(_flow)
         _logger = LOGGING_SIDECARS[DEFAULT_EVENT_LOGGER](_flow, _environment)
+
+        current._update_env(
+            {
+                "system_logger": self,
+            }
+        )
         return _logger
 
     @property
