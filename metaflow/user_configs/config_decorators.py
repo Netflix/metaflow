@@ -10,9 +10,9 @@ if TYPE_CHECKING:
     from metaflow.decorators import FlowSpecDerived, StepDecorator
 
 
-class StepProxy:
+class MutableStep:
     """
-    A StepProxy is a wrapper passed to the `StepConfigDecorator`'s `evaluate` method
+    A MutableStep is a wrapper passed to the `CustomStepDecorator`'s `evaluate` method
     to allow the decorator to interact with the step and providing easy methods to
     modify the behavior of the step.
     """
@@ -102,7 +102,7 @@ class StepProxy:
         )
 
 
-class FlowSpecProxy:
+class MutableFlow:
     def __init__(self, flow_spec: "FlowSpec"):
         self._flow_cls = flow_spec
 
@@ -112,11 +112,11 @@ class FlowSpecProxy:
         Iterate over all user configurations in this flow
 
         Use this to parameterize your flow based on configuration. As an example, the
-        `evaluate` method of your `FlowConfigDecorator` can use this to add an
+        `evaluate` method of your `CustomFlowDecorator` can use this to add an
         environment decorator.
         ```
-        class MyDecorator(FlowConfigDecorator):
-            def evaluate(flow: FlowSpecProxy):
+        class MyDecorator(CustomFlowDecorator):
+            def evaluate(flow: MutableFlow):
                 val = next(flow.configs)[1].steps.start.cpu
                 flow.start.add_decorator(environment, vars={'mycpu': val})
                 return flow
@@ -145,19 +145,19 @@ class FlowSpecProxy:
             yield name, ConfigValue(value)
 
     @property
-    def steps(self) -> Generator[Tuple[str, StepProxy], None, None]:
+    def steps(self) -> Generator[Tuple[str, MutableStep], None, None]:
         """
         Iterate over all the steps in this flow
 
         Yields
         ------
-        Tuple[str, StepProxy]
+        Tuple[str, MutableStep]
             A tuple with the step name and the step proxy
         """
         for var in dir(self._flow_cls):
             potential_step = getattr(self._flow_cls, var)
             if callable(potential_step) and hasattr(potential_step, "is_step"):
-                yield var, StepProxy(potential_step)
+                yield var, MutableStep(potential_step)
 
     def __getattr__(self, name):
         # We allow direct access to the steps, configs and parameters but nothing else
@@ -165,14 +165,14 @@ class FlowSpecProxy:
         if attr:
             # Steps
             if callable(attr) and hasattr(attr, "is_step"):
-                return StepProxy(attr)
+                return MutableStep(attr)
             if name[0] == "_" or name in self._flow_cls._NON_PARAMETERS:
                 raise AttributeError(self, name)
             return attr
         raise AttributeError(self, name)
 
 
-class FlowConfigDecorator:
+class CustomFlowDecorator:
     def __call__(self, flow_spec: "FlowSpec") -> "FlowSpec":
         from ..flowspec import _FlowState
 
@@ -180,11 +180,11 @@ class FlowConfigDecorator:
         self._flow_cls = flow_spec
         return flow_spec
 
-    def evaluate(self, flow_proxy: FlowSpecProxy) -> None:
+    def evaluate(self, mutable_flow: MutableFlow) -> None:
         raise NotImplementedError()
 
 
-class StepConfigDecorator:
+class CustomStepDecorator:
     def __call__(
         self,
         step: Union[
@@ -199,7 +199,7 @@ class StepConfigDecorator:
 
         if not hasattr(step, "is_step"):
             raise MetaflowException(
-                "StepConfigDecorators must be applied to a step function"
+                "CustomStepDecorator must be applied to a step function"
             )
         self._my_step = step
         # Get the flow
@@ -210,5 +210,5 @@ class StepConfigDecorator:
 
         return step
 
-    def evaluate(self, step_proxy: StepProxy) -> None:
+    def evaluate(self, mutable_step: MutableStep) -> None:
         raise NotImplementedError()
