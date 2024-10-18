@@ -345,8 +345,6 @@ class FlowSpec(metaclass=FlowSpecMeta):
         return iter(self._steps)
 
     def __getattr__(self, name: str):
-        if name in ("configs", "steps"):
-            return getattr(self.__class__, name)
         if self._datastore and name in self._datastore:
             # load the attribute from the datastore...
             x = self._datastore[name]

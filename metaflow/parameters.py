@@ -35,7 +35,7 @@ ParameterContext = NamedTuple(
         ("parameter_name", str),
         ("logger", Callable[..., None]),
         ("ds_type", str),
-        ("configs", "ConfigValue"),
+        ("configs", Optional["ConfigValue"]),
     ],
 )
 
