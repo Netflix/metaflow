@@ -476,6 +476,8 @@ class StepFunctions(object):
         has_schedule = self._cron() is not None
         seen = set()
         for var, param in self.flow._get_parameters():
+            if param.IS_FLOW_PARAMETER:
+                continue
             # Throw an exception if the parameter is specified twice.
             norm = param.name.lower()
             if norm in seen:
