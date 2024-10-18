@@ -278,6 +278,10 @@ class MetaflowObject(object):
         self._current_namespace = _current_namespace or get_namespace()
         self._current_metadata = _current_metadata or get_metadata()
         self._namespace_check = _namespace_check
+
+        # Set the metadata being passed..
+        metadata(self._current_metadata)
+
         # If the current namespace is False, we disable checking for namespace for this
         # and all children objects. Not setting namespace_check to False has the consequence
         # of preventing access to children objects after the namespace changes
