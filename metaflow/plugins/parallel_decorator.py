@@ -13,18 +13,19 @@ class ParallelDecorator(StepDecorator):
     MF Add To Current
     -----------------
     parallel -> metaflow.metaflow_current.Parallel
+        Returns a namedtuple with relevant information about the parallel task.
 
         @@ Returns
         -------
         Parallel
             `namedtuple` with the following fields:
-                - main_ip : str
+                - main_ip (`str`)
                     The IP address of the control task.
-                - num_nodes : int
+                - num_nodes (`int`)
                     The total number of tasks created by @parallel
-                - node_index : int
+                - node_index (`int`)
                     The index of the current task in all the @parallel tasks.
-                - control_task_id : Optional[str]
+                - control_task_id (`Optional[str]`)
                     The task ID of the control task. Available to all tasks.
 
     is_parallel -> bool

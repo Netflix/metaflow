@@ -2,6 +2,7 @@ import json
 import os
 import platform
 import sys
+import time
 
 from metaflow import current
 from metaflow.decorators import StepDecorator
@@ -104,6 +105,9 @@ class KubernetesDecorator(StepDecorator):
     compute_pool : str, optional, default None
         Compute pool to be used for for this step.
         If not specified, any accessible compute pool within the perimeter is used.
+    hostname_resolution_timeout: int, default 10 * 60
+        Timeout in seconds for the workers tasks in the gang scheduled cluster to resolve the hostname of control task.
+        Only applicable when @parallel is used.
     """
 
     name = "kubernetes"
@@ -130,6 +134,7 @@ class KubernetesDecorator(StepDecorator):
         "port": None,
         "compute_pool": None,
         "executable": None,
+        "hostname_resolution_timeout": 10 * 60,
     }
     package_url = None
     package_sha = None
@@ -390,7 +395,7 @@ class KubernetesDecorator(StepDecorator):
             cli_args.command_args.append(self.package_url)
 
             # skip certain keys as CLI arguments
-            _skip_keys = ["compute_pool"]
+            _skip_keys = ["compute_pool", "hostname_resolution_timeout"]
             # --namespace is used to specify Metaflow namespace (a different
             # concept from k8s namespace).
             for k, v in self.attributes.items():
@@ -482,7 +487,9 @@ class KubernetesDecorator(StepDecorator):
             num_parallel = flow._parallel_ubf_iter.num_parallel
 
         if num_parallel and num_parallel > 1:
-            _setup_multinode_environment()
+            _setup_multinode_environment(
+                ubf_context, self.attributes["hostname_resolution_timeout"]
+            )
             # current.parallel.node_index will be correctly available over here.
             meta.update({"parallel-node-index": current.parallel.node_index})
             if ubf_context == UBF_CONTROL:
@@ -546,18 +553,44 @@ class KubernetesDecorator(StepDecorator):
 
 
 # TODO: Unify this method with the multi-node setup in @batch
-def _setup_multinode_environment():
-    # TODO [FIXME SOON]
-    # Even if Kubernetes may deploy control pods before worker pods, there is always a
-    # possibility that the worker pods may start before the control. In the case that this happens,
-    # the worker pods will not be able to resolve the control pod's IP address and this will cause
-    # the worker pods to fail. This function should account for this in the near future.
+def _setup_multinode_environment(ubf_context, hostname_resolution_timeout):
     import socket
 
+    def _wait_for_hostname_resolution(max_wait_timeout=10 * 60):
+        """
+        keep trying to resolve the hostname of the control task until the hostname is resolved
+        or the max_wait_timeout is reached. This is a workaround for the issue where the control
+        task is not scheduled before the worker task and the worker task fails because it cannot
+        resolve the hostname of the control task.
+        """
+        start_time = time.time()
+        while True:
+            try:
+                return socket.gethostbyname(os.environ["MF_MASTER_ADDR"])
+            except socket.gaierror:
+                if time.time() - start_time > max_wait_timeout:
+                    raise MetaflowException(
+                        "Failed to get host by name for MF_MASTER_ADDR after waiting for {} seconds.".format(
+                            max_wait_timeout
+                        )
+                    )
+                time.sleep(1)
+
     try:
-        os.environ["MF_PARALLEL_MAIN_IP"] = socket.gethostbyname(
-            os.environ["MF_MASTER_ADDR"]
-        )
+        # Even if Kubernetes may deploy control pods before worker pods, there is always a
+        # possibility that the worker pods may start before the control. In the case that this happens,
+        # the worker pods will not be able to resolve the control pod's IP address and this will cause
+        # the worker pods to fail. So if the worker pods are requesting a hostname resolution, we will
+        # make it wait for the name to be resolved within a reasonable timeout period.
+        if ubf_context != UBF_CONTROL:
+            os.environ["MF_PARALLEL_MAIN_IP"] = _wait_for_hostname_resolution(
+                hostname_resolution_timeout
+            )
+        else:
+            os.environ["MF_PARALLEL_MAIN_IP"] = socket.gethostbyname(
+                os.environ["MF_MASTER_ADDR"]
+            )
+
         os.environ["MF_PARALLEL_NUM_NODES"] = os.environ["MF_WORLD_SIZE"]
         os.environ["MF_PARALLEL_NODE_INDEX"] = (
             str(0)
