@@ -352,7 +352,8 @@ class SpinParserValidator(object):
 
                     try:
                         self._previous_steps_task = Task(
-                            f"{self.flow_name}/{self.run_id}/{prev_step_name}/{task_val}"
+                            f"{self.flow_name}/{self.run_id}/{prev_step_name}/{task_val}",
+                            _namespace_check=False,
                         )
                     except Exception as e:
                         raise CommandException(

@@ -132,7 +132,10 @@ class SpinRuntime(object):
         if self.step_name == "start":
             from metaflow import Step
 
-            task = Step(f"{self._flow.name}/{self.prev_run_id}/_parameters").task
+            task = Step(
+                f"{self._flow.name}/{self.prev_run_id}/_parameters",
+                _namespace_check=False,
+            ).task
             self._input_paths = [_format_input_paths(task)]
         elif self.spin_parser_validator.step_type == "join":
             self._input_paths = []

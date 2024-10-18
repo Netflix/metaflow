@@ -11,7 +11,9 @@ class SpinDatastore(object):
 
         from metaflow import Step
 
-        step = Step(f"{self.flow_name}/{self.run_id}/{step_name}")
+        step = Step(
+            f"{self.flow_name}/{self.run_id}/{step_name}", _namespace_check=False
+        )
         return next(iter(step.tasks()))
 
     @property
@@ -131,7 +133,9 @@ class SpinDatastore(object):
             return True
 
         previous_tasks = []
-        prev_step = Step(f"{self.flow_name}/{self.run_id}/{prev_step_name}")
+        prev_step = Step(
+            f"{self.flow_name}/{self.run_id}/{prev_step_name}", _namespace_check=False
+        )
         for task in prev_step.tasks():
             foreach_stack = task["_foreach_stack"]
             required_ancestor_tasks_parsed = _parse_required_ancestor_tasks(
