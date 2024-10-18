@@ -269,12 +269,14 @@ class MetaflowObject(object):
         _parent: Optional["MetaflowObject"] = None,
         _namespace_check: bool = True,
         _current_namespace: Optional[str] = None,
+        _current_metadata: Optional[str] = None,
     ):
         self._metaflow = Metaflow()
         self._parent = _parent
         self._path_components = None
         self._attempt = attempt
         self._current_namespace = _current_namespace or get_namespace()
+        self._current_metadata = _current_metadata or get_metadata()
         self._namespace_check = _namespace_check
         # If the current namespace is False, we disable checking for namespace for this
         # and all children objects. Not setting namespace_check to False has the consequence
@@ -394,6 +396,7 @@ class MetaflowObject(object):
                     _current_namespace=(
                         self._current_namespace if self._namespace_check else None
                     ),
+                    _current_metadata=self._current_metadata,
                 )
                 for obj in unfiltered_children
             ),
@@ -509,6 +512,7 @@ class MetaflowObject(object):
                 _current_namespace=(
                     self._current_namespace if self._namespace_check else None
                 ),
+                _current_metadata=self._current_metadata,
             )
         else:
             raise KeyError(id)
@@ -540,16 +544,17 @@ class MetaflowObject(object):
         )
 
     def _unpickle_2124(self, data):
-        if len(data) != 4:
+        if len(data) != 5:
             raise MetaflowInternalError(
                 "Unexpected size of array: {}".format(len(data))
             )
-        pathspec, attempt, ns, namespace_check = data
+        pathspec, attempt, ns, namespace_check, metadata = data
         self.__init__(
             pathspec=pathspec,
             attempt=attempt,
             _namespace_check=namespace_check,
             _current_namespace=ns,
+            _current_metadata=metadata,
         )
 
     _UNPICKLE_FUNC = {"2.8.4": _unpickle_284, "2.12.4": _unpickle_2124}
@@ -579,6 +584,7 @@ class MetaflowObject(object):
                 attempt=state.get("_attempt", None),
                 _namespace_check=state.get("_namespace_check", False),
                 _current_namespace=None,
+                _current_metadata=None,
             )
 
     def __getstate__(self):
@@ -601,6 +607,7 @@ class MetaflowObject(object):
                 self._attempt,
                 self._current_namespace,
                 self._namespace_check,
+                self._current_metadata,
             ],
         }
 
