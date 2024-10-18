@@ -284,7 +284,9 @@ class Runner(object):
         # Set the environment variables to what they were before the run executed.
         clear_and_set_os_environ(self.old_env)
 
-        run_object = Run(pathspec, _namespace_check=False)
+        run_object = Run(
+            pathspec, _namespace_check=False, _current_metadata=content.get("metadata")
+        )
         return ExecutingRun(self, command_obj, run_object)
 
     def run(self, **kwargs) -> ExecutingRun:
