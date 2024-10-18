@@ -6,7 +6,7 @@ import tempfile
 
 from typing import Dict, Iterator, Optional, Tuple
 
-from metaflow import Run, metadata
+from metaflow import Run
 
 from .utils import handle_timeout, clear_and_set_os_environ
 from .subprocess_manager import CommandManager, SubprocessManager
@@ -283,10 +283,6 @@ class Runner(object):
 
         # Set the environment variables to what they were before the run executed.
         clear_and_set_os_environ(self.old_env)
-
-        # Set the correct metadata from the runner_attribute file corresponding to this run.
-        metadata_for_flow = content.get("metadata")
-        metadata(metadata_for_flow)
 
         run_object = Run(pathspec, _namespace_check=False)
         return ExecutingRun(self, command_obj, run_object)
