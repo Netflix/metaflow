@@ -45,6 +45,7 @@ class Current(object):
         username=None,
         metadata_str=None,
         is_running=True,
+        is_spin=False,
         tags=None,
     ):
         if flow is not None:
@@ -61,6 +62,7 @@ class Current(object):
         self._metadata_str = metadata_str
         self._is_running = is_running
         self._tags = tags
+        self._is_spin = is_spin
 
     def _update_env(self, env):
         for k, v in env.items():
