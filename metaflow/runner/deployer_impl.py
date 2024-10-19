@@ -2,12 +2,11 @@ import importlib
 import json
 import os
 import sys
-import tempfile
 
 from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING, Type
 
 from .subprocess_manager import SubprocessManager
-from .utils import get_lower_level_group, handle_timeout
+from .utils import get_lower_level_group, handle_timeout, temporary_fifo
 
 if TYPE_CHECKING:
     import metaflow.runner.deployer
@@ -121,14 +120,11 @@ class DeployerImpl(object):
     def _create(
         self, create_class: Type["metaflow.runner.deployer.DeployedFlow"], **kwargs
     ) -> "metaflow.runner.deployer.DeployedFlow":
-        with tempfile.TemporaryDirectory() as temp_dir:
-            tfp_runner_attribute = tempfile.NamedTemporaryFile(
-                dir=temp_dir, delete=False
-            )
+        with temporary_fifo() as (attribute_file_path, attribute_file_fd):
             # every subclass needs to have `self.deployer_kwargs`
             command = get_lower_level_group(
                 self.api, self.top_level_kwargs, self.TYPE, self.deployer_kwargs
-            ).create(deployer_attribute_file=tfp_runner_attribute.name, **kwargs)
+            ).create(deployer_attribute_file=attribute_file_path, **kwargs)
 
             pid = self.spm.run_command(
                 [sys.executable, *command],
@@ -139,7 +135,7 @@ class DeployerImpl(object):
 
             command_obj = self.spm.get(pid)
             content = handle_timeout(
-                tfp_runner_attribute, command_obj, self.file_read_timeout
+                attribute_file_fd, command_obj, self.file_read_timeout
             )
             content = json.loads(content)
             self.name = content.get("name")
