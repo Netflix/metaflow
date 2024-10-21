@@ -1123,6 +1123,86 @@ class Task(MetaflowObject):
         # exclude private data artifacts
         return x.id[0] != "_"
 
+    def immediate_ancestors(self) -> Dict[str, Iterator["Task"]]:
+        """
+        Returns a dictionary with iterators over the immediate ancestors of this task.
+
+        Returns
+        -------
+        Dict[str, Iterator[Task]]
+            Dictionary of immediate ancestors of this task. The keys are the
+            names of the ancestors steps and the values are iterators over the
+            tasks of the corresponding steps.
+        """
+
+        def _prev_task(flow_id, run_id, previous_step):
+            # Find any previous task for current step
+
+            step = Step(f"{flow_id}/{run_id}/{previous_step}", _namespace_check=False)
+            task = next(iter(step.tasks()), None)
+            if task:
+                return task
+            raise MetaflowNotFound(f"No previous task found for step {previous_step}")
+
+        flow_id, run_id, step_name, task_id = self.path_components
+        previous_steps = self.metadata_dict.get("previous_steps", None)
+        print(
+            f"flow_id: {flow_id}, run_id: {run_id}, step_name: {step_name}, task_id: {task_id}"
+        )
+        print(f"previous_steps: {previous_steps}")
+
+        if not previous_steps or len(previous_steps) == 0:
+            return
+
+        cur_foreach_stack_len = len(self.metadata_dict.get("foreach-stack", []))
+        ancestor_iters = {}
+        if len(previous_steps) > 1:
+            # This is a static join, so there is no change in foreach stack length
+            prev_foreach_stack_len = cur_foreach_stack_len
+        else:
+            prev_task = _prev_task(flow_id, run_id, previous_steps[0])
+            prev_foreach_stack_len = len(
+                prev_task.metadata_dict.get("foreach-stack", [])
+            )
+
+        print(
+            f"prev_foreach_stack_len: {prev_foreach_stack_len}, cur_foreach_stack_len: {cur_foreach_stack_len}"
+        )
+        if prev_foreach_stack_len == cur_foreach_stack_len:
+            field_name = "foreach-indices"
+            field_value = self.metadata_dict.get(field_name)
+        elif prev_foreach_stack_len > cur_foreach_stack_len:
+            field_name = "foreach-indices-truncated"
+            field_value = self.metadata_dict.get("foreach-indices")
+        else:
+            # We will compare the foreach-stack-truncated value of current task with the
+            # foreach-stack value of tasks in previous steps
+            field_name = "foreach-indices"
+            field_value = self.metadata_dict.get("foreach-indices-truncated")
+
+        for prev_step in previous_steps:
+            # print(f"For task {self.pathspec}, findding parent tasks for step {prev_step} with {field_name} and "
+            #       f"{field_value}")
+            ancestor_iters[prev_step] = (
+                self._metaflow.metadata.filter_tasks_by_metadata(
+                    flow_id, run_id, step_name, prev_step, field_name, field_value
+                )
+            )
+
+        return ancestor_iters
+
+    # def closest_siblings(self) -> Iterator["Task"]:
+    #     """
+    #     Returns an iterator over the closest siblings of this task.
+    #
+    #     Returns
+    #     -------
+    #     Iterator[Task]
+    #         Iterator over the closest siblings of this task
+    #     """
+    #     flow_id, run_id, step_name, task_id = self.path_components
+    #     print(f"flow_id: {flow_id}, run_id: {run_id}, step_name: {step_name}, task_id: {task_id}")
+
     @property
     def metadata(self) -> List[Metadata]:
         """
