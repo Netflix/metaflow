@@ -672,6 +672,21 @@ class MetadataProvider(object):
         if metadata:
             self.register_metadata(run_id, step_name, task_id, metadata)
 
+    @classmethod
+    def _filter_tasks_by_metadata(
+        cls, flow_id, run_id, step_name, prev_step, field_name, field_value
+    ):
+        raise NotImplementedError()
+
+    @classmethod
+    def filter_tasks_by_metadata(
+        cls, flow_id, run_id, step_name, prev_step, field_name, field_value
+    ):
+        task_ids = cls._filter_tasks_by_metadata(
+            flow_id, run_id, step_name, prev_step, field_name, field_value
+        )
+        return task_ids
+
     @staticmethod
     def _apply_filter(elts, filters):
         if filters is None:
