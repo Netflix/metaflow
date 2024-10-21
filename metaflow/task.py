@@ -4,6 +4,8 @@ import math
 import sys
 import os
 import time
+import json
+import hashlib
 import traceback
 
 from types import MethodType, FunctionType
@@ -36,6 +38,17 @@ class MetaflowTask(object):
     """
     MetaflowTask prepares a Flow instance for execution of a single step.
     """
+
+    @staticmethod
+    def _hash_foreach_stack(foreach_stack):
+        foreach_stack = [
+            (foreach_frame.step, foreach_frame.index) for foreach_frame in foreach_stack
+        ]
+        json_string = json.dumps({"foreach_stack": foreach_stack})
+
+        hash_object = hashlib.sha256(json_string.encode())
+        hash_hex = hash_object.hexdigest()
+        return hash_hex
 
     def __init__(
         self,
@@ -565,12 +578,25 @@ class MetaflowTask(object):
                 self.flow._success = False
                 self.flow._task_ok = None
                 self.flow._exception = None
+
+                # Add runtime dag info
+                # TODO: Log this as metadata instead
+                self.flow._input_paths = ",".join(input_paths)
+                self.flow._foreach_stack_hash = self._hash_foreach_stack(foreach_stack)
+                self.flow._foreach_stack_parent_hash = self._hash_foreach_stack(
+                    foreach_stack[:-1]
+                )
+
                 # Note: All internal flow attributes (ie: non-user artifacts)
                 # should either be set prior to running the user code or listed in
                 # FlowSpec._EPHEMERAL to allow for proper merging/importing of
                 # user artifacts in the user's step code.
 
                 if join_type:
+                    if join_type == "foreach":
+                        # We only want to persist one of the input paths
+                        self.flow._input_paths = str(input_paths[0])
+
                     # Join step:
 
                     # Ensure that we have the right number of inputs. The
