@@ -63,7 +63,7 @@ class GSTail(object):
         if data is None:
             return None
         if data:
-            buf = BytesIO(data)
+            buf = BytesIO(self._tail + data)
             self._pos += len(data)
             self._tail = b""
             return buf
