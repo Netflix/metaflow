@@ -670,7 +670,7 @@ class MetaflowObject(object):
         origin_pathspec = None
         if self._NAME == "run":
             latest_step = next(self.steps())
-            if latest_step:
+            if latest_step and latest_step.task:
                 # If we had a step
                 task = latest_step.task
                 origin_run_id = [
@@ -1888,9 +1888,10 @@ class Run(MetaflowObject):
         # TODO: A more optimized way of figuring out if a run has remote steps (and thus a codepackage) available.
         # This might require changes to the metadata-service as well.
         for step in self:
-            code = step.task.code
-            if code:
-                return code
+            if step.task:
+                code = step.task.code
+                if code:
+                    return code
 
     @property
     def data(self) -> Optional[MetaflowData]:
@@ -2152,7 +2153,7 @@ class Run(MetaflowObject):
         Trigger, optional
             Container of triggering events
         """
-        if "start" in self:
+        if "start" in self and self["start"].task:
             meta = self["start"].task.metadata_dict.get("execution-triggers")
             if meta:
                 return Trigger(json.loads(meta))
