@@ -147,6 +147,7 @@ from . import tuple_util
 # Runner API
 if sys.version_info >= (3, 7):
     from .runner.metaflow_runner import Runner
+    from .runner.signal_manager import SignalManager
     from .runner.nbrun import NBRunner
     from .runner.deployer import Deployer
     from .runner.nbdeploy import NBDeployer

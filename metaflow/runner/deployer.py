@@ -4,13 +4,12 @@ import json
 import time
 import importlib
 import functools
-import tempfile
 
 from typing import Optional, Dict, ClassVar
 
 from metaflow.exception import MetaflowNotFound
 from metaflow.runner.subprocess_manager import SubprocessManager
-from metaflow.runner.utils import handle_timeout
+from metaflow.runner.utils import handle_timeout, temporary_fifo
 
 
 def get_lower_level_group(
@@ -332,14 +331,11 @@ class DeployerImpl(object):
         Exception
             If there is an error during deployment.
         """
-        with tempfile.TemporaryDirectory() as temp_dir:
-            tfp_runner_attribute = tempfile.NamedTemporaryFile(
-                dir=temp_dir, delete=False
-            )
+        with temporary_fifo() as (attribute_file_path, attribute_file_fd):
             # every subclass needs to have `self.deployer_kwargs`
             command = get_lower_level_group(
                 self.api, self.top_level_kwargs, self.TYPE, self.deployer_kwargs
-            ).create(deployer_attribute_file=tfp_runner_attribute.name, **kwargs)
+            ).create(deployer_attribute_file=attribute_file_path, **kwargs)
 
             pid = self.spm.run_command(
                 [sys.executable, *command],
@@ -350,7 +346,7 @@ class DeployerImpl(object):
 
             command_obj = self.spm.get(pid)
             content = handle_timeout(
-                tfp_runner_attribute, command_obj, self.file_read_timeout
+                attribute_file_fd, command_obj, self.file_read_timeout
             )
             content = json.loads(content)
             self.name = content.get("name")
