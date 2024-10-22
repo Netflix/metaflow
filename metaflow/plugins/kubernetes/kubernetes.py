@@ -710,12 +710,23 @@ class Kubernetes(object):
         wait_for_launch(self._job)
 
         # 2) Tail logs until the job has finished
+        self._output_final_logs = False
+
+        def _has_updates():
+            if self._job.is_running:
+                return True
+            # Make sure to output final tail for a job that has finished.
+            if not self._output_final_logs:
+                self._output_final_logs = True
+                return True
+            return False
+
         tail_logs(
             prefix=prefix(),
             stdout_tail=stdout_tail,
             stderr_tail=stderr_tail,
             echo=echo,
-            has_log_updates=lambda: self._job.is_running,
+            has_log_updates=_has_updates,
         )
         # 3) Fetch remaining logs
         #

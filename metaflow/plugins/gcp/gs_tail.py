@@ -11,15 +11,15 @@ from metaflow.plugins.gcp.gs_utils import parse_gs_full_path
 class GSTail(object):
     def __init__(self, blob_full_uri):
         """Location should be something like gs://<bucket_name>/blob"""
-        bucket_name, blob_name = parse_gs_full_path(blob_full_uri)
-        if not blob_name:
+        self.bucket_name, self.blob_name = parse_gs_full_path(blob_full_uri)
+        if not self.blob_name:
             raise MetaflowException(
                 msg="Failed to parse blob_full_uri into gs://<bucket_name>/<blob_name> (got %s)"
                 % blob_full_uri
             )
         client = get_gs_storage_client()
-        bucket = client.bucket(bucket_name)
-        self._blob_client = bucket.blob(blob_name)
+        bucket = client.bucket(self.bucket_name)
+        self._blob_client = bucket.blob(self.blob_name)
         self._pos = 0
         self._tail = b""
 
@@ -46,7 +46,11 @@ class GSTail(object):
     def _make_range_request(self):
         try:
             # Yes we read to the end... memory blow up is possible. We can improve by specifying length param
-            return self._blob_client.download_as_bytes(start=self._pos)
+            # self._blob_client.reload() # try out to update generation number
+            client = get_gs_storage_client()
+            bucket = client.bucket(self.bucket_name)
+            blob_client = bucket.blob(self.blob_name)
+            return blob_client.download_as_bytes(start=self._pos)
         except NotFound:
             return None
         except ClientError as e:
