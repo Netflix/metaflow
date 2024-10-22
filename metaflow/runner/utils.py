@@ -36,11 +36,6 @@ def format_flowfile(cell):
     return "\n".join(lines)
 
 
-def clear_and_set_os_environ(env: Dict):
-    os.environ.clear()
-    os.environ.update(env)
-
-
 def check_process_status(command_obj: "CommandManager"):
     if isinstance(command_obj.process, asyncio.subprocess.Process):
         return command_obj.process.returncode is not None

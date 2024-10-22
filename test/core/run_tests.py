@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import uuid
 from multiprocessing import Pool
 
@@ -52,26 +53,42 @@ def iter_tests():
                     yield obj()
 
 
-def log(msg, formatter=None, context=None, real_bad=False, real_good=False):
-    cstr = ""
-    fstr = ""
-    if context:
-        cstr = " in context '%s'" % context["name"]
-    if formatter:
-        fstr = " %s" % formatter
-    if cstr or fstr:
-        line = "###%s%s: %s ###" % (fstr, cstr, msg)
-    else:
-        line = "### %s ###" % msg
-    if real_bad:
-        line = click.style(line, fg="red", bold=True)
-    elif real_good:
-        line = click.style(line, fg="green", bold=True)
-    else:
-        line = click.style(line, fg="white", bold=True)
+_log_lock = threading.Lock()
 
-    pid = os.getpid()
-    click.echo("[pid %s] %s" % (pid, line))
+
+def log(
+    msg, formatter=None, context=None, real_bad=False, real_good=False, processes=None
+):
+    # Grab a lock to prevent interleaved output
+    with _log_lock:
+        if processes is None:
+            processes = []
+        cstr = ""
+        fstr = ""
+        if context:
+            cstr = " in context '%s'" % context["name"]
+        if formatter:
+            fstr = " %s" % formatter
+        if cstr or fstr:
+            line = "###%s%s: %s ###" % (fstr, cstr, msg)
+        else:
+            line = "### %s ###" % msg
+        if real_bad:
+            line = click.style(line, fg="red", bold=True)
+        elif real_good:
+            line = click.style(line, fg="green", bold=True)
+        else:
+            line = click.style(line, fg="white", bold=True)
+
+        pid = os.getpid()
+        click.echo("[pid %s] %s" % (pid, line))
+        if processes:
+            click.echo("STDOUT follows:")
+            for p in processes:
+                click.echo(p.stdout, nl=False)
+            click.echo("STDERR follows:")
+            for p in processes:
+                click.echo(p.stderr, nl=False)
 
 
 def run_test(formatter, context, debug, checks, env_base, executor):
@@ -156,99 +173,187 @@ def run_test(formatter, context, debug, checks, env_base, executor):
 
         path = os.path.join(tempdir, "test_flow.py")
 
-        env = {}
-        env.update(env_base)
-        # expand environment variables
-        # nonce can be used to insert entropy in env vars.
-        # This is useful e.g. for separating S3 paths of
-        # runs, which may have clashing run_ids
-        env.update(
-            dict(
-                (k, v.format(nonce=str(uuid.uuid4())))
-                for k, v in context["env"].items()
+        original_env = os.environ.copy()
+        try:
+            # allow passenv = USER in tox.ini to work..
+            env = {"USER": original_env.get("USER")}
+            env.update(env_base)
+            # expand environment variables
+            # nonce can be used to insert entropy in env vars.
+            # This is useful e.g. for separating S3 paths of
+            # runs, which may have clashing run_ids
+            env.update(
+                dict(
+                    (k, v.format(nonce=str(uuid.uuid4())))
+                    for k, v in context["env"].items()
+                )
             )
-        )
 
-        pythonpath = os.environ.get("PYTHONPATH", ".")
-        env.update(
-            {
-                "LANG": "en_US.UTF-8",
-                "LC_ALL": "en_US.UTF-8",
-                "PATH": os.environ.get("PATH", "."),
-                "PYTHONIOENCODING": "utf_8",
-                "PYTHONPATH": "%s:%s" % (package, pythonpath),
-            }
-        )
+            pythonpath = os.environ.get("PYTHONPATH", ".")
+            env.update(
+                {
+                    "LANG": "en_US.UTF-8",
+                    "LC_ALL": "en_US.UTF-8",
+                    "PATH": os.environ.get("PATH", "."),
+                    "PYTHONIOENCODING": "utf_8",
+                    "PYTHONPATH": "%s:%s" % (package, pythonpath),
+                }
+            )
 
-        if "pre_command" in context:
-            if context["pre_command"].get("metaflow_command"):
-                cmd = [context["python"], "test_flow.py"]
-                cmd.extend(context["top_options"])
-                cmd.extend(context["pre_command"]["command"])
-            else:
-                cmd = context["pre_command"]["command"]
-            pre_ret = subprocess.call(cmd, env=env)
-            if pre_ret and not context["pre_command"].get("ignore_errors", False):
-                log("pre-command failed", formatter, context)
-                return pre_ret, path
+            os.environ.clear()
+            os.environ.update(env)
 
-        # run flow
-        if executor == "cli":
-            flow_ret = subprocess.call(run_cmd("run"), env=env)
-        elif executor == "api":
-            top_level_dict, run_level_dict = construct_arg_dicts_from_click_api()
-            runner = Runner("test_flow.py", show_output=True, env=env, **top_level_dict)
-            result = runner.run(**run_level_dict)
-            flow_ret = result.command_obj.process.returncode
-
-        if flow_ret:
-            if formatter.should_fail:
-                log("Flow failed as expected.")
-            elif formatter.should_resume:
-                log("Resuming flow", formatter, context)
-                if executor == "cli":
-                    flow_ret = subprocess.call(
-                        run_cmd(
-                            "resume",
-                            [formatter.resume_step] if formatter.resume_step else [],
-                        ),
+            called_processes = []
+            if "pre_command" in context:
+                if context["pre_command"].get("metaflow_command"):
+                    cmd = [context["python"], "test_flow.py"]
+                    cmd.extend(context["top_options"])
+                    cmd.extend(context["pre_command"]["command"])
+                else:
+                    cmd = context["pre_command"]["command"]
+                called_processes.append(
+                    subprocess.run(
+                        cmd,
                         env=env,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        check=False,
                     )
-                elif executor == "api":
-                    _, resume_level_dict = construct_arg_dicts_from_click_api()
-                    if formatter.resume_step:
-                        resume_level_dict["step_to_rerun"] = formatter.resume_step
-                    result = runner.resume(**resume_level_dict)
-                    flow_ret = result.command_obj.process.returncode
-            else:
-                log("flow failed", formatter, context)
-                return flow_ret, path
-        elif formatter.should_fail:
-            log("The flow should have failed but it didn't. Error!", formatter, context)
-            return 1, path
+                )
+                if called_processes[-1].returncode and not context["pre_command"].get(
+                    "ignore_errors", False
+                ):
+                    log(
+                        "pre-command failed",
+                        formatter,
+                        context,
+                        processes=called_processes,
+                    )
+                    return called_processes[-1].returncode, path
 
-        # check results
-        run_id = open("run-id").read()
-        ret = 0
-        for check_name in context["checks"]:
-            check = checks[check_name]
-            python = check["python"]
-            cmd = [python, "check_flow.py", check["class"], run_id]
-            cmd.extend(context["top_options"])
-            check_ret = subprocess.call(cmd, env=env)
-            if check_ret:
+            # run flow
+            if executor == "cli":
+                called_processes.append(
+                    subprocess.run(
+                        run_cmd("run"),
+                        env=env,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        check=False,
+                    )
+                )
+            elif executor == "api":
+                top_level_dict, run_level_dict = construct_arg_dicts_from_click_api()
+                runner = Runner(
+                    "test_flow.py", show_output=False, env=env, **top_level_dict
+                )
+                result = runner.run(**run_level_dict)
+                with open(
+                    result.command_obj.log_files["stdout"], encoding="utf-8"
+                ) as f:
+                    stdout = f.read()
+                with open(
+                    result.command_obj.log_files["stderr"], encoding="utf-8"
+                ) as f:
+                    stderr = f.read()
+                called_processes.append(
+                    subprocess.CompletedProcess(
+                        result.command_obj.command,
+                        result.command_obj.process.returncode,
+                        stdout,
+                        stderr,
+                    )
+                )
+
+            if called_processes[-1].returncode:
+                if formatter.should_fail:
+                    log("Flow failed as expected.")
+                elif formatter.should_resume:
+                    log("Resuming flow as expected", formatter, context)
+                    if executor == "cli":
+                        called_processes.append(
+                            subprocess.run(
+                                run_cmd(
+                                    "resume",
+                                    (
+                                        [formatter.resume_step]
+                                        if formatter.resume_step
+                                        else []
+                                    ),
+                                ),
+                                env=env,
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE,
+                                check=False,
+                            )
+                        )
+                    elif executor == "api":
+                        _, resume_level_dict = construct_arg_dicts_from_click_api()
+                        if formatter.resume_step:
+                            resume_level_dict["step_to_rerun"] = formatter.resume_step
+                        result = runner.resume(**resume_level_dict)
+                        # NOTE: This will include both logs from the original run and resume
+                        # so we will remove the last process
+                        with open(
+                            result.command_obj.log_files["stdout"], encoding="utf-8"
+                        ) as f:
+                            stdout = f.read()
+                        with open(
+                            result.command_obj.log_files["stderr"], encoding="utf-8"
+                        ) as f:
+                            stderr = f.read()
+                        called_processes[-1] = subprocess.CompletedProcess(
+                            result.command_obj.command,
+                            result.command_obj.process.returncode,
+                            stdout,
+                            stderr,
+                        )
+                else:
+                    log("flow failed", formatter, context, processes=called_processes)
+                    return called_processes[-1].returncode, path
+            elif formatter.should_fail:
                 log(
-                    "checker '%s' says that results failed" % check_name,
+                    "The flow should have failed but it didn't. Error!",
                     formatter,
                     context,
+                    processes=called_processes,
                 )
-                ret = check_ret
-            else:
-                log(
-                    "checker '%s' says that results are ok" % check_name,
-                    formatter,
-                    context,
+                return 1, path
+
+            # check results
+            run_id = open("run-id").read()
+            ret = 0
+            for check_name in context["checks"]:
+                check = checks[check_name]
+                python = check["python"]
+                cmd = [python, "check_flow.py", check["class"], run_id]
+                cmd.extend(context["top_options"])
+                called_processes.append(
+                    subprocess.run(
+                        cmd,
+                        env=env,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        check=False,
+                    )
                 )
+                if called_processes[-1].returncode:
+                    log(
+                        "checker '%s' says that results failed" % check_name,
+                        formatter,
+                        context,
+                        processes=called_processes,
+                    )
+                    ret = called_processes[-1].returncode
+                else:
+                    log(
+                        "checker '%s' says that results are ok" % check_name,
+                        formatter,
+                        context,
+                    )
+        finally:
+            os.environ.clear()
+            os.environ.update(original_env)
 
         return ret, path
     finally:
