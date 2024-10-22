@@ -1,6 +1,6 @@
 import asyncio
 import signal
-from typing import NewType, Mapping, Set, Callable, Optional
+from typing import NewType, MutableMapping, Set, Callable, Optional
 
 SignalHandler = NewType("SignalHandler", Callable[[int, []], None])
 
@@ -27,8 +27,8 @@ class SignalManager:
 
     hook_signals: bool
     event_loop: Optional[asyncio.AbstractEventLoop]
-    signal_map: Mapping[int, Set[SignalHandler]] = dict()
-    replaced_signals: Mapping[int, SignalHandler] = dict()
+    signal_map: MutableMapping[int, Set[SignalHandler]]
+    replaced_signals: MutableMapping[int, SignalHandler]
 
     def __init__(
         self,
@@ -40,6 +40,9 @@ class SignalManager:
             self.event_loop = event_loop or asyncio.get_running_loop()
         except RuntimeError:
             self.event_loop = None
+
+        self.signal_map = {}
+        self.replaced_signals = {}
 
     def __exit__(self, exc_type, exc_value, traceback):
         for sig in self.signal_map:
