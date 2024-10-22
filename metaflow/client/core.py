@@ -16,6 +16,7 @@ from typing import (
     List,
     NamedTuple,
     Optional,
+    TYPE_CHECKING,
     Tuple,
 )
 
@@ -36,6 +37,9 @@ from metaflow.util import cached_property, is_stringish, resolve_identity, to_un
 
 from ..info_file import INFO_FILE
 from .filecache import FileCache
+
+if TYPE_CHECKING:
+    from metaflow.metadata import MetadataProvider
 
 try:
     # python2
@@ -82,28 +86,16 @@ def metadata(ms: str) -> str:
         get_metadata()).
     """
     global current_metadata
-    infos = ms.split("@", 1)
-    types = [m.TYPE for m in METADATA_PROVIDERS]
-    if infos[0] in types:
-        current_metadata = [m for m in METADATA_PROVIDERS if m.TYPE == infos[0]][0]
-        if len(infos) > 1:
-            current_metadata.INFO = infos[1]
-    else:
-        # Deduce from ms; if starts with http, use service or else use local
-        if ms.startswith("http"):
-            metadata_type = "service"
-        else:
-            metadata_type = "local"
-        res = [m for m in METADATA_PROVIDERS if m.TYPE == metadata_type]
-        if not res:
-            print(
-                "Cannot find a '%s' metadata provider -- "
-                "try specifying one explicitly using <type>@<info>",
-                metadata_type,
-            )
-            return get_metadata()
-        current_metadata = res[0]
-        current_metadata.INFO = ms
+    provider, info = _metadata(ms)
+    if provider is None:
+        print(
+            "Cannot find a metadata provider -- "
+            "try specifying one explicitly using <type>@<info>",
+        )
+        return get_metadata()
+    current_metadata = provider
+    if info:
+        current_metadata.INFO = info
     return get_metadata()
 
 
@@ -127,7 +119,7 @@ def get_metadata() -> str:
     """
     if current_metadata is False:
         default_metadata()
-    return "%s@%s" % (current_metadata.TYPE, current_metadata.INFO)
+    return current_metadata.metadata_str()
 
 
 def default_metadata() -> str:
@@ -268,9 +260,16 @@ class MetaflowObject(object):
         _object: Optional["MetaflowObject"] = None,
         _parent: Optional["MetaflowObject"] = None,
         _namespace_check: bool = True,
+        _metaflow: Optional["Metaflow"] = None,
         _current_namespace: Optional[str] = None,
+        _current_metadata: Optional[str] = None,
     ):
-        self._metaflow = Metaflow()
+        # the default namespace is activated lazily at the first
+        # get_namespace(). The other option of activating
+        # the namespace at the import time is problematic, since there
+        # may be other modules that alter environment variables etc.
+        # which may affect the namespace setting.
+        self._metaflow = Metaflow(_current_metadata) or _metaflow
         self._parent = _parent
         self._path_components = None
         self._attempt = attempt
@@ -390,6 +389,7 @@ class MetaflowObject(object):
                     attempt=self._attempt,
                     _object=obj,
                     _parent=self,
+                    _metaflow=self._metaflow,
                     _namespace_check=self._namespace_check,
                     _current_namespace=(
                         self._current_namespace if self._namespace_check else None
@@ -505,6 +505,7 @@ class MetaflowObject(object):
                 attempt=self._attempt,
                 _object=obj,
                 _parent=self,
+                _metaflow=self._metaflow,
                 _namespace_check=self._namespace_check,
                 _current_namespace=(
                     self._current_namespace if self._namespace_check else None
@@ -552,7 +553,25 @@ class MetaflowObject(object):
             _current_namespace=ns,
         )
 
-    _UNPICKLE_FUNC = {"2.8.4": _unpickle_284, "2.12.4": _unpickle_2124}
+    def _unpickle_21226(self, data):
+        if len(data) != 5:
+            raise MetaflowInternalError(
+                "Unexpected size of array: {}".format(len(data))
+            )
+        pathspec, attempt, md, ns, namespace_check = data
+        self.__init__(
+            pathspec=pathspec,
+            attempt=attempt,
+            _namespace_check=namespace_check,
+            _current_metadata=md,
+            _current_namespace=ns,
+        )
+
+    _UNPICKLE_FUNC = {
+        "2.8.4": _unpickle_284,
+        "2.12.4": _unpickle_2124,
+        "2.12.26": _unpickle_21226,
+    }
 
     def __setstate__(self, state):
         """
@@ -595,10 +614,11 @@ class MetaflowObject(object):
         # checking for the namespace even after unpickling since we will know which
         # namespace to check.
         return {
-            "version": "2.12.4",
+            "version": "2.12.26",
             "data": [
                 self.pathspec,
                 self._attempt,
+                self._metaflow.metadata.metadata_str(),
                 self._current_namespace,
                 self._namespace_check,
             ],
@@ -2288,17 +2308,16 @@ class Metaflow(object):
         if it has at least one run in the namespace.
     """
 
-    def __init__(self):
-        # the default namespace is activated lazily at the first object
-        # invocation or get_namespace(). The other option of activating
-        # the namespace at the import time is problematic, since there
-        # may be other modules that alter environment variables etc.
-        # which may affect the namescape setting.
-        if current_namespace is False:
-            default_namespace()
-        if current_metadata is False:
-            default_metadata()
-        self.metadata = current_metadata
+    def __init__(self, _current_metadata: Optional[str] = None):
+        if _current_metadata:
+            provider, info = _metadata(_current_metadata)
+            self.metadata = provider
+            if info:
+                self.metadata.INFO = info
+        else:
+            if current_metadata is False:
+                default_metadata()
+            self.metadata = current_metadata
 
     @property
     def flows(self) -> List[Flow]:
@@ -2335,7 +2354,7 @@ class Metaflow(object):
         all_flows = all_flows if all_flows else []
         for flow in all_flows:
             try:
-                v = Flow(_object=flow)
+                v = Flow(_object=flow, _metaflow=self)
                 yield v
             except MetaflowNamespaceMismatch:
                 continue
@@ -2359,7 +2378,26 @@ class Metaflow(object):
         Flow
             Flow with the given name.
         """
-        return Flow(name)
+        return Flow(name, _metaflow=self)
+
+
+def _metadata(ms: str) -> Tuple[Optional["MetadataProvider"], Optional[str]]:
+    infos = ms.split("@", 1)
+    types = [m.TYPE for m in METADATA_PROVIDERS]
+    if infos[0] in types:
+        provider = [m for m in METADATA_PROVIDERS if m.TYPE == infos[0]][0]
+        if len(infos) > 1:
+            return provider, infos[1]
+        return provider, None
+    # Deduce from ms; if starts with http, use service or else use local
+    if ms.startswith("http"):
+        metadata_type = "service"
+    else:
+        metadata_type = "local"
+    res = [m for m in METADATA_PROVIDERS if m.TYPE == metadata_type]
+    if not res:
+        return None, None
+    return res[0], ms
 
 
 _CLASSES["flow"] = Flow

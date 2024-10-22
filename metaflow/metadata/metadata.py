@@ -76,6 +76,12 @@ class ObjectOrder:
 
 @with_metaclass(MetadataProviderMeta)
 class MetadataProvider(object):
+    TYPE = None
+
+    @classmethod
+    def metadata_str(cls):
+        return "%s@%s" % (cls.TYPE, cls.INFO)
+
     @classmethod
     def compute_info(cls, val):
         """

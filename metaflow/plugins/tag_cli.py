@@ -225,10 +225,7 @@ def _get_client_run_obj(obj, run_id, user_namespace):
 
 
 def _set_current(obj):
-    current._set_env(
-        metadata_str="%s@%s"
-        % (obj.metadata.__class__.TYPE, obj.metadata.__class__.INFO)
-    )
+    current._set_env(metadata_str=obj.metadata.metadata_str())
 
 
 @click.group()

@@ -226,12 +226,12 @@ def create(
     validate_tags(tags)
 
     if deployer_attribute_file:
-        with open(deployer_attribute_file, "w") as f:
+        with open(deployer_attribute_file, "w", encoding="utf-8") as f:
             json.dump(
                 {
                     "name": obj.workflow_name,
                     "flow_name": obj.flow.name,
-                    "metadata": get_metadata(),
+                    "metadata": obj.metadata.metadata_str(),
                 },
                 f,
             )
@@ -657,7 +657,7 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
             json.dump(
                 {
                     "name": obj.workflow_name,
-                    "metadata": get_metadata(),
+                    "metadata": obj.metadata.metadata_str(),
                     "pathspec": "/".join((obj.flow.name, run_id)),
                 },
                 f,
