@@ -18,8 +18,8 @@ class GSTail(object):
                 % blob_full_uri
             )
         client = get_gs_storage_client()
-        bucket = client.bucket(self.bucket_name)
-        self._blob_client = bucket.blob(self.blob_name)
+        self.bucket = client.bucket(self.bucket_name)
+        self._blob_client = self.bucket.blob(self.blob_name)
         self._pos = 0
         self._tail = b""
 
@@ -46,10 +46,12 @@ class GSTail(object):
     def _make_range_request(self):
         try:
             # Yes we read to the end... memory blow up is possible. We can improve by specifying length param
-            # self._blob_client.reload() # try out to update generation number
-            client = get_gs_storage_client()
-            bucket = client.bucket(self.bucket_name)
-            blob_client = bucket.blob(self.blob_name)
+            # NOTE: We must re-instantiate the whole client here due to a behavior with the GS library,
+            # otherwise download_as_bytes will simply return the same content for consecutive requests with the same attributes,
+            # even if the blob has grown in size.
+            # client = get_gs_storage_client()
+            # bucket = client.bucket(self.bucket_name)
+            blob_client = self.bucket.blob(self.blob_name)
             return blob_client.download_as_bytes(start=self._pos)
         except NotFound:
             return None
