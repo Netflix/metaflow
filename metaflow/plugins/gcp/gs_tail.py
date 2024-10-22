@@ -49,8 +49,6 @@ class GSTail(object):
             # NOTE: We must re-instantiate the whole client here due to a behavior with the GS library,
             # otherwise download_as_bytes will simply return the same content for consecutive requests with the same attributes,
             # even if the blob has grown in size.
-            # client = get_gs_storage_client()
-            # bucket = client.bucket(self.bucket_name)
             blob_client = self.bucket.blob(self.blob_name)
             return blob_client.download_as_bytes(start=self._pos)
         except NotFound:
