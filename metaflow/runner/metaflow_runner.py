@@ -6,7 +6,7 @@ import tempfile
 
 from typing import Dict, Iterator, Optional, Tuple
 
-from metaflow import Run, metadata
+from metaflow import Run
 
 from .utils import handle_timeout
 from .subprocess_manager import CommandManager, SubprocessManager
@@ -275,9 +275,10 @@ class Runner(object):
 
         # Set the correct metadata from the runner_attribute file corresponding to this run.
         metadata_for_flow = content.get("metadata")
-        metadata(metadata_for_flow)
 
-        run_object = Run(pathspec, _namespace_check=False)
+        run_object = Run(
+            pathspec, _namespace_check=False, _current_metadata=metadata_for_flow
+        )
         return ExecutingRun(self, command_obj, run_object)
 
     def run(self, **kwargs) -> ExecutingRun:
