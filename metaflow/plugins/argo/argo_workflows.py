@@ -447,6 +447,8 @@ class ArgoWorkflows(object):
         has_schedule = self.flow._flow_decorators.get("schedule") is not None
         seen = set()
         for var, param in self.flow._get_parameters():
+            # NOTE: We skip config parameters as these do not have dynamic values,
+            # and need to be treated differently.
             if param.IS_FLOW_PARAMETER:
                 continue
             # Throw an exception if the parameter is specified twice.
@@ -503,7 +505,7 @@ class ArgoWorkflows(object):
         return parameters
 
     def _process_config_parameters(self):
-        parameters = {}
+        parameters = []
         seen = set()
         for var, param in self.flow._get_parameters():
             if not param.IS_FLOW_PARAMETER:
@@ -518,22 +520,8 @@ class ArgoWorkflows(object):
                 )
             seen.add(norm)
 
-            is_required = param.kwargs.get("required", False)
-
-            default_value = deploy_time_eval(param.kwargs.get("default"))
-            # If the value is not required and the value is None, we set the value to
-            # the JSON equivalent of None to please argo-workflows. Unfortunately it
-            # has the side effect of casting the parameter value to string null during
-            # execution - which needs to be fixed imminently.
-            if not is_required or default_value is not None:
-                default_value = json.dumps(default_value)
-
-            parameters[param.name] = dict(
-                name=param.name,
-                kv_name=ConfigInput.make_key_name(param.name),
-                value=default_value,
-                description=param.kwargs.get("help"),
-                is_required=is_required,
+            parameters.append(
+                dict(name=param.name, kv_name=ConfigInput.make_key_name(param.name))
             )
         return parameters
 
@@ -559,6 +547,7 @@ class ArgoWorkflows(object):
             # convert them to lower case since Metaflow parameters are case
             # insensitive.
             seen = set()
+            # NOTE: We skip config parameters as their values can not be set through event payloads
             params = set(
                 [
                     param.name.lower()
@@ -1542,12 +1531,6 @@ class ArgoWorkflows(object):
                         % (parameter["name"], parameter["name"])
                         for parameter in self.parameters.values()
                     ]
-                    # + [
-                    #     (
-                    #         "--config-value %s %s" % (config_param["name"], config_param["kv_name"])
-                    #     )
-                    #     for config_param in self.config_parameters.values()
-                    # ]
                 )
                 if self.tags:
                     init.extend("--tag %s" % tag for tag in self.tags)
@@ -1767,8 +1750,7 @@ class ArgoWorkflows(object):
 
             # map config values
             cfg_env = {
-                param["name"]: param["kv_name"]
-                for param in self.config_parameters.values()
+                param["name"]: param["kv_name"] for param in self.config_parameters
             }
             if cfg_env:
                 env["METAFLOW_FLOW_CONFIG_VALUE"] = json.dumps(cfg_env)
