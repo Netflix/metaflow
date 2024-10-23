@@ -39,20 +39,20 @@ silly_config = "baz:awesome"
 
 
 class TitusOrNot(CustomFlowDecorator):
-    def evaluate(self, flow_proxy):
-        for name, s in flow_proxy.steps:
-            if name in flow_proxy.config.run_on_titus:
-                s.add_decorator(titus, cpu=flow_proxy.config.cpu_count)
+    def evaluate(self, mutable_flow):
+        for name, s in mutable_flow.steps:
+            if name in mutable_flow.config.run_on_titus:
+                s.add_decorator(titus, cpu=mutable_flow.config.cpu_count)
 
 
 class AddEnvToStart(CustomFlowDecorator):
-    def evaluate(self, flow_proxy):
-        s = flow_proxy.start
-        s.add_decorator(environment, vars={"hello": flow_proxy.config.env_to_start})
+    def evaluate(self, mutable_flow):
+        s = mutable_flow.start
+        s.add_decorator(environment, vars={"hello": mutable_flow.config.env_to_start})
 
 
-@TitusOrNot()
-@AddEnvToStart()
+@TitusOrNot
+@AddEnvToStart
 @project(name=config_expr("config").project_name)
 class HelloConfig(FlowSpec):
     """

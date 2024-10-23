@@ -11,16 +11,16 @@ class BasicConfigTest(MetaflowTest):
         "default_from_func": {"default": "param_default", "type": "int"},
     }
     CONFIGS = {
-        "config": {"default": "default_config"},
+        "config": {"default_value": "default_config"},
         "silly_config": {"required": True, "parser": "silly_parser"},
         "config2": {},
-        "config3": {"default": "config_default"},
+        "config3": {"default_value": "config_default"},
     }
     HEADER = """
 import json
 import os
 
-os.environ['METAFLOW_FLOW_CONFIG'] = json.dumps(
+os.environ['METAFLOW_FLOW_CONFIG_VALUE'] = json.dumps(
     {
         "config2": {"default_param": 123},
         "silly_config": "baz:amazing"

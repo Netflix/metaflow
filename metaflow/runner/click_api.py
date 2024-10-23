@@ -39,7 +39,7 @@ from metaflow.decorators import add_decorator_options
 from metaflow.exception import MetaflowException
 from metaflow.includefile import FilePathClass
 from metaflow.parameters import JSONTypeClass, flow_context
-from metaflow.config_options import LocalFileInput
+from metaflow.user_configs.config_options import LocalFileInput
 
 # Define a recursive type alias for JSON
 JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]

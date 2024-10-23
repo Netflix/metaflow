@@ -196,7 +196,7 @@ class ConfigInput:
         #         the value go through ConvertPath or ConvertDictOrStr
         #  - the actual value passed through prefixed with _CONVERT_PREFIX
 
-        print("Got arg name %s and values %s" % (param.name, str(value)))
+        # print("Got arg name %s and values %s" % (param.name, str(value)))
         do_return = self._value_values is None and self._path_values is None
         # We only keep around non default values. We could simplify by checking just one
         # value and if it is default it means all are but this doesn't seem much more effort
@@ -231,7 +231,7 @@ class ConfigInput:
         all_values = dict(self._path_values or {})
         all_values.update(self._value_values or {})
 
-        print("Got all values: %s" % str(all_values))
+        # print("Got all values: %s" % str(all_values))
         flow_cls._flow_state[_FlowState.CONFIGS] = {}
 
         to_return = {}
@@ -263,7 +263,7 @@ class ConfigInput:
                 else:
                     # This is a value
                     merged_configs[n] = ConvertDictOrStr.convert_value(val, False)
-
+        # print("Merged configs: %s" % str(merged_configs))
         missing_configs = set()
         no_file = []
         no_default_file = []
@@ -433,7 +433,7 @@ def config_options(cmd):
                     k,
                     (
                         ConvertPath.mark_as_default(v[0])
-                        if not callable(v) and v[1]
+                        if not callable(v[0]) and v[1]
                         else None
                     ),
                 )
