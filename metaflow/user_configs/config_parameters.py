@@ -320,31 +320,28 @@ class Config(Parameter, collections.abc.Mapping):
                 % name
             )
         self._default_is_file = default is not None
-        default = default or default_value
-
+        kwargs["default"] = default or default_value
         super(Config, self).__init__(
-            name, default=default, required=required, help=help, type=str, **kwargs
+            name, required=required, help=help, type=str, **kwargs
         )
 
         if isinstance(kwargs.get("default", None), str):
             kwargs["default"] = json.dumps(kwargs["default"])
         self.parser = parser
 
-        self._delay_self = DelayEvaluator(name.lower())
-
     def load_parameter(self, v):
         return v
 
     # Support <config>.<var> syntax
     def __getattr__(self, name):
-        return self._delay_self.__getattr__(name)
+        return DelayEvaluator(self.name.lower()).__getattr__(name)
 
     # Next three methods are to implement mapping to support **<config> syntax
     def __iter__(self):
-        return iter(self._delay_self)
+        return iter(DelayEvaluator(self.name.lower()))
 
     def __len__(self):
-        return len(self._delay_self)
+        return len(DelayEvaluator(self.name.lower()))
 
     def __getitem__(self, key):
-        return self._delay_self[key]
+        return DelayEvaluator(self.name.lower())[key]
