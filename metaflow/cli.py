@@ -1,9 +1,12 @@
+import os
 import inspect
 import json
 import sys
+import time
 import traceback
 from datetime import datetime
 from functools import wraps
+from collections import namedtuple
 
 import metaflow.tracing as tracing
 from metaflow._vendor import click
@@ -37,7 +40,7 @@ from .plugins import (
 )
 from .pylint_wrapper import PyLint
 from .R import metaflow_r_version, use_r
-from .runtime import NativeRuntime
+from .runtime import NativeRuntime, SpinRuntime
 from .tagging_util import validate_tags
 from .task import MetaflowTask
 from .unbounded_foreach import UBF_CONTROL, UBF_TASK
@@ -46,6 +49,7 @@ from .util import (
     get_latest_run_id,
     resolve_identity,
     write_latest_run_id,
+    REQUIRED_ANCESTORS,
 )
 
 ERASE_TO_EOL = "\033[K"
@@ -55,6 +59,7 @@ INDENT = " " * 4
 LOGGER_TIMESTAMP = "magenta"
 LOGGER_COLOR = "green"
 LOGGER_BAD_COLOR = "red"
+
 
 try:
     # Python 2
@@ -302,6 +307,407 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
         with open(file, "wb") as f:
             pickle.dump(output, f, protocol=pickle.HIGHEST_PROTOCOL)
         echo("Artifacts written to *%s*" % file)
+
+
+@cli.command(
+    help="Command used to spin up a single task based on the artifacts from "
+    "a previous run or artifacts provided by the user."
+)
+@click.argument("step-name")
+@click.option(
+    "--tag",
+    "tags",
+    multiple=True,
+    default=None,
+    help="Annotate this run with the given tag. You can specify "
+    "this option multiple times to attach multiple tags in "
+    "the run.",
+)
+@click.option(
+    "--prev-run-id",
+    default=None,
+    required=True,
+    help="Run ID of a previous execution to fetch the artifacts from.",
+)
+@click.option(
+    "--ancestor-tasks",
+    type=str,
+    default=None,
+    show_default=True,
+    help="A JSON string consisting of the key-value pairs of the ancestor tasks.",
+)
+@click.option(
+    "--foreach-index",
+    type=int,
+    default=None,
+    show_default=True,
+    help="For-each index to use for the spin task",
+)
+@click.option(
+    "--foreach-value",
+    type=int,
+    default=None,
+    show_default=True,
+    help="The value of the for-each variable to use for the spin task",
+)
+@click.option(
+    "--artifacts",
+    type=str,
+    default=None,
+    help="A JSON string consisting of the key-value pairs of the artifacts.",
+)
+@click.option(
+    "--artifacts-module",
+    type=str,
+    default=None,
+    help="A python module that contains the artifacts in a dictionary called `mf_artifacts`.",
+)
+@click.option(
+    "--skip-decorators/--no-skip-decorators",
+    is_flag=True,
+    default=True,
+    show_default=True,
+    help="Skip decorators attached to the step.",
+)
+@click.option(
+    "--run-id-file",
+    default=None,
+    show_default=True,
+    type=str,
+    help="Write the ID of this run to the file specified.",
+)
+@click.option(
+    "--runner-attribute-file",
+    default=None,
+    show_default=True,
+    type=str,
+    help="Write the metadata and pathspec of this run to the file specified. Used internally for Metaflow's Runner API.",
+)
+@click.pass_context
+def spin(
+    ctx,
+    step_name,
+    tags=None,
+    decospecs=None,
+    prev_run_id=None,
+    ancestor_tasks=None,
+    foreach_index=None,
+    foreach_value=None,
+    artifacts=None,
+    artifacts_module=None,
+    skip_decorators=False,
+    run_id_file=None,
+    runner_attribute_file=None,
+    **kwargs,
+):
+    from .spin_utils import SpinParserValidator
+    from metaflow.datastore.spin_datastore.step_datastore import SpinStepDatastore
+    from metaflow.datastore.spin_datastore.inputs_datastore import SpinInputsDatastore
+
+    # We first validate that appropriate parameters are passed
+    step_func = getattr(ctx.obj.flow, step_name)
+    spin_parser_validator = SpinParserValidator(
+        ctx,
+        step_name,
+        prev_run_id,
+        ancestor_tasks=ancestor_tasks,
+        artifacts=artifacts,
+        artifacts_module=artifacts_module,
+        foreach_index=foreach_index,
+        foreach_value=foreach_value,
+        skip_decorators=skip_decorators,
+        step_func=step_func,
+    )
+    start_time = time.time()
+    spin_parser_validator.validate()
+    end_validation_time = time.time()
+    ctx.obj.echo(f"Validation Time: {end_validation_time - start_time}")
+
+    # We now set the parameters, step_name, and the constants for the flow
+    ctx.obj.step_name = step_name
+    ctx.obj.flow._set_constants(ctx.obj.graph, kwargs)
+
+    step_datastore, join_inputs_datastore = None, None
+    # We now generate the input datastore for our spin task
+    if spin_parser_validator.step_type == "join":
+        join_inputs_datastore = SpinInputsDatastore(spin_parser_validator)
+    else:
+        step_datastore = SpinStepDatastore(spin_parser_validator)
+
+    # Additional validation for tags, instantiating step decorators, and MetaflowPackage
+    before_run_or_spin(ctx.obj, tags, decospecs, is_spin=True)
+
+    spin_runtime = SpinRuntime(
+        ctx.obj.flow,
+        ctx.obj.graph,
+        ctx.obj.flow_datastore,
+        ctx.obj.metadata,
+        ctx.obj.environment,
+        ctx.obj.package,
+        ctx.obj.logger,
+        ctx.obj.entrypoint,
+        ctx.obj.event_logger,
+        ctx.obj.monitor,
+        spin_parser_validator=spin_parser_validator,
+        step_datastore=step_datastore,
+        join_inputs_datastore=join_inputs_datastore,
+        step_func=step_func,
+        run_id_file=run_id_file,
+        runner_attribute_file=runner_attribute_file,
+    )
+    spin_runtime.execute()
+    end_spin_init_time = time.time()
+    ctx.obj.echo(
+        f"Spin Runtime Initialization Time: {end_spin_init_time - end_validation_time}"
+    )
+
+    # task = MetaflowTask(
+    #     ctx.obj.flow,
+    #     ctx.obj.flow_datastore,  # local datastore
+    #     ctx.obj.metadata,  # local metadata provider
+    #     ctx.obj.environment,  # local environment
+    #     ctx.obj.echo,
+    #     ctx.obj.event_logger,  # null logger
+    #     ctx.obj.monitor,  # null monitor
+    #     None,  # no unbounded foreach context
+    # )
+    # end_task_init_time = time.time()
+    # ctx.obj.logger(
+    #     f"Spinning up step `{step_name}` with run_id {new_run_id} and task_id {new_task_id}",
+    #     system_msg=True,
+    # )
+    # print("Datastore Root: ", ctx.obj.datastore_impl.datastore_root)
+    # print(f"Validation Time: {end_validation_time - start_time}")
+    # print(f"Task Init Time: {end_task_init_time - end_validation_time}")
+    # print("-" * 100)
+    # write_latest_run_id(ctx.obj, new_run_id)
+    # write_file(run_id_file, new_run_id)
+    #
+    # local_metadata = (
+    #     f"{ctx.obj.metadata.__class__.TYPE}@{ctx.obj.metadata.__class__.INFO}"
+    # )
+    # if runner_attribute_file:
+    #     with open(runner_attribute_file, "w") as f:
+    #         json.dump(
+    #             {
+    #                 "task_id": new_task_id,
+    #                 "step_name": step_name,
+    #                 "run_id": new_run_id,
+    #                 "flow_name": ctx.obj.flow.name,
+    #                 "metadata": local_metadata,
+    #             },
+    #             f,
+    #         )
+    #
+    # task.run_spin_step(
+    #     spin_parser_validator=spin_parser_validator,
+    #     new_task_id=new_task_id,
+    #     new_run_id=new_run_id,
+    #     step_datastore=step_datastore,
+    #     join_inputs_datastore=join_inputs_datastore,
+    # )
+    # print("-" * 100)
+    # end_time = time.time()
+    # print(f"Total Time: {end_time - start_time}")
+
+
+@cli.command(help="Internal command to execute a single spin task.", hidden=True)
+@click.argument("step-name")
+@click.option(
+    "--run-id",
+    default=None,
+    required=True,
+    help="ID for one execution of the spin step of the flow.",
+)
+@click.option(
+    "--task-id",
+    default=None,
+    required=True,
+    show_default=True,
+    help="ID for this instance of the step.",
+)
+@click.option(
+    "--input-paths",
+    help="A comma-separated list of pathspecs specifying inputs for this step.",
+)
+@click.option(
+    "--retry-count",
+    default=0,
+    help="How many times we have attempted to run this task.",
+)
+@click.option(
+    "--max-user-code-retries",
+    default=0,
+    help="How many times we should attempt running the user code.",
+)
+@click.option(
+    "--namespace",
+    "opt_namespace",
+    default=None,
+    help="Change namespace from the default (your username) to the specified tag.",
+)
+@click.option(
+    "--prev-run-id",
+    default=None,
+    required=True,
+    help="Run ID of a previous execution to fetch the artifacts from.",
+)
+@click.option(
+    "--ancestor-tasks",
+    type=str,
+    default=None,
+    show_default=True,
+    help="A JSON string consisting of the key-value pairs of the ancestor tasks.",
+)
+@click.option(
+    "--foreach-index",
+    type=int,
+    default=None,
+    show_default=True,
+    help="For-each index to use for the spin task",
+)
+@click.option(
+    "--foreach-value",
+    type=int,
+    default=None,
+    show_default=True,
+    help="The value of the for-each variable to use for the spin task",
+)
+@click.option(
+    "--artifacts",
+    type=str,
+    default=None,
+    help="A JSON string consisting of the key-value pairs of the artifacts.",
+)
+@click.option(
+    "--artifacts-module",
+    type=str,
+    default=None,
+    help="A python module that contains the artifacts in a dictionary called `mf_artifacts`.",
+)
+@click.option(
+    "--skip-decorators/--no-skip-decorators",
+    is_flag=True,
+    default=True,
+    show_default=True,
+    help="Skip decorators attached to the step.",
+)
+@click.option(
+    "--run-id-file",
+    default=None,
+    show_default=True,
+    type=str,
+    help="Write the ID of this run to the file specified.",
+)
+@click.option(
+    "--runner-attribute-file",
+    default=None,
+    show_default=True,
+    type=str,
+    help="Write the metadata and pathspec of this run to the file specified. Used internally for Metaflow's Runner API.",
+)
+@click.pass_context
+def spin_internal(
+    ctx,
+    step_name,
+    run_id=None,
+    task_id=None,
+    input_paths=None,
+    retry_count=None,
+    max_user_code_retries=None,
+    opt_namespace=None,
+    tags=None,
+    decospecs=None,
+    prev_run_id=None,
+    ancestor_tasks=None,
+    foreach_index=None,
+    foreach_value=None,
+    artifacts=None,
+    artifacts_module=None,
+    skip_decorators=False,
+    run_id_file=None,
+    runner_attribute_file=None,
+    **kwargs,
+):
+    ctx.obj.echo("Running *spin_internal*")
+
+    from .spin_utils import SpinParserValidator
+    from metaflow.datastore.spin_datastore.step_datastore import SpinStepDatastore
+    from metaflow.datastore.spin_datastore.inputs_datastore import SpinInputsDatastore
+
+    # We first validate that appropriate parameters are passed
+    step_func = getattr(ctx.obj.flow, step_name)
+    spin_parser_validator = SpinParserValidator(
+        ctx,
+        step_name,
+        prev_run_id,
+        ancestor_tasks=ancestor_tasks,
+        artifacts=artifacts,
+        artifacts_module=artifacts_module,
+        foreach_index=foreach_index,
+        foreach_value=foreach_value,
+        skip_decorators=skip_decorators,
+        step_func=step_func,
+    )
+    start_time = time.time()
+    spin_parser_validator.validate()
+    end_validation_time = time.time()
+    ctx.obj.echo(f"Validation Time: {end_validation_time - start_time}")
+
+    task = MetaflowTask(
+        ctx.obj.flow,
+        ctx.obj.flow_datastore,  # local datastore
+        ctx.obj.metadata,  # local metadata provider
+        ctx.obj.environment,  # local environment
+        ctx.obj.echo,
+        ctx.obj.event_logger,  # null logger
+        ctx.obj.monitor,  # null monitor
+        None,  # no unbounded foreach context
+    )
+    end_task_init_time = time.time()
+    ctx.obj.logger(
+        f"Spinning up step `{step_name}` with run_id {run_id} and task_id {task_id}",
+        system_msg=True,
+    )
+
+    write_latest_run_id(ctx.obj, run_id)
+    write_file(run_id_file, run_id)
+
+    local_metadata = (
+        f"{ctx.obj.metadata.__class__.TYPE}@{ctx.obj.metadata.__class__.INFO}"
+    )
+    if runner_attribute_file:
+        with open(runner_attribute_file, "w") as f:
+            json.dump(
+                {
+                    "task_id": new_task_id,
+                    "step_name": step_name,
+                    "run_id": new_run_id,
+                    "flow_name": ctx.obj.flow.name,
+                    "metadata": local_metadata,
+                },
+                f,
+            )
+
+    step_datastore, join_inputs_datastore = None, None
+    # We now generate the input datastore for our spin task
+    if spin_parser_validator.step_type == "join":
+        join_inputs_datastore = SpinInputsDatastore(spin_parser_validator)
+    else:
+        step_datastore = SpinStepDatastore(spin_parser_validator)
+
+    task.run_spin_step(
+        spin_parser_validator=spin_parser_validator,
+        new_task_id=task_id,
+        new_run_id=run_id,
+        step_datastore=step_datastore,
+        join_inputs_datastore=join_inputs_datastore,
+    )
+    print("-" * 100)
+    end_time = time.time()
+    print(f"Total Time: {end_time - start_time}")
+
+    # print(f"ctx.obj.flow._graph_info: {ctx.obj.flow._graph_info}")
 
 
 # TODO - move step and init under a separate 'internal' subcommand
@@ -641,7 +1047,7 @@ def resume(
     resume_identifier=None,
     runner_attribute_file=None,
 ):
-    before_run(obj, tags, decospecs)
+    before_run_or_spin(obj, tags, decospecs)
 
     if origin_run_id is None:
         origin_run_id = get_latest_run_id(obj.echo, obj.flow.name)
@@ -750,11 +1156,11 @@ def run(
     run_id_file=None,
     runner_attribute_file=None,
     user_namespace=None,
-    **kwargs
+    **kwargs,
 ):
     if user_namespace is not None:
         namespace(user_namespace or None)
-    before_run(obj, tags, decospecs)
+    before_run_or_spin(obj, tags, decospecs)
 
     runtime = NativeRuntime(
         obj.flow,
@@ -797,7 +1203,7 @@ def write_file(file_path, content):
             f.write(str(content))
 
 
-def before_run(obj, tags, decospecs):
+def before_run_or_spin(obj, tags, decospecs, is_spin=False):
     validate_tags(tags)
 
     # There's a --with option both at the top-level and for the run
@@ -826,9 +1232,22 @@ def before_run(obj, tags, decospecs):
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     # obj.environment.init_environment(obj.logger)
 
-    decorators._init_step_decorators(
-        obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
-    )
+    # In case of spin subcommand, we don't want to init step decorators
+    # for all steps in the flow. We only want to init step decorators for
+    # the step that is being spun up.
+    if not is_spin:
+        decorators._init_step_decorators(
+            obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
+        )
+    else:
+        decorators._init_step_decorator(
+            obj.flow,
+            obj.step_name,
+            obj.environment,
+            obj.flow_datastore,
+            obj.logger,
+            obj.step_name,
+        )
 
     obj.metadata.add_sticky_tags(tags=tags)
 
@@ -928,7 +1347,7 @@ def start(
     pylint=None,
     event_logger=None,
     monitor=None,
-    **deco_options
+    **deco_options,
 ):
     global echo
     if quiet:
@@ -965,14 +1384,10 @@ def start(
     ctx.obj.event_logger = LOGGING_SIDECARS[event_logger](
         flow=ctx.obj.flow, env=ctx.obj.environment
     )
-    ctx.obj.event_logger.start()
-    _system_logger.init_system_logger(ctx.obj.flow.name, ctx.obj.event_logger)
 
     ctx.obj.monitor = MONITOR_SIDECARS[monitor](
         flow=ctx.obj.flow, env=ctx.obj.environment
     )
-    ctx.obj.monitor.start()
-    _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
 
     ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == metadata][0](
         ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
@@ -1001,20 +1416,50 @@ def start(
         ctx.obj.monitor,
     )
 
-    # It is important to initialize flow decorators early as some of the
-    # things they provide may be used by some of the objects initialized after.
-    decorators._init_flow_decorators(
-        ctx.obj.flow,
-        ctx.obj.graph,
-        ctx.obj.environment,
-        ctx.obj.flow_datastore,
-        ctx.obj.metadata,
-        ctx.obj.logger,
-        echo,
-        deco_options,
-    )
+    if ctx.invoked_subcommand == "spin":
+        # In the case of spin subcommand, we override the event logger, monitor, metadata
+        # and datastore with the local versions.
+        event_logger = "nullSidecarLogger"
+        monitor = "nullSidecarMonitor"
+        metadata = "local"
+        datastore = "local"
 
-    # In the case of run/resume, we will want to apply the TL decospecs
+        ctx.obj.event_logger = LOGGING_SIDECARS[event_logger](
+            flow=ctx.obj.flow, env=ctx.obj.environment
+        )
+
+        ctx.obj.monitor = MONITOR_SIDECARS[monitor](
+            flow=ctx.obj.flow, env=ctx.obj.environment
+        )
+
+        ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == metadata][0](
+            ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
+        )
+
+        ctx.obj.datastore_impl = [d for d in DATASTORES if d.TYPE == datastore][0]
+        datastore_root = ctx.obj.datastore_impl.get_datastore_root_from_config(
+            ctx.obj.echo
+        )
+        ctx.obj.datastore_impl.datastore_root = datastore_root
+        print(f"datastore root inside start: {datastore_root}")
+
+        FlowDataStore.default_storage_impl = ctx.obj.datastore_impl
+        ctx.obj.flow_datastore = FlowDataStore(
+            ctx.obj.flow.name,
+            ctx.obj.environment,
+            ctx.obj.metadata,
+            ctx.obj.event_logger,
+            ctx.obj.monitor,
+        )
+        print(f"Flow Datastore: {ctx.obj.flow_datastore}")
+
+    ctx.obj.event_logger.start()
+    _system_logger.init_system_logger(ctx.obj.flow.name, ctx.obj.event_logger)
+
+    ctx.obj.monitor.start()
+    _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
+
+    # In the case of run/resume/spin, we will want to apply the TL decospecs
     # *after* the run decospecs so that they don't take precedence. In other
     # words, for the same decorator, we want `myflow.py run --with foo` to
     # take precedence over any other `foo` decospec
@@ -1026,9 +1471,24 @@ def start(
         ctx.obj.flow.name, ctx.obj.echo, ctx.obj.flow_datastore
     )
 
-    if ctx.invoked_subcommand not in ("run", "resume"):
-        # run/resume are special cases because they can add more decorators with --with,
-        # so they have to take care of themselves.
+    # It is important to initialize flow decorators early as some of the
+    # things they provide may be used by some of the objects initialized after.
+    # In case of spin subcommand, we want to initialize flow decorators after
+    # the metadata, environment, and datastore are modified.
+    decorators._init_flow_decorators(
+        ctx.obj.flow,
+        ctx.obj.graph,
+        ctx.obj.environment,
+        ctx.obj.flow_datastore,
+        ctx.obj.metadata,
+        ctx.obj.logger,
+        echo,
+        deco_options,
+    )
+
+    if ctx.invoked_subcommand not in ("run", "resume", "spin"):
+        # run/resume/spin are special cases because they can add more decorators with
+        # --with, so they have to take care of themselves.
         all_decospecs = ctx.obj.tl_decospecs + list(
             ctx.obj.environment.decospecs() or []
         )
