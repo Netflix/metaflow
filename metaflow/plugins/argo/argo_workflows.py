@@ -59,6 +59,7 @@ from metaflow.plugins.kubernetes.kubernetes import (
 )
 from metaflow.plugins.kubernetes.kubernetes_jobsets import KubernetesArgoJobSet
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
+from metaflow.user_configs.config_options import ConfigInput
 from metaflow.util import (
     compress_list,
     dict_to_cli_options,
@@ -167,6 +168,7 @@ class ArgoWorkflows(object):
         self.enable_heartbeat_daemon = enable_heartbeat_daemon
         self.enable_error_msg_capture = enable_error_msg_capture
         self.parameters = self._process_parameters()
+        self.config_parameters = self._process_config_parameters()
         self.triggers, self.trigger_options = self._process_triggers()
         self._schedule, self._timezone = self._get_schedule()
 
@@ -489,6 +491,7 @@ class ArgoWorkflows(object):
             # execution - which needs to be fixed imminently.
             if not is_required or default_value is not None:
                 default_value = json.dumps(default_value)
+
             parameters[param.name] = dict(
                 name=param.name,
                 value=default_value,
@@ -496,6 +499,41 @@ class ArgoWorkflows(object):
                 description=param.kwargs.get("help"),
                 is_required=is_required,
                 **extra_attrs
+            )
+        return parameters
+
+    def _process_config_parameters(self):
+        parameters = {}
+        seen = set()
+        for var, param in self.flow._get_parameters():
+            if not param.IS_FLOW_PARAMETER:
+                continue
+            # Throw an exception if the parameter is specified twice.
+            norm = param.name.lower()
+            if norm in seen:
+                raise MetaflowException(
+                    "Parameter *%s* is specified twice. "
+                    "Note that parameter names are "
+                    "case-insensitive." % param.name
+                )
+            seen.add(norm)
+
+            is_required = param.kwargs.get("required", False)
+
+            default_value = deploy_time_eval(param.kwargs.get("default"))
+            # If the value is not required and the value is None, we set the value to
+            # the JSON equivalent of None to please argo-workflows. Unfortunately it
+            # has the side effect of casting the parameter value to string null during
+            # execution - which needs to be fixed imminently.
+            if not is_required or default_value is not None:
+                default_value = json.dumps(default_value)
+
+            parameters[param.name] = dict(
+                name=param.name,
+                kv_name=ConfigInput.make_key_name(param.name),
+                value=default_value,
+                description=param.kwargs.get("help"),
+                is_required=is_required,
             )
         return parameters
 
@@ -1500,6 +1538,12 @@ class ArgoWorkflows(object):
                         % (parameter["name"], parameter["name"])
                         for parameter in self.parameters.values()
                     ]
+                    # + [
+                    #     (
+                    #         "--config-value %s %s" % (config_param["name"], config_param["kv_name"])
+                    #     )
+                    #     for config_param in self.config_parameters.values()
+                    # ]
                 )
                 if self.tags:
                     init.extend("--tag %s" % tag for tag in self.tags)
@@ -1716,6 +1760,14 @@ class ArgoWorkflows(object):
             metaflow_version["flow_name"] = self.graph.name
             metaflow_version["production_token"] = self.production_token
             env["METAFLOW_VERSION"] = json.dumps(metaflow_version)
+
+            # map config values
+            cfg_env = {
+                param["name"]: param["kv_name"]
+                for param in self.config_parameters.values()
+            }
+            if cfg_env:
+                env["METAFLOW_FLOW_CONFIG_VALUE"] = json.dumps(cfg_env)
 
             # Set the template inputs and outputs for passing state. Very simply,
             # the container template takes in input-paths as input and outputs
