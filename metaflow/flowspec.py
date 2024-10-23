@@ -170,9 +170,11 @@ class FlowSpec(metaclass=FlowSpecMeta):
             fname = fname[:-1]
         return os.path.basename(fname)
 
-    def _check_parameters(self):
+    def _check_parameters(self, config_parameters=False):
         seen = set()
-        for var, param in self._get_parameters():
+        for _, param in self._get_parameters():
+            if param.IS_CONFIG_PARAMETER != config_parameters:
+                continue
             norm = param.name.lower()
             if norm in seen:
                 raise MetaflowException(
@@ -190,20 +192,20 @@ class FlowSpec(metaclass=FlowSpecMeta):
             return self
 
         # We need to convert all the user configurations from DelayedEvaluationParameters
-        # to actual values so they can be used as is in the config functions.
+        # to actual values so they can be used as is in the config decorators.
 
         # We then reset them to be proper parameters so they can be re-evaluated in
         # _set_constants
         to_reset_params = []
-        self._check_parameters()
+        self._check_parameters(config_parameters=True)
         for var, param in self._get_parameters():
-            if not param.IS_FLOW_PARAMETER:
+            if not param.IS_CONFIG_PARAMETER:
                 continue
-            to_reset_params.append((var, param))
             # Note that a config with no default and not required will be None
             val = config_options.get(param.name.replace("-", "_").lower())
             if isinstance(val, DelayedEvaluationParameter):
                 val = val()
+            to_reset_params.append((var, param, val))
             setattr(current_cls, var, val)
 
         # Run all the decorators
@@ -230,6 +232,11 @@ class FlowSpec(metaclass=FlowSpecMeta):
                     )
                 deco.evaluate(CustomStepDecorator(deco._my_step))
 
+        # Process parameters to allow them to also use config values easily
+        for var, param in self._get_parameters():
+            if param.IS_CONFIG_PARAMETER:
+                continue
+            param.init()
         # Reset all configs that were already present in the class.
         # TODO: This means that users can't override configs directly. Not sure if this
         # is a pattern we want to support
@@ -253,7 +260,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
         # Persist values for parameters and other constants (class level variables)
         # only once. This method is called before persist_constants is called to
         # persist all values set using setattr
-        self._check_parameters()
+        self._check_parameters(config_parameters=False)
 
         seen = set()
         self._success = True
@@ -261,7 +268,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
         parameters_info = []
         for var, param in self._get_parameters():
             seen.add(var)
-            if param.IS_FLOW_PARAMETER:
+            if param.IS_CONFIG_PARAMETER:
                 val = config_options.get(param.name.replace("-", "_").lower())
             else:
                 val = kwargs[param.name.replace("-", "_").lower()]

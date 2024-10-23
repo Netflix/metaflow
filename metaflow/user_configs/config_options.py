@@ -359,7 +359,7 @@ def config_options(cmd):
     if flow_cls is None:
         return cmd
 
-    parameters = [p for _, p in flow_cls._get_parameters() if p.IS_FLOW_PARAMETER]
+    parameters = [p for _, p in flow_cls._get_parameters() if p.IS_CONFIG_PARAMETER]
     # List all the configuration options
     for arg in parameters[::-1]:
         kwargs = arg.option_kwargs(False)

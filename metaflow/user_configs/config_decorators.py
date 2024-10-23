@@ -2,12 +2,14 @@ from functools import partial
 from typing import Any, Callable, Generator, Optional, TYPE_CHECKING, Tuple, Union
 
 from metaflow.exception import MetaflowException
-from metaflow.parameters import Parameter
-from metaflow.user_configs.config_parameters import ConfigValue
+from metaflow.user_configs.config_parameters import (
+    ConfigValue,
+    resolve_delayed_evaluator,
+)
 
 if TYPE_CHECKING:
-    from metaflow.flowspec import _FlowSpecMeta
-    from metaflow.decorators import FlowSpecDerived
+    import metaflow.flowspec
+    import metaflow.decorators
 
 
 class MutableStep:
@@ -20,8 +22,8 @@ class MutableStep:
     def __init__(
         self,
         step: Union[
-            Callable[["FlowSpecDerived"], None],
-            Callable[["FlowSpecDerived", Any], None],
+            Callable[["metaflow.decorators.FlowSpecDerived"], None],
+            Callable[["metaflow.decorators.FlowSpecDerived", Any], None],
         ],
     ):
         self._my_step = step
@@ -51,6 +53,9 @@ class MutableStep:
         did_remove = False
         for deco in self._my_step.decorators:
             if deco.name == deco_name:
+                # Evaluate all the configuration values if any
+                deco.init()
+
                 # Check filters
                 match_ok = True
                 if kwargs:
@@ -145,6 +150,10 @@ class MutableFlow:
             yield name, ConfigValue(value)
 
     @property
+    def parameters(self) -> Generator[Tuple[str, Any], None, None]:
+        pass
+
+    @property
     def steps(self) -> Generator[Tuple[str, MutableStep], None, None]:
         """
         Iterate over all the steps in this flow
@@ -174,13 +183,22 @@ class MutableFlow:
 
 class CustomFlowDecorator:
     def __init__(self, *args, **kwargs):
-        from ..flowspec import FlowSpec, _FlowSpecMeta
+        from ..flowspec import FlowSpecMeta
 
-        if args and isinstance(args[0], (CustomFlowDecorator, _FlowSpecMeta)):
+        if args and isinstance(args[0], (CustomFlowDecorator, FlowSpecMeta)):
             # This means the decorator is bare like @MyDecorator
             # and the first argument is the FlowSpec or another decorator (they
             # can be stacked)
-            if isinstance(args[0], _FlowSpecMeta):
+
+            # If we have a init function, we call it with no arguments -- this can
+            # happen if the user defines a function with default parameters for example
+            try:
+                self.init()
+            except NotImplementedError:
+                pass
+
+            # Now set the flow class we apply to
+            if isinstance(args[0], FlowSpecMeta):
                 self._set_flow_cls(args[0])
             else:
                 self._set_flow_cls(args[0]._flow_cls)
@@ -189,12 +207,25 @@ class CustomFlowDecorator:
             self._args = args
             self._kwargs = kwargs
 
-    def __call__(self, flow_spec: Optional["_FlowSpecMeta"] = None) -> "_FlowSpecMeta":
+    def __call__(
+        self, flow_spec: Optional["metaflow.flowspec.FlowSpecMeta"] = None
+    ) -> "metaflow.flowspec.FlowSpecMeta":
         if flow_spec:
             # This is the case of a decorator @MyDecorator(foo=1, bar=2) and so
-            # we already called __init__ and saved foo and bar and are now calling
-            # this on the flow itself.
-            self.init(*self._args, **self._kwargs)
+            # we already called __init__ and saved foo and bar in self._args and
+            # self._kwargs and are now calling this on the flow itself.
+
+            # You can use config values in the arguments to a CustomFlowDecorator
+            # so we resolve those as well
+            new_args = [resolve_delayed_evaluator(arg) for arg in self._args]
+            try:
+                self.init(*self._args, **self._kwargs)
+            except NotImplementedError as e:
+                raise MetaflowException(
+                    "CustomFlowDecorator '%s' is used with arguments "
+                    "but does not implement init" % str(self.__class__)
+                ) from e
+
             return self._set_flow_cls(flow_spec)
         elif not self._flow_cls:
             # This means that somehow the initialization did not happen properly
@@ -204,7 +235,9 @@ class CustomFlowDecorator:
             )
         return self._flow_cls()
 
-    def _set_flow_cls(self, flow_spec: "_FlowSpecMeta") -> "_FlowSpecMeta":
+    def _set_flow_cls(
+        self, flow_spec: "metaflow.flowspec.FlowSpecMeta"
+    ) -> "metaflow.flowspec.FlowSpecMeta":
         from ..flowspec import _FlowState
 
         flow_spec._flow_state.setdefault(_FlowState.CONFIG_DECORATORS, []).append(self)
@@ -223,6 +256,19 @@ class CustomFlowDecorator:
         raise NotImplementedError()
 
     def evaluate(self, mutable_flow: MutableFlow) -> None:
+        """
+        Implement this method to act on the flow and modify it as needed.
+
+        Parameters
+        ----------
+        mutable_flow : MutableFlow
+            Flow
+
+        Raises
+        ------
+        NotImplementedError
+            _description_
+        """
         raise NotImplementedError()
 
 
@@ -249,18 +295,18 @@ class CustomStepDecorator:
         self,
         step: Optional[
             Union[
-                Callable[["FlowSpecDerived"], None],
-                Callable[["FlowSpecDerived", Any], None],
+                Callable[["metaflow.decorators.FlowSpecDerived"], None],
+                Callable[["metaflow.decorators.FlowSpecDerived", Any], None],
             ]
         ] = None,
     ) -> Union[
-        Callable[["FlowSpecDerived"], None],
-        Callable[["FlowSpecDerived", Any], None],
+        Callable[["metaflow.decorators.FlowSpecDerived"], None],
+        Callable[["metaflow.decorators.FlowSpecDerived", Any], None],
     ]:
         if step:
             # This is the case of a decorator @MyDecorator(foo=1, bar=2) and so
-            # we already called __init__ and saved foo and bar and are now calling
-            # this on the step itself.
+            # we already called __init__ and saved foo and bar into self._args and
+            # self._kwargs and are now calling this on the step itself.
             self.init(*self._args, **self._kwargs)
             return self._set_my_step(step)
         elif not self._my_step:
@@ -274,12 +320,12 @@ class CustomStepDecorator:
     def _set_my_step(
         self,
         step: Union[
-            Callable[["FlowSpecDerived"], None],
-            Callable[["FlowSpecDerived", Any], None],
+            Callable[["metaflow.decorators.FlowSpecDerived"], None],
+            Callable[["metaflow.decorators.FlowSpecDerived", Any], None],
         ],
     ) -> Union[
-        Callable[["FlowSpecDerived"], None],
-        Callable[["FlowSpecDerived", Any], None],
+        Callable[["metaflow.decorators.FlowSpecDerived"], None],
+        Callable[["metaflow.decorators.FlowSpecDerived", Any], None],
     ]:
         from ..flowspec import _FlowState
 

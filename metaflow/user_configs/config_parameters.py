@@ -42,6 +42,8 @@ CONFIG_FILE = os.path.join(
 
 ID_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
+UNPACK_KEY = "_unpacked_delayed_"
+
 
 def dump_config_values(flow: "FlowSpec"):
     from ..flowspec import _FlowState  # Prevent circular import
@@ -152,7 +154,7 @@ class DelayEvaluator(collections.abc.Mapping):
     This is used when we want to use config.* values in decorators for example.
 
     It also allows the following "delayed" access on an obj that is a DelayEvaluation
-      - obj.x.y.z (ie: accessing members of DelayEvaluator; acesses will be delayed until
+      - obj.x.y.z (ie: accessing members of DelayEvaluator; accesses will be delayed until
         the DelayEvaluator is evaluated)
       - **obj (ie: unpacking the DelayEvaluator as a dictionary). Note that this requires
         special handling in whatever this is being unpacked into, specifically the handling
@@ -170,10 +172,10 @@ class DelayEvaluator(collections.abc.Mapping):
             self._access = None
 
     def __iter__(self):
-        yield "_unpacked_delayed_%d" % id(self)
+        yield "%s%d" % (UNPACK_KEY, id(self))
 
     def __getitem__(self, key):
-        if key == "_unpacked_delayed_%d" % id(self):
+        if key == "%s%d" % (UNPACK_KEY, id(self)):
             return self
         raise KeyError(key)
 
@@ -295,7 +297,7 @@ class Config(Parameter, collections.abc.Mapping):
         If True, show the default value in the help text.
     """
 
-    IS_FLOW_PARAMETER = True
+    IS_CONFIG_PARAMETER = True
 
     def __init__(
         self,
@@ -345,3 +347,31 @@ class Config(Parameter, collections.abc.Mapping):
 
     def __getitem__(self, key):
         return DelayEvaluator(self.name.lower())[key]
+
+
+def resolve_delayed_evaluator(v: Any) -> Any:
+    if isinstance(v, DelayEvaluator):
+        return v()
+    if isinstance(v, dict):
+        return {
+            resolve_delayed_evaluator(k): resolve_delayed_evaluator(v)
+            for k, v in v.items()
+        }
+    if isinstance(v, list):
+        return [resolve_delayed_evaluator(x) for x in v]
+    if isinstance(v, tuple):
+        return tuple(resolve_delayed_evaluator(x) for x in v)
+    if isinstance(v, set):
+        return {resolve_delayed_evaluator(x) for x in v}
+    return v
+
+
+def unpack_delayed_evaluator(to_unpack: Dict[str, Any]) -> Dict[str, Any]:
+    result = {}
+    for k, v in to_unpack.items():
+        if not isinstance(k, str) or not k.startswith(UNPACK_KEY):
+            result[k] = v
+        else:
+            # k.startswith(UNPACK_KEY)
+            result.update(resolve_delayed_evaluator(v[k]))
+    return result

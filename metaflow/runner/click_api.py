@@ -227,7 +227,7 @@ class MetaflowAPI(object):
     def from_cli(cls, flow_file: str, cli_collection: Callable) -> Callable:
         flow_cls = extract_flow_class_from_file(flow_file)
         flow_parameters = [
-            p for _, p in flow_cls._get_parameters() if not p.IS_FLOW_PARAMETER
+            p for _, p in flow_cls._get_parameters() if not p.IS_CONFIG_PARAMETER
         ]
         with flow_context(flow_cls) as _:
             add_decorator_options(cli_collection)

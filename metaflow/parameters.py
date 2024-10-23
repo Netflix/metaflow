@@ -311,14 +311,15 @@ class Parameter(object):
         to the type of `default` or `str` if none specified.
     help : str, optional
         Help text to show in `run --help`.
-    required : bool, default False
-        Require that the user specified a value for the parameter. If a non-None
-        default is specified, that default will be used if no other value is provided
-    show_default : bool, default True
-        If True, show the default value in the help text.
+    required : bool, optional, default None
+        Require that the user specified a value for the parameter. `required=True` implies
+        that `default` is not used. A value of None is equivalent to False.
+    show_default : bool, optional, default None
+        If True, show the default value in the help text. A value of None is equivalent
+        to True.
     """
 
-    IS_FLOW_PARAMETER = False
+    IS_CONFIG_PARAMETER = False
 
     def __init__(
         self,
@@ -339,24 +340,44 @@ class Parameter(object):
             Union[Type[str], Type[float], Type[int], Type[bool], JSONTypeClass]
         ] = None,
         help: Optional[str] = None,
-        required: bool = False,
-        show_default: bool = True,
+        required: Optional[bool] = None,
+        show_default: Optional[bool] = None,
         **kwargs: Dict[str, Any]
     ):
         self.name = name
         self.kwargs = kwargs
-        for k, v in {
+        self._override_kwargs = {
             "default": default,
             "type": type,
             "help": help,
             "required": required,
             "show_default": show_default,
-        }.items():
-            if v is not None:
-                self.kwargs[k] = v
+        }
+
+    def init(self):
+        # Prevent circular import
+        from .user_configs.config_parameters import (
+            resolve_delayed_evaluator,
+            unpack_delayed_evaluator,
+        )
+
+        # Resolve any value from configurations
+        self.kwargs = unpack_delayed_evaluator(self.kwargs)
+        self.kwargs = resolve_delayed_evaluator(self.kwargs)
+
+        # This was the behavior before configs: values specified in args would override
+        # stuff in kwargs which is what we implement here as well
+        for key, value in self._override_kwargs.items():
+            if value is not None:
+                self.kwargs[key] = value
+        # Set two default values if no-one specified them
+        self.kwargs.setdefault("required", False)
+        self.kwargs.setdefault("show_default", True)
+
+        # Continue processing kwargs free of any configuration values :)
 
         # TODO: check that the type is one of the supported types
-        param_type = self.kwargs["type"] = self._get_type(kwargs)
+        param_type = self.kwargs["type"] = self._get_type(self.kwargs)
 
         reserved_params = [
             "params",
@@ -381,23 +402,27 @@ class Parameter(object):
             raise MetaflowException(
                 "Parameter name '%s' is a reserved "
                 "word. Please use a different "
-                "name for your parameter." % (name)
+                "name for your parameter." % (self.name)
             )
 
         # make sure the user is not trying to pass a function in one of the
         # fields that don't support function-values yet
         for field in ("show_default", "separator", "required"):
-            if callable(kwargs.get(field)):
+            if callable(self.kwargs.get(field)):
                 raise MetaflowException(
                     "Parameter *%s*: Field '%s' cannot "
-                    "have a function as its value" % (name, field)
+                    "have a function as its value" % (self.name, field)
                 )
 
         # default can be defined as a function
         default_field = self.kwargs.get("default")
         if callable(default_field) and not isinstance(default_field, DeployTimeField):
             self.kwargs["default"] = DeployTimeField(
-                name, param_type, "default", self.kwargs["default"], return_str=True
+                self.name,
+                param_type,
+                "default",
+                self.kwargs["default"],
+                return_str=True,
             )
 
         # note that separator doesn't work with DeployTimeFields unless you
@@ -406,7 +431,7 @@ class Parameter(object):
         if self.separator and not self.is_string_type:
             raise MetaflowException(
                 "Parameter *%s*: Separator is only allowed "
-                "for string parameters." % name
+                "for string parameters." % self.name
             )
 
     def __repr__(self):
@@ -463,7 +488,7 @@ def add_custom_parameters(deploy_mode=False):
         if flow_cls is None:
             return cmd
         parameters = [
-            p for _, p in flow_cls._get_parameters() if not p.IS_FLOW_PARAMETER
+            p for _, p in flow_cls._get_parameters() if not p.IS_CONFIG_PARAMETER
         ]
         for arg in parameters[::-1]:
             kwargs = arg.option_kwargs(deploy_mode)
