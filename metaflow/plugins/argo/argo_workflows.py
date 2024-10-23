@@ -560,7 +560,11 @@ class ArgoWorkflows(object):
             # insensitive.
             seen = set()
             params = set(
-                [param.name.lower() for var, param in self.flow._get_parameters()]
+                [
+                    param.name.lower()
+                    for var, param in self.flow._get_parameters()
+                    if not param.IS_FLOW_PARAMETER
+                ]
             )
             for event in self.flow._flow_decorators.get("trigger")[0].triggers:
                 parameters = {}
