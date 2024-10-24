@@ -136,6 +136,7 @@ class DAGNode(object):
 
     def __str__(self):
         return """*[{0.name} {0.type} (line {0.func_lineno})]*
+    source_file={0.source_file}
     in_funcs={in_funcs}
     out_funcs={out_funcs}
     split_parents={parents}
