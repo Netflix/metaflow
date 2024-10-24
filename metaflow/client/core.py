@@ -553,7 +553,7 @@ class MetaflowObject(object):
             _current_namespace=ns,
         )
 
-    def _unpickle_21226(self, data):
+    def _unpickle_21227(self, data):
         if len(data) != 5:
             raise MetaflowInternalError(
                 "Unexpected size of array: {}".format(len(data))
@@ -570,7 +570,7 @@ class MetaflowObject(object):
     _UNPICKLE_FUNC = {
         "2.8.4": _unpickle_284,
         "2.12.4": _unpickle_2124,
-        "2.12.26": _unpickle_21226,
+        "2.12.27": _unpickle_21227,
     }
 
     def __setstate__(self, state):
@@ -614,7 +614,7 @@ class MetaflowObject(object):
         # checking for the namespace even after unpickling since we will know which
         # namespace to check.
         return {
-            "version": "2.12.26",
+            "version": "2.12.27",
             "data": [
                 self.pathspec,
                 self._attempt,
