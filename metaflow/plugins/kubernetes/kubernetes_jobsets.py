@@ -332,11 +332,8 @@ class RunningJobSet(object):
                     name=self._name,
                 )
 
-                # Suspend the jobset and set the replica's to Zero.
-                #
+                # Suspend the jobset
                 obj["spec"]["suspend"] = True
-                for replicated_job in obj["spec"]["replicatedJobs"]:
-                    replicated_job["replicas"] = 0
 
                 api_instance.replace_namespaced_custom_object(
                     group=self._group,
