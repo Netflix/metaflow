@@ -7,8 +7,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, project
 
@@ -52,8 +51,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, pypi_base
 
@@ -101,8 +99,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, conda_base
 
@@ -150,8 +147,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, schedule
 
@@ -199,8 +195,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, trigger
 
@@ -248,8 +243,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, trigger_on_finish
 
@@ -297,8 +291,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step
 
@@ -362,8 +355,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, retry, catch
 
@@ -401,8 +393,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, batch
 
@@ -462,8 +453,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, kubernetes
 
@@ -519,8 +509,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, environment
 
@@ -580,8 +569,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, card
 
@@ -641,8 +629,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, catch
 
@@ -702,8 +689,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, pypi
 
@@ -763,8 +749,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, conda
 
@@ -824,8 +809,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, resources
 
@@ -885,8 +869,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, retry
 
@@ -946,8 +929,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, secrets
 
@@ -1007,8 +989,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, timeout
 
@@ -1067,8 +1048,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import Flow, Run, Step, Task, DataArtifact
 
@@ -1082,7 +1062,7 @@
     Run("flow_name/run_id")[0]
     Step("flow_name/run_id/step_name")[0]
   out: |
-    main:3: note: Revealed type is "metaflow.Flow"
+    main:3: note: Revealed type is "metaflow.client.core.Flow"
     main:4: note: Revealed type is "metaflow.client.core.Run"
     main:5: note: Revealed type is "metaflow.client.core.Step"
     main:6: note: Revealed type is "metaflow.client.core.Task"
@@ -1099,8 +1079,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import current
 
@@ -1121,8 +1100,7 @@
     - python_version: "3.10"
     - python_version: "3.11"
     - python_version: "3.12"
-  mypy_config:
-    python_version = {{ python_version }}
+  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, batch, project, schedule
 

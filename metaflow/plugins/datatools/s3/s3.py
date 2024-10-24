@@ -504,6 +504,8 @@ class S3(object):
         If `run` is not specified, use this as the S3 prefix.
     """
 
+    TYPE = "s3"
+
     @classmethod
     def get_root_from_config(cls, echo, create_on_absent=True):
         return DATATOOLS_S3ROOT

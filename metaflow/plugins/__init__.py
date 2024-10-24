@@ -85,6 +85,14 @@ DATASTORES_DESC = [
     ("gs", ".datastores.gs_storage.GSStorage"),
 ]
 
+# Dataclients are used for IncludeFile
+DATACLIENTS_DESC = [
+    ("local", ".datatools.Local"),
+    ("s3", ".datatools.S3"),
+    ("azure", ".azure.includefile_support.Azure"),
+    ("gs", ".gcp.includefile_support.GS"),
+]
+
 # Add non monitoring/logging sidecars here
 SIDECARS_DESC = [
     (
@@ -161,6 +169,7 @@ FLOW_DECORATORS = resolve_plugins("flow_decorator")
 ENVIRONMENTS = resolve_plugins("environment")
 METADATA_PROVIDERS = resolve_plugins("metadata_provider")
 DATASTORES = resolve_plugins("datastore")
+DATACLIENTS = resolve_plugins("dataclient")
 SIDECARS = resolve_plugins("sidecar")
 LOGGING_SIDECARS = resolve_plugins("logging_sidecar")
 MONITOR_SIDECARS = resolve_plugins("monitor_sidecar")

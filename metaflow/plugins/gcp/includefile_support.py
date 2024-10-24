@@ -8,6 +8,9 @@ from metaflow.exception import MetaflowException, MetaflowInternalError
 
 
 class GS(object):
+
+    TYPE = "gs"
+
     @classmethod
     def get_root_from_config(cls, echo, create_on_absent=True):
         from metaflow.metaflow_config import DATATOOLS_GSROOT

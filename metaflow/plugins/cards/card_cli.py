@@ -1,5 +1,6 @@
 from metaflow.client import Task
-from metaflow import JSONType, namespace
+from metaflow.parameters import JSONTypeClass
+from metaflow import namespace
 from metaflow.util import resolve_identity
 from metaflow.exception import (
     CommandException,
@@ -551,7 +552,7 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
     "--options",
     default=None,
     show_default=True,
-    type=JSONType,
+    type=JSONTypeClass(),
     help="arguments of the card being created.",
 )
 @click.option(

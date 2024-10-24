@@ -1,6 +1,7 @@
 from collections import namedtuple
 import gzip
 
+import importlib
 import io
 import json
 import os
@@ -17,6 +18,8 @@ from .parameters import (
     Parameter,
     ParameterContext,
 )
+
+from .plugins import DATACLIENTS
 from .util import get_username
 
 import functools
@@ -47,16 +50,7 @@ _DelayedExecContext = namedtuple(
 
 
 # From here on out, this is the IncludeFile implementation.
-from metaflow.plugins.datatools import Local, S3
-from metaflow.plugins.azure.includefile_support import Azure
-from metaflow.plugins.gcp.includefile_support import GS
-
-DATACLIENTS = {
-    "local": Local,
-    "s3": S3,
-    "azure": Azure,
-    "gs": GS,
-}
+_dict_dataclients = {d.TYPE: d for d in DATACLIENTS}
 
 
 class IncludedFile(object):
@@ -167,7 +161,7 @@ class FilePathClass(click.ParamType):
                 "IncludeFile using a direct reference to a file in cloud storage is no "
                 "longer supported. Contact the Metaflow team if you need this supported"
             )
-            # if DATACLIENTS.get(path[:prefix_pos]) is None:
+            # if _dict_dataclients.get(path[:prefix_pos]) is None:
             #     self.fail(
             #         "IncludeFile: no handler for external file of type '%s' "
             #         "(given path is '%s')" % (path[:prefix_pos], path)
@@ -187,7 +181,7 @@ class FilePathClass(click.ParamType):
                     pass
             except OSError:
                 self.fail("IncludeFile: could not open file '%s' for reading" % path)
-            handler = DATACLIENTS.get(ctx.ds_type)
+            handler = _dict_dataclients.get(ctx.ds_type)
             if handler is None:
                 self.fail(
                     "IncludeFile: no data-client for datastore of type '%s'"
@@ -213,7 +207,7 @@ class FilePathClass(click.ParamType):
                         ctx.path,
                         ctx.is_text,
                         ctx.encoding,
-                        DATACLIENTS[ctx.handler_type],
+                        _dict_dataclients[ctx.handler_type],
                         ctx.echo,
                     )
                 )
@@ -425,7 +419,7 @@ class UploaderV1:
         if prefix_pos < 0:
             raise MetaflowException("Malformed URL: '%s'" % url)
         prefix = url[:prefix_pos]
-        handler = DATACLIENTS.get(prefix)
+        handler = _dict_dataclients.get(prefix)
         if handler is None:
             raise MetaflowException("Could not find data client for '%s'" % prefix)
         return handler

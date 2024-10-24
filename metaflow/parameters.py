@@ -438,3 +438,6 @@ def add_custom_parameters(deploy_mode=False):
         return cmd
 
     return wrapper
+
+
+JSONType = JSONTypeClass()

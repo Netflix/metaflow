@@ -30,7 +30,7 @@ class Current(object):
             raise ex
 
         self.__class__.graph = property(
-            fget=lambda _: _raise(RuntimeError("Graph is not available"))
+            fget=lambda self: _raise(RuntimeError("Graph is not available"))
         )
 
     def _set_env(
