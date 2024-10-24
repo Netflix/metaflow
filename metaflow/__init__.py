@@ -103,6 +103,9 @@ from .flowspec import FlowSpec
 
 from .parameters import Parameter, JSONTypeClass
 
+from .user_configs.config_parameters import Config, config_expr
+from .user_configs.config_decorators import CustomFlowDecorator, CustomStepDecorator
+
 JSONType = JSONTypeClass()
 
 # data layer

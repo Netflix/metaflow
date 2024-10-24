@@ -12,6 +12,7 @@ from .exception import (
 )
 
 from .parameters import current_flow
+from .user_configs.config_parameters import DelayEvaluator
 
 from metaflow._vendor import click
 
@@ -115,13 +116,60 @@ class Decorator(object):
     def __init__(self, attributes=None, statically_defined=False):
         self.attributes = self.defaults.copy()
         self.statically_defined = statically_defined
+        self._user_defined_attributes = set()
 
         if attributes:
             for k, v in attributes.items():
-                if k in self.defaults:
+                self._user_defined_attributes.add(k)
+                if k in self.defaults or k.startswith("_unpacked_delayed_"):
                     self.attributes[k] = v
                 else:
                     raise InvalidDecoratorAttribute(self.name, k, self.defaults)
+
+    def init(self):
+        """
+        Initializes the decorator. In general, any operation you would do in __init__
+        should be done here.
+        """
+
+        def _resolve_delayed_evaluator(v):
+            if isinstance(v, DelayEvaluator):
+                return v()
+            if isinstance(v, dict):
+                return {
+                    _resolve_delayed_evaluator(k): _resolve_delayed_evaluator(v)
+                    for k, v in v.items()
+                }
+            if isinstance(v, list):
+                return [_resolve_delayed_evaluator(x) for x in v]
+            if isinstance(v, tuple):
+                return tuple(_resolve_delayed_evaluator(x) for x in v)
+            if isinstance(v, set):
+                return {_resolve_delayed_evaluator(x) for x in v}
+            return v
+
+        # Expand any eventual _unpacked_delayed_ attributes. These are special attributes
+        # that allow the delay unpacking of configuration values.
+        delayed_upack_keys = [
+            k for k in self.attributes if k.startswith("_unpacked_delayed_")
+        ]
+        if delayed_upack_keys:
+            for k in delayed_upack_keys:
+                unpacked = _resolve_delayed_evaluator(self.attributes[k])
+                for uk, uv in unpacked.items():
+                    if uk in self._user_defined_attributes:
+                        raise SyntaxError(
+                            "keyword argument repeated: %s" % uk, "<unk.py>", 0, "<unk>"
+                        )
+                    self._user_defined_attributes.add(uk)
+                    self.attributes[uk] = uv
+                del self.attributes[k]
+
+        # Now resolve all attributes
+        for k, v in self.attributes.items():
+            # This is a special attribute that means we are going to unpack
+            # the configuration valu
+            self.attributes[k] = _resolve_delayed_evaluator(v)
 
     @classmethod
     def _parse_decorator_spec(cls, deco_spec):
@@ -203,10 +251,13 @@ class FlowDecorator(Decorator):
 
 # compare this to parameters.add_custom_parameters
 def add_decorator_options(cmd):
-    seen = {}
     flow_cls = getattr(current_flow, "flow_cls", None)
     if flow_cls is None:
         return cmd
+
+    seen = {}
+    existing_params = set(p.name.lower() for p in cmd.params)
+    # Add decorator options
     for deco in flow_decorators(flow_cls):
         for option, kwargs in deco.options.items():
             if option in seen:
@@ -217,7 +268,13 @@ def add_decorator_options(cmd):
                     % (deco.name, option, seen[option])
                 )
                 raise MetaflowInternalError(msg)
+            elif deco.name.lower() in existing_params:
+                raise MetaflowInternalError(
+                    "Flow decorator '%s' uses an option '%s' which is a reserved "
+                    "keyword. Please use a different option name." % (deco.name, option)
+                )
             else:
+                kwargs["envvar"] = "METAFLOW_FLOW_%s" % option.upper()
                 seen[option] = deco.name
                 cmd.params.insert(0, click.Option(("--" + option,), **kwargs))
     return cmd
@@ -425,6 +482,7 @@ def _base_step_decorator(decotype, *args, **kwargs):
     Decorator prototype for all step decorators. This function gets specialized
     and imported for all decorators types by _import_plugin_decorators().
     """
+
     if args:
         # No keyword arguments specified for the decorator, e.g. @foobar.
         # The first argument is the function to be decorated.
@@ -508,6 +566,18 @@ def _attach_decorators_to_step(step, decospecs):
                 splits[1] if len(splits) > 1 else ""
             )
             step.decorators.append(deco)
+
+
+def _init(flow, only_non_static=False):
+    # We get the datastore for the _parameters step which can contain
+    for decorators in flow._flow_decorators.values():
+        for deco in decorators:
+            if not only_non_static or not deco.statically_defined:
+                deco.init()
+    for flowstep in flow:
+        for deco in flowstep.decorators:
+            if not only_non_static or not deco.statically_defined:
+                deco.init()
 
 
 def _init_flow_decorators(

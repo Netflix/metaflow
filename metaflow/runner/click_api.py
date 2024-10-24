@@ -38,6 +38,7 @@ from metaflow.decorators import add_decorator_options
 from metaflow.exception import MetaflowException
 from metaflow.includefile import FilePathClass
 from metaflow.parameters import JSONTypeClass, flow_context
+from metaflow.user_configs.config_options import LocalFileInput
 
 # Define a recursive type alias for JSON
 JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
@@ -55,6 +56,7 @@ click_to_python_types = {
     File: str,
     JSONTypeClass: JSON,
     FilePathClass: str,
+    LocalFileInput: str,
 }
 
 
@@ -196,7 +198,9 @@ class MetaflowAPI(object):
     @classmethod
     def from_cli(cls, flow_file: str, cli_collection: Callable) -> Callable:
         flow_cls = extract_flow_class_from_file(flow_file)
-        flow_parameters = [p for _, p in flow_cls._get_parameters()]
+        flow_parameters = [
+            p for _, p in flow_cls._get_parameters() if not p.IS_FLOW_PARAMETER
+        ]
         with flow_context(flow_cls) as _:
             add_decorator_options(cli_collection)
 
