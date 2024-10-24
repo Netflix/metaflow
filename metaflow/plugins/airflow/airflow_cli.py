@@ -389,6 +389,11 @@ def _validate_workflow(flow, graph, flow_datastore, metadata, workflow_timeout):
                 "Step *%s* is marked for execution on AWS Batch with Airflow which isn't currently supported."
                 % node.name
             )
+        if any([d.name == "slurm" for d in node.decorators]):
+            raise NotSupportedException(
+                "Step *%s* is marked for execution on Slurm with Airflow which isn't currently supported."
+                % node.name
+            )
     SUPPORTED_DATASTORES = ("azure", "s3", "gs")
     if flow_datastore.TYPE not in SUPPORTED_DATASTORES:
         raise AirflowException(
