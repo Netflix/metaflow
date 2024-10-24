@@ -447,10 +447,6 @@ class ArgoWorkflows(object):
         has_schedule = self.flow._flow_decorators.get("schedule") is not None
         seen = set()
         for var, param in self.flow._get_parameters():
-            # NOTE: We skip config parameters as these do not have dynamic values,
-            # and need to be treated differently.
-            if param.IS_FLOW_PARAMETER:
-                continue
             # Throw an exception if the parameter is specified twice.
             norm = param.name.lower()
             if norm in seen:
@@ -460,6 +456,10 @@ class ArgoWorkflows(object):
                     "case-insensitive." % param.name
                 )
             seen.add(norm)
+            # NOTE: We skip config parameters as these do not have dynamic values,
+            # and need to be treated differently.
+            if param.IS_FLOW_PARAMETER:
+                continue
 
             extra_attrs = {}
             if param.kwargs.get("type") == JSONType:

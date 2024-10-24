@@ -478,10 +478,6 @@ class StepFunctions(object):
         has_schedule = self._cron() is not None
         seen = set()
         for var, param in self.flow._get_parameters():
-            # NOTE: We skip config parameters as these do not have dynamic values,
-            # and need to be treated differently.
-            if param.IS_FLOW_PARAMETER:
-                continue
             # Throw an exception if the parameter is specified twice.
             norm = param.name.lower()
             if norm in seen:
@@ -491,6 +487,10 @@ class StepFunctions(object):
                     "case-insensitive." % param.name
                 )
             seen.add(norm)
+            # NOTE: We skip config parameters as these do not have dynamic values,
+            # and need to be treated differently.
+            if param.IS_FLOW_PARAMETER:
+                continue
 
             is_required = param.kwargs.get("required", False)
             # Throw an exception if a schedule is set for a flow with required
