@@ -59,6 +59,7 @@ from metaflow.plugins.kubernetes.kubernetes import (
 )
 from metaflow.plugins.kubernetes.kubernetes_jobsets import KubernetesArgoJobSet
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
+from metaflow.user_configs.config_options import ConfigInput
 from metaflow.util import (
     compress_list,
     dict_to_cli_options,
@@ -167,6 +168,7 @@ class ArgoWorkflows(object):
         self.enable_heartbeat_daemon = enable_heartbeat_daemon
         self.enable_error_msg_capture = enable_error_msg_capture
         self.parameters = self._process_parameters()
+        self.config_parameters = self._process_config_parameters()
         self.triggers, self.trigger_options = self._process_triggers()
         self._schedule, self._timezone = self._get_schedule()
 
@@ -454,6 +456,10 @@ class ArgoWorkflows(object):
                     "case-insensitive." % param.name
                 )
             seen.add(norm)
+            # NOTE: We skip config parameters as these do not have dynamic values,
+            # and need to be treated differently.
+            if param.IS_FLOW_PARAMETER:
+                continue
 
             extra_attrs = {}
             if param.kwargs.get("type") == JSONType:
@@ -487,6 +493,7 @@ class ArgoWorkflows(object):
             # execution - which needs to be fixed imminently.
             if not is_required or default_value is not None:
                 default_value = json.dumps(default_value)
+
             parameters[param.name] = dict(
                 name=param.name,
                 value=default_value,
@@ -494,6 +501,27 @@ class ArgoWorkflows(object):
                 description=param.kwargs.get("help"),
                 is_required=is_required,
                 **extra_attrs
+            )
+        return parameters
+
+    def _process_config_parameters(self):
+        parameters = []
+        seen = set()
+        for var, param in self.flow._get_parameters():
+            if not param.IS_FLOW_PARAMETER:
+                continue
+            # Throw an exception if the parameter is specified twice.
+            norm = param.name.lower()
+            if norm in seen:
+                raise MetaflowException(
+                    "Parameter *%s* is specified twice. "
+                    "Note that parameter names are "
+                    "case-insensitive." % param.name
+                )
+            seen.add(norm)
+
+            parameters.append(
+                dict(name=param.name, kv_name=ConfigInput.make_key_name(param.name))
             )
         return parameters
 
@@ -519,8 +547,13 @@ class ArgoWorkflows(object):
             # convert them to lower case since Metaflow parameters are case
             # insensitive.
             seen = set()
+            # NOTE: We skip config parameters as their values can not be set through event payloads
             params = set(
-                [param.name.lower() for var, param in self.flow._get_parameters()]
+                [
+                    param.name.lower()
+                    for var, param in self.flow._get_parameters()
+                    if not param.IS_FLOW_PARAMETER
+                ]
             )
             for event in self.flow._flow_decorators.get("trigger")[0].triggers:
                 parameters = {}
@@ -1714,6 +1747,13 @@ class ArgoWorkflows(object):
             metaflow_version["flow_name"] = self.graph.name
             metaflow_version["production_token"] = self.production_token
             env["METAFLOW_VERSION"] = json.dumps(metaflow_version)
+
+            # map config values
+            cfg_env = {
+                param["name"]: param["kv_name"] for param in self.config_parameters
+            }
+            if cfg_env:
+                env["METAFLOW_FLOW_CONFIG_VALUE"] = json.dumps(cfg_env)
 
             # Set the template inputs and outputs for passing state. Very simply,
             # the container template takes in input-paths as input and outputs
