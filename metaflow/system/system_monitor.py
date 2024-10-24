@@ -49,11 +49,17 @@ class SystemMonitor(object):
         from .system_utils import init_environment_outside_flow
         from metaflow.plugins import MONITOR_SIDECARS
         from metaflow.metaflow_config import DEFAULT_MONITOR
+        from metaflow.metaflow_current import current
 
         self._flow_name = "not_a_real_flow"
         _flow = DummyFlow(self._flow_name)
         _environment = init_environment_outside_flow(_flow)
         _monitor = MONITOR_SIDECARS[DEFAULT_MONITOR](_flow, _environment)
+        current._update_env(
+            {
+                "system_monitor": self,
+            }
+        )
         return _monitor
 
     @property

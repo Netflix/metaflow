@@ -974,6 +974,13 @@ def start(
     ctx.obj.monitor.start()
     _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
 
+    current._update_env(
+        {
+            "system_logger": _system_logger,
+            "system_monitor": _system_monitor,
+        }
+    )
+
     ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == metadata][0](
         ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
     )
