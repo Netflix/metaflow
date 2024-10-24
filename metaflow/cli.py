@@ -835,8 +835,15 @@ def before_run(obj, tags, decospecs):
     # Package working directory only once per run.
     # We explicitly avoid doing this in `start` since it is invoked for every
     # step in the run.
+    # The packaging now happens in a separate thread, from the very beginning
+    # for both local and remote runs.
     obj.package = MetaflowPackage(
-        obj.flow, obj.environment, obj.echo, obj.package_suffixes
+        obj.flow,
+        obj.environment,
+        obj.echo,
+        obj.package_suffixes,
+        obj.flow_datastore,
+        obj.logger,
     )
 
 
@@ -1036,7 +1043,6 @@ def start(
             decorators._attach_decorators(ctx.obj.flow, all_decospecs)
             # Regenerate graph if we attached more decorators
             ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
-
         decorators._init_step_decorators(
             ctx.obj.flow,
             ctx.obj.graph,
