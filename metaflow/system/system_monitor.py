@@ -9,7 +9,6 @@ class SystemMonitor(object):
     def __init__(self):
         self._monitor = None
         self._flow_name = None
-        self._context = {}
 
     def __del__(self):
         if self._flow_name == "not_a_real_flow":

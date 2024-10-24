@@ -56,7 +56,7 @@ class SystemLogger(object):
             "false",
             "",
         ):
-            print("system monitor: %s" % msg, file=sys.stderr)
+            print("system logger: %s" % msg, file=sys.stderr)
 
     def log_event(
         self, level: str, module: str, name: str, payload: Optional[Any] = None
