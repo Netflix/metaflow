@@ -170,7 +170,7 @@ def check(obj, warnings=False):
 @click.pass_obj
 def show(obj):
     echo_always("\n%s" % obj.graph.doc)
-    for _, node in sorted((n.func_lineno, n) for n in obj.graph):
+    for node in obj.graph.sorted_nodes:
         echo_always("\nStep *%s*" % node.name, err=False)
         echo_always(node.doc if node.doc else "?", indent=True, err=False)
         if node.type != "end":
