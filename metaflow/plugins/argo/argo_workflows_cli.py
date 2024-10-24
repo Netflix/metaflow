@@ -226,12 +226,12 @@ def create(
     validate_tags(tags)
 
     if deployer_attribute_file:
-        with open(deployer_attribute_file, "w") as f:
+        with open(deployer_attribute_file, "w", encoding="utf-8") as f:
             json.dump(
                 {
                     "name": obj.workflow_name,
                     "flow_name": obj.flow.name,
-                    "metadata": get_metadata(),
+                    "metadata": obj.metadata.metadata_str(),
                 },
                 f,
             )
@@ -657,7 +657,7 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
             json.dump(
                 {
                     "name": obj.workflow_name,
-                    "metadata": get_metadata(),
+                    "metadata": obj.metadata.metadata_str(),
                     "pathspec": "/".join((obj.flow.name, run_id)),
                 },
                 f,
@@ -1016,13 +1016,7 @@ def validate_run_id(
 
     if project_name is not None:
         # Verify we are operating on the correct project.
-        # Perform match with separators to avoid substrings matching
-        # e.g. 'test_proj' and 'test_project' should count as a mismatch.
-        project_part = "%s." % sanitize_for_argo(project_name)
-        if (
-            current.get("project_name") != project_name
-            and project_part not in workflow_name
-        ):
+        if current.get("project_name") != project_name:
             raise RunIdMismatch(
                 "The workflow belongs to the project *%s*. "
                 "Please use the project decorator or --name to target the correct project"
@@ -1030,13 +1024,7 @@ def validate_run_id(
             )
 
         # Verify we are operating on the correct branch.
-        # Perform match with separators to avoid substrings matching.
-        # e.g. 'user.tes' and 'user.test' should count as a mismatch.
-        branch_part = ".%s." % sanitize_for_argo(branch_name)
-        if (
-            current.get("branch_name") != branch_name
-            and branch_part not in workflow_name
-        ):
+        if current.get("branch_name") != branch_name:
             raise RunIdMismatch(
                 "The workflow belongs to the branch *%s*. "
                 "Please use --branch, --production or --name to target the correct branch"

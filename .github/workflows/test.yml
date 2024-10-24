@@ -9,7 +9,7 @@ on:
   workflow_call:
 
 permissions: read-all
-  
+
 jobs:
   pre-commit:
     runs-on: ubuntu-20.04
@@ -25,8 +25,10 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-20.04]
-        ver: ['3.5', '3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+        ver: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
         include:
+          - os: macos-latest
+            ver: "3.13"
           - os: macos-latest
             ver: "3.12"
           - os: macos-latest
@@ -60,14 +62,14 @@ jobs:
       matrix:
         os: [ubuntu-20.04]
         ver: ['4.4']
-   
+
     steps:
     - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
     - name: Set up ${{ matrix.ver }}
       uses: r-lib/actions/setup-r@33f03a860e4659235eb60a4d87ebc0b2ea65f722 # v2.4.0
       with:
         r-version: ${{ matrix.ver }}
-    
+
     - name: Install R ${{ matrix.ver }} system dependencies
       if: matrix.os == 'ubuntu-20.04'
       run: sudo apt-get update; sudo apt-get install -y libcurl4-openssl-dev qpdf libgit2-dev libharfbuzz-dev libfribidi-dev
@@ -76,11 +78,11 @@ jobs:
       run: |
         python3 -m venv path/to/venv
         source path/to/venv/bin/activate
-        python3 -m pip install . 
+        python3 -m pip install .
         Rscript -e 'install.packages("devtools", repos="https://cloud.r-project.org", Ncpus=8)'
         Rscript -e 'devtools::install_deps("R", dependencies=TRUE, repos="https://cloud.r-project.org", upgrade="default")'
         R CMD INSTALL R
-        Rscript -e 'install.packages(c("data.table", "caret", "glmnet", "Matrix", "rjson"), repos="https://cloud.r-project.org", Ncpus=8)'   
+        Rscript -e 'install.packages(c("data.table", "caret", "glmnet", "Matrix", "rjson"), repos="https://cloud.r-project.org", Ncpus=8)'
 
     - name: Execute R tests
       run: |

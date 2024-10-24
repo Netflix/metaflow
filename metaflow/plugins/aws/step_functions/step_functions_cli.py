@@ -162,7 +162,7 @@ def create(
                 {
                     "name": obj.state_machine_name,
                     "flow_name": obj.flow.name,
-                    "metadata": get_metadata(),
+                    "metadata": obj.metadata.metadata_str(),
                 },
                 f,
             )
@@ -502,7 +502,7 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
             json.dump(
                 {
                     "name": obj.state_machine_name,
-                    "metadata": get_metadata(),
+                    "metadata": obj.metadata.metadata_str(),
                     "pathspec": "/".join((obj.flow.name, run_id)),
                 },
                 f,
