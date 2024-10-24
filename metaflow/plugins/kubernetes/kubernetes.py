@@ -67,6 +67,11 @@ METAFLOW_PARALLEL_STEP_CLI_OPTIONS_TEMPLATE = (
     "{METAFLOW_PARALLEL_STEP_CLI_OPTIONS_TEMPLATE}"
 )
 
+VOLUME_CLAIM_TEMPLATE_DEFAULTS = {
+    "accessModes": ["ReadWriteOnce"],
+    "resources": {"requests": {"storage": "1Gi"}},
+}
+
 
 class KubernetesException(MetaflowException):
     headline = "Kubernetes error"
@@ -191,6 +196,7 @@ class Kubernetes(object):
         run_time_limit=None,
         env=None,
         persistent_volume_claims=None,
+        ephemeral_volume_claims=None,
         tolerations=None,
         labels=None,
         shared_memory=None,
@@ -225,6 +231,7 @@ class Kubernetes(object):
                 tmpfs_size=tmpfs_size,
                 tmpfs_path=tmpfs_path,
                 persistent_volume_claims=persistent_volume_claims,
+                ephemeral_volume_claims=ephemeral_volume_claims,
                 shared_memory=shared_memory,
                 port=port,
                 num_parallel=num_parallel,
@@ -483,6 +490,7 @@ class Kubernetes(object):
         run_time_limit=None,
         env=None,
         persistent_volume_claims=None,
+        ephemeral_volume_claims=None,
         tolerations=None,
         labels=None,
         shared_memory=None,
@@ -526,6 +534,7 @@ class Kubernetes(object):
                 tmpfs_size=tmpfs_size,
                 tmpfs_path=tmpfs_path,
                 persistent_volume_claims=persistent_volume_claims,
+                ephemeral_volume_claims=ephemeral_volume_claims,
                 shared_memory=shared_memory,
                 port=port,
             )
