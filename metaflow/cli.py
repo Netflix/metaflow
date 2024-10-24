@@ -376,14 +376,6 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
     help="Run id of the origin flow, if this task is part of a flow being resumed.",
 )
 @click.option(
-    "--with",
-    "decospecs",
-    multiple=True,
-    help="Add a decorator to this task. You can specify this "
-    "option multiple times to attach multiple decorators "
-    "to this task.",
-)
-@click.option(
     "--ubf-context",
     default="none",
     type=click.Choice(["none", UBF_CONTROL, UBF_TASK]),
@@ -410,7 +402,6 @@ def step(
     max_user_code_retries=None,
     clone_only=None,
     clone_run_id=None,
-    decospecs=None,
     ubf_context="none",
     num_parallel=None,
 ):
@@ -427,9 +418,6 @@ def step(
     if not func.is_step:
         raise CommandException("Function *%s* is not a step." % step_name)
     echo("Executing a step, *%s*" % step_name, fg="magenta", bold=False)
-
-    if decospecs:
-        decorators._attach_decorators_to_step(func, decospecs)
 
     step_kwargs = ctx.params
     # Remove argument `step_name` from `step_kwargs`.
@@ -820,6 +808,8 @@ def before_run(obj, tags, decospecs):
         + list(obj.environment.decospecs() or [])
     )
     if all_decospecs:
+        # These decospecs are the ones from run/resume PLUS the ones from the
+        # environment (for example the @conda)
         decorators._attach_decorators(obj.flow, all_decospecs)
         obj.graph = FlowGraph(obj.flow.__class__)
 
@@ -1018,6 +1008,11 @@ def start(
     # *after* the run decospecs so that they don't take precedence. In other
     # words, for the same decorator, we want `myflow.py run --with foo` to
     # take precedence over any other `foo` decospec
+
+    # Note that top-level decospecs are used primarily with non run/resume
+    # options as well as with the airflow/argo/sfn integrations which pass
+    # all the decospecs (the ones from top-level but also the ones from the
+    # run/resume level_) through the tl decospecs.
     ctx.obj.tl_decospecs = list(decospecs or [])
 
     # initialize current and parameter context for deploy-time parameters
