@@ -46,9 +46,12 @@ def deindent_docstring(doc):
 
 
 class DAGNode(object):
-    def __init__(self, func_ast, decos, doc):
+    def __init__(self, func_ast, decos, doc, source_file, lineno):
         self.name = func_ast.name
-        self.func_lineno = func_ast.lineno
+        self.source_file = source_file
+        # lineno is the start line of decorators in source_file
+        # func_ast.lineno is lines from decorators start to def of function
+        self.func_lineno = lineno + func_ast.lineno - 1
         self.decorators = decos
         self.doc = deindent_docstring(doc)
         self.parallel_step = any(getattr(deco, "IS_PARALLEL", False) for deco in decos)
@@ -63,7 +66,7 @@ class DAGNode(object):
         self.foreach_param = None
         self.num_parallel = 0
         self.parallel_foreach = False
-        self._parse(func_ast)
+        self._parse(func_ast, lineno)
 
         # these attributes are populated by _traverse_graph
         self.in_funcs = set()
@@ -75,7 +78,7 @@ class DAGNode(object):
     def _expr_str(self, expr):
         return "%s.%s" % (expr.value.id, expr.attr)
 
-    def _parse(self, func_ast):
+    def _parse(self, func_ast, lineno):
         self.num_args = len(func_ast.args.args)
         tail = func_ast.body[-1]
 
@@ -95,7 +98,7 @@ class DAGNode(object):
 
             self.has_tail_next = True
             self.invalid_tail_next = True
-            self.tail_next_lineno = tail.lineno
+            self.tail_next_lineno = lineno + tail.lineno - 1
             self.out_funcs = [e.attr for e in tail.value.args]
 
             keywords = dict(
@@ -172,9 +175,13 @@ class FlowGraph(object):
         for element in dir(flow):
             func = getattr(flow, element)
             if hasattr(func, "is_step"):
-                source_code = textwrap.dedent(inspect.getsource(func))
+                source_file = inspect.getsourcefile(func)
+                source_lines, lineno = inspect.getsourcelines(func)
+                source_code = textwrap.dedent("".join(source_lines))
                 function_ast = ast.parse(source_code).body[0]
-                node = DAGNode(function_ast, func.decorators, func.__doc__)
+                node = DAGNode(
+                    function_ast, func.decorators, func.__doc__, source_file, lineno
+                )
                 nodes[element] = node
         return nodes
 
