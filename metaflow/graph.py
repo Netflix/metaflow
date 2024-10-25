@@ -238,9 +238,7 @@ class FlowGraph(object):
         return iter(self.nodes.values())
 
     def __str__(self):
-        return "\n".join(
-            str(n) for _, n in sorted((n.func_lineno, n) for n in self.nodes.values())
-        )
+        return "\n".join(str(self[n]) for n in self.sorted_nodes)
 
     def output_dot(self):
         def edge_specs():
@@ -284,6 +282,7 @@ class FlowGraph(object):
                 "name": name,
                 "type": node_to_type(node),
                 "line": node.func_lineno,
+                "source_file": node.source_file,
                 "doc": node.doc,
                 "decorators": [
                     {
