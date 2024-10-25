@@ -1,5 +1,4 @@
 import sys
-import tempfile
 from typing import Optional, ClassVar
 
 from metaflow.plugins.argo.argo_workflows import ArgoWorkflows
@@ -9,6 +8,7 @@ from metaflow.runner.deployer import (
     TriggeredRun,
     get_lower_level_group,
     handle_timeout,
+    temporary_fifo,
 )
 
 
@@ -207,16 +207,14 @@ def trigger(instance: DeployedFlow, **kwargs):
     Exception
         If there is an error during the trigger process.
     """
-    with tempfile.TemporaryDirectory() as temp_dir:
-        tfp_runner_attribute = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
-
+    with temporary_fifo() as (attribute_file_path, attribute_file_fd):
         # every subclass needs to have `self.deployer_kwargs`
         command = get_lower_level_group(
             instance.deployer.api,
             instance.deployer.top_level_kwargs,
             instance.deployer.TYPE,
             instance.deployer.deployer_kwargs,
-        ).trigger(deployer_attribute_file=tfp_runner_attribute.name, **kwargs)
+        ).trigger(deployer_attribute_file=attribute_file_path, **kwargs)
 
         pid = instance.deployer.spm.run_command(
             [sys.executable, *command],
@@ -227,7 +225,7 @@ def trigger(instance: DeployedFlow, **kwargs):
 
         command_obj = instance.deployer.spm.get(pid)
         content = handle_timeout(
-            tfp_runner_attribute, command_obj, instance.deployer.file_read_timeout
+            attribute_file_fd, command_obj, instance.deployer.file_read_timeout
         )
 
         if command_obj.process.returncode == 0:

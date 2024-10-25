@@ -2,14 +2,18 @@ import importlib
 import os
 import sys
 import json
-import tempfile
 
 from typing import Dict, Iterator, Optional, Tuple
 
 from metaflow import Run
 
-from .utils import handle_timeout
+from .utils import (
+    temporary_fifo,
+    handle_timeout,
+    async_handle_timeout,
+)
 from .subprocess_manager import CommandManager, SubprocessManager
+from .signal_manager import SignalManager
 
 
 class ExecutingRun(object):
@@ -231,6 +235,7 @@ class Runner(object):
         env: Optional[Dict] = None,
         cwd: Optional[str] = None,
         file_read_timeout: int = 3600,
+        signal_manager: Optional[SignalManager] = None,
         **kwargs
     ):
         # these imports are required here and not at the top
@@ -256,7 +261,7 @@ class Runner(object):
 
         self.cwd = cwd
         self.file_read_timeout = file_read_timeout
-        self.spm = SubprocessManager()
+        self.spm = SubprocessManager(signal_manager=signal_manager)
         self.top_level_kwargs = kwargs
         self.api = MetaflowAPI.from_cli(self.flow_file, start)
 
@@ -266,9 +271,21 @@ class Runner(object):
     async def __aenter__(self) -> "Runner":
         return self
 
-    def __get_executing_run(self, tfp_runner_attribute, command_obj):
-        content = handle_timeout(
-            tfp_runner_attribute, command_obj, self.file_read_timeout
+    def __get_executing_run(self, attribute_file_fd, command_obj):
+        content = handle_timeout(attribute_file_fd, command_obj, self.file_read_timeout)
+        content = json.loads(content)
+        pathspec = "%s/%s" % (content.get("flow_name"), content.get("run_id"))
+
+        # Set the correct metadata from the runner_attribute file corresponding to this run.
+        metadata_for_flow = content.get("metadata")
+        metadata(metadata_for_flow)
+
+        run_object = Run(pathspec, _namespace_check=False)
+        return ExecutingRun(self, command_obj, run_object)
+
+    async def __async_get_executing_run(self, attribute_file_fd, command_obj):
+        content = await async_handle_timeout(
+            attribute_file_fd, command_obj, self.file_read_timeout
         )
         content = json.loads(content)
         pathspec = "%s/%s" % (content.get("flow_name"), content.get("run_id"))
@@ -297,12 +314,9 @@ class Runner(object):
         ExecutingRun
             ExecutingRun containing the results of the run.
         """
-        with tempfile.TemporaryDirectory() as temp_dir:
-            tfp_runner_attribute = tempfile.NamedTemporaryFile(
-                dir=temp_dir, delete=False
-            )
+        with temporary_fifo() as (attribute_file_path, attribute_file_fd):
             command = self.api(**self.top_level_kwargs).run(
-                runner_attribute_file=tfp_runner_attribute.name, **kwargs
+                runner_attribute_file=attribute_file_path, **kwargs
             )
 
             pid = self.spm.run_command(
@@ -313,7 +327,7 @@ class Runner(object):
             )
             command_obj = self.spm.get(pid)
 
-            return self.__get_executing_run(tfp_runner_attribute, command_obj)
+            return self.__get_executing_run(attribute_file_fd, command_obj)
 
     def resume(self, **kwargs):
         """
@@ -331,12 +345,9 @@ class Runner(object):
         ExecutingRun
             ExecutingRun containing the results of the resumed run.
         """
-        with tempfile.TemporaryDirectory() as temp_dir:
-            tfp_runner_attribute = tempfile.NamedTemporaryFile(
-                dir=temp_dir, delete=False
-            )
+        with temporary_fifo() as (attribute_file_path, attribute_file_fd):
             command = self.api(**self.top_level_kwargs).resume(
-                runner_attribute_file=tfp_runner_attribute.name, **kwargs
+                runner_attribute_file=attribute_file_path, **kwargs
             )
 
             pid = self.spm.run_command(
@@ -347,7 +358,7 @@ class Runner(object):
             )
             command_obj = self.spm.get(pid)
 
-            return self.__get_executing_run(tfp_runner_attribute, command_obj)
+            return self.__get_executing_run(attribute_file_fd, command_obj)
 
     async def async_run(self, **kwargs) -> ExecutingRun:
         """
@@ -367,12 +378,9 @@ class Runner(object):
         ExecutingRun
             ExecutingRun representing the run that was started.
         """
-        with tempfile.TemporaryDirectory() as temp_dir:
-            tfp_runner_attribute = tempfile.NamedTemporaryFile(
-                dir=temp_dir, delete=False
-            )
+        with temporary_fifo() as (attribute_file_path, attribute_file_fd):
             command = self.api(**self.top_level_kwargs).run(
-                runner_attribute_file=tfp_runner_attribute.name, **kwargs
+                runner_attribute_file=attribute_file_path, **kwargs
             )
 
             pid = await self.spm.async_run_command(
@@ -382,7 +390,7 @@ class Runner(object):
             )
             command_obj = self.spm.get(pid)
 
-            return self.__get_executing_run(tfp_runner_attribute, command_obj)
+            return await self.__async_get_executing_run(attribute_file_fd, command_obj)
 
     async def async_resume(self, **kwargs):
         """
@@ -402,12 +410,9 @@ class Runner(object):
         ExecutingRun
             ExecutingRun representing the resumed run that was started.
         """
-        with tempfile.TemporaryDirectory() as temp_dir:
-            tfp_runner_attribute = tempfile.NamedTemporaryFile(
-                dir=temp_dir, delete=False
-            )
+        with temporary_fifo() as (attribute_file_path, attribute_file_fd):
             command = self.api(**self.top_level_kwargs).resume(
-                runner_attribute_file=tfp_runner_attribute.name, **kwargs
+                runner_attribute_file=attribute_file_path, **kwargs
             )
 
             pid = await self.spm.async_run_command(
@@ -417,7 +422,7 @@ class Runner(object):
             )
             command_obj = self.spm.get(pid)
 
-            return self.__get_executing_run(tfp_runner_attribute, command_obj)
+            return await self.__async_get_executing_run(attribute_file_fd, command_obj)
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.spm.cleanup()
