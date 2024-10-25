@@ -10,14 +10,18 @@ from metaflow.runner.utils import get_lower_level_group, handle_timeout
 
 
 class StepFunctionsTriggeredRun(TriggeredRun):
+    """
+    A class representing a triggered AWS Step Functions state machine execution.
+    """
+
     def terminate(self, **kwargs) -> bool:
         """
-        Terminate the running workflow.
+        Terminate the running state machine execution.
 
         Parameters
         ----------
-        **kwargs : Any
-            Additional arguments to pass to the terminate command.
+        authorize : str, optional, default None
+            Authorize the termination with a production token.
 
         Returns
         -------
@@ -46,6 +50,9 @@ class StepFunctionsTriggeredRun(TriggeredRun):
 
 
 class StepFunctionsDeployedFlow(DeployedFlow):
+    """
+    A class representing a deployed AWS Step Functions state machine.
+    """
 
     TYPE: ClassVar[Optional[str]] = "step-functions"
 
@@ -132,12 +139,12 @@ class StepFunctionsDeployedFlow(DeployedFlow):
 
     def delete(self, **kwargs) -> bool:
         """
-        Delete the deployed flow.
+        Delete the deployed state machine.
 
         Parameters
         ----------
-        **kwargs : Any
-            Additional arguments to pass to the delete command.
+        authorize : str, optional, default None
+            Authorize the deletion with a production token.
 
         Returns
         -------

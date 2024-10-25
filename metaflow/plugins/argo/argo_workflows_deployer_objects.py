@@ -61,14 +61,18 @@ if __name__ == '__main__':
 
 
 class ArgoWorkflowsTriggeredRun(TriggeredRun):
+    """
+    A class representing a triggered Argo Workflow execution.
+    """
+
     def suspend(self, **kwargs) -> bool:
         """
         Suspend the running workflow.
 
         Parameters
         ----------
-        **kwargs : Any
-            Additional arguments to pass to the suspend command.
+        authorize : str, optional, default None
+            Authorize the suspension with a production token.
 
         Returns
         -------
@@ -101,8 +105,8 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
 
         Parameters
         ----------
-        **kwargs : Any
-            Additional arguments to pass to the unsuspend command.
+        authorize : str, optional, default None
+            Authorize the unsuspend with a production token.
 
         Returns
         -------
@@ -135,8 +139,8 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
 
         Parameters
         ----------
-        **kwargs : Any
-            Additional arguments to pass to the terminate command.
+        authorize : str, optional, default None
+            Authorize the termination with a production token.
 
         Returns
         -------
@@ -187,6 +191,9 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
 
 
 class ArgoWorkflowsDeployedFlow(DeployedFlow):
+    """
+    A class representing a deployed Argo Workflow template.
+    """
 
     TYPE: ClassVar[Optional[str]] = "argo-workflows"
 
@@ -268,12 +275,12 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
 
     def delete(self, **kwargs) -> bool:
         """
-        Delete the deployed flow.
+        Delete the deployed workflow template.
 
         Parameters
         ----------
-        **kwargs : Any
-            Additional arguments to pass to the delete command.
+        authorize : str, optional, default None
+            Authorize the deletion with a production token.
 
         Returns
         -------
@@ -304,8 +311,8 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
         Parameters
         ----------
         **kwargs : Any
-            Additional arguments to pass to the trigger command, `Parameters` in
-            particular
+            Additional arguments to pass to the trigger command,
+            `Parameters` in particular.
 
         Returns
         -------
