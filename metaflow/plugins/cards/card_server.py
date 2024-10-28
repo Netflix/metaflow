@@ -20,14 +20,9 @@ except ImportError:
 from .card_client import CardContainer
 from .exception import CardNotPresentException
 from .card_resolver import resolve_paths_from_task
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow import namespace
-from metaflow.exception import (
-    CommandException,
-    MetaflowNotFound,
-    MetaflowNamespaceMismatch,
-)
-
+from metaflow.exception import MetaflowNotFound
+from metaflow.plugins.datastores.local_storage import LocalStorage
 
 VIEWER_PATH = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "card_viewer", "viewer.html"
@@ -50,15 +45,20 @@ class RunWatcher(Thread):
     def __init__(self, flow_name, connection: Connection):
         super().__init__()
 
-        self._watch_file = os.path.join(
-            os.getcwd(), DATASTORE_LOCAL_DIR, flow_name, "latest_run"
+        local_root = LocalStorage.datastore_root
+        if local_root is None:
+            local_root = LocalStorage.get_datastore_root_from_config(
+                lambda _: None, create_on_absent=False
+            )
+        self._watch_file = (
+            os.path.join(local_root, flow_name, "latest_run") if local_root else None
         )
         self._current_run_id = self.get_run_id()
         self.daemon = True
         self._connection = connection
 
     def get_run_id(self):
-        if not os.path.exists(self._watch_file):
+        if self._watch_file is None or not os.path.exists(self._watch_file):
             return None
         with open(self._watch_file, "r") as f:
             return f.read().strip()
