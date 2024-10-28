@@ -22,7 +22,7 @@ class SecretsDecorator(StepDecorator):
     ----------
     sources : List[Union[str, Dict[str, Any]]], default: []
         List of secret specs, defining how the secrets are to be retrieved
-    role : str, optional
+    role : str, optional, default: None
         Role to use for fetching secrets
     """
 
