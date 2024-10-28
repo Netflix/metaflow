@@ -1,14 +1,13 @@
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
+from metaflow.metaflow_config import DEFAULT_SECRETS_ROLE
 from metaflow.exception import MetaflowException
-from metaflow.plugins.secrets.secrets_decorator import (
-    SecretSpec,
-    get_secrets_backend_provider,
-)
+from metaflow.plugins.secrets.secrets_spec import SecretSpec
+from metaflow.plugins.secrets.utils import get_secrets_backend_provider
 
 
 def get_secrets(
-    sources: List[Union[str, Dict[str, Any]]] = [], role: str = None
+    sources: List[Union[str, Dict[str, Any]]] = [], role: Optional[str] = None
 ) -> Dict[SecretSpec, Dict[str, str]]:
     """
     Get secrets from sources
@@ -23,7 +22,7 @@ def get_secrets(
     if role is None:
         role = DEFAULT_SECRETS_ROLE
 
-    # List of pairs (secret_spec, env_vars_from_this_spec)
+    # List of pairs (secret_spec, dict_of_secrets)
     all_secrets = []
     secret_specs = []
 
