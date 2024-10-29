@@ -896,17 +896,24 @@ def suspend(obj, run_id, authorize=None):
             "about production tokens."
         )
 
-    validate_run_id(
-        obj.workflow_name, obj.token_prefix, authorize, run_id, _token_instructions
-    )
+    workflows = [obj.workflow_name]
+    if obj.workflow_name != obj._v1_workflow_name:
+        obj.echo("Trying on possible older deployment of the flow as well.")
+        workflows.append(obj._v1_workflow_name)
 
-    # Trim prefix from run_id
-    name = run_id[5:]
+    for workflow_name in workflows:
+        validate_run_id(
+            workflow_name, obj.token_prefix, authorize, run_id, _token_instructions
+        )
 
-    workflow_suspended = ArgoWorkflows.suspend(name)
+        # Trim prefix from run_id
+        name = run_id[5:]
 
-    if workflow_suspended:
-        obj.echo("Suspended execution of *%s*" % run_id)
+        workflow_suspended = ArgoWorkflows.suspend(name)
+
+        if workflow_suspended:
+            obj.echo("Suspended execution of *%s*" % run_id)
+            break  # no need to try out all workflow_names if we found the running one.
 
 
 @argo_workflows.command(help="Unsuspend flow execution on Argo Workflows.")
@@ -940,17 +947,24 @@ def unsuspend(obj, run_id, authorize=None):
             "about production tokens."
         )
 
-    validate_run_id(
-        obj.workflow_name, obj.token_prefix, authorize, run_id, _token_instructions
-    )
+    workflows = [obj.workflow_name]
+    if obj.workflow_name != obj._v1_workflow_name:
+        obj.echo("Trying on possible older deployment of the flow as well.")
+        workflows.append(obj._v1_workflow_name)
 
-    # Trim prefix from run_id
-    name = run_id[5:]
+    for workflow_name in workflows:
+        validate_run_id(
+            workflow_name, obj.token_prefix, authorize, run_id, _token_instructions
+        )
 
-    workflow_suspended = ArgoWorkflows.unsuspend(name)
+        # Trim prefix from run_id
+        name = run_id[5:]
 
-    if workflow_suspended:
-        obj.echo("Unsuspended execution of *%s*" % run_id)
+        workflow_suspended = ArgoWorkflows.unsuspend(name)
+
+        if workflow_suspended:
+            obj.echo("Unsuspended execution of *%s*" % run_id)
+            break  # no need to try all workflow_names if we found one.
 
 
 def validate_token(name, token_prefix, authorize, instructions_fn=None):
@@ -1058,22 +1072,29 @@ def terminate(obj, run_id, authorize=None):
             "about production tokens."
         )
 
-    validate_run_id(
-        obj.workflow_name, obj.token_prefix, authorize, run_id, _token_instructions
-    )
+    workflows = [obj.workflow_name]
+    if obj.workflow_name != obj._v1_workflow_name:
+        obj.echo("Trying on possible older deployment of the flow as well.")
+        workflows.append(obj._v1_workflow_name)
 
-    # Trim prefix from run_id
-    name = run_id[5:]
-    obj.echo(
-        "Terminating run *{run_id}* for {flow_name} ...".format(
-            run_id=run_id, flow_name=obj.flow.name
-        ),
-        bold=True,
-    )
+    for workflow_name in workflows:
+        validate_run_id(
+            workflow_name, obj.token_prefix, authorize, run_id, _token_instructions
+        )
 
-    terminated = ArgoWorkflows.terminate(obj.flow.name, name)
-    if terminated:
-        obj.echo("\nRun terminated.")
+        # Trim prefix from run_id
+        name = run_id[5:]
+        obj.echo(
+            "Terminating run *{run_id}* for {flow_name} ...".format(
+                run_id=run_id, flow_name=obj.flow.name
+            ),
+            bold=True,
+        )
+
+        terminated = ArgoWorkflows.terminate(obj.flow.name, name)
+        if terminated:
+            obj.echo("\nRun terminated.")
+            break  # no need to try all workflow_names if we found the running one.
 
 
 @argo_workflows.command(help="List Argo Workflow templates for the flow.")
