@@ -831,34 +831,41 @@ def delete(obj, authorize=None):
             "about production tokens."
         )
 
-    validate_token(obj.workflow_name, obj.token_prefix, authorize, _token_instructions)
-    obj.echo("Deleting workflow *{name}*...".format(name=obj.workflow_name), bold=True)
+    workflows = [obj.workflow_name]
+    if obj.workflow_name != obj._v1_workflow_name:
+        obj.echo("Also cleaning up possible older deployment of the flow.")
+        workflows.append(obj._v1_workflow_name)
 
-    schedule_deleted, sensor_deleted, workflow_deleted = ArgoWorkflows.delete(
-        obj.workflow_name
-    )
+    workflows_deleted = False
+    for workflow_name in workflows:
+        validate_token(workflow_name, obj.token_prefix, authorize, _token_instructions)
+        obj.echo("Deleting workflow *{name}*...".format(name=workflow_name), bold=True)
 
-    if schedule_deleted:
-        obj.echo(
-            "Deleting cronworkflow *{name}*...".format(name=obj.workflow_name),
-            bold=True,
+        schedule_deleted, sensor_deleted, workflow_deleted = ArgoWorkflows.delete(
+            workflow_name
         )
+        workflows_deleted = workflows_deleted or workflow_deleted
+        if schedule_deleted:
+            obj.echo(
+                "Deleting cronworkflow *{name}*...".format(name=workflow_name),
+                bold=True,
+            )
 
-    if sensor_deleted:
-        obj.echo(
-            "Deleting sensor *{name}*...".format(name=obj.workflow_name),
-            bold=True,
-        )
+        if sensor_deleted:
+            obj.echo(
+                "Deleting sensor *{name}*...".format(name=workflow_name),
+                bold=True,
+            )
 
-    if workflow_deleted:
-        obj.echo(
-            "Deleting Kubernetes resources may take a while. "
-            "Deploying the flow again to Argo Workflows while the delete is in-flight will fail."
-        )
-        obj.echo(
-            "In-flight executions will not be affected. "
-            "If necessary, terminate them manually."
-        )
+        if workflows_deleted:
+            obj.echo(
+                "Deleting Kubernetes resources may take a while. "
+                "Deploying the flow again to Argo Workflows while the delete is in-flight will fail."
+            )
+            obj.echo(
+                "In-flight executions will not be affected. "
+                "If necessary, terminate them manually."
+            )
 
 
 @argo_workflows.command(help="Suspend flow execution on Argo Workflows.")
