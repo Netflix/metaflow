@@ -921,8 +921,10 @@ def suspend(obj, run_id, authorize=None):
 
     workflows = [obj.workflow_name]
     if obj.workflow_name != obj._v1_workflow_name:
-        obj.echo("Trying on possible older deployment of the flow as well.")
-        workflows.append(obj._v1_workflow_name)
+        # Only add the old name if there exists a deployment with such name.
+        # This is due to the way validate_token is tied to an existing deployment.
+        if ArgoWorkflows.get_existing_deployment(obj._v1_workflow_name) is not None:
+            workflows.append(obj._v1_workflow_name)
 
     for workflow_name in workflows:
         validate_run_id(
@@ -972,8 +974,10 @@ def unsuspend(obj, run_id, authorize=None):
 
     workflows = [obj.workflow_name]
     if obj.workflow_name != obj._v1_workflow_name:
-        obj.echo("Trying on possible older deployment of the flow as well.")
-        workflows.append(obj._v1_workflow_name)
+        # Only add the old name if there exists a deployment with such name.
+        # This is due to the way validate_token is tied to an existing deployment.
+        if ArgoWorkflows.get_existing_deployment(obj._v1_workflow_name) is not None:
+            workflows.append(obj._v1_workflow_name)
 
     for workflow_name in workflows:
         validate_run_id(
@@ -1097,8 +1101,10 @@ def terminate(obj, run_id, authorize=None):
 
     workflows = [obj.workflow_name]
     if obj.workflow_name != obj._v1_workflow_name:
-        obj.echo("Trying on possible older deployment of the flow as well.")
-        workflows.append(obj._v1_workflow_name)
+        # Only add the old name if there exists a deployment with such name.
+        # This is due to the way validate_token is tied to an existing deployment.
+        if ArgoWorkflows.get_existing_deployment(obj._v1_workflow_name) is not None:
+            workflows.append(obj._v1_workflow_name)
 
     for workflow_name in workflows:
         validate_run_id(
