@@ -833,8 +833,11 @@ def delete(obj, authorize=None):
 
     workflows = [obj.workflow_name]
     if obj.workflow_name != obj._v1_workflow_name:
-        obj.echo("Also cleaning up possible older deployment of the flow.")
-        workflows.append(obj._v1_workflow_name)
+        # Only add the old name if there exists a deployment with such name.
+        # This is due to the way validate_token is tied to an existing deployment.
+        if ArgoWorkflows.get_existing_deployment(obj._v1_workflow_name) is None:
+            obj.echo("Also cleaning up older deployment of the flow.")
+            workflows.append(obj._v1_workflow_name)
 
     workflows_deleted = False
     for workflow_name in workflows:
@@ -844,6 +847,7 @@ def delete(obj, authorize=None):
         schedule_deleted, sensor_deleted, workflow_deleted = ArgoWorkflows.delete(
             workflow_name
         )
+
         workflows_deleted = workflows_deleted or workflow_deleted
         if schedule_deleted:
             obj.echo(
