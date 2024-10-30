@@ -769,7 +769,22 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
         if kwargs.get(param.name.replace("-", "_").lower()) is not None
     }
 
-    response = ArgoWorkflows.trigger(obj.workflow_name, params)
+    workflow_name_to_deploy = obj.workflow_name
+    # For users that upgraded the client but did not redeploy their flow,
+    # we fallback to old workflow names in case of a conflict.
+    if obj.workflow_name != obj._v1_workflow_name:
+        # use the old name only if there exists a deployment.
+        if ArgoWorkflows.get_existing_deployment(obj._v1_workflow_name):
+            obj.echo("Warning! ", bold=True, nl=False)
+            obj.echo(
+                "Found a deployment of this flow with an old style name, defaulted to triggering *%s*. \nDue to new naming restrictions on Argo Workflows, "
+                "this flow will have a shorter name with newer\nversions of Metaflow (>=2.13) "
+                "which will allow it to be triggered through Argo UI as well. "
+                % obj._v1_workflow_name
+            )
+            obj.echo("re-deploy your flow in order to get rid of this message.")
+            workflow_name_to_deploy = obj._v1_workflow_name
+    response = ArgoWorkflows.trigger(workflow_name_to_deploy, params)
     run_id = "argo-" + response["metadata"]["name"]
 
     if run_id_file:
@@ -780,7 +795,7 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
         with open(deployer_attribute_file, "w") as f:
             json.dump(
                 {
-                    "name": obj.workflow_name,
+                    "name": workflow_name_to_deploy,
                     "metadata": get_metadata(),
                     "pathspec": "/".join((obj.flow.name, run_id)),
                 },
@@ -789,7 +804,7 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
 
     obj.echo(
         "Workflow *{name}* triggered on Argo Workflows "
-        "(run-id *{run_id}*).".format(name=obj.workflow_name, run_id=run_id),
+        "(run-id *{run_id}*).".format(name=workflow_name_to_deploy, run_id=run_id),
         bold=True,
     )
 
