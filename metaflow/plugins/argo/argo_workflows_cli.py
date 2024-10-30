@@ -836,35 +836,14 @@ def delete(obj, authorize=None):
     # old name exists, new name exists -> delete both
     # old name does not exist, new name exists -> only try to delete new
     # old name does not exist, new name does not exist -> keep previous behaviour where missing deployment raises error for the new name.
-
-    cleanup_old_name = False
-    workflows = [obj.workflow_name]
-    if obj.workflow_name != obj._v1_workflow_name:
-        # Only add the old name if there exists a deployment with such name.
-        # This is due to the way validate_token is tied to an existing deployment.
-        if ArgoWorkflows.get_existing_deployment(obj._v1_workflow_name) is not None:
-            cleanup_old_name = True
-            obj.echo(
-                "This flow has been deployed with another name in the past due to a limitation with Argo Workflows.\n"
-                "Will also delete the older deployment."
-            )
-            workflows.append(obj._v1_workflow_name)
-
-    workflows_deleted = False
-    for workflow_name in workflows:
+    def _delete(workflow_name):
         validate_token(workflow_name, obj.token_prefix, authorize, _token_instructions)
         obj.echo("Deleting workflow *{name}*...".format(name=workflow_name), bold=True)
 
-        try:
-            schedule_deleted, sensor_deleted, workflow_deleted = ArgoWorkflows.delete(
-                workflow_name
-            )
-        except Exception:
-            if not cleanup_old_name:
-                raise
-            schedule_deleted, sensor_deleted, workflow_deleted = None, None, None
+        schedule_deleted, sensor_deleted, workflow_deleted = ArgoWorkflows.delete(
+            workflow_name
+        )
 
-        workflows_deleted = workflows_deleted or workflow_deleted
         if schedule_deleted:
             obj.echo(
                 "Deleting cronworkflow *{name}*...".format(name=workflow_name),
@@ -876,6 +855,30 @@ def delete(obj, authorize=None):
                 "Deleting sensor *{name}*...".format(name=workflow_name),
                 bold=True,
             )
+        return workflow_deleted
+
+    workflows_deleted = False
+    cleanup_old_name = False
+    if obj.workflow_name != obj._v1_workflow_name:
+        # Only add the old name if there exists a deployment with such name.
+        # This is due to the way validate_token is tied to an existing deployment.
+        if ArgoWorkflows.get_existing_deployment(obj._v1_workflow_name) is not None:
+            cleanup_old_name = True
+            obj.echo(
+                "This flow has been deployed with another name in the past due to a limitation with Argo Workflows.\n"
+                "Will also delete the older deployment."
+            )
+            _delete(obj._v1_workflow_name)
+            workflows_deleted = True
+
+    # Always try to delete the current name.
+    # Do not raise exception if we deleted old name before this.
+    try:
+        _delete(obj.workflow_name)
+        workflows_deleted = True
+    except ArgoWorkflowsException:
+        if not cleanup_old_name:
+            raise
 
     if workflows_deleted:
         obj.echo(
