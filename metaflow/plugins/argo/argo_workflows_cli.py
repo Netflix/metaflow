@@ -831,12 +831,23 @@ def delete(obj, authorize=None):
             "about production tokens."
         )
 
+    # Cases and expected behaviours:
+    # old name exists, new name does not exist -> delete old and do not fail on missing new
+    # old name exists, new name exists -> delete both
+    # old name does not exist, new name exists -> only try to delete new
+    # old name does not exist, new name does not exist -> keep previous behaviour where missing deployment raises error for the new name.
+
+    cleanup_old_name = False
     workflows = [obj.workflow_name]
     if obj.workflow_name != obj._v1_workflow_name:
         # Only add the old name if there exists a deployment with such name.
         # This is due to the way validate_token is tied to an existing deployment.
-        if ArgoWorkflows.get_existing_deployment(obj._v1_workflow_name) is None:
-            obj.echo("Also cleaning up older deployment of the flow.")
+        if ArgoWorkflows.get_existing_deployment(obj._v1_workflow_name) is not None:
+            cleanup_old_name = True
+            obj.echo(
+                "This flow has been deployed with another name in the past due to a limitation with Argo Workflows.\n"
+                "Will also delete the older deployment."
+            )
             workflows.append(obj._v1_workflow_name)
 
     workflows_deleted = False
@@ -844,9 +855,14 @@ def delete(obj, authorize=None):
         validate_token(workflow_name, obj.token_prefix, authorize, _token_instructions)
         obj.echo("Deleting workflow *{name}*...".format(name=workflow_name), bold=True)
 
-        schedule_deleted, sensor_deleted, workflow_deleted = ArgoWorkflows.delete(
-            workflow_name
-        )
+        try:
+            schedule_deleted, sensor_deleted, workflow_deleted = ArgoWorkflows.delete(
+                workflow_name
+            )
+        except Exception:
+            if not cleanup_old_name:
+                raise
+            schedule_deleted, sensor_deleted, workflow_deleted = None, None, None
 
         workflows_deleted = workflows_deleted or workflow_deleted
         if schedule_deleted:
@@ -861,15 +877,15 @@ def delete(obj, authorize=None):
                 bold=True,
             )
 
-        if workflows_deleted:
-            obj.echo(
-                "Deleting Kubernetes resources may take a while. "
-                "Deploying the flow again to Argo Workflows while the delete is in-flight will fail."
-            )
-            obj.echo(
-                "In-flight executions will not be affected. "
-                "If necessary, terminate them manually."
-            )
+    if workflows_deleted:
+        obj.echo(
+            "Deleting Kubernetes resources may take a while. "
+            "Deploying the flow again to Argo Workflows while the delete is in-flight will fail."
+        )
+        obj.echo(
+            "In-flight executions will not be affected. "
+            "If necessary, terminate them manually."
+        )
 
 
 @argo_workflows.command(help="Suspend flow execution on Argo Workflows.")
