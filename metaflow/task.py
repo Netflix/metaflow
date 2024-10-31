@@ -47,14 +47,13 @@ class MetaflowTask(object):
         return foreach_indices, foreach_indices_truncated, foreach_step_names
 
     def _static_runtime_metadata(self, graph_info, step_name):
-        if step_name == "start":
-            return []
-
-        return [
+        prev_steps = [
             node_name
             for node_name, attributes in graph_info["steps"].items()
             if step_name in attributes["next"]
         ]
+        succesor_steps = graph_info["steps"][step_name]["next"]
+        return prev_steps, succesor_steps
 
     def __init__(
         self,
@@ -667,7 +666,7 @@ class MetaflowTask(object):
                                 "graph_info": self.flow._graph_info,
                             }
                         )
-                previous_steps = self._static_runtime_metadata(
+                previous_steps, successor_steps = self._static_runtime_metadata(
                     self.flow._graph_info, step_name
                 )
                 for deco in decorators:
@@ -786,6 +785,12 @@ class MetaflowTask(object):
                                 field="previous_steps",
                                 value=previous_steps,
                                 type="previous_steps",
+                                tags=metadata_tags,
+                            ),
+                            MetaDatum(
+                                field="successor_steps",
+                                value=successor_steps,
+                                type="successor_steps",
                                 tags=metadata_tags,
                             ),
                         ],
