@@ -674,16 +674,16 @@ class MetadataProvider(object):
 
     @classmethod
     def _filter_tasks_by_metadata(
-        cls, flow_id, run_id, step_name, prev_step, field_name, field_value
+        cls, flow_id, run_id, step_name, query_step, field_name, field_value
     ):
         raise NotImplementedError()
 
     @classmethod
     def filter_tasks_by_metadata(
-        cls, flow_id, run_id, step_name, prev_step, field_name, field_value
+        cls, flow_id, run_id, step_name, query_step, field_name, field_value
     ):
         task_ids = cls._filter_tasks_by_metadata(
-            flow_id, run_id, step_name, prev_step, field_name, field_value
+            flow_id, run_id, step_name, query_step, field_name, field_value
         )
         return task_ids
 
