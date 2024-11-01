@@ -1153,7 +1153,6 @@ class Task(MetaflowObject):
                 query_task.metadata_dict.get("foreach-stack", [])
             )
 
-        # print(f"query_foreach_stack_len: {query_foreach_stack_len} cur_foreach_stack_len: {cur_foreach_stack_len}")
         if query_foreach_stack_len == cur_foreach_stack_len:
             field_name = "foreach-indices"
             field_value = self.metadata_dict.get(field_name)
