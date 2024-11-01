@@ -611,10 +611,6 @@ class MetaflowTask(object):
                 # user artifacts in the user's step code.
 
                 if join_type:
-                    if join_type == "foreach":
-                        # We only want to persist one of the input paths
-                        self.flow._input_paths = str(input_paths[0])
-
                     # Join step:
 
                     # Ensure that we have the right number of inputs. The
