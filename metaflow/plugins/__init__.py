@@ -73,8 +73,8 @@ ENVIRONMENTS_DESC = [
 
 # Add metadata providers here
 METADATA_PROVIDERS_DESC = [
-    ("service", ".metadata.service.ServiceMetadataProvider"),
-    ("local", ".metadata.local.LocalMetadataProvider"),
+    ("service", ".metadata_providers.service.ServiceMetadataProvider"),
+    ("local", ".metadata_providers.local.LocalMetadataProvider"),
 ]
 
 # Add datastore here

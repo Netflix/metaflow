@@ -1,5 +1,5 @@
 import time
-from .metadata import MetaDatum
+from .metadata_provider import MetaDatum
 
 
 def clone_task_helper(

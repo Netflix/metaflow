@@ -7,8 +7,8 @@ import time
 from metaflow import current
 from metaflow.decorators import StepDecorator
 from metaflow.exception import MetaflowException
-from metaflow.metadata import MetaDatum
-from metaflow.metadata.util import sync_local_metadata_to_datastore
+from metaflow.metadata_provider import MetaDatum
+from metaflow.metadata_provider.util import sync_local_metadata_to_datastore
 from metaflow.metaflow_config import (
     DATASTORE_LOCAL_DIR,
     KUBERNETES_CONTAINER_IMAGE,

@@ -301,7 +301,7 @@ class StubGenerator:
                 "metaflow.package",
                 "metaflow.plugins.datastores",
                 "metaflow.plugins.env_escape",
-                "metaflow.plugins.metadata",
+                "metaflow.plugins.metadata_providers",
                 "metaflow.procpoll.py",
                 "metaflow.R",
                 "metaflow.runtime",
@@ -1375,6 +1375,29 @@ class StubGenerator:
             elif not inspect.ismodule(attr):
                 self._stubs.append(self._generate_generic_stub(name, attr))
 
+    def _write_header(self, f, width):
+        title_line = "Auto-generated Metaflow stub file"
+        title_white_space = (width - len(title_line)) / 2
+        title_line = "#%s%s%s#\n" % (
+            " " * math.floor(title_white_space),
+            title_line,
+            " " * math.ceil(title_white_space),
+        )
+        f.write(
+            "#" * (width + 2)
+            + "\n"
+            + title_line
+            + "# MF version: %s%s#\n"
+            % (self._mf_version, " " * (width - 13 - len(self._mf_version)))
+            + "# Generated on %s%s#\n"
+            % (
+                datetime.fromtimestamp(time.time()).isoformat(),
+                " " * (width - 14 - 26),
+            )
+            + "#" * (width + 2)
+            + "\n\n"
+        )
+
     def write_out(self):
         out_dir = self._output_dir
         os.makedirs(out_dir, exist_ok=True)
@@ -1440,31 +1463,23 @@ class StubGenerator:
                 dir_path, os.path.basename(self._current_module.__file__) + "i"
             )
 
-            os.makedirs(os.path.dirname(out_file), exist_ok=True)
+            width = 100
 
-            width = 80
-            title_line = "Auto-generated Metaflow stub file"
-            title_white_space = (width - len(title_line)) / 2
-            title_line = "#%s%s%s#\n" % (
-                " " * math.floor(title_white_space),
-                title_line,
-                " " * math.ceil(title_white_space),
-            )
-            with open(out_file, mode="w", encoding="utf-8") as f:
-                f.write(
-                    "#" * (width + 2)
-                    + "\n"
-                    + title_line
-                    + "# MF version: %s%s#\n"
-                    % (self._mf_version, " " * (width - 13 - len(self._mf_version)))
-                    + "# Generated on %s%s#\n"
-                    % (
-                        datetime.fromtimestamp(time.time()).isoformat(),
-                        " " * (width - 14 - 26),
-                    )
-                    + "#" * (width + 2)
-                    + "\n\n"
+            os.makedirs(os.path.dirname(out_file), exist_ok=True)
+            # We want to make sure we always have a __init__.pyi in the directories
+            # we are creating
+            parts = dir_path.split(os.sep)[len(self._output_dir.split(os.sep)) :]
+            for i in range(1, len(parts) + 1):
+                init_file_path = os.path.join(
+                    self._output_dir, *parts[:i], "__init__.pyi"
                 )
+                if not os.path.exists(init_file_path):
+                    with open(init_file_path, mode="w", encoding="utf-8") as f:
+                        self._write_header(f, width)
+
+            with open(out_file, mode="w", encoding="utf-8") as f:
+                self._write_header(f, width)
+
                 f.write("from __future__ import annotations\n\n")
                 imported_typing = False
                 for module in self._imports:

@@ -1,7 +1,7 @@
 import json
 import os
 from metaflow.decorators import StepDecorator
-from metaflow.metadata import MetaDatum
+from metaflow.metadata_provider import MetaDatum
 
 from .airflow_utils import (
     TASK_ID_XCOM_KEY,
