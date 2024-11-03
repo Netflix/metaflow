@@ -4,6 +4,7 @@ from metaflow import current
 from metaflow.decorators import FlowDecorator
 from metaflow.exception import MetaflowException
 from metaflow.util import is_stringish
+from metaflow.parameters import DeployTimeField, deploy_time_eval
 
 # TODO: Support dynamic parameter mapping through a context object that exposes
 #       flow name and user name similar to parameter context
@@ -312,6 +313,17 @@ class TriggerOnFinishDecorator(FlowDecorator):
                             "The *project_branch* attribute of the *flow* is not a string"
                         )
                 self.triggers.append(result)
+            #DEPLOY TIME
+            #CAN RETURN STR OR DICT SO IDK WHAT TO DO AAAAA 
+            #for now we pretend it's a string
+            # or maybe low key who cares, we can figure out in maestro.py wait no there's smth in deploytimefield
+            #lets see if NONE works
+            elif callable(self.attributes["flow"]) and not isinstance(self.attributes["flow"], DeployTimeField):
+                aaa = DeployTimeField("fq_name", None, None, self.attributes["flow"], False) 
+                self.triggers.append(
+                   aaa
+                )
+
             else:
                 raise MetaflowException(
                     "Incorrect type for *flow* attribute in *@trigger_on_finish* "
@@ -383,6 +395,8 @@ class TriggerOnFinishDecorator(FlowDecorator):
 
         # Make triggers @project aware
         for trigger in self.triggers:
+            if isinstance(trigger, DeployTimeField):
+                continue
             if trigger["fq_name"].count(".") == 0:
                 # fully qualified name is just the flow name
                 trigger["flow"] = trigger["fq_name"]
