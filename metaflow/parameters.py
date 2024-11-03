@@ -158,7 +158,7 @@ class DeployTimeField(object):
 
         # note: this doesn't work with long in Python2 or types defined as
         # click types, e.g. click.INT
-        TYPES = {bool: "bool", int: "int", float: "float", list: "list"}
+        TYPES = {bool: "bool", int: "int", float: "float", list: "list", dict: "dict"}
 
         msg = (
             "The value returned by the deploy-time function for "
