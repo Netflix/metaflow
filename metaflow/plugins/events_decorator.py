@@ -115,6 +115,11 @@ class TriggerDecorator(FlowDecorator):
                             )
                     self.attributes["event"]["parameters"] = new_param_value
                 self.triggers.append(self.attributes["event"])
+            elif callable(self.attributes["event"]) and not isinstance(self.attributes["event"], DeployTimeField):
+                trig = DeployTimeField("fq_name", None, None, self.attributes["event"], False) 
+                self.triggers.append(
+                   trig
+                )
             else:
                 raise MetaflowException(
                     "Incorrect format for *event* attribute in *@trigger* decorator. "
@@ -157,6 +162,7 @@ class TriggerDecorator(FlowDecorator):
                                     )
                             event["parameters"] = new_param_value
                         self.triggers.append(event)
+
                     else:
                         raise MetaflowException(
                             "One or more events in *events* attribute in *@trigger* "
@@ -166,7 +172,15 @@ class TriggerDecorator(FlowDecorator):
                             "'beta'}}, {'name': 'bar', 'parameters': "
                             "{'gamma': 'kappa'}}])"
                         )
+    
+            elif callable(self.attributes["events"]) and not isinstance(self.attributes["events"], DeployTimeField):
+                        trig = DeployTimeField("events", list, None, self.attributes["events"], False) 
+                        #TODO idk if this is right
+                        self.triggers.append(
+                            trig
+                        )
             else:
+                print(self.attributes["events"])
                 raise MetaflowException(
                     "Incorrect format for *events* attribute in *@trigger* decorator. "
                     "Supported format is list - \n"
@@ -179,7 +193,7 @@ class TriggerDecorator(FlowDecorator):
             raise MetaflowException("No event(s) specified in *@trigger* decorator.")
 
         # same event shouldn't occur more than once
-        names = [x["name"] for x in self.triggers]
+        names = [x["name"] for x in self.triggers if not isinstance(x, DeployTimeField)]
         if len(names) != len(set(names)):
             raise MetaflowException(
                 "Duplicate event names defined in *@trigger* decorator."
@@ -319,9 +333,9 @@ class TriggerOnFinishDecorator(FlowDecorator):
             # or maybe low key who cares, we can figure out in maestro.py wait no there's smth in deploytimefield
             #lets see if NONE works
             elif callable(self.attributes["flow"]) and not isinstance(self.attributes["flow"], DeployTimeField):
-                aaa = DeployTimeField("fq_name", None, None, self.attributes["flow"], False) 
+                trig = DeployTimeField("fq_name", None, None, self.attributes["flow"], False) 
                 self.triggers.append(
-                   aaa
+                   trig
                 )
 
             else:
@@ -381,6 +395,11 @@ class TriggerOnFinishDecorator(FlowDecorator):
                             "Supported type is string or Dict[str, str]- \n"
                             "@trigger_on_finish(flows=['FooFlow', 'BarFlow']"
                         )
+            elif callable(self.attributes["flows"]) and not isinstance(self.attributes["flows"], DeployTimeField):
+                trig = DeployTimeField("flows", list, None, self.attributes["flows"], False) 
+                self.triggers.append(
+                   trig
+                )
             else:
                 raise MetaflowException(
                     "Incorrect type for *flows* attribute in *@trigger_on_finish* "
