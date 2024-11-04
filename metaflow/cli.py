@@ -282,7 +282,14 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
     else:
         ds_list = list(datastore_set)  # get all tasks
 
+    if not ds_list:
+        echo(f"No tasks found for pathspec {input_path}", fg="yellow")
+        return
+
     for ds in ds_list:
+        if ds is None:
+            echo(f"No task(s) found for pathspec {input_path}", fg="red")
+            continue
         echo(
             "Dumping output of run_id=*{run_id}* "
             "step=*{step}* task_id=*{task_id}*".format(
