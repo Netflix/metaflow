@@ -286,8 +286,8 @@ class KubernetesJob(object):
                                 ephemeral=client.V1EphemeralVolumeSource(
                                     volume_claim_template=client.V1PersistentVolumeClaimTemplate(
                                         spec={
-                                            **vals.get("spec", {}),
                                             **VOLUME_CLAIM_TEMPLATE_DEFAULTS,
+                                            **vals.get("spec", {}),
                                         },
                                     )
                                 ),
