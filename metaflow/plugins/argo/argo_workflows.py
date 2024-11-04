@@ -3483,8 +3483,8 @@ class Template(object):
                     "ephemeral": {
                         "volumeClaimTemplate": {
                             "spec": {
-                                **values.get("spec", {}),
                                 **VOLUME_CLAIM_TEMPLATE_DEFAULTS,
+                                **values.get("spec", {}),
                             },
                         }
                     },
