@@ -45,23 +45,48 @@ class RunWatcher(Thread):
     def __init__(self, flow_name, connection: Connection):
         super().__init__()
 
+        self.daemon = True
+        self._connection = connection
+        self._flow_name = flow_name
+
+        self._watch_file = self._initialize_watch_file()
+        if self._watch_file is None:
+            _ClickLogger(
+                "Warning: Could not initialize watch file location.", fg="yellow"
+            )
+
+        self._current_run_id = self.get_run_id()
+
+    def _initialize_watch_file(self):
         local_root = LocalStorage.datastore_root
         if local_root is None:
             local_root = LocalStorage.get_datastore_root_from_config(
                 lambda _: None, create_on_absent=False
             )
-        self._watch_file = (
-            os.path.join(local_root, flow_name, "latest_run") if local_root else None
+
+        return (
+            os.path.join(local_root, self._flow_name, "latest_run")
+            if local_root
+            else None
         )
-        self._current_run_id = self.get_run_id()
-        self.daemon = True
-        self._connection = connection
 
     def get_run_id(self):
-        if self._watch_file is None or not os.path.exists(self._watch_file):
+        # Try to reinitialize watch file if needed
+        if not self._watch_file:
+            self._watch_file = self._initialize_watch_file()
+
+        # Early return if watch file is still None or doesn't exist
+        if not (self._watch_file and os.path.exists(self._watch_file)):
             return None
-        with open(self._watch_file, "r") as f:
-            return f.read().strip()
+
+        try:
+            with open(self._watch_file, "r") as f:
+                return f.read().strip()
+        except (IOError, OSError) as e:
+            _ClickLogger(
+                "Warning: Could not read run ID from watch file: %s" % e, fg="yellow"
+            )
+            return None
 
     def watch(self):
         while True:
