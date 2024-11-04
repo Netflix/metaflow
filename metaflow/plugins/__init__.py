@@ -99,7 +99,7 @@ SIDECARS_DESC = [
         "save_logs_periodically",
         "..mflog.save_logs_periodically.SaveLogsPeriodicallySidecar",
     ),
-    ("heartbeat", "metaflow.metadata.heartbeat.MetadataHeartBeat"),
+    ("heartbeat", "metaflow.metadata_providers.heartbeat.MetadataHeartBeat"),
 ]
 
 # Add logging sidecars here
