@@ -4,7 +4,7 @@ from metaflow import current
 from metaflow.decorators import FlowDecorator
 from metaflow.exception import MetaflowException
 from metaflow.util import is_stringish
-from metaflow.parameters import DeployTimeField, deploy_time_eval
+from metaflow.parameters import DeployTimeField
 
 # TODO: Support dynamic parameter mapping through a context object that exposes
 #       flow name and user name similar to parameter context
@@ -125,7 +125,6 @@ class TriggerDecorator(FlowDecorator):
                                 "of size 2" % self.attributes["event"]["name"]
                             )
                     self.attributes["event"]["parameters"] = new_param_value
-                    # self.triggers.append(self.attributes["event"])
                 elif callable(param_value) and not isinstance(
                     param_value, DeployTimeField
                 ):
@@ -138,7 +137,7 @@ class TriggerDecorator(FlowDecorator):
                 self.attributes["event"], DeployTimeField
             ):
                 trig = DeployTimeField(
-                    "fq_name", None, None, self.attributes["event"], False
+                    "event", None, None, self.attributes["event"], False
                 )
                 self.triggers.append(trig)
             else:
@@ -199,7 +198,7 @@ class TriggerDecorator(FlowDecorator):
                         self.triggers.append(event)
                     elif callable(event) and not isinstance(event, DeployTimeField):
                         trig = DeployTimeField(
-                            "fq_name", None, None, self.attributes["event"], False
+                            "event", None, None, self.attributes["event"], False
                         )
                         self.triggers.append(trig)
                     else:
@@ -211,7 +210,6 @@ class TriggerDecorator(FlowDecorator):
                             "'beta'}}, {'name': 'bar', 'parameters': "
                             "{'gamma': 'kappa'}}])"
                         )
-
             elif callable(self.attributes["events"]) and not isinstance(
                 self.attributes["events"], DeployTimeField
             ):
