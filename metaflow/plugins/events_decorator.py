@@ -453,7 +453,6 @@ class TriggerOnFinishDecorator(FlowDecorator):
         if options["trigger"]:
             from metaflow import Run
             from metaflow.events import Trigger
-
             run_objs = []
             for run_pathspec in options["trigger"]:
                 if len(run_pathspec.split("/")) != 2:
