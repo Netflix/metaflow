@@ -80,9 +80,9 @@ class ArgoWorkflowsDeployer(DeployerImpl):
             Notify if the workflow fails.
         notify_on_success : bool, optional, default False
             Notify if the workflow succeeds.
-        notify_slack_webhook_url : str, optional, default ""
+        notify_slack_webhook_url : str, optional, default ''
             Slack incoming webhook url for workflow success/failure notifications.
-        notify_pager_duty_integration_key : str, optional, default ""
+        notify_pager_duty_integration_key : str, optional, default ''
             PagerDuty Events API V2 Integration key for workflow success/failure notifications.
         enable_heartbeat_daemon : bool, optional, default False
             Use a daemon container to broadcast heartbeats.

@@ -73,8 +73,9 @@ class KubernetesDecorator(StepDecorator):
         in Metaflow configuration.
     node_selector: Union[Dict[str,str], str], optional, default None
         Kubernetes node selector(s) to apply to the pod running the task.
-        Can be passed in as a comma separated string of values e.g. "kubernetes.io/os=linux,kubernetes.io/arch=amd64"
-        or as a dictionary {"kubernetes.io/os": "linux", "kubernetes.io/arch": "amd64"}
+        Can be passed in as a comma separated string of values e.g.
+        'kubernetes.io/os=linux,kubernetes.io/arch=amd64' or as a dictionary
+        {'kubernetes.io/os': 'linux', 'kubernetes.io/arch': 'amd64'}
     namespace : str, default METAFLOW_KUBERNETES_NAMESPACE
         Kubernetes namespace to use when launching pod in Kubernetes.
     gpu : int, optional, default None
