@@ -99,8 +99,16 @@ class TriggerDecorator(FlowDecorator):
                         "The *event* attribute for *@trigger* is missing the "
                         "*name* key."
                     )
-                elif callable(self.attributes["event"]["name"]) and not isinstance(self.attributes["event"]["name"], DeployTimeField):
-                    new_name = DeployTimeField("event_name", None, None, self.attributes["event"]["name"], False) 
+                elif callable(self.attributes["event"]["name"]) and not isinstance(
+                    self.attributes["event"]["name"], DeployTimeField
+                ):
+                    new_name = DeployTimeField(
+                        "event_name",
+                        None,
+                        None,
+                        self.attributes["event"]["name"],
+                        False,
+                    )
                     self.attributes["event"]["name"] = new_name
                 param_value = self.attributes["event"].get("parameters", {})
                 if isinstance(param_value, (list, tuple)):
@@ -118,15 +126,21 @@ class TriggerDecorator(FlowDecorator):
                             )
                     self.attributes["event"]["parameters"] = new_param_value
                     # self.triggers.append(self.attributes["event"])
-                elif callable(param_value) and not isinstance(param_value, DeployTimeField):
-                    new_param_value = DeployTimeField("param", None, None, param_value, False) 
+                elif callable(param_value) and not isinstance(
+                    param_value, DeployTimeField
+                ):
+                    new_param_value = DeployTimeField(
+                        "param", None, None, param_value, False
+                    )
                     self.attributes["event"]["parameters"] = new_param_value
                 self.triggers.append(self.attributes["event"])
-            elif callable(self.attributes["event"]) and not isinstance(self.attributes["event"], DeployTimeField):
-                trig = DeployTimeField("fq_name", None, None, self.attributes["event"], False) 
-                self.triggers.append(
-                   trig
+            elif callable(self.attributes["event"]) and not isinstance(
+                self.attributes["event"], DeployTimeField
+            ):
+                trig = DeployTimeField(
+                    "fq_name", None, None, self.attributes["event"], False
                 )
+                self.triggers.append(trig)
             else:
                 raise MetaflowException(
                     "Incorrect format for *event* attribute in *@trigger* decorator. "
@@ -150,8 +164,12 @@ class TriggerDecorator(FlowDecorator):
                                 "One or more events in *events* attribute for "
                                 "*@trigger* are missing the *name* key."
                             )
-                        elif callable(event["name"]) and not isinstance(event["name"], DeployTimeField):
-                            new_name = DeployTimeField("event_name", None, None, event["name"], False) 
+                        elif callable(event["name"]) and not isinstance(
+                            event["name"], DeployTimeField
+                        ):
+                            new_name = DeployTimeField(
+                                "event_name", None, None, event["name"], False
+                            )
                             event["name"] = new_name
                         param_value = event.get("parameters", {})
                         if isinstance(param_value, (list, tuple)):
@@ -169,17 +187,21 @@ class TriggerDecorator(FlowDecorator):
                                         "The *parameters* attribute for event '%s' is "
                                         "invalid. It should be a list/tuple of strings "
                                         "and lists/tuples of size 2" % event["name"]
-                                    )    
+                                    )
                             event["parameters"] = new_param_value
-                        elif callable(param_value) and not isinstance(param_value, DeployTimeField):
-                            new_param_value = DeployTimeField("param", None, None, param_value, False) 
+                        elif callable(param_value) and not isinstance(
+                            param_value, DeployTimeField
+                        ):
+                            new_param_value = DeployTimeField(
+                                "param", None, None, param_value, False
+                            )
                             event["parameters"] = new_param_value
                         self.triggers.append(event)
                     elif callable(event) and not isinstance(event, DeployTimeField):
-                        trig = DeployTimeField("fq_name", None, None, self.attributes["event"], False) 
-                        self.triggers.append(
-                            trig
-                        )    
+                        trig = DeployTimeField(
+                            "fq_name", None, None, self.attributes["event"], False
+                        )
+                        self.triggers.append(trig)
                     else:
                         raise MetaflowException(
                             "One or more events in *events* attribute in *@trigger* "
@@ -189,12 +211,14 @@ class TriggerDecorator(FlowDecorator):
                             "'beta'}}, {'name': 'bar', 'parameters': "
                             "{'gamma': 'kappa'}}])"
                         )
-    
-            elif callable(self.attributes["events"]) and not isinstance(self.attributes["events"], DeployTimeField):
-                        trig = DeployTimeField("events", list, None, self.attributes["events"], False) 
-                        self.triggers.append(
-                            trig
-                        )
+
+            elif callable(self.attributes["events"]) and not isinstance(
+                self.attributes["events"], DeployTimeField
+            ):
+                trig = DeployTimeField(
+                    "events", list, None, self.attributes["events"], False
+                )
+                self.triggers.append(trig)
             else:
                 raise MetaflowException(
                     "Incorrect format for *events* attribute in *@trigger* decorator. "
@@ -342,11 +366,13 @@ class TriggerOnFinishDecorator(FlowDecorator):
                             "The *project_branch* attribute of the *flow* is not a string"
                         )
                 self.triggers.append(result)
-            elif callable(self.attributes["flow"]) and not isinstance(self.attributes["flow"], DeployTimeField):
-                trig = DeployTimeField("fq_name", None, None, self.attributes["flow"], False) 
-                self.triggers.append(
-                   trig
+            elif callable(self.attributes["flow"]) and not isinstance(
+                self.attributes["flow"], DeployTimeField
+            ):
+                trig = DeployTimeField(
+                    "fq_name", None, None, self.attributes["flow"], False
                 )
+                self.triggers.append(trig)
             else:
                 raise MetaflowException(
                     "Incorrect type for *flow* attribute in *@trigger_on_finish* "
@@ -404,11 +430,13 @@ class TriggerOnFinishDecorator(FlowDecorator):
                             "Supported type is string or Dict[str, str]- \n"
                             "@trigger_on_finish(flows=['FooFlow', 'BarFlow']"
                         )
-            elif callable(self.attributes["flows"]) and not isinstance(self.attributes["flows"], DeployTimeField):
-                trig = DeployTimeField("flows", list, None, self.attributes["flows"], False) 
-                self.triggers.append(
-                   trig
+            elif callable(self.attributes["flows"]) and not isinstance(
+                self.attributes["flows"], DeployTimeField
+            ):
+                trig = DeployTimeField(
+                    "flows", list, None, self.attributes["flows"], False
                 )
+                self.triggers.append(trig)
             else:
                 raise MetaflowException(
                     "Incorrect type for *flows* attribute in *@trigger_on_finish* "
@@ -453,6 +481,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
         if options["trigger"]:
             from metaflow import Run
             from metaflow.events import Trigger
+
             run_objs = []
             for run_pathspec in options["trigger"]:
                 if len(run_pathspec.split("/")) != 2:
