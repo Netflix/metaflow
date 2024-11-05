@@ -347,7 +347,6 @@ class TriggerOnFinishDecorator(FlowDecorator):
                 self.triggers.append(
                    trig
                 )
-
             else:
                 raise MetaflowException(
                     "Incorrect type for *flow* attribute in *@trigger_on_finish* "
