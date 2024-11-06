@@ -1,10 +1,11 @@
 import re
+import json
 
 from metaflow import current
 from metaflow.decorators import FlowDecorator
 from metaflow.exception import MetaflowException
 from metaflow.util import is_stringish
-from metaflow.parameters import DeployTimeField
+from metaflow.parameters import DeployTimeField, deploy_time_eval
 
 # TODO: Support dynamic parameter mapping through a context object that exposes
 #       flow name and user name similar to parameter context
@@ -239,6 +240,61 @@ class TriggerDecorator(FlowDecorator):
         self.options = self.attributes["options"]
 
         # TODO: Handle scenario for local testing using --trigger.
+
+    def format_deploytime_value(self):
+        for trigger in self.triggers:
+            # Case were trigger is a function that returns a list of events
+            # Need to do this bc we need to iterate over list later
+            if isinstance(trigger, DeployTimeField):
+                if isinstance(deploy_time_eval(trigger), list):
+                    deploy_val = deploy_time_eval(trigger)
+                    self.triggers.remove(trigger)
+                    self.triggers.extend(deploy_val)
+            else:
+                break
+        for trigger in self.triggers:
+            old_trigger = trigger
+            # Entire event is a function (returns either string or dict)
+            if isinstance(trigger, DeployTimeField):
+                trigger = deploy_time_eval(trigger)
+                try:
+                    trigger = json.loads(trigger)
+                except (TypeError, json.JSONDecodeError):
+                    pass
+                # Case where just the name is a function (always a str)
+                if isinstance(trigger, str):
+                    trigger = {"name": trigger}
+            trigger_params = trigger.get("parameters", {})
+            # Case where param is a function (can return list or dict)
+            if isinstance(trigger_params, DeployTimeField):
+                trigger_params = deploy_time_eval(trigger_params)
+                try:
+                    trigger_params = json.loads(trigger_params)
+                except (TypeError, json.JSONDecodeError):
+                    pass
+            # If params is a list of strings, convert to dict with same key and value
+            if isinstance(trigger_params, (list, tuple)):
+                new_trigger_params = {}
+                for mapping in trigger_params:
+                    if is_stringish(mapping):
+                        new_trigger_params[mapping] = mapping
+                    elif isinstance(mapping, (list, tuple)) and len(mapping) == 2:
+                        new_trigger_params[mapping[0]] = mapping[1]
+                    else:
+                        raise MetaflowException(
+                            "The *parameters* attribute for event '%s' is invalid. "
+                            "It should be a list/tuple of strings and lists/tuples "
+                            "of size 2" % self.attributes["event"]["name"]
+                        )
+                trigger_params = new_trigger_params
+
+            trigger_name = trigger.get("name")
+            # Case where just the name is a function (always a str)
+            if isinstance(trigger_name, DeployTimeField):
+                trigger_name = deploy_time_eval(trigger_name)
+                trigger["name"] = trigger_name
+            # Replace old trigger with new trigger
+            self.triggers[self.triggers.index(old_trigger)] = trigger
 
 
 class TriggerOnFinishDecorator(FlowDecorator):
@@ -494,6 +550,59 @@ class TriggerOnFinishDecorator(FlowDecorator):
                     )
                 run_objs.append(run_obj)
             current._update_env({"trigger": Trigger.from_runs(run_objs)})
+
+    def _parse_fq_name(self, trigger):
+        if isinstance(trigger, DeployTimeField):
+            trigger["fq_name"] = deploy_time_eval(trigger["fq_name"])
+        if trigger["fq_name"].count(".") == 0:
+            # fully qualified name is just the flow name
+            trigger["flow"] = trigger["fq_name"]
+        elif trigger["fq_name"].count(".") >= 2:
+            # fully qualified name is of the format - project.branch.flow_name
+            trigger["project"], tail = trigger["fq_name"].split(".", maxsplit=1)
+            trigger["branch"], trigger["flow"] = tail.rsplit(".", maxsplit=1)
+        else:
+            raise MetaflowException(
+                "Incorrect format for *flow* in *@trigger_on_finish* "
+                "decorator. Specify either just the *flow_name* or a fully "
+                "qualified name like *project_name.branch_name.flow_name*."
+            )
+        if not re.match(r"^[A-Za-z0-9_]+$", trigger["flow"]):
+            raise MetaflowException(
+                "Invalid flow name *%s* in *@trigger_on_finish* "
+                "decorator. Only alphanumeric characters and "
+                "underscores(_) are allowed." % trigger["flow"]
+            )
+        return trigger
+
+    def format_deploytime_value(self):
+        for trigger in self.triggers:
+            # Case were trigger is a function that returns a list
+            # Need to do this bc we need to iterate over list and process
+            if isinstance(trigger, DeployTimeField):
+                deploy_value = deploy_time_eval(trigger)
+                if isinstance(deploy_value, list):
+                    self.triggers = deploy_value
+            else:
+                break
+        for trigger in self.triggers:
+            # Entire trigger is a function (returns either string or dict)
+            old_trig = trigger
+            if isinstance(trigger, DeployTimeField):
+                trigger = deploy_time_eval(trigger)
+                try:
+                    trigger = json.loads(trigger)
+                except (TypeError, json.JSONDecodeError):
+                    pass
+            if isinstance(trigger, dict):
+                trigger["fq_name"] = trigger.get("name")
+                trigger["project"] = trigger.get("project")
+                trigger["branch"] = trigger.get("project_branch")
+            # We also added this bc it won't be formatted yet
+            if isinstance(trigger, str):
+                trigger = {"fq_name": trigger}
+                trigger = self._parse_fq_name(trigger)
+            self.triggers[self.triggers.index(old_trig)] = trigger
 
     def get_top_level_options(self):
         return list(self._option_values.items())
