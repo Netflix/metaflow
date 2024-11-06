@@ -282,21 +282,31 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
     else:
         ds_list = list(datastore_set)  # get all tasks
 
+    tasks_processed = False
     for ds in ds_list:
-        echo(
-            "Dumping output of run_id=*{run_id}* "
-            "step=*{step}* task_id=*{task_id}*".format(
-                run_id=ds.run_id, step=ds.step_name, task_id=ds.task_id
-            ),
-            fg="magenta",
-        )
-
-        if file is None:
-            echo_always(
-                ds.format(**kwargs), highlight="green", highlight_bold=False, err=False
+        if ds is not None:
+            tasks_processed = True
+            echo(
+                "Dumping output of run_id=*{run_id}* "
+                "step=*{step}* task_id=*{task_id}*".format(
+                    run_id=ds.run_id, step=ds.step_name, task_id=ds.task_id
+                ),
+                fg="magenta",
             )
-        else:
-            output[ds.pathspec] = ds.to_dict(**kwargs)
+
+            if file is None:
+                echo_always(
+                    ds.format(**kwargs),
+                    highlight="green",
+                    highlight_bold=False,
+                    err=False,
+                )
+            else:
+                output[ds.pathspec] = ds.to_dict(**kwargs)
+
+    if not tasks_processed:
+        echo(f"No task(s) found for pathspec {input_path}", fg="red")
+        return
 
     if file is not None:
         with open(file, "wb") as f:
