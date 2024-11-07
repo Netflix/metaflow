@@ -15,7 +15,7 @@ from metaflow.unbounded_foreach import (
     CONTROL_TASK_TAG,
 )
 from metaflow.util import to_unicode
-from metaflow.metadata import MetaDatum
+from metaflow.metadata_provider import MetaDatum
 
 
 class InternalTestUnboundedForeachInput(UnboundedForeachInput):

@@ -39,7 +39,7 @@ from ..info_file import INFO_FILE
 from .filecache import FileCache
 
 if TYPE_CHECKING:
-    from metaflow.metadata import MetadataProvider
+    from metaflow.metadata_provider import MetadataProvider
 
 try:
     # python2
@@ -143,7 +143,7 @@ def default_metadata() -> str:
     if default:
         current_metadata = default[0]
     else:
-        from metaflow.plugins.metadata import LocalMetadataProvider
+        from metaflow.plugins.metadata_providers import LocalMetadataProvider
 
         current_metadata = LocalMetadataProvider
     return get_metadata()

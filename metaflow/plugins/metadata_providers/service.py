@@ -14,8 +14,8 @@ from metaflow.metaflow_config import (
     SERVICE_HEADERS,
     SERVICE_URL,
 )
-from metaflow.metadata import MetadataProvider
-from metaflow.metadata.heartbeat import HB_URL_KEY
+from metaflow.metadata_provider import MetadataProvider
+from metaflow.metadata_provider.heartbeat import HB_URL_KEY
 from metaflow.sidecar import Message, MessageTypes, Sidecar
 
 from metaflow.util import version_parse

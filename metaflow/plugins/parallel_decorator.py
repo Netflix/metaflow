@@ -2,7 +2,7 @@ from collections import namedtuple
 from metaflow.decorators import StepDecorator
 from metaflow.unbounded_foreach import UBF_CONTROL, CONTROL_TASK_TAG
 from metaflow.exception import MetaflowException
-from metaflow.metadata import MetaDatum
+from metaflow.metadata_provider import MetaDatum
 from metaflow.metaflow_current import current, Parallel
 import os
 import sys

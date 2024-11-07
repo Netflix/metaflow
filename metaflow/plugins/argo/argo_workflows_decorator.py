@@ -6,7 +6,7 @@ import time
 from metaflow import current
 from metaflow.decorators import StepDecorator
 from metaflow.events import Trigger
-from metaflow.metadata import MetaDatum
+from metaflow.metadata_provider import MetaDatum
 from metaflow.metaflow_config import ARGO_EVENTS_WEBHOOK_URL
 from metaflow.graph import DAGNode, FlowGraph
 from metaflow.flowspec import FlowSpec

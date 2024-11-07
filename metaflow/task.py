@@ -12,7 +12,7 @@ from metaflow.sidecar import Message, MessageTypes
 from metaflow.datastore.exceptions import DataException
 
 from .metaflow_config import MAX_ATTEMPTS
-from .metadata import MetaDatum
+from .metadata_provider import MetaDatum
 from .mflog import TASK_LOG_SOURCE
 from .datastore import Inputs, TaskDataStoreSet
 from .exception import (

@@ -4,10 +4,12 @@ import time
 import asyncio
 
 from subprocess import CalledProcessError
-from typing import Dict, TYPE_CHECKING
+from typing import Any, Dict, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .subprocess_manager import CommandManager
+    import tempfile
+    import metaflow.runner.subprocess_manager
+    import metaflow.runner.click_api
 
 
 def get_current_cell(ipython):
@@ -18,7 +20,8 @@ def get_current_cell(ipython):
 
 def format_flowfile(cell):
     """
-    Formats the given cell content to create a valid Python script that can be executed as a Metaflow flow.
+    Formats the given cell content to create a valid Python script that can be
+    executed as a Metaflow flow.
     """
     flowspec = [
         x
@@ -36,7 +39,9 @@ def format_flowfile(cell):
     return "\n".join(lines)
 
 
-def check_process_status(command_obj: "CommandManager"):
+def check_process_status(
+    command_obj: "metaflow.runner.subprocess_manager.CommandManager",
+):
     if isinstance(command_obj.process, asyncio.subprocess.Process):
         return command_obj.process.returncode is not None
     else:
@@ -44,7 +49,9 @@ def check_process_status(command_obj: "CommandManager"):
 
 
 def read_from_file_when_ready(
-    file_path: str, command_obj: "CommandManager", timeout: float = 5
+    file_path: str,
+    command_obj: "metaflow.runner.subprocess_manager.CommandManager",
+    timeout: float = 5,
 ):
     start_time = time.time()
     with open(file_path, "r", encoding="utf-8") as file_pointer:
@@ -70,7 +77,9 @@ def read_from_file_when_ready(
 
 
 def handle_timeout(
-    tfp_runner_attribute, command_obj: "CommandManager", file_read_timeout: int
+    tfp_runner_attribute: "tempfile._TemporaryFileWrapper[str]",
+    command_obj: "metaflow.runner.subprocess_manager.CommandManager",
+    file_read_timeout: int,
 ):
     """
     Handle the timeout for a running subprocess command that reads a file
@@ -102,8 +111,8 @@ def handle_timeout(
         )
         return content
     except (CalledProcessError, TimeoutError) as e:
-        stdout_log = open(command_obj.log_files["stdout"]).read()
-        stderr_log = open(command_obj.log_files["stderr"]).read()
+        stdout_log = open(command_obj.log_files["stdout"], encoding="utf-8").read()
+        stderr_log = open(command_obj.log_files["stderr"], encoding="utf-8").read()
         command = " ".join(command_obj.command)
         error_message = "Error executing: '%s':\n" % command
         if stdout_log.strip():
@@ -111,3 +120,41 @@ def handle_timeout(
         if stderr_log.strip():
             error_message += "\nStderr:\n%s\n" % stderr_log
         raise RuntimeError(error_message) from e
+
+
+def get_lower_level_group(
+    api: "metaflow.runner.click_api.MetaflowAPI",
+    top_level_kwargs: Dict[str, Any],
+    sub_command: str,
+    sub_command_kwargs: Dict[str, Any],
+) -> "metaflow.runner.click_api.MetaflowAPI":
+    """
+    Retrieve a lower-level group from the API based on the type and provided arguments.
+
+    Parameters
+    ----------
+    api : MetaflowAPI
+        Metaflow API instance.
+    top_level_kwargs : Dict[str, Any]
+        Top-level keyword arguments to pass to the API.
+    sub_command : str
+        Sub-command of API to get the API for
+    sub_command_kwargs : Dict[str, Any]
+        Sub-command arguments
+
+    Returns
+    -------
+    MetaflowAPI
+        The lower-level group object retrieved from the API.
+
+    Raises
+    ------
+    ValueError
+        If the `_type` is None.
+    """
+    sub_command_obj = getattr(api(**top_level_kwargs), sub_command)
+
+    if sub_command_obj is None:
+        raise ValueError(f"Sub-command '{sub_command}' not found in API '{api.name}'")
+
+    return sub_command_obj(**sub_command_kwargs)

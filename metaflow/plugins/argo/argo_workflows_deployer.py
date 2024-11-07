@@ -1,292 +1,106 @@
-import sys
-import tempfile
-from typing import Optional, ClassVar
+from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING, Type
 
-from metaflow.plugins.argo.argo_workflows import ArgoWorkflows
-from metaflow.runner.deployer import (
-    DeployerImpl,
-    DeployedFlow,
-    TriggeredRun,
-    get_lower_level_group,
-    handle_timeout,
-)
+from metaflow.runner.deployer_impl import DeployerImpl
 
-
-def suspend(instance: TriggeredRun, **kwargs):
-    """
-    Suspend the running workflow.
-
-    Parameters
-    ----------
-    **kwargs : Any
-        Additional arguments to pass to the suspend command.
-
-    Returns
-    -------
-    bool
-        True if the command was successful, False otherwise.
-    """
-    _, run_id = instance.pathspec.split("/")
-
-    # every subclass needs to have `self.deployer_kwargs`
-    command = get_lower_level_group(
-        instance.deployer.api,
-        instance.deployer.top_level_kwargs,
-        instance.deployer.TYPE,
-        instance.deployer.deployer_kwargs,
-    ).suspend(run_id=run_id, **kwargs)
-
-    pid = instance.deployer.spm.run_command(
-        [sys.executable, *command],
-        env=instance.deployer.env_vars,
-        cwd=instance.deployer.cwd,
-        show_output=instance.deployer.show_output,
-    )
-
-    command_obj = instance.deployer.spm.get(pid)
-    return command_obj.process.returncode == 0
-
-
-def unsuspend(instance: TriggeredRun, **kwargs):
-    """
-    Unsuspend the suspended workflow.
-
-    Parameters
-    ----------
-    **kwargs : Any
-        Additional arguments to pass to the unsuspend command.
-
-    Returns
-    -------
-    bool
-        True if the command was successful, False otherwise.
-    """
-    _, run_id = instance.pathspec.split("/")
-
-    # every subclass needs to have `self.deployer_kwargs`
-    command = get_lower_level_group(
-        instance.deployer.api,
-        instance.deployer.top_level_kwargs,
-        instance.deployer.TYPE,
-        instance.deployer.deployer_kwargs,
-    ).unsuspend(run_id=run_id, **kwargs)
-
-    pid = instance.deployer.spm.run_command(
-        [sys.executable, *command],
-        env=instance.deployer.env_vars,
-        cwd=instance.deployer.cwd,
-        show_output=instance.deployer.show_output,
-    )
-
-    command_obj = instance.deployer.spm.get(pid)
-    return command_obj.process.returncode == 0
-
-
-def terminate(instance: TriggeredRun, **kwargs):
-    """
-    Terminate the running workflow.
-
-    Parameters
-    ----------
-    **kwargs : Any
-        Additional arguments to pass to the terminate command.
-
-    Returns
-    -------
-    bool
-        True if the command was successful, False otherwise.
-    """
-    _, run_id = instance.pathspec.split("/")
-
-    # every subclass needs to have `self.deployer_kwargs`
-    command = get_lower_level_group(
-        instance.deployer.api,
-        instance.deployer.top_level_kwargs,
-        instance.deployer.TYPE,
-        instance.deployer.deployer_kwargs,
-    ).terminate(run_id=run_id, **kwargs)
-
-    pid = instance.deployer.spm.run_command(
-        [sys.executable, *command],
-        env=instance.deployer.env_vars,
-        cwd=instance.deployer.cwd,
-        show_output=instance.deployer.show_output,
-    )
-
-    command_obj = instance.deployer.spm.get(pid)
-    return command_obj.process.returncode == 0
-
-
-def status(instance: TriggeredRun):
-    """
-    Get the status of the triggered run.
-
-    Returns
-    -------
-    str, optional
-        The status of the workflow considering the run object, or None if the status could not be retrieved.
-    """
-    from metaflow.plugins.argo.argo_workflows_cli import (
-        get_status_considering_run_object,
-    )
-
-    flow_name, run_id = instance.pathspec.split("/")
-    name = run_id[5:]
-    status = ArgoWorkflows.get_workflow_status(flow_name, name)
-    if status is not None:
-        return get_status_considering_run_object(status, instance.run)
-    return None
-
-
-def production_token(instance: DeployedFlow):
-    """
-    Get the production token for the deployed flow.
-
-    Returns
-    -------
-    str, optional
-        The production token, None if it cannot be retrieved.
-    """
-    try:
-        _, production_token = ArgoWorkflows.get_existing_deployment(
-            instance.deployer.name
-        )
-        return production_token
-    except TypeError:
-        return None
-
-
-def delete(instance: DeployedFlow, **kwargs):
-    """
-    Delete the deployed flow.
-
-    Parameters
-    ----------
-    **kwargs : Any
-        Additional arguments to pass to the delete command.
-
-    Returns
-    -------
-    bool
-        True if the command was successful, False otherwise.
-    """
-    command = get_lower_level_group(
-        instance.deployer.api,
-        instance.deployer.top_level_kwargs,
-        instance.deployer.TYPE,
-        instance.deployer.deployer_kwargs,
-    ).delete(**kwargs)
-
-    pid = instance.deployer.spm.run_command(
-        [sys.executable, *command],
-        env=instance.deployer.env_vars,
-        cwd=instance.deployer.cwd,
-        show_output=instance.deployer.show_output,
-    )
-
-    command_obj = instance.deployer.spm.get(pid)
-    return command_obj.process.returncode == 0
-
-
-def trigger(instance: DeployedFlow, **kwargs):
-    """
-    Trigger a new run for the deployed flow.
-
-    Parameters
-    ----------
-    **kwargs : Any
-        Additional arguments to pass to the trigger command, `Parameters` in particular
-
-    Returns
-    -------
-    ArgoWorkflowsTriggeredRun
-        The triggered run instance.
-
-    Raises
-    ------
-    Exception
-        If there is an error during the trigger process.
-    """
-    with tempfile.TemporaryDirectory() as temp_dir:
-        tfp_runner_attribute = tempfile.NamedTemporaryFile(dir=temp_dir, delete=False)
-
-        # every subclass needs to have `self.deployer_kwargs`
-        command = get_lower_level_group(
-            instance.deployer.api,
-            instance.deployer.top_level_kwargs,
-            instance.deployer.TYPE,
-            instance.deployer.deployer_kwargs,
-        ).trigger(deployer_attribute_file=tfp_runner_attribute.name, **kwargs)
-
-        pid = instance.deployer.spm.run_command(
-            [sys.executable, *command],
-            env=instance.deployer.env_vars,
-            cwd=instance.deployer.cwd,
-            show_output=instance.deployer.show_output,
-        )
-
-        command_obj = instance.deployer.spm.get(pid)
-        content = handle_timeout(
-            tfp_runner_attribute, command_obj, instance.deployer.file_read_timeout
-        )
-
-        if command_obj.process.returncode == 0:
-            triggered_run = TriggeredRun(deployer=instance.deployer, content=content)
-            triggered_run._enrich_object(
-                {
-                    "status": property(status),
-                    "terminate": terminate,
-                    "suspend": suspend,
-                    "unsuspend": unsuspend,
-                }
-            )
-            return triggered_run
-
-    raise Exception(
-        "Error triggering %s on %s for %s"
-        % (instance.deployer.name, instance.deployer.TYPE, instance.deployer.flow_file)
-    )
+if TYPE_CHECKING:
+    import metaflow.plugins.argo.argo_workflows_deployer_objects
 
 
 class ArgoWorkflowsDeployer(DeployerImpl):
     """
     Deployer implementation for Argo Workflows.
 
-    Attributes
+    Parameters
     ----------
-    TYPE : ClassVar[Optional[str]]
-        The type of the deployer, which is "argo-workflows".
+    name : str, optional, default None
+        Argo workflow name. The flow name is used instead if this option is not specified.
     """
 
     TYPE: ClassVar[Optional[str]] = "argo-workflows"
 
-    def __init__(self, deployer_kwargs, **kwargs):
+    def __init__(self, deployer_kwargs: Dict[str, str], **kwargs):
         """
         Initialize the ArgoWorkflowsDeployer.
 
         Parameters
         ----------
-        deployer_kwargs : dict
+        deployer_kwargs : Dict[str, str]
             The deployer-specific keyword arguments.
         **kwargs : Any
             Additional arguments to pass to the superclass constructor.
         """
-        self.deployer_kwargs = deployer_kwargs
+        self._deployer_kwargs = deployer_kwargs
         super().__init__(**kwargs)
 
-    def _enrich_deployed_flow(self, deployed_flow: DeployedFlow):
+    @property
+    def deployer_kwargs(self) -> Dict[str, Any]:
+        return self._deployer_kwargs
+
+    @staticmethod
+    def deployed_flow_type() -> (
+        Type[
+            "metaflow.plugins.argo.argo_workflows_deployer_objects.ArgoWorkflowsDeployedFlow"
+        ]
+    ):
+        from .argo_workflows_deployer_objects import ArgoWorkflowsDeployedFlow
+
+        return ArgoWorkflowsDeployedFlow
+
+    def create(
+        self, **kwargs
+    ) -> "metaflow.plugins.argo.argo_workflows_deployer_objects.ArgoWorkflowsDeployedFlow":
         """
-        Enrich the DeployedFlow object with additional properties and methods.
+        Create a new ArgoWorkflow deployment.
 
         Parameters
         ----------
-        deployed_flow : DeployedFlow
-            The deployed flow object to enrich.
+        authorize : str, optional, default None
+            Authorize using this production token. Required when re-deploying an existing flow
+            for the first time. The token is cached in METAFLOW_HOME.
+        generate_new_token : bool, optional, default False
+            Generate a new production token for this flow. Moves the production flow to a new namespace.
+        given_token : str, optional, default None
+            Use the given production token for this flow. Moves the production flow to the given namespace.
+        tags : List[str], optional, default None
+            Annotate all objects produced by Argo Workflows runs with these tags.
+        user_namespace : str, optional, default None
+            Change the namespace from the default (production token) to the given tag.
+        only_json : bool, optional, default False
+            Only print out JSON sent to Argo Workflows without deploying anything.
+        max_workers : int, optional, default 100
+            Maximum number of parallel processes.
+        workflow_timeout : int, optional, default None
+            Workflow timeout in seconds.
+        workflow_priority : int, optional, default None
+            Workflow priority as an integer. Higher priority workflows are processed first
+            if Argo Workflows controller is configured to process limited parallel workflows.
+        auto_emit_argo_events : bool, optional, default True
+            Auto emits Argo Events when the run completes successfully.
+        notify_on_error : bool, optional, default False
+            Notify if the workflow fails.
+        notify_on_success : bool, optional, default False
+            Notify if the workflow succeeds.
+        notify_slack_webhook_url : str, optional, default ''
+            Slack incoming webhook url for workflow success/failure notifications.
+        notify_pager_duty_integration_key : str, optional, default ''
+            PagerDuty Events API V2 Integration key for workflow success/failure notifications.
+        enable_heartbeat_daemon : bool, optional, default False
+            Use a daemon container to broadcast heartbeats.
+        deployer_attribute_file : str, optional, default None
+            Write the workflow name to the specified file. Used internally for Metaflow's Deployer API.
+        enable_error_msg_capture : bool, optional, default True
+            Capture stack trace of first failed task in exit hook.
+
+        Returns
+        -------
+        ArgoWorkflowsDeployedFlow
+            The Flow deployed to Argo Workflows.
         """
-        deployed_flow._enrich_object(
-            {
-                "production_token": property(production_token),
-                "trigger": trigger,
-                "delete": delete,
-            }
-        )
+
+        # Prevent circular import
+        from .argo_workflows_deployer_objects import ArgoWorkflowsDeployedFlow
+
+        return self._create(ArgoWorkflowsDeployedFlow, **kwargs)
+
+
+_addl_stubgen_modules = ["metaflow.plugins.argo.argo_workflows_deployer_objects"]

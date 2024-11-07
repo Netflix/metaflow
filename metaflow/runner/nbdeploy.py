@@ -37,13 +37,13 @@ class NBDeployer(object):
         Flow defined in the same cell
     show_output : bool, default True
         Show the 'stdout' and 'stderr' to the console by default,
-    profile : Optional[str], default None
+    profile : str, optional, default None
         Metaflow profile to use to deploy this run. If not specified, the default
         profile is used (or the one already set using `METAFLOW_PROFILE`)
-    env : Optional[Dict[str, str]], default None
+    env : Dict[str, str], optional, default None
         Additional environment variables to set. This overrides the
         environment set for this process.
-    base_dir : Optional[str], default None
+    base_dir : str, optional, default None
         The directory to run the subprocess in; if not specified, the current
         working directory is used.
     **kwargs : Any
@@ -66,10 +66,11 @@ class NBDeployer(object):
             from IPython import get_ipython
 
             ipython = get_ipython()
-        except ModuleNotFoundError:
+        except ModuleNotFoundError as e:
             raise NBDeployerInitializationError(
-                "'NBDeployer' requires an interactive Python environment (such as Jupyter)"
-            )
+                "'NBDeployer' requires an interactive Python environment "
+                "(such as Jupyter)"
+            ) from e
 
         self.cell = get_current_cell(ipython)
         self.flow = flow
@@ -116,13 +117,11 @@ class NBDeployer(object):
             **kwargs,
         )
 
-        from metaflow.plugins import DEPLOYER_IMPL_PROVIDERS
-
-        for provider_class in DEPLOYER_IMPL_PROVIDERS:
-            method_name = provider_class.TYPE.replace("-", "_")
-            setattr(
-                NBDeployer, method_name, self.deployer.__make_function(provider_class)
-            )
+    def __getattr__(self, name):
+        """
+        Forward all attribute access to the underlying `Deployer` instance.
+        """
+        return getattr(self.deployer, name)
 
     def cleanup(self):
         """

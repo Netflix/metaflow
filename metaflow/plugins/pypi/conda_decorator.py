@@ -8,7 +8,7 @@ import tempfile
 
 from metaflow.decorators import FlowDecorator, StepDecorator
 from metaflow.extension_support import EXT_PKG
-from metaflow.metadata import MetaDatum
+from metaflow.metadata_provider import MetaDatum
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.util import get_metaflow_root
 
