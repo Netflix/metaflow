@@ -58,6 +58,14 @@ class StepFunctionsDeployedFlow(DeployedFlow):
 
     @classmethod
     def from_deployment(cls, identifier: str, metadata: Optional[str] = None):
+        """
+        This method is not currently implemented for Step Functions.
+
+        Raises
+        ------
+        NotImplementedError
+            This method is not implemented for Step Functions.
+        """
         raise NotImplementedError(
             "from_deployment is not implemented for StepFunctions"
         )

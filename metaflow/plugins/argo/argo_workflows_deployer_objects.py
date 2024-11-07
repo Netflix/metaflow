@@ -199,6 +199,23 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
 
     @classmethod
     def from_deployment(cls, identifier: str, metadata: Optional[str] = None):
+        """
+        Retrieves a `ArgoWorkflowsDeployedFlow` object from an identifier and optional
+        metadata.
+
+        Parameters
+        ----------
+        identifier : str
+            Deployer specific identifier for the workflow to retrieve
+        metadata : str, optional, default None
+            Optional deployer specific metadata.
+
+        Returns
+        -------
+        ArgoWorkflowsDeployedFlow
+            A `ArgoWorkflowsDeployedFlow` object representing the
+            deployed flow on argo workflows.
+        """
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
         workflow_template = client.get_workflow_template(identifier)
 
