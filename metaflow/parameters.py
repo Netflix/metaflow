@@ -167,7 +167,7 @@ class DeployTimeField(object):
             % (self.parameter_name, self.field)
         )
 
-        if isinstance(self.parameter_type, list):    
+        if isinstance(self.parameter_type, list):
             if not any(isinstance(val, x) for x in self.parameter_type):
                 msg += "Expected a %s." % TYPES[self.parameter_type]
                 raise ParameterFieldTypeMismatch(msg)

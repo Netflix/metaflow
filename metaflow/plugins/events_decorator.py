@@ -105,7 +105,7 @@ class TriggerDecorator(FlowDecorator):
                 ):
                     new_name = DeployTimeField(
                         "event_name",
-                        None,
+                        str,
                         None,
                         self.attributes["event"]["name"],
                         False,
@@ -126,11 +126,11 @@ class TriggerDecorator(FlowDecorator):
                                 "of size 2" % self.attributes["event"]["name"]
                             )
                     self.attributes["event"]["parameters"] = new_param_value
-                elif callable(param_value) and not isinstance(
+                elif callable(param_value) and not isinstance(  # can be list or dict
                     param_value, DeployTimeField
                 ):
                     new_param_value = DeployTimeField(
-                        "param", None, None, param_value, False
+                        "param", [list, dict], None, param_value, False
                     )
                     self.attributes["event"]["parameters"] = new_param_value
                 self.triggers.append(self.attributes["event"])
@@ -138,7 +138,7 @@ class TriggerDecorator(FlowDecorator):
                 self.attributes["event"], DeployTimeField
             ):
                 trig = DeployTimeField(
-                    "event", None, None, self.attributes["event"], False
+                    "event", dict, None, self.attributes["event"], False
                 )
                 self.triggers.append(trig)
             else:
@@ -168,7 +168,7 @@ class TriggerDecorator(FlowDecorator):
                             event["name"], DeployTimeField
                         ):
                             new_name = DeployTimeField(
-                                "event_name", None, None, event["name"], False
+                                "event_name", str, None, event["name"], False
                             )
                             event["name"] = new_name
                         param_value = event.get("parameters", {})
@@ -193,13 +193,13 @@ class TriggerDecorator(FlowDecorator):
                             param_value, DeployTimeField
                         ):
                             new_param_value = DeployTimeField(
-                                "param", None, None, param_value, False
+                                "param", [list, dict], None, param_value, False
                             )
                             event["parameters"] = new_param_value
                         self.triggers.append(event)
                     elif callable(event) and not isinstance(event, DeployTimeField):
                         trig = DeployTimeField(
-                            "event", None, None, self.attributes["event"], False
+                            "event", dict, None, self.attributes["event"], False
                         )
                         self.triggers.append(trig)
                     else:
@@ -286,7 +286,9 @@ class TriggerDecorator(FlowDecorator):
                             "It should be a list/tuple of strings and lists/tuples "
                             "of size 2" % self.attributes["event"]["name"]
                         )
+
                 trigger_params = new_trigger_params
+            trigger["parameters"] = trigger_params
 
             trigger_name = trigger.get("name")
             # Case where just the name is a function (always a str)
@@ -424,7 +426,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
                 self.attributes["flow"], DeployTimeField
             ):
                 trig = DeployTimeField(
-                    "fq_name", None, None, self.attributes["flow"], False
+                    "fq_name", [str, dict], None, self.attributes["flow"], False
                 )
                 self.triggers.append(trig)
             else:
