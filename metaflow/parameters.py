@@ -151,6 +151,7 @@ class DeployTimeField(object):
             return self._check_type(val, deploy_time)
 
     def _check_type(self, val, deploy_time):
+
         # it is easy to introduce a deploy-time function that accidentally
         # returns a value whose type is not compatible with what is defined
         # in Parameter. Let's catch those mistakes early here, instead of
@@ -166,7 +167,12 @@ class DeployTimeField(object):
             % (self.parameter_name, self.field)
         )
 
-        if self.parameter_type in TYPES:
+        if isinstance(self.parameter_type, list):    
+            if not any(isinstance(val, x) for x in self.parameter_type):
+                msg += "Expected a %s." % TYPES[self.parameter_type]
+                raise ParameterFieldTypeMismatch(msg)
+            return str(val) if self.return_str else val
+        elif self.parameter_type in TYPES:
             if type(val) != self.parameter_type:
                 msg += "Expected a %s." % TYPES[self.parameter_type]
                 raise ParameterFieldTypeMismatch(msg)
