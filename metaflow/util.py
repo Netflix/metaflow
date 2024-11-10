@@ -436,12 +436,16 @@ def to_pod(value):
         Value to convert to POD format. The value can be a string, number, list,
         dictionary, or a nested structure of these types.
     """
+    from metaflow.parameters import DeployTimeField, deploy_time_eval
+
     if isinstance(value, (str, int, float)):
         return value
     if isinstance(value, dict):
         return {to_pod(k): to_pod(v) for k, v in value.items()}
     if isinstance(value, (list, set, tuple)):
         return [to_pod(v) for v in value]
+    if isinstance(value, DeployTimeField):
+        return to_pod(deploy_time_eval(value))
     return str(value)
 
 
