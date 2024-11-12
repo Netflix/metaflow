@@ -53,10 +53,7 @@ from metaflow.metaflow_config_funcs import config_values
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.kubernetes.kube_utils import qos_requests_and_limits
-from metaflow.plugins.kubernetes.kubernetes import (
-    parse_kube_keyvalue_list,
-    validate_kube_labels,
-)
+
 from metaflow.plugins.kubernetes.kubernetes_jobsets import KubernetesArgoJobSet
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow.user_configs.config_options import ConfigInput
@@ -2093,7 +2090,8 @@ class ArgoWorkflows(object):
                         minutes_between_retries=minutes_between_retries,
                     )
                     .metadata(
-                        ObjectMeta().annotation("metaflow/step_name", node.name)
+                        ObjectMeta()
+                        .annotation("metaflow/step_name", node.name)
                         # Unfortunately, we can't set the task_id since it is generated
                         # inside the pod. However, it can be inferred from the annotation
                         # set by argo-workflows - `workflows.argoproj.io/outputs` - refer
