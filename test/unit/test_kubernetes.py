@@ -1,12 +1,10 @@
 import pytest
 
-from metaflow.plugins.kubernetes.kubernetes import (
-    KubernetesException,
-    parse_kube_keyvalue_list,
-)
+from metaflow.plugins.kubernetes.kubernetes import KubernetesException
 
-from metaflow.plugins.kubernetes.kubernetes_decorator import (
+from metaflow.plugins.kubernetes.kube_utils import (
     validate_kube_labels_or_annotations,
+    parse_kube_keyvalue_list,
 )
 
 

@@ -3,8 +3,6 @@ import os
 import platform
 import sys
 import time
-import re
-from typing import Optional, Dict
 
 from metaflow import current
 from metaflow.decorators import StepDecorator
@@ -38,7 +36,8 @@ from metaflow.sidecar import Sidecar
 from metaflow.unbounded_foreach import UBF_CONTROL
 
 from ..aws.aws_utils import get_docker_registry, get_ec2_instance_metadata
-from .kubernetes import KubernetesException, parse_kube_keyvalue_list
+from .kubernetes import KubernetesException
+from .kube_utils import validate_kube_labels_or_annotations, parse_kube_keyvalue_list
 
 try:
     unicode
@@ -668,31 +667,3 @@ def _setup_multinode_environment(ubf_context, hostname_resolution_timeout):
         raise MetaflowException("Failed to get host by name for MF_MASTER_ADDR.")
     except ValueError:
         raise MetaflowException("Invalid value for MF_WORKER_REPLICA_INDEX.")
-def validate_kube_labels_or_annotations(
-    labels: Optional[Dict[str, Optional[str]]],
-) -> bool:
-    """Validate label values.
-
-    This validates the kubernetes label values.  It does not validate the keys.
-    Ideally, keys should be static and also the validation rules for keys are
-    more complex than those for values.  For full validation rules, see:
-
-    https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
-    """
-
-    def validate_label(s: Optional[str]):
-        regex_match = r"^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$"
-        if not s:
-            # allow empty label
-            return True
-        if not re.search(regex_match, s):
-            raise KubernetesException(
-                'Invalid value: "%s"\n'
-                "A valid label must be an empty string or one that\n"
-                "  - Consist of alphanumeric, '-', '_' or '.' characters\n"
-                "  - Begins and ends with an alphanumeric character\n"
-                "  - Is at most 63 characters" % s
-            )
-        return True
-
-    return all([validate_label(v) for v in labels.values()]) if labels else True
