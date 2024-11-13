@@ -490,8 +490,13 @@ def resolve_token(
     help="Write the metadata and pathspec of this run to the file specified.\nUsed internally for Metaflow's Deployer API.",
     hidden=True,
 )
+@click.option(
+    "--aws-tags",
+    multiple=True,
+    default=None,
+    help="AWS tags.")
 @click.pass_obj
-def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
+def trigger(obj, run_id_file=None, deployer_attribute_file=None, aws_tags=None, **kwargs):
     def _convert_value(param):
         # Swap `-` with `_` in parameter name to match click's behavior
         val = kwargs.get(param.name.replace("-", "_").lower())
@@ -507,7 +512,7 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
         if kwargs.get(param.name.replace("-", "_").lower()) is not None
     }
 
-    response = StepFunctions.trigger(obj.state_machine_name, params)
+    response = StepFunctions.trigger(obj.state_machine_name, params, aws_tags=aws_tags)
 
     id = response["executionArn"].split(":")[-1]
     run_id = "sfn-" + id

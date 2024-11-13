@@ -183,7 +183,7 @@ class StepFunctions(object):
         return response
 
     @classmethod
-    def trigger(cls, name, parameters):
+    def trigger(cls, name, parameters, aws_tags=None):
         try:
             state_machine = StepFunctionsClient().get(name)
         except Exception as e:
@@ -195,7 +195,10 @@ class StepFunctions(object):
                 "deploy your flow first." % name
             )
         # Dump parameters into `Parameters` input field.
-        input = json.dumps({"Parameters": json.dumps(parameters)})
+        input = json.dumps({
+            "Parameters": json.dumps(parameters),
+            **aws_tags
+            })
         # AWS Step Functions limits input to be 32KiB, but AWS Batch
         # has its own limitation of 30KiB for job specification length.
         # Reserving 10KiB for rest of the job specification leaves 20KiB
@@ -877,6 +880,7 @@ class StepFunctions(object):
                 max_swap=resources["max_swap"],
                 swappiness=resources["swappiness"],
                 efa=resources["efa"],
+                aws_tags=self.tags,
                 use_tmpfs=resources["use_tmpfs"],
                 tmpfs_tempdir=resources["tmpfs_tempdir"],
                 tmpfs_size=resources["tmpfs_size"],
