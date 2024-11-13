@@ -38,7 +38,9 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
     GCP_SECRET_MANAGER_PREFIX,
+    KUBERNETES_ANNOTATIONS,
     KUBERNETES_FETCH_EC2_METADATA,
+    KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
@@ -54,6 +56,7 @@ from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_v
 from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.kubernetes.kube_utils import qos_requests_and_limits
 
+from metaflow.plugins.kubernetes.kube_utils import parse_kube_keyvalue_list
 from metaflow.plugins.kubernetes.kubernetes_jobsets import KubernetesArgoJobSet
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow.user_configs.config_options import ConfigInput
@@ -169,8 +172,8 @@ class ArgoWorkflows(object):
         self.triggers, self.trigger_options = self._process_triggers()
         self._schedule, self._timezone = self._get_schedule()
 
-        self.kubernetes_labels = self._get_kubernetes_labels()
-        self.kubernetes_annotations = self._get_kubernetes_annotations()
+        self.shared_kubernetes_labels = self._shared_kubernetes_labels()
+        self.shared_kubernetes_annotations = self._shared_kubernetes_annotations()
         self._workflow_template = self._compile_workflow_template()
         self._sensor = self._compile_sensor()
 
@@ -321,42 +324,30 @@ class ArgoWorkflows(object):
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
 
-    def _get_kubernetes_labels(self):
+    def _shared_kubernetes_labels(self):
         """
-        Get Kubernetes labels from the start step decorator.
+        Get shared Kubernetes labels for Argo resources.
         """
 
-        resources = dict(
-            [
-                deco
-                for node in self.graph
-                if node.name == "start"
-                for deco in node.decorators
-                if deco.name == "kubernetes"
-            ][0].attributes
-        )
-        return resources["labels"] or {}
+        labels = {}
+        if KUBERNETES_LABELS:
+            labels = parse_kube_keyvalue_list(KUBERNETES_LABELS.split(","), False)
 
-    def _get_kubernetes_annotations(self):
+        labels.update({"app.kubernetes.io/part-of": "metaflow"})
+
+        return labels
+
+    def _shared_kubernetes_annotations(self):
         """
-        Get Kubernetes annotations from the start step decorator.
-        Append Argo specific annotations that are unavailable at the decorator level.
+        Get shared Kubernetes annotations for Argo resources.
         """
         from datetime import datetime, timezone
 
-        resources = dict(
-            [
-                deco
-                for node in self.graph
-                if node.name == "start"
-                for deco in node.decorators
-                if deco.name == "kubernetes"
-            ][0].attributes
-        )
         annotations = {}
-        if resources["annotations"] is not None:
-            # make a copy so we do not mess possible start-step specific annotations.
-            annotations = resources["annotations"].copy()
+        if KUBERNETES_ANNOTATIONS:
+            annotations = parse_kube_keyvalue_list(
+                KUBERNETES_ANNOTATIONS.split(","), False
+            )
 
         annotations.update(
             {
@@ -369,6 +360,7 @@ class ArgoWorkflows(object):
                 ),
             }
         )
+
         if self._schedule is not None:
             # timezone is an optional field and json dumps on None will result in null
             # hence configuring it to an empty string
@@ -777,8 +769,7 @@ class ArgoWorkflows(object):
                 # multi-cluster scheduling.
                 .namespace(KUBERNETES_NAMESPACE)
                 .label("app.kubernetes.io/name", "metaflow-flow")
-                .label("app.kubernetes.io/part-of", "metaflow")
-                .annotations(self.kubernetes_annotations)
+                .annotations(self.shared_kubernetes_annotations)
             )
             .spec(
                 WorkflowSpec()
@@ -812,7 +803,7 @@ class ArgoWorkflows(object):
                     .label("app.kubernetes.io/part-of", "metaflow")
                     .annotations(
                         {
-                            **self.kubernetes_annotations,
+                            **self.shared_kubernetes_annotations,
                             **{"metaflow/run_id": "argo-{{workflow.name}}"},
                         }
                     )
@@ -847,10 +838,9 @@ class ArgoWorkflows(object):
                 # Set common pod metadata.
                 .pod_metadata(
                     Metadata()
-                    .labels(self.kubernetes_labels)
+                    .labels(self.shared_kubernetes_labels)
                     .label("app.kubernetes.io/name", "metaflow-task")
-                    .label("app.kubernetes.io/part-of", "metaflow")
-                    .annotations(self.kubernetes_annotations)
+                    .annotations(self.shared_kubernetes_annotations)
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
@@ -1922,7 +1912,7 @@ class ArgoWorkflows(object):
                 # Explicitly add the task-id-hint label. This is important because this label
                 # is returned as an Output parameter of this step and is used subsequently as an
                 # an input in the join step.
-                kubernetes_labels = self.kubernetes_labels.copy()
+                kubernetes_labels = self.shared_kubernetes_labels.copy()
                 jobset_name = "{{inputs.parameters.jobset-name}}"
                 kubernetes_labels["task_id_entropy"] = (
                     "{{inputs.parameters.task-id-entropy}}"
@@ -2883,10 +2873,9 @@ class ArgoWorkflows(object):
                 ObjectMeta()
                 .name(ArgoWorkflows._sensor_name(self.name))
                 .namespace(KUBERNETES_NAMESPACE)
-                .labels(self.kubernetes_labels)
+                .labels(self.shared_kubernetes_labels)
                 .label("app.kubernetes.io/name", "metaflow-sensor")
-                .label("app.kubernetes.io/part-of", "metaflow")
-                .annotations(self.kubernetes_annotations)
+                .annotations(self.shared_kubernetes_annotations)
             )
             .spec(
                 SensorSpec().template(
@@ -2896,7 +2885,7 @@ class ArgoWorkflows(object):
                         ObjectMeta()
                         .label("app.kubernetes.io/name", "metaflow-sensor")
                         .label("app.kubernetes.io/part-of", "metaflow")
-                        .annotations(self.kubernetes_annotations)
+                        .annotations(self.shared_kubernetes_annotations)
                     )
                     .container(
                         # Run sensor in guaranteed QoS. The sensor isn't doing a lot
