@@ -306,6 +306,7 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
 
     if not tasks_processed:
         echo(f"No task(s) found for pathspec {input_path}", fg="red")
+        return
 
     if file is not None:
         with open(file, "wb") as f:
