@@ -880,7 +880,6 @@ class StepFunctions(object):
                 max_swap=resources["max_swap"],
                 swappiness=resources["swappiness"],
                 efa=resources["efa"],
-                aws_tags=self.tags,
                 use_tmpfs=resources["use_tmpfs"],
                 tmpfs_tempdir=resources["tmpfs_tempdir"],
                 tmpfs_size=resources["tmpfs_size"],
