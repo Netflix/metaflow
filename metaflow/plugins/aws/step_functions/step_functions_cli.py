@@ -507,6 +507,8 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, aws_tags=None, 
         if kwargs.get(param.name.replace("-", "_").lower()) is not None
     }
 
+    params["test-param"] = "test-123"
+
     response = StepFunctions.trigger(obj.state_machine_name, params, aws_tags=aws_tags_dict)
 
     id = response["executionArn"].split(":")[-1]

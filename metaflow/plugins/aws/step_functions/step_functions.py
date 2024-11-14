@@ -190,6 +190,7 @@ class StepFunctions(object):
                 "on AWS Step Functions. Please "
                 "deploy your flow first." % name
             )
+
         # Dump parameters into `Parameters` input field.
         input = json.dumps({
             "Parameters": json.dumps(parameters),
