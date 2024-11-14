@@ -481,7 +481,6 @@ def resolve_token(
 @click.option(
     "--aws-tags",
     multiple=True,
-    type=dict,
     default=None,
     help="AWS tags.")
 @click.pass_obj
