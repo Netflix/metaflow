@@ -130,7 +130,7 @@ class TriggerDecorator(FlowDecorator):
                     parameters, DeployTimeField
                 ):
                     new_param_value = DeployTimeField(
-                        "parameters", [list, dict], None, parameters, False
+                        "parameters", [list, dict, tuple], None, parameters, False
                     )
                     self.attributes["event"]["parameters"] = new_param_value
                 self.triggers.append(self.attributes["event"])
@@ -193,7 +193,7 @@ class TriggerDecorator(FlowDecorator):
                             parameters, DeployTimeField
                         ):
                             new_param_value = DeployTimeField(
-                                "parameters", [list, dict], None, parameters, False
+                                "parameters", [list, dict, tuple], None, parameters, False
                             )
                             event["parameters"] = new_param_value
                         self.triggers.append(event)
@@ -266,16 +266,11 @@ class TriggerDecorator(FlowDecorator):
 
         self.triggers = new_triggers
         for trigger in self.triggers:
-            print(trigger)
             old_trigger = trigger
             trigger_params = trigger.get("parameters", {})
             # Case where param is a function (can return list or dict)
             if isinstance(trigger_params, DeployTimeField):
                 trigger_params = deploy_time_eval(trigger_params)
-                try:
-                    trigger_params = json.loads(trigger_params)
-                except (TypeError, json.JSONDecodeError):
-                    pass
             # If params is a list of strings, convert to dict with same key and value
             if isinstance(trigger_params, (list, tuple)):
                 new_trigger_params = {}
@@ -290,7 +285,6 @@ class TriggerDecorator(FlowDecorator):
                             "It should be a list/tuple of strings and lists/tuples "
                             "of size 2" % self.attributes["event"]["name"]
                         )
-
                 trigger_params = new_trigger_params
             trigger["parameters"] = trigger_params
 
@@ -597,10 +591,6 @@ class TriggerOnFinishDecorator(FlowDecorator):
             old_trig = trigger
             if isinstance(trigger, DeployTimeField):
                 trigger = deploy_time_eval(trigger)
-                try:
-                    trigger = json.loads(trigger)
-                except (TypeError, json.JSONDecodeError):
-                    pass
             if isinstance(trigger, dict):
                 trigger["fq_name"] = trigger.get("name")
                 trigger["project"] = trigger.get("project")
