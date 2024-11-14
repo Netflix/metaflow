@@ -480,7 +480,7 @@ def resolve_token(
     default=None,
     show_default=True,
     type=str,
-    help="Write the ID of this run to the file specified.",
+    help="Write the ID of this run to the file specified. TESTING",
 )
 @click.option(
     "--deployer-attribute-file",
@@ -493,6 +493,7 @@ def resolve_token(
 @click.option(
     "--aws-tags",
     multiple=True,
+    type=dict,
     default=None,
     help="AWS tags.")
 @click.pass_obj
