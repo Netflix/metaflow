@@ -506,13 +506,20 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, aws_tags=None, 
             val = val(return_str=True)
         return val
 
+    aws_tags_dict = {}
+    if aws_tags:
+        for tag in aws_tags:
+            key_value = tag.split("=", 1)  # Split only on the first '='
+            if len(key_value) == 2:
+                aws_tags_dict[key_value[0]] = key_value[1]
+
     params = {
         param.name: _convert_value(param)
         for _, param in obj.flow._get_parameters()
         if kwargs.get(param.name.replace("-", "_").lower()) is not None
     }
 
-    response = StepFunctions.trigger(obj.state_machine_name, params, aws_tags=aws_tags)
+    response = StepFunctions.trigger(obj.state_machine_name, params, aws_tags=aws_tags_dict)
 
     id = response["executionArn"].split(":")[-1]
     run_id = "sfn-" + id
