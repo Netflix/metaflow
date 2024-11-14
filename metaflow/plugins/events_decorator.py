@@ -193,7 +193,11 @@ class TriggerDecorator(FlowDecorator):
                             parameters, DeployTimeField
                         ):
                             new_param_value = DeployTimeField(
-                                "parameters", [list, dict, tuple], None, parameters, False
+                                "parameters",
+                                [list, dict, tuple],
+                                None,
+                                parameters,
+                                False,
                             )
                             event["parameters"] = new_param_value
                         self.triggers.append(event)
@@ -234,7 +238,8 @@ class TriggerDecorator(FlowDecorator):
         names = [
             x["name"]
             for x in self.triggers
-            if not isinstance(x, DeployTimeField) and not isinstance(x["name"], DeployTimeField)
+            if not isinstance(x, DeployTimeField)
+            and not isinstance(x["name"], DeployTimeField)
         ]
         if len(names) != len(set(names)):
             raise MetaflowException(
@@ -260,7 +265,9 @@ class TriggerDecorator(FlowDecorator):
                 new_triggers.remove(old_trigger)
                 if isinstance(evaluated_trigger, list):
                     if all(is_stringish(event) for event in evaluated_trigger):
-                        new_triggers.extend({"name": event_name} for event_name in evaluated_trigger)
+                        new_triggers.extend(
+                            {"name": event_name} for event_name in evaluated_trigger
+                        )
                 else:
                     new_triggers.append(trigger)
 
@@ -294,7 +301,7 @@ class TriggerDecorator(FlowDecorator):
                 trigger_name = deploy_time_eval(trigger_name)
                 trigger["name"] = trigger_name
             # Replace old trigger with new trigger
-            #TODO might need third layer 
+            # TODO might need third layer
             self.triggers[self.triggers.index(old_trigger)] = trigger
 
 
