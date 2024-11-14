@@ -1,3 +1,4 @@
+from metaflow._vendor import click
 import os
 import sys
 import time
