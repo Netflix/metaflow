@@ -445,7 +445,10 @@ def to_pod(value):
     if isinstance(value, (list, set, tuple)):
         return [to_pod(v) for v in value]
     if isinstance(value, DeployTimeField):
-        return to_pod(deploy_time_eval(value))
+        
+        return None
+    #     return to_pod(deploy_time_eval(value))
+
     return str(value)
 
 

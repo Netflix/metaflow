@@ -111,10 +111,10 @@ class TriggerDecorator(FlowDecorator):
                         False,
                     )
                     self.attributes["event"]["name"] = new_name
-                param_value = self.attributes["event"].get("parameters", {})
-                if isinstance(param_value, (list, tuple)):
+                parameters = self.attributes["event"].get("parameters", {})
+                if isinstance(parameters, (list, tuple)):
                     new_param_value = {}
-                    for mapping in param_value:
+                    for mapping in parameters:
                         if is_stringish(mapping):
                             new_param_value[mapping] = mapping
                         elif isinstance(mapping, (list, tuple)) and len(mapping) == 2:
@@ -126,11 +126,11 @@ class TriggerDecorator(FlowDecorator):
                                 "of size 2" % self.attributes["event"]["name"]
                             )
                     self.attributes["event"]["parameters"] = new_param_value
-                elif callable(param_value) and not isinstance(  # can be list or dict
-                    param_value, DeployTimeField
+                elif callable(parameters) and not isinstance(  # can be list or dict
+                    parameters, DeployTimeField
                 ):
                     new_param_value = DeployTimeField(
-                        "param", [list, dict], None, param_value, False
+                        "parameters", [list, dict], None, parameters, False
                     )
                     self.attributes["event"]["parameters"] = new_param_value
                 self.triggers.append(self.attributes["event"])
@@ -138,7 +138,7 @@ class TriggerDecorator(FlowDecorator):
                 self.attributes["event"], DeployTimeField
             ):
                 trig = DeployTimeField(
-                    "event", dict, None, self.attributes["event"], False
+                    "event", [str, dict], None, self.attributes["event"], False
                 )
                 self.triggers.append(trig)
             else:
@@ -171,10 +171,10 @@ class TriggerDecorator(FlowDecorator):
                                 "event_name", str, None, event["name"], False
                             )
                             event["name"] = new_name
-                        param_value = event.get("parameters", {})
-                        if isinstance(param_value, (list, tuple)):
+                        parameters = event.get("parameters", {})
+                        if isinstance(parameters, (list, tuple)):
                             new_param_value = {}
-                            for mapping in param_value:
+                            for mapping in parameters:
                                 if is_stringish(mapping):
                                     new_param_value[mapping] = mapping
                                 elif (
@@ -189,17 +189,17 @@ class TriggerDecorator(FlowDecorator):
                                         "and lists/tuples of size 2" % event["name"]
                                     )
                             event["parameters"] = new_param_value
-                        elif callable(param_value) and not isinstance(
-                            param_value, DeployTimeField
+                        elif callable(parameters) and not isinstance(
+                            parameters, DeployTimeField
                         ):
                             new_param_value = DeployTimeField(
-                                "param", [list, dict], None, param_value, False
+                                "parameters", [list, dict], None, parameters, False
                             )
                             event["parameters"] = new_param_value
                         self.triggers.append(event)
                     elif callable(event) and not isinstance(event, DeployTimeField):
                         trig = DeployTimeField(
-                            "event", dict, None, self.attributes["event"], False
+                            "event", [str, dict], None, self.attributes["event"], False
                         )
                         self.triggers.append(trig)
                     else:
@@ -231,7 +231,11 @@ class TriggerDecorator(FlowDecorator):
             raise MetaflowException("No event(s) specified in *@trigger* decorator.")
 
         # same event shouldn't occur more than once
-        names = [x["name"] for x in self.triggers if not isinstance(x, DeployTimeField)]
+        names = [
+            x["name"]
+            for x in self.triggers
+            if not isinstance(x, DeployTimeField) and not isinstance(x["name"], DeployTimeField)
+        ]
         if len(names) != len(set(names)):
             raise MetaflowException(
                 "Duplicate event names defined in *@trigger* decorator."
@@ -243,27 +247,27 @@ class TriggerDecorator(FlowDecorator):
 
     def format_deploytime_value(self):
         for trigger in self.triggers:
-            # Case were trigger is a function that returns a list of events
+            new_triggers = self.triggers
+            # Case where trigger is a function that returns a list of events
             # Need to do this bc we need to iterate over list later
             if isinstance(trigger, DeployTimeField):
-                if isinstance(deploy_time_eval(trigger), list):
-                    deploy_val = deploy_time_eval(trigger)
-                    self.triggers.remove(trigger)
-                    self.triggers.extend(deploy_val)
-            else:
-                break
+                evaluated_trigger = deploy_time_eval(trigger)
+                old_trigger = trigger
+                if isinstance(evaluated_trigger, dict):
+                    trigger = evaluated_trigger
+                elif isinstance(evaluated_trigger, str):
+                    trigger = {"name": evaluated_trigger}
+                new_triggers.remove(old_trigger)
+                if isinstance(evaluated_trigger, list):
+                    if all(is_stringish(event) for event in evaluated_trigger):
+                        new_triggers.extend({"name": event_name} for event_name in evaluated_trigger)
+                else:
+                    new_triggers.append(trigger)
+
+        self.triggers = new_triggers
         for trigger in self.triggers:
+            print(trigger)
             old_trigger = trigger
-            # Entire event is a function (returns either string or dict)
-            if isinstance(trigger, DeployTimeField):
-                trigger = deploy_time_eval(trigger)
-                try:
-                    trigger = json.loads(trigger)
-                except (TypeError, json.JSONDecodeError):
-                    pass
-                # Case where just the name is a function (always a str)
-                if isinstance(trigger, str):
-                    trigger = {"name": trigger}
             trigger_params = trigger.get("parameters", {})
             # Case where param is a function (can return list or dict)
             if isinstance(trigger_params, DeployTimeField):
@@ -296,6 +300,7 @@ class TriggerDecorator(FlowDecorator):
                 trigger_name = deploy_time_eval(trigger_name)
                 trigger["name"] = trigger_name
             # Replace old trigger with new trigger
+            #TODO might need third layer 
             self.triggers[self.triggers.index(old_trigger)] = trigger
 
 
