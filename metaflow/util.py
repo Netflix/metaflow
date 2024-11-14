@@ -11,6 +11,7 @@ import re
 
 from metaflow.exception import MetaflowUnknownUser, MetaflowInternalError
 
+
 try:
     # python2
     unicode_type = unicode
@@ -445,7 +446,7 @@ def to_pod(value):
     if isinstance(value, (list, set, tuple)):
         return [to_pod(v) for v in value]
     if isinstance(value, DeployTimeField):
-        
+
         return None
     #     return to_pod(deploy_time_eval(value))
 
