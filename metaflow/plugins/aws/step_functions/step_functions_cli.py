@@ -506,12 +506,15 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, aws_tags=None, 
             val = val(return_str=True)
         return val
 
-    aws_tags_dict = {}
+    aws_tags_list = []
     if aws_tags:
         for tag in aws_tags:
-            key_value = tag.split("=", 1)  # Split only on the first '='
+            key_value = tag.split("=", 1)
             if len(key_value) == 2:
-                aws_tags_dict[key_value[0]] = key_value[1]
+                aws_tags_list.append({
+                    'key': key_value[0],
+                    'value': key_value[1]
+                    })
 
     params = {
         param.name: _convert_value(param)
@@ -521,7 +524,7 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, aws_tags=None, 
 
     params["test-param"] = "test-123"
 
-    response = StepFunctions.trigger(obj.state_machine_name, params, aws_tags=aws_tags_dict)
+    response = StepFunctions.trigger(obj.state_machine_name, params, aws_tags=aws_tags_list)
 
     id = response["executionArn"].split(":")[-1]
     run_id = "sfn-" + id
