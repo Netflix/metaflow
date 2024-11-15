@@ -814,8 +814,8 @@ class StepFunctions(object):
             "retry_count": "$((AWS_BATCH_JOB_ATTEMPT-1))",
         }
         state_machine = StepFunctionsClient().get(self.name)
-        state_machine_arn = state_machine.get("stateMachineArn")['tags']
-        step_function_tags = self._client.list_tags_for_resource(state_machine_arn)
+        state_machine_arn = state_machine.get("stateMachineArn")
+        step_function_tags = self._client.list_tags_for_resource(state_machine_arn)['tags']
 
         return (
             Batch(self.metadata, self.environment)
