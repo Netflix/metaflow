@@ -117,7 +117,23 @@ class TriggerDecorator(FlowDecorator):
                     for mapping in parameters:
                         if is_stringish(mapping):
                             new_param_value[mapping] = mapping
+                        elif callable(mapping):
+                            mapping = DeployTimeField(
+                                "parameter_val", str, None, mapping, False
+                            )
+                            new_param_value[mapping] = mapping
                         elif isinstance(mapping, (list, tuple)) and len(mapping) == 2:
+                            if callable(mapping[1]) and not isinstance(
+                                mapping[1], DeployTimeField
+                            ):
+                                mapping[1] = DeployTimeField(
+                                    "parameter_val",
+                                    str,
+                                    None,
+                                    mapping[1],
+                                    False,
+                                )
+
                             new_param_value[mapping[0]] = mapping[1]
                         else:
                             raise MetaflowException(
@@ -133,6 +149,19 @@ class TriggerDecorator(FlowDecorator):
                         "parameters", [list, dict, tuple], None, parameters, False
                     )
                     self.attributes["event"]["parameters"] = new_param_value
+
+                new_parameters = {}
+                for key, value in self.attributes["event"]["parameters"].items():
+                    if callable(key):
+                        key = DeployTimeField("flow_parameter", str, None, key, False)
+                        new_parameters[key] = value
+                    if callable(value):
+                        new_parameters[key] = DeployTimeField(
+                            "signal_parameter", str, None, value, False
+                        )
+
+                self.attributes["event"]["parameters"] = new_parameters
+
                 self.triggers.append(self.attributes["event"])
             elif callable(self.attributes["event"]) and not isinstance(
                 self.attributes["event"], DeployTimeField
@@ -155,6 +184,7 @@ class TriggerDecorator(FlowDecorator):
             #                {'name': 'table.prod_db.metadata',
             #               'parameters': {'beta': 'grade'}}]
             if isinstance(self.attributes["events"], list):
+                # process every event in events
                 for event in self.attributes["events"]:
                     if is_stringish(event):
                         self.triggers.append({"name": str(event)})
@@ -172,23 +202,40 @@ class TriggerDecorator(FlowDecorator):
                             )
                             event["name"] = new_name
                         parameters = event.get("parameters", {})
+                        new_param_value = {}
                         if isinstance(parameters, (list, tuple)):
-                            new_param_value = {}
                             for mapping in parameters:
                                 if is_stringish(mapping):
+                                    new_param_value[mapping] = mapping
+                                elif callable(mapping):
+                                    mapping = DeployTimeField(
+                                        "parameter_val", str, None, mapping, False
+                                    )
                                     new_param_value[mapping] = mapping
                                 elif (
                                     isinstance(mapping, (list, tuple))
                                     and len(mapping) == 2
                                 ):
+                                    if callable(mapping[1]) and not isinstance(
+                                        mapping[1], DeployTimeField
+                                    ):
+                                        mapping[1] = DeployTimeField(
+                                            "parameter_val",
+                                            str,
+                                            None,
+                                            mapping[1],
+                                            False,
+                                        )
+
                                     new_param_value[mapping[0]] = mapping[1]
-                                else:
-                                    raise MetaflowException(
-                                        "The *parameters* attribute for event '%s' is "
-                                        "invalid. It should be a list/tuple of strings "
-                                        "and lists/tuples of size 2" % event["name"]
-                                    )
-                            event["parameters"] = new_param_value
+                                event["parameters"] = new_param_value
+                            else:
+                                raise MetaflowException(
+                                    "The *parameters* attribute for event '%s' is "
+                                    "invalid. It should be a list/tuple of strings "
+                                    "and lists/tuples of size 2" % event["name"]
+                                )
+
                         elif callable(parameters) and not isinstance(
                             parameters, DeployTimeField
                         ):
@@ -200,12 +247,29 @@ class TriggerDecorator(FlowDecorator):
                                 False,
                             )
                             event["parameters"] = new_param_value
+                        new_parameters = {}
+                        for key, value in event["parameters"].items():
+                            neither_changed = True
+                            if callable(key):
+                                key = DeployTimeField(
+                                    "flow_parameter", str, None, key, False
+                                )
+                                new_parameters[key] = value
+                                neither_changed = False
+                            if callable(value):
+                                new_parameters[key] = DeployTimeField(
+                                    "signal_parameter", str, None, value, False
+                                )
+                                neither_changed = False
+                            if neither_changed:
+                                new_parameters[key] = value
+
+                        event["parameters"] = new_parameters
                         self.triggers.append(event)
                     elif callable(event) and not isinstance(event, DeployTimeField):
-                        trig = DeployTimeField(
-                            "event", [str, dict], None, self.attributes["event"], False
-                        )
+                        trig = DeployTimeField("event", [str, dict], None, event, False)
                         self.triggers.append(trig)
+
                     else:
                         raise MetaflowException(
                             "One or more events in *events* attribute in *@trigger* "
@@ -282,9 +346,25 @@ class TriggerDecorator(FlowDecorator):
             if isinstance(trigger_params, (list, tuple)):
                 new_trigger_params = {}
                 for mapping in trigger_params:
-                    if is_stringish(mapping):
+                    if is_stringish(mapping) or callable(mapping):
+                        new_trigger_params[mapping] = mapping
+                    elif callable(mapping):
+                        mapping = DeployTimeField(
+                            "parameter_val", str, None, mapping, False
+                        )
                         new_trigger_params[mapping] = mapping
                     elif isinstance(mapping, (list, tuple)) and len(mapping) == 2:
+                        if callable(mapping[1]) and not isinstance(
+                            mapping[1], DeployTimeField
+                        ):
+                            mapping[1] = DeployTimeField(
+                                "parameter_val",
+                                str,
+                                None,
+                                mapping[1],
+                                False,
+                            )
+
                         new_trigger_params[mapping[0]] = mapping[1]
                     else:
                         raise MetaflowException(
@@ -301,8 +381,27 @@ class TriggerDecorator(FlowDecorator):
                 trigger_name = deploy_time_eval(trigger_name)
                 trigger["name"] = trigger_name
             # Replace old trigger with new trigger
-            # TODO might need third layer
+
+            # Third layer
+            # {name:, parameters:[func, ..., ...]}
+            # {name:, parameters:{func : func2}}
+            for trigger in self.triggers:
+                old_trigger = trigger
+                trigger_params = trigger.get("parameters", {})
+                new_trigger_params = {}
+                for key, value in trigger_params.items():
+                    if isinstance(value, DeployTimeField) and key is value:
+                        evaluated_param = deploy_time_eval(value)
+                        new_trigger_params[evaluated_param] = evaluated_param
+                    elif isinstance(value, DeployTimeField):
+                        new_trigger_params[key] = deploy_time_eval(value)
+                    elif isinstance(key, DeployTimeField):
+                        new_trigger_params[deploy_time_eval(key)] = value
+                    else:
+                        new_trigger_params[key] = value
+                trigger["parameters"] = new_trigger_params
             self.triggers[self.triggers.index(old_trigger)] = trigger
+            print(self.triggers)
 
 
 class TriggerOnFinishDecorator(FlowDecorator):
