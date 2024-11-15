@@ -68,6 +68,11 @@ class StepFunctionsClient(object):
             resourceArn=state_machine_arn,
             tags=tags
         )
+    
+    def list_tags_for_step_function(self, state_machine_arn):
+        return self._client.list_tags_for_resource(
+            resourceArn=state_machine_arn
+        )
 
     def list_executions(self, state_machine_arn, states):
         if len(states) > 0:
