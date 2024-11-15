@@ -164,6 +164,10 @@ def get_plugin_cli():
     return resolve_plugins("cli")
 
 
+def get_plugin_cli_path():
+    return resolve_plugins("cli", path_only=True)
+
+
 STEP_DECORATORS = resolve_plugins("step_decorator")
 FLOW_DECORATORS = resolve_plugins("flow_decorator")
 ENVIRONMENTS = resolve_plugins("environment")
