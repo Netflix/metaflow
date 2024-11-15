@@ -861,7 +861,7 @@ class StepFunctions(object):
         }
         state_machine = StepFunctionsClient().get(self.name)
         state_machine_arn = state_machine.get("stateMachineArn")
-        step_function_tags = self._client.list_tags_for_resource(state_machine_arn)['tags']
+        step_function_tags = self._client.list_tags_for_step_function(state_machine_arn)['tags']
 
         return (
             Batch(self.metadata, self.environment)
