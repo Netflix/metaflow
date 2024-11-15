@@ -199,6 +199,7 @@ class Batch(object):
         efs_volumes=None,
         use_tmpfs=None,
         tags=None,
+        step_function_tags=None,
         tmpfs_tempdir=None,
         tmpfs_size=None,
         tmpfs_path=None,
@@ -359,6 +360,11 @@ class Batch(object):
                     raise BatchException("tags must be a dictionary of key-value tags.")
                 for name, value in tags.items():
                     job.tag(name, value)
+
+            if step_function_tags is not None:
+                for tag in step_function_tags:
+                    job.tag(tag['key'], tag['value'])
+
         return job
 
     def launch_job(
