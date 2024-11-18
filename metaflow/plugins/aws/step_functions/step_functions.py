@@ -48,6 +48,7 @@ class StepFunctions(object):
         event_logger,
         monitor,
         tags=None,
+        aws_tags=None,
         namespace=None,
         username=None,
         max_workers=None,
@@ -67,6 +68,7 @@ class StepFunctions(object):
         self.event_logger = event_logger
         self.monitor = monitor
         self.tags = tags
+        self.aws_tags = aws_tags
         self.namespace = namespace
         self.username = username
         self.max_workers = max_workers
@@ -933,6 +935,8 @@ class StepFunctions(object):
             # Assign tags to run objects.
             if self.tags:
                 params.extend("--tag %s" % tag for tag in self.tags)
+            if self.aws_tags:
+                params.extend("--aws-tags %s" % aws_tag for aws_tag in self.aws_tags)
 
             # If the start step gets retried, we must be careful not to
             # regenerate multiple parameters tasks. Hence, we check first if
@@ -978,6 +982,8 @@ class StepFunctions(object):
             step.append("--split-index $METAFLOW_SPLIT_INDEX")
         if self.tags:
             step.extend("--tag %s" % tag for tag in self.tags)
+        if self.aws_tags:
+            step.extend("--aws-tag %s" % aws_tag for aws_tag in self.aws_tags)
         if self.namespace is not None:
             step.append("--namespace=%s" % self.namespace)
         cmds.append(" ".join(entrypoint + top_level + step))
