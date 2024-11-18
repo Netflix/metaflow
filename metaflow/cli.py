@@ -504,8 +504,13 @@ def step(
     default=None,
     help="Tags for this instance of the step.",
 )
+@click.option(
+    "--aws-tags",
+    multiple=True,
+    default=None,
+    help="AWS tags.")
 @click.pass_obj
-def init(obj, run_id=None, task_id=None, tags=None, **kwargs):
+def init(obj, run_id=None, task_id=None, tags=None, aws_tags=None, **kwargs):
     # init is a separate command instead of an option in 'step'
     # since we need to capture user-specified parameters with
     # @add_custom_parameters. Adding custom parameters to 'step'
@@ -515,6 +520,7 @@ def init(obj, run_id=None, task_id=None, tags=None, **kwargs):
     # variables.
 
     obj.metadata.add_sticky_tags(tags=tags)
+    obj.metadata.add_sticky_tags(tags=aws_tags)
 
     runtime = NativeRuntime(
         obj.flow,
