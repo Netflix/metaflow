@@ -281,11 +281,13 @@ class TaskDataStore(object):
 
         def pickle_iter():
             for name, obj in artifacts_iter:
+                print(f"Pickling artifact: {name} with object: {obj}")
                 do_v4 = (
                     force_v4 and force_v4
                     if isinstance(force_v4, bool)
                     else force_v4.get(name, False)
                 )
+                print(f"do_v4: {do_v4}")
                 if do_v4:
                     encode_type = "gzip+pickle-v4"
                     if encode_type not in self._encodings:
@@ -294,11 +296,13 @@ class TaskDataStore(object):
                             "requires Python 3.4 or newer." % name
                         )
                     try:
+                        print(f"Attempting to pickle object using protocol 4")
                         blob = pickle.dumps(obj, protocol=4)
                     except TypeError as e:
                         raise UnpicklableArtifactException(name)
                 else:
                     try:
+                        print(f"Attempting to pickle object using protocol 2")
                         blob = pickle.dumps(obj, protocol=2)
                         encode_type = "gzip+pickle-v2"
                     except (SystemError, OverflowError):
@@ -315,6 +319,13 @@ class TaskDataStore(object):
                             raise UnpicklableArtifactException(name)
                     except TypeError as e:
                         raise UnpicklableArtifactException(name)
+                    except Exception as e:
+                        print(
+                            f"Error pickling artifact: {name} with error: {e} using protocol 2"
+                        )
+                        raise DataException(
+                            "Error pickling artifact '%s': %s" % (name, e)
+                        )
 
                 self._info[name] = {
                     "size": len(blob),
@@ -329,6 +340,7 @@ class TaskDataStore(object):
         save_result = self._ca_store.save_blobs(pickle_iter(), len_hint=len_hint)
         for name, result in zip(artifact_names, save_result):
             self._objects[name] = result.key
+        print("Length of artifact_names: ", len(artifact_names))
 
     @require_mode(None)
     def load_artifacts(self, names):
