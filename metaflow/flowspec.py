@@ -168,7 +168,6 @@ class FlowSpec(metaclass=FlowSpecMeta):
             seen.add(norm)
         seen.clear()
         self._success = True
-
         parameters_info = []
         for var, param in self._get_parameters():
             seen.add(var)
@@ -194,10 +193,6 @@ class FlowSpec(metaclass=FlowSpecMeta):
             setattr(self, var, val)
 
         # We store the DAG information as an artifact called _graph_info
-        for deco in flow_decorators(self):
-            if deco.name == "trigger":
-                for trig in deco.triggers:
-                    print(trig)
         steps_info, graph_structure = graph.output_steps()
         graph_info = {
             "file": os.path.basename(os.path.abspath(sys.argv[0])),
