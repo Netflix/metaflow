@@ -987,10 +987,20 @@ class KubernetesArgoJobSet(object):
         self._labels = dict(self._labels, **{name: value})
         return self
 
+    def labels(self, labels):
+        for k, v in labels:
+            self.label(k, v)
+        return self
+
     def annotation(self, name, value):
         self.worker.annotation(name, value)
         self.control.annotation(name, value)
         self._annotations = dict(self._annotations, **{name: value})
+        return self
+
+    def annotations(self, annotations):
+        for k, v in annotations:
+            self.annotation(k, v)
         return self
 
     def dump(self):

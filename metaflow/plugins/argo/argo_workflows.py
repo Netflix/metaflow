@@ -1909,15 +1909,7 @@ class ArgoWorkflows(object):
             # twice, but due to issues with variable substitution, we will have to
             # live with this routine.
             if node.parallel_step:
-                # Explicitly add the task-id-hint label. This is important because this label
-                # is returned as an Output parameter of this step and is used subsequently as an
-                # an input in the join step.
-                kubernetes_labels = self.shared_kubernetes_labels.copy()
                 jobset_name = "{{inputs.parameters.jobset-name}}"
-                kubernetes_labels["task_id_entropy"] = (
-                    "{{inputs.parameters.task-id-entropy}}"
-                )
-                kubernetes_labels["num_parallel"] = "{{inputs.parameters.num-parallel}}"
                 jobset = KubernetesArgoJobSet(
                     kubernetes_sdk=kubernetes_sdk,
                     name=jobset_name,
@@ -1973,8 +1965,22 @@ class ArgoWorkflows(object):
                 for k, v in env.items():
                     jobset.environment_variable(k, v)
 
-                for k, v in kubernetes_labels.items():
-                    jobset.label(k, v)
+                # Set labels. Do not allow user-specified task labels to override internal ones.
+                #
+                # Explicitly add the task-id-hint label. This is important because this label
+                # is returned as an Output parameter of this step and is used subsequently as an
+                # an input in the join step.
+                kubernetes_labels = {
+                    "task_id_entropy": "{{inputs.parameters.task-id-entropy}}",
+                    "num_parallel": "{{inputs.parameters.num-parallel}}",
+                }
+                jobset.labels(
+                    {
+                        **resources["labels"],
+                        **self.shared_kubernetes_labels,
+                        **kubernetes_labels,
+                    }
+                )
 
                 jobset.environment_variable(
                     "MF_MASTER_ADDR", jobset.jobset_control_addr
@@ -2003,27 +2009,25 @@ class ArgoWorkflows(object):
                         "TASK_ID_SUFFIX": "metadata.annotations['jobset.sigs.k8s.io/job-index']",
                     }
                 )
+
+                # Set annotations. Do not allow user-specified task-specific annotations to override internal ones.
                 annotations = {
                     # setting annotations explicitly as they wont be
                     # passed down from WorkflowTemplate level
                     "metaflow/step_name": node.name,
                     "metaflow/attempt": str(retry_count),
                     "metaflow/run_id": run_id,
-                    "metaflow/production_token": self.production_token,
-                    "metaflow/owner": self.username,
-                    "metaflow/user": "argo-workflows",
-                    "metaflow/flow_name": self.flow.name,
                 }
-                if current.get("project_name"):
-                    annotations.update(
-                        {
-                            "metaflow/project_name": current.project_name,
-                            "metaflow/branch_name": current.branch_name,
-                            "metaflow/project_flow_name": current.project_flow_name,
-                        }
-                    )
-                for k, v in annotations.items():
-                    jobset.annotation(k, v)
+
+                jobset.annotations(
+                    {
+                        **resources["annotations"],
+                        **self.shared_kubernetes_annotations,
+                        **annotations,
+                    }
+                )
+                # Set task specific labels
+                jobset.labels(resources["labels"])
 
                 jobset.control.replicas(1)
                 jobset.worker.replicas("{{=asInt(inputs.parameters.workerCount)}}")
@@ -2088,6 +2092,7 @@ class ArgoWorkflows(object):
                         # the field 'task-id' in 'parameters'
                         # .annotation("metaflow/task_id", ...)
                         .annotation("metaflow/attempt", retry_count)
+                        .annotations(resources["annotations"])
                         .labels(resources["labels"])
                     )
                     # Set emptyDir volume for state management
