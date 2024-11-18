@@ -150,17 +150,20 @@ class TriggerDecorator(FlowDecorator):
                     )
                     self.attributes["event"]["parameters"] = new_param_value
 
-                new_parameters = {}
-                for key, value in self.attributes["event"]["parameters"].items():
-                    if callable(key):
-                        key = DeployTimeField("flow_parameter", str, None, key, False)
-                        new_parameters[key] = value
-                    if callable(value):
-                        new_parameters[key] = DeployTimeField(
-                            "signal_parameter", str, None, value, False
-                        )
+                elif isinstance(self.attributes["event"]["parameters"], dict):
+                    new_parameters = {}
+                    for key, value in self.attributes["event"]["parameters"].items():
+                        if callable(key) and not isinstance(key, DeployTimeField):
+                            key = DeployTimeField(
+                                "flow_parameter", str, None, key, False
+                            )
+                            new_parameters[key] = value
+                        if callable(value) and not isinstance(value, DeployTimeField):
+                            new_parameters[key] = DeployTimeField(
+                                "signal_parameter", str, None, value, False
+                            )
 
-                self.attributes["event"]["parameters"] = new_parameters
+                    self.attributes["event"]["parameters"] = new_parameters
 
                 self.triggers.append(self.attributes["event"])
             elif callable(self.attributes["event"]) and not isinstance(
@@ -380,7 +383,6 @@ class TriggerDecorator(FlowDecorator):
             if isinstance(trigger_name, DeployTimeField):
                 trigger_name = deploy_time_eval(trigger_name)
                 trigger["name"] = trigger_name
-            # Replace old trigger with new trigger
 
             # Third layer
             # {name:, parameters:[func, ..., ...]}
@@ -401,7 +403,6 @@ class TriggerDecorator(FlowDecorator):
                         new_trigger_params[key] = value
                 trigger["parameters"] = new_trigger_params
             self.triggers[self.triggers.index(old_trigger)] = trigger
-            print(self.triggers)
 
 
 class TriggerOnFinishDecorator(FlowDecorator):
