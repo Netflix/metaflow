@@ -98,6 +98,11 @@ def step_functions(obj, name=None):
     "times to attach multiple tags.",
 )
 @click.option(
+    "--aws-tags",
+    multiple=True,
+    default=None,
+    help="AWS tags.")
+@click.option(
     "--namespace",
     "user_namespace",
     default=None,
@@ -143,6 +148,7 @@ def step_functions(obj, name=None):
 def create(
     obj,
     tags=None,
+    aws_tags=None,
     user_namespace=None,
     only_json=False,
     authorize=None,
@@ -196,6 +202,7 @@ def create(
         token,
         obj.state_machine_name,
         tags,
+        aws_tags,
         user_namespace,
         max_workers,
         workflow_timeout,
@@ -315,6 +322,7 @@ def make_flow(
     token,
     name,
     tags,
+    aws_tags,
     namespace,
     max_workers,
     workflow_timeout,
@@ -350,6 +358,7 @@ def make_flow(
         obj.event_logger,
         obj.monitor,
         tags=tags,
+        aws_tags=aws_tags,
         namespace=namespace,
         max_workers=max_workers,
         username=get_username(),
