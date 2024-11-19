@@ -362,7 +362,15 @@ class Batch(object):
                     job.tag(name, value)
 
             if step_function_tags is not None:
+                aws_tags_list = []
                 for tag in step_function_tags:
+                    key_value = tag.split("=", 1)
+                    if len(key_value) == 2:
+                        aws_tags_list.append({
+                            'key': key_value[0],
+                            'value': key_value[1]
+                            })
+                for tag in aws_tags_list:
                     job.tag(tag['key'], tag['value'])
 
         return job
