@@ -722,8 +722,8 @@ def cli():
     pass
 
 
-@tracing.cli_entrypoint("s3op/list")
 @cli.command("list", help="List S3 objects")
+@tracing.cli_entrypoint("s3op/list")
 @click.option(
     "--recursive/--no-recursive",
     default=False,
@@ -782,8 +782,8 @@ def lst(
             print(format_result_line(idx, url.prefix, url.url, str(size)))
 
 
-@tracing.cli_entrypoint("s3op/put")
 @cli.command(help="Upload files to S3")
+@tracing.cli_entrypoint("s3op/put")
 @click.option(
     "--file",
     "files",
@@ -977,8 +977,8 @@ def _populate_prefixes(prefixes, inputs):
     return prefixes, is_transient_retry
 
 
-@tracing.cli_entrypoint("s3op/get")
 @cli.command(help="Download files from S3")
+@tracing.cli_entrypoint("s3op/get")
 @click.option(
     "--recursive/--no-recursive",
     default=False,

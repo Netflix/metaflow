@@ -9,6 +9,7 @@ if sys.version_info < (3, 7):
     )
 
 import datetime
+import functools
 import importlib
 import inspect
 import itertools
@@ -124,6 +125,29 @@ def _method_sanity_check(
     return method_params
 
 
+def _lazy_load_command(
+    cli_collection: click.Group, flow_parameters: List[Parameter], _self, name: str
+):
+
+    # Context is not used in get_command so we can pass None. Since we pin click,
+    # this won't change from under us.
+    cmd_obj = cli_collection.get_command(None, name)
+    if cmd_obj:
+        if isinstance(cmd_obj, click.Group):
+            # TODO: possibly check for fake groups with cmd_obj.name in ["cli", "main"]
+            result = extract_group(cmd_obj, flow_parameters)
+        elif isinstance(cmd_obj, click.Command):
+            result = functools.partial(extract_command(cmd_obj, flow_parameters), _self)
+        else:
+            raise RuntimeError(
+                "Cannot handle %s of type %s" % (cmd_obj.name, type(cmd_obj))
+            )
+        setattr(_self, name, result)
+        return result
+    else:
+        raise AttributeError()
+
+
 def get_annotation(param: Union[click.Argument, click.Option]):
     py_type = click_to_python_types[type(param.type)]
     if not param.required:
@@ -204,19 +228,18 @@ class MetaflowAPI(object):
         with flow_context(flow_cls) as _:
             add_decorator_options(cli_collection)
 
-        class_dict = {"__module__": "metaflow", "_API_NAME": flow_file}
-        command_groups = cli_collection.sources
-        for each_group in command_groups:
-            for _, cmd_obj in each_group.commands.items():
-                if isinstance(cmd_obj, click.Group):
-                    # TODO: possibly check for fake groups with cmd_obj.name in ["cli", "main"]
-                    class_dict[cmd_obj.name] = extract_group(cmd_obj, flow_parameters)
-                elif isinstance(cmd_obj, click.Command):
-                    class_dict[cmd_obj.name] = extract_command(cmd_obj, flow_parameters)
-                else:
-                    raise RuntimeError(
-                        "Cannot handle %s of type %s" % (cmd_obj.name, type(cmd_obj))
-                    )
+        def getattr_wrapper(_self, name):
+            # Functools.partial do not automatically bind self (no __get__)
+            return _self._internal_getattr(_self, name)
+
+        class_dict = {
+            "__module__": "metaflow",
+            "_API_NAME": flow_file,
+            "_internal_getattr": functools.partial(
+                _lazy_load_command, cli_collection, flow_parameters
+            ),
+            "__getattr__": getattr_wrapper,
+        }
 
         to_return = type(flow_file, (MetaflowAPI,), class_dict)
         to_return.__name__ = flow_file
@@ -240,8 +263,8 @@ class MetaflowAPI(object):
             return to_return(parent=None, **method_params)
 
         m = _method
-        m.__name__ = cmd_obj.name
-        m.__doc__ = getattr(cmd_obj, "help", None)
+        m.__name__ = cli_collection.name
+        m.__doc__ = getattr(cli_collection, "help", None)
         m.__signature__ = inspect.signature(_method).replace(
             parameters=params_sigs.values()
         )
@@ -324,17 +347,18 @@ def extract_all_params(cmd_obj: Union[click.Command, click.Group]):
 
 
 def extract_group(cmd_obj: click.Group, flow_parameters: List[Parameter]) -> Callable:
-    class_dict = {"__module__": "metaflow", "_API_NAME": cmd_obj.name}
-    for _, sub_cmd_obj in cmd_obj.commands.items():
-        if isinstance(sub_cmd_obj, click.Group):
-            # recursion
-            class_dict[sub_cmd_obj.name] = extract_group(sub_cmd_obj, flow_parameters)
-        elif isinstance(sub_cmd_obj, click.Command):
-            class_dict[sub_cmd_obj.name] = extract_command(sub_cmd_obj, flow_parameters)
-        else:
-            raise RuntimeError(
-                "Cannot handle %s of type %s" % (sub_cmd_obj.name, type(sub_cmd_obj))
-            )
+    def getattr_wrapper(_self, name):
+        # Functools.partial do not automatically bind self (no __get__)
+        return _self._internal_getattr(_self, name)
+
+    class_dict = {
+        "__module__": "metaflow",
+        "_API_NAME": cmd_obj.name,
+        "_internal_getattr": functools.partial(
+            _lazy_load_command, cmd_obj, flow_parameters
+        ),
+        "__getattr__": getattr_wrapper,
+    }
 
     resulting_class = type(cmd_obj.name, (MetaflowAPI,), class_dict)
     resulting_class.__name__ = cmd_obj.name

@@ -48,8 +48,8 @@ def process_messages(worker_type, worker):
         pass
 
 
-@tracing.cli_entrypoint("sidecar")
 @click.command(help="Initialize workers")
+@tracing.cli_entrypoint("sidecar")
 @click.argument("worker-type")
 def main(worker_type):
     sidecar_type = SIDECARS.get(worker_type)

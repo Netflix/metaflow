@@ -1,3 +1,4 @@
+import functools
 import inspect
 import sys
 import traceback
@@ -88,9 +89,6 @@ def echo_always(line, **kwargs):
         click.secho(ERASE_TO_EOL, **kwargs)
 
 
-echo = None
-
-
 def logger(body="", system_msg=False, head="", bad=False, timestamp=True, nl=True):
     if timestamp:
         if timestamp is True:
@@ -147,7 +145,13 @@ def cli(ctx):
 )
 @click.pass_obj
 def check(obj, warnings=False):
-    _check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint, warnings=warnings)
+    if obj.is_quiet:
+        echo = echo_dev_null
+    else:
+        echo = echo_always
+    _check(
+        echo, obj.graph, obj.flow, obj.environment, pylint=obj.pylint, warnings=warnings
+    )
     fname = inspect.getfile(obj.flow.__class__)
     echo(
         "\n*'{cmd} show'* shows a description of this flow.\n"
@@ -219,7 +223,6 @@ def version(obj):
     echo_always(obj.version)
 
 
-@tracing.cli_entrypoint("cli/start")
 @decorators.add_decorator_options
 @click.command(
     cls=LazyPluginCommandCollection,
@@ -227,6 +230,7 @@ def version(obj):
     lazy_sources=plugins.get_plugin_cli_path(),
     invoke_without_command=True,
 )
+@tracing.cli_entrypoint("cli/start")
 @click.option(
     "--quiet/--not-quiet",
     show_default=True,
@@ -304,7 +308,6 @@ def start(
     monitor=None,
     **deco_options
 ):
-    global echo
     if quiet:
         echo = echo_dev_null
     else:
@@ -325,8 +328,8 @@ def start(
     ctx.obj.is_quiet = quiet
     ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
     ctx.obj.logger = logger
-    ctx.obj.check = _check
     ctx.obj.pylint = pylint
+    ctx.obj.check = functools.partial(_check, echo)
     ctx.obj.top_cli = cli
     ctx.obj.package_suffixes = package_suffixes.split(",")
 
@@ -424,7 +427,7 @@ def start(
         ctx.invoke(check)
 
 
-def _check(graph, flow, environment, pylint=True, warnings=False, **kwargs):
+def _check(echo, graph, flow, environment, pylint=True, warnings=False, **kwargs):
     echo("Validating your flow...", fg="magenta", bold=False)
     linter = lint.linter
     # TODO set linter settings
