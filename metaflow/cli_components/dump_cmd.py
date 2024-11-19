@@ -2,7 +2,7 @@ import pickle
 
 from metaflow._vendor import click
 
-from ..cli import echo_always, echo
+from ..cli import echo_always, echo_dev_null
 from ..datastore import TaskDataStoreSet
 from ..exception import CommandException
 
@@ -38,6 +38,12 @@ from ..exception import CommandException
 )
 @click.pass_obj
 def dump(obj, input_path, private=None, max_value_size=None, include=None, file=None):
+
+    if obj.is_quiet:
+        echo = echo_dev_null
+    else:
+        echo = echo_always
+
     output = {}
     kwargs = {
         "show_private": private,
