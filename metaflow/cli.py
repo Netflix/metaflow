@@ -389,11 +389,11 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
     type=click.Choice(["none", UBF_CONTROL, UBF_TASK]),
     help="Provides additional context if this task is of type unbounded foreach.",
 )
-@click.option(
-    "--aws-tags",
-    multiple=True,
-    default=None,
-    help="AWS tags.")
+# @click.option(
+#     "--aws-tags",
+#     multiple=True,
+#     default=None,
+#     help="AWS tags.")
 @click.option(
     "--num-parallel",
     default=0,
@@ -417,7 +417,7 @@ def step(
     clone_run_id=None,
     decospecs=None,
     ubf_context="none",
-    aws_tags=None,
+    # aws_tags=None,
     num_parallel=None,
 ):
     if ubf_context == "none":
