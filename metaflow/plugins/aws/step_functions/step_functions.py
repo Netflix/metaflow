@@ -1029,8 +1029,8 @@ class StepFunctions(object):
             step.append("--split-index $METAFLOW_SPLIT_INDEX")
         if self.tags:
             step.extend("--tag %s" % tag for tag in self.tags)
-        if self.aws_tags:
-            step.extend("--aws-tags %s" % aws_tag for aws_tag in self.aws_tags)
+        # if self.aws_tags:
+        #     step.extend("--aws-tags %s" % aws_tag for aws_tag in self.aws_tags)
         if self.namespace is not None:
             step.append("--namespace=%s" % self.namespace)
         cmds.append(" ".join(entrypoint + top_level + step))
