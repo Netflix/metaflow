@@ -117,6 +117,7 @@ email_message_from_string = (
     email.message_from_string
     )
 
+
 class PyPy_repr:
     """
     Override repr for EntryPoint objects on PyPy to avoid __iter__ access.
