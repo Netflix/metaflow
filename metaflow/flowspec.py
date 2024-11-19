@@ -168,6 +168,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
             seen.add(norm)
         seen.clear()
         self._success = True
+
         parameters_info = []
         for var, param in self._get_parameters():
             seen.add(var)
@@ -194,6 +195,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
         # We store the DAG information as an artifact called _graph_info
         steps_info, graph_structure = graph.output_steps()
+
         graph_info = {
             "file": os.path.basename(os.path.abspath(sys.argv[0])),
             "parameters": parameters_info,
