@@ -1243,7 +1243,10 @@ class StubGenerator:
 
                 default = exploit_default(parameter.default)
 
-                if kw_only_param and parameter.kind != inspect.Parameter.KEYWORD_ONLY:
+                if kw_only_param and parameter.kind not in (
+                    inspect.Parameter.KEYWORD_ONLY,
+                    inspect.Parameter.VAR_KEYWORD,
+                ):
                     raise RuntimeError(
                         "In function '%s': cannot have a positional parameter after a "
                         "keyword only parameter" % name
