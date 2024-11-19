@@ -1241,7 +1241,6 @@ class StubGenerator:
             has_var_args = False
             for i, (par_name, parameter) in enumerate(my_sign.parameters.items()):
                 annotation = self._exploit_annotation(parameter.annotation)
-
                 default = exploit_default(parameter.default)
 
                 if (
@@ -1254,8 +1253,6 @@ class StubGenerator:
                         "keyword only parameter" % name
                     )
 
-                has_var_args |= parameter.kind == inspect.Parameter.VAR_KEYWORD
-
                 if (
                     parameter.kind == inspect.Parameter.KEYWORD_ONLY
                     and not kw_only_param
@@ -1266,6 +1263,7 @@ class StubGenerator:
                 if parameter.kind == inspect.Parameter.VAR_KEYWORD:
                     par_name = "**%s" % par_name
                 elif parameter.kind == inspect.Parameter.VAR_POSITIONAL:
+                    has_var_args = True
                     par_name = "*%s" % par_name
 
                 if default:
