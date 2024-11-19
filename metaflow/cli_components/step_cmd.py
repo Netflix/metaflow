@@ -1,7 +1,7 @@
 from metaflow._vendor import click
 
 from .. import decorators, namespace
-from ..cli import echo
+from ..cli import echo_always, echo_dev_null
 from ..cli_args import cli_args
 from ..exception import CommandException
 from ..task import MetaflowTask
@@ -116,6 +116,12 @@ def step(
     ubf_context="none",
     num_parallel=None,
 ):
+
+    if ctx.obj.is_quiet:
+        echo = echo_dev_null
+    else:
+        echo = echo_always
+
     if ubf_context == "none":
         ubf_context = None
     if opt_namespace is not None:

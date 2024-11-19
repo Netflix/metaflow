@@ -88,6 +88,9 @@ def echo_always(line, **kwargs):
         click.secho(ERASE_TO_EOL, **kwargs)
 
 
+echo = None
+
+
 def logger(body="", system_msg=False, head="", bad=False, timestamp=True, nl=True):
     if timestamp:
         if timestamp is True:

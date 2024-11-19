@@ -11,7 +11,8 @@ import uuid
 from multiprocessing import Pool
 
 from metaflow._vendor import click
-from metaflow.cli import run, start
+from metaflow.cli import start
+from metaflow.cli_components.run_cmds import run
 
 skip_api_executor = False
 
