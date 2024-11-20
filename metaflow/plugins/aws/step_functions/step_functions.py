@@ -890,6 +890,7 @@ class StepFunctions(object):
                 swappiness=resources["swappiness"],
                 efa=resources["efa"],
                 use_tmpfs=resources["use_tmpfs"],
+                tags=resources["tags"],
                 step_function_tags=step_function_tags,
                 tmpfs_tempdir=resources["tmpfs_tempdir"],
                 tmpfs_size=resources["tmpfs_size"],

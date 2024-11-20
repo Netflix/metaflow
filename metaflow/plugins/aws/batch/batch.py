@@ -354,13 +354,6 @@ class Batch(object):
             for name, value in BATCH_DEFAULT_TAGS.items():
                 job.tag(name, value)
 
-            # add custom tags last to allow override of defaults
-            if tags is not None:
-                if not isinstance(tags, dict):
-                    raise BatchException("tags must be a dictionary of key-value tags.")
-                for name, value in tags.items():
-                    job.tag(name, value)
-
             if step_function_tags is not None:
                 aws_tags_list = []
                 for tag in step_function_tags:
@@ -372,6 +365,13 @@ class Batch(object):
                             })
                 for tag in aws_tags_list:
                     job.tag(tag['key'], tag['value'])
+
+            # add custom tags last to allow override of defaults
+            if tags is not None:
+                if not isinstance(tags, dict):
+                    raise BatchException("tags must be a dictionary of key-value tags.")
+                for name, value in tags.items():
+                    job.tag(name, value)
 
         return job
 
