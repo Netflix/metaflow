@@ -936,8 +936,8 @@ class StepFunctions(object):
             # Assign tags to run objects.
             if self.tags:
                 params.extend("--tag %s" % tag for tag in self.tags)
-            if self.aws_tags:
-                params.extend("--aws-tags %s" % aws_tag for aws_tag in self.aws_tags)
+            # if self.aws_tags:
+            #     params.extend("--aws-tags %s" % aws_tag for aws_tag in self.aws_tags)
 
             # If the start step gets retried, we must be careful not to
             # regenerate multiple parameters tasks. Hence, we check first if
