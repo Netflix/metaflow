@@ -222,10 +222,8 @@ class TriggerDecorator(FlowDecorator):
                 if isinstance(evaluated_trigger, list):
                     for trig in evaluated_trigger:
                         if is_stringish(trig):
-                            new_triggers.append(
-                            {"name": trig} 
-                        )
-                        else: #dict or another deploytimefield
+                            new_triggers.append({"name": trig})
+                        else:  # dict or another deploytimefield
                             new_triggers.append(trig)
                 else:
                     new_triggers.append(trigger)
@@ -305,6 +303,7 @@ class TriggerDecorator(FlowDecorator):
                         new_trigger_params[key] = value
                 trigger["parameters"] = new_trigger_params
             self.triggers[self.triggers.index(old_trigger)] = trigger
+
 
 class TriggerOnFinishDecorator(FlowDecorator):
     """
@@ -600,7 +599,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
             if isinstance(trigger, DeployTimeField):
                 trigger = deploy_time_eval(trigger)
             if isinstance(trigger, dict):
-                trigger["fq_name"] = trigger.get("name") 
+                trigger["fq_name"] = trigger.get("name")
                 trigger["project"] = trigger.get("project")
                 trigger["branch"] = trigger.get("project_branch")
             # We also added this bc it won't be formatted yet
