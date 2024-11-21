@@ -11,7 +11,6 @@ import re
 
 from metaflow.exception import MetaflowUnknownUser, MetaflowInternalError
 
-
 try:
     # python2
     unicode_type = unicode
@@ -437,8 +436,6 @@ def to_pod(value):
         Value to convert to POD format. The value can be a string, number, list,
         dictionary, or a nested structure of these types.
     """
-    from metaflow.parameters import DeployTimeField, deploy_time_eval
-
     if isinstance(value, (str, int, float)):
         return value
     if isinstance(value, dict):
