@@ -32,6 +32,7 @@ from metaflow.mflog import (
 )
 from metaflow.plugins.aws.aws_utils import sanitize_batch_tag
 from metaflow.plugins.datatools.s3.s3tail import S3Tail
+from metaflow.tagging_util import validate_tags, validate_aws_tag
 
 from .batch_client import BatchClient
 
@@ -364,14 +365,19 @@ class Batch(object):
                             'value': key_value[1]
                             })
                 for tag in aws_tags_list:
+                    validate_aws_tag(tag)
                     job.tag(tag['key'], tag['value'])
 
-            # add custom tags last to allow override of defaults
             if tags is not None:
                 if not isinstance(tags, dict):
                     raise BatchException("tags must be a dictionary of key-value tags.")
-                for name, value in tags.items():
-                    job.tag(name, value)
+                decorator_aws_tags_list = [
+                    {'key': key,
+                        'value': val} for key, val in tags.items()
+                ]
+                for tag in decorator_aws_tags_list:
+                    validate_aws_tag(tag)
+                    job.tag(tag['key'], tag['value'])
 
         return job
 

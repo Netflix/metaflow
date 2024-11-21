@@ -1,5 +1,6 @@
 from metaflow.exception import MetaflowTaggingError
 from metaflow.util import unicode_type, bytes_type
+import re
 
 
 def is_utf8_encodable(x):
@@ -29,6 +30,12 @@ MAX_USER_TAG_SET_SIZE = 50
 # How long may an individual tag value be
 MAX_TAG_SIZE = 500
 
+def validate_aws_tag(tag):
+    validate_tags([tag['key'], tag['value']])
+    if not re.match(r'^[\w\s._-]+$', tag['key']):
+        raise MetaflowTaggingError("Tags must match pattern: ^[\w\s._-]+$")
+    if not re.match(r'^[\w\s._-]*$', tag['value']):
+        raise MetaflowTaggingError("Tags must match pattern: ^[\w\s._-]+$")
 
 def validate_tags(tags, existing_tags=None):
     """
