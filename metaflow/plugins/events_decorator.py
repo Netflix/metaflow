@@ -207,18 +207,16 @@ class TriggerDecorator(FlowDecorator):
         # TODO: Handle scenario for local testing using --trigger.
 
     def format_deploytime_value(self):
-        new_triggers = self.triggers
+        new_triggers = []
         for trigger in self.triggers:
             # Case where trigger is a function that returns a list of events
             # Need to do this bc we need to iterate over list later
             if isinstance(trigger, DeployTimeField):
                 evaluated_trigger = deploy_time_eval(trigger)
-                old_trig = trigger
                 if isinstance(evaluated_trigger, dict):
                     trigger = evaluated_trigger
                 elif isinstance(evaluated_trigger, str):
                     trigger = {"name": evaluated_trigger}
-                new_triggers.remove(old_trig)
                 if isinstance(evaluated_trigger, list):
                     for trig in evaluated_trigger:
                         if is_stringish(trig):
@@ -227,6 +225,8 @@ class TriggerDecorator(FlowDecorator):
                             new_triggers.append(trig)
                 else:
                     new_triggers.append(trigger)
+            else:
+                new_triggers.append(trigger)
 
         self.triggers = new_triggers
         for trigger in self.triggers:
@@ -303,6 +303,7 @@ class TriggerDecorator(FlowDecorator):
                         new_trigger_params[key] = value
                 trigger["parameters"] = new_trigger_params
             self.triggers[self.triggers.index(old_trigger)] = trigger
+            print(self.triggers)
 
 
 class TriggerOnFinishDecorator(FlowDecorator):
