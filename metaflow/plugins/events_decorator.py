@@ -303,7 +303,6 @@ class TriggerDecorator(FlowDecorator):
                         new_trigger_params[key] = value
                 trigger["parameters"] = new_trigger_params
             self.triggers[self.triggers.index(old_trigger)] = trigger
-            print(self.triggers)
 
 
 class TriggerOnFinishDecorator(FlowDecorator):
