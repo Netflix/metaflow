@@ -6,7 +6,7 @@ import tempfile
 import select
 from contextlib import contextmanager
 from subprocess import CalledProcessError
-from typing import Any, Dict, TYPE_CHECKING, ContextManager
+from typing import Any, Dict, TYPE_CHECKING, ContextManager, Tuple
 
 if TYPE_CHECKING:
     import tempfile
@@ -51,7 +51,7 @@ def check_process_exited(
 
 
 @contextmanager
-def temporary_fifo() -> ContextManager[tuple[str, int]]:
+def temporary_fifo() -> ContextManager[Tuple[str, int]]:
     """
     Create and open the read side of a temporary FIFO in a non-blocking mode.
 
