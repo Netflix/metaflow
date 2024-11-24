@@ -487,13 +487,8 @@ def resolve_token(
     help="Write the metadata and pathspec of this run to the file specified.\nUsed internally for Metaflow's Deployer API.",
     hidden=True,
 )
-@click.option(
-    "--aws-tags",
-    multiple=True,
-    default=None,
-    help="AWS tags.")
 @click.pass_obj
-def trigger(obj, run_id_file=None, deployer_attribute_file=None, aws_tags=None, **kwargs):
+def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
     def _convert_value(param):
         # Swap `-` with `_` in parameter name to match click's behavior
         val = kwargs.get(param.name.replace("-", "_").lower())
@@ -503,25 +498,13 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, aws_tags=None, 
             val = val(return_str=True)
         return val
 
-    aws_tags_list = []
-    if aws_tags:
-        for tag in aws_tags:
-            key_value = tag.split("=", 1)
-            if len(key_value) == 2:
-                aws_tags_list.append({
-                    'key': key_value[0],
-                    'value': key_value[1]
-                    })
-
     params = {
         param.name: _convert_value(param)
         for _, param in obj.flow._get_parameters()
         if kwargs.get(param.name.replace("-", "_").lower()) is not None
     }
 
-    params["test-param"] = "test-123"
-
-    response = StepFunctions.trigger(obj.state_machine_name, params, aws_tags=aws_tags_list)
+    response = StepFunctions.trigger(obj.state_machine_name, params)
 
     id = response["executionArn"].split(":")[-1]
     run_id = "sfn-" + id
