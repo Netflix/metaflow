@@ -815,8 +815,7 @@ class StepFunctions(object):
             # AWS_BATCH_JOB_ATTEMPT as the job counter.
             "retry_count": "$((AWS_BATCH_JOB_ATTEMPT-1))",
         }
-        state_machine = StepFunctionsClient().get(self.name)
-        state_machine_arn = state_machine.get("stateMachineArn")
+        
         step_function_tags = self.aws_tags
 
         return (
@@ -936,8 +935,6 @@ class StepFunctions(object):
             # Assign tags to run objects.
             if self.tags:
                 params.extend("--tag %s" % tag for tag in self.tags)
-            # if self.aws_tags:
-            #     params.extend("--aws-tags %s" % aws_tag for aws_tag in self.aws_tags)
 
             # If the start step gets retried, we must be careful not to
             # regenerate multiple parameters tasks. Hence, we check first if
@@ -983,8 +980,6 @@ class StepFunctions(object):
             step.append("--split-index $METAFLOW_SPLIT_INDEX")
         if self.tags:
             step.extend("--tag %s" % tag for tag in self.tags)
-        # if self.aws_tags:
-        #     step.extend("--aws-tags %s" % aws_tag for aws_tag in self.aws_tags)
         if self.namespace is not None:
             step.append("--namespace=%s" % self.namespace)
         cmds.append(" ".join(entrypoint + top_level + step))
