@@ -440,7 +440,7 @@ ESCAPE_HATCH_WARNING = from_conf("ESCAPE_HATCH_WARNING", True)
 ###
 # Debug configuration
 ###
-DEBUG_OPTIONS = ["subcommand", "sidecar", "s3client", "tracing", "stubgen"]
+DEBUG_OPTIONS = ["subcommand", "sidecar", "s3client", "tracing", "stubgen", "userconf"]
 
 for typ in DEBUG_OPTIONS:
     vars()["DEBUG_%s" % typ.upper()] = from_conf("DEBUG_%s" % typ.upper(), False)

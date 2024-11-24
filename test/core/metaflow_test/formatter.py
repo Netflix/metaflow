@@ -1,5 +1,6 @@
-import sys
 import inspect
+
+from metaflow.user_configs.config_decorators import CustomStepDecorator
 
 INDENT = 4
 
@@ -49,6 +50,8 @@ class FlowFormatter(object):
         steps = []
         for attr in dir(test):
             obj = getattr(test, attr)
+            if isinstance(obj, CustomStepDecorator):
+                steps.append(obj._my_step)
             if hasattr(obj, "is_step"):
                 steps.append(obj)
         return list(sorted(steps, key=lambda x: x.prio))

@@ -12,6 +12,61 @@ class LazyPluginCommandCollection(click.CommandCollection):
         self.lazy_sources = lazy_sources or {}
         self._lazy_loaded = {}
 
+    def invoke(self, ctx):
+        # NOTE: This is copied from MultiCommand.invoke. The change is that we
+        # behave like chain in the sense that we evaluate the subcommand *after*
+        # invoking the base command but we don't chain the commands like self.chain
+        # would otherwise indicate.
+        # The goal of this is to make sure that the first command is properly executed
+        # *first* prior to loading the other subcommands. It's more a lazy_subcommand_load
+        # than a chain.
+        # Look for CHANGE HERE in this code to see where the changes are made.
+        # If click is updated, this may also need to be updated. This version is for
+        # click 7.1.2.
+        def _process_result(value):
+            if self.result_callback is not None:
+                value = ctx.invoke(self.result_callback, value, **ctx.params)
+            return value
+
+        if not ctx.protected_args:
+            # If we are invoked without command the chain flag controls
+            # how this happens.  If we are not in chain mode, the return
+            # value here is the return value of the command.
+            # If however we are in chain mode, the return value is the
+            # return value of the result processor invoked with an empty
+            # list (which means that no subcommand actually was executed).
+            if self.invoke_without_command:
+                # CHANGE HERE: We behave like self.chain = False here
+
+                # if not self.chain:
+                return click.Command.invoke(self, ctx)
+                # with ctx:
+                #    click.Command.invoke(self, ctx)
+                #    return _process_result([])
+
+            ctx.fail("Missing command.")
+
+        # Fetch args back out
+        args = ctx.protected_args + ctx.args
+        ctx.args = []
+        ctx.protected_args = []
+
+        # If we're not in chain mode, we only allow the invocation of a
+        # single command but we also inform the current context about the
+        # name of the command to invoke.
+        # CHANGE HERE: We change this block to do the invoke *before* the resolve_command
+        # Make sure the context is entered so we do not clean up
+        # resources until the result processor has worked.
+        with ctx:
+            ctx.invoked_subcommand = "*" if args else None
+            click.Command.invoke(self, ctx)
+            cmd_name, cmd, args = self.resolve_command(ctx, args)
+            sub_ctx = cmd.make_context(cmd_name, args, parent=ctx)
+            with sub_ctx:
+                return _process_result(sub_ctx.command.invoke(sub_ctx))
+
+        # CHANGE HERE: Removed all the part of chain mode.
+
     def list_commands(self, ctx):
         base = super().list_commands(ctx)
         for source_name, source in self.lazy_sources.items():

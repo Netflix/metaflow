@@ -287,12 +287,16 @@ class Config(Parameter, collections.abc.Mapping):
         You can only specify default or default_value.
     help : str, optional, default None
         Help text to show in `run --help`.
-    required : bool, default False
-        Require that the user specified a value for the parameter. Note that if
-        a default is provided, the required flag is ignored.
-    parser : Callable[[str], Dict[Any, Any]], optional, default None
-        An optional function that can parse the configuration string into an arbitrarily
-        nested dictionary.
+    required : bool, optional, default None
+        Require that the user specified a value for the configuration. Note that if
+        a default is provided, the required flag is ignored. A value of None is
+        equivalent to False.
+    parser : Union[str, Callable[[str], Dict[Any, Any]]], optional, default None
+        If a callable, it is a function that can parse the configuration string
+        into an arbitrarily nested dictionary. If a string, the string should refer to
+        a function (like "my_parser_package.my_parser.my_parser_function") which should
+        be able to parse the configuration string into an arbitrarily nested dictionary.
+        If the name starts with a ".", it is assumed to be relative to "metaflow".
     show_default : bool, default True
         If True, show the default value in the help text.
     """
@@ -311,8 +315,8 @@ class Config(Parameter, collections.abc.Mapping):
             ]
         ] = None,
         help: Optional[str] = None,
-        required: bool = False,
-        parser: Optional[Callable[[str], Dict[Any, Any]]] = None,
+        required: Optional[bool] = None,
+        parser: Optional[Union[str, Callable[[str], Dict[Any, Any]]]] = None,
         **kwargs: Dict[str, str]
     ):
 
@@ -326,13 +330,18 @@ class Config(Parameter, collections.abc.Mapping):
         super(Config, self).__init__(
             name, required=required, help=help, type=str, **kwargs
         )
+        super(Config, self).init()
 
         if isinstance(kwargs.get("default", None), str):
             kwargs["default"] = json.dumps(kwargs["default"])
         self.parser = parser
+        self._computed_value = None
 
     def load_parameter(self, v):
         return v
+
+    def _store_value(self, v: Any) -> None:
+        self._computed_value = v
 
     # Support <config>.<var> syntax
     def __getattr__(self, name):

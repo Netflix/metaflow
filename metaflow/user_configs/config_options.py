@@ -1,9 +1,11 @@
+import importlib
 import json
 import os
 
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from metaflow._vendor import click
+from metaflow.debug import debug
 
 from .config_parameters import CONFIG_FILE, ConfigValue
 from ..exception import MetaflowException, MetaflowInternalError
@@ -134,7 +136,7 @@ class ConfigInput:
         self,
         req_configs: List[str],
         defaults: Dict[str, Tuple[Union[str, Dict[Any, Any]], bool]],
-        parsers: Dict[str, Callable[[str], Dict[Any, Any]]],
+        parsers: Dict[str, Union[str, Callable[[str], Dict[Any, Any]]]],
     ):
         self._req_configs = set(req_configs)
         self._defaults = defaults
@@ -196,7 +198,11 @@ class ConfigInput:
         #         the value go through ConvertPath or ConvertDictOrStr
         #  - the actual value passed through prefixed with _CONVERT_PREFIX
 
-        # print("Got arg name %s and values %s" % (param.name, str(value)))
+        debug.userconf_exec(
+            "Processing configs for %s -- incoming values: %s"
+            % (param.name, str(value))
+        )
+
         do_return = self._value_values is None and self._path_values is None
         # We only keep around non default values. We could simplify by checking just one
         # value and if it is default it means all are but this doesn't seem much more effort
@@ -215,6 +221,7 @@ class ConfigInput:
             }
         if do_return:
             # One of config_value_options or config_file_options will be None
+            debug.userconf_exec("Incomplete config options; waiting for more")
             return None
 
         # The second go around, we process all the values and merge them.
@@ -231,7 +238,8 @@ class ConfigInput:
         all_values = dict(self._path_values or {})
         all_values.update(self._value_values or {})
 
-        # print("Got all values: %s" % str(all_values))
+        debug.userconf_exec("All config values: %s" % str(all_values))
+
         flow_cls._flow_state[_FlowState.CONFIGS] = {}
 
         to_return = {}
@@ -263,7 +271,9 @@ class ConfigInput:
                 else:
                     # This is a value
                     merged_configs[n] = ConvertDictOrStr.convert_value(val, False)
-        # print("Merged configs: %s" % str(merged_configs))
+
+        debug.userconf_exec("Configs merged with defaults: %s" % str(merged_configs))
+
         missing_configs = set()
         no_file = []
         no_default_file = []
@@ -290,7 +300,7 @@ class ConfigInput:
                 to_return[name] = ConfigValue(read_value)
             else:
                 if self._parsers[name]:
-                    read_value = self._parsers[name](val)
+                    read_value = self._call_parser(self._parsers[name], val)
                 else:
                     try:
                         read_value = json.loads(val)
@@ -321,6 +331,8 @@ class ConfigInput:
             raise click.UsageError(
                 "Bad values passed for configuration options: %s" % ", ".join(msgs)
             )
+
+        debug.userconf_exec("Finalized configs: %s" % str(to_return))
         return to_return
 
     def __str__(self):
@@ -328,6 +340,24 @@ class ConfigInput:
 
     def __repr__(self):
         return "ConfigInput"
+
+    @staticmethod
+    def _call_parser(parser, val):
+        if isinstance(parser, str):
+            if len(parser) and parser[0] == ".":
+                parser = "metaflow" + parser
+            path, func = parser.rsplit(".", 1)
+            try:
+                func_module = importlib.import_module(path)
+            except ImportError as e:
+                raise ValueError("Cannot locate parser %s" % parser) from e
+            parser = getattr(func_module, func, None)
+            if parser is None or not callable(parser):
+                raise ValueError(
+                    "Parser %s is either not part of %s or not a callable"
+                    % (func, path)
+                )
+        return parser(val)
 
 
 class LocalFileInput(click.Path):

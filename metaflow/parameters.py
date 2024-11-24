@@ -300,7 +300,11 @@ class Parameter(object):
     ----------
     name : str
         User-visible parameter name.
-    default : str or float or int or bool or `JSONType` or a function.
+    default : Union[str, float, int, bool, Dict[str, Any],
+                Callable[
+                    [ParameterContext], Union[str, float, int, bool, Dict[str, Any]]
+                ],
+            ], optional, default None
         Default value for the parameter. Use a special `JSONType` class to
         indicate that the value must be a valid JSON object. A function
         implies that the parameter corresponds to a *deploy-time parameter*.
@@ -309,11 +313,12 @@ class Parameter(object):
         If `default` is not specified, define the parameter type. Specify
         one of `str`, `float`, `int`, `bool`, or `JSONType`. If None, defaults
         to the type of `default` or `str` if none specified.
-    help : str, optional
+    help : str, optional, default None
         Help text to show in `run --help`.
     required : bool, optional, default None
-        Require that the user specified a value for the parameter. `required=True` implies
-        that `default` is not used. A value of None is equivalent to False.
+        Require that the user specified a value for the parameter. Note that if
+        a default is provide, the required flag is ignored.
+        A value of None is equivalent to False.
     show_default : bool, optional, default None
         If True, show the default value in the help text. A value of None is equivalent
         to True.

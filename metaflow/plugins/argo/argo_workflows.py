@@ -459,7 +459,7 @@ class ArgoWorkflows(object):
             seen.add(norm)
             # NOTE: We skip config parameters as these do not have dynamic values,
             # and need to be treated differently.
-            if param.IS_FLOW_PARAMETER:
+            if param.IS_CONFIG_PARAMETER:
                 continue
 
             extra_attrs = {}
@@ -509,7 +509,7 @@ class ArgoWorkflows(object):
         parameters = []
         seen = set()
         for var, param in self.flow._get_parameters():
-            if not param.IS_FLOW_PARAMETER:
+            if not param.IS_CONFIG_PARAMETER:
                 continue
             # Throw an exception if the parameter is specified twice.
             norm = param.name.lower()
@@ -553,7 +553,7 @@ class ArgoWorkflows(object):
                 [
                     param.name.lower()
                     for var, param in self.flow._get_parameters()
-                    if not param.IS_FLOW_PARAMETER
+                    if not param.IS_CONFIG_PARAMETER
                 ]
             )
             trigger_deco = self.flow._flow_decorators.get("trigger")[0]

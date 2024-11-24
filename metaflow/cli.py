@@ -449,7 +449,7 @@ def start(
         },
     )
 
-    if ctx.invoked_subcommand not in ("run", "resume"):
+    if ctx.protected_args and ctx.protected_args[0] not in ("run", "resume"):
         # run/resume are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.
         all_decospecs = ctx.obj.tl_decospecs + list(

@@ -1573,6 +1573,7 @@ class CLIArgs(object):
         args.extend(_options(self.top_level_options))
         args.extend(self.commands)
         args.extend(self.command_args)
+
         args.extend(_options(self.command_options))
         return args
 

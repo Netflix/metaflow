@@ -12,6 +12,7 @@ from .exception import (
 )
 
 from .parameters import current_flow
+from .user_configs.config_decorators import CustomStepDecorator
 from .user_configs.config_parameters import (
     UNPACK_KEY,
     resolve_delayed_evaluator,
@@ -466,6 +467,8 @@ def _base_step_decorator(decotype, *args, **kwargs):
         # No keyword arguments specified for the decorator, e.g. @foobar.
         # The first argument is the function to be decorated.
         func = args[0]
+        if isinstance(func, CustomStepDecorator):
+            func = func._my_step
         if not hasattr(func, "is_step"):
             raise BadStepDecoratorException(decotype.name, func)
 
@@ -548,7 +551,6 @@ def _attach_decorators_to_step(step, decospecs):
 
 
 def _init(flow, only_non_static=False):
-    # We get the datastore for the _parameters step which can contain
     for decorators in flow._flow_decorators.values():
         for deco in decorators:
             if not only_non_static or not deco.statically_defined:
@@ -669,6 +671,7 @@ def step(
     """
     f.is_step = True
     f.decorators = []
+    f.config_decorators = []
     try:
         # python 3
         f.name = f.__name__
