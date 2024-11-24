@@ -311,7 +311,6 @@ class Batch(object):
         # Tags for AWS Batch job (for say cost attribution)
         if BATCH_EMIT_TAGS:
             job.tag("app", "metaflow")
-            job.tag("metaflow-tag-fork", "hello")
             for key in [
                 "metaflow.flow_name",
                 "metaflow.run_id",
@@ -335,7 +334,10 @@ class Batch(object):
                 raise BatchException(
                     "The BATCH_DEFAULT_TAGS config option must be a dictionary of key-value tags."
                 )
+            
             for name, value in BATCH_DEFAULT_TAGS.items():
+                aws_tag = {'key': name, 'value': value}
+                validate_aws_tag(aws_tag)
                 job.tag(name, value)
 
             if step_function_tags is not None:
