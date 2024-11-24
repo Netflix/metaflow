@@ -389,11 +389,6 @@ def dump(obj, input_path, private=None, max_value_size=None, include=None, file=
     type=click.Choice(["none", UBF_CONTROL, UBF_TASK]),
     help="Provides additional context if this task is of type unbounded foreach.",
 )
-# @click.option(
-#     "--aws-tags",
-#     multiple=True,
-#     default=None,
-#     help="AWS tags.")
 @click.option(
     "--num-parallel",
     default=0,
@@ -417,7 +412,6 @@ def step(
     clone_run_id=None,
     decospecs=None,
     ubf_context="none",
-    # aws_tags=None,
     num_parallel=None,
 ):
     if ubf_context == "none":
@@ -504,13 +498,7 @@ def step(
     default=None,
     help="Tags for this instance of the step.",
 )
-# @click.option(
-#     "--aws-tags",
-#     multiple=True,
-#     default=None,
-#     help="AWS tags.")
 @click.pass_obj
-# def init(obj, run_id=None, task_id=None, tags=None, aws_tags=None, **kwargs):
 def init(obj, run_id=None, task_id=None, tags=None, **kwargs):
     # init is a separate command instead of an option in 'step'
     # since we need to capture user-specified parameters with
@@ -521,7 +509,6 @@ def init(obj, run_id=None, task_id=None, tags=None, **kwargs):
     # variables.
 
     obj.metadata.add_sticky_tags(tags=tags)
-    # obj.metadata.add_sticky_tags(tags=aws_tags)
 
     runtime = NativeRuntime(
         obj.flow,
