@@ -477,7 +477,7 @@ def resolve_token(
     default=None,
     show_default=True,
     type=str,
-    help="Write the ID of this run to the file specified. TESTING",
+    help="Write the ID of this run to the file specified.",
 )
 @click.option(
     "--deployer-attribute-file",
