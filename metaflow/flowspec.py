@@ -274,6 +274,10 @@ class FlowSpec(metaclass=FlowSpecMeta):
         for var, param in to_reset_configs:
             setattr(current_cls, var, param)
 
+        # Reset cached parameters again since we added back the config parameters
+        if _FlowState.CACHED_PARAMETERS in current_cls._flow_state:
+            del current_cls._flow_state[_FlowState.CACHED_PARAMETERS]
+
         # Set the current flow class we are in (the one we just created)
         parameters.replace_flow_context(current_cls)
         return current_cls(use_cli=False)
