@@ -207,7 +207,6 @@ class StepFunctions(object):
             )
         try:
             state_machine_arn = state_machine.get("stateMachineArn")
-
             return StepFunctionsClient().trigger(state_machine_arn, input)
         except Exception as e:
             raise StepFunctionsException(repr(e))
@@ -810,8 +809,6 @@ class StepFunctions(object):
             # AWS_BATCH_JOB_ATTEMPT as the job counter.
             "retry_count": "$((AWS_BATCH_JOB_ATTEMPT-1))",
         }
-        
-        step_function_tags = self.aws_tags
 
         return (
             Batch(self.metadata, self.environment)
@@ -838,7 +835,7 @@ class StepFunctions(object):
                 efa=resources["efa"],
                 use_tmpfs=resources["use_tmpfs"],
                 tags=resources["tags"],
-                step_function_tags=step_function_tags,
+                step_function_tags=self.aws_tags,
                 tmpfs_tempdir=resources["tmpfs_tempdir"],
                 tmpfs_size=resources["tmpfs_size"],
                 tmpfs_path=resources["tmpfs_path"],
