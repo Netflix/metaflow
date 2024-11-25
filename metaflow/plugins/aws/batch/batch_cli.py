@@ -4,12 +4,10 @@ import sys
 import time
 import traceback
 
-
 from metaflow import util
 from metaflow import R
 from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
 from metaflow.metadata_provider.util import sync_local_metadata_from_datastore
-
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.mflog import TASK_LOG_SOURCE
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
@@ -215,7 +213,7 @@ def step(
     log_driver=None,
     log_options=None,
     num_parallel=None,
-    **kwargs,
+    **kwargs
 ):
     def echo(msg, stream="stderr", batch_id=None, **kwargs):
         msg = util.to_unicode(msg)
