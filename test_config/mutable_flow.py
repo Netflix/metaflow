@@ -1,3 +1,4 @@
+import json
 import os
 
 from metaflow import (
@@ -12,8 +13,30 @@ from metaflow import (
     step,
 )
 
+default_config = {
+    "parameters": [
+        {"name": "param1", "default": "41"},
+        {"name": "param2", "default": "42"},
+    ],
+    "step_add_environment": {"vars": {"STEP_LEVEL": "2"}},
+    "step_add_environment_2": {"vars": {"STEP_LEVEL_2": "3"}},
+    "flow_add_environment": {"vars": {"FLOW_LEVEL": "4"}},
+    "project_name": "config_project",
+}
 
-def audit(run, parameters, stdout_path):
+
+def find_param_in_parameters(parameters, name):
+    for param in parameters:
+        splits = param.split(" ")
+        try:
+            idx = splits.index("--" + name)
+            return splits[idx + 1]
+        except ValueError:
+            continue
+    return None
+
+
+def audit(run, parameters, configs, stdout_path):
     # We should only have one run here
     if len(run) != 1:
         raise RuntimeError("Expected only one run; got %d" % len(run))
@@ -22,9 +45,43 @@ def audit(run, parameters, stdout_path):
     # Check successful run
     if not run.successful:
         raise RuntimeError("Run was not successful")
+
+    if configs:
+        # We should have one config called "config"
+        if len(configs) != 1 or not configs.get("config"):
+            raise RuntimeError("Expected one config called 'config'")
+        config = json.loads(configs["config"])
+    else:
+        config = default_config
+
     # Check that we have the proper project name
-    if "project:config_project" not in run.tags:
+    if f"project:{config['project_name']}" not in run.tags:
         raise RuntimeError("Project name is incorrect.")
+
+    # Check the start step that all values are properly set. We don't need
+    # to check end step as it would be a duplicate
+    start_task_data = run["start"].task.data
+    for param in config["parameters"]:
+        value = find_param_in_parameters(parameters, param["name"]) or param["default"]
+        if not hasattr(start_task_data, param["name"]):
+            raise RuntimeError(f"Missing parameter {param['name']}")
+        if getattr(start_task_data, param["name"]) != value:
+            raise RuntimeError(
+                f"Parameter {param['name']} has incorrect value %s versus %s expected"
+                % (getattr(start_task_data, param["name"]), value)
+            )
+    assert (
+        start_task_data.flow_level
+        == config["flow_add_environment"]["vars"]["FLOW_LEVEL"]
+    )
+    assert (
+        start_task_data.step_level
+        == config["step_add_environment"]["vars"]["STEP_LEVEL"]
+    )
+    assert (
+        start_task_data.step_level_2
+        == config["step_add_environment_2"]["vars"]["STEP_LEVEL_2"]
+    )
 
     return None
 
@@ -108,34 +165,34 @@ class ModifyStep2(CustomStepDecorator):
 @project(name=config_expr("config.project_name"))
 class ConfigMutableFlow(FlowSpec):
 
-    config = Config(
-        "config",
-        default_value={
-            "parameters": [
-                {"name": "param1", "default": "41"},
-                {"name": "param2", "default": "42"},
-            ],
-            "step_add_environment": {"vars": {"STEP_LEVEL": "2"}},
-            "step_add_environment_2": {"vars": {"STEP_LEVEL_2": "3"}},
-            "flow_add_environment": {"vars": {"FLOW_LEVEL": "4"}},
-            "project_name": "config_project",
-        },
-    )
+    config = Config("config", default_value=default_config)
 
     def _check(self, step_decorators):
-        assert self.param1 == "41", "param1 does not match expected value"
-        assert self.param2 == "42", "param2 does not match expected value"
+        for p in self.config.parameters:
+            assert hasattr(self, p["name"]), "Missing parameter"
+
         assert (
             os.environ.get("SHOULD_NOT_EXIST") is None
         ), "Unexpected environment variable"
+
         assert (
-            os.environ.get("FLOW_LEVEL") == "4"
+            os.environ.get("FLOW_LEVEL")
+            == self.config.flow_add_environment["vars"]["FLOW_LEVEL"]
         ), "Flow level environment variable not set"
+        self.flow_level = os.environ.get("FLOW_LEVEL")
+
         if step_decorators:
-            assert os.environ.get("STEP_LEVEL") == "2", "Missing step_level decorator"
             assert (
-                os.environ.get("STEP_LEVEL_2") == "3"
+                os.environ.get("STEP_LEVEL")
+                == self.config.step_add_environment.vars.STEP_LEVEL
+            ), "Missing step_level decorator"
+            assert (
+                os.environ.get("STEP_LEVEL_2")
+                == self.config["step_add_environment_2"]["vars"].STEP_LEVEL_2
             ), "Missing step_level_2 decorator"
+
+            self.step_level = os.environ.get("STEP_LEVEL")
+            self.step_level_2 = os.environ.get("STEP_LEVEL_2")
         else:
             assert (
                 os.environ.get("STEP_LEVEL") is None

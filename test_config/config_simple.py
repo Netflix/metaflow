@@ -1,9 +1,12 @@
+import json
 import os
 
 from metaflow import Config, FlowSpec, config_expr, environment, project, step
 
+default_config = {"a": {"b": "41", "project_name": "config_project"}}
 
-def audit(run, parameters, stdout_path):
+
+def audit(run, parameters, configs, stdout_path):
     # We should only have one run here
     if len(run) != 1:
         raise RuntimeError("Expected only one run; got %d" % len(run))
@@ -12,17 +15,23 @@ def audit(run, parameters, stdout_path):
     # Check successful run
     if not run.successful:
         raise RuntimeError("Run was not successful")
+
+    if configs and configs.get("cfg_default_value"):
+        config = json.loads(configs["cfg_default_value"])
+    else:
+        config = default_config
+
     # Check that we have the proper project name
-    if "project:config_project" not in run.tags:
+    if f"project:{config['a']['project_name']}" not in run.tags:
         raise RuntimeError("Project name is incorrect.")
 
     # Check the value of the artifacts in the end step
     end_task = run["end"].task
     if (
-        end_task.config_val != 5
-        or end_task.config_val_2 != "41"
-        or end_task.config_from_env != "5"
-        or end_task.config_from_env_2 != "41"
+        end_task.data.config_val != 5
+        or end_task.data.config_val_2 != config["a"]["b"]
+        or end_task.data.config_from_env != "5"
+        or end_task.data.config_from_env_2 != config["a"]["b"]
     ):
         raise RuntimeError("Config values are incorrect.")
 
@@ -35,7 +44,7 @@ class ConfigSimple(FlowSpec):
     cfg = Config("cfg", default="config_simple.json")
     cfg_default_value = Config(
         "cfg_default_value",
-        default_value={"a": {"b": "41", "project_name": "config_project"}},
+        default_value=default_config,
     )
 
     @environment(
