@@ -190,6 +190,11 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
         # Fast path for no user configurations
         if not self._flow_state.get(_FlowState.CONFIG_DECORATORS):
+            # Process parameters to allow them to also use config values easily
+            for var, param in self._get_parameters():
+                if param.IS_CONFIG_PARAMETER:
+                    continue
+                param.init()
             return self
 
         debug.userconf_exec("Processing mutating step/flow decorators")
