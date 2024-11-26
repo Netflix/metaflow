@@ -38,9 +38,7 @@ from metaflow.metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
     GCP_SECRET_MANAGER_PREFIX,
-    KUBERNETES_ANNOTATIONS,
     KUBERNETES_FETCH_EC2_METADATA,
-    KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
@@ -56,7 +54,6 @@ from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_v
 from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.kubernetes.kube_utils import qos_requests_and_limits
 
-from metaflow.plugins.kubernetes.kube_utils import parse_kube_keyvalue_list
 from metaflow.plugins.kubernetes.kubernetes_jobsets import KubernetesArgoJobSet
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow.user_configs.config_options import ConfigInput
@@ -328,12 +325,8 @@ class ArgoWorkflows(object):
         """
         Get shared Kubernetes labels for Argo resources.
         """
-
-        labels = {}
-        if KUBERNETES_LABELS:
-            labels = parse_kube_keyvalue_list(KUBERNETES_LABELS.split(","), False)
-
-        labels.update({"app.kubernetes.io/part-of": "metaflow"})
+        # TODO: Add configuration through an environment variable or Metaflow config in the future if required.
+        labels = {"app.kubernetes.io/part-of": "metaflow"}
 
         return labels
 
@@ -343,23 +336,26 @@ class ArgoWorkflows(object):
         """
         from datetime import datetime, timezone
 
-        annotations = {}
-        if KUBERNETES_ANNOTATIONS:
-            annotations = parse_kube_keyvalue_list(
-                KUBERNETES_ANNOTATIONS.split(","), False
-            )
+        # TODO: Add configuration through an environment variable or Metaflow config in the future if required.
+        # base annotations
+        annotations = {
+            "metaflow/production_token": self.production_token,
+            "metaflow/owner": self.username,
+            "metaflow/user": "argo-workflows",
+            "metaflow/flow_name": self.flow.name,
+            "metaflow/deployment_timestamp": str(
+                datetime.now(timezone.utc).isoformat()
+            ),
+        }
 
-        annotations.update(
-            {
-                "metaflow/production_token": self.production_token,
-                "metaflow/owner": self.username,
-                "metaflow/user": "argo-workflows",
-                "metaflow/flow_name": self.flow.name,
-                "metaflow/deployment_timestamp": str(
-                    datetime.now(timezone.utc).isoformat()
-                ),
-            }
-        )
+        if current.get("project_name"):
+            annotations.update(
+                {
+                    "metaflow/project_name": current.project_name,
+                    "metaflow/branch_name": current.branch_name,
+                    "metaflow/project_flow_name": current.project_flow_name,
+                }
+            )
 
         if self._schedule is not None:
             # timezone is an optional field and json dumps on None will result in null
@@ -371,15 +367,6 @@ class ArgoWorkflows(object):
 
         if self.parameters:
             annotations.update({"metaflow/parameters": json.dumps(self.parameters)})
-
-        if current.get("project_name"):
-            annotations.update(
-                {
-                    "metaflow/project_name": current.project_name,
-                    "metaflow/branch_name": current.branch_name,
-                    "metaflow/project_flow_name": current.project_flow_name,
-                }
-            )
 
         # Some more annotations to populate the Argo UI nicely
         if self.tags:
