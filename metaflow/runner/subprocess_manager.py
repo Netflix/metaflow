@@ -37,19 +37,31 @@ async def async_kill_processes_and_descendants(
     # TODO: there's a race condition that new descendants might
     # spawn b/w the invocations of 'pkill' and 'kill'.
     # Needs to be fixed in future.
-    sub_term = await asyncio.create_subprocess_exec("pkill", "-TERM", "-P", *pids)
-    await sub_term.wait()
+    try:
+        sub_term = await asyncio.create_subprocess_exec("pkill", "-TERM", "-P", *pids)
+        await sub_term.wait()
+    except Exception:
+        pass
 
-    main_term = await asyncio.create_subprocess_exec("kill", "-TERM", *pids)
-    await main_term.wait()
+    try:
+        main_term = await asyncio.create_subprocess_exec("kill", "-TERM", *pids)
+        await main_term.wait()
+    except Exception:
+        pass
 
     await asyncio.sleep(termination_timeout)
 
-    sub_kill = await asyncio.create_subprocess_exec("pkill", "-KILL", "-P", *pids)
-    await sub_kill.wait()
+    try:
+        sub_kill = await asyncio.create_subprocess_exec("pkill", "-KILL", "-P", *pids)
+        await sub_kill.wait()
+    except Exception:
+        pass
 
-    main_kill = await asyncio.create_subprocess_exec("kill", "-KILL", *pids)
-    await main_kill.wait()
+    try:
+        main_kill = await asyncio.create_subprocess_exec("kill", "-KILL", *pids)
+        await main_kill.wait()
+    except Exception:
+        pass
 
 
 class LogReadTimeoutError(Exception):
