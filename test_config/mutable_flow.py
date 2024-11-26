@@ -8,6 +8,7 @@ from metaflow import (
     FlowSpec,
     Parameter,
     config_expr,
+    current,
     environment,
     project,
     step,
@@ -54,6 +55,14 @@ def audit(run, parameters, configs, stdout_path):
     else:
         config = default_config
 
+    if len(parameters) > 1:
+        expected_tokens = parameters[-1].split()
+        if len(expected_tokens) < 8:
+            raise RuntimeError("Unexpected parameter list: %s" % str(expected_tokens))
+        expected_token = expected_tokens[7]
+    else:
+        expected_token = ""
+
     # Check that we have the proper project name
     if f"project:{config['project_name']}" not in run.tags:
         raise RuntimeError("Project name is incorrect.")
@@ -61,6 +70,8 @@ def audit(run, parameters, configs, stdout_path):
     # Check the start step that all values are properly set. We don't need
     # to check end step as it would be a duplicate
     start_task_data = run["start"].task.data
+
+    assert start_task_data.trigger_param == expected_token
     for param in config["parameters"]:
         value = find_param_in_parameters(parameters, param["name"]) or param["default"]
         if not hasattr(start_task_data, param["name"]):
@@ -106,6 +117,8 @@ class ModifyFlow(CustomFlowDecorator):
 
         count = 0
         for name, p in mutable_flow.parameters:
+            if name == "trigger_param":
+                continue
             assert name == parameters[count]["name"], "Unexpected parameter name"
             count += 1
 
@@ -134,7 +147,12 @@ class ModifyFlowWithArgs(CustomFlowDecorator):
         for param in parameters:
             mutable_flow.add_parameter(
                 param["name"],
-                Parameter(param["name"], type=str, default=param["default"]),
+                Parameter(
+                    param["name"],
+                    type=str,
+                    default=param["default"],
+                    external_artifact=trigger_name_func,
+                ),
                 overwrite=True,
             )
 
@@ -160,11 +178,21 @@ class ModifyStep2(CustomStepDecorator):
                     deco.attributes["vars"][k] = v
 
 
+def trigger_name_func(ctx):
+    return [current.project_flow_name + "Trigger"]
+
+
 @ModifyFlow
 @ModifyFlowWithArgs("parameters")
 @project(name=config_expr("config.project_name"))
 class ConfigMutableFlow(FlowSpec):
 
+    trigger_param = Parameter(
+        "trigger_param",
+        default="",
+        external_trigger=True,
+        external_artifact=trigger_name_func,
+    )
     config = Config("config", default_value=default_config)
 
     def _check(self, step_decorators):

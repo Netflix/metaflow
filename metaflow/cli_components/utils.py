@@ -50,6 +50,9 @@ class LazyPluginCommandCollection(click.CommandCollection):
         args = ctx.protected_args + ctx.args
         ctx.args = []
         ctx.protected_args = []
+        # CHANGE HERE: Add saved_args so we have access to it in the command to be
+        # able to infer what we are calling next
+        ctx.saved_args = args
 
         # If we're not in chain mode, we only allow the invocation of a
         # single command but we also inform the current context about the

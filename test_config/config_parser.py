@@ -9,10 +9,12 @@ from metaflow import (
     current,
     environment,
     project,
+    pypi_base,
+    req_parser,
     step,
 )
 
-default_config = {"a": {"b": "41", "project_name": "config_project"}}
+default_config = {"project_name": "config_parser"}
 
 
 def audit(run, parameters, configs, stdout_path):
@@ -25,11 +27,6 @@ def audit(run, parameters, configs, stdout_path):
     if not run.successful:
         raise RuntimeError("Run was not successful")
 
-    if configs and configs.get("cfg_default_value"):
-        config = json.loads(configs["cfg_default_value"])
-    else:
-        config = default_config
-
     if len(parameters) > 1:
         expected_tokens = parameters[-1].split()
         if len(expected_tokens) < 8:
@@ -39,19 +36,33 @@ def audit(run, parameters, configs, stdout_path):
         expected_token = ""
 
     # Check that we have the proper project name
-    if f"project:{config['a']['project_name']}" not in run.tags:
+    if f"project:{default_config['project_name']}" not in run.tags:
         raise RuntimeError("Project name is incorrect.")
 
     # Check the value of the artifacts in the end step
     end_task = run["end"].task
     assert end_task.data.trigger_param == expected_token
-    if (
-        end_task.data.config_val != 5
-        or end_task.data.config_val_2 != config["a"]["b"]
-        or end_task.data.config_from_env != "5"
-        or end_task.data.config_from_env_2 != config["a"]["b"]
-    ):
-        raise RuntimeError("Config values are incorrect.")
+
+    if end_task.data.lib_version != "2.5.148":
+        raise RuntimeError("Library version is incorrect.")
+
+    # Check we properly parsed the requirements file
+    if len(end_task.data.req_config) != 2:
+        raise RuntimeError(
+            "Requirements file is incorrect -- expected 2 keys, saw %s"
+            % str(end_task.data.req_config)
+        )
+    if end_task.data.req_config["python"] != "3.10.*":
+        raise RuntimeError(
+            "Requirements file is incorrect -- got python version %s"
+            % end_task.data.req_config["python"]
+        )
+
+    if end_task.data.req_config["packages"] != {"regex": "2024.11.6"}:
+        raise RuntimeError(
+            "Requirements file is incorrect -- got packages %s"
+            % end_task.data.req_config["packages"]
+        )
 
     return None
 
@@ -60,8 +71,9 @@ def trigger_name_func(ctx):
     return [current.project_flow_name + "Trigger"]
 
 
-@project(name=config_expr("cfg_default_value.a.project_name"))
-class ConfigSimple(FlowSpec):
+@project(name=config_expr("cfg.project_name"))
+@pypi_base(**config_expr("req_config"))
+class ConfigParser(FlowSpec):
 
     trigger_param = Parameter(
         "trigger_param",
@@ -69,24 +81,17 @@ class ConfigSimple(FlowSpec):
         external_trigger=True,
         external_artifact=trigger_name_func,
     )
-    cfg = Config("cfg", default="config_simple.json")
-    cfg_default_value = Config(
-        "cfg_default_value",
-        default_value=default_config,
+    cfg = Config("cfg", default_value=default_config)
+
+    req_config = Config(
+        "req_config", default="config_parser_requirements.txt", parser=req_parser
     )
 
-    @environment(
-        vars={
-            "TSTVAL": config_expr("str(cfg.some.value)"),
-            "TSTVAL2": cfg_default_value.a.b,
-        }
-    )
     @step
     def start(self):
-        self.config_from_env = os.environ.get("TSTVAL")
-        self.config_from_env_2 = os.environ.get("TSTVAL2")
-        self.config_val = self.cfg.some.value
-        self.config_val_2 = self.cfg_default_value.a.b
+        import regex
+
+        self.lib_version = regex.__version__  # Should be '2.5.148'
         self.next(self.end)
 
     @step
@@ -95,4 +100,4 @@ class ConfigSimple(FlowSpec):
 
 
 if __name__ == "__main__":
-    ConfigSimple()
+    ConfigParser()
