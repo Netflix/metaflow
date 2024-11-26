@@ -38,6 +38,7 @@ INTERNAL_ARTIFACTS_SET = set(
         "_unbounded_foreach",
         "_control_mapper_tasks",
         "_control_task_is_mapper_zero",
+        "_parallel_ubf_iter",
     ]
 )
 
