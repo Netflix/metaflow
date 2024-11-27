@@ -110,6 +110,9 @@ def kubernetes():
     "--persistent-volume-claims", type=JSONTypeClass(), default=None, multiple=False
 )
 @click.option(
+    "--ephemeral-volume-claims", type=JSONTypeClass(), default=None, multiple=False
+)
+@click.option(
     "--tolerations",
     default=None,
     type=JSONTypeClass(),
@@ -150,6 +153,7 @@ def step(
     tmpfs_path=None,
     run_time_limit=None,
     persistent_volume_claims=None,
+    ephemeral_volume_claims=None,
     tolerations=None,
     shared_memory=None,
     port=None,
@@ -290,6 +294,7 @@ def step(
                 run_time_limit=run_time_limit,
                 env=env,
                 persistent_volume_claims=persistent_volume_claims,
+                ephemeral_volume_claims=ephemeral_volume_claims,
                 tolerations=tolerations,
                 shared_memory=shared_memory,
                 port=port,
