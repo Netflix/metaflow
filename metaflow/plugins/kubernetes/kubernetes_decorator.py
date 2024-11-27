@@ -111,8 +111,8 @@ class KubernetesDecorator(StepDecorator):
     hostname_resolution_timeout: int, default 10 * 60
         Timeout in seconds for the workers tasks in the gang scheduled cluster to resolve the hostname of control task.
         Only applicable when @parallel is used.
-    qos: Literal[KUBERNETES_QOS_CLASSES], optional, default: None
-        Quality of Service class to assign to the pod.
+    qos: str, optional, default: None
+        Quality of Service class to assign to the pod. Supported values are: Guaranteed, Burstable, BestEffort
     """
 
     name = "kubernetes"
@@ -263,6 +263,15 @@ class KubernetesDecorator(StepDecorator):
         self.environment = environment
         self.step = step
         self.flow_datastore = flow_datastore
+
+        if (
+            self.attributes["qos_class"] is not None
+            and self.attributes["qos_class"] not in KUBERNETES_QOS_CLASSES
+        ):
+            raise MetaflowException(
+                "*%s* is not a valid Kubernetes QoS class. Choose one of the following: %s"
+                % (self.attributes["qos_class"], ", ".join(KUBERNETES_QOS_CLASSES))
+            )
 
         if any([deco.name == "batch" for deco in decos]):
             raise MetaflowException(
