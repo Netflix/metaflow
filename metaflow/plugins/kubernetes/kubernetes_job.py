@@ -74,6 +74,26 @@ class KubernetesJob(object):
             if self._kwargs["shared_memory"]
             else None
         )
+        # Determine the requests and limits to define chosen QoS class
+        qos_class = self._kwargs["qos_class"]
+        qos_limits = {}
+        qos_requests = {}
+        if qos_class == "Guaranteed":
+            # Guaranteed - has both cpu/memory limits. requests not required, as these will be inferred.
+            qos_limits = {
+                "cpu": str(self._kwargs["cpu"]),
+                "memory": "%sM" % str(self._kwargs["memory"]),
+            }
+        elif qos_class == "BestEffort":
+            # BestEffort - no limit or requests for cpu/memory
+            pass
+        else:
+            # Burstable - not Guaranteed, and has a memory/cpu limit or request
+            qos_requests = {
+                "cpu": str(self._kwargs["cpu"]),
+                "memory": "%sM" % str(self._kwargs["memory"]),
+            }
+
         return client.V1JobSpec(
             # Retries are handled by Metaflow when it is responsible for
             # executing the flow. The responsibility is moved to Kubernetes
@@ -155,19 +175,21 @@ class KubernetesJob(object):
                             name=self._kwargs["step_name"].replace("_", "-"),
                             resources=client.V1ResourceRequirements(
                                 requests={
-                                    "cpu": str(self._kwargs["cpu"]),
-                                    "memory": "%sM" % str(self._kwargs["memory"]),
+                                    **qos_requests,
                                     "ephemeral-storage": "%sM"
                                     % str(self._kwargs["disk"]),
                                 },
                                 limits={
-                                    "%s.com/gpu".lower()
-                                    % self._kwargs["gpu_vendor"]: str(
-                                        self._kwargs["gpu"]
-                                    )
-                                    for k in [0]
-                                    # Don't set GPU limits if gpu isn't specified.
-                                    if self._kwargs["gpu"] is not None
+                                    **qos_limits,
+                                    **{
+                                        "%s.com/gpu".lower()
+                                        % self._kwargs["gpu_vendor"]: str(
+                                            self._kwargs["gpu"]
+                                        )
+                                        for k in [0]
+                                        # Don't set GPU limits if gpu isn't specified.
+                                        if self._kwargs["gpu"] is not None
+                                    },
                                 },
                             ),
                             volume_mounts=(

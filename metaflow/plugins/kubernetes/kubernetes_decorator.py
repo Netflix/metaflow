@@ -41,6 +41,8 @@ except NameError:
     unicode = str
     basestring = str
 
+KUBERNETES_QOS_CLASSES = ["Guaranteed", "Burstable", "BestEffort"]
+
 
 class KubernetesDecorator(StepDecorator):
     """
@@ -109,6 +111,8 @@ class KubernetesDecorator(StepDecorator):
     hostname_resolution_timeout: int, default 10 * 60
         Timeout in seconds for the workers tasks in the gang scheduled cluster to resolve the hostname of control task.
         Only applicable when @parallel is used.
+    qos: Literal[KUBERNETES_QOS_CLASSES], optional, default: None
+        Quality of Service class to assign to the pod.
     """
 
     name = "kubernetes"
@@ -136,6 +140,7 @@ class KubernetesDecorator(StepDecorator):
         "compute_pool": None,
         "executable": None,
         "hostname_resolution_timeout": 10 * 60,
+        "qos_class": None,
     }
     package_url = None
     package_sha = None
