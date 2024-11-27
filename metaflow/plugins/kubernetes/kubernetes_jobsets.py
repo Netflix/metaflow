@@ -9,6 +9,8 @@ from metaflow.metaflow_config import KUBERNETES_JOBSET_GROUP, KUBERNETES_JOBSET_
 from metaflow.tracing import inject_tracing_vars
 from metaflow.metaflow_config import KUBERNETES_SECRETS
 
+from .kube_utils import qos_requests_and_limits
+
 
 class KubernetesJobsetException(MetaflowException):
     headline = "Kubernetes jobset error"
@@ -554,7 +556,9 @@ class JobSetSpec(object):
             if self._kwargs["shared_memory"]
             else None
         )
-
+        qos_requests, qos_limits = qos_requests_and_limits(
+            self._kwargs["qos_class"], self._kwargs["cpu"], self._kwargs["memory"]
+        )
         return dict(
             name=self.name,
             template=client.api_client.ApiClient().sanitize_for_serialization(
@@ -654,20 +658,21 @@ class JobSetSpec(object):
                                         ),
                                         resources=client.V1ResourceRequirements(
                                             requests={
-                                                "cpu": str(self._kwargs["cpu"]),
-                                                "memory": "%sM"
-                                                % str(self._kwargs["memory"]),
+                                                **qos_requests,
                                                 "ephemeral-storage": "%sM"
                                                 % str(self._kwargs["disk"]),
                                             },
                                             limits={
-                                                "%s.com/gpu".lower()
-                                                % self._kwargs["gpu_vendor"]: str(
-                                                    self._kwargs["gpu"]
-                                                )
-                                                for k in [0]
-                                                # Don't set GPU limits if gpu isn't specified.
-                                                if self._kwargs["gpu"] is not None
+                                                **qos_limits,
+                                                **{
+                                                    "%s.com/gpu".lower()
+                                                    % self._kwargs["gpu_vendor"]: str(
+                                                        self._kwargs["gpu"]
+                                                    )
+                                                    for k in [0]
+                                                    # Don't set GPU limits if gpu isn't specified.
+                                                    if self._kwargs["gpu"] is not None
+                                                },
                                             },
                                         ),
                                         volume_mounts=(

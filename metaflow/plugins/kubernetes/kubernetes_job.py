@@ -15,6 +15,8 @@ from .kubernetes_jobsets import (
     KubernetesJobSet,
 )  # We need this import for Kubernetes Client.
 
+from .kube_utils import qos_requests_and_limits
+
 
 class KubernetesJobException(MetaflowException):
     headline = "Kubernetes job error"
@@ -74,25 +76,9 @@ class KubernetesJob(object):
             if self._kwargs["shared_memory"]
             else None
         )
-        # Determine the requests and limits to define chosen QoS class
-        qos_class = self._kwargs["qos_class"]
-        qos_limits = {}
-        qos_requests = {}
-        if qos_class == "Guaranteed":
-            # Guaranteed - has both cpu/memory limits. requests not required, as these will be inferred.
-            qos_limits = {
-                "cpu": str(self._kwargs["cpu"]),
-                "memory": "%sM" % str(self._kwargs["memory"]),
-            }
-        elif qos_class == "BestEffort":
-            # BestEffort - no limit or requests for cpu/memory
-            pass
-        else:
-            # Burstable - not Guaranteed, and has a memory/cpu limit or request
-            qos_requests = {
-                "cpu": str(self._kwargs["cpu"]),
-                "memory": "%sM" % str(self._kwargs["memory"]),
-            }
+        qos_requests, qos_limits = qos_requests_and_limits(
+            self._kwargs["qos_class"], self._kwargs["cpu"], self._kwargs["memory"]
+        )
 
         return client.V1JobSpec(
             # Retries are handled by Metaflow when it is responsible for
