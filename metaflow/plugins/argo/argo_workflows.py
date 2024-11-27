@@ -522,9 +522,7 @@ class ArgoWorkflows(object):
             params = set(
                 [param.name.lower() for var, param in self.flow._get_parameters()]
             )
-            trigger_deco = self.flow._flow_decorators.get("trigger")[0]
-            trigger_deco.format_deploytime_value()
-            for event in trigger_deco.triggers:
+            for event in self.flow._flow_decorators.get("trigger")[0].triggers:
                 parameters = {}
                 # TODO: Add a check to guard against names starting with numerals(?)
                 if not re.match(r"^[A-Za-z0-9_.-]+$", event["name"]):
@@ -564,11 +562,9 @@ class ArgoWorkflows(object):
 
         # @trigger_on_finish decorator
         if self.flow._flow_decorators.get("trigger_on_finish"):
-            trigger_on_finish_deco = self.flow._flow_decorators.get(
-                "trigger_on_finish"
-            )[0]
-            trigger_on_finish_deco.format_deploytime_value()
-            for event in trigger_on_finish_deco.triggers:
+            for event in self.flow._flow_decorators.get("trigger_on_finish")[
+                0
+            ].triggers:
                 # Actual filters are deduced here since we don't have access to
                 # the current object in the @trigger_on_finish decorator.
                 triggers.append(
