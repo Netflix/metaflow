@@ -356,54 +356,6 @@ class ArgoWorkflows(object):
                     "metaflow/project_flow_name": current.project_flow_name,
                 }
             )
-
-        if self._schedule is not None:
-            # timezone is an optional field and json dumps on None will result in null
-            # hence configuring it to an empty string
-            if self._timezone is None:
-                self._timezone = ""
-            cron_info = {"schedule": self._schedule, "tz": self._timezone}
-            annotations.update({"metaflow/cron": json.dumps(cron_info)})
-
-        if self.parameters:
-            annotations.update({"metaflow/parameters": json.dumps(self.parameters)})
-
-        # Some more annotations to populate the Argo UI nicely
-        if self.tags:
-            annotations.update({"metaflow/tags": json.dumps(self.tags)})
-        if self.triggers:
-            annotations.update(
-                {
-                    "metaflow/triggers": json.dumps(
-                        [
-                            {key: trigger.get(key) for key in ["name", "type"]}
-                            for trigger in self.triggers
-                        ]
-                    )
-                }
-            )
-        if self.notify_on_error:
-            annotations.update(
-                {
-                    "metaflow/notify_on_error": json.dumps(
-                        {
-                            "slack": bool(self.notify_slack_webhook_url),
-                            "pager_duty": bool(self.notify_pager_duty_integration_key),
-                        }
-                    )
-                }
-            )
-        if self.notify_on_success:
-            annotations.update(
-                {
-                    "metaflow/notify_on_success": json.dumps(
-                        {
-                            "slack": bool(self.notify_slack_webhook_url),
-                            "pager_duty": bool(self.notify_pager_duty_integration_key),
-                        }
-                    )
-                }
-            )
         return annotations
 
     def _get_schedule(self):
@@ -745,6 +697,55 @@ class ArgoWorkflows(object):
         # generate container templates at the top level (in WorkflowSpec) and maintain
         # references to them within the DAGTask.
 
+        annotations = {}
+        if self._schedule is not None:
+            # timezone is an optional field and json dumps on None will result in null
+            # hence configuring it to an empty string
+            if self._timezone is None:
+                self._timezone = ""
+            cron_info = {"schedule": self._schedule, "tz": self._timezone}
+            annotations.update({"metaflow/cron": json.dumps(cron_info)})
+
+        if self.parameters:
+            annotations.update({"metaflow/parameters": json.dumps(self.parameters)})
+
+        # Some more annotations to populate the Argo UI nicely
+        if self.tags:
+            annotations.update({"metaflow/tags": json.dumps(self.tags)})
+        if self.triggers:
+            annotations.update(
+                {
+                    "metaflow/triggers": json.dumps(
+                        [
+                            {key: trigger.get(key) for key in ["name", "type"]}
+                            for trigger in self.triggers
+                        ]
+                    )
+                }
+            )
+        if self.notify_on_error:
+            annotations.update(
+                {
+                    "metaflow/notify_on_error": json.dumps(
+                        {
+                            "slack": bool(self.notify_slack_webhook_url),
+                            "pager_duty": bool(self.notify_pager_duty_integration_key),
+                        }
+                    )
+                }
+            )
+        if self.notify_on_success:
+            annotations.update(
+                {
+                    "metaflow/notify_on_success": json.dumps(
+                        {
+                            "slack": bool(self.notify_slack_webhook_url),
+                            "pager_duty": bool(self.notify_pager_duty_integration_key),
+                        }
+                    )
+                }
+            )
+
         return (
             WorkflowTemplate()
             .metadata(
@@ -755,8 +756,9 @@ class ArgoWorkflows(object):
                 # is released, we should be able to support multi-namespace /
                 # multi-cluster scheduling.
                 .namespace(KUBERNETES_NAMESPACE)
-                .label("app.kubernetes.io/name", "metaflow-flow")
+                .annotations(annotations)
                 .annotations(self.shared_kubernetes_annotations)
+                .label("app.kubernetes.io/name", "metaflow-flow")
             )
             .spec(
                 WorkflowSpec()
@@ -786,10 +788,11 @@ class ArgoWorkflows(object):
                 # Set workflow metadata
                 .workflow_metadata(
                     Metadata()
+                    .labels(self.shared_kubernetes_labels)
                     .label("app.kubernetes.io/name", "metaflow-run")
-                    .label("app.kubernetes.io/part-of", "metaflow")
                     .annotations(
                         {
+                            **annotations,
                             **self.shared_kubernetes_annotations,
                             **{"metaflow/run_id": "argo-{{workflow.name}}"},
                         }
@@ -828,6 +831,7 @@ class ArgoWorkflows(object):
                     .labels(self.shared_kubernetes_labels)
                     .label("app.kubernetes.io/name", "metaflow-task")
                     .annotations(self.shared_kubernetes_annotations)
+                    .annotations(annotations)
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
@@ -2868,6 +2872,7 @@ class ArgoWorkflows(object):
                 .labels(self.shared_kubernetes_labels)
                 .label("app.kubernetes.io/name", "metaflow-sensor")
                 .annotations(self.shared_kubernetes_annotations)
+                .annotations(trigger_annotations)
             )
             .spec(
                 SensorSpec().template(
