@@ -111,7 +111,7 @@ class KubernetesDecorator(StepDecorator):
     hostname_resolution_timeout: int, default 10 * 60
         Timeout in seconds for the workers tasks in the gang scheduled cluster to resolve the hostname of control task.
         Only applicable when @parallel is used.
-    qos: str, optional, default: None
+    qos_class: str, optional, default: None
         Quality of Service class to assign to the pod. Supported values are: Guaranteed, Burstable, BestEffort
     """
 
