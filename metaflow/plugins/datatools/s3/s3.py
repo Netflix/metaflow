@@ -600,7 +600,7 @@ class S3(object):
         # returned are Unicode.
         key = getattr(key_value, "key", key_value)
         if self._s3root is None:
-            parsed = urlparse(to_unicode(key))
+            parsed = urlparse(to_unicode(key), allow_fragments=False)
             if parsed.scheme == "s3" and parsed.path:
                 return key
             else:
@@ -765,7 +765,7 @@ class S3(object):
         """
 
         url = self._url(key)
-        src = urlparse(url)
+        src = urlparse(url, allow_fragments=False)
 
         def _info(s3, tmp):
             resp = s3.head_object(Bucket=src.netloc, Key=src.path.lstrip('/"'))
@@ -891,7 +891,7 @@ class S3(object):
         DOWNLOAD_MAX_CHUNK = 2 * 1024 * 1024 * 1024 - 1
 
         url, r = self._url_and_range(key)
-        src = urlparse(url)
+        src = urlparse(url, allow_fragments=False)
 
         def _download(s3, tmp):
             if r:
@@ -1173,7 +1173,7 @@ class S3(object):
         blob.close = lambda: None
 
         url = self._url(key)
-        src = urlparse(url)
+        src = urlparse(url, allow_fragments=False)
         extra_args = None
         if content_type or metadata or self._encryption:
             extra_args = {}
