@@ -170,7 +170,7 @@ class TriggerDecorator(FlowDecorator):
                 # process every event in events
                 for event in self.attributes["events"]:
                     processed_event = self.process_event_name(event)
-                    self.triggers.append("processed event", processed_event)
+                    self.triggers.append(processed_event)
             elif callable(self.attributes["events"]) and not isinstance(
                 self.attributes["events"], DeployTimeField
             ):
