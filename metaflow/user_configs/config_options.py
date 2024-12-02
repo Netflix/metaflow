@@ -73,6 +73,7 @@ class ConvertDictOrStr(click.ParamType):
                 return value
             if value.startswith(_DEFAULT_PREFIX):
                 is_default = True
+                value = value[len(_DEFAULT_PREFIX) :]
 
         return self.convert_value(value, is_default)
 
@@ -105,7 +106,8 @@ class MultipleTuple(click.Tuple):
     # by whitespace which is totally not what we want
     # You can now pass multiple configuration options through an environment variable
     # using something like:
-    # METAFLOW_FLOW_CONFIG='{"config1": "filenameforconfig1.json", "config2": {"key1": "value1"}}'
+    # METAFLOW_FLOW_CONFIG_VALUE='{"config1": {"key0": "value0"}, "config2": {"key1": "value1"}}'
+    # or METAFLOW_FLOW_CONFIG='{"config1": "file1", "config2": "file2"}'
 
     def split_envvar_value(self, rv):
         loaded = json.loads(rv)
@@ -225,53 +227,71 @@ class ConfigInput:
             return None
 
         # The second go around, we process all the values and merge them.
-        # Check that the user didn't provide *both* a path and a value.
-        common_keys = set(self._value_values or []).intersection(
-            [k for k, v in self._path_values.items()] or []
+
+        # If we are processing options that start with kv., we know we are in a subprocess
+        # and ignore other stuff. In particular, environment variables used to pass
+        # down configurations (like METAFLOW_FLOW_CONFIG) could still be present and
+        # would cause an issue -- we can ignore those as the kv. values should trump
+        # everything else.
+        all_keys = set(self._value_values).union(self._path_values)
+        # Make sure we have at least some keys (ie: some non default values)
+        has_all_kv = all_keys and all(
+            self._value_values.get(k, "").startswith(_CONVERT_PREFIX + "kv.")
+            for k in all_keys
         )
-        if common_keys:
-            raise click.UsageError(
-                "Cannot provide both a value and a file for the same configuration. "
-                "Found such values for '%s'" % "', '".join(common_keys)
-            )
-
-        all_values = dict(self._path_values or {})
-        all_values.update(self._value_values or {})
-
-        debug.userconf_exec("All config values: %s" % str(all_values))
 
         flow_cls._flow_state[_FlowState.CONFIGS] = {}
-
         to_return = {}
-        merged_configs = {}
-        for name, (val, is_path) in self._defaults.items():
-            n = name.lower()
-            if n in all_values:
-                merged_configs[n] = all_values[n]
-            else:
-                if isinstance(val, DeployTimeField):
-                    # This supports a default value that is a deploy-time field (similar
-                    # to Parameter).)
-                    # We will form our own context and pass it down -- note that you cannot
-                    # use configs in the default value of configs as this introduces a bit
-                    # of circularity. Note also that quiet and datastore are *eager*
-                    # options so are available here.
-                    param_ctx = ParameterContext(
-                        flow_name=ctx.obj.flow.name,
-                        user_name=get_username(),
-                        parameter_name=n,
-                        logger=echo_dev_null if ctx.params["quiet"] else echo_always,
-                        ds_type=ctx.params["datastore"],
-                        configs=None,
-                    )
-                    val = val.fun(param_ctx)
-                if is_path:
-                    # This is a file path
-                    merged_configs[n] = ConvertPath.convert_value(val, False)
-                else:
-                    # This is a value
-                    merged_configs[n] = ConvertDictOrStr.convert_value(val, False)
 
+        if not has_all_kv:
+            # Check that the user didn't provide *both* a path and a value.
+            common_keys = set(self._value_values or []).intersection(
+                [k for k, v in self._path_values.items()] or []
+            )
+            if common_keys:
+                raise click.UsageError(
+                    "Cannot provide both a value and a file for the same configuration. "
+                    "Found such values for '%s'" % "', '".join(common_keys)
+                )
+
+            all_values = dict(self._path_values or {})
+            all_values.update(self._value_values or {})
+
+            debug.userconf_exec("All config values: %s" % str(all_values))
+
+            merged_configs = {}
+            for name, (val, is_path) in self._defaults.items():
+                n = name.lower()
+                if n in all_values:
+                    merged_configs[n] = all_values[n]
+                else:
+                    if isinstance(val, DeployTimeField):
+                        # This supports a default value that is a deploy-time field (similar
+                        # to Parameter).)
+                        # We will form our own context and pass it down -- note that you cannot
+                        # use configs in the default value of configs as this introduces a bit
+                        # of circularity. Note also that quiet and datastore are *eager*
+                        # options so are available here.
+                        param_ctx = ParameterContext(
+                            flow_name=ctx.obj.flow.name,
+                            user_name=get_username(),
+                            parameter_name=n,
+                            logger=(
+                                echo_dev_null if ctx.params["quiet"] else echo_always
+                            ),
+                            ds_type=ctx.params["datastore"],
+                            configs=None,
+                        )
+                        val = val.fun(param_ctx)
+                    if is_path:
+                        # This is a file path
+                        merged_configs[n] = ConvertPath.convert_value(val, False)
+                    else:
+                        # This is a value
+                        merged_configs[n] = ConvertDictOrStr.convert_value(val, False)
+        else:
+            debug.userconf_exec("Fast path due to pre-processed values")
+            merged_configs = self._value_values
         debug.userconf_exec("Configs merged with defaults: %s" % str(merged_configs))
 
         missing_configs = set()

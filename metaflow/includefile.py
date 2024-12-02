@@ -277,11 +277,16 @@ class IncludeFile(Parameter):
             self._includefile_overrides["is_text"] = is_text
         if encoding is not None:
             self._includefile_overrides["encoding"] = encoding
+        # NOTA: Right now, there is an issue where these can't be overridden by config
+        # in all circumstances. Ignoring for now.
         super(IncludeFile, self).__init__(
             name,
             required=required,
             help=help,
-            type=FilePathClass(is_text, encoding),
+            type=FilePathClass(
+                self._includefile_overrides.get("is_text", True),
+                self._includefile_overrides.get("encoding", "utf-8"),
+            ),
             **kwargs,
         )
 

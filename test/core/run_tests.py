@@ -172,6 +172,10 @@ def run_test(formatter, context, debug, checks, env_base, executor):
             os.path.join(cwd, "metaflow_test"), os.path.join(tempdir, "metaflow_test")
         )
 
+        # Copy files required by the test
+        for file in formatter.copy_files:
+            shutil.copy2(os.path.join(cwd, "tests", file), os.path.join(tempdir, file))
+
         path = os.path.join(tempdir, "test_flow.py")
 
         original_env = os.environ.copy()

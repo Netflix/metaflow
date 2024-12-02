@@ -3,6 +3,7 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 
 class BasicConfigTest(MetaflowTest):
     PRIORITY = 1
+    REQUIRED_FILES = ["basic_config_silly.txt"]
     PARAMETERS = {
         "default_from_config": {
             "default": "config_expr('config2').default_param",
@@ -17,7 +18,7 @@ class BasicConfigTest(MetaflowTest):
         "silly_config": {
             "required": True,
             "parser": "silly_parser",
-            "default": "silly.txt",
+            "default": "'silly.txt'",
         },
         "config2": {},
         # Test using a function to get the value
@@ -32,7 +33,7 @@ import os
 # Test passing values directly on the command line
 os.environ['METAFLOW_FLOW_CONFIG_VALUE'] = json.dumps(
     {
-        "config2": {"default_param": 123}
+        "config2": {"default_param": 123},
         "config_env": {"vars": {"var1": "value1", "var2": "value2"}}
     }
 )
@@ -46,7 +47,7 @@ os.environ['METAFLOW_FLOW_CONFIG'] = json.dumps(
 
 def silly_parser(s):
     k, v = s.split(":")
-    return {k: v}
+    return {k: v.strip()}
 
 default_config = {
     "value": 42,

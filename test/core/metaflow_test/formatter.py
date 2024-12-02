@@ -18,6 +18,7 @@ class FlowFormatter(object):
         self.steps = self._index_steps(test)
         self.flow_code = self._pretty_print(self._flow_lines())
         self.check_code = self._pretty_print(self._check_lines())
+        self.copy_files = getattr(test, "REQUIRED_FILES", [])
         self.valid = True
 
         for step in self.steps:

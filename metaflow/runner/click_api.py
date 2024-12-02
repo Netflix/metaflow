@@ -128,11 +128,20 @@ def _method_sanity_check(
 
 
 def _lazy_load_command(
-    cli_collection: click.Group, flow_parameters: List[Parameter], _self, name: str
+    cli_collection: click.Group,
+    flow_parameters: Union[str, List[Parameter]],
+    _self,
+    name: str,
 ):
 
     # Context is not used in get_command so we can pass None. Since we pin click,
     # this won't change from under us.
+
+    if isinstance(flow_parameters, str):
+        # Resolve flow_parameters -- for start, this is a function which we
+        # need to call to figure out the actual parameters (may be changed by configs)
+        flow_parameters = getattr(_self, flow_parameters)()
+
     cmd_obj = cli_collection.get_command(None, name)
     if cmd_obj:
         if isinstance(cmd_obj, click.Group):
@@ -205,9 +214,11 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
 
 
 class MetaflowAPI(object):
-    def __init__(self, parent=None, **kwargs):
+    def __init__(self, parent=None, flow_cls=None, **kwargs):
         self._parent = parent
         self._chain = [{self._API_NAME: kwargs}]
+        self._flow_cls = flow_cls
+        self._cached_computed_parameters = None
 
     @property
     def parent(self):
@@ -226,9 +237,7 @@ class MetaflowAPI(object):
     @classmethod
     def from_cli(cls, flow_file: str, cli_collection: Callable) -> Callable:
         flow_cls = extract_flow_class_from_file(flow_file)
-        flow_parameters = [
-            p for _, p in flow_cls._get_parameters() if not p.IS_CONFIG_PARAMETER
-        ]
+
         with flow_context(flow_cls) as _:
             add_decorator_options(cli_collection)
 
@@ -240,7 +249,7 @@ class MetaflowAPI(object):
             "__module__": "metaflow",
             "_API_NAME": flow_file,
             "_internal_getattr": functools.partial(
-                _lazy_load_command, cli_collection, flow_parameters
+                _lazy_load_command, cli_collection, "_compute_flow_parameters"
             ),
             "__getattr__": getattr_wrapper,
         }
@@ -264,7 +273,7 @@ class MetaflowAPI(object):
                 defaults,
                 **kwargs,
             )
-            return to_return(parent=None, **method_params)
+            return to_return(parent=None, flow_cls=flow_cls, **method_params)
 
         m = _method
         m.__name__ = cli_collection.name
@@ -313,6 +322,25 @@ class MetaflowAPI(object):
                             components.append(str(v))
 
         return components
+
+    def _compute_flow_parameters(self):
+        if self._flow_cls is None or self._parent is not None:
+            raise RuntimeError(
+                "Computing flow-level parameters for a non start API. "
+                "Please report to the Metaflow team."
+            )
+        # TODO: We need to actually compute the new parameters (based on configs) which
+        # would involve processing the options at least partially. We will do this
+        # before GA but for now making it work for regular parameters
+        if self._cached_computed_parameters is not None:
+            return self._cached_computed_parameters
+        self._cached_computed_parameters = []
+        for _, param in self._flow_cls._get_parameters():
+            if param.IS_CONFIG_PARAMETER:
+                continue
+            param.init()
+            self._cached_computed_parameters.append(param)
+        return self._cached_computed_parameters
 
 
 def extract_all_params(cmd_obj: Union[click.Command, click.Group]):
