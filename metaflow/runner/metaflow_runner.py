@@ -219,6 +219,9 @@ class Runner(object):
         directory is used.
     file_read_timeout : int, default 3600
         The timeout until which we try to read the runner attribute file.
+    shell : bool, default False
+        If True, the runner will execute commands directly through the shell.
+        Forwarding commands to shell can provide a performance improvement.
     **kwargs : Any
         Additional arguments that you would pass to `python myflow.py` before
         the `run` command.
@@ -232,6 +235,7 @@ class Runner(object):
         env: Optional[Dict[str, str]] = None,
         cwd: Optional[str] = None,
         file_read_timeout: int = 3600,
+        shell: bool = False,
         **kwargs
     ):
         # these imports are required here and not at the top
@@ -260,6 +264,8 @@ class Runner(object):
         self.spm = SubprocessManager()
         self.top_level_kwargs = kwargs
         self.api = MetaflowAPI.from_cli(self.flow_file, start)
+
+        self.shell = shell
 
     def __enter__(self) -> "Runner":
         return self
@@ -311,6 +317,7 @@ class Runner(object):
                 env=self.env_vars,
                 cwd=self.cwd,
                 show_output=self.show_output,
+                shell=self.shell,
             )
             command_obj = self.spm.get(pid)
 
@@ -345,6 +352,7 @@ class Runner(object):
                 env=self.env_vars,
                 cwd=self.cwd,
                 show_output=self.show_output,
+                shell=self.shell,
             )
             command_obj = self.spm.get(pid)
 
