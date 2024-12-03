@@ -6,7 +6,7 @@ from tempfile import NamedTemporaryFile
 import time
 import metaflow.tracing as tracing
 
-from typing import Any, Callable, Iterable, Iterator, List, Optional, Tuple, TypeVar
+from typing import Any, Callable, Iterable, Iterator, List, Optional, NoReturn, Tuple, TypeVar, Union
 
 try:
     # Python 2
@@ -34,7 +34,7 @@ _A = TypeVar("_A")
 _R = TypeVar("_R")
 
 
-def _spawn(func: Callable[[_A], _R], arg: _A, dir: Optional[str]) -> Tuple[int, str]:
+def _spawn(func: Callable[[_A], _R], arg: _A, dir: Optional[str]) -> Union[Tuple[int, str], NoReturn]:
     with NamedTemporaryFile(prefix="parallel_map_", dir=dir, delete=False) as tmpfile:
         output_file = tmpfile.name
 
