@@ -2,12 +2,16 @@ import os
 import ast
 import time
 import asyncio
-
+import tempfile
+import select
+from contextlib import contextmanager
 from subprocess import CalledProcessError
-from typing import Dict, TYPE_CHECKING
+from typing import Any, Dict, TYPE_CHECKING, ContextManager, Tuple
 
 if TYPE_CHECKING:
-    from .subprocess_manager import CommandManager
+    import tempfile
+    import metaflow.runner.subprocess_manager
+    import metaflow.runner.click_api
 
 
 def get_current_cell(ipython):
@@ -18,7 +22,8 @@ def get_current_cell(ipython):
 
 def format_flowfile(cell):
     """
-    Formats the given cell content to create a valid Python script that can be executed as a Metaflow flow.
+    Formats the given cell content to create a valid Python script that can be
+    executed as a Metaflow flow.
     """
     flowspec = [
         x
@@ -36,41 +41,159 @@ def format_flowfile(cell):
     return "\n".join(lines)
 
 
-def check_process_status(command_obj: "CommandManager"):
+def check_process_exited(
+    command_obj: "metaflow.runner.subprocess_manager.CommandManager",
+) -> bool:
     if isinstance(command_obj.process, asyncio.subprocess.Process):
         return command_obj.process.returncode is not None
     else:
         return command_obj.process.poll() is not None
 
 
-def read_from_file_when_ready(
-    file_path: str, command_obj: "CommandManager", timeout: float = 5
+@contextmanager
+def temporary_fifo() -> ContextManager[Tuple[str, int]]:
+    """
+    Create and open the read side of a temporary FIFO in a non-blocking mode.
+
+    Returns
+    -------
+    str
+        Path to the temporary FIFO.
+    int
+        File descriptor of the temporary FIFO.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        path = os.path.join(temp_dir, "fifo")
+        os.mkfifo(path)
+        # Blocks until the write side is opened unless in non-blocking mode
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+        try:
+            yield path, fd
+        finally:
+            os.close(fd)
+
+
+def read_from_fifo_when_ready(
+    fifo_fd: int,
+    command_obj: "metaflow.runner.subprocess_manager.CommandManager",
+    encoding: str = "utf-8",
+    timeout: int = 3600,
+) -> str:
+    """
+    Read the content from the FIFO file descriptor when it is ready.
+
+    Parameters
+    ----------
+    fifo_fd : int
+        File descriptor of the FIFO.
+    command_obj : CommandManager
+        Command manager object that handles the write side of the FIFO.
+    encoding : str, optional
+        Encoding to use while reading the file, by default "utf-8".
+    timeout : int, optional
+        Timeout for reading the file in milliseconds, by default 3600.
+
+    Returns
+    -------
+    str
+        Content read from the FIFO.
+
+    Raises
+    ------
+    TimeoutError
+        If no event occurs on the FIFO within the timeout.
+    CalledProcessError
+        If the process managed by `command_obj` has exited without writing any
+        content to the FIFO.
+    """
+    content = bytearray()
+
+    poll = select.poll()
+    poll.register(fifo_fd, select.POLLIN)
+
+    while True:
+        poll_begin = time.time()
+        poll.poll(timeout)
+        timeout -= 1000 * (time.time() - poll_begin)
+
+        if timeout <= 0:
+            raise TimeoutError("Timeout while waiting for the file content")
+
+        try:
+            data = os.read(fifo_fd, 128)
+            while data:
+                content += data
+                data = os.read(fifo_fd, 128)
+
+            # Read from a non-blocking closed FIFO returns an empty byte array
+            break
+
+        except BlockingIOError:
+            # FIFO is open but no data is available yet
+            continue
+
+    if not content and check_process_exited(command_obj):
+        raise CalledProcessError(command_obj.process.returncode, command_obj.command)
+
+    return content.decode(encoding)
+
+
+async def async_read_from_fifo_when_ready(
+    fifo_fd: int,
+    command_obj: "metaflow.runner.subprocess_manager.CommandManager",
+    encoding: str = "utf-8",
+    timeout: int = 3600,
+) -> str:
+    """
+    Read the content from the FIFO file descriptor when it is ready.
+
+    Parameters
+    ----------
+    fifo_fd : int
+        File descriptor of the FIFO.
+    command_obj : CommandManager
+        Command manager object that handles the write side of the FIFO.
+    encoding : str, optional
+        Encoding to use while reading the file, by default "utf-8".
+    timeout : int, optional
+        Timeout for reading the file in milliseconds, by default 3600.
+
+    Returns
+    -------
+    str
+        Content read from the FIFO.
+
+    Raises
+    ------
+    TimeoutError
+        If no event occurs on the FIFO within the timeout.
+    CalledProcessError
+        If the process managed by `command_obj` has exited without writing any
+        content to the FIFO.
+    """
+    return await asyncio.to_thread(
+        read_from_fifo_when_ready, fifo_fd, command_obj, encoding, timeout
+    )
+
+
+def make_process_error_message(
+    command_obj: "metaflow.runner.subprocess_manager.CommandManager",
 ):
-    start_time = time.time()
-    with open(file_path, "r", encoding="utf-8") as file_pointer:
-        content = file_pointer.read()
-        while not content:
-            if check_process_status(command_obj):
-                # Check to make sure the file hasn't been read yet to avoid a race
-                # where the file is written between the end of this while loop and the
-                # poll call above.
-                content = file_pointer.read()
-                if content:
-                    break
-                raise CalledProcessError(
-                    command_obj.process.returncode, command_obj.command
-                )
-            if time.time() - start_time > timeout:
-                raise TimeoutError(
-                    "Timeout while waiting for file content from '%s'" % file_path
-                )
-            time.sleep(0.1)
-            content = file_pointer.read()
-        return content
+    stdout_log = open(command_obj.log_files["stdout"], encoding="utf-8").read()
+    stderr_log = open(command_obj.log_files["stderr"], encoding="utf-8").read()
+    command = " ".join(command_obj.command)
+    error_message = "Error executing: '%s':\n" % command
+    if stdout_log.strip():
+        error_message += "\nStdout:\n%s\n" % stdout_log
+    if stderr_log.strip():
+        error_message += "\nStderr:\n%s\n" % stderr_log
+    return error_message
 
 
 def handle_timeout(
-    tfp_runner_attribute, command_obj: "CommandManager", file_read_timeout: int
+    attribute_file_fd: int,
+    command_obj: "metaflow.runner.subprocess_manager.CommandManager",
+    file_read_timeout: int,
 ):
     """
     Handle the timeout for a running subprocess command that reads a file
@@ -78,8 +201,8 @@ def handle_timeout(
 
     Parameters
     ----------
-    tfp_runner_attribute : NamedTemporaryFile
-        Temporary file that stores runner attribute data.
+    attribute_file_fd : int
+        File descriptor belonging to the FIFO containing the attribute data.
     command_obj : CommandManager
         Command manager object that encapsulates the running command details.
     file_read_timeout : int
@@ -97,17 +220,83 @@ def handle_timeout(
         stdout and stderr logs.
     """
     try:
-        content = read_from_file_when_ready(
-            tfp_runner_attribute.name, command_obj, timeout=file_read_timeout
+        return read_from_fifo_when_ready(
+            attribute_file_fd, command_obj=command_obj, timeout=file_read_timeout
         )
-        return content
     except (CalledProcessError, TimeoutError) as e:
-        stdout_log = open(command_obj.log_files["stdout"]).read()
-        stderr_log = open(command_obj.log_files["stderr"]).read()
-        command = " ".join(command_obj.command)
-        error_message = "Error executing: '%s':\n" % command
-        if stdout_log.strip():
-            error_message += "\nStdout:\n%s\n" % stdout_log
-        if stderr_log.strip():
-            error_message += "\nStderr:\n%s\n" % stderr_log
-        raise RuntimeError(error_message) from e
+        raise RuntimeError(make_process_error_message(command_obj)) from e
+
+
+async def async_handle_timeout(
+    attribute_file_fd: "int",
+    command_obj: "metaflow.runner.subprocess_manager.CommandManager",
+    file_read_timeout: int,
+):
+    """
+    Handle the timeout for a running subprocess command that reads a file
+    and raises an error with appropriate logs if a TimeoutError occurs.
+
+    Parameters
+    ----------
+    attribute_file_fd : int
+        File descriptor belonging to the FIFO containing the attribute data.
+    command_obj : CommandManager
+        Command manager object that encapsulates the running command details.
+    file_read_timeout : int
+        Timeout for reading the file.
+
+    Returns
+    -------
+    str
+        Content read from the temporary file.
+
+    Raises
+    ------
+    RuntimeError
+        If a TimeoutError occurs, it raises a RuntimeError with the command's
+        stdout and stderr logs.
+    """
+    try:
+        return await async_read_from_fifo_when_ready(
+            attribute_file_fd, command_obj=command_obj, timeout=file_read_timeout
+        )
+    except (CalledProcessError, TimeoutError) as e:
+        raise RuntimeError(make_process_error_message(command_obj)) from e
+
+
+def get_lower_level_group(
+    api: "metaflow.runner.click_api.MetaflowAPI",
+    top_level_kwargs: Dict[str, Any],
+    sub_command: str,
+    sub_command_kwargs: Dict[str, Any],
+) -> "metaflow.runner.click_api.MetaflowAPI":
+    """
+    Retrieve a lower-level group from the API based on the type and provided arguments.
+
+    Parameters
+    ----------
+    api : MetaflowAPI
+        Metaflow API instance.
+    top_level_kwargs : Dict[str, Any]
+        Top-level keyword arguments to pass to the API.
+    sub_command : str
+        Sub-command of API to get the API for
+    sub_command_kwargs : Dict[str, Any]
+        Sub-command arguments
+
+    Returns
+    -------
+    MetaflowAPI
+        The lower-level group object retrieved from the API.
+
+    Raises
+    ------
+    ValueError
+        If the `_type` is None.
+    """
+    sub_command_obj = getattr(api(**top_level_kwargs), sub_command)
+
+    if sub_command_obj is None:
+        raise ValueError(f"Sub-command '{sub_command}' not found in API '{api.name}'")
+
+    return sub_command_obj(**sub_command_kwargs)

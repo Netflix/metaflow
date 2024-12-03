@@ -9,34 +9,10 @@ class SystemMonitor(object):
     def __init__(self):
         self._monitor = None
         self._flow_name = None
-        self._context = {}
 
     def __del__(self):
         if self._flow_name == "not_a_real_flow":
             self.monitor.terminate()
-
-    def update_context(self, context: Dict[str, Any]):
-        """
-        Update the global context maintained by the system monitor.
-
-        Parameters
-        ----------
-        context : Dict[str, Any]
-            A dictionary containing the context to update.
-
-        """
-        from metaflow.sidecar import Message, MessageTypes
-
-        self._context.update(context)
-        self.monitor.send(
-            Message(
-                MessageTypes.MUST_SEND,
-                {
-                    "is_context_updated": True,
-                    **self._context,
-                },
-            )
-        )
 
     def init_system_monitor(
         self, flow_name: str, monitor: "metaflow.monitor.NullMonitor"

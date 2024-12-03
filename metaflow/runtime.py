@@ -20,7 +20,7 @@ from metaflow.datastore.exceptions import DataException
 from contextlib import contextmanager
 
 from . import get_namespace
-from .metadata import MetaDatum
+from .metadata_provider import MetaDatum
 from .metaflow_config import MAX_ATTEMPTS, UI_URL
 from .exception import (
     MetaflowException,

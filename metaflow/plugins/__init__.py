@@ -73,8 +73,8 @@ ENVIRONMENTS_DESC = [
 
 # Add metadata providers here
 METADATA_PROVIDERS_DESC = [
-    ("service", ".metadata.service.ServiceMetadataProvider"),
-    ("local", ".metadata.local.LocalMetadataProvider"),
+    ("service", ".metadata_providers.service.ServiceMetadataProvider"),
+    ("local", ".metadata_providers.local.LocalMetadataProvider"),
 ]
 
 # Add datastore here
@@ -85,13 +85,21 @@ DATASTORES_DESC = [
     ("gs", ".datastores.gs_storage.GSStorage"),
 ]
 
+# Dataclients are used for IncludeFile
+DATACLIENTS_DESC = [
+    ("local", ".datatools.Local"),
+    ("s3", ".datatools.S3"),
+    ("azure", ".azure.includefile_support.Azure"),
+    ("gs", ".gcp.includefile_support.GS"),
+]
+
 # Add non monitoring/logging sidecars here
 SIDECARS_DESC = [
     (
         "save_logs_periodically",
         "..mflog.save_logs_periodically.SaveLogsPeriodicallySidecar",
     ),
-    ("heartbeat", "metaflow.metadata.heartbeat.MetadataHeartBeat"),
+    ("heartbeat", "metaflow.metadata_provider.heartbeat.MetadataHeartBeat"),
 ]
 
 # Add logging sidecars here
@@ -161,6 +169,7 @@ FLOW_DECORATORS = resolve_plugins("flow_decorator")
 ENVIRONMENTS = resolve_plugins("environment")
 METADATA_PROVIDERS = resolve_plugins("metadata_provider")
 DATASTORES = resolve_plugins("datastore")
+DATACLIENTS = resolve_plugins("dataclient")
 SIDECARS = resolve_plugins("sidecar")
 LOGGING_SIDECARS = resolve_plugins("logging_sidecar")
 MONITOR_SIDECARS = resolve_plugins("monitor_sidecar")

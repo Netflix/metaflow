@@ -717,6 +717,20 @@ def resume(
     if runtime.should_skip_clone_only_execution():
         return
 
+    current._update_env(
+        {
+            "run_id": runtime.run_id,
+        }
+    )
+    _system_logger.log_event(
+        level="info",
+        module="metaflow.resume",
+        name="start",
+        payload={
+            "msg": "Resuming run",
+        },
+    )
+
     with runtime.run_heartbeat():
         if clone_only:
             runtime.clone_original_run()
@@ -776,20 +790,34 @@ def run(
     write_file(run_id_file, runtime.run_id)
 
     obj.flow._set_constants(obj.graph, kwargs)
-    runtime.print_workflow_info()
-    runtime.persist_constants()
+    current._update_env(
+        {
+            "run_id": runtime.run_id,
+        }
+    )
+    _system_logger.log_event(
+        level="info",
+        module="metaflow.run",
+        name="start",
+        payload={
+            "msg": "Starting run",
+        },
+    )
+    with runtime.run_heartbeat():
+        runtime.print_workflow_info()
+        runtime.persist_constants()
 
-    if runner_attribute_file:
-        with open(runner_attribute_file, "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "run_id": runtime.run_id,
-                    "flow_name": obj.flow.name,
-                    "metadata": obj.metadata.metadata_str(),
-                },
-                f,
-            )
-    runtime.execute()
+        if runner_attribute_file:
+            with open(runner_attribute_file, "w", encoding="utf-8") as f:
+                json.dump(
+                    {
+                        "run_id": runtime.run_id,
+                        "flow_name": obj.flow.name,
+                        "metadata": obj.metadata.metadata_str(),
+                    },
+                    f,
+                )
+        runtime.execute()
 
 
 def write_file(file_path, content):

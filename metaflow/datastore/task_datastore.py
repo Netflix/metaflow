@@ -10,7 +10,7 @@ from types import MethodType, FunctionType
 
 from .. import metaflow_config
 from ..exception import MetaflowInternalError
-from ..metadata import DataArtifact, MetaDatum
+from ..metadata_provider import DataArtifact, MetaDatum
 from ..parameters import Parameter
 from ..util import Path, is_stringish, to_fileobj
 

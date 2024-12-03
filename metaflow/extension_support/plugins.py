@@ -178,6 +178,7 @@ _plugin_categories = {
     "environment": lambda x: x.TYPE,
     "metadata_provider": lambda x: x.TYPE,
     "datastore": lambda x: x.TYPE,
+    "dataclient": lambda x: x.TYPE,
     "secrets_provider": lambda x: x.TYPE,
     "gcp_client_provider": lambda x: x.name,
     "deployer_impl_provider": lambda x: x.TYPE,

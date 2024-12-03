@@ -38,6 +38,7 @@ INTERNAL_ARTIFACTS_SET = set(
         "_unbounded_foreach",
         "_control_mapper_tasks",
         "_control_task_is_mapper_zero",
+        "_parallel_ubf_iter",
     ]
 )
 
@@ -64,7 +65,7 @@ class ParallelUBF(UnboundedForeachInput):
         return item or 0  # item is None for the control task, but it is also split 0
 
 
-class _FlowSpecMeta(type):
+class FlowSpecMeta(type):
     def __new__(cls, name, bases, dct):
         f = super().__new__(cls, name, bases, dct)
         # This makes sure to give _flow_decorators to each
@@ -75,7 +76,7 @@ class _FlowSpecMeta(type):
         return f
 
 
-class FlowSpec(metaclass=_FlowSpecMeta):
+class FlowSpec(metaclass=FlowSpecMeta):
     """
     Main class from which all Flows should inherit.
 

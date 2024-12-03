@@ -9,23 +9,58 @@ import tempfile
 import threading
 from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
+from .utils import check_process_exited
 
-def kill_process_and_descendants(pid, termination_timeout):
+
+def kill_processes_and_descendants(pids: List[str], termination_timeout: float):
     # TODO: there's a race condition that new descendants might
     # spawn b/w the invocations of 'pkill' and 'kill'.
     # Needs to be fixed in future.
     try:
-        subprocess.check_call(["pkill", "-TERM", "-P", str(pid)])
-        subprocess.check_call(["kill", "-TERM", str(pid)])
+        subprocess.check_call(["pkill", "-TERM", "-P", *pids])
+        subprocess.check_call(["kill", "-TERM", *pids])
     except subprocess.CalledProcessError:
         pass
 
     time.sleep(termination_timeout)
 
     try:
-        subprocess.check_call(["pkill", "-KILL", "-P", str(pid)])
-        subprocess.check_call(["kill", "-KILL", str(pid)])
+        subprocess.check_call(["pkill", "-KILL", "-P", *pids])
+        subprocess.check_call(["kill", "-KILL", *pids])
     except subprocess.CalledProcessError:
+        pass
+
+
+async def async_kill_processes_and_descendants(
+    pids: List[str], termination_timeout: float
+):
+    # TODO: there's a race condition that new descendants might
+    # spawn b/w the invocations of 'pkill' and 'kill'.
+    # Needs to be fixed in future.
+    try:
+        sub_term = await asyncio.create_subprocess_exec("pkill", "-TERM", "-P", *pids)
+        await sub_term.wait()
+    except Exception:
+        pass
+
+    try:
+        main_term = await asyncio.create_subprocess_exec("kill", "-TERM", *pids)
+        await main_term.wait()
+    except Exception:
+        pass
+
+    await asyncio.sleep(termination_timeout)
+
+    try:
+        sub_kill = await asyncio.create_subprocess_exec("pkill", "-KILL", "-P", *pids)
+        await sub_kill.wait()
+    except Exception:
+        pass
+
+    try:
+        main_kill = await asyncio.create_subprocess_exec("kill", "-KILL", *pids)
+        await main_kill.wait()
+    except Exception:
         pass
 
 
@@ -46,14 +81,28 @@ class SubprocessManager(object):
             loop = asyncio.get_running_loop()
             loop.add_signal_handler(
                 signal.SIGINT,
-                lambda: self._handle_sigint(signum=signal.SIGINT, frame=None),
+                lambda: asyncio.create_task(self._async_handle_sigint()),
             )
         except RuntimeError:
             signal.signal(signal.SIGINT, self._handle_sigint)
 
+    async def _async_handle_sigint(self):
+        pids = [
+            str(command.process.pid)
+            for command in self.commands.values()
+            if command.process and not check_process_exited(command)
+        ]
+        if pids:
+            await async_kill_processes_and_descendants(pids, termination_timeout=2)
+
     def _handle_sigint(self, signum, frame):
-        for each_command in self.commands.values():
-            each_command.kill(termination_timeout=2)
+        pids = [
+            str(command.process.pid)
+            for command in self.commands.values()
+            if command.process and not check_process_exited(command)
+        ]
+        if pids:
+            kill_processes_and_descendants(pids, termination_timeout=2)
 
     async def __aenter__(self) -> "SubprocessManager":
         return self
@@ -472,7 +521,7 @@ class CommandManager(object):
         """
 
         if self.process is not None:
-            kill_process_and_descendants(self.process.pid, termination_timeout)
+            kill_processes_and_descendants([str(self.process.pid)], termination_timeout)
         else:
             print("No process to kill.")
 
