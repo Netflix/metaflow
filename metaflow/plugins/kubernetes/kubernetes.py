@@ -196,7 +196,7 @@ class Kubernetes(object):
         shared_memory=None,
         port=None,
         num_parallel=None,
-        qos_class=None,
+        qos=None,
     ):
         name = "js-%s" % str(uuid4())[:6]
         jobset = (
@@ -229,7 +229,7 @@ class Kubernetes(object):
                 shared_memory=shared_memory,
                 port=port,
                 num_parallel=num_parallel,
-                qos_class=qos_class,
+                qos=qos,
             )
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
@@ -490,7 +490,7 @@ class Kubernetes(object):
         shared_memory=None,
         port=None,
         name_pattern=None,
-        qos_class=None,
+        qos=None,
     ):
         if env is None:
             env = {}
@@ -531,7 +531,7 @@ class Kubernetes(object):
                 persistent_volume_claims=persistent_volume_claims,
                 shared_memory=shared_memory,
                 port=port,
-                qos_class=qos_class,
+                qos=qos,
             )
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)

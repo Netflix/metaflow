@@ -26,6 +26,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SHARED_MEMORY,
     KUBERNETES_TOLERATIONS,
+    KUBERNETES_QOS,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -41,7 +42,7 @@ except NameError:
     unicode = str
     basestring = str
 
-KUBERNETES_QOS_CLASSES = ["Guaranteed", "Burstable", "BestEffort"]
+SUPPORTED_KUBERNETES_QOS_CLASSES = ["Guaranteed", "Burstable", "BestEffort"]
 
 
 class KubernetesDecorator(StepDecorator):
@@ -111,7 +112,7 @@ class KubernetesDecorator(StepDecorator):
     hostname_resolution_timeout: int, default 10 * 60
         Timeout in seconds for the workers tasks in the gang scheduled cluster to resolve the hostname of control task.
         Only applicable when @parallel is used.
-    qos_class: str, optional, default: None
+    qos: str, default: Burstable
         Quality of Service class to assign to the pod. Supported values are: Guaranteed, Burstable, BestEffort
     """
 
@@ -140,7 +141,7 @@ class KubernetesDecorator(StepDecorator):
         "compute_pool": None,
         "executable": None,
         "hostname_resolution_timeout": 10 * 60,
-        "qos_class": None,
+        "qos": KUBERNETES_QOS,
     }
     package_url = None
     package_sha = None
@@ -265,12 +266,12 @@ class KubernetesDecorator(StepDecorator):
         self.flow_datastore = flow_datastore
 
         if (
-            self.attributes["qos_class"] is not None
-            and self.attributes["qos_class"] not in KUBERNETES_QOS_CLASSES
+            self.attributes["qos"] is not None
+            and self.attributes["qos"] not in SUPPORTED_KUBERNETES_QOS_CLASSES
         ):
             raise MetaflowException(
                 "*%s* is not a valid Kubernetes QoS class. Choose one of the following: %s"
-                % (self.attributes["qos_class"], ", ".join(KUBERNETES_QOS_CLASSES))
+                % (self.attributes["qos"], ", ".join(SUPPORTED_KUBERNETES_QOS_CLASSES))
             )
 
         if any([deco.name == "batch" for deco in decos]):

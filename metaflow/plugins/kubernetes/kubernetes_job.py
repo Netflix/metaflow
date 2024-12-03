@@ -77,7 +77,7 @@ class KubernetesJob(object):
             else None
         )
         qos_requests, qos_limits = qos_requests_and_limits(
-            self._kwargs["qos_class"], self._kwargs["cpu"], self._kwargs["memory"]
+            self._kwargs["qos"], self._kwargs["cpu"], self._kwargs["memory"]
         )
 
         return client.V1JobSpec(

@@ -1844,7 +1844,7 @@ class ArgoWorkflows(object):
                 env["METAFLOW_TEMPDIR"] = tmpfs_path
 
             qos_requests, qos_limits = qos_requests_and_limits(
-                resources["qos_class"], resources["cpu"], resources["memory"]
+                resources["qos"], resources["cpu"], resources["memory"]
             )
 
             # Create a ContainerTemplate for this node. Ideally, we would have
@@ -1910,7 +1910,7 @@ class ArgoWorkflows(object):
                     persistent_volume_claims=resources["persistent_volume_claims"],
                     shared_memory=shared_memory,
                     port=port,
-                    qos_class=resources["qos_class"],
+                    qos=resources["qos"],
                 )
 
                 for k, v in env.items():

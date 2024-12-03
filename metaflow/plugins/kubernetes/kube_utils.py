@@ -25,18 +25,18 @@ def parse_cli_options(flow_name, run_id, user, my_runs, echo):
     return flow_name, run_id, user
 
 
-def qos_requests_and_limits(qos_class: str, cpu: int, memory: int):
+def qos_requests_and_limits(qos: str, cpu: int, memory: int):
     "return resource requests and limits for the kubernetes pod based on the given QoS Class"
     # Determine the requests and limits to define chosen QoS class
     qos_limits = {}
     qos_requests = {}
-    if qos_class == "Guaranteed":
+    if qos == "Guaranteed":
         # Guaranteed - has both cpu/memory limits. requests not required, as these will be inferred.
         qos_limits = {
             "cpu": str(cpu),
             "memory": "%sM" % str(memory),
         }
-    elif qos_class == "BestEffort":
+    elif qos == "BestEffort":
         # BestEffort - no limit or requests for cpu/memory
         pass
     else:
