@@ -109,7 +109,11 @@ def parallel_imap_unordered(
         # Lazy import to save on startup time for metaflow as a whole
         from multiprocessing import cpu_count
 
-        max_parallel = len(getattr(os, "sched_getaffinity", lambda _: [])(0)) or os.cpu_count() or 1
+        max_parallel = (
+            len(getattr(os, "sched_getaffinity", lambda _: [])(0))
+            or os.cpu_count()
+            or 1
+        )
 
     args_iter = iter(iterable)
     pids = [_spawn(func, arg, dir) for arg in islice(args_iter, max_parallel)]
