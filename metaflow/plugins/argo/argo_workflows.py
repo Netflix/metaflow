@@ -2852,16 +2852,6 @@ class ArgoWorkflows(object):
                 "sdk (https://pypi.org/project/kubernetes/) first."
             )
 
-        # Useful to paint the UI
-        trigger_annotations = {
-            "metaflow/triggered_by": json.dumps(
-                [
-                    {key: trigger.get(key) for key in ["name", "type"]}
-                    for trigger in self.triggers
-                ]
-            )
-        }
-
         return (
             Sensor()
             .metadata(
@@ -2872,7 +2862,6 @@ class ArgoWorkflows(object):
                 .labels(self.shared_kubernetes_labels)
                 .label("app.kubernetes.io/name", "metaflow-sensor")
                 .annotations(self.shared_kubernetes_annotations)
-                .annotations(trigger_annotations)
             )
             .spec(
                 SensorSpec().template(
@@ -2929,6 +2918,7 @@ class ArgoWorkflows(object):
                                         "metadata": {
                                             "generateName": "%s-" % self.name,
                                             "namespace": KUBERNETES_NAMESPACE,
+                                            # Useful to paint the UI
                                             "annotations": {
                                                 "metaflow/triggered_by": json.dumps(
                                                     [
