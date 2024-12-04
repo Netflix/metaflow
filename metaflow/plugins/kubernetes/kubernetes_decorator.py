@@ -267,7 +267,9 @@ class KubernetesDecorator(StepDecorator):
 
         if (
             self.attributes["qos"] is not None
-            and self.attributes["qos"] not in SUPPORTED_KUBERNETES_QOS_CLASSES
+            # case insensitive matching.
+            and self.attributes["qos"].lower()
+            not in [c.lower() for c in SUPPORTED_KUBERNETES_QOS_CLASSES]
         ):
             raise MetaflowException(
                 "*%s* is not a valid Kubernetes QoS class. Choose one of the following: %s"
