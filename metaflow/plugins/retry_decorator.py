@@ -22,6 +22,7 @@ class RetryDecorator(StepDecorator):
         Number of times to retry this task.
     minutes_between_retries : int, default 2
         Number of minutes between retries.
+        Note: This parameter is ignored when using AWS Step Functions.
     """
 
     name = "retry"
