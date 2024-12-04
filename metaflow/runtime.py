@@ -666,7 +666,7 @@ class NativeRuntime(object):
                 # Control task was successful.
                 # Additionally check the state of (sibling) mapper tasks as well
                 # (for the sake of resume) before queueing join task.
-                num_splits = self._control_num_splits[control_path]
+                num_splits = self._control_num_splits[task.path]
                 required_tasks = []
                 for i in range(num_splits):
                     s = tuple(bottom + [top._replace(index=i)])
