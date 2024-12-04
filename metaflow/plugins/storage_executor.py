@@ -93,7 +93,7 @@ def _compute_executor_max_workers():
     elif effective_cpu_limit == 0:
         # There is (probably) no limit, use physical core count
         processpool_max_workers = _bracket(
-            min_processes, os.cpu_count() or 1, max_processes
+            min_processes, len(getattr(os, "sched_getaffinity", lambda _: [])(0)) or os.cpu_count() or 1, max_processes
         )
     else:
         # There is a limit, so let's bracket it within min / max
