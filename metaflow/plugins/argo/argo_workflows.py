@@ -1844,7 +1844,10 @@ class ArgoWorkflows(object):
                 env["METAFLOW_TEMPDIR"] = tmpfs_path
 
             qos_requests, qos_limits = qos_requests_and_limits(
-                resources["qos"], resources["cpu"], resources["memory"]
+                resources["qos"],
+                resources["cpu"],
+                resources["memory"],
+                resources["disk"],
             )
 
             # Create a ContainerTemplate for this node. Ideally, we would have
@@ -2096,11 +2099,7 @@ class ArgoWorkflows(object):
                                 image=resources["image"],
                                 image_pull_policy=resources["image_pull_policy"],
                                 resources=kubernetes_sdk.V1ResourceRequirements(
-                                    requests={
-                                        **qos_requests,
-                                        "ephemeral-storage": "%sM"
-                                        % str(resources["disk"]),
-                                    },
+                                    requests=qos_requests,
                                     limits={
                                         **qos_limits,
                                         **{

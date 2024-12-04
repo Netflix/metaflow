@@ -557,7 +557,10 @@ class JobSetSpec(object):
             else None
         )
         qos_requests, qos_limits = qos_requests_and_limits(
-            self._kwargs["qos"], self._kwargs["cpu"], self._kwargs["memory"]
+            self._kwargs["qos"],
+            self._kwargs["cpu"],
+            self._kwargs["memory"],
+            self._kwargs["disk"],
         )
         return dict(
             name=self.name,
@@ -657,11 +660,7 @@ class JobSetSpec(object):
                                             "_", "-"
                                         ),
                                         resources=client.V1ResourceRequirements(
-                                            requests={
-                                                **qos_requests,
-                                                "ephemeral-storage": "%sM"
-                                                % str(self._kwargs["disk"]),
-                                            },
+                                            requests=qos_requests,
                                             limits={
                                                 **qos_limits,
                                                 **{

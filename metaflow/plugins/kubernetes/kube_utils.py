@@ -25,7 +25,7 @@ def parse_cli_options(flow_name, run_id, user, my_runs, echo):
     return flow_name, run_id, user
 
 
-def qos_requests_and_limits(qos: str, cpu: int, memory: int):
+def qos_requests_and_limits(qos: str, cpu: int, memory: int, storage: int):
     "return resource requests and limits for the kubernetes pod based on the given QoS Class"
     # Determine the requests and limits to define chosen QoS class
     qos_limits = {}
@@ -35,14 +35,16 @@ def qos_requests_and_limits(qos: str, cpu: int, memory: int):
         qos_limits = {
             "cpu": str(cpu),
             "memory": "%sM" % str(memory),
+            "ephemeral-storage": "%sM" % str(storage),
         }
     elif qos == "BestEffort":
         # BestEffort - no limit or requests for cpu/memory
-        pass
+        qos_requests = {"ephemeral-storage": "%sM" % str(storage)}
     else:
         # Burstable - not Guaranteed, and has a memory/cpu limit or request
         qos_requests = {
             "cpu": str(cpu),
             "memory": "%sM" % str(memory),
+            "ephemeral-storage": "%sM" % str(storage),
         }
     return qos_requests, qos_limits
