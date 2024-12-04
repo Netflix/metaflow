@@ -2337,7 +2337,7 @@ class ArgoWorkflows(object):
                                 "memory": "500Mi",
                             },
                         ),
-                    )
+                    ).to_dict()
                 )
             ),
             Template("capture-error-hook-fn-preflight").steps(
@@ -2688,7 +2688,7 @@ class ArgoWorkflows(object):
                             },
                         ),
                     )
-                )
+                ).to_dict()
             )
         )
 
@@ -2858,7 +2858,7 @@ class ArgoWorkflows(object):
                                         "memory": "250Mi",
                                     },
                                 ),
-                            )
+                            ).to_dict()
                         )
                     )
                     .service_account_name(ARGO_EVENTS_SERVICE_ACCOUNT)
