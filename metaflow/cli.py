@@ -131,6 +131,7 @@ def config_merge_cb(ctx, param, value):
     # command line.
     # NOTE: Assumes that ctx.auto_envvar_prefix is set to METAFLOW (same as in
     # from_conf)
+    return tuple(list(value) + DECOSPECS.split())
 
     # Special case where DECOSPECS and value are the same. This happens
     # when there is no --with option at the TL and DECOSPECS is read from
@@ -138,8 +139,11 @@ def config_merge_cb(ctx, param, value):
     splits = DECOSPECS.split()
     if len(splits) == len(value) and all([a == b for (a, b) in zip(splits, value)]):
         return value
+    print("DECOSPECS: ", DECOSPECS)
+    print("value: ", value)
+    print("old way: ", tuple(list(value) + DECOSPECS.split()))
 
-    # Another special case where DECOSPECS collides with existing value.
+    # Another special case where DECOSPECS collides with existing value, especially
     # In this case, we do not want the implicitly added DECOSPECS overwrites the value.
     # We dedupe based on the decorator name.
     existing_decospecs = set()
@@ -151,6 +155,7 @@ def config_merge_cb(ctx, param, value):
         deco_name = s.split(":")[0]
         if deco_name not in existing_decospecs:
             filtered_decospecs.append(s)
+    print("new way: ", tuple(list(value) + filtered_decospecs))
     return tuple(list(value) + filtered_decospecs)
 
 
@@ -579,6 +584,7 @@ def common_run_options(func):
         help="Add a decorator to all steps. You can specify this "
         "option multiple times to attach multiple decorators "
         "in steps.",
+        callback=config_merge_cb,
     )
     @click.option(
         "--run-id-file",
@@ -864,8 +870,6 @@ def before_run(obj, tags, decospecs):
         decorators._attach_decorators(obj.flow, all_decospecs)
         obj.graph = FlowGraph(obj.flow.__class__)
 
-    print("graph: ", obj.graph)
-
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     # obj.environment.init_environment(obj.logger)
 
@@ -936,7 +940,6 @@ def version(obj):
     multiple=True,
     help="Add a decorator to all steps. You can specify this option "
     "multiple times to attach multiple decorators in steps.",
-    callback=config_merge_cb,
 )
 @click.option(
     "--pylint/--no-pylint",
