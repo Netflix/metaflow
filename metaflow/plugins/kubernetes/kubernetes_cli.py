@@ -126,6 +126,12 @@ def kubernetes():
     type=int,
     help="Number of parallel nodes to run as a multi-node job.",
 )
+@click.option(
+    "--qos",
+    default=None,
+    type=str,
+    help="Quality of Service class for the Kubernetes pod",
+)
 @click.pass_context
 def step(
     ctx,
@@ -154,6 +160,7 @@ def step(
     shared_memory=None,
     port=None,
     num_parallel=None,
+    qos=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None, **kwargs):
@@ -294,6 +301,7 @@ def step(
                 shared_memory=shared_memory,
                 port=port,
                 num_parallel=num_parallel,
+                qos=qos,
             )
     except Exception as e:
         traceback.print_exc(chain=False)

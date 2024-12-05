@@ -53,6 +53,7 @@ from metaflow.metaflow_config import (
 from metaflow.metaflow_config_funcs import config_values
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
+from metaflow.plugins.kubernetes.kube_utils import qos_requests_and_limits
 from metaflow.plugins.kubernetes.kubernetes import (
     parse_kube_keyvalue_list,
     validate_kube_labels,
@@ -1842,6 +1843,13 @@ class ArgoWorkflows(object):
             if tmpfs_enabled and tmpfs_tempdir:
                 env["METAFLOW_TEMPDIR"] = tmpfs_path
 
+            qos_requests, qos_limits = qos_requests_and_limits(
+                resources["qos"],
+                resources["cpu"],
+                resources["memory"],
+                resources["disk"],
+            )
+
             # Create a ContainerTemplate for this node. Ideally, we would have
             # liked to inline this ContainerTemplate and avoid scanning the workflow
             # twice, but due to issues with variable substitution, we will have to
@@ -1905,6 +1913,7 @@ class ArgoWorkflows(object):
                     persistent_volume_claims=resources["persistent_volume_claims"],
                     shared_memory=shared_memory,
                     port=port,
+                    qos=resources["qos"],
                 )
 
                 for k, v in env.items():
@@ -2090,17 +2099,17 @@ class ArgoWorkflows(object):
                                 image=resources["image"],
                                 image_pull_policy=resources["image_pull_policy"],
                                 resources=kubernetes_sdk.V1ResourceRequirements(
-                                    requests={
-                                        "cpu": str(resources["cpu"]),
-                                        "memory": "%sM" % str(resources["memory"]),
-                                        "ephemeral-storage": "%sM"
-                                        % str(resources["disk"]),
-                                    },
+                                    requests=qos_requests,
                                     limits={
-                                        "%s.com/gpu".lower()
-                                        % resources["gpu_vendor"]: str(resources["gpu"])
-                                        for k in [0]
-                                        if resources["gpu"] is not None
+                                        **qos_limits,
+                                        **{
+                                            "%s.com/gpu".lower()
+                                            % resources["gpu_vendor"]: str(
+                                                resources["gpu"]
+                                            )
+                                            for k in [0]
+                                            if resources["gpu"] is not None
+                                        },
                                     },
                                 ),
                                 # Configure secrets
