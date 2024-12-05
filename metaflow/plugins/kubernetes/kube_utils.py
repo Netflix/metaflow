@@ -39,9 +39,6 @@ def qos_requests_and_limits(qos: str, cpu: int, memory: int, storage: int):
             "memory": "%sM" % str(memory),
             "ephemeral-storage": "%sM" % str(storage),
         }
-    elif qos == "besteffort":
-        # BestEffort - no limit or requests for cpu/memory
-        qos_requests = {"ephemeral-storage": "%sM" % str(storage)}
     else:
         # Burstable - not Guaranteed, and has a memory/cpu limit or request
         qos_requests = {
@@ -49,4 +46,6 @@ def qos_requests_and_limits(qos: str, cpu: int, memory: int, storage: int):
             "memory": "%sM" % str(memory),
             "ephemeral-storage": "%sM" % str(storage),
         }
+    # TODO: Add support for BestEffort once there is a use case for it.
+    # BestEffort - no limit or requests for cpu/memory
     return qos_requests, qos_limits

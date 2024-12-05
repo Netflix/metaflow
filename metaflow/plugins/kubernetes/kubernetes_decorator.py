@@ -42,7 +42,7 @@ except NameError:
     unicode = str
     basestring = str
 
-SUPPORTED_KUBERNETES_QOS_CLASSES = ["Guaranteed", "Burstable", "BestEffort"]
+SUPPORTED_KUBERNETES_QOS_CLASSES = ["Guaranteed", "Burstable"]
 
 
 class KubernetesDecorator(StepDecorator):
