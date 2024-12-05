@@ -289,7 +289,12 @@ class NativeRuntime(object):
                 new_task_id = task.task_id
                 self._cloned_tasks.append(task)
                 self._cloned_task_index.add(task.task_index)
-
+                task_pathspec = "{}/{}/{}".format(self._run_id, step_name, new_task_id)
+            else:
+                task_pathspec = "{}/{}/{}".format(self._run_id, step_name, new_task_id)
+                Task.clone_pathspec_mapping[task_pathspec] = "{}/{}/{}".format(
+                    self._clone_run_id, step_name, task_id
+                )
             if verbose:
                 self._logger(
                     "Cloning task from {}/{}/{}/{} to {}/{}/{}/{}".format(
@@ -315,7 +320,6 @@ class NativeRuntime(object):
                 self._metadata,
                 origin_ds_set=self._origin_ds_set,
             )
-            task_pathspec = "{}/{}/{}".format(self._run_id, step_name, new_task_id)
             self._finished[(step_name, finished_tuple)] = task_pathspec
             self._is_cloned[task_pathspec] = True
         except Exception as e:
@@ -342,9 +346,9 @@ class NativeRuntime(object):
             _, step_name, task_id = task_ds.pathspec.split("/")
             pathspec_index = task_ds.pathspec_index
             if task_ds["_task_ok"] and step_name != "_parameters":
-                # Control task and, in the case of @parallel, mapper tasks can have
-                # _control_mapper_tasks. We can strip out the control_task of the mapper
-                # task list by checking if it control_task_is_mapper_zero.
+                # Control task contains "_control_mapper_tasks" but, in the case of
+                # @parallel decorator, the control task is also a mapper task so we
+                # need to distinguish this using _control_task_is_mapper_zero
                 control_mapper_tasks = (
                     []
                     if "_control_mapper_tasks" not in task_ds
@@ -1117,7 +1121,7 @@ class Task(object):
                     # To avoid the edge case where the resume leader is selected but has not
                     # yet written the _resume_leader metadata, we will wait for a few seconds.
                     # We will wait for resume leader for at most 3 times.
-                    for resume_leader_wait_retry in range(3):
+                    for _ in range(3):
                         if ds.has_metadata("_resume_leader", add_attempt=False):
                             resume_leader = ds.load_metadata(
                                 ["_resume_leader"], add_attempt=False
