@@ -303,7 +303,7 @@ class KubernetesDecorator(StepDecorator):
                             )
 
         # Check GPU vendor.
-        if self.attributes["gpu_vendor"].lower() not in ("amd", "nvidia"):
+        if self.attributes["gpu_vendor"].lower() not in ("amd", "nvidia", "google"):
             raise KubernetesException(
                 "GPU vendor *{}* for step *{step}* is not currently supported.".format(
                     self.attributes["gpu_vendor"], step=step
