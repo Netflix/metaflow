@@ -1,7 +1,7 @@
 {
     "name": "small-parallel",
     "graph": {
-        "start": {"linear": "parallel_split"},
+        "start": {"linear": "parallel_split", "quals": ["start"]},
         "parallel_split": {
             "num_parallel": 4,
             "parallel": "parallel_inner",
