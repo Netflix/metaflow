@@ -39,6 +39,9 @@ def qos_requests_and_limits(qos: str, cpu: int, memory: int, storage: int):
             "memory": "%sM" % str(memory),
             "ephemeral-storage": "%sM" % str(storage),
         }
+        # NOTE: Even though Kubernetes will produce matching requests for the specified limits, this happens late in the lifecycle.
+        # We specify them explicitly here to make some K8S tooling happy, in case they rely on .resources.requests being present at time of submitting the job.
+        qos_requests = qos_limits
     else:
         # Burstable - not Guaranteed, and has a memory/cpu limit or request
         qos_requests = {
