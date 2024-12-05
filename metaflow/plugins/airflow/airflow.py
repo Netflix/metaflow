@@ -46,6 +46,7 @@ from metaflow.parameters import (
 # TODO: Move chevron to _vendor
 from metaflow.plugins.cards.card_modules import chevron
 from metaflow.plugins.kubernetes.kubernetes import Kubernetes
+from metaflow.plugins.kubernetes.kube_utils import qos_requests_and_limits
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.util import compress_list, dict_to_cli_options, get_username
 
@@ -428,25 +429,25 @@ class Airflow(object):
             if k8s_deco.attributes["namespace"] is not None
             else "default"
         )
-
-        resources = dict(
-            requests={
-                "cpu": k8s_deco.attributes["cpu"],
-                "memory": "%sM" % str(k8s_deco.attributes["memory"]),
-                "ephemeral-storage": str(k8s_deco.attributes["disk"]),
-            }
+        qos_requests, qos_limits = qos_requests_and_limits(
+            k8s_deco.attributes["qos"],
+            k8s_deco.attributes["cpu"],
+            k8s_deco.attributes["memory"],
+            k8s_deco.attributes["disk"],
         )
-        if k8s_deco.attributes["gpu"] is not None:
-            resources.update(
-                dict(
-                    limits={
-                        "%s.com/gpu".lower()
-                        % k8s_deco.attributes["gpu_vendor"]: str(
-                            k8s_deco.attributes["gpu"]
-                        )
-                    }
-                )
-            )
+        resources = dict(
+            requests=qos_requests,
+            limits={
+                **qos_limits,
+                **{
+                    "%s.com/gpu".lower()
+                    % k8s_deco.attributes["gpu_vendor"]: str(k8s_deco.attributes["gpu"])
+                    for k in [0]
+                    # Don't set GPU limits if gpu isn't specified.
+                    if k8s_deco.attributes["gpu"] is not None
+                },
+            },
+        )
 
         annotations = {
             "metaflow/production_token": self.production_token,
