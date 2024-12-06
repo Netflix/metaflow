@@ -415,12 +415,8 @@ class NativeRuntime(object):
                     # This means that _translate_index will use None.
 
                     cloned_task_pathspec_index = re.sub(
-                        r"(\[\d+,\d+\])|(\[[^]]+\])",
-                        lambda m: (
-                            m.group(1).replace(",0]", ",None]")
-                            if m.group(1)
-                            else "[None]"
-                        ),
+                        r"\[(\d+, ?)*0\]",
+                        lambda m: "[" + (m.group(1) or "") + "None]",
                         cloned_task_pathspec_index,
                     )
 
