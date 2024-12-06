@@ -45,6 +45,8 @@ class ParallelDecorator(StepDecorator):
         if ubf_context == UBF_CONTROL:
             num_parallel = cli_args.task.ubf_iter.num_parallel
             cli_args.command_options["num-parallel"] = str(num_parallel)
+            if os.environ.get("METAFLOW_RUNTIME_ENVIRONMENT", "local") == "local":
+                cli_args.command_options["split_index"] = "0"
 
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger

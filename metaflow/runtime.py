@@ -9,6 +9,7 @@ from __future__ import print_function
 import os
 import sys
 import fcntl
+import re
 import time
 import subprocess
 from datetime import datetime
@@ -275,6 +276,7 @@ class NativeRuntime(object):
         step_name,
         task_id,
         pathspec_index,
+        cloned_task_pathspec_index,
         finished_tuple,
         ubf_context,
         generate_task_obj,
@@ -288,7 +290,7 @@ class NativeRuntime(object):
                     task.ubf_context = ubf_context
                 new_task_id = task.task_id
                 self._cloned_tasks.append(task)
-                self._cloned_task_index.add(task.task_index)
+                self._cloned_task_index.add(cloned_task_pathspec_index)
                 task_pathspec = "{}/{}/{}".format(self._run_id, step_name, new_task_id)
             else:
                 task_pathspec = "{}/{}/{}".format(self._run_id, step_name, new_task_id)
@@ -399,11 +401,20 @@ class NativeRuntime(object):
                 finished_tuple = tuple(
                     [s._replace(value=0) for s in task_ds.get("_foreach_stack", ())]
                 )
+                cloned_task_pathspec_index = pathspec_index.split("/")[1]
                 if task_ds.get("_control_task_is_mapper_zero", False):
                     # Replace None with index 0 for control task as it is part of the
                     # UBF (as a mapper as well)
                     finished_tuple = finished_tuple[:-1] + (
                         finished_tuple[-1]._replace(index=0),
+                    )
+                    # We need this reverse override though because when we check
+                    # if a task has been cloned in _queue_push, the index will be None
+                    # because the _control_task_is_mapper_zero is set in the control
+                    # task *itself* and *not* in the one that is launching the UBF nest.
+                    # This means that _translate_index will use None.
+                    cloned_task_pathspec_index = re.sub(
+                        r"\[[^]]+\]", "[None]", cloned_task_pathspec_index
                     )
 
                 inputs.append(
@@ -411,6 +422,7 @@ class NativeRuntime(object):
                         step_name,
                         task_id,
                         pathspec_index,
+                        cloned_task_pathspec_index,
                         finished_tuple,
                         is_ubf_mapper_task,
                         ubf_context,
@@ -424,6 +436,7 @@ class NativeRuntime(object):
                     step_name,
                     task_id,
                     pathspec_index,
+                    cloned_task_pathspec_index,
                     finished_tuple,
                     ubf_context=ubf_context,
                     generate_task_obj=generate_task_obj and (not is_ubf_mapper_task),
@@ -433,6 +446,7 @@ class NativeRuntime(object):
                     step_name,
                     task_id,
                     pathspec_index,
+                    cloned_task_pathspec_index,
                     finished_tuple,
                     is_ubf_mapper_task,
                     ubf_context,
@@ -584,7 +598,6 @@ class NativeRuntime(object):
     # Given the current task information (task_index), the type of transition,
     # and the split index, return the new task index.
     def _translate_index(self, task, next_step, type, split_index=None):
-        import re
 
         match = re.match(r"^(.+)\[(.*)\]$", task.task_index)
         if match:
