@@ -48,6 +48,7 @@ class StepFunctions(object):
         event_logger,
         monitor,
         tags=None,
+        aws_tags=None,
         namespace=None,
         username=None,
         max_workers=None,
@@ -67,6 +68,7 @@ class StepFunctions(object):
         self.event_logger = event_logger
         self.monitor = monitor
         self.tags = tags
+        self.aws_tags = aws_tags
         self.namespace = namespace
         self.username = username
         self.max_workers = max_workers
@@ -190,6 +192,7 @@ class StepFunctions(object):
                 "on AWS Step Functions. Please "
                 "deploy your flow first." % name
             )
+
         # Dump parameters into `Parameters` input field.
         input = json.dumps({"Parameters": json.dumps(parameters)})
         # AWS Step Functions limits input to be 32KiB, but AWS Batch
@@ -831,6 +834,8 @@ class StepFunctions(object):
                 swappiness=resources["swappiness"],
                 efa=resources["efa"],
                 use_tmpfs=resources["use_tmpfs"],
+                tags=resources["tags"],
+                step_function_tags=self.aws_tags,
                 tmpfs_tempdir=resources["tmpfs_tempdir"],
                 tmpfs_size=resources["tmpfs_size"],
                 tmpfs_path=resources["tmpfs_path"],
