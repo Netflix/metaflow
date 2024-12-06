@@ -449,7 +449,11 @@ def start(
         },
     )
 
-    if ctx.saved_args and ctx.saved_args[0] not in ("run", "resume"):
+    if (
+        hasattr(ctx, "saved_args")
+        and ctx.saved_args
+        and ctx.saved_args[0] not in ("run", "resume")
+    ):
         # run/resume are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.
         all_decospecs = ctx.obj.tl_decospecs + list(

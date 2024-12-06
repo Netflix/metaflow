@@ -141,12 +141,11 @@ def _lazy_load_command(
         # Resolve flow_parameters -- for start, this is a function which we
         # need to call to figure out the actual parameters (may be changed by configs)
         flow_parameters = getattr(_self, flow_parameters)()
-
     cmd_obj = cli_collection.get_command(None, name)
     if cmd_obj:
         if isinstance(cmd_obj, click.Group):
             # TODO: possibly check for fake groups with cmd_obj.name in ["cli", "main"]
-            result = extract_group(cmd_obj, flow_parameters)
+            result = functools.partial(extract_group(cmd_obj, flow_parameters), _self)
         elif isinstance(cmd_obj, click.Command):
             result = functools.partial(extract_command(cmd_obj, flow_parameters), _self)
         else:
@@ -379,18 +378,17 @@ def extract_all_params(cmd_obj: Union[click.Command, click.Group]):
 
 
 def extract_group(cmd_obj: click.Group, flow_parameters: List[Parameter]) -> Callable:
-    def getattr_wrapper(_self, name):
-        # Functools.partial do not automatically bind self (no __get__)
-        return _self._internal_getattr(_self, name)
-
-    class_dict = {
-        "__module__": "metaflow",
-        "_API_NAME": cmd_obj.name,
-        "_internal_getattr": functools.partial(
-            _lazy_load_command, cmd_obj, flow_parameters
-        ),
-        "__getattr__": getattr_wrapper,
-    }
+    class_dict = {"__module__": "metaflow", "_API_NAME": cmd_obj.name}
+    for _, sub_cmd_obj in cmd_obj.commands.items():
+        if isinstance(sub_cmd_obj, click.Group):
+            # recursion
+            class_dict[sub_cmd_obj.name] = extract_group(sub_cmd_obj, flow_parameters)
+        elif isinstance(sub_cmd_obj, click.Command):
+            class_dict[sub_cmd_obj.name] = extract_command(sub_cmd_obj, flow_parameters)
+        else:
+            raise RuntimeError(
+                "Cannot handle %s of type %s" % (sub_cmd_obj.name, type(sub_cmd_obj))
+            )
 
     resulting_class = type(cmd_obj.name, (MetaflowAPI,), class_dict)
     resulting_class.__name__ = cmd_obj.name
@@ -407,7 +405,7 @@ def extract_group(cmd_obj: click.Group, flow_parameters: List[Parameter]) -> Cal
         method_params = _method_sanity_check(
             possible_arg_params, possible_opt_params, annotations, defaults, **kwargs
         )
-        return resulting_class(parent=_self, **method_params)
+        return resulting_class(parent=_self, flow_cls=None, **method_params)
 
     m = _method
     m.__name__ = cmd_obj.name
