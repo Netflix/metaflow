@@ -413,8 +413,15 @@ class NativeRuntime(object):
                     # because the _control_task_is_mapper_zero is set in the control
                     # task *itself* and *not* in the one that is launching the UBF nest.
                     # This means that _translate_index will use None.
+
                     cloned_task_pathspec_index = re.sub(
-                        r"\[[^]]+\]", "[None]", cloned_task_pathspec_index
+                        r"(\[\d+,\d+\])|(\[[^]]+\])",
+                        lambda m: (
+                            m.group(1).replace(",0]", ",None]")
+                            if m.group(1)
+                            else "[None]"
+                        ),
+                        cloned_task_pathspec_index,
                     )
 
                 inputs.append(

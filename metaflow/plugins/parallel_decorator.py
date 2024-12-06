@@ -128,6 +128,8 @@ class ParallelDecorator(StepDecorator):
                     tags=["attempt_id:{0}".format(0)],
                 )
             ]
+            flow._control_task_is_mapper_zero = True
+
         metadata.register_metadata(run_id, step_name, task_id, task_metadata_list)
 
     def task_decorate(
@@ -223,7 +225,6 @@ def _local_multinode_control_task_step_func(
         "%s/%s/%s" % (run_id, step_name, mapper_task_id)
         for mapper_task_id in mapper_task_ids
     ]
-    flow._control_task_is_mapper_zero = True
 
     # run the step function ourselves
     os.environ["MF_PARALLEL_NODE_INDEX"] = "0"
