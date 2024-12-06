@@ -9,6 +9,7 @@ from __future__ import print_function
 import os
 import sys
 import fcntl
+import re
 import time
 import subprocess
 from datetime import datetime
@@ -49,7 +50,13 @@ PROGRESS_INTERVAL = 300  # s
 # The following is a list of the (data) artifacts used by the runtime while
 # executing a flow. These are prefetched during the resume operation by
 # leveraging the TaskDataStoreSet.
-PREFETCH_DATA_ARTIFACTS = ["_foreach_stack", "_task_ok", "_transition"]
+PREFETCH_DATA_ARTIFACTS = [
+    "_foreach_stack",
+    "_task_ok",
+    "_transition",
+    "_control_mapper_tasks",
+    "_control_task_is_mapper_zero",
+]
 RESUME_POLL_SECONDS = 60
 
 # Runtime must use logsource=RUNTIME_LOG_SOURCE for all loglines that it
@@ -269,6 +276,8 @@ class NativeRuntime(object):
         step_name,
         task_id,
         pathspec_index,
+        cloned_task_pathspec_index,
+        finished_tuple,
         ubf_context,
         generate_task_obj,
         verbose=False,
@@ -281,8 +290,13 @@ class NativeRuntime(object):
                     task.ubf_context = ubf_context
                 new_task_id = task.task_id
                 self._cloned_tasks.append(task)
-                self._cloned_task_index.add(task.task_index)
-
+                self._cloned_task_index.add(cloned_task_pathspec_index)
+                task_pathspec = "{}/{}/{}".format(self._run_id, step_name, new_task_id)
+            else:
+                task_pathspec = "{}/{}/{}".format(self._run_id, step_name, new_task_id)
+                Task.clone_pathspec_mapping[task_pathspec] = "{}/{}/{}".format(
+                    self._clone_run_id, step_name, task_id
+                )
             if verbose:
                 self._logger(
                     "Cloning task from {}/{}/{}/{} to {}/{}/{}/{}".format(
@@ -308,6 +322,8 @@ class NativeRuntime(object):
                 self._metadata,
                 origin_ds_set=self._origin_ds_set,
             )
+            self._finished[(step_name, finished_tuple)] = task_pathspec
+            self._is_cloned[task_pathspec] = True
         except Exception as e:
             self._logger(
                 "Cloning {}/{}/{}/{} failed with error: {}".format(
@@ -323,7 +339,8 @@ class NativeRuntime(object):
 
         inputs = []
 
-        ubf_mapper_tasks_to_clone = []
+        ubf_mapper_tasks_to_clone = set()
+        ubf_control_tasks = set()
         # We only clone ubf mapper tasks if the control task is complete.
         # Here we need to check which control tasks are complete, and then get the corresponding
         # mapper tasks.
@@ -331,13 +348,25 @@ class NativeRuntime(object):
             _, step_name, task_id = task_ds.pathspec.split("/")
             pathspec_index = task_ds.pathspec_index
             if task_ds["_task_ok"] and step_name != "_parameters":
-                # Only control task can have _control_mapper_tasks. We then store the corresponding mapepr task pathspecs.
+                # Control task contains "_control_mapper_tasks" but, in the case of
+                # @parallel decorator, the control task is also a mapper task so we
+                # need to distinguish this using _control_task_is_mapper_zero
                 control_mapper_tasks = (
                     []
                     if "_control_mapper_tasks" not in task_ds
                     else task_ds["_control_mapper_tasks"]
                 )
-                ubf_mapper_tasks_to_clone.extend(control_mapper_tasks)
+                if control_mapper_tasks:
+                    if task_ds.get("_control_task_is_mapper_zero", False):
+                        # Strip out the control task of list of mapper tasks
+                        ubf_control_tasks.add(control_mapper_tasks[0])
+                        ubf_mapper_tasks_to_clone.update(control_mapper_tasks[1:])
+                    else:
+                        ubf_mapper_tasks_to_clone.update(control_mapper_tasks)
+                        # Since we only add mapper tasks here, if we are not in the list
+                        # we are a control task
+                        if task_ds.pathspec not in ubf_mapper_tasks_to_clone:
+                            ubf_control_tasks.add(task_ds.pathspec)
 
         for task_ds in self._origin_ds_set:
             _, step_name, task_id = task_ds.pathspec.split("/")
@@ -350,33 +379,54 @@ class NativeRuntime(object):
             ):
                 # "_unbounded_foreach" is a special flag to indicate that the transition is an unbounded foreach.
                 # Both parent and splitted children tasks will have this flag set. The splitted control/mapper tasks
-                # have no "foreach_param" because UBF is always followed by a join step.
+                # are not foreach types because UBF is always followed by a join step.
                 is_ubf_task = (
                     "_unbounded_foreach" in task_ds and task_ds["_unbounded_foreach"]
-                ) and (self._graph[step_name].foreach_param is None)
+                ) and (self._graph[step_name].type != "foreach")
 
-                # Only the control task has "_control_mapper_tasks" artifact.
-                is_ubf_control_task = (
-                    is_ubf_task
-                    and ("_control_mapper_tasks" in task_ds)
-                    and task_ds["_control_mapper_tasks"]
-                )
-                is_ubf_mapper_tasks = is_ubf_task and (not is_ubf_control_task)
-                if is_ubf_mapper_tasks and (
+                is_ubf_control_task = task_ds.pathspec in ubf_control_tasks
+
+                is_ubf_mapper_task = is_ubf_task and (not is_ubf_control_task)
+
+                if is_ubf_mapper_task and (
                     task_ds.pathspec not in ubf_mapper_tasks_to_clone
                 ):
-                    # Skip copying UBF mapper tasks if control tasks is incomplete.
+                    # Skip copying UBF mapper tasks if control task is incomplete.
                     continue
 
                 ubf_context = None
                 if is_ubf_task:
-                    ubf_context = "ubf_test" if is_ubf_mapper_tasks else "ubf_control"
+                    ubf_context = "ubf_test" if is_ubf_mapper_task else "ubf_control"
+
+                finished_tuple = tuple(
+                    [s._replace(value=0) for s in task_ds.get("_foreach_stack", ())]
+                )
+                cloned_task_pathspec_index = pathspec_index.split("/")[1]
+                if task_ds.get("_control_task_is_mapper_zero", False):
+                    # Replace None with index 0 for control task as it is part of the
+                    # UBF (as a mapper as well)
+                    finished_tuple = finished_tuple[:-1] + (
+                        finished_tuple[-1]._replace(index=0),
+                    )
+                    # We need this reverse override though because when we check
+                    # if a task has been cloned in _queue_push, the index will be None
+                    # because the _control_task_is_mapper_zero is set in the control
+                    # task *itself* and *not* in the one that is launching the UBF nest.
+                    # This means that _translate_index will use None.
+                    cloned_task_pathspec_index = re.sub(
+                        r"(\[(?:\d+, ?)*)0\]",
+                        lambda m: (m.group(1) or "[") + "None]",
+                        cloned_task_pathspec_index,
+                    )
+
                 inputs.append(
                     (
                         step_name,
                         task_id,
                         pathspec_index,
-                        is_ubf_mapper_tasks,
+                        cloned_task_pathspec_index,
+                        finished_tuple,
+                        is_ubf_mapper_task,
                         ubf_context,
                     )
                 )
@@ -388,15 +438,19 @@ class NativeRuntime(object):
                     step_name,
                     task_id,
                     pathspec_index,
+                    cloned_task_pathspec_index,
+                    finished_tuple,
                     ubf_context=ubf_context,
-                    generate_task_obj=generate_task_obj and (not is_ubf_mapper_tasks),
+                    generate_task_obj=generate_task_obj and (not is_ubf_mapper_task),
                     verbose=verbose,
                 )
                 for (
                     step_name,
                     task_id,
                     pathspec_index,
-                    is_ubf_mapper_tasks,
+                    cloned_task_pathspec_index,
+                    finished_tuple,
+                    is_ubf_mapper_task,
                     ubf_context,
                 ) in inputs
             ]
@@ -546,7 +600,6 @@ class NativeRuntime(object):
     # Given the current task information (task_index), the type of transition,
     # and the split index, return the new task index.
     def _translate_index(self, task, next_step, type, split_index=None):
-        import re
 
         match = re.match(r"^(.+)\[(.*)\]$", task.task_index)
         if match:
@@ -640,15 +693,18 @@ class NativeRuntime(object):
                 # If the control task is cloned, all mapper tasks should have been cloned
                 # as well, so we no longer need to handle cloning of mapper tasks in runtime.
 
-                # Update _finished since these tasks were successfully
-                # run elsewhere so that join will be unblocked.
-                _, foreach_stack = task.finished_id
-                top = foreach_stack[-1]
-                bottom = list(foreach_stack[:-1])
-                for i in range(num_splits):
-                    s = tuple(bottom + [top._replace(index=i)])
-                    self._finished[(task.step, s)] = mapper_tasks[i]
-                    self._is_cloned[mapper_tasks[i]] = False
+                # Update _finished if we are not cloned. If we were cloned, we already
+                # updated _finished with the new tasks. Note that the *value* of mapper
+                # tasks is incorrect and contains the pathspec of the *cloned* run
+                # but we don't use it for anything. We could look to clean it up though
+                if not task.is_cloned:
+                    _, foreach_stack = task.finished_id
+                    top = foreach_stack[-1]
+                    bottom = list(foreach_stack[:-1])
+                    for i in range(num_splits):
+                        s = tuple(bottom + [top._replace(index=i)])
+                        self._finished[(task.step, s)] = mapper_tasks[i]
+                        self._is_cloned[mapper_tasks[i]] = False
 
             # Find and check status of control task and retrieve its pathspec
             # for retrieving unbounded foreach cardinality.
@@ -1080,7 +1136,7 @@ class Task(object):
                     # To avoid the edge case where the resume leader is selected but has not
                     # yet written the _resume_leader metadata, we will wait for a few seconds.
                     # We will wait for resume leader for at most 3 times.
-                    for resume_leader_wait_retry in range(3):
+                    for _ in range(3):
                         if ds.has_metadata("_resume_leader", add_attempt=False):
                             resume_leader = ds.load_metadata(
                                 ["_resume_leader"], add_attempt=False
