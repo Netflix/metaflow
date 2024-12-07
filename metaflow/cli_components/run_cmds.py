@@ -40,7 +40,7 @@ def before_run(obj, tags, decospecs):
     )
     if all_decospecs:
         decorators._attach_decorators(obj.flow, all_decospecs)
-        decorators._init(obj.flow, only_non_static=True)
+        decorators._init(obj.flow)
         obj.graph = FlowGraph(obj.flow.__class__)
 
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)

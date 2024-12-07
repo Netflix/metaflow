@@ -138,7 +138,7 @@ def step(
 
     if decospecs:
         decorators._attach_decorators_to_step(func, decospecs)
-        decorators._init(ctx.obj.flow, only_non_static=True)
+        decorators._init(ctx.obj.flow)
 
     step_kwargs = ctx.params
     # Remove argument `step_name` from `step_kwargs`.

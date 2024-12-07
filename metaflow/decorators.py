@@ -27,6 +27,11 @@ except NameError:
     unicode = str
     basestring = str
 
+# Contains the decorators on which _init was called. We want to ensure it is called
+# only once on each decorator and, as the _init() function below can be called in
+# several places, we need to track which decorator had their init function called
+_inited_decorators = set()
+
 
 class BadStepDecoratorException(MetaflowException):
     headline = "Syntax error"
@@ -553,12 +558,16 @@ def _attach_decorators_to_step(step, decospecs):
 def _init(flow, only_non_static=False):
     for decorators in flow._flow_decorators.values():
         for deco in decorators:
-            if not only_non_static or not deco.statically_defined:
-                deco.init()
+            if deco in _inited_decorators:
+                continue
+            deco.init()
+            _inited_decorators.add(deco)
     for flowstep in flow:
         for deco in flowstep.decorators:
-            if not only_non_static or not deco.statically_defined:
-                deco.init()
+            if deco in _inited_decorators:
+                continue
+            deco.init()
+            _inited_decorators.add(deco)
 
 
 def _init_flow_decorators(
