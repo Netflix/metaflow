@@ -1,18 +1,18 @@
+import functools
 import inspect
-import json
 import sys
 import traceback
 from datetime import datetime
-from functools import wraps
 
 import metaflow.tracing as tracing
 from metaflow._vendor import click
-from metaflow.client.core import get_metadata
 
-from . import decorators, lint, metaflow_version, namespace, parameters, plugins
+from . import decorators, lint, metaflow_version, parameters, plugins
 from .cli_args import cli_args
-from .datastore import FlowDataStore, TaskDataStore, TaskDataStoreSet
+from .cli_components.utils import LazyGroup, LazyPluginCommandCollection
+from .datastore import FlowDataStore
 from .exception import CommandException, MetaflowException
+from .flowspec import _FlowState
 from .graph import FlowGraph
 from .metaflow_config import (
     DECOSPECS,
@@ -26,8 +26,6 @@ from .metaflow_config import (
 from .metaflow_current import current
 from metaflow.system import _system_monitor, _system_logger
 from .metaflow_environment import MetaflowEnvironment
-from .mflog import LOG_SOURCES, mflog
-from .package import MetaflowPackage
 from .plugins import (
     DATASTORES,
     ENVIRONMENTS,
@@ -37,16 +35,9 @@ from .plugins import (
 )
 from .pylint_wrapper import PyLint
 from .R import metaflow_r_version, use_r
-from .runtime import NativeRuntime
-from .tagging_util import validate_tags
-from .task import MetaflowTask
-from .unbounded_foreach import UBF_CONTROL, UBF_TASK
-from .util import (
-    decompress_list,
-    get_latest_run_id,
-    resolve_identity,
-    write_latest_run_id,
-)
+from .util import resolve_identity
+from .user_configs.config_options import LocalFileInput, config_options
+from .user_configs.config_parameters import ConfigValue
 
 ERASE_TO_EOL = "\033[K"
 HIGHLIGHT = "red"
@@ -55,13 +46,6 @@ INDENT = " " * 4
 LOGGER_TIMESTAMP = "magenta"
 LOGGER_COLOR = "green"
 LOGGER_BAD_COLOR = "red"
-
-try:
-    # Python 2
-    import cPickle as pickle
-except ImportError:
-    # Python 3
-    import pickle
 
 
 def echo_dev_null(*args, **kwargs):
@@ -141,7 +125,16 @@ def config_merge_cb(ctx, param, value):
     return tuple(list(value) + DECOSPECS.split())
 
 
-@click.group()
+@click.group(
+    cls=LazyGroup,
+    lazy_subcommands={
+        "init": "metaflow.cli_components.init_cmd.init",
+        "dump": "metaflow.cli_components.dump_cmd.dump",
+        "step": "metaflow.cli_components.step_cmd.step",
+        "run": "metaflow.cli_components.run_cmds.run",
+        "resume": "metaflow.cli_components.run_cmds.resume",
+    },
+)
 def cli(ctx):
     pass
 
@@ -155,7 +148,13 @@ def cli(ctx):
 )
 @click.pass_obj
 def check(obj, warnings=False):
-    _check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint, warnings=warnings)
+    if obj.is_quiet:
+        echo = echo_dev_null
+    else:
+        echo = echo_always
+    _check(
+        echo, obj.graph, obj.flow, obj.environment, pylint=obj.pylint, warnings=warnings
+    )
     fname = inspect.getfile(obj.flow.__class__)
     echo(
         "\n*'{cmd} show'* shows a description of this flow.\n"
@@ -221,671 +220,32 @@ def output_dot(obj):
     echo_always(obj.graph.output_dot(), err=False)
 
 
-@cli.command(
-    help="Get data artifacts of a task or all tasks in a step. "
-    "The format for input-path is either <run_id>/<step_name> or "
-    "<run_id>/<step_name>/<task_id>."
-)
-@click.argument("input-path")
-@click.option(
-    "--private/--no-private",
-    default=False,
-    show_default=True,
-    help="Show also private attributes.",
-)
-@click.option(
-    "--max-value-size",
-    default=1000,
-    show_default=True,
-    type=int,
-    help="Show only values that are smaller than this number. "
-    "Set to 0 to see only keys.",
-)
-@click.option(
-    "--include",
-    type=str,
-    default="",
-    help="Include only artifacts in the given comma-separated list.",
-)
-@click.option(
-    "--file", type=str, default=None, help="Serialize artifacts in the given file."
-)
-@click.pass_obj
-def dump(obj, input_path, private=None, max_value_size=None, include=None, file=None):
-    output = {}
-    kwargs = {
-        "show_private": private,
-        "max_value_size": max_value_size,
-        "include": {t for t in include.split(",") if t},
-    }
-
-    # Pathspec can either be run_id/step_name or run_id/step_name/task_id.
-    parts = input_path.split("/")
-    if len(parts) == 2:
-        run_id, step_name = parts
-        task_id = None
-    elif len(parts) == 3:
-        run_id, step_name, task_id = parts
-    else:
-        raise CommandException(
-            "input_path should either be run_id/step_name or run_id/step_name/task_id"
-        )
-
-    datastore_set = TaskDataStoreSet(
-        obj.flow_datastore,
-        run_id,
-        steps=[step_name],
-        prefetch_data_artifacts=kwargs.get("include"),
-    )
-    if task_id:
-        ds_list = [datastore_set.get_with_pathspec(input_path)]
-    else:
-        ds_list = list(datastore_set)  # get all tasks
-
-    for ds in ds_list:
-        echo(
-            "Dumping output of run_id=*{run_id}* "
-            "step=*{step}* task_id=*{task_id}*".format(
-                run_id=ds.run_id, step=ds.step_name, task_id=ds.task_id
-            ),
-            fg="magenta",
-        )
-
-        if file is None:
-            echo_always(
-                ds.format(**kwargs), highlight="green", highlight_bold=False, err=False
-            )
-        else:
-            output[ds.pathspec] = ds.to_dict(**kwargs)
-
-    if file is not None:
-        with open(file, "wb") as f:
-            pickle.dump(output, f, protocol=pickle.HIGHEST_PROTOCOL)
-        echo("Artifacts written to *%s*" % file)
-
-
-# TODO - move step and init under a separate 'internal' subcommand
-
-
-@cli.command(help="Internal command to execute a single task.", hidden=True)
-@click.argument("step-name")
-@click.option(
-    "--run-id",
-    default=None,
-    required=True,
-    help="ID for one execution of all steps in the flow.",
-)
-@click.option(
-    "--task-id",
-    default=None,
-    required=True,
-    show_default=True,
-    help="ID for this instance of the step.",
-)
-@click.option(
-    "--input-paths",
-    help="A comma-separated list of pathspecs specifying inputs for this step.",
-)
-@click.option(
-    "--input-paths-filename",
-    type=click.Path(exists=True, readable=True, dir_okay=False, resolve_path=True),
-    help="A filename containing the argument typically passed to `input-paths`",
-    hidden=True,
-)
-@click.option(
-    "--split-index",
-    type=int,
-    default=None,
-    show_default=True,
-    help="Index of this foreach split.",
-)
-@click.option(
-    "--tag",
-    "opt_tag",
-    multiple=True,
-    default=None,
-    help="Annotate this run with the given tag. You can specify "
-    "this option multiple times to attach multiple tags in "
-    "the task.",
-)
-@click.option(
-    "--namespace",
-    "opt_namespace",
-    default=None,
-    help="Change namespace from the default (your username) to the specified tag.",
-)
-@click.option(
-    "--retry-count",
-    default=0,
-    help="How many times we have attempted to run this task.",
-)
-@click.option(
-    "--max-user-code-retries",
-    default=0,
-    help="How many times we should attempt running the user code.",
-)
-@click.option(
-    "--clone-only",
-    default=None,
-    help="Pathspec of the origin task for this task to clone. Do "
-    "not execute anything.",
-)
-@click.option(
-    "--clone-run-id",
-    default=None,
-    help="Run id of the origin flow, if this task is part of a flow being resumed.",
-)
-@click.option(
-    "--with",
-    "decospecs",
-    multiple=True,
-    help="Add a decorator to this task. You can specify this "
-    "option multiple times to attach multiple decorators "
-    "to this task.",
-)
-@click.option(
-    "--ubf-context",
-    default="none",
-    type=click.Choice(["none", UBF_CONTROL, UBF_TASK]),
-    help="Provides additional context if this task is of type unbounded foreach.",
-)
-@click.option(
-    "--num-parallel",
-    default=0,
-    type=int,
-    help="Number of parallel instances of a step. Ignored in local mode (see parallel decorator code).",
-)
-@click.pass_context
-def step(
-    ctx,
-    step_name,
-    opt_tag=None,
-    run_id=None,
-    task_id=None,
-    input_paths=None,
-    input_paths_filename=None,
-    split_index=None,
-    opt_namespace=None,
-    retry_count=None,
-    max_user_code_retries=None,
-    clone_only=None,
-    clone_run_id=None,
-    decospecs=None,
-    ubf_context="none",
-    num_parallel=None,
-):
-    if ubf_context == "none":
-        ubf_context = None
-    if opt_namespace is not None:
-        namespace(opt_namespace or None)
-
-    func = None
-    try:
-        func = getattr(ctx.obj.flow, step_name)
-    except:
-        raise CommandException("Step *%s* doesn't exist." % step_name)
-    if not func.is_step:
-        raise CommandException("Function *%s* is not a step." % step_name)
-    echo("Executing a step, *%s*" % step_name, fg="magenta", bold=False)
-
-    if decospecs:
-        decorators._attach_decorators_to_step(func, decospecs)
-
-    step_kwargs = ctx.params
-    # Remove argument `step_name` from `step_kwargs`.
-    step_kwargs.pop("step_name", None)
-    # Remove `opt_*` prefix from (some) option keys.
-    step_kwargs = dict(
-        [(k[4:], v) if k.startswith("opt_") else (k, v) for k, v in step_kwargs.items()]
-    )
-    cli_args._set_step_kwargs(step_kwargs)
-
-    ctx.obj.metadata.add_sticky_tags(tags=opt_tag)
-    if not input_paths and input_paths_filename:
-        with open(input_paths_filename, mode="r", encoding="utf-8") as f:
-            input_paths = f.read().strip(" \n\"'")
-
-    paths = decompress_list(input_paths) if input_paths else []
-
-    task = MetaflowTask(
-        ctx.obj.flow,
-        ctx.obj.flow_datastore,
-        ctx.obj.metadata,
-        ctx.obj.environment,
-        ctx.obj.echo,
-        ctx.obj.event_logger,
-        ctx.obj.monitor,
-        ubf_context,
-    )
-    if clone_only:
-        task.clone_only(
-            step_name,
-            run_id,
-            task_id,
-            clone_only,
-            retry_count,
-        )
-    else:
-        task.run_step(
-            step_name,
-            run_id,
-            task_id,
-            clone_run_id,
-            paths,
-            split_index,
-            retry_count,
-            max_user_code_retries,
-        )
-
-    echo("Success", fg="green", bold=True, indent=True)
-
-
-@parameters.add_custom_parameters(deploy_mode=False)
-@cli.command(help="Internal command to initialize a run.", hidden=True)
-@click.option(
-    "--run-id",
-    default=None,
-    required=True,
-    help="ID for one execution of all steps in the flow.",
-)
-@click.option(
-    "--task-id", default=None, required=True, help="ID for this instance of the step."
-)
-@click.option(
-    "--tag",
-    "tags",
-    multiple=True,
-    default=None,
-    help="Tags for this instance of the step.",
-)
-@click.pass_obj
-def init(obj, run_id=None, task_id=None, tags=None, **kwargs):
-    # init is a separate command instead of an option in 'step'
-    # since we need to capture user-specified parameters with
-    # @add_custom_parameters. Adding custom parameters to 'step'
-    # is not desirable due to the possibility of name clashes between
-    # user-specified parameters and our internal options. Note that
-    # user-specified parameters are often defined as environment
-    # variables.
-
-    obj.metadata.add_sticky_tags(tags=tags)
-
-    runtime = NativeRuntime(
-        obj.flow,
-        obj.graph,
-        obj.flow_datastore,
-        obj.metadata,
-        obj.environment,
-        obj.package,
-        obj.logger,
-        obj.entrypoint,
-        obj.event_logger,
-        obj.monitor,
-        run_id=run_id,
-    )
-    obj.flow._set_constants(obj.graph, kwargs)
-    runtime.persist_constants(task_id=task_id)
-
-
-def common_run_options(func):
-    @click.option(
-        "--tag",
-        "tags",
-        multiple=True,
-        default=None,
-        help="Annotate this run with the given tag. You can specify "
-        "this option multiple times to attach multiple tags in "
-        "the run.",
-    )
-    @click.option(
-        "--max-workers",
-        default=16,
-        show_default=True,
-        help="Maximum number of parallel processes.",
-    )
-    @click.option(
-        "--max-num-splits",
-        default=100,
-        show_default=True,
-        help="Maximum number of splits allowed in a foreach. This "
-        "is a safety check preventing bugs from triggering "
-        "thousands of steps inadvertently.",
-    )
-    @click.option(
-        "--max-log-size",
-        default=10,
-        show_default=True,
-        help="Maximum size of stdout and stderr captured in "
-        "megabytes. If a step outputs more than this to "
-        "stdout/stderr, its output will be truncated.",
-    )
-    @click.option(
-        "--with",
-        "decospecs",
-        multiple=True,
-        help="Add a decorator to all steps. You can specify this "
-        "option multiple times to attach multiple decorators "
-        "in steps.",
-    )
-    @click.option(
-        "--run-id-file",
-        default=None,
-        show_default=True,
-        type=str,
-        help="Write the ID of this run to the file specified.",
-    )
-    @click.option(
-        "--runner-attribute-file",
-        default=None,
-        show_default=True,
-        type=str,
-        help="Write the metadata and pathspec of this run to the file specified. Used internally for Metaflow's Runner API.",
-    )
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        return func(*args, **kwargs)
-
-    return wrapper
-
-
-@click.option(
-    "--origin-run-id",
-    default=None,
-    help="ID of the run that should be resumed. By default, the "
-    "last run executed locally.",
-)
-@click.option(
-    "--run-id",
-    default=None,
-    help="Run ID for the new run. By default, a new run-id will be generated",
-    hidden=True,
-)
-@click.option(
-    "--clone-only/--no-clone-only",
-    default=False,
-    show_default=True,
-    help="Only clone tasks without continuing execution",
-    hidden=True,
-)
-@click.option(
-    "--reentrant/--no-reentrant",
-    default=False,
-    show_default=True,
-    hidden=True,
-    help="If specified, allows this call to be called in parallel",
-)
-@click.option(
-    "--resume-identifier",
-    default=None,
-    show_default=True,
-    hidden=True,
-    help="If specified, it identifies the task that started this resume call. It is in the form of {step_name}-{task_id}",
-)
-@click.argument("step-to-rerun", required=False)
-@cli.command(help="Resume execution of a previous run of this flow.")
-@common_run_options
-@click.pass_obj
-def resume(
-    obj,
-    tags=None,
-    step_to_rerun=None,
-    origin_run_id=None,
-    run_id=None,
-    clone_only=False,
-    reentrant=False,
-    max_workers=None,
-    max_num_splits=None,
-    max_log_size=None,
-    decospecs=None,
-    run_id_file=None,
-    resume_identifier=None,
-    runner_attribute_file=None,
-):
-    before_run(obj, tags, decospecs)
-
-    if origin_run_id is None:
-        origin_run_id = get_latest_run_id(obj.echo, obj.flow.name)
-        if origin_run_id is None:
-            raise CommandException(
-                "A previous run id was not found. Specify --origin-run-id."
-            )
-
-    if step_to_rerun is None:
-        steps_to_rerun = set()
-    else:
-        # validate step name
-        if step_to_rerun not in obj.graph.nodes:
-            raise CommandException(
-                "invalid step name {0} specified, must be step present in "
-                "current form of execution graph. Valid step names include: {1}".format(
-                    step_to_rerun, ",".join(list(obj.graph.nodes.keys()))
-                )
-            )
-        steps_to_rerun = {step_to_rerun}
-
-    if run_id:
-        # Run-ids that are provided by the metadata service are always integers.
-        # External providers or run-ids (like external schedulers) always need to
-        # be non-integers to avoid any clashes. This condition ensures this.
-        try:
-            int(run_id)
-        except:
-            pass
-        else:
-            raise CommandException("run-id %s cannot be an integer" % run_id)
-
-    runtime = NativeRuntime(
-        obj.flow,
-        obj.graph,
-        obj.flow_datastore,
-        obj.metadata,
-        obj.environment,
-        obj.package,
-        obj.logger,
-        obj.entrypoint,
-        obj.event_logger,
-        obj.monitor,
-        run_id=run_id,
-        clone_run_id=origin_run_id,
-        clone_only=clone_only,
-        reentrant=reentrant,
-        steps_to_rerun=steps_to_rerun,
-        max_workers=max_workers,
-        max_num_splits=max_num_splits,
-        max_log_size=max_log_size * 1024 * 1024,
-        resume_identifier=resume_identifier,
-    )
-    write_file(run_id_file, runtime.run_id)
-    runtime.print_workflow_info()
-
-    runtime.persist_constants()
-
-    if runner_attribute_file:
-        with open(runner_attribute_file, "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "run_id": runtime.run_id,
-                    "flow_name": obj.flow.name,
-                    "metadata": obj.metadata.metadata_str(),
-                },
-                f,
-            )
-
-    # We may skip clone-only resume if this is not a resume leader,
-    # and clone is already complete.
-    if runtime.should_skip_clone_only_execution():
-        return
-
-    current._update_env(
-        {
-            "run_id": runtime.run_id,
-        }
-    )
-    _system_logger.log_event(
-        level="info",
-        module="metaflow.resume",
-        name="start",
-        payload={
-            "msg": "Resuming run",
-        },
-    )
-
-    with runtime.run_heartbeat():
-        if clone_only:
-            runtime.clone_original_run()
-        else:
-            runtime.clone_original_run(generate_task_obj=True, verbose=False)
-            runtime.execute()
-
-
-@tracing.cli_entrypoint("cli/run")
-@parameters.add_custom_parameters(deploy_mode=True)
-@cli.command(help="Run the workflow locally.")
-@common_run_options
-@click.option(
-    "--namespace",
-    "user_namespace",
-    default=None,
-    help="Change namespace from the default (your username) to "
-    "the specified tag. Note that this option does not alter "
-    "tags assigned to the objects produced by this run, just "
-    "what existing objects are visible in the client API. You "
-    "can enable the global namespace with an empty string."
-    "--namespace=",
-)
-@click.pass_obj
-def run(
-    obj,
-    tags=None,
-    max_workers=None,
-    max_num_splits=None,
-    max_log_size=None,
-    decospecs=None,
-    run_id_file=None,
-    runner_attribute_file=None,
-    user_namespace=None,
-    **kwargs
-):
-    if user_namespace is not None:
-        namespace(user_namespace or None)
-    before_run(obj, tags, decospecs)
-
-    runtime = NativeRuntime(
-        obj.flow,
-        obj.graph,
-        obj.flow_datastore,
-        obj.metadata,
-        obj.environment,
-        obj.package,
-        obj.logger,
-        obj.entrypoint,
-        obj.event_logger,
-        obj.monitor,
-        max_workers=max_workers,
-        max_num_splits=max_num_splits,
-        max_log_size=max_log_size * 1024 * 1024,
-    )
-    write_latest_run_id(obj, runtime.run_id)
-    write_file(run_id_file, runtime.run_id)
-
-    obj.flow._set_constants(obj.graph, kwargs)
-    current._update_env(
-        {
-            "run_id": runtime.run_id,
-        }
-    )
-    _system_logger.log_event(
-        level="info",
-        module="metaflow.run",
-        name="start",
-        payload={
-            "msg": "Starting run",
-        },
-    )
-    with runtime.run_heartbeat():
-        runtime.print_workflow_info()
-        runtime.persist_constants()
-
-        if runner_attribute_file:
-            with open(runner_attribute_file, "w", encoding="utf-8") as f:
-                json.dump(
-                    {
-                        "run_id": runtime.run_id,
-                        "flow_name": obj.flow.name,
-                        "metadata": obj.metadata.metadata_str(),
-                    },
-                    f,
-                )
-        runtime.execute()
-
-
-def write_file(file_path, content):
-    if file_path is not None:
-        with open(file_path, "w") as f:
-            f.write(str(content))
-
-
-def before_run(obj, tags, decospecs):
-    validate_tags(tags)
-
-    # There's a --with option both at the top-level and for the run
-    # subcommand. Why?
-    #
-    # "run --with shoes" looks so much better than "--with shoes run".
-    # This is a very common use case of --with.
-    #
-    # A downside is that we need to have the following decorators handling
-    # in two places in this module and make sure _init_step_decorators
-    # doesn't get called twice.
-
-    # We want the order to be the following:
-    # - run level decospecs
-    # - top level decospecs
-    # - environment decospecs
-    all_decospecs = (
-        list(decospecs or [])
-        + obj.tl_decospecs
-        + list(obj.environment.decospecs() or [])
-    )
-    if all_decospecs:
-        decorators._attach_decorators(obj.flow, all_decospecs)
-        obj.graph = FlowGraph(obj.flow.__class__)
-
-    obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
-    # obj.environment.init_environment(obj.logger)
-
-    decorators._init_step_decorators(
-        obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
-    )
-
-    obj.metadata.add_sticky_tags(tags=tags)
-
-    # Package working directory only once per run.
-    # We explicitly avoid doing this in `start` since it is invoked for every
-    # step in the run.
-    obj.package = MetaflowPackage(
-        obj.flow, obj.environment, obj.echo, obj.package_suffixes
-    )
-
-
 @cli.command(help="Print the Metaflow version")
 @click.pass_obj
 def version(obj):
     echo_always(obj.version)
 
 
-@tracing.cli_entrypoint("cli/start")
+# NOTE: add_decorator_options should be TL because it checks to make sure
+# that no option conflict with the ones below
 @decorators.add_decorator_options
+@config_options
 @click.command(
-    cls=click.CommandCollection,
-    sources=[cli] + plugins.get_plugin_cli(),
+    cls=LazyPluginCommandCollection,
+    sources=[cli],
+    lazy_sources=plugins.get_plugin_cli_path(),
     invoke_without_command=True,
 )
+@tracing.cli_entrypoint("cli/start")
+# Quiet is eager to make sure it is available when processing --config options since
+# we need it to construct a context to pass to any DeployTimeField for the default
+# value.
 @click.option(
     "--quiet/--not-quiet",
     show_default=True,
     default=False,
     help="Suppress unnecessary messages",
+    is_eager=True,
 )
 @click.option(
     "--metadata",
@@ -901,12 +261,14 @@ def version(obj):
     type=click.Choice(["local"] + [m.TYPE for m in ENVIRONMENTS]),
     help="Execution environment type",
 )
+# See comment for --quiet
 @click.option(
     "--datastore",
     default=DEFAULT_DATASTORE,
     show_default=True,
     type=click.Choice([d.TYPE for d in DATASTORES]),
     help="Data backend type",
+    is_eager=True,
 )
 @click.option("--datastore-root", help="Root path for datastore")
 @click.option(
@@ -943,6 +305,15 @@ def version(obj):
     type=click.Choice(MONITOR_SIDECARS),
     help="Monitoring backend type",
 )
+@click.option(
+    "--local-config-file",
+    type=LocalFileInput(exists=True, readable=True, dir_okay=False, resolve_path=True),
+    required=False,
+    default=None,
+    help="A filename containing the dumped configuration values. Internal use only.",
+    hidden=True,
+    is_eager=True,
+)
 @click.pass_context
 def start(
     ctx,
@@ -956,9 +327,11 @@ def start(
     pylint=None,
     event_logger=None,
     monitor=None,
+    local_config_file=None,
+    config_file_options=None,
+    config_value_options=None,
     **deco_options
 ):
-    global echo
     if quiet:
         echo = echo_dev_null
     else:
@@ -973,17 +346,27 @@ def start(
     echo(" executing *%s*" % ctx.obj.flow.name, fg="magenta", nl=False)
     echo(" for *%s*" % resolve_identity(), fg="magenta")
 
+    # At this point, we are able to resolve the user-configuration options so we can
+    # process all those decorators that the user added that will modify the flow based
+    # on those configurations. It is important to do this as early as possible since it
+    # actually modifies the flow itself
+
+    # When we process the options, the first one processed will return None and the
+    # second one processed will return the actual options. The order of processing
+    # depends on what (and in what order) the user specifies on the command line.
+    config_options = config_file_options or config_value_options
+    ctx.obj.flow = ctx.obj.flow._process_config_decorators(config_options)
+
     cli_args._set_top_kwargs(ctx.params)
     ctx.obj.echo = echo
     ctx.obj.echo_always = echo_always
     ctx.obj.is_quiet = quiet
-    ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
+    ctx.obj.graph = ctx.obj.flow._graph
     ctx.obj.logger = logger
-    ctx.obj.check = _check
     ctx.obj.pylint = pylint
+    ctx.obj.check = functools.partial(_check, echo)
     ctx.obj.top_cli = cli
     ctx.obj.package_suffixes = package_suffixes.split(",")
-    ctx.obj.reconstruct_cli = _reconstruct_cli
 
     ctx.obj.environment = [
         e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == environment
@@ -1029,6 +412,10 @@ def start(
         ctx.obj.monitor,
     )
 
+    ctx.obj.config_options = config_options
+
+    decorators._init(ctx.obj.flow)
+
     # It is important to initialize flow decorators early as some of the
     # things they provide may be used by some of the objects initialized after.
     decorators._init_flow_decorators(
@@ -1051,10 +438,22 @@ def start(
     # initialize current and parameter context for deploy-time parameters
     current._set_env(flow=ctx.obj.flow, is_running=False)
     parameters.set_parameter_context(
-        ctx.obj.flow.name, ctx.obj.echo, ctx.obj.flow_datastore
+        ctx.obj.flow.name,
+        ctx.obj.echo,
+        ctx.obj.flow_datastore,
+        {
+            k: ConfigValue(v)
+            for k, v in ctx.obj.flow.__class__._flow_state.get(
+                _FlowState.CONFIGS, {}
+            ).items()
+        },
     )
 
-    if ctx.invoked_subcommand not in ("run", "resume"):
+    if (
+        hasattr(ctx, "saved_args")
+        and ctx.saved_args
+        and ctx.saved_args[0] not in ("run", "resume")
+    ):
         # run/resume are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.
         all_decospecs = ctx.obj.tl_decospecs + list(
@@ -1062,6 +461,7 @@ def start(
         )
         if all_decospecs:
             decorators._attach_decorators(ctx.obj.flow, all_decospecs)
+            decorators._init(ctx.obj.flow, only_non_static=True)
             # Regenerate graph if we attached more decorators
             ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
 
@@ -1075,25 +475,12 @@ def start(
 
         # TODO (savin): Enable lazy instantiation of package
         ctx.obj.package = None
+
     if ctx.invoked_subcommand is None:
         ctx.invoke(check)
 
 
-def _reconstruct_cli(params):
-    for k, v in params.items():
-        if v:
-            if k == "decospecs":
-                k = "with"
-            k = k.replace("_", "-")
-            if not isinstance(v, tuple):
-                v = [v]
-            for value in v:
-                yield "--%s" % k
-                if not isinstance(value, bool):
-                    yield str(value)
-
-
-def _check(graph, flow, environment, pylint=True, warnings=False, **kwargs):
+def _check(echo, graph, flow, environment, pylint=True, warnings=False, **kwargs):
     echo("Validating your flow...", fg="magenta", bold=False)
     linter = lint.linter
     # TODO set linter settings

@@ -55,6 +55,17 @@ class CondaStepDecorator(StepDecorator):
         )
         super(CondaStepDecorator, self).__init__(attributes, statically_defined)
 
+    def init(self):
+        super(CondaStepDecorator, self).init()
+
+        # We have to go back and fixup _user_defined_attributes for potential
+        # config resolution
+        self._user_defined_attributes = {
+            k: v
+            for k, v in self.attributes.items()
+            if k in self._user_defined_attributes
+        }
+
         # Support legacy 'libraries=' attribute for the decorator.
         self.attributes["packages"] = {
             **self.attributes["libraries"],
@@ -337,6 +348,17 @@ class CondaFlowDecorator(FlowDecorator):
             attributes.copy() if attributes is not None else {}
         )
         super(CondaFlowDecorator, self).__init__(attributes, statically_defined)
+
+    def init(self):
+        super(CondaFlowDecorator, self).init()
+
+        # We have to go back and fixup _user_defined_attributes for potential
+        # config resolution
+        self._user_defined_attributes = {
+            k: v
+            for k, v in self.attributes.items()
+            if k in self._user_defined_attributes
+        }
 
         # Support legacy 'libraries=' attribute for the decorator.
         self.attributes["packages"] = {

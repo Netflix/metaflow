@@ -103,6 +103,9 @@ from .flowspec import FlowSpec
 
 from .parameters import Parameter, JSONTypeClass, JSONType
 
+from .user_configs.config_parameters import Config, config_expr
+from .user_configs.config_decorators import CustomFlowDecorator, CustomStepDecorator
+
 # data layer
 # For historical reasons, we make metaflow.plugins.datatools accessible as
 # metaflow.datatools. S3 is also a tool that has historically been available at the

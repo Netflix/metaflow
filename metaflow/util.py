@@ -296,6 +296,9 @@ def get_metaflow_root():
 
 
 def dict_to_cli_options(params):
+    # Prevent circular imports
+    from .user_configs.config_options import ConfigInput
+
     for k, v in params.items():
         # Omit boolean options set to false or None, but preserve options with an empty
         # string argument.
@@ -304,6 +307,20 @@ def dict_to_cli_options(params):
             # keyword in Python, so we call it 'decospecs' in click args
             if k == "decospecs":
                 k = "with"
+            if k in ("config_file_options", "config_value_options"):
+                # Special handling here since we gather them all in one option but actually
+                # need to send them one at a time using --config-value <name> kv.<name>
+                # Note it can be either config_file_options or config_value_options depending
+                # on click processing order.
+                for config_name in v.keys():
+                    yield "--config-value"
+                    yield to_unicode(config_name)
+                    yield to_unicode(ConfigInput.make_key_name(config_name))
+                continue
+            if k == "local_config_file":
+                # Skip this value -- it should only be used locally and never when
+                # forming another command line
+                continue
             k = k.replace("_", "-")
             v = v if isinstance(v, (list, tuple, set)) else [v]
             for value in v:

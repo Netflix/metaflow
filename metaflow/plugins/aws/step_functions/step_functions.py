@@ -18,6 +18,7 @@ from metaflow.metaflow_config import (
     SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH,
 )
 from metaflow.parameters import deploy_time_eval
+from metaflow.user_configs.config_options import ConfigInput
 from metaflow.util import dict_to_cli_options, to_pascalcase
 
 from ..batch.batch import Batch
@@ -71,6 +72,7 @@ class StepFunctions(object):
         self.username = username
         self.max_workers = max_workers
         self.workflow_timeout = workflow_timeout
+        self.config_parameters = self._process_config_parameters()
 
         # https://aws.amazon.com/blogs/aws/step-functions-distributed-map-a-serverless-solution-for-large-scale-parallel-data-processing/
         self.use_distributed_map = use_distributed_map
@@ -485,6 +487,10 @@ class StepFunctions(object):
                     "case-insensitive." % param.name
                 )
             seen.add(norm)
+            # NOTE: We skip config parameters as these do not have dynamic values,
+            # and need to be treated differently.
+            if param.IS_CONFIG_PARAMETER:
+                continue
 
             is_required = param.kwargs.get("required", False)
             # Throw an exception if a schedule is set for a flow with required
@@ -499,6 +505,27 @@ class StepFunctions(object):
                 )
             value = deploy_time_eval(param.kwargs.get("default"))
             parameters.append(dict(name=param.name, value=value))
+        return parameters
+
+    def _process_config_parameters(self):
+        parameters = []
+        seen = set()
+        for var, param in self.flow._get_parameters():
+            if not param.IS_CONFIG_PARAMETER:
+                continue
+            # Throw an exception if the parameter is specified twice.
+            norm = param.name.lower()
+            if norm in seen:
+                raise MetaflowException(
+                    "Parameter *%s* is specified twice. "
+                    "Note that parameter names are "
+                    "case-insensitive." % param.name
+                )
+            seen.add(norm)
+
+            parameters.append(
+                dict(name=param.name, kv_name=ConfigInput.make_key_name(param.name))
+            )
         return parameters
 
     def _batch(self, node):
@@ -746,6 +773,11 @@ class StepFunctions(object):
         metaflow_version["flow_name"] = self.graph.name
         metaflow_version["production_token"] = self.production_token
         env["METAFLOW_VERSION"] = json.dumps(metaflow_version)
+
+        # map config values
+        cfg_env = {param["name"]: param["kv_name"] for param in self.config_parameters}
+        if cfg_env:
+            env["METAFLOW_FLOW_CONFIG_VALUE"] = json.dumps(cfg_env)
 
         # Set AWS DynamoDb Table Name for state tracking for for-eaches.
         # There are three instances when metaflow runtime directly interacts

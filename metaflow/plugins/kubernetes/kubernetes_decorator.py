@@ -151,8 +151,8 @@ class KubernetesDecorator(StepDecorator):
     supports_conda_environment = True
     target_platform = "linux-64"
 
-    def __init__(self, attributes=None, statically_defined=False):
-        super(KubernetesDecorator, self).__init__(attributes, statically_defined)
+    def init(self):
+        super(KubernetesDecorator, self).init()
 
         if not self.attributes["namespace"]:
             self.attributes["namespace"] = KUBERNETES_NAMESPACE

@@ -9,6 +9,7 @@ if sys.version_info < (3, 7):
     )
 
 import datetime
+import functools
 import importlib
 import inspect
 import itertools
@@ -38,6 +39,7 @@ from metaflow.decorators import add_decorator_options
 from metaflow.exception import MetaflowException
 from metaflow.includefile import FilePathClass
 from metaflow.parameters import JSONTypeClass, flow_context
+from metaflow.user_configs.config_options import LocalFileInput
 
 # Define a recursive type alias for JSON
 JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
@@ -55,6 +57,7 @@ click_to_python_types = {
     File: str,
     JSONTypeClass: JSON,
     FilePathClass: str,
+    LocalFileInput: str,
 }
 
 
@@ -124,6 +127,37 @@ def _method_sanity_check(
     return method_params
 
 
+def _lazy_load_command(
+    cli_collection: click.Group,
+    flow_parameters: Union[str, List[Parameter]],
+    _self,
+    name: str,
+):
+
+    # Context is not used in get_command so we can pass None. Since we pin click,
+    # this won't change from under us.
+
+    if isinstance(flow_parameters, str):
+        # Resolve flow_parameters -- for start, this is a function which we
+        # need to call to figure out the actual parameters (may be changed by configs)
+        flow_parameters = getattr(_self, flow_parameters)()
+    cmd_obj = cli_collection.get_command(None, name)
+    if cmd_obj:
+        if isinstance(cmd_obj, click.Group):
+            # TODO: possibly check for fake groups with cmd_obj.name in ["cli", "main"]
+            result = functools.partial(extract_group(cmd_obj, flow_parameters), _self)
+        elif isinstance(cmd_obj, click.Command):
+            result = functools.partial(extract_command(cmd_obj, flow_parameters), _self)
+        else:
+            raise RuntimeError(
+                "Cannot handle %s of type %s" % (cmd_obj.name, type(cmd_obj))
+            )
+        setattr(_self, name, result)
+        return result
+    else:
+        raise AttributeError()
+
+
 def get_annotation(param: Union[click.Argument, click.Option]):
     py_type = click_to_python_types[type(param.type)]
     if not param.required:
@@ -179,9 +213,11 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
 
 
 class MetaflowAPI(object):
-    def __init__(self, parent=None, **kwargs):
+    def __init__(self, parent=None, flow_cls=None, **kwargs):
         self._parent = parent
         self._chain = [{self._API_NAME: kwargs}]
+        self._flow_cls = flow_cls
+        self._cached_computed_parameters = None
 
     @property
     def parent(self):
@@ -200,23 +236,22 @@ class MetaflowAPI(object):
     @classmethod
     def from_cli(cls, flow_file: str, cli_collection: Callable) -> Callable:
         flow_cls = extract_flow_class_from_file(flow_file)
-        flow_parameters = [p for _, p in flow_cls._get_parameters()]
+
         with flow_context(flow_cls) as _:
             add_decorator_options(cli_collection)
 
-        class_dict = {"__module__": "metaflow", "_API_NAME": flow_file}
-        command_groups = cli_collection.sources
-        for each_group in command_groups:
-            for _, cmd_obj in each_group.commands.items():
-                if isinstance(cmd_obj, click.Group):
-                    # TODO: possibly check for fake groups with cmd_obj.name in ["cli", "main"]
-                    class_dict[cmd_obj.name] = extract_group(cmd_obj, flow_parameters)
-                elif isinstance(cmd_obj, click.Command):
-                    class_dict[cmd_obj.name] = extract_command(cmd_obj, flow_parameters)
-                else:
-                    raise RuntimeError(
-                        "Cannot handle %s of type %s" % (cmd_obj.name, type(cmd_obj))
-                    )
+        def getattr_wrapper(_self, name):
+            # Functools.partial do not automatically bind self (no __get__)
+            return _self._internal_getattr(_self, name)
+
+        class_dict = {
+            "__module__": "metaflow",
+            "_API_NAME": flow_file,
+            "_internal_getattr": functools.partial(
+                _lazy_load_command, cli_collection, "_compute_flow_parameters"
+            ),
+            "__getattr__": getattr_wrapper,
+        }
 
         to_return = type(flow_file, (MetaflowAPI,), class_dict)
         to_return.__name__ = flow_file
@@ -237,11 +272,11 @@ class MetaflowAPI(object):
                 defaults,
                 **kwargs,
             )
-            return to_return(parent=None, **method_params)
+            return to_return(parent=None, flow_cls=flow_cls, **method_params)
 
         m = _method
-        m.__name__ = cmd_obj.name
-        m.__doc__ = getattr(cmd_obj, "help", None)
+        m.__name__ = cli_collection.name
+        m.__doc__ = getattr(cli_collection, "help", None)
         m.__signature__ = inspect.signature(_method).replace(
             parameters=params_sigs.values()
         )
@@ -286,6 +321,25 @@ class MetaflowAPI(object):
                             components.append(str(v))
 
         return components
+
+    def _compute_flow_parameters(self):
+        if self._flow_cls is None or self._parent is not None:
+            raise RuntimeError(
+                "Computing flow-level parameters for a non start API. "
+                "Please report to the Metaflow team."
+            )
+        # TODO: We need to actually compute the new parameters (based on configs) which
+        # would involve processing the options at least partially. We will do this
+        # before GA but for now making it work for regular parameters
+        if self._cached_computed_parameters is not None:
+            return self._cached_computed_parameters
+        self._cached_computed_parameters = []
+        for _, param in self._flow_cls._get_parameters():
+            if param.IS_CONFIG_PARAMETER:
+                continue
+            param.init()
+            self._cached_computed_parameters.append(param)
+        return self._cached_computed_parameters
 
 
 def extract_all_params(cmd_obj: Union[click.Command, click.Group]):
@@ -351,7 +405,7 @@ def extract_group(cmd_obj: click.Group, flow_parameters: List[Parameter]) -> Cal
         method_params = _method_sanity_check(
             possible_arg_params, possible_opt_params, annotations, defaults, **kwargs
         )
-        return resulting_class(parent=_self, **method_params)
+        return resulting_class(parent=_self, flow_cls=None, **method_params)
 
     m = _method
     m.__name__ = cmd_obj.name
