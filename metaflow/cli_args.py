@@ -14,6 +14,7 @@
 # done in one place.
 
 from .util import to_unicode
+import json
 
 
 class CLIArgs(object):
@@ -55,7 +56,6 @@ class CLIArgs(object):
     @staticmethod
     def _options(mapping):
         for k, v in mapping.items():
-
             # None or False arguments are ignored
             # v needs to be explicitly False, not falsy, e.g. 0 is an acceptable value
             if v is None or v is False:
@@ -69,7 +69,9 @@ class CLIArgs(object):
             v = v if isinstance(v, (list, tuple, set)) else [v]
             for value in v:
                 yield "--%s" % k
-                if not isinstance(value, bool):
+                if isinstance(value, dict):
+                    yield json.dumps(value)
+                elif not isinstance(value, bool):
                     yield to_unicode(value)
 
 
