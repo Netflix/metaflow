@@ -876,6 +876,7 @@ def version(obj):
 
 @tracing.cli_entrypoint("cli/start")
 @decorators.add_decorator_options
+@decorators.add_step_decorator_options
 @click.command(
     cls=click.CommandCollection,
     sources=[cli] + plugins.get_plugin_cli(),
@@ -1041,6 +1042,8 @@ def start(
         echo,
         deco_options,
     )
+
+    decorators._inject_step_decorator_options(ctx.obj.flow, deco_options)
 
     # In the case of run/resume, we will want to apply the TL decospecs
     # *after* the run decospecs so that they don't take precedence. In other
