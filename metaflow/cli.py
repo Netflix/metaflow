@@ -838,17 +838,15 @@ def before_run(obj, tags, decospecs):
     # in two places in this module and make sure _init_step_decorators
     # doesn't get called twice.
 
-    # We want the order to be the following:
-    # - run level decospecs
-    # - top level decospecs
-    # - environment decospecs
-    all_decospecs = (
-        list(decospecs or [])
-        + obj.tl_decospecs
-        + list(obj.environment.decospecs() or [])
+    # decospecs have this precedence order:
+    # - run-level
+    # - top-level
+    # - environment
+    decospecs = (
+        list(decospecs or []) + obj.decospecs + list(obj.environment.decospecs() or [])
     )
-    if all_decospecs:
-        decorators._attach_decorators(obj.flow, all_decospecs)
+    if decospecs:
+        decorators._attach_decorators(obj.flow, decospecs)
         obj.graph = FlowGraph(obj.flow.__class__)
 
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
@@ -943,6 +941,12 @@ def version(obj):
     type=click.Choice(MONITOR_SIDECARS),
     help="Monitoring backend type",
 )
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    expose_value=True,
+    help="Set metadata & datastore to local",
+)
 @click.pass_context
 def start(
     ctx,
@@ -971,7 +975,13 @@ def start(
 
     echo("Metaflow %s" % version, fg="magenta", bold=True, nl=False)
     echo(" executing *%s*" % ctx.obj.flow.name, fg="magenta", nl=False)
-    echo(" for *%s*" % resolve_identity(), fg="magenta")
+    if ctx.params["dry_run"]:
+        # Set metadata & datastore to local for dry-run execution
+        # TODO: Consider setting monitor, tracer and logger to null too
+        ctx.params["metadata"] = metadata = "local"
+        ctx.params["datastore"] = datastore = "local"
+        echo(" in dry run mode", fg="magenta", nl=False)
+    echo(" for *%s* " % resolve_identity(), fg="magenta")
 
     cli_args._set_top_kwargs(ctx.params)
     ctx.obj.echo = echo
@@ -1042,11 +1052,9 @@ def start(
         deco_options,
     )
 
-    # In the case of run/resume, we will want to apply the TL decospecs
-    # *after* the run decospecs so that they don't take precedence. In other
-    # words, for the same decorator, we want `myflow.py run --with foo` to
-    # take precedence over any other `foo` decospec
-    ctx.obj.tl_decospecs = list(decospecs or [])
+    # run/resume can add more decorators with --with, which take precedence
+    # over any other decospecs
+    ctx.obj.decospecs = list(decospecs or [])
 
     # initialize current and parameter context for deploy-time parameters
     current._set_env(flow=ctx.obj.flow, is_running=False)
@@ -1057,11 +1065,9 @@ def start(
     if ctx.invoked_subcommand not in ("run", "resume"):
         # run/resume are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.
-        all_decospecs = ctx.obj.tl_decospecs + list(
-            ctx.obj.environment.decospecs() or []
-        )
-        if all_decospecs:
-            decorators._attach_decorators(ctx.obj.flow, all_decospecs)
+        decospecs = list(decospecs or []) + list(ctx.obj.environment.decospecs() or [])
+        if decospecs:
+            decorators._attach_decorators(ctx.obj.flow, decospecs)
             # Regenerate graph if we attached more decorators
             ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
 
