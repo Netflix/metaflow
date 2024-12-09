@@ -1,8 +1,12 @@
 import re
 from typing import Dict, List, Optional
-from metaflow.exception import CommandException
-from .kubernetes import KubernetesException
+from metaflow.exception import CommandException, MetaflowException
 from metaflow.util import get_username, get_latest_run_id
+
+
+# avoid circular import by having the exception class contained here
+class KubernetesException(MetaflowException):
+    headline = "Kubernetes error"
 
 
 def parse_cli_options(flow_name, run_id, user, my_runs, echo):
@@ -55,6 +59,8 @@ def qos_requests_and_limits(qos: str, cpu: int, memory: int, storage: int):
     # TODO: Add support for BestEffort once there is a use case for it.
     # BestEffort - no limit or requests for cpu/memory
     return qos_requests, qos_limits
+
+
 def validate_kube_labels_or_annotations(
     labels: Optional[Dict[str, Optional[str]]],
 ) -> bool:
