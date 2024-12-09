@@ -7,32 +7,32 @@ import shlex
 import time
 
 from metaflow import util
-from metaflow.plugins.datatools.s3.s3tail import S3Tail
-from metaflow.plugins.aws.aws_utils import sanitize_batch_tag
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     OTEL_ENDPOINT,
-    SERVICE_INTERNAL_URL,
-    DATATOOLS_S3ROOT,
-    DATASTORE_SYSROOT_S3,
-    DEFAULT_METADATA,
-    SERVICE_HEADERS,
+    AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    BATCH_DEFAULT_TAGS,
     BATCH_EMIT_TAGS,
     CARD_S3ROOT,
-    S3_ENDPOINT_URL,
+    DATASTORE_SYSROOT_S3,
+    DATATOOLS_S3ROOT,
+    DEFAULT_METADATA,
     DEFAULT_SECRETS_BACKEND_TYPE,
-    AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    S3_ENDPOINT_URL,
     S3_SERVER_SIDE_ENCRYPTION,
+    SERVICE_HEADERS,
+    SERVICE_INTERNAL_URL,
 )
-
 from metaflow.metaflow_config_funcs import config_values
-
 from metaflow.mflog import (
-    export_mflog_env_vars,
-    bash_capture_logs,
-    tail_logs,
     BASH_SAVE_LOGS,
+    bash_capture_logs,
+    export_mflog_env_vars,
+    tail_logs,
 )
+from metaflow.plugins.aws.aws_utils import sanitize_batch_tag
+from metaflow.plugins.datatools.s3.s3tail import S3Tail
+from metaflow.tagging_util import validate_tags, validate_aws_tag
 
 from .batch_client import BatchClient
 
@@ -64,7 +64,7 @@ class Batch(object):
             datastore_type="s3",
             stdout_path=STDOUT_PATH,
             stderr_path=STDERR_PATH,
-            **task_spec
+            **task_spec,
         )
         init_cmds = environment.get_package_commands(code_package_url, "s3")
         init_expr = " && ".join(init_cmds)
@@ -188,6 +188,8 @@ class Batch(object):
         host_volumes=None,
         efs_volumes=None,
         use_tmpfs=None,
+        tags=None,
+        step_function_tags=None,
         tmpfs_tempdir=None,
         tmpfs_size=None,
         tmpfs_path=None,
@@ -327,6 +329,41 @@ class Batch(object):
                 if key in attrs:
                     k, v = sanitize_batch_tag(key, attrs.get(key))
                     job.tag(k, v)
+
+            if not isinstance(BATCH_DEFAULT_TAGS, dict):
+                raise BatchException(
+                    "The BATCH_DEFAULT_TAGS config option must be a dictionary of key-value tags."
+                )
+            
+            for name, value in BATCH_DEFAULT_TAGS.items():
+                aws_tag = {'key': name, 'value': value}
+                validate_aws_tag(aws_tag)
+                job.tag(name, value)
+
+            if step_function_tags is not None:
+                aws_tags_list = []
+                for tag in step_function_tags:
+                    key_value = tag.split("=", 1)
+                    if len(key_value) == 2:
+                        aws_tags_list.append({
+                            'key': key_value[0],
+                            'value': key_value[1]
+                            })
+                for tag in aws_tags_list:
+                    validate_aws_tag(tag)
+                    job.tag(tag['key'], tag['value'])
+
+            if tags is not None:
+                if not isinstance(tags, dict):
+                    raise BatchException("tags must be a dictionary of key-value tags.")
+                decorator_aws_tags_list = [
+                    {'key': key,
+                        'value': val} for key, val in tags.items()
+                ]
+                for tag in decorator_aws_tags_list:
+                    validate_aws_tag(tag)
+                    job.tag(tag['key'], tag['value'])
+
         return job
 
     def launch_job(
@@ -353,6 +390,7 @@ class Batch(object):
         host_volumes=None,
         efs_volumes=None,
         use_tmpfs=None,
+        tags=None,
         tmpfs_tempdir=None,
         tmpfs_size=None,
         tmpfs_path=None,
@@ -395,6 +433,7 @@ class Batch(object):
             host_volumes=host_volumes,
             efs_volumes=efs_volumes,
             use_tmpfs=use_tmpfs,
+            tags=tags,
             tmpfs_tempdir=tmpfs_tempdir,
             tmpfs_size=tmpfs_size,
             tmpfs_path=tmpfs_path,
