@@ -110,7 +110,7 @@ def read_from_fifo_when_ready(
 
     poll = select.poll()
     poll.register(fifo_fd, select.POLLIN)
-
+    read_data = False
     while True:
         poll_begin = time.time()
         poll.poll(1000 * timeout)
@@ -119,6 +119,7 @@ def read_from_fifo_when_ready(
         try:
             data = os.read(fifo_fd, 8192)
             while data:
+                read_data = True
                 content += data
                 data = os.read(fifo_fd, 8192)
 
@@ -126,8 +127,10 @@ def read_from_fifo_when_ready(
             break
 
         except BlockingIOError:
-            # FIFO is open but no data is available yet
-            pass
+            if read_data:
+                break
+            # FIFO is open but no data is available yet (spurious POLLIN?)
+            # so we loop around to poll again
         finally:
             if timeout <= 0:
                 raise TimeoutError("Timeout while waiting for the file content")
