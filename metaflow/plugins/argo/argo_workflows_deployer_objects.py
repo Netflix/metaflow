@@ -97,6 +97,7 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
         )
 
         command_obj = self.deployer.spm.get(pid)
+        command_obj.sync_wait()
         return command_obj.process.returncode == 0
 
     def unsuspend(self, **kwargs) -> bool:
@@ -131,6 +132,7 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
         )
 
         command_obj = self.deployer.spm.get(pid)
+        command_obj.sync_wait()
         return command_obj.process.returncode == 0
 
     def terminate(self, **kwargs) -> bool:
@@ -165,6 +167,7 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
         )
 
         command_obj = self.deployer.spm.get(pid)
+        command_obj.sync_wait()
         return command_obj.process.returncode == 0
 
     @property
@@ -319,6 +322,7 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
         )
 
         command_obj = self.deployer.spm.get(pid)
+        command_obj.sync_wait()
         return command_obj.process.returncode == 0
 
     def trigger(self, **kwargs) -> ArgoWorkflowsTriggeredRun:
@@ -361,7 +365,7 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
             content = handle_timeout(
                 attribute_file_fd, command_obj, self.deployer.file_read_timeout
             )
-
+            command_obj.sync_wait()
             if command_obj.process.returncode == 0:
                 return ArgoWorkflowsTriggeredRun(
                     deployer=self.deployer, content=content

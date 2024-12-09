@@ -91,7 +91,7 @@ def read_from_fifo_when_ready(
     encoding : str, optional
         Encoding to use while reading the file, by default "utf-8".
     timeout : int, optional
-        Timeout for reading the file in milliseconds, by default 3600.
+        Timeout for reading the file in seconds, by default 3600.
 
     Returns
     -------
@@ -113,24 +113,24 @@ def read_from_fifo_when_ready(
 
     while True:
         poll_begin = time.time()
-        poll.poll(timeout)
-        timeout -= 1000 * (time.time() - poll_begin)
-
-        if timeout <= 0:
-            raise TimeoutError("Timeout while waiting for the file content")
+        poll.poll(1000 * timeout)
+        timeout -= time.time() - poll_begin
 
         try:
-            data = os.read(fifo_fd, 128)
+            data = os.read(fifo_fd, 8192)
             while data:
                 content += data
-                data = os.read(fifo_fd, 128)
+                data = os.read(fifo_fd, 8192)
 
             # Read from a non-blocking closed FIFO returns an empty byte array
             break
 
         except BlockingIOError:
             # FIFO is open but no data is available yet
-            continue
+            pass
+        finally:
+            if timeout <= 0:
+                raise TimeoutError("Timeout while waiting for the file content")
 
     if not content and check_process_exited(command_obj):
         raise CalledProcessError(command_obj.process.returncode, command_obj.command)
@@ -156,7 +156,7 @@ async def async_read_from_fifo_when_ready(
     encoding : str, optional
         Encoding to use while reading the file, by default "utf-8".
     timeout : int, optional
-        Timeout for reading the file in milliseconds, by default 3600.
+        Timeout for reading the file in seconds, by default 3600.
 
     Returns
     -------
@@ -206,7 +206,7 @@ def handle_timeout(
     command_obj : CommandManager
         Command manager object that encapsulates the running command details.
     file_read_timeout : int
-        Timeout for reading the file.
+        Timeout for reading the file, in seconds
 
     Returns
     -------
@@ -243,7 +243,7 @@ async def async_handle_timeout(
     command_obj : CommandManager
         Command manager object that encapsulates the running command details.
     file_read_timeout : int
-        Timeout for reading the file.
+        Timeout for reading the file, in seconds
 
     Returns
     -------

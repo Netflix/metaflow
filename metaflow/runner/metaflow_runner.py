@@ -221,7 +221,7 @@ class Runner(object):
         The directory to run the subprocess in; if not specified, the current
         directory is used.
     file_read_timeout : int, default 3600
-        The timeout until which we try to read the runner attribute file.
+        The timeout until which we try to read the runner attribute file (in seconds).
     **kwargs : Any
         Additional arguments that you would pass to `python myflow.py` before
         the `run` command.
@@ -326,6 +326,7 @@ class Runner(object):
                 show_output=self.show_output,
             )
             command_obj = self.spm.get(pid)
+            command_obj.sync_wait()
 
             return self.__get_executing_run(attribute_file_fd, command_obj)
 
@@ -357,6 +358,7 @@ class Runner(object):
                 show_output=self.show_output,
             )
             command_obj = self.spm.get(pid)
+            command_obj.sync_wait()
 
             return self.__get_executing_run(attribute_file_fd, command_obj)
 
