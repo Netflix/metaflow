@@ -17,6 +17,7 @@ from metaflow.metaflow_config import (
     BATCH_JOB_QUEUE,
     BATCH_CONTAINER_IMAGE,
     BATCH_CONTAINER_REGISTRY,
+    BATCH_CONTAINER_IMAGE_CREDS_SECRET,
     ECS_FARGATE_EXECUTION_ROLE,
     DATASTORE_LOCAL_DIR,
 )
@@ -51,6 +52,8 @@ class BatchDecorator(StepDecorator):
         Docker image to use when launching on AWS Batch. If not specified, and
         METAFLOW_BATCH_CONTAINER_IMAGE is specified, that image is used. If
         not, a default Docker image mapping to the current version of Python is used.
+    repo_creds_secret : str, optional, default None
+        Secret containing credentials if using a private image repository.
     queue : str, default METAFLOW_BATCH_JOB_QUEUE
         AWS Batch Job Queue to submit the job to.
     iam_role : str, default METAFLOW_ECS_S3_ACCESS_IAM_ROLE
@@ -105,6 +108,7 @@ class BatchDecorator(StepDecorator):
         "gpu": None,
         "memory": None,
         "image": None,
+        "repo_creds_secret": None,
         "queue": BATCH_JOB_QUEUE,
         "iam_role": ECS_S3_ACCESS_IAM_ROLE,
         "execution_role": ECS_FARGATE_EXECUTION_ROLE,
@@ -166,6 +170,12 @@ class BatchDecorator(StepDecorator):
                     BATCH_CONTAINER_REGISTRY.rstrip("/"),
                     self.attributes["image"],
                 )
+
+        if not self.attributes["repo_creds_secret"]:
+            if BATCH_CONTAINER_IMAGE_CREDS_SECRET:
+                self.attributes[
+                    "repo_creds_secret"
+                ] = BATCH_CONTAINER_IMAGE_CREDS_SECRET
 
         # Alias trainium to inferentia and check that both are not in use.
         if (
