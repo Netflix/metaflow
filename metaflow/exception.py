@@ -46,6 +46,22 @@ class MetaflowException(Exception):
     def __init__(self, msg="", lineno=None):
         self.message = msg
         self.line_no = lineno
+
+        # We can do this check only if a config like METAFLOW_LOG_EXCEPTIONS is set
+        from metaflow import current
+
+        if hasattr(current, "system_logger") and hasattr(current, "system_monitor"):
+            # Wait for the system logger and monitor to be initialized
+            from metaflow.system import _system_logger, _system_monitor
+
+            with _system_monitor.count("metaflow.exception"):
+                _system_logger.log_event(
+                    level="error",
+                    module="metaflow.exception",
+                    name=self.__class__.__name__,
+                    payload={"msg": msg},
+                )
+
         super(MetaflowException, self).__init__()
 
     def __str__(self):
