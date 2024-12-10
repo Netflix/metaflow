@@ -37,7 +37,7 @@ class DeployerImpl(object):
         The directory to run the subprocess in; if not specified, the current
         directory is used.
     file_read_timeout : int, default 3600
-        The timeout until which we try to read the deployer attribute file.
+        The timeout until which we try to read the deployer attribute file (in seconds).
     **kwargs : Any
         Additional arguments that you would pass to `python myflow.py` before
         the deployment command.
@@ -144,7 +144,7 @@ class DeployerImpl(object):
             # Additional info is used to pass additional deployer specific information.
             # It is used in non-OSS deployers (extensions).
             self.additional_info = content.get("additional_info", {})
-
+            command_obj.sync_wait()
             if command_obj.process.returncode == 0:
                 return create_class(deployer=self)
 
