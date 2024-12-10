@@ -542,6 +542,10 @@ def main(flow, args=None, handle_exceptions=True, entrypoint=None):
     # in py3.8 related to log buffering (bufsize=1).
     import warnings
 
+    print(f"=====I'm in outer cli with sys.path {sys.path}!=====")
+    import metaflow
+
+    print(f"This is the metaflow I'm using: {metaflow.__path__}")
     warnings.filterwarnings("ignore")
     if entrypoint is None:
         entrypoint = [sys.executable, sys.argv[0]]
