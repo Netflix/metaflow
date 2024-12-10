@@ -107,33 +107,47 @@ def read_from_fifo_when_ready(
         content to the FIFO.
     """
     content = bytearray()
-
     poll = select.poll()
     poll.register(fifo_fd, select.POLLIN)
-    read_data = False
+    max_timeout = 3  # Wait for 10 * 3 = 30 ms after last write
     while True:
+        if timeout < 0:
+            raise TimeoutError("Timeout while waiting for the file content")
+
         poll_begin = time.time()
-        poll.poll(1000 * timeout)
+        # We poll for a very short time to be also able to check if the file was closed
+        # If the file is closed, we assume that we only have one writer so if we have
+        # data, we break out. This is to work around issues in macos
+        events = poll.poll(min(10, timeout * 1000))
         timeout -= time.time() - poll_begin
 
         try:
             data = os.read(fifo_fd, 8192)
-            while data:
-                read_data = True
+            if data:
                 content += data
-                data = os.read(fifo_fd, 8192)
-
-            # Read from a non-blocking closed FIFO returns an empty byte array
-            break
-
+            else:
+                if len(events):
+                    # We read an EOF -- consider the file done
+                    break
+                else:
+                    # We had no events (just a timeout) and the read didn't return
+                    # an exception so the file is still open; we continue waiting for data
+                    # Unfortunately, on MacOS, it seems that even *after* the file is
+                    # closed on the other end, we still don't get a BlockingIOError so
+                    # we hack our way and timeout if there is no write in 30ms which is
+                    # a relative eternity for file writes.
+                    if content:
+                        if max_timeout <= 0:
+                            break
+                        max_timeout -= 1
+                        continue
         except BlockingIOError:
-            if read_data:
+            has_blocking_error = True
+            if content:
+                # The file was closed
                 break
-            # FIFO is open but no data is available yet (spurious POLLIN?)
-            # so we loop around to poll again
-        finally:
-            if timeout <= 0:
-                raise TimeoutError("Timeout while waiting for the file content")
+            # else, if we have no content, we continue waiting for the file to be open
+            # and written to.
 
     if not content and check_process_exited(command_obj):
         raise CalledProcessError(command_obj.process.returncode, command_obj.command)
