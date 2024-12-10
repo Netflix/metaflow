@@ -3,14 +3,17 @@ import sys
 import time
 import traceback
 
-from metaflow.plugins.kubernetes.kube_utils import parse_cli_options
+from metaflow.plugins.kubernetes.kube_utils import (
+    parse_cli_options,
+    parse_kube_keyvalue_list,
+)
 from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
 import metaflow.tracing as tracing
 from metaflow import JSONTypeClass, util
 from metaflow._vendor import click
 from metaflow.exception import METAFLOW_EXIT_DISALLOW_RETRY, MetaflowException
 from metaflow.metadata_provider.util import sync_local_metadata_from_datastore
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, KUBERNETES_LABELS
+from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.mflog import TASK_LOG_SOURCE
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 
@@ -18,7 +21,6 @@ from .kubernetes import (
     Kubernetes,
     KubernetesException,
     KubernetesKilledException,
-    parse_kube_keyvalue_list,
 )
 from .kubernetes_decorator import KubernetesDecorator
 
@@ -132,6 +134,18 @@ def kubernetes():
     type=str,
     help="Quality of Service class for the Kubernetes pod",
 )
+@click.option(
+    "--labels",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=False,
+)
+@click.option(
+    "--annotations",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=False,
+)
 @click.pass_context
 def step(
     ctx,
@@ -161,6 +175,8 @@ def step(
     port=None,
     num_parallel=None,
     qos=None,
+    labels=None,
+    annotations=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None, **kwargs):
@@ -302,6 +318,8 @@ def step(
                 port=port,
                 num_parallel=num_parallel,
                 qos=qos,
+                labels=labels,
+                annotations=annotations,
             )
     except Exception as e:
         traceback.print_exc(chain=False)
