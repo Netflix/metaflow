@@ -89,9 +89,10 @@ class CondaStepDecorator(StepDecorator):
                 **super_attributes["packages"],
                 **self.attributes["packages"],
             }
-            self._attributes_with_user_values = self._attributes_with_user_values.union(
+            self._attributes_with_user_values.update(
                 conda_base._attributes_with_user_values
             )
+
             self.attributes["python"] = (
                 self.attributes["python"] or super_attributes["python"]
             )

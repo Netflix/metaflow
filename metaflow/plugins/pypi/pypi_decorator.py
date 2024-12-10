@@ -43,7 +43,7 @@ class PyPIStepDecorator(StepDecorator):
         if "pypi_base" in self.flow._flow_decorators:
             pypi_base = self.flow._flow_decorators["pypi_base"][0]
             super_attributes = pypi_base.attributes
-            self._attributes_with_user_values = self._attributes_with_user_values.union(
+            self._attributes_with_user_values.update(
                 pypi_base._attributes_with_user_values
             )
             self.attributes["packages"] = {
