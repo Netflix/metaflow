@@ -46,6 +46,8 @@ class NBDeployer(object):
     base_dir : str, optional, default None
         The directory to run the subprocess in; if not specified, the current
         working directory is used.
+    file_read_timeout : int, default 3600
+        The timeout until which we try to read the deployer attribute file (in seconds).
     **kwargs : Any
         Additional arguments that you would pass to `python myflow.py` i.e. options
         listed in `python myflow.py --help`

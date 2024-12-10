@@ -120,6 +120,9 @@ class SubprocessManager(object):
         """
         Run a command synchronously and return its process ID.
 
+        Note: in no case does this wait for the process to *finish*. Use sync_wait()
+        to wait for the command to finish.
+
         Parameters
         ----------
         command : List[str]
@@ -145,7 +148,6 @@ class SubprocessManager(object):
         command_obj = CommandManager(command, env, cwd)
         pid = command_obj.run(show_output=show_output)
         self.commands[pid] = command_obj
-        command_obj.sync_wait()
         return pid
 
     async def async_run_command(

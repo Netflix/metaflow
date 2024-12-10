@@ -64,7 +64,7 @@ class Deployer(metaclass=DeployerMeta):
         The directory to run the subprocess in; if not specified, the current
         directory is used.
     file_read_timeout : int, default 3600
-        The timeout until which we try to read the deployer attribute file.
+        The timeout until which we try to read the deployer attribute file (in seconds).
     **kwargs : Any
         Additional arguments that you would pass to `python myflow.py` before
         the deployment command.
