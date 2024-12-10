@@ -49,6 +49,13 @@ class CondaStepDecorator(StepDecorator):
     # CONDA_CHANNELS in their environment. For pinning specific packages to specific
     # conda channels, users can specify channel::package as the package name.
 
+    def __init__(self, attributes=None, statically_defined=False):
+        self._attributes_with_user_values = (
+            set(attributes.keys()) if attributes is not None else set()
+        )
+
+        super(CondaStepDecorator, self).__init__(attributes, statically_defined)
+
     def init(self):
         super(CondaStepDecorator, self).init()
 
@@ -58,9 +65,11 @@ class CondaStepDecorator(StepDecorator):
             **self.attributes["packages"],
         }
         del self.attributes["libraries"]
+        if self.attributes["packages"]:
+            self._attributes_with_user_values.add("packages")
 
     def is_attribute_user_defined(self, name):
-        return name in self._user_defined_attributes
+        return name in self._attributes_with_user_values
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         # The init_environment hook for Environment creates the relevant virtual
@@ -80,9 +89,10 @@ class CondaStepDecorator(StepDecorator):
                 **super_attributes["packages"],
                 **self.attributes["packages"],
             }
-            self._user_defined_attributes = self._user_defined_attributes.union(
-                conda_base._user_defined_attributes
+            self._attributes_with_user_values.update(
+                conda_base._attributes_with_user_values
             )
+
             self.attributes["python"] = (
                 self.attributes["python"] or super_attributes["python"]
             )
@@ -329,21 +339,14 @@ class CondaFlowDecorator(FlowDecorator):
     }
 
     def __init__(self, attributes=None, statically_defined=False):
-        self._user_defined_attributes = (
-            attributes.copy() if attributes is not None else {}
+        self._attributes_with_user_values = (
+            set(attributes.keys()) if attributes is not None else set()
         )
+
         super(CondaFlowDecorator, self).__init__(attributes, statically_defined)
 
     def init(self):
         super(CondaFlowDecorator, self).init()
-
-        # We have to go back and fixup _user_defined_attributes for potential
-        # config resolution
-        self._user_defined_attributes = {
-            k: v
-            for k, v in self.attributes.items()
-            if k in self._user_defined_attributes
-        }
 
         # Support legacy 'libraries=' attribute for the decorator.
         self.attributes["packages"] = {
@@ -355,7 +358,7 @@ class CondaFlowDecorator(FlowDecorator):
             self.attributes["python"] = str(self.attributes["python"])
 
     def is_attribute_user_defined(self, name):
-        return name in self._user_defined_attributes
+        return name in self._attributes_with_user_values
 
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
