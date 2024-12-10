@@ -272,6 +272,9 @@ class Runner(object):
 
     def __get_executing_run(self, attribute_file_fd, command_obj):
         content = handle_timeout(attribute_file_fd, command_obj, self.file_read_timeout)
+
+        command_obj.sync_wait()
+
         content = json.loads(content)
         pathspec = "%s/%s" % (content.get("flow_name"), content.get("run_id"))
 
@@ -326,7 +329,6 @@ class Runner(object):
                 show_output=self.show_output,
             )
             command_obj = self.spm.get(pid)
-            command_obj.sync_wait()
 
             return self.__get_executing_run(attribute_file_fd, command_obj)
 
@@ -358,7 +360,6 @@ class Runner(object):
                 show_output=self.show_output,
             )
             command_obj = self.spm.get(pid)
-            command_obj.sync_wait()
 
             return self.__get_executing_run(attribute_file_fd, command_obj)
 
