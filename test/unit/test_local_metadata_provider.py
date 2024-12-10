@@ -1,4 +1,4 @@
-from metaflow.plugins import LocalMetadataProvider
+from metaflow.plugins.metadata_providers.local import LocalMetadataProvider
 
 
 def test_deduce_run_id_from_meta_dir():
