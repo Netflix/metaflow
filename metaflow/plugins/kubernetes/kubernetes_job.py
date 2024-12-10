@@ -15,8 +15,7 @@ from .kubernetes_jobsets import (
     KubernetesJobSet,
 )  # We need this import for Kubernetes Client.
 
-from .kube_utils import qos_requests_and_limits
-from .constants import VOLUME_CLAIM_TEMPLATE_DEFAULTS
+from .kube_utils import qos_requests_and_limits, VOLUME_CLAIM_TEMPLATE_DEFAULTS
 
 class KubernetesJobException(MetaflowException):
     headline = "Kubernetes job error"

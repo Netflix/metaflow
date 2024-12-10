@@ -58,7 +58,7 @@ from metaflow.plugins.kubernetes.kubernetes import (
     parse_kube_keyvalue_list,
     validate_kube_labels,
 )
-from metaflow.plugins.kubernetes.constants import VOLUME_CLAIM_TEMPLATE_DEFAULTS
+from metaflow.plugins.kubernetes.kube_utils import VOLUME_CLAIM_TEMPLATE_DEFAULTS
 from metaflow.plugins.kubernetes.kubernetes_jobsets import KubernetesArgoJobSet
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow.user_configs.config_options import ConfigInput

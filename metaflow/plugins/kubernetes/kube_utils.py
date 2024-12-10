@@ -2,6 +2,11 @@ from metaflow.exception import CommandException
 from metaflow.util import get_username, get_latest_run_id
 
 
+VOLUME_CLAIM_TEMPLATE_DEFAULTS = {
+    "accessModes": ["ReadWriteOnce"],
+    "resources": {"requests": {"storage": "1Gi"}},
+}
+
 def parse_cli_options(flow_name, run_id, user, my_runs, echo):
     if user and my_runs:
         raise CommandException("--user and --my-runs are mutually exclusive.")

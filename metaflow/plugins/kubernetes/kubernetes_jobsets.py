@@ -9,8 +9,7 @@ from metaflow.metaflow_config import KUBERNETES_JOBSET_GROUP, KUBERNETES_JOBSET_
 from metaflow.tracing import inject_tracing_vars
 from metaflow.metaflow_config import KUBERNETES_SECRETS
 
-from .kube_utils import qos_requests_and_limits
-from .constants import VOLUME_CLAIM_TEMPLATE_DEFAULTS
+from .kube_utils import qos_requests_and_limits, VOLUME_CLAIM_TEMPLATE_DEFAULTS
 
 
 class KubernetesJobsetException(MetaflowException):
