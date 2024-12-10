@@ -24,6 +24,13 @@ class PyPIStepDecorator(StepDecorator):
     name = "pypi"
     defaults = {"packages": {}, "python": None, "disabled": None}  # wheels
 
+    def __init__(self, attributes=None, statically_defined=False):
+        self._attributes_with_user_values = (
+            set(attributes.keys()) if attributes is not None else set()
+        )
+
+        super().__init__(attributes, statically_defined)
+
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         # The init_environment hook for Environment creates the relevant virtual
         # environments. The step_init hook sets up the relevant state for that hook to
@@ -36,8 +43,8 @@ class PyPIStepDecorator(StepDecorator):
         if "pypi_base" in self.flow._flow_decorators:
             pypi_base = self.flow._flow_decorators["pypi_base"][0]
             super_attributes = pypi_base.attributes
-            self._user_defined_attributes = self._user_defined_attributes.union(
-                pypi_base._user_defined_attributes
+            self._attributes_with_user_values = self._attributes_with_user_values.union(
+                pypi_base._attributes_with_user_values
             )
             self.attributes["packages"] = {
                 **super_attributes["packages"],
@@ -99,7 +106,7 @@ class PyPIStepDecorator(StepDecorator):
         environment.set_local_root(LocalStorage.get_datastore_root_from_config(logger))
 
     def is_attribute_user_defined(self, name):
-        return name in self._user_defined_attributes
+        return name in self._attributes_with_user_values
 
 
 class PyPIFlowDecorator(FlowDecorator):
@@ -122,9 +129,10 @@ class PyPIFlowDecorator(FlowDecorator):
     defaults = {"packages": {}, "python": None, "disabled": None}
 
     def __init__(self, attributes=None, statically_defined=False):
-        self._user_defined_attributes = (
-            attributes.copy() if attributes is not None else {}
+        self._attributes_with_user_values = (
+            set(attributes.keys()) if attributes is not None else set()
         )
+
         super().__init__(attributes, statically_defined)
 
     def flow_init(
