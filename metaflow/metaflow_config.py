@@ -284,7 +284,7 @@ CONTACT_INFO = from_conf(
 ###
 # Format is a space separated string of decospecs (what is passed
 # using --with)
-DECOSPECS = from_conf("DECOSPECS", "")
+DECOSPECS = from_conf("DEFAULT_DECOSPECS", "")
 
 ###
 # AWS Batch configuration
