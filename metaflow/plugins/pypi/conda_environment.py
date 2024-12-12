@@ -8,7 +8,7 @@ import os
 import sys
 import tarfile
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from hashlib import sha256
 from io import BufferedIOBase, BytesIO
 from itertools import chain
@@ -150,6 +150,9 @@ class CondaEnvironment(MetaflowEnvironment):
                 (
                     package["path"],
                     # Lazily fetch package from the interweb if needed.
+                    # TODO: Depending on the len_hint, the package might be downloaded from
+                    #       the interweb prematurely. save_bytes needs to be adjusted to handle
+                    #       this scenario.
                     LazyOpen(
                         package["local_path"],
                         "rb",
@@ -166,22 +169,30 @@ class CondaEnvironment(MetaflowEnvironment):
                 if id_ in dirty:
                     self.write_to_environment_manifest([id_, platform, type_], packages)
 
-        # First resolve environments through Conda, before PyPI.
+        storage = None
+        if self.datastore_type not in ["local"]:
+            # Initialize storage for caching if using a remote datastore
+            storage = self.datastore(_datastore_packageroot(self.datastore, echo))
+
         self.logger("Bootstrapping virtual environment(s) ...")
+
+        # First resolve environments through Conda, before PyPI.
         for solver in ["conda", "pypi"]:
             with ThreadPoolExecutor() as executor:
-                results = list(
-                    executor.map(lambda x: solve(*x, solver), environments(solver))
-                )
-            _ = list(map(lambda x: self.solvers[solver].download(*x), results))
-            with ThreadPoolExecutor() as executor:
-                _ = list(
-                    executor.map(lambda x: self.solvers[solver].create(*x), results)
-                )
-            if self.datastore_type not in ["local"]:
-                # Cache packages only when a remote datastore is in play.
-                storage = self.datastore(_datastore_packageroot(self.datastore, echo))
-                cache(storage, results, solver)
+                solves = [
+                    executor.submit(lambda x: solve(*x, solver), env)
+                    for env in environments(solver)
+                ]
+                for future in as_completed(solves):
+                    result = future.result()
+                    # sequential downloads
+                    self.solvers[solver].download(*result)
+                    # parallel creates
+                    executor.submit(self.solvers[solver].create, *result)
+                    if storage:
+                        # parallel cache
+                        executor.submit(cache, storage, [result], solver)
+                executor.shutdown(wait=True)
         self.logger("Virtual environment(s) bootstrapped!")
 
     def executable(self, step_name, default=None):
