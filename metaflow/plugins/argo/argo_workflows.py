@@ -2018,8 +2018,6 @@ class ArgoWorkflows(object):
                         **annotations,
                     }
                 )
-                # Set task specific labels
-                jobset.labels(resources["labels"])
 
                 jobset.control.replicas(1)
                 jobset.worker.replicas("{{=asInt(inputs.parameters.workerCount)}}")
