@@ -169,8 +169,8 @@ class ArgoWorkflows(object):
         self.triggers, self.trigger_options = self._process_triggers()
         self._schedule, self._timezone = self._get_schedule()
 
-        self.shared_kubernetes_labels = self._shared_kubernetes_labels()
-        self.shared_kubernetes_annotations = self._shared_kubernetes_annotations()
+        self._base_labels = self._base_kubernetes_labels()
+        self._base_annotations = self._base_kubernetes_annotations()
         self._workflow_template = self._compile_workflow_template()
         self._sensor = self._compile_sensor()
 
@@ -321,7 +321,7 @@ class ArgoWorkflows(object):
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
 
-    def _shared_kubernetes_labels(self):
+    def _base_kubernetes_labels(self):
         """
         Get shared Kubernetes labels for Argo resources.
         """
@@ -330,7 +330,7 @@ class ArgoWorkflows(object):
 
         return labels
 
-    def _shared_kubernetes_annotations(self):
+    def _base_kubernetes_annotations(self):
         """
         Get shared Kubernetes annotations for Argo resources.
         """
@@ -757,7 +757,7 @@ class ArgoWorkflows(object):
                 # multi-cluster scheduling.
                 .namespace(KUBERNETES_NAMESPACE)
                 .annotations(annotations)
-                .annotations(self.shared_kubernetes_annotations)
+                .annotations(self._base_annotations)
                 .label("app.kubernetes.io/name", "metaflow-flow")
             )
             .spec(
@@ -788,12 +788,12 @@ class ArgoWorkflows(object):
                 # Set workflow metadata
                 .workflow_metadata(
                     Metadata()
-                    .labels(self.shared_kubernetes_labels)
+                    .labels(self._base_labels)
                     .label("app.kubernetes.io/name", "metaflow-run")
                     .annotations(
                         {
                             **annotations,
-                            **self.shared_kubernetes_annotations,
+                            **self._base_annotations,
                             **{"metaflow/run_id": "argo-{{workflow.name}}"},
                         }
                     )
@@ -828,9 +828,9 @@ class ArgoWorkflows(object):
                 # Set common pod metadata.
                 .pod_metadata(
                     Metadata()
-                    .labels(self.shared_kubernetes_labels)
+                    .labels(self._base_labels)
                     .label("app.kubernetes.io/name", "metaflow-task")
-                    .annotations(self.shared_kubernetes_annotations)
+                    .annotations(self._base_annotations)
                     .annotations(annotations)
                 )
                 # Set the entrypoint to flow name
@@ -1968,7 +1968,7 @@ class ArgoWorkflows(object):
                 jobset.labels(
                     {
                         **resources["labels"],
-                        **self.shared_kubernetes_labels,
+                        **self._base_labels,
                         **kubernetes_labels,
                     }
                 )
@@ -2013,7 +2013,7 @@ class ArgoWorkflows(object):
                 jobset.annotations(
                     {
                         **resources["annotations"],
-                        **self.shared_kubernetes_annotations,
+                        **self._base_annotations,
                         **annotations,
                     }
                 )
@@ -2859,9 +2859,9 @@ class ArgoWorkflows(object):
                 ObjectMeta()
                 .name(ArgoWorkflows._sensor_name(self.name))
                 .namespace(KUBERNETES_NAMESPACE)
-                .labels(self.shared_kubernetes_labels)
+                .labels(self._base_labels)
                 .label("app.kubernetes.io/name", "metaflow-sensor")
-                .annotations(self.shared_kubernetes_annotations)
+                .annotations(self._base_annotations)
             )
             .spec(
                 SensorSpec().template(
@@ -2871,7 +2871,7 @@ class ArgoWorkflows(object):
                         ObjectMeta()
                         .label("app.kubernetes.io/name", "metaflow-sensor")
                         .label("app.kubernetes.io/part-of", "metaflow")
-                        .annotations(self.shared_kubernetes_annotations)
+                        .annotations(self._base_annotations)
                     )
                     .container(
                         # Run sensor in guaranteed QoS. The sensor isn't doing a lot
