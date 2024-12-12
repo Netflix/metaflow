@@ -758,6 +758,7 @@ class ArgoWorkflows(object):
                 .namespace(KUBERNETES_NAMESPACE)
                 .annotations(annotations)
                 .annotations(self._base_annotations)
+                .labels(self._base_labels)
                 .label("app.kubernetes.io/name", "metaflow-flow")
             )
             .spec(
