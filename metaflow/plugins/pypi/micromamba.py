@@ -1,7 +1,9 @@
+import functools
 import json
 import os
 import subprocess
 import tempfile
+import time
 
 from metaflow.exception import MetaflowException
 from metaflow.util import which
@@ -20,7 +22,7 @@ class MicromambaException(MetaflowException):
 
 
 class Micromamba(object):
-    def __init__(self):
+    def __init__(self, logger=None):
         # micromamba is a tiny version of the mamba package manager and comes with
         # metaflow specific performance enhancements.
 
@@ -33,6 +35,12 @@ class Micromamba(object):
             os.path.expanduser(_home),
             "micromamba",
         )
+
+        if logger:
+            self.logger = logger
+        else:
+            self.logger = lambda *args, **kwargs: None  # No-op logger if not provided
+
         self.bin = (
             which(os.environ.get("METAFLOW_PATH_TO_MICROMAMBA") or "micromamba")
             or which("./micromamba")  # to support remote execution
@@ -78,6 +86,7 @@ class Micromamba(object):
                 "--dry-run",
                 "--no-extra-safety-checks",
                 "--repodata-ttl=86400",
+                "--safety-checks=disabled",
                 "--retry-clean-cache",
                 "--prefix=%s/prefix" % tmp_dir,
             ]
@@ -91,10 +100,11 @@ class Micromamba(object):
                 cmd.append("python==%s" % python)
             # TODO: Ensure a human readable message is returned when the environment
             #       can't be resolved for any and all reasons.
-            return [
+            solved_packages = [
                 {k: v for k, v in item.items() if k in ["url"]}
                 for item in self._call(cmd, env)["actions"]["LINK"]
             ]
+            return solved_packages
 
     def download(self, id_, packages, python, platform):
         # Unfortunately all the packages need to be catalogued in package cache
@@ -103,8 +113,6 @@ class Micromamba(object):
         # Micromamba is painfully slow in determining if many packages are infact
         # already cached. As a perf heuristic, we check if the environment already
         # exists to short circuit package downloads.
-        if self.path_to_environment(id_, platform):
-            return
 
         prefix = "{env_dirs}/{keyword}/{platform}/{id}".format(
             env_dirs=self.info()["envs_dirs"][0],
@@ -113,8 +121,12 @@ class Micromamba(object):
             id=id_,
         )
 
-        # Another forced perf heuristic to skip cross-platform downloads.
+        # cheap check
         if os.path.exists(f"{prefix}/fake.done"):
+            return
+
+        # somewhat expensive check
+        if self.path_to_environment(id_, platform):
             return
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -174,6 +186,7 @@ class Micromamba(object):
             cmd.append("{url}".format(**package))
         self._call(cmd, env)
 
+    @functools.lru_cache(maxsize=None)
     def info(self):
         return self._call(["config", "list", "-a"])
 
@@ -198,18 +211,24 @@ class Micromamba(object):
         }
         directories = self.info()["pkgs_dirs"]
         # search all package caches for packages
-        metadata = {
-            url: os.path.join(d, file)
+
+        file_to_path = {}
+        for d in directories:
+            if os.path.isdir(d):
+                try:
+                    with os.scandir(d) as entries:
+                        for entry in entries:
+                            if entry.is_file():
+                                # Prefer the first occurrence if the file exists in multiple directories
+                                file_to_path.setdefault(entry.name, entry.path)
+                except OSError:
+                    continue
+        ret = {
+            # set package tarball local paths to None if package tarballs are missing
+            url: file_to_path.get(file)
             for url, file in packages_to_filenames.items()
-            for d in directories
-            if os.path.isdir(d)
-            and file in os.listdir(d)
-            and os.path.isfile(os.path.join(d, file))
         }
-        # set package tarball local paths to None if package tarballs are missing
-        for url in packages_to_filenames:
-            metadata.setdefault(url, None)
-        return metadata
+        return ret
 
     def interpreter(self, id_):
         return os.path.join(self.path_to_environment(id_), "bin/python")

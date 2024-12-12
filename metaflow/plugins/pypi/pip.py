@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor
 from itertools import chain, product
 from urllib.parse import unquote
@@ -50,10 +51,14 @@ INSTALLATION_MARKER = "{prefix}/.pip/id"
 
 
 class Pip(object):
-    def __init__(self, micromamba=None):
+    def __init__(self, micromamba=None, logger=None):
         # pip is assumed to be installed inside a conda environment managed by
         # micromamba. pip commands are executed using `micromamba run --prefix`
-        self.micromamba = micromamba or Micromamba()
+        self.micromamba = micromamba or Micromamba(logger)
+        if logger:
+            self.logger = logger
+        else:
+            self.logger = lambda *args, **kwargs: None  # No-op logger if not provided
 
     def solve(self, id_, packages, python, platform):
         prefix = self.micromamba.path_to_environment(id_)
@@ -123,7 +128,7 @@ class Pip(object):
                         **res,
                         subdir_str=(
                             "#subdirectory=%s" % subdirectory if subdirectory else ""
-                        )
+                        ),
                     )
                     # used to deduplicate the storage location in case wheel does not
                     # build with enough unique identifiers.
