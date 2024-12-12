@@ -175,24 +175,55 @@ class CondaEnvironment(MetaflowEnvironment):
             storage = self.datastore(_datastore_packageroot(self.datastore, echo))
 
         self.logger("Bootstrapping virtual environment(s) ...")
+        # Sequence of operations:
+        #  1. Start all conda solves in parallel
+        #  2. Download conda packages sequentially
+        #  3. Create and cache conda environments in parallel
+        #  4. Start PyPI solves in parallel after each conda environment is created
+        #  5. Download PyPI packages sequentially
+        #  6. Create and cache PyPI environments in parallel
 
-        # First resolve environments through Conda, before PyPI.
-        for solver in ["conda", "pypi"]:
-            with ThreadPoolExecutor() as executor:
-                solves = [
-                    executor.submit(lambda x: solve(*x, solver), env)
-                    for env in environments(solver)
-                ]
-                for future in as_completed(solves):
-                    result = future.result()
-                    # sequential downloads
-                    self.solvers[solver].download(*result)
-                    # parallel creates
-                    executor.submit(self.solvers[solver].create, *result)
-                    if storage:
-                        # parallel cache
-                        executor.submit(cache, storage, [result], solver)
-                executor.shutdown(wait=True)
+        with ThreadPoolExecutor() as executor:
+            # Start all conda solves in parallel
+            conda_futures = [
+                executor.submit(lambda x: solve(*x, "conda"), env)
+                for env in environments("conda")
+            ]
+
+            pypi_envs = {env[0]: env for env in environments("pypi")}
+            pypi_futures = []
+
+            # Process conda results sequentially for downloads
+            for future in as_completed(conda_futures):
+                result = future.result()
+                # Sequential conda download
+                self.solvers["conda"].download(*result)
+                # Parallel conda create and cache
+                create_future = executor.submit(self.solvers["conda"].create, *result)
+                if storage:
+                    executor.submit(cache, storage, [result], "conda")
+
+                # Queue PyPI solve to start after conda create
+                if result[0] in pypi_envs:
+
+                    def pypi_solve(env):
+                        create_future.result()  # Wait for conda create
+                        return solve(*env, "pypi")
+
+                    pypi_futures.append(
+                        executor.submit(pypi_solve, pypi_envs[result[0]])
+                    )
+
+            # Process PyPI results sequentially for downloads
+            for solve_future in pypi_futures:
+                result = solve_future.result()
+                # Sequential PyPI download
+                self.solvers["pypi"].download(*result)
+                # Parallel PyPI create and cache
+                executor.submit(self.solvers["pypi"].create, *result)
+                if storage:
+                    executor.submit(cache, storage, [result], "pypi")
+
         self.logger("Virtual environment(s) bootstrapped!")
 
     def executable(self, step_name, default=None):
