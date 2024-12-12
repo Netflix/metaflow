@@ -5,10 +5,11 @@ import functools
 import io
 import json
 import os
-import sys
 import tarfile
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import wraps
 from hashlib import sha256
 from io import BufferedIOBase, BytesIO
 from itertools import chain
@@ -50,7 +51,6 @@ class CondaEnvironment(MetaflowEnvironment):
 
     def validate_environment(self, logger, datastore_type):
         self.datastore_type = datastore_type
-        self.logger = logger
 
         # Avoiding circular imports.
         from metaflow.plugins import DATASTORES
@@ -62,8 +62,21 @@ class CondaEnvironment(MetaflowEnvironment):
         from .micromamba import Micromamba
         from .pip import Pip
 
-        micromamba = Micromamba()
-        self.solvers = {"conda": micromamba, "pypi": Pip(micromamba)}
+        print_lock = threading.Lock()
+
+        def make_thread_safe(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                with print_lock:
+                    return func(*args, **kwargs)
+
+            return wrapper
+
+        self.logger = make_thread_safe(logger)
+
+        # TODO: Wire up logging
+        micromamba = Micromamba(self.logger)
+        self.solvers = {"conda": micromamba, "pypi": Pip(micromamba, self.logger)}
 
     def init_environment(self, echo, only_steps=None):
         # The implementation optimizes for latency to ensure as many operations can
@@ -223,7 +236,6 @@ class CondaEnvironment(MetaflowEnvironment):
                 executor.submit(self.solvers["pypi"].create, *result)
                 if storage:
                     executor.submit(cache, storage, [result], "pypi")
-
         self.logger("Virtual environment(s) bootstrapped!")
 
     def executable(self, step_name, default=None):
