@@ -61,7 +61,7 @@ def qos_requests_and_limits(qos: str, cpu: int, memory: int, storage: int):
     return qos_requests, qos_limits
 
 
-def validate_kube_labels_or_annotations(
+def validate_kube_labels(
     labels: Optional[Dict[str, Optional[str]]],
 ) -> bool:
     """Validate label values.

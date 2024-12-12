@@ -37,7 +37,7 @@ from metaflow.unbounded_foreach import UBF_CONTROL
 
 from ..aws.aws_utils import get_docker_registry, get_ec2_instance_metadata
 from .kubernetes import KubernetesException
-from .kube_utils import validate_kube_labels_or_annotations, parse_kube_keyvalue_list
+from .kube_utils import validate_kube_labels, parse_kube_keyvalue_list
 
 try:
     unicode
@@ -409,8 +409,9 @@ class KubernetesDecorator(StepDecorator):
                         size=self.attributes["shared_memory"], step=step
                     )
                 )
-        validate_kube_labels_or_annotations(self.attributes["labels"])
-        validate_kube_labels_or_annotations(self.attributes["annotations"])
+
+        validate_kube_labels(self.attributes["labels"])
+        # TODO: add validation to annotations as well?
 
     def package_init(self, flow, step_name, environment):
         try:
