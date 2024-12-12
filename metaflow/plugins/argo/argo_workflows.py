@@ -831,8 +831,8 @@ class ArgoWorkflows(object):
                     Metadata()
                     .labels(self._base_labels)
                     .label("app.kubernetes.io/name", "metaflow-task")
-                    .annotations(self._base_annotations)
                     .annotations(annotations)
+                    .annotations(self._base_annotations)
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
