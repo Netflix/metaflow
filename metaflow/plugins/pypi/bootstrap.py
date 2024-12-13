@@ -12,6 +12,7 @@ from urllib.error import URLError
 from urllib.request import urlopen
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.plugins import DATASTORES
+from metaflow.plugins.pypi.utils import MICROMAMBA_MIRROR_URL, MICROMAMBA_URL
 from metaflow.util import which
 from urllib.request import Request
 import warnings
@@ -81,42 +82,51 @@ if __name__ == "__main__":
 
         # Download and extract in one go
         # TODO: Serve from cloudflare
-        url = f"https://micro.mamba.pm/api/micromamba/{architecture}/2.0.4"
+        url = MICROMAMBA_URL.format(platform=architecture)
+        mirror_url = MICROMAMBA_MIRROR_URL.format(platform=architecture)
 
         # Prepare directory once
         os.makedirs(os.path.dirname(micromamba_path), exist_ok=True)
 
         # Download and decompress in one go
-        headers = {
-            "Accept-Encoding": "gzip, deflate, br",
-            "Connection": "keep-alive",
-            "User-Agent": "python-urllib",
-        }
+        def _download_and_extract(url):
+            headers = {
+                "Accept-Encoding": "gzip, deflate, br",
+                "Connection": "keep-alive",
+                "User-Agent": "python-urllib",
+            }
 
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                req = Request(url, headers=headers)
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    req = Request(url, headers=headers)
 
-                with urlopen(req) as response:
-                    decompressor = bz2.BZ2Decompressor()
-                    with warnings.catch_warnings():
-                        warnings.filterwarnings("ignore", category=DeprecationWarning)
-                        with tarfile.open(
-                            fileobj=io.BytesIO(
-                                decompressor.decompress(response.read())
-                            ),
-                            mode="r:",
-                        ) as tar:
-                            member = tar.getmember("bin/micromamba")
-                            tar.extract(member, micromamba_dir)
-                break
-            except (URLError, IOError) as e:
-                if attempt == max_retries - 1:
-                    raise Exception(
-                        f"Failed to download micromamba after {max_retries} attempts: {e}"
-                    )
-                time.sleep(2**attempt)
+                    with urlopen(req) as response:
+                        decompressor = bz2.BZ2Decompressor()
+                        with warnings.catch_warnings():
+                            warnings.filterwarnings("ignore", category=DeprecationWarning)
+                            with tarfile.open(
+                                fileobj=io.BytesIO(
+                                    decompressor.decompress(response.read())
+                                ),
+                                mode="r:",
+                            ) as tar:
+                                member = tar.getmember("bin/micromamba")
+                                tar.extract(member, micromamba_dir)
+                    break
+                except (URLError, IOError) as e:
+                    if attempt == max_retries - 1:
+                        raise Exception(
+                            f"Failed to download micromamba after {max_retries} attempts: {e}"
+                        )
+                    time.sleep(2**attempt)
+
+        try:
+            # first try from mirror
+            _download_and_extract(mirror_url)
+        except Exception:
+            # download from mirror failed, try official source before failing.
+            _download_and_extract(url)
 
         # Set executable permission
         os.chmod(micromamba_path, 0o755)

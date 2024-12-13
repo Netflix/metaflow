@@ -7,7 +7,7 @@ import tempfile
 from metaflow.exception import MetaflowException
 from metaflow.util import which
 
-from .utils import conda_platform
+from .utils import MICROMAMBA_MIRROR_URL, MICROMAMBA_URL, conda_platform
 
 
 class MicromambaException(MetaflowException):
@@ -338,23 +338,33 @@ def _install_micromamba(installation_location):
     # Unfortunately no 32bit binaries are available for micromamba, which ideally
     # shouldn't be much of a problem in today's world.
     platform = conda_platform()
-    try:
-        subprocess.Popen(f"mkdir -p {installation_location}", shell=True).wait()
-        # https://mamba.readthedocs.io/en/latest/micromamba-installation.html#manual-installation
-        # requires bzip2
-        result = subprocess.Popen(
-            f"curl -Ls https://micro.mamba.pm/api/micromamba/{platform}/1.5.7 | tar -xvj -C {installation_location} bin/micromamba",
-            shell=True,
-            stderr=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-        )
-        _, err = result.communicate()
-        if result.returncode != 0:
+    url = MICROMAMBA_URL.format(platform=platform)
+    mirror_url = MICROMAMBA_MIRROR_URL.format(platform=platform)
+    os.makedirs(installation_location, exist_ok=True)
+
+    def _download_and_extract(url):
+        try:
+            # https://mamba.readthedocs.io/en/latest/micromamba-installation.html#manual-installation
+            # requires bzip2
+            result = subprocess.Popen(
+                f"curl -Ls {url} | tar -xvj -C {installation_location} bin/micromamba",
+                shell=True,
+                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+            )
+            _, err = result.communicate()
+            if result.returncode != 0:
+                raise MicromambaException(
+                    f"Micromamba installation '{result.args}' failed:\n{err.decode()}"
+                )
+        except subprocess.CalledProcessError as e:
             raise MicromambaException(
-                f"Micromamba installation '{result.args}' failed:\n{err.decode()}"
+                "Micromamba installation failed:\n{}".format(e.stderr.decode())
             )
 
-    except subprocess.CalledProcessError as e:
-        raise MicromambaException(
-            "Micromamba installation failed:\n{}".format(e.stderr.decode())
-        )
+    try:
+        # prioritize downloading from mirror
+        _download_and_extract(mirror_url)
+    except Exception:
+        # download from official source as a fallback
+        _download_and_extract(url)
