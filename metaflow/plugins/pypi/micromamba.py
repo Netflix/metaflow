@@ -78,6 +78,9 @@ class Micromamba(object):
                 "MAMBA_ADD_PIP_AS_PYTHON_DEPENDENCY": "true",
                 "CONDA_SUBDIR": platform,
                 # "CONDA_UNSATISFIABLE_HINTS_CHECK_DEPTH": "0" # https://github.com/conda/conda/issues/9862
+                # Add a default glibc version for linux-64 environments (ignored for other platforms)
+                # TODO: Make the version configurable
+                "CONDA_OVERRIDE_GLIBC": os.environ.get("CONDA_OVERRIDE_GLIBC", "2.27"),
             }
             cmd = [
                 "create",
@@ -132,6 +135,7 @@ class Micromamba(object):
         with tempfile.TemporaryDirectory() as tmp_dir:
             env = {
                 "CONDA_SUBDIR": platform,
+                "CONDA_OVERRIDE_GLIBC": os.environ.get("CONDA_OVERRIDE_GLIBC", "2.27"),
             }
             cmd = [
                 "create",
@@ -171,6 +175,7 @@ class Micromamba(object):
             # use hardlinks when possible, otherwise copy files
             # disabled for now since it adds to environment creation latencies
             "CONDA_ALLOW_SOFTLINKS": "0",
+            "CONDA_OVERRIDE_GLIBC": os.environ.get("CONDA_OVERRIDE_GLIBC", "2.27"),
         }
         cmd = [
             "create",
