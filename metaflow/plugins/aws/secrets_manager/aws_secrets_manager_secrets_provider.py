@@ -50,11 +50,11 @@ class AwsSecretsManagerSecretsProvider(SecretsProvider):
         The secret payload from AWS is EITHER a string OR a binary blob.
 
         If the secret contains a string payload ("SecretString"):
-        - if the `parse_secret_string_as_json` option is True (default):
+        - if the `json` option is True (default):
             {SecretString} will be parsed as a JSON. If successfully parsed, AND the JSON contains a
             top-level object, each entry K/V in the object will also be converted to an entry in the result. V will
             always be casted to a string (if not already a string).
-        - If `parse_secret_string_as_json` option is False:
+        - If `json` option is False:
             {SecretString} will be returned as a single entry in the result, with the key being the secret_id.
 
         Otherwise, the secret contains a binary blob payload ("SecretBinary"). In this case
