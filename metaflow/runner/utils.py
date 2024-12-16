@@ -111,6 +111,11 @@ def read_from_fifo_when_ready(
     poll.register(fifo_fd, select.POLLIN)
     max_timeout = 3  # Wait for 10 * 3 = 30 ms after last write
     while True:
+        if check_process_exited(command_obj) and command_obj.process.returncode != 0:
+            raise CalledProcessError(
+                command_obj.process.returncode, command_obj.command
+            )
+
         if timeout < 0:
             raise TimeoutError("Timeout while waiting for the file content")
 
