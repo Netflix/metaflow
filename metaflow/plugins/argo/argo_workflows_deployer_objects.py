@@ -1,5 +1,6 @@
 import sys
 import json
+import time
 import tempfile
 from typing import ClassVar, Optional
 
@@ -169,6 +170,43 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
         command_obj = self.deployer.spm.get(pid)
         command_obj.sync_wait()
         return command_obj.process.returncode == 0
+
+    def wait(self, timeout: Optional[int] = None):
+        """
+        Wait for the workflow to complete or timeout.
+
+        Parameters
+        ----------
+        timeout : int, optional, default None
+            Maximum time in seconds to wait for workflow completion.
+            If None, waits indefinitely.
+
+        Raises
+        ------
+        TimeoutError
+            If the workflow does not complete within the specified timeout period.
+        """
+        start_time = time.time()
+        check_interval = 5
+        while self.is_running:
+            if timeout is not None and (time.time() - start_time) > timeout:
+                raise TimeoutError(
+                    "Workflow did not complete within specified timeout."
+                )
+            time.sleep(check_interval)
+
+    @property
+    def is_running(self):
+        """
+        Check if the workflow is currently running.
+
+        Returns
+        -------
+        bool
+            True if the workflow status is either 'Pending' or 'Running',
+            False otherwise.
+        """
+        return self.status is not None and self.status in ["Pending", "Running"]
 
     @property
     def status(self) -> Optional[str]:
