@@ -207,6 +207,9 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
             False otherwise.
         """
         workflow_status = self.status
+        # full list of all states present here:
+        # https://github.com/argoproj/argo-workflows/blob/main/pkg/apis/workflow/v1alpha1/workflow_types.go#L54
+        # we only consider non-terminal states to determine if the workflow has not finished
         return workflow_status is not None and workflow_status in ["Pending", "Running"]
 
     @property
