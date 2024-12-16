@@ -206,7 +206,8 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
             True if the workflow status is either 'Pending' or 'Running',
             False otherwise.
         """
-        return self.status is not None and self.status in ["Pending", "Running"]
+        workflow_status = self.status
+        return workflow_status is not None and workflow_status in ["Pending", "Running"]
 
     @property
     def status(self) -> Optional[str]:
