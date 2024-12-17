@@ -1,5 +1,6 @@
 from metaflow.decorators import StepDecorator
 from metaflow.metaflow_current import current
+from metaflow.user_configs.config_options import ConfigInput
 from metaflow.util import to_unicode
 from .component_serializer import CardComponentCollector, get_card_class
 from .card_creator import CardCreator
@@ -111,6 +112,14 @@ class CardDecorator(StepDecorator):
         self._logger = logger
         self.card_options = None
 
+        # We check for configuration options. We do this here before they are
+        # converted to properties.
+        self._config_values = [
+            (config.name, ConfigInput.make_key_name(config.name))
+            for _, config in flow._get_parameters()
+            if config.IS_CONFIG_PARAMETER
+        ]
+
         self.card_options = self.attributes["options"]
 
         evt_name = "step-init"
@@ -179,7 +188,7 @@ class CardDecorator(StepDecorator):
         # we need to ensure that `current.card` has `CardComponentCollector` instantiated only once.
         if not self._is_event_registered("pre-step"):
             self._register_event("pre-step")
-            self._set_card_creator(CardCreator(self._create_top_level_args()))
+            self._set_card_creator(CardCreator(self._create_top_level_args(flow)))
 
             current._update_env(
                 {"card": CardComponentCollector(self._logger, self.card_creator)}
@@ -232,9 +241,13 @@ class CardDecorator(StepDecorator):
                 for value in v:
                     yield "--%s" % k
                     if not isinstance(value, bool):
-                        yield to_unicode(value)
+                        if isinstance(value, tuple):
+                            for val in value:
+                                yield to_unicode(val)
+                        else:
+                            yield to_unicode(value)
 
-    def _create_top_level_args(self):
+    def _create_top_level_args(self, flow):
         top_level_options = {
             "quiet": True,
             "metadata": self._metadata.TYPE,
@@ -247,4 +260,7 @@ class CardDecorator(StepDecorator):
             # We don't provide --with as all execution is taking place in
             # the context of the main process
         }
+        if self._config_values:
+            top_level_options["config-value"] = self._config_values
+
         return list(self._options(top_level_options))
