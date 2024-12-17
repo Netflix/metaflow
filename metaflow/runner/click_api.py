@@ -223,7 +223,11 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
     finally:
         # Only remove from path if we added it
         if path_was_added:
-            sys.path.remove(flow_dir)
+            try:
+                sys.path.remove(flow_dir)
+            except ValueError:
+                # User's code might have removed it already
+                pass
 
 
 class MetaflowAPI(object):
