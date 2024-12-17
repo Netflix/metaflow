@@ -190,7 +190,12 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
         raise FileNotFoundError("Flow file not present at '%s'" % flow_file)
 
     flow_dir = os.path.dirname(os.path.abspath(flow_file))
-    sys.path.insert(0, flow_dir)
+    path_was_added = False
+
+    # Only add to path if it's not already there
+    if flow_dir not in sys.path:
+        sys.path.insert(0, flow_dir)
+        path_was_added = True
 
     try:
         # Check if the module has already been loaded
@@ -216,14 +221,9 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
 
         return flow_cls
     finally:
-        # Safely remove the flow directory from sys.path if it exists
-        try:
-            # Remove the flow directory from sys.path
+        # Only remove from path if we added it
+        if path_was_added:
             sys.path.remove(flow_dir)
-        except ValueError:
-            # The path might have been modified during module loading,
-            # so we silently ignore if flow_dir is no longer in sys.path
-            pass
 
 
 class MetaflowAPI(object):
