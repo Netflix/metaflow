@@ -170,7 +170,14 @@ class ConfigInput:
             cls.loaded_configs = all_configs
         return cls.loaded_configs.get(config_name, None)
 
-    def process_configs(self, ctx, param, value):
+    def process_configs(
+        self,
+        flow_name: str,
+        param_name: str,
+        param_value: Dict[str, Optional[str]],
+        quiet: bool,
+        datastore: str,
+    ):
         from ..cli import echo_always, echo_dev_null  # Prevent circular import
         from ..flowspec import _FlowState  # Prevent circular import
 
@@ -198,31 +205,32 @@ class ConfigInput:
         #       - the default (including None if there is no default). If the default is
         #         not None, it will start with _CONVERTED_DEFAULT since Click will make
         #         the value go through ConvertPath or ConvertDictOrStr
-        #  - the actual value passed through prefixed with _CONVERT_PREFIX
+        #       - the actual value passed through prefixed with _CONVERT_PREFIX
 
         debug.userconf_exec(
             "Processing configs for %s -- incoming values: %s"
-            % (param.name, str(value))
+            % (param_name, str(param_value))
         )
 
         do_return = self._value_values is None and self._path_values is None
         # We only keep around non default values. We could simplify by checking just one
         # value and if it is default it means all are but this doesn't seem much more effort
         # and is clearer
-        if param.name == "config_value_options":
+        if param_name == "config_value":
             self._value_values = {
                 k.lower(): v
-                for k, v in value
+                for k, v in param_value
                 if v is not None and not v.startswith(_CONVERTED_DEFAULT)
             }
         else:
             self._path_values = {
                 k.lower(): v
-                for k, v in value
+                for k, v in param_value
                 if v is not None and not v.startswith(_CONVERTED_DEFAULT)
             }
         if do_return:
-            # One of config_value_options or config_file_options will be None
+            # One of values["value"] or values["path"] is None -- we are in the first
+            # go around
             debug.userconf_exec("Incomplete config options; waiting for more")
             return None
 
@@ -254,8 +262,8 @@ class ConfigInput:
                     "Found such values for '%s'" % "', '".join(common_keys)
                 )
 
-            all_values = dict(self._path_values or {})
-            all_values.update(self._value_values or {})
+            all_values = dict(self._path_values)
+            all_values.update(self._value_values)
 
             debug.userconf_exec("All config values: %s" % str(all_values))
 
@@ -273,13 +281,11 @@ class ConfigInput:
                         # of circularity. Note also that quiet and datastore are *eager*
                         # options so are available here.
                         param_ctx = ParameterContext(
-                            flow_name=ctx.obj.flow.name,
+                            flow_name=flow_name,
                             user_name=get_username(),
                             parameter_name=n,
-                            logger=(
-                                echo_dev_null if ctx.params["quiet"] else echo_always
-                            ),
-                            ds_type=ctx.params["datastore"],
+                            logger=(echo_dev_null if quiet else echo_always),
+                            ds_type=datastore,
                             configs=None,
                         )
                         val = val.fun(param_ctx)
@@ -355,6 +361,15 @@ class ConfigInput:
         debug.userconf_exec("Finalized configs: %s" % str(to_return))
         return to_return
 
+    def process_configs_click(self, ctx, param, value):
+        return self.process_configs(
+            ctx.obj.flow.name,
+            param.name,
+            value,
+            ctx.params["quiet"],
+            ctx.params["datastore"],
+        )
+
     def __str__(self):
         return repr(self)
 
@@ -399,7 +414,7 @@ class LocalFileInput(click.Path):
         return "LocalFileInput"
 
 
-def config_options(cmd):
+def config_options_with_config_input(cmd):
     help_strs = []
     required_names = []
     defaults = {}
@@ -407,7 +422,7 @@ def config_options(cmd):
     parsers = {}
     flow_cls = getattr(current_flow, "flow_cls", None)
     if flow_cls is None:
-        return cmd
+        return cmd, None
 
     parameters = [p for _, p in flow_cls._get_parameters() if p.IS_CONFIG_PARAMETER]
     # List all the configuration options
@@ -433,19 +448,20 @@ def config_options(cmd):
 
     if not config_seen:
         # No configurations -- don't add anything
-        return cmd
+        return cmd, None
 
     help_str = (
         "Configuration options for the flow. "
         "Multiple configurations can be specified."
     )
     help_str = "\n\n".join([help_str] + help_strs)
-    cb_func = ConfigInput(required_names, defaults, parsers).process_configs
+    config_input = ConfigInput(required_names, defaults, parsers)
+    cb_func = config_input.process_configs_click
 
     cmd.params.insert(
         0,
         click.Option(
-            ["--config-value", "config_value_options"],
+            ["--config-value", "config_value"],
             nargs=2,
             multiple=True,
             type=MultipleTuple([click.Choice(config_seen), ConvertDictOrStr()]),
@@ -470,7 +486,7 @@ def config_options(cmd):
     cmd.params.insert(
         0,
         click.Option(
-            ["--config", "config_file_options"],
+            ["--config", "config_file"],
             nargs=2,
             multiple=True,
             type=MultipleTuple([click.Choice(config_seen), ConvertPath()]),
@@ -492,4 +508,9 @@ def config_options(cmd):
             required=False,
         ),
     )
+    return cmd, config_input
+
+
+def config_options(cmd):
+    cmd, _ = config_options_with_config_input(cmd)
     return cmd

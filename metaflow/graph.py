@@ -1,6 +1,7 @@
 import inspect
 import ast
 import re
+import textwrap
 
 
 from .util import to_pod
@@ -45,9 +46,12 @@ def deindent_docstring(doc):
 
 
 class DAGNode(object):
-    def __init__(self, func_ast, decos, doc):
+    def __init__(self, func_ast, decos, doc, source_file, lineno):
         self.name = func_ast.name
-        self.func_lineno = func_ast.lineno
+        self.source_file = source_file
+        # lineno is the start line of decorators in source_file
+        # func_ast.lineno is lines from decorators start to def of function
+        self.func_lineno = lineno + func_ast.lineno - 1
         self.decorators = decos
         self.doc = deindent_docstring(doc)
         self.parallel_step = any(getattr(deco, "IS_PARALLEL", False) for deco in decos)
@@ -62,7 +66,7 @@ class DAGNode(object):
         self.foreach_param = None
         self.num_parallel = 0
         self.parallel_foreach = False
-        self._parse(func_ast)
+        self._parse(func_ast, lineno)
 
         # these attributes are populated by _traverse_graph
         self.in_funcs = set()
@@ -74,7 +78,7 @@ class DAGNode(object):
     def _expr_str(self, expr):
         return "%s.%s" % (expr.value.id, expr.attr)
 
-    def _parse(self, func_ast):
+    def _parse(self, func_ast, lineno):
         self.num_args = len(func_ast.args.args)
         tail = func_ast.body[-1]
 
@@ -94,7 +98,7 @@ class DAGNode(object):
 
             self.has_tail_next = True
             self.invalid_tail_next = True
-            self.tail_next_lineno = tail.lineno
+            self.tail_next_lineno = lineno + tail.lineno - 1
             self.out_funcs = [e.attr for e in tail.value.args]
 
             keywords = dict(
@@ -131,7 +135,7 @@ class DAGNode(object):
             return
 
     def __str__(self):
-        return """*[{0.name} {0.type} (line {0.func_lineno})]*
+        return """*[{0.name} {0.type} ({0.source_file} line {0.func_lineno})]*
     in_funcs={in_funcs}
     out_funcs={out_funcs}
     split_parents={parents}
@@ -156,18 +160,6 @@ class DAGNode(object):
         )
 
 
-class StepVisitor(ast.NodeVisitor):
-    def __init__(self, nodes, flow):
-        self.nodes = nodes
-        self.flow = flow
-        super(StepVisitor, self).__init__()
-
-    def visit_FunctionDef(self, node):
-        func = getattr(self.flow, node.name)
-        if hasattr(func, "is_step"):
-            self.nodes[node.name] = DAGNode(node, func.decorators, func.__doc__)
-
-
 class FlowGraph(object):
     def __init__(self, flow):
         self.name = flow.__name__
@@ -179,13 +171,18 @@ class FlowGraph(object):
         self._postprocess()
 
     def _create_nodes(self, flow):
-        module = __import__(flow.__module__)
-        tree = ast.parse(inspect.getsource(module)).body
-        root = [n for n in tree if isinstance(n, ast.ClassDef) and n.name == self.name][
-            0
-        ]
         nodes = {}
-        StepVisitor(nodes, flow).visit(root)
+        for element in dir(flow):
+            func = getattr(flow, element)
+            if callable(func) and hasattr(func, "is_step"):
+                source_file = inspect.getsourcefile(func)
+                source_lines, lineno = inspect.getsourcelines(func)
+                source_code = textwrap.dedent("".join(source_lines))
+                function_ast = ast.parse(source_code).body[0]
+                node = DAGNode(
+                    function_ast, func.decorators, func.__doc__, source_file, lineno
+                )
+                nodes[element] = node
         return nodes
 
     def _postprocess(self):

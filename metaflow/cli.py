@@ -328,8 +328,8 @@ def start(
     event_logger=None,
     monitor=None,
     local_config_file=None,
-    config_file_options=None,
-    config_value_options=None,
+    config_file=None,
+    config_value=None,
     **deco_options
 ):
     if quiet:
@@ -354,8 +354,10 @@ def start(
     # When we process the options, the first one processed will return None and the
     # second one processed will return the actual options. The order of processing
     # depends on what (and in what order) the user specifies on the command line.
-    config_options = config_file_options or config_value_options
-    ctx.obj.flow = ctx.obj.flow._process_config_decorators(config_options)
+    config_options = config_file or config_value
+    new_cls = ctx.obj.flow._process_config_decorators(config_options)
+    if new_cls:
+        ctx.obj.flow = new_cls(use_cli=False)
 
     cli_args._set_top_kwargs(ctx.params)
     ctx.obj.echo = echo
