@@ -188,28 +188,36 @@ loaded_modules = {}
 def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
     if not os.path.exists(flow_file):
         raise FileNotFoundError("Flow file not present at '%s'" % flow_file)
-    # Check if the module has already been loaded
-    if flow_file in loaded_modules:
-        module = loaded_modules[flow_file]
-    else:
-        # Load the module if it's not already loaded
-        spec = importlib.util.spec_from_file_location("module", flow_file)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        # Cache the loaded module
-        loaded_modules[flow_file] = module
-    classes = inspect.getmembers(module, inspect.isclass)
 
-    flow_cls = None
-    for _, kls in classes:
-        if kls != FlowSpec and issubclass(kls, FlowSpec):
-            if flow_cls is not None:
-                raise MetaflowException(
-                    "Multiple FlowSpec classes found in %s" % flow_file
-                )
-            flow_cls = kls
+    flow_dir = os.path.dirname(os.path.abspath(flow_file))
+    sys.path.insert(0, flow_dir)
 
-    return flow_cls
+    try:
+        # Check if the module has already been loaded
+        if flow_file in loaded_modules:
+            module = loaded_modules[flow_file]
+        else:
+            # Load the module if it's not already loaded
+            spec = importlib.util.spec_from_file_location("module", flow_file)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            # Cache the loaded module
+            loaded_modules[flow_file] = module
+        classes = inspect.getmembers(module, inspect.isclass)
+
+        flow_cls = None
+        for _, kls in classes:
+            if kls != FlowSpec and issubclass(kls, FlowSpec):
+                if flow_cls is not None:
+                    raise MetaflowException(
+                        "Multiple FlowSpec classes found in %s" % flow_file
+                    )
+                flow_cls = kls
+
+        return flow_cls
+    finally:
+        # Remove the flow directory from sys.path
+        sys.path.remove(flow_dir)
 
 
 class MetaflowAPI(object):
