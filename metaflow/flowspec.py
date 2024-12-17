@@ -24,6 +24,7 @@ from .extension_support import extension_info
 from .graph import FlowGraph
 from .unbounded_foreach import UnboundedForeachInput
 from .user_configs.config_decorators import (
+    ConfigValue,
     CustomFlowDecorator,
     CustomStepDecorator,
     MutableFlow,
@@ -310,6 +311,10 @@ class FlowSpec(metaclass=FlowSpecMeta):
             if isinstance(val, DelayedEvaluationParameter):
                 val = val()
             val = val.split(param.separator) if val and param.separator else val
+            if isinstance(val, ConfigValue):
+                # We store config values as dict so they are accessible with older
+                # metaflow clients. It also makes it easier to access.
+                val = val.to_dict()
             setattr(self, var, val)
             parameters_info.append({"name": var, "type": param.__class__.__name__})
 
