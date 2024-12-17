@@ -175,7 +175,7 @@ class FlowGraph(object):
         nodes = {}
         for element in dir(flow):
             func = getattr(flow, element)
-            if hasattr(func, "is_step"):
+            if callable(func) and hasattr(func, "is_step"):
                 source_file = inspect.getsourcefile(func)
                 source_lines, lineno = inspect.getsourcelines(func)
                 source_code = textwrap.dedent("".join(source_lines))
