@@ -216,8 +216,14 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
 
         return flow_cls
     finally:
-        # Remove the flow directory from sys.path
-        sys.path.remove(flow_dir)
+        # Safely remove the flow directory from sys.path if it exists
+        try:
+            # Remove the flow directory from sys.path
+            sys.path.remove(flow_dir)
+        except ValueError:
+            # The path might have been modified during module loading,
+            # so we silently ignore if flow_dir is no longer in sys.path
+            pass
 
 
 class MetaflowAPI(object):
