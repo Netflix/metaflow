@@ -447,8 +447,9 @@ def config_options_with_config_input(cmd):
         parsers[arg.name.lower()] = arg.parser
 
     if not config_seen:
-        # No configurations -- don't add anything
-        return cmd, None
+        # No configurations -- don't add anything; we set it to False so that it
+        # can be checked whether or not we called this.
+        return cmd, False
 
     help_str = (
         "Configuration options for the flow. "

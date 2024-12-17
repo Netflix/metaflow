@@ -36,7 +36,6 @@ from metaflow._vendor.click.types import (
     UUIDParameterType,
 )
 from metaflow._vendor.typeguard import TypeCheckError, check_type
-from metaflow.debug import debug
 from metaflow.decorators import add_decorator_options
 from metaflow.exception import MetaflowException
 from metaflow.includefile import FilePathClass
@@ -290,7 +289,12 @@ class MetaflowAPI(object):
 
         def getattr_wrapper(_self, name):
             # Functools.partial do not automatically bind self (no __get__)
-            return _self._internal_getattr(_self, name)
+            with flow_context(flow_cls) as _:
+                # We also wrap this in the proper flow context because since commands
+                # are loaded lazily, we need the proper flow context to compute things
+                # like parameters. If we do not do this, the outer flow's context will
+                # be used.
+                return _self._internal_getattr(_self, name)
 
         class_dict = {
             "__module__": "metaflow",
@@ -409,7 +413,7 @@ class MetaflowAPI(object):
             quiet = opts.get("quiet", defaults["quiet"])
             config_file = opts.get("config-file")
             if config_file is None:
-                config_file = defaults["config_file"]
+                config_file = defaults.get("config_file")
             else:
                 config_file = map(
                     lambda x: (x[0], ConvertPath.convert_value(x[1], False)),
@@ -418,28 +422,35 @@ class MetaflowAPI(object):
 
             config_value = opts.get("config-value")
             if config_value is None:
-                config_value = defaults["config_value"]
+                config_value = defaults.get("config_value")
             else:
                 config_value = map(
                     lambda x: (x[0], ConvertDictOrStr.convert_value(x[1], False)),
                     config_value,
                 )
 
-            # Process both configurations; the second one will return all the merged
-            # configuration options properly processed.
-            self._config_input.process_configs(
-                self._flow_cls.__name__, "config_file", config_file, quiet, ds
-            )
-            config_options = self._config_input.process_configs(
-                self._flow_cls.__name__, "config_value", config_value, quiet, ds
-            )
+            if (config_file is None) ^ (config_value is None):
+                # If we have one, we should have the other
+                raise MetaflowException(
+                    "Options were not properly set -- this is an internal error."
+                )
 
-            # At this point, we are like in start() in cli.py -- we obtained the
-            # properly processed config_options which we can now use to process
-            # the config decorators (including CustomStep/FlowDecorators)
-            new_cls = self._flow_cls._process_config_decorators(config_options)
-            if new_cls:
-                self._flow_cls = new_cls
+            if config_file:
+                # Process both configurations; the second one will return all the merged
+                # configuration options properly processed.
+                self._config_input.process_configs(
+                    self._flow_cls.__name__, "config_file", config_file, quiet, ds
+                )
+                config_options = self._config_input.process_configs(
+                    self._flow_cls.__name__, "config_value", config_value, quiet, ds
+                )
+
+                # At this point, we are like in start() in cli.py -- we obtained the
+                # properly processed config_options which we can now use to process
+                # the config decorators (including CustomStep/FlowDecorators)
+                new_cls = self._flow_cls._process_config_decorators(config_options)
+                if new_cls:
+                    self._flow_cls = new_cls
 
         for _, param in self._flow_cls._get_parameters():
             if param.IS_CONFIG_PARAMETER:
