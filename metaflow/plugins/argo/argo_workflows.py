@@ -744,6 +744,18 @@ class ArgoWorkflows(object):
                     )
                 }
             )
+        try:
+            # Build the DAG based on the DAGNodes given by the FlowGraph for the found FlowSpec class.
+            steps_info, graph_structure = self.graph.output_steps()
+            graph_info = {
+                "steps": steps_info,
+                "graph_structure": graph_structure,
+                "doc": self.graph.doc,
+            }
+        except Exception:
+            graph_info = None
+
+        dag_annotation = {"metaflow/dag": json.dumps(graph_info)}
 
         return (
             WorkflowTemplate()
@@ -758,6 +770,7 @@ class ArgoWorkflows(object):
                 .label("app.kubernetes.io/name", "metaflow-flow")
                 .label("app.kubernetes.io/part-of", "metaflow")
                 .annotations(annotations)
+                .annotations(dag_annotation)
             )
             .spec(
                 WorkflowSpec()
