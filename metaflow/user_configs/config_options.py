@@ -177,6 +177,7 @@ class ConfigInput:
         param_value: Dict[str, Optional[str]],
         quiet: bool,
         datastore: str,
+        click_obj: Optional[Any] = None,
     ):
         from ..cli import echo_always, echo_dev_null  # Prevent circular import
         from ..flowspec import _FlowState  # Prevent circular import
@@ -242,6 +243,9 @@ class ConfigInput:
         # would cause an issue -- we can ignore those as the kv. values should trump
         # everything else.
         all_keys = set(self._value_values).union(self._path_values)
+
+        if all_keys and click_obj:
+            click_obj.has_cl_config_options = True
         # Make sure we have at least some keys (ie: some non default values)
         has_all_kv = all_keys and all(
             self._value_values.get(k, "").startswith(_CONVERT_PREFIX + "kv.")
@@ -257,10 +261,14 @@ class ConfigInput:
                 [k for k, v in self._path_values.items()] or []
             )
             if common_keys:
-                raise click.UsageError(
+                exc = click.UsageError(
                     "Cannot provide both a value and a file for the same configuration. "
                     "Found such values for '%s'" % "', '".join(common_keys)
                 )
+                if click_obj:
+                    click_obj.delayed_config_exception = exc
+                    return None
+                raise exc
 
             all_values = dict(self._path_values)
             all_values.update(self._value_values)
@@ -298,6 +306,7 @@ class ConfigInput:
         else:
             debug.userconf_exec("Fast path due to pre-processed values")
             merged_configs = self._value_values
+        click_obj.has_config_options = True
         debug.userconf_exec("Configs merged with defaults: %s" % str(merged_configs))
 
         missing_configs = set()
@@ -319,9 +328,13 @@ class ConfigInput:
                 # This means to load it from a file
                 read_value = self.get_config(val[3:])
                 if read_value is None:
-                    raise click.UsageError(
+                    exc = click.UsageError(
                         "Could not find configuration '%s' in INFO file" % val
                     )
+                    if click_obj:
+                        click_obj.delayed_config_exception = exc
+                        return None
+                    raise exc
                 flow_cls._flow_state[_FlowState.CONFIGS][name] = read_value
                 to_return[name] = ConfigValue(read_value)
             else:
@@ -354,9 +367,13 @@ class ConfigInput:
                 % (merged_configs[missing][len(_CONVERTED_DEFAULT_NO_FILE) :], missing)
             )
         if msgs:
-            raise click.UsageError(
+            exc = click.UsageError(
                 "Bad values passed for configuration options: %s" % ", ".join(msgs)
             )
+            if click_obj:
+                click_obj.delayed_config_exception = exc
+                return None
+            raise exc
 
         debug.userconf_exec("Finalized configs: %s" % str(to_return))
         return to_return
@@ -368,6 +385,7 @@ class ConfigInput:
             value,
             ctx.params["quiet"],
             ctx.params["datastore"],
+            click_obj=ctx.obj,
         )
 
     def __str__(self):
@@ -453,7 +471,7 @@ def config_options_with_config_input(cmd):
 
     help_str = (
         "Configuration options for the flow. "
-        "Multiple configurations can be specified."
+        "Multiple configurations can be specified. Cannot be used with resume."
     )
     help_str = "\n\n".join([help_str] + help_strs)
     config_input = ConfigInput(required_names, defaults, parsers)

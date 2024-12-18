@@ -10,7 +10,8 @@ from metaflow._vendor import click
 from . import decorators, lint, metaflow_version, parameters, plugins
 from .cli_args import cli_args
 from .cli_components.utils import LazyGroup, LazyPluginCommandCollection
-from .datastore import FlowDataStore
+from .datastore import FlowDataStore, TaskDataStoreSet
+from .debug import debug
 from .exception import CommandException, MetaflowException
 from .flowspec import _FlowState
 from .graph import FlowGraph
@@ -35,7 +36,7 @@ from .plugins import (
 )
 from .pylint_wrapper import PyLint
 from .R import metaflow_r_version, use_r
-from .util import resolve_identity
+from .util import get_latest_run_id, resolve_identity
 from .user_configs.config_options import LocalFileInput, config_options
 from .user_configs.config_parameters import ConfigValue
 
@@ -346,6 +347,33 @@ def start(
     echo(" executing *%s*" % ctx.obj.flow.name, fg="magenta", nl=False)
     echo(" for *%s*" % resolve_identity(), fg="magenta")
 
+    # Setup the context
+    cli_args._set_top_kwargs(ctx.params)
+    ctx.obj.echo = echo
+    ctx.obj.echo_always = echo_always
+    ctx.obj.is_quiet = quiet
+    ctx.obj.logger = logger
+    ctx.obj.pylint = pylint
+    ctx.obj.check = functools.partial(_check, echo)
+    ctx.obj.top_cli = cli
+    ctx.obj.package_suffixes = package_suffixes.split(",")
+
+    ctx.obj.datastore_impl = [d for d in DATASTORES if d.TYPE == datastore][0]
+
+    if datastore_root is None:
+        datastore_root = ctx.obj.datastore_impl.get_datastore_root_from_config(
+            ctx.obj.echo
+        )
+    if datastore_root is None:
+        raise CommandException(
+            "Could not find the location of the datastore -- did you correctly set the "
+            "METAFLOW_DATASTORE_SYSROOT_%s environment variable?" % datastore.upper()
+        )
+
+    ctx.obj.datastore_impl.datastore_root = datastore_root
+
+    FlowDataStore.default_storage_impl = ctx.obj.datastore_impl
+
     # At this point, we are able to resolve the user-configuration options so we can
     # process all those decorators that the user added that will modify the flow based
     # on those configurations. It is important to do this as early as possible since it
@@ -355,20 +383,75 @@ def start(
     # second one processed will return the actual options. The order of processing
     # depends on what (and in what order) the user specifies on the command line.
     config_options = config_file or config_value
+
+    if (
+        hasattr(ctx, "saved_args")
+        and ctx.saved_args
+        and ctx.saved_args[0] == "resume"
+        and getattr(ctx.obj, "has_config_options", False)
+    ):
+        # In the case of resume, we actually need to load the configurations
+        # from the resumed run to process them. This can be slightly onerous so check
+        # if we need to in the first place
+        if getattr(ctx.obj, "has_cl_config_options", False):
+            raise click.UsageError(
+                "Cannot specify --config-file or --config-value with 'resume'"
+            )
+        # We now load the config artifacts from the original run id
+        run_id = None
+        try:
+            idx = ctx.saved_args.index("--origin-run-id")
+        except ValueError:
+            idx = -1
+        if idx >= 0:
+            run_id = ctx.saved_args[idx + 1]
+        else:
+            run_id = get_latest_run_id(ctx.obj.echo, ctx.obj.flow.name)
+        if run_id is None:
+            raise CommandException(
+                "A previous run id was not found. Specify --origin-run-id."
+            )
+        # We get the name of the parameters we need to load from the datastore -- these
+        # are accessed using the *variable* name and not necessarily the *parameter* name
+        config_var_names = []
+        config_param_names = []
+        for name, param in ctx.obj.flow._get_parameters():
+            if not param.IS_CONFIG_PARAMETER:
+                continue
+            config_var_names.append(name)
+            config_param_names.append(param.name)
+
+        # We just need a task datastore that will be thrown away -- we do this so
+        # we don't have to create the logger, monitor, etc.
+        debug.userconf_exec("Loading config parameters from run %s" % run_id)
+        for d in TaskDataStoreSet(
+            FlowDataStore(ctx.obj.flow.name),
+            run_id,
+            steps=["_parameters"],
+            prefetch_data_artifacts=config_var_names,
+        ):
+            param_ds = d
+
+        # We can now set the the CONFIGS value in the flow properly. This will overwrite
+        # anything that may have been passed in by default and we will use exactly what
+        # the original flow had. Note that these are accessed through the parameter name
+        ctx.obj.flow._flow_state[_FlowState.CONFIGS].clear()
+        d = ctx.obj.flow._flow_state[_FlowState.CONFIGS]
+        for param_name, var_name in zip(config_param_names, config_var_names):
+            val = param_ds[var_name]
+            debug.userconf_exec("Loaded config %s as: %s" % (param_name, val))
+            d[param_name] = val
+
+    elif getattr(ctx.obj, "delayed_config_exception", None):
+        # If we are not doing a resume, any exception we had parsing configs needs to
+        # be raised. For resume, since we ignore those options, we ignore the error.
+        raise ctx.obj.delayed_config_exception
+
     new_cls = ctx.obj.flow._process_config_decorators(config_options)
     if new_cls:
         ctx.obj.flow = new_cls(use_cli=False)
 
-    cli_args._set_top_kwargs(ctx.params)
-    ctx.obj.echo = echo
-    ctx.obj.echo_always = echo_always
-    ctx.obj.is_quiet = quiet
     ctx.obj.graph = ctx.obj.flow._graph
-    ctx.obj.logger = logger
-    ctx.obj.pylint = pylint
-    ctx.obj.check = functools.partial(_check, echo)
-    ctx.obj.top_cli = cli
-    ctx.obj.package_suffixes = package_suffixes.split(",")
 
     ctx.obj.environment = [
         e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == environment
@@ -391,21 +474,6 @@ def start(
         ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
     )
 
-    ctx.obj.datastore_impl = [d for d in DATASTORES if d.TYPE == datastore][0]
-
-    if datastore_root is None:
-        datastore_root = ctx.obj.datastore_impl.get_datastore_root_from_config(
-            ctx.obj.echo
-        )
-    if datastore_root is None:
-        raise CommandException(
-            "Could not find the location of the datastore -- did you correctly set the "
-            "METAFLOW_DATASTORE_SYSROOT_%s environment variable?" % datastore.upper()
-        )
-
-    ctx.obj.datastore_impl.datastore_root = datastore_root
-
-    FlowDataStore.default_storage_impl = ctx.obj.datastore_impl
     ctx.obj.flow_datastore = FlowDataStore(
         ctx.obj.flow.name,
         ctx.obj.environment,
