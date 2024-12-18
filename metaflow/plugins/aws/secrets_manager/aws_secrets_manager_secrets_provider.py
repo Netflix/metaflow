@@ -55,19 +55,22 @@ class AwsSecretsManagerSecretsProvider(SecretsProvider):
             top-level object, each entry K/V in the object will also be converted to an entry in the result. V will
             always be casted to a string (if not already a string).
         - If `json` option is False:
-            {SecretString} will be returned as a single entry in the result, with the key being the secret_id.
+            {SecretString} will be returned as a single entry in the result, where the key is either:
+                - the `secret_id`, OR
+                - the value set by `options={"env_var_name": custom_env_var_name}`.
 
-        Otherwise, the secret contains a binary blob payload ("SecretBinary"). In this case
-        - The result dic contains '{SecretName}': '{SecretBinary}', where {SecretBinary} is a base64-encoded string
+        Otherwise, if the secret contains a binary blob payload ("SecretBinary"):
+        - The result dict contains '{SecretName}': '{SecretBinary}', where {SecretBinary} is a base64-encoded string.
 
-        All keys in the result are sanitized to be more valid environment variable names. This is done on a best effort
+        All keys in the result are sanitized to be more valid environment variable names. This is done on a best-effort
         basis. Further validation is expected to be done by the invoking @secrets decorator itself.
 
-        :param secret_id: ARN or friendly name of the secret
-        :param options: unused
-        :param role: AWS IAM Role ARN to assume before reading the secret
-        :return: dict of environment variables. All keys and values are strings.
+        :param secret_id: ARN or friendly name of the secret.
+        :param options: Dictionary of additional options. E.g., `options={"env_var_name": custom_env_var_name}`.
+        :param role: AWS IAM Role ARN to assume before reading the secret.
+        :return: Dictionary of environment variables. All keys and values are strings.
         """
+
         import botocore
         from metaflow.plugins.aws.aws_client import get_aws_client
 
