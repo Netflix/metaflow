@@ -306,7 +306,10 @@ class ConfigInput:
         else:
             debug.userconf_exec("Fast path due to pre-processed values")
             merged_configs = self._value_values
-        click_obj.has_config_options = True
+
+        if click_obj:
+            click_obj.has_config_options = True
+
         debug.userconf_exec("Configs merged with defaults: %s" % str(merged_configs))
 
         missing_configs = set()
