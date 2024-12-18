@@ -67,4 +67,3 @@ There are several ways to get in touch with us:
 
 ## Contributing
 We welcome contributions to Metaflow. Please see our [contribution guide](https://docs.metaflow.org/introduction/contributing-to-metaflow) for more details.
-
