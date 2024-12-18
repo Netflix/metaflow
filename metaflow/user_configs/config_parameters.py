@@ -70,10 +70,6 @@ class ConfigValue(collections.abc.Mapping):
     # as well as a [] notation.
 
     def __init__(self, data: Dict[str, Any]):
-        if any(not ID_PATTERN.match(k) for k in data.keys()):
-            raise MetaflowException(
-                "All keys in the configuration must be valid Python identifiers"
-            )
         self._data = data
 
     def __getattr__(self, key: str) -> Any:
