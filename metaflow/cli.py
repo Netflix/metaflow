@@ -594,7 +594,7 @@ def print_metaflow_exception(ex):
     location = ""
     if ex.source_file is not None:
         location += " in file %s" % ex.source_file
-    if ex.line_no is None:
+    if ex.line_no is not None:
         location += " on line %d" % ex.line_no
     location += ":"
     echo_always(location, bold=True)
