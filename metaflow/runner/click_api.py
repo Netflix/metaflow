@@ -401,6 +401,7 @@ class MetaflowAPI(object):
             return self._cached_computed_parameters
         self._cached_computed_parameters = []
 
+        config_options = None
         if CLICK_API_CHECK_CONFIG:
             with flow_context(self._flow_cls) as _:
                 # We are going to resolve the configs first and then get the parameters.
@@ -448,7 +449,6 @@ class MetaflowAPI(object):
                         "Options were not properly set -- this is an internal error."
                     )
 
-                config_options = None
                 if config_file:
                     # Process both configurations; the second one will return all the merged
                     # configuration options properly processed.
@@ -459,12 +459,14 @@ class MetaflowAPI(object):
                         self._flow_cls.__name__, "config_value", config_value, quiet, ds
                     )
 
-                # At this point, we are like in start() in cli.py -- we obtained the
-                # properly processed config_options which we can now use to process
-                # the config decorators (including CustomStep/FlowDecorators)
-                new_cls = self._flow_cls._process_config_decorators(config_options)
-                if new_cls:
-                    self._flow_cls = new_cls
+        # At this point, we are like in start() in cli.py -- we obtained the
+        # properly processed config_options which we can now use to process
+        # the config decorators (including CustomStep/FlowDecorators)
+        # Note that if CLICK_API_CHECK_CONFIG is False, we still do this because
+        # it will init all parameters (config_options will be None)
+        new_cls = self._flow_cls._process_config_decorators(config_options)
+        if new_cls:
+            self._flow_cls = new_cls
 
         for _, param in self._flow_cls._get_parameters():
             if param.IS_CONFIG_PARAMETER:
