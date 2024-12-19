@@ -13,7 +13,7 @@ class FlowDataStore(object):
     def __init__(
         self,
         flow_name,
-        environment,
+        environment=None,
         metadata=None,
         event_logger=None,
         monitor=None,
@@ -31,7 +31,7 @@ class FlowDataStore(object):
         ----------
         flow_name : str
             The name of the flow
-        environment : MetaflowEnvironment
+        environment : MetaflowEnvironment, optional
             Environment this datastore is operating in
         metadata : MetadataProvider, optional
             The metadata provider to use and update if needed, by default None

@@ -103,7 +103,7 @@ from .flowspec import FlowSpec
 
 from .parameters import Parameter, JSONTypeClass, JSONType
 
-from .user_configs.config_parameters import Config, config_expr
+from .user_configs.config_parameters import Config, ConfigValue, config_expr
 from .user_configs.config_decorators import CustomFlowDecorator, CustomStepDecorator
 
 # data layer

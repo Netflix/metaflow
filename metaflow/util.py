@@ -307,10 +307,10 @@ def dict_to_cli_options(params):
             # keyword in Python, so we call it 'decospecs' in click args
             if k == "decospecs":
                 k = "with"
-            if k in ("config_file_options", "config_value_options"):
+            if k in ("config_file", "config_value"):
                 # Special handling here since we gather them all in one option but actually
                 # need to send them one at a time using --config-value <name> kv.<name>
-                # Note it can be either config_file_options or config_value_options depending
+                # Note it can be either config_file or config_value depending
                 # on click processing order.
                 for config_name in v.keys():
                     yield "--config-value"

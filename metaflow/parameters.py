@@ -359,7 +359,7 @@ class Parameter(object):
             "show_default": show_default,
         }
 
-    def init(self):
+    def init(self, ignore_errors=False):
         # Prevent circular import
         from .user_configs.config_parameters import (
             resolve_delayed_evaluator,
@@ -367,14 +367,21 @@ class Parameter(object):
         )
 
         # Resolve any value from configurations
-        self.kwargs = unpack_delayed_evaluator(self.kwargs)
-        self.kwargs = resolve_delayed_evaluator(self.kwargs)
+        self.kwargs = unpack_delayed_evaluator(self.kwargs, ignore_errors=ignore_errors)
+        # Do it one item at a time so errors are ignored at that level (as opposed to
+        # at the entire kwargs leve)
+        self.kwargs = {
+            k: resolve_delayed_evaluator(v, ignore_errors=ignore_errors)
+            for k, v in self.kwargs.items()
+        }
 
         # This was the behavior before configs: values specified in args would override
         # stuff in kwargs which is what we implement here as well
         for key, value in self._override_kwargs.items():
             if value is not None:
-                self.kwargs[key] = value
+                self.kwargs[key] = resolve_delayed_evaluator(
+                    value, ignore_errors=ignore_errors
+                )
         # Set two default values if no-one specified them
         self.kwargs.setdefault("required", False)
         self.kwargs.setdefault("show_default", True)
