@@ -1,14 +1,16 @@
+import json
+import os
+import re
+import tempfile
+
 from metaflow.decorators import StepDecorator
 from metaflow.metaflow_current import current
 from metaflow.user_configs.config_options import ConfigInput
+from metaflow.user_configs.config_parameters import dump_config_values
 from metaflow.util import to_unicode
+
 from .component_serializer import CardComponentCollector, get_card_class
 from .card_creator import CardCreator
-
-
-# from metaflow import get_metadata
-import re
-
 from .exception import CARD_ID_PATTERN, TYPE_CHECK_REGEX
 
 ASYNC_TIMEOUT = 30
@@ -155,6 +157,18 @@ class CardDecorator(StepDecorator):
         self._task_datastore = task_datastore
         self._metadata = metadata
 
+        # If we have configs, we need to dump them to a file so we can re-use them
+        # when calling the card creation subprocess.
+        if self._config_values:
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", delete=False
+            ) as config_file:
+                config_value = dump_config_values(flow)
+                json.dump(config_value, config_file)
+                self._config_file_name = config_file.name
+        else:
+            self._config_file_name = None
+
         card_type = self.attributes["type"]
         card_class = get_card_class(card_type)
 
@@ -232,6 +246,13 @@ class CardDecorator(StepDecorator):
             self.card_creator.create(mode="render", final=True, **create_options)
             self.card_creator.create(mode="refresh", final=True, **create_options)
 
+        # Unlink the config file if it exists
+        if self._config_file_name:
+            try:
+                os.unlink(self._config_file_name)
+            except Exception as e:
+                pass
+
     @staticmethod
     def _options(mapping):
         for k, v in mapping.items():
@@ -262,5 +283,6 @@ class CardDecorator(StepDecorator):
         }
         if self._config_values:
             top_level_options["config-value"] = self._config_values
+            top_level_options["local-config-file"] = self._config_file_name
 
         return list(self._options(top_level_options))
