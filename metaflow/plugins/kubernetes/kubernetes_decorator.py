@@ -19,6 +19,8 @@ from metaflow.metaflow_config import (
     KUBERNETES_GPU_VENDOR,
     KUBERNETES_IMAGE_PULL_POLICY,
     KUBERNETES_MEMORY,
+    KUBERNETES_LABELS,
+    KUBERNETES_ANNOTATIONS,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_PERSISTENT_VOLUME_CLAIMS,
@@ -34,7 +36,8 @@ from metaflow.sidecar import Sidecar
 from metaflow.unbounded_foreach import UBF_CONTROL
 
 from ..aws.aws_utils import get_docker_registry, get_ec2_instance_metadata
-from .kubernetes import KubernetesException, parse_kube_keyvalue_list
+from .kubernetes import KubernetesException
+from .kube_utils import validate_kube_labels, parse_kube_keyvalue_list
 
 try:
     unicode
@@ -89,6 +92,10 @@ class KubernetesDecorator(StepDecorator):
     tolerations : List[str], default []
         The default is extracted from METAFLOW_KUBERNETES_TOLERATIONS.
         Kubernetes tolerations to use when launching pod in Kubernetes.
+    labels: Dict[str, str], default: METAFLOW_KUBERNETES_LABELS
+        Kubernetes labels to use when launching pod in Kubernetes.
+    annotations: Dict[str, str], default: METAFLOW_KUBERNETES_ANNOTATIONS
+        Kubernetes annotations to use when launching pod in Kubernetes.
     use_tmpfs : bool, default False
         This enables an explicit tmpfs mount for this step.
     tmpfs_tempdir : bool, default True
@@ -131,6 +138,8 @@ class KubernetesDecorator(StepDecorator):
         "gpu_vendor": None,
         "tolerations": None,  # e.g., [{"key": "arch", "operator": "Equal", "value": "amd"},
         #                              {"key": "foo", "operator": "Equal", "value": "bar"}]
+        "labels": None,  # e.g. {"test-label": "value", "another-label":"value2"}
+        "annotations": None,  # e.g. {"note": "value", "another-note": "value2"}
         "use_tmpfs": None,
         "tmpfs_tempdir": True,
         "tmpfs_size": None,
@@ -217,6 +226,36 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["memory"] = KUBERNETES_MEMORY
         if self.attributes["disk"] == self.defaults["disk"] and KUBERNETES_DISK:
             self.attributes["disk"] = KUBERNETES_DISK
+        # Label source precedence (decreasing):
+        # - System labels (set outside of decorator)
+        # - Decorator labels: @kubernetes(labels={})
+        # - Environment variable labels: METAFLOW_KUBERNETES_LABELS=
+        deco_labels = {}
+        if self.attributes["labels"] is not None:
+            deco_labels = self.attributes["labels"]
+
+        env_labels = {}
+        if KUBERNETES_LABELS:
+            env_labels = parse_kube_keyvalue_list(KUBERNETES_LABELS.split(","), False)
+
+        self.attributes["labels"] = {**env_labels, **deco_labels}
+
+        # Annotations
+        # annotation precedence (decreasing):
+        # - System annotations (set outside of decorator)
+        # - Decorator annotations: @kubernetes(annotations={})
+        # - Environment annotations: METAFLOW_KUBERNETES_ANNOTATIONS=
+        deco_annotations = {}
+        if self.attributes["annotations"] is not None:
+            deco_annotations = self.attributes["annotations"]
+
+        env_annotations = {}
+        if KUBERNETES_ANNOTATIONS:
+            env_annotations = parse_kube_keyvalue_list(
+                KUBERNETES_ANNOTATIONS.split(","), False
+            )
+
+        self.attributes["annotations"] = {**env_annotations, **deco_annotations}
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
@@ -371,6 +410,9 @@ class KubernetesDecorator(StepDecorator):
                     )
                 )
 
+        validate_kube_labels(self.attributes["labels"])
+        # TODO: add validation to annotations as well?
+
     def package_init(self, flow, step_name, environment):
         try:
             # Kubernetes is a soft dependency.
@@ -426,7 +468,12 @@ class KubernetesDecorator(StepDecorator):
                         "=".join([key, str(val)]) if val else key
                         for key, val in v.items()
                     ]
-                elif k in ["tolerations", "persistent_volume_claims"]:
+                elif k in [
+                    "tolerations",
+                    "persistent_volume_claims",
+                    "labels",
+                    "annotations",
+                ]:
                     cli_args.command_options[k] = json.dumps(v)
                 else:
                     cli_args.command_options[k] = v
