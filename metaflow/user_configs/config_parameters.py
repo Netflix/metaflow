@@ -357,29 +357,47 @@ class Config(Parameter, collections.abc.Mapping):
         return DelayEvaluator(self.name.lower())[key]
 
 
-def resolve_delayed_evaluator(v: Any) -> Any:
-    if isinstance(v, DelayEvaluator):
-        return v()
-    if isinstance(v, dict):
-        return {
-            resolve_delayed_evaluator(k): resolve_delayed_evaluator(v)
-            for k, v in v.items()
-        }
-    if isinstance(v, list):
-        return [resolve_delayed_evaluator(x) for x in v]
-    if isinstance(v, tuple):
-        return tuple(resolve_delayed_evaluator(x) for x in v)
-    if isinstance(v, set):
-        return {resolve_delayed_evaluator(x) for x in v}
-    return v
+def resolve_delayed_evaluator(v: Any, ignore_errors: bool = False) -> Any:
+    try:
+        if isinstance(v, DelayEvaluator):
+            return v()
+        if isinstance(v, dict):
+            return {
+                resolve_delayed_evaluator(k): resolve_delayed_evaluator(v)
+                for k, v in v.items()
+            }
+        if isinstance(v, list):
+            return [resolve_delayed_evaluator(x) for x in v]
+        if isinstance(v, tuple):
+            return tuple(resolve_delayed_evaluator(x) for x in v)
+        if isinstance(v, set):
+            return {resolve_delayed_evaluator(x) for x in v}
+        return v
+    except Exception as e:
+        if ignore_errors:
+            # Assumption is that default value of None is always allowed.
+            # This code path is *only* used when evaluating Parameters AND they
+            # use configs in their attributes AND the runner/deployer is being used
+            # AND CLICK_API_PROCESS_CONFIG is False. In those cases, all attributes in
+            # Parameter can be set to None except for required and show_default
+            # and even in those cases, a wrong value will have very limited consequence.
+            return None
+        raise e
 
 
-def unpack_delayed_evaluator(to_unpack: Dict[str, Any]) -> Dict[str, Any]:
+def unpack_delayed_evaluator(
+    to_unpack: Dict[str, Any], ignore_errors: bool = False
+) -> Dict[str, Any]:
     result = {}
     for k, v in to_unpack.items():
         if not isinstance(k, str) or not k.startswith(UNPACK_KEY):
             result[k] = v
         else:
             # k.startswith(UNPACK_KEY)
-            result.update(resolve_delayed_evaluator(v[k]))
+            try:
+                result.update(resolve_delayed_evaluator(v[k]))
+            except Exception as e:
+                if ignore_errors:
+                    continue
+                raise e
     return result

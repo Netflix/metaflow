@@ -98,6 +98,9 @@ class FlowSpecMeta(type):
         # Keys are _FlowState enum values
         cls._flow_state = {}
 
+        cls._init_attrs()
+
+    def _init_attrs(cls):
         # Graph and steps are specific to the class -- store here so we can access
         # in class method _process_config_decorators
         cls._graph = FlowGraph(cls)
@@ -190,7 +193,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
             seen.add(norm)
 
     @classmethod
-    def _process_config_decorators(cls, config_options):
+    def _process_config_decorators(cls, config_options, ignore_errors=False):
 
         # Fast path for no user configurations
         if not cls._flow_state.get(_FlowState.CONFIG_DECORATORS):
@@ -198,7 +201,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
             for var, param in cls._get_parameters():
                 if param.IS_CONFIG_PARAMETER:
                     continue
-                param.init()
+                param.init(ignore_errors)
             return None
 
         debug.userconf_exec("Processing mutating step/flow decorators")
@@ -282,6 +285,9 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
         # Set the current flow class we are in (the one we just created)
         parameters.replace_flow_context(cls)
+
+        # Re-calculate class level attributes after modifying the class
+        cls._init_attrs()
         return cls
 
     def _set_constants(self, graph, kwargs, config_options):

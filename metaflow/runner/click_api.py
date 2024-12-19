@@ -39,7 +39,7 @@ from metaflow._vendor.typeguard import TypeCheckError, check_type
 from metaflow.decorators import add_decorator_options
 from metaflow.exception import MetaflowException
 from metaflow.includefile import FilePathClass
-from metaflow.metaflow_config import CLICK_API_CHECK_CONFIG
+from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
 from metaflow.parameters import JSONTypeClass, flow_context
 from metaflow.user_configs.config_options import (
     ConfigValue,
@@ -402,7 +402,7 @@ class MetaflowAPI(object):
         self._cached_computed_parameters = []
 
         config_options = None
-        if CLICK_API_CHECK_CONFIG:
+        if CLICK_API_PROCESS_CONFIG:
             with flow_context(self._flow_cls) as _:
                 # We are going to resolve the configs first and then get the parameters.
                 # Note that configs may update/add parameters so the order is important
@@ -462,9 +462,12 @@ class MetaflowAPI(object):
         # At this point, we are like in start() in cli.py -- we obtained the
         # properly processed config_options which we can now use to process
         # the config decorators (including CustomStep/FlowDecorators)
-        # Note that if CLICK_API_CHECK_CONFIG is False, we still do this because
+        # Note that if CLICK_API_PROCESS_CONFIG is False, we still do this because
         # it will init all parameters (config_options will be None)
-        new_cls = self._flow_cls._process_config_decorators(config_options)
+        # We ignore any errors if we don't check the configs in the click API.
+        new_cls = self._flow_cls._process_config_decorators(
+            config_options, ignore_errors=not CLICK_API_PROCESS_CONFIG
+        )
         if new_cls:
             self._flow_cls = new_cls
 

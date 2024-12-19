@@ -534,7 +534,8 @@ def start(
             decorators._attach_decorators(ctx.obj.flow, all_decospecs)
             decorators._init(ctx.obj.flow)
             # Regenerate graph if we attached more decorators
-            ctx.obj.graph = FlowGraph(ctx.obj.flow.__class__)
+            ctx.obj.flow.__class__._init_attrs()
+            ctx.obj.graph = ctx.obj.flow._graph
 
         decorators._init_step_decorators(
             ctx.obj.flow,
