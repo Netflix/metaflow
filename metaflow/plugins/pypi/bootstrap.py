@@ -13,6 +13,7 @@ import requests
 
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.plugins import DATASTORES
+from metaflow.plugins.pypi.utils import MICROMAMBA_MIRROR_URL, MICROMAMBA_URL
 from metaflow.util import which
 
 from . import MAGIC_FILE, _datastore_packageroot
@@ -108,28 +109,37 @@ if __name__ == "__main__":
 
         # Download and extract in one go
         # TODO: Serve from cloudflare
-        url = f"https://micro.mamba.pm/api/micromamba/{architecture}/2.0.4"
+        url = MICROMAMBA_URL.format(platform=architecture)
+        mirror_url = MICROMAMBA_MIRROR_URL.format(platform=architecture)
 
         # Prepare directory once
         os.makedirs(os.path.dirname(micromamba_path), exist_ok=True)
 
         # Stream and process directly to file
-        with requests.get(url, stream=True, timeout=30) as response:
-            if response.status_code != 200:
-                raise Exception(
-                    f"Failed to download micromamba: HTTP {response.status_code}"
-                )
+        def _download_and_extract(url):
+            with requests.get(url, stream=True, timeout=30) as response:
+                if response.status_code != 200:
+                    raise Exception(
+                        f"Failed to download micromamba: HTTP {response.status_code}"
+                    )
 
-            decompressor = bz2.BZ2Decompressor()
+                decompressor = bz2.BZ2Decompressor()
 
-            # Process in memory without temporary files
-            tar_content = decompressor.decompress(response.raw.read())
+                # Process in memory without temporary files
+                tar_content = decompressor.decompress(response.raw.read())
 
-            with tarfile.open(fileobj=io.BytesIO(tar_content), mode="r:") as tar:
-                member = tar.getmember("bin/micromamba")
-                # Extract directly to final location
-                with open(micromamba_path, "wb") as f:
-                    f.write(tar.extractfile(member).read())
+                with tarfile.open(fileobj=io.BytesIO(tar_content), mode="r:") as tar:
+                    member = tar.getmember("bin/micromamba")
+                    # Extract directly to final location
+                    with open(micromamba_path, "wb") as f:
+                        f.write(tar.extractfile(member).read())
+
+        try:
+            # first try from mirror
+            _download_and_extract(mirror_url)
+        except Exception:
+            # download from mirror failed, try official source before failing.
+            _download_and_extract(url)
 
         # Set executable permission
         os.chmod(micromamba_path, 0o755)
