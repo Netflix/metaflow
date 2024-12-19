@@ -290,8 +290,8 @@ class IncludeFile(Parameter):
             **kwargs,
         )
 
-    def init(self):
-        super(IncludeFile, self).init()
+    def init(self, ignore_errors=False):
+        super(IncludeFile, self).init(ignore_errors)
 
         # This will use the values set explicitly in the args if present, else will
         # use and remove from kwargs else will use True/utf-8
