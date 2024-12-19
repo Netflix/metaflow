@@ -173,7 +173,9 @@ class DelayEvaluator(collections.abc.Mapping):
     def __getitem__(self, key):
         if key == "%s%d" % (UNPACK_KEY, id(self)):
             return self
-        raise KeyError(key)
+        if self._access is None:
+            raise KeyError(key)
+        self._access.append(key)
 
     def __len__(self):
         return 1
