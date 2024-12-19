@@ -374,7 +374,7 @@ class Parameter(object):
         # stuff in kwargs which is what we implement here as well
         for key, value in self._override_kwargs.items():
             if value is not None:
-                self.kwargs[key] = value
+                self.kwargs[key] = resolve_delayed_evaluator(value)
         # Set two default values if no-one specified them
         self.kwargs.setdefault("required", False)
         self.kwargs.setdefault("show_default", True)

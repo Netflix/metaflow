@@ -70,10 +70,6 @@ class ConfigValue(collections.abc.Mapping):
     # as well as a [] notation.
 
     def __init__(self, data: Dict[str, Any]):
-        if any(not ID_PATTERN.match(k) for k in data.keys()):
-            raise MetaflowException(
-                "All keys in the configuration must be valid Python identifiers"
-            )
         self._data = data
 
     def __getattr__(self, key: str) -> Any:
@@ -177,7 +173,10 @@ class DelayEvaluator(collections.abc.Mapping):
     def __getitem__(self, key):
         if key == "%s%d" % (UNPACK_KEY, id(self)):
             return self
-        raise KeyError(key)
+        if self._access is None:
+            raise KeyError(key)
+        self._access.append(key)
+        return self
 
     def __len__(self):
         return 1
@@ -338,7 +337,7 @@ class Config(Parameter, collections.abc.Mapping):
         self._computed_value = None
 
     def load_parameter(self, v):
-        return v
+        return ConfigValue(v)
 
     def _store_value(self, v: Any) -> None:
         self._computed_value = v
