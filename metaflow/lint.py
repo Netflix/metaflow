@@ -52,7 +52,7 @@ def check_reserved_words(graph):
     msg = "Step name *%s* is a reserved word. Choose another name for the " "step."
     for node in graph:
         if node.name in RESERVED:
-            raise LintWarn(msg % node.name)
+            raise LintWarn(msg % node.name, node.func_lineno, node.source_file)
 
 
 @linter.ensure_fundamentals
@@ -76,9 +76,9 @@ def check_that_end_is_end(graph):
     node = graph["end"]
 
     if node.has_tail_next or node.invalid_tail_next:
-        raise LintWarn(msg0, node.tail_next_lineno)
+        raise LintWarn(msg0, node.tail_next_lineno, node.source_file)
     if node.num_args > 1:
-        raise LintWarn(msg1, node.tail_next_lineno)
+        raise LintWarn(msg1, node.tail_next_lineno, node.source_file)
 
 
 @linter.ensure_fundamentals
@@ -90,7 +90,7 @@ def check_step_names(graph):
     )
     for node in graph:
         if re.search("[^a-z0-9_]", node.name) or node.name[0] == "_":
-            raise LintWarn(msg.format(node), node.func_lineno)
+            raise LintWarn(msg.format(node), node.func_lineno, node.source_file)
 
 
 @linter.ensure_fundamentals
@@ -108,11 +108,11 @@ def check_num_args(graph):
     msg2 = "Step *{0.name}* is missing the 'self' argument."
     for node in graph:
         if node.num_args > 2:
-            raise LintWarn(msg0.format(node), node.func_lineno)
+            raise LintWarn(msg0.format(node), node.func_lineno, node.source_file)
         elif node.num_args == 2 and node.type != "join":
-            raise LintWarn(msg1.format(node), node.func_lineno)
+            raise LintWarn(msg1.format(node), node.func_lineno, node.source_file)
         elif node.num_args == 0:
-            raise LintWarn(msg2.format(node), node.func_lineno)
+            raise LintWarn(msg2.format(node), node.func_lineno, node.source_file)
 
 
 @linter.ensure_static_graph
@@ -125,7 +125,7 @@ def check_static_transitions(graph):
     )
     for node in graph:
         if node.type != "end" and not node.has_tail_next:
-            raise LintWarn(msg.format(node), node.func_lineno)
+            raise LintWarn(msg.format(node), node.func_lineno, node.source_file)
 
 
 @linter.ensure_static_graph
@@ -138,7 +138,7 @@ def check_valid_transitions(graph):
     )
     for node in graph:
         if node.type != "end" and node.has_tail_next and node.invalid_tail_next:
-            raise LintWarn(msg.format(node), node.tail_next_lineno)
+            raise LintWarn(msg.format(node), node.tail_next_lineno, node.source_file)
 
 
 @linter.ensure_static_graph
@@ -151,7 +151,11 @@ def check_unknown_transitions(graph):
     for node in graph:
         unknown = [n for n in node.out_funcs if n not in graph]
         if unknown:
-            raise LintWarn(msg.format(node, step=unknown[0]), node.tail_next_lineno)
+            raise LintWarn(
+                msg.format(node, step=unknown[0]),
+                node.tail_next_lineno,
+                node.source_file,
+            )
 
 
 @linter.ensure_acyclicity
@@ -167,7 +171,9 @@ def check_for_acyclicity(graph):
         for n in node.out_funcs:
             if n in seen:
                 path = "->".join(seen + [n])
-                raise LintWarn(msg.format(path), node.tail_next_lineno)
+                raise LintWarn(
+                    msg.format(path), node.tail_next_lineno, node.source_file
+                )
             else:
                 check_path(graph[n], seen + [n])
 
@@ -195,7 +201,7 @@ def check_for_orphans(graph):
     orphans = nodeset - seen
     if orphans:
         orphan = graph[list(orphans)[0]]
-        raise LintWarn(msg.format(orphan), orphan.func_lineno)
+        raise LintWarn(msg.format(orphan), orphan.func_lineno, orphan.source_file)
 
 
 @linter.ensure_static_graph
@@ -230,7 +236,9 @@ def check_split_join_balance(graph):
             if split_stack:
                 _, split_roots = split_stack.pop()
                 roots = ", ".join(split_roots)
-                raise LintWarn(msg0.format(roots=roots))
+                raise LintWarn(
+                    msg0.format(roots=roots), node.func_lineno, node.source_file
+                )
         elif node.type == "join":
             if split_stack:
                 _, split_roots = split_stack[-1]
@@ -243,9 +251,10 @@ def check_split_join_balance(graph):
                             node, paths=paths, num_roots=len(split_roots), roots=roots
                         ),
                         node.func_lineno,
+                        node.source_file,
                     )
             else:
-                raise LintWarn(msg2.format(node), node.func_lineno)
+                raise LintWarn(msg2.format(node), node.func_lineno, node.source_file)
 
             # check that incoming steps come from the same lineage
             # (no cross joins)
@@ -256,7 +265,7 @@ def check_split_join_balance(graph):
                     return tuple(graph[n].split_parents)
 
             if not all_equal(map(parents, node.in_funcs)):
-                raise LintWarn(msg3.format(node), node.func_lineno)
+                raise LintWarn(msg3.format(node), node.func_lineno, node.source_file)
 
         for n in node.out_funcs:
             traverse(graph[n], new_stack)
@@ -276,7 +285,9 @@ def check_empty_foreaches(graph):
         if node.type == "foreach":
             joins = [n for n in node.out_funcs if graph[n].type == "join"]
             if joins:
-                raise LintWarn(msg.format(node, join=joins[0]))
+                raise LintWarn(
+                    msg.format(node, join=joins[0]), node.func_lineno, node.source_file
+                )
 
 
 @linter.ensure_static_graph
@@ -290,7 +301,7 @@ def check_parallel_step_after_next(graph):
         if node.parallel_foreach and not all(
             graph[out_node].parallel_step for out_node in node.out_funcs
         ):
-            raise LintWarn(msg.format(node))
+            raise LintWarn(msg.format(node), node.func_lineno, node.source_file)
 
 
 @linter.ensure_static_graph
@@ -303,7 +314,9 @@ def check_join_followed_by_parallel_step(graph):
     )
     for node in graph:
         if node.parallel_step and not graph[node.out_funcs[0]].type == "join":
-            raise LintWarn(msg.format(node.out_funcs[0]))
+            raise LintWarn(
+                msg.format(node.out_funcs[0]), node.func_lineno, node.source_file
+            )
 
 
 @linter.ensure_static_graph
@@ -318,7 +331,9 @@ def check_parallel_foreach_calls_parallel_step(graph):
             for node2 in graph:
                 if node2.out_funcs and node.name in node2.out_funcs:
                     if not node2.parallel_foreach:
-                        raise LintWarn(msg.format(node, node2))
+                        raise LintWarn(
+                            msg.format(node, node2), node.func_lineno, node.source_file
+                        )
 
 
 @linter.ensure_non_nested_foreach
@@ -331,4 +346,4 @@ def check_nested_foreach(graph):
     for node in graph:
         if node.type == "foreach":
             if any(graph[p].type == "foreach" for p in node.split_parents):
-                raise LintWarn(msg.format(node))
+                raise LintWarn(msg.format(node), node.func_lineno, node.source_file)

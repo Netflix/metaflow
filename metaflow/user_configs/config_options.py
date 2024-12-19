@@ -15,7 +15,7 @@ from ..util import get_username
 
 _CONVERT_PREFIX = "@!c!@:"
 _DEFAULT_PREFIX = "@!d!@:"
-_NO_FILE = "@!n!@"
+_NO_FILE = "@!n!@:"
 
 _CONVERTED_DEFAULT = _CONVERT_PREFIX + _DEFAULT_PREFIX
 _CONVERTED_NO_FILE = _CONVERT_PREFIX + _NO_FILE
@@ -41,7 +41,8 @@ class ConvertPath(click.Path):
         is_default = False
         if value and value.startswith(_DEFAULT_PREFIX):
             is_default = True
-            value = super().convert(value[len(_DEFAULT_PREFIX) :], param, ctx)
+            value = value[len(_DEFAULT_PREFIX) :]
+        value = super().convert(value, param, ctx)
         return self.convert_value(value, is_default)
 
     @staticmethod
@@ -242,11 +243,13 @@ class ConfigInput:
         # down configurations (like METAFLOW_FLOW_CONFIG) could still be present and
         # would cause an issue -- we can ignore those as the kv. values should trump
         # everything else.
+        # NOTE: These are all *non default* keys
         all_keys = set(self._value_values).union(self._path_values)
 
         if all_keys and click_obj:
             click_obj.has_cl_config_options = True
-        # Make sure we have at least some keys (ie: some non default values)
+        # Make sure we have at least some non default keys (we need some if we have
+        # all kv)
         has_all_kv = all_keys and all(
             self._value_values.get(k, "").startswith(_CONVERT_PREFIX + "kv.")
             for k in all_keys
@@ -256,7 +259,8 @@ class ConfigInput:
         to_return = {}
 
         if not has_all_kv:
-            # Check that the user didn't provide *both* a path and a value.
+            # Check that the user didn't provide *both* a path and a value. Again, these
+            # are only user-provided (not defaults)
             common_keys = set(self._value_values or []).intersection(
                 [k for k, v in self._path_values.items()] or []
             )
@@ -276,11 +280,14 @@ class ConfigInput:
             debug.userconf_exec("All config values: %s" % str(all_values))
 
             merged_configs = {}
+            # Now look at everything (including defaults)
             for name, (val, is_path) in self._defaults.items():
                 n = name.lower()
                 if n in all_values:
+                    # We have the value provided by the user -- use that.
                     merged_configs[n] = all_values[n]
                 else:
+                    # No value provided by the user -- use the default
                     if isinstance(val, DeployTimeField):
                         # This supports a default value that is a deploy-time field (similar
                         # to Parameter).)
@@ -299,10 +306,10 @@ class ConfigInput:
                         val = val.fun(param_ctx)
                     if is_path:
                         # This is a file path
-                        merged_configs[n] = ConvertPath.convert_value(val, False)
+                        merged_configs[n] = ConvertPath.convert_value(val, True)
                     else:
                         # This is a value
-                        merged_configs[n] = ConvertDictOrStr.convert_value(val, False)
+                        merged_configs[n] = ConvertDictOrStr.convert_value(val, True)
         else:
             debug.userconf_exec("Fast path due to pre-processed values")
             merged_configs = self._value_values
@@ -320,13 +327,16 @@ class ConfigInput:
             if val is None:
                 missing_configs.add(name)
                 continue
-            if val.startswith(_CONVERTED_NO_FILE):
-                no_file.append(name)
-                continue
             if val.startswith(_CONVERTED_DEFAULT_NO_FILE):
                 no_default_file.append(name)
                 continue
+            if val.startswith(_CONVERTED_NO_FILE):
+                no_file.append(name)
+                continue
+
             val = val[len(_CONVERT_PREFIX) :]  # Remove the _CONVERT_PREFIX
+            if val.startswith(_DEFAULT_PREFIX):  # Remove the _DEFAULT_PREFIX if needed
+                val = val[len(_DEFAULT_PREFIX) :]
             if val.startswith("kv."):
                 # This means to load it from a file
                 read_value = self.get_config(val[3:])

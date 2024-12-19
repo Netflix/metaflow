@@ -170,7 +170,8 @@ def check(obj, warnings=False):
 @click.pass_obj
 def show(obj):
     echo_always("\n%s" % obj.graph.doc)
-    for _, node in sorted((n.func_lineno, n) for n in obj.graph):
+    for node_name in obj.graph.sorted_nodes:
+        node = obj.graph[node_name]
         echo_always("\nStep *%s*" % node.name, err=False)
         echo_always(node.doc if node.doc else "?", indent=True, err=False)
         if node.type != "end":
@@ -589,10 +590,13 @@ def _check(echo, graph, flow, environment, pylint=True, warnings=False, **kwargs
 
 def print_metaflow_exception(ex):
     echo_always(ex.headline, indent=True, nl=False, bold=True)
+    location = ""
+    if ex.source_file is not None:
+        location += " in file %s" % ex.source_file
     if ex.line_no is None:
-        echo_always(":")
-    else:
-        echo_always(" on line %d:" % ex.line_no, bold=True)
+        location += " on line %d" % ex.line_no
+    location += ":"
+    echo_always(location, bold=True)
     echo_always(ex.message, indent=True, bold=False, padding_bottom=True)
 
 

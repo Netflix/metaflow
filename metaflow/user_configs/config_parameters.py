@@ -176,6 +176,7 @@ class DelayEvaluator(collections.abc.Mapping):
         if self._access is None:
             raise KeyError(key)
         self._access.append(key)
+        return self
 
     def __len__(self):
         return 1

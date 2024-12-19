@@ -508,6 +508,9 @@ DISABLE_TRACING = bool(os.environ.get("DISABLE_TRACING", False))
 # lexicographic ordering of attempts. This won't work if MAX_ATTEMPTS > 99.
 MAX_ATTEMPTS = 6
 
+# Feature flag (experimental features that are *explicitly* unsupported)
+CLICK_API_CHECK_CONFIG = from_conf("CLICK_API_CHECK_CONFIG", False)
+
 
 # PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution
 # and are needed within a conda environment
