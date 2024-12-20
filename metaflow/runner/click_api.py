@@ -18,6 +18,7 @@ import json
 from collections import OrderedDict
 from typing import Any, Callable, Dict, List, Optional
 from typing import OrderedDict as TOrderedDict
+from typing import Tuple as TTuple
 from typing import Union
 
 from metaflow import FlowSpec, Parameter
@@ -38,8 +39,16 @@ from metaflow._vendor.typeguard import TypeCheckError, check_type
 from metaflow.decorators import add_decorator_options
 from metaflow.exception import MetaflowException
 from metaflow.includefile import FilePathClass
+from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
 from metaflow.parameters import JSONTypeClass, flow_context
-from metaflow.user_configs.config_options import LocalFileInput
+from metaflow.user_configs.config_options import (
+    ConfigValue,
+    ConvertDictOrStr,
+    ConvertPath,
+    LocalFileInput,
+    MultipleTuple,
+    config_options_with_config_input,
+)
 
 # Define a recursive type alias for JSON
 JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
@@ -58,6 +67,7 @@ click_to_python_types = {
     JSONTypeClass: JSON,
     FilePathClass: str,
     LocalFileInput: str,
+    MultipleTuple: TTuple[str, Union[JSON, ConfigValue]],
 }
 
 
@@ -68,7 +78,7 @@ def _method_sanity_check(
     defaults: TOrderedDict[str, Any],
     **kwargs
 ) -> Dict[str, Any]:
-    method_params = {"args": {}, "options": {}}
+    method_params = {"args": {}, "options": {}, "defaults": defaults}
 
     possible_params = OrderedDict()
     possible_params.update(possible_arg_params)
@@ -90,10 +100,26 @@ def _method_sanity_check(
                 % (supplied_k, annotations[supplied_k], defaults[supplied_k])
             )
 
-        # because Click expects stringified JSON..
-        supplied_v = (
-            json.dumps(supplied_v) if annotations[supplied_k] == JSON else supplied_v
-        )
+        # Clean up values to make them into what click expects
+        if annotations[supplied_k] == JSON:
+            # JSON should be a string (json dumps)
+            supplied_v = json.dumps(supplied_v)
+        elif supplied_k == "config_value":
+            # Special handling of config value because we need to go look in the tuple
+            new_list = []
+            for cfg_name, cfg_value in supplied_v:
+                if isinstance(cfg_value, ConfigValue):
+                    # ConfigValue should be JSONified and converted to a string
+                    new_list.append((cfg_name, json.dumps(cfg_value.to_dict())))
+                elif isinstance(cfg_value, dict):
+                    # ConfigValue passed as a dictionary
+                    new_list.append((cfg_name, json.dumps(cfg_value)))
+                else:
+                    raise TypeError(
+                        "Invalid type for a config-value, expected a ConfigValue or "
+                        "dict but got '%s'" % type(cfg_value)
+                    )
+            supplied_v = new_list
 
         if supplied_k in possible_arg_params:
             cli_name = possible_arg_params[supplied_k].opts[0].strip("-")
@@ -219,6 +245,8 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
                     )
                 flow_cls = kls
 
+        if flow_cls is None:
+            raise MetaflowException("No FlowSpec class found in %s" % flow_file)
         return flow_cls
     finally:
         # Only remove from path if we added it
@@ -231,10 +259,11 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
 
 
 class MetaflowAPI(object):
-    def __init__(self, parent=None, flow_cls=None, **kwargs):
+    def __init__(self, parent=None, flow_cls=None, config_input=None, **kwargs):
         self._parent = parent
         self._chain = [{self._API_NAME: kwargs}]
         self._flow_cls = flow_cls
+        self._config_input = config_input
         self._cached_computed_parameters = None
 
     @property
@@ -256,11 +285,19 @@ class MetaflowAPI(object):
         flow_cls = extract_flow_class_from_file(flow_file)
 
         with flow_context(flow_cls) as _:
-            add_decorator_options(cli_collection)
+            cli_collection, config_input = config_options_with_config_input(
+                cli_collection
+            )
+            cli_collection = add_decorator_options(cli_collection)
 
         def getattr_wrapper(_self, name):
             # Functools.partial do not automatically bind self (no __get__)
-            return _self._internal_getattr(_self, name)
+            with flow_context(flow_cls) as _:
+                # We also wrap this in the proper flow context because since commands
+                # are loaded lazily, we need the proper flow context to compute things
+                # like parameters. If we do not do this, the outer flow's context will
+                # be used.
+                return _self._internal_getattr(_self, name)
 
         class_dict = {
             "__module__": "metaflow",
@@ -290,7 +327,12 @@ class MetaflowAPI(object):
                 defaults,
                 **kwargs,
             )
-            return to_return(parent=None, flow_cls=flow_cls, **method_params)
+            return to_return(
+                parent=None,
+                flow_cls=flow_cls,
+                config_input=config_input,
+                **method_params,
+            )
 
         m = _method
         m.__name__ = cli_collection.name
@@ -331,8 +373,12 @@ class MetaflowAPI(object):
                 for k, v in options.items():
                     if isinstance(v, list):
                         for i in v:
-                            components.append("--%s" % k)
-                            components.append(str(i))
+                            if isinstance(i, tuple):
+                                components.append("--%s" % k)
+                                components.extend(map(str, i))
+                            else:
+                                components.append("--%s" % k)
+                                components.append(str(i))
                     else:
                         components.append("--%s" % k)
                         if v != "flag":
@@ -341,21 +387,93 @@ class MetaflowAPI(object):
         return components
 
     def _compute_flow_parameters(self):
-        if self._flow_cls is None or self._parent is not None:
+        if (
+            self._flow_cls is None
+            or self._config_input is None
+            or self._parent is not None
+        ):
             raise RuntimeError(
                 "Computing flow-level parameters for a non start API. "
                 "Please report to the Metaflow team."
             )
-        # TODO: We need to actually compute the new parameters (based on configs) which
-        # would involve processing the options at least partially. We will do this
-        # before GA but for now making it work for regular parameters
+
         if self._cached_computed_parameters is not None:
             return self._cached_computed_parameters
         self._cached_computed_parameters = []
+
+        config_options = None
+        if CLICK_API_PROCESS_CONFIG:
+            with flow_context(self._flow_cls) as _:
+                # We are going to resolve the configs first and then get the parameters.
+                # Note that configs may update/add parameters so the order is important
+                # Since part of the processing of configs happens by click, we need to
+                # "fake" it.
+
+                # Extract any config options as well as datastore and quiet options
+                method_params = self._chain[0][self._API_NAME]
+                opts = method_params["options"]
+                defaults = method_params["defaults"]
+
+                ds = opts.get("datastore", defaults["datastore"])
+                quiet = opts.get("quiet", defaults["quiet"])
+                is_default = False
+                config_file = opts.get("config-file")
+                if config_file is None:
+                    is_default = True
+                    config_file = defaults.get("config_file")
+
+                if config_file:
+                    config_file = map(
+                        lambda x: (x[0], ConvertPath.convert_value(x[1], is_default)),
+                        config_file,
+                    )
+
+                is_default = False
+                config_value = opts.get("config-value")
+                if config_value is None:
+                    is_default = True
+                    config_value = defaults.get("config_value")
+
+                if config_value:
+                    config_value = map(
+                        lambda x: (
+                            x[0],
+                            ConvertDictOrStr.convert_value(x[1], is_default),
+                        ),
+                        config_value,
+                    )
+
+                if (config_file is None) ^ (config_value is None):
+                    # If we have one, we should have the other
+                    raise MetaflowException(
+                        "Options were not properly set -- this is an internal error."
+                    )
+
+                if config_file:
+                    # Process both configurations; the second one will return all the merged
+                    # configuration options properly processed.
+                    self._config_input.process_configs(
+                        self._flow_cls.__name__, "config_file", config_file, quiet, ds
+                    )
+                    config_options = self._config_input.process_configs(
+                        self._flow_cls.__name__, "config_value", config_value, quiet, ds
+                    )
+
+        # At this point, we are like in start() in cli.py -- we obtained the
+        # properly processed config_options which we can now use to process
+        # the config decorators (including CustomStep/FlowDecorators)
+        # Note that if CLICK_API_PROCESS_CONFIG is False, we still do this because
+        # it will init all parameters (config_options will be None)
+        # We ignore any errors if we don't check the configs in the click API.
+        new_cls = self._flow_cls._process_config_decorators(
+            config_options, ignore_errors=not CLICK_API_PROCESS_CONFIG
+        )
+        if new_cls:
+            self._flow_cls = new_cls
+
         for _, param in self._flow_cls._get_parameters():
             if param.IS_CONFIG_PARAMETER:
                 continue
-            param.init()
             self._cached_computed_parameters.append(param)
         return self._cached_computed_parameters
 

@@ -1,13 +1,16 @@
+import json
+import os
+import re
+import tempfile
+
 from metaflow.decorators import StepDecorator
 from metaflow.metaflow_current import current
+from metaflow.user_configs.config_options import ConfigInput
+from metaflow.user_configs.config_parameters import dump_config_values
 from metaflow.util import to_unicode
+
 from .component_serializer import CardComponentCollector, get_card_class
 from .card_creator import CardCreator
-
-
-# from metaflow import get_metadata
-import re
-
 from .exception import CARD_ID_PATTERN, TYPE_CHECK_REGEX
 
 ASYNC_TIMEOUT = 30
@@ -111,6 +114,14 @@ class CardDecorator(StepDecorator):
         self._logger = logger
         self.card_options = None
 
+        # We check for configuration options. We do this here before they are
+        # converted to properties.
+        self._config_values = [
+            (config.name, ConfigInput.make_key_name(config.name))
+            for _, config in flow._get_parameters()
+            if config.IS_CONFIG_PARAMETER
+        ]
+
         self.card_options = self.attributes["options"]
 
         evt_name = "step-init"
@@ -146,6 +157,18 @@ class CardDecorator(StepDecorator):
         self._task_datastore = task_datastore
         self._metadata = metadata
 
+        # If we have configs, we need to dump them to a file so we can re-use them
+        # when calling the card creation subprocess.
+        if self._config_values:
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", delete=False
+            ) as config_file:
+                config_value = dump_config_values(flow)
+                json.dump(config_value, config_file)
+                self._config_file_name = config_file.name
+        else:
+            self._config_file_name = None
+
         card_type = self.attributes["type"]
         card_class = get_card_class(card_type)
 
@@ -179,7 +202,7 @@ class CardDecorator(StepDecorator):
         # we need to ensure that `current.card` has `CardComponentCollector` instantiated only once.
         if not self._is_event_registered("pre-step"):
             self._register_event("pre-step")
-            self._set_card_creator(CardCreator(self._create_top_level_args()))
+            self._set_card_creator(CardCreator(self._create_top_level_args(flow)))
 
             current._update_env(
                 {"card": CardComponentCollector(self._logger, self.card_creator)}
@@ -223,6 +246,13 @@ class CardDecorator(StepDecorator):
             self.card_creator.create(mode="render", final=True, **create_options)
             self.card_creator.create(mode="refresh", final=True, **create_options)
 
+        # Unlink the config file if it exists
+        if self._config_file_name:
+            try:
+                os.unlink(self._config_file_name)
+            except Exception as e:
+                pass
+
     @staticmethod
     def _options(mapping):
         for k, v in mapping.items():
@@ -232,9 +262,13 @@ class CardDecorator(StepDecorator):
                 for value in v:
                     yield "--%s" % k
                     if not isinstance(value, bool):
-                        yield to_unicode(value)
+                        if isinstance(value, tuple):
+                            for val in value:
+                                yield to_unicode(val)
+                        else:
+                            yield to_unicode(value)
 
-    def _create_top_level_args(self):
+    def _create_top_level_args(self, flow):
         top_level_options = {
             "quiet": True,
             "metadata": self._metadata.TYPE,
@@ -247,4 +281,8 @@ class CardDecorator(StepDecorator):
             # We don't provide --with as all execution is taking place in
             # the context of the main process
         }
+        if self._config_values:
+            top_level_options["config-value"] = self._config_values
+            top_level_options["local-config-file"] = self._config_file_name
+
         return list(self._options(top_level_options))

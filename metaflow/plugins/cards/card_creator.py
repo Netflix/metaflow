@@ -122,6 +122,7 @@ class CardCreator:
             executable,
             sys.argv[0],
         ]
+
         cmd += self._top_level_options + [
             "card",
             "create",

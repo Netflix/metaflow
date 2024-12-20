@@ -61,8 +61,13 @@ class DeployerImpl(object):
                 "of DeployerImpl."
             )
 
+        from metaflow.parameters import flow_context
+
         if "metaflow.cli" in sys.modules:
-            importlib.reload(sys.modules["metaflow.cli"])
+            # Reload the CLI with an "empty" flow -- this will remove any configuration
+            # options. They are re-added in from_cli (called below).
+            with flow_context(None) as _:
+                importlib.reload(sys.modules["metaflow.cli"])
         from metaflow.cli import start
         from metaflow.runner.click_api import MetaflowAPI
 
