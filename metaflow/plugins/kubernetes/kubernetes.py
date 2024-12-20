@@ -192,6 +192,7 @@ class Kubernetes(object):
         persistent_volume_claims=None,
         tolerations=None,
         labels=None,
+        annotations=None,
         shared_memory=None,
         port=None,
         num_parallel=None,
@@ -303,10 +304,6 @@ class Kubernetes(object):
             # see get_datastore_root_from_config in datastore/local.py).
         )
 
-        _labels = self._get_labels(labels)
-        for k, v in _labels.items():
-            jobset.label(k, v)
-
         for k in list(
             [] if not secrets else [secrets] if isinstance(secrets, str) else secrets
         ) + KUBERNETES_SECRETS.split(","):
@@ -378,13 +375,16 @@ class Kubernetes(object):
         for name, value in env.items():
             jobset.environment_variable(name, value)
 
-        annotations = {
+        system_annotations = {
             "metaflow/user": user,
             "metaflow/flow_name": flow_name,
             "metaflow/control-task-id": task_id,
+            "metaflow/run_id": run_id,
+            "metaflow/step_name": step_name,
+            "metaflow/attempt": attempt,
         }
         if current.get("project_name"):
-            annotations.update(
+            system_annotations.update(
                 {
                     "metaflow/project_name": current.project_name,
                     "metaflow/branch_name": current.branch_name,
@@ -392,15 +392,15 @@ class Kubernetes(object):
                 }
             )
 
-        for name, value in annotations.items():
-            jobset.annotation(name, value)
+        system_labels = {
+            "app.kubernetes.io/name": "metaflow-task",
+            "app.kubernetes.io/part-of": "metaflow",
+        }
 
-        (
-            jobset.annotation("metaflow/run_id", run_id)
-            .annotation("metaflow/step_name", step_name)
-            .annotation("metaflow/attempt", attempt)
-            .label("app.kubernetes.io/name", "metaflow-task")
-            .label("app.kubernetes.io/part-of", "metaflow")
+        jobset.labels({**({} if not labels else labels), **system_labels})
+
+        jobset.annotations(
+            {**({} if not annotations else annotations), **system_annotations}
         )
         # We need this task-id set so that all the nodes are aware of the control
         # task's task-id. These "MF_" variables populate the `current.parallel` namedtuple

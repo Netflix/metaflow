@@ -862,6 +862,16 @@ class KubernetesJobSet(object):
         self._annotations = dict(self._annotations, **{name: value})
         return self
 
+    def labels(self, labels):
+        for k, v in labels.items():
+            self.label(k, v)
+        return self
+
+    def annotations(self, annotations):
+        for k, v in annotations.items():
+            self.annotation(k, v)
+        return self
+
     def secret(self, name):
         self.worker.secret(name)
         self.control.secret(name)
@@ -988,7 +998,7 @@ class KubernetesArgoJobSet(object):
         return self
 
     def labels(self, labels):
-        for k, v in labels:
+        for k, v in labels.items():
             self.label(k, v)
         return self
 
@@ -999,7 +1009,7 @@ class KubernetesArgoJobSet(object):
         return self
 
     def annotations(self, annotations):
-        for k, v in annotations:
+        for k, v in annotations.items():
             self.annotation(k, v)
         return self
 
