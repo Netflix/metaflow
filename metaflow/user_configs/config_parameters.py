@@ -183,7 +183,7 @@ class DelayEvaluator(collections.abc.Mapping):
 
     def __getattr__(self, name):
         if self._access is None:
-            raise AttributeError()
+            raise AttributeError(name)
         self._access.append(name)
         return self
 
@@ -350,16 +350,20 @@ class Config(Parameter, collections.abc.Mapping):
 
     # Next three methods are to implement mapping to support **<config> syntax
     def __iter__(self):
-        return iter(DelayEvaluator(self.name.lower()))
+        yield "%s%s" % (UNPACK_KEY, id(self))
 
     def __len__(self):
-        return len(DelayEvaluator(self.name.lower()))
+        return 1
 
     def __getitem__(self, key):
-        return DelayEvaluator(self.name.lower())[key]
+        if key == "%s%d" % (UNPACK_KEY, id(self)):
+            return DelayEvaluator(self.name.lower())
+        raise KeyError(key)
 
 
 def resolve_delayed_evaluator(v: Any, ignore_errors: bool = False) -> Any:
+    # NOTE: We don't ignore errors in downstream calls because we want to have either
+    # all or nothing for the top-level call by the user.
     try:
         if isinstance(v, DelayEvaluator):
             return v()
@@ -397,7 +401,7 @@ def unpack_delayed_evaluator(
         else:
             # k.startswith(UNPACK_KEY)
             try:
-                result.update(resolve_delayed_evaluator(v[k]))
+                result.update(resolve_delayed_evaluator(v))
             except Exception as e:
                 if ignore_errors:
                     continue

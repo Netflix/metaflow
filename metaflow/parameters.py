@@ -369,7 +369,7 @@ class Parameter(object):
         # Resolve any value from configurations
         self.kwargs = unpack_delayed_evaluator(self.kwargs, ignore_errors=ignore_errors)
         # Do it one item at a time so errors are ignored at that level (as opposed to
-        # at the entire kwargs leve)
+        # at the entire kwargs level)
         self.kwargs = {
             k: resolve_delayed_evaluator(v, ignore_errors=ignore_errors)
             for k, v in self.kwargs.items()
