@@ -337,6 +337,8 @@ class Config(Parameter, collections.abc.Mapping):
         self._computed_value = None
 
     def load_parameter(self, v):
+        if v is None:
+            return None
         return ConfigValue(v)
 
     def _store_value(self, v: Any) -> None:
