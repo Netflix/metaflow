@@ -1,7 +1,6 @@
 import inspect
 import ast
 import re
-import textwrap
 
 
 from .util import to_pod
@@ -177,7 +176,9 @@ class FlowGraph(object):
             if callable(func) and hasattr(func, "is_step"):
                 source_file = inspect.getsourcefile(func)
                 source_lines, lineno = inspect.getsourcelines(func)
-                source_code = textwrap.dedent("".join(source_lines))
+                # This also works for code (strips out leading whitspace based on
+                # first line)
+                source_code = deindent_docstring("".join(source_lines))
                 function_ast = ast.parse(source_code).body[0]
                 node = DAGNode(
                     function_ast, func.decorators, func.__doc__, source_file, lineno
@@ -198,6 +199,10 @@ class FlowGraph(object):
 
     def _traverse_graph(self):
         def traverse(node, seen, split_parents):
+            try:
+                self.sorted_nodes.remove(node.name)
+            except ValueError:
+                pass
             self.sorted_nodes.append(node.name)
             if node.type in ("split", "foreach"):
                 node.split_parents = split_parents
