@@ -164,6 +164,7 @@ class BatchJob(object):
         ephemeral_storage,
         log_driver,
         log_options,
+        repo_creds_secret,
     ):
         # identify platform from any compute environment associated with the
         # queue
@@ -200,6 +201,11 @@ class BatchJob(object):
             # ECS tasks.
             "propagateTags": True,
         }
+
+        if repo_creds_secret:
+            job_definition["containerProperties"]["repositoryCredentials"] = {
+                "credentialsParameter": repo_creds_secret
+            }
 
         log_options_dict = {}
         if log_options:
@@ -482,6 +488,7 @@ class BatchJob(object):
         ephemeral_storage,
         log_driver,
         log_options,
+        repo_creds_secret,
     ):
         self.payload["jobDefinition"] = self._register_job_definition(
             image,
@@ -504,6 +511,7 @@ class BatchJob(object):
             ephemeral_storage,
             log_driver,
             log_options,
+            repo_creds_secret,
         )
         return self
 
