@@ -7,12 +7,11 @@ import sys
 from collections import defaultdict
 from hashlib import sha1
 from math import inf
-from typing import List, Tuple
 
 from metaflow import JSONType, current
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
-from metaflow.graph import DAGNode, FlowGraph
+from metaflow.graph import FlowGraph
 from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT,
@@ -40,7 +39,6 @@ from metaflow.metaflow_config import (
     GCP_SECRET_MANAGER_PREFIX,
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_NAMESPACE,
-    KUBERNETES_NODE_SELECTOR,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     KUBERNETES_SECRETS,
     S3_ENDPOINT_URL,
@@ -307,7 +305,7 @@ class ArgoWorkflows(object):
             try:
                 # Check that the workflow was deployed through Metaflow
                 workflow_template["metadata"]["annotations"]["metaflow/owner"]
-            except KeyError as e:
+            except KeyError:
                 raise ArgoWorkflowsException(
                     "An existing non-metaflow workflow with the same name as "
                     "*%s* already exists in Argo Workflows. \nPlease modify the "
@@ -432,7 +430,7 @@ class ArgoWorkflows(object):
                         "metaflow/production_token"
                     ],
                 )
-            except KeyError as e:
+            except KeyError:
                 raise ArgoWorkflowsException(
                     "An existing non-metaflow workflow with the same name as "
                     "*%s* already exists in Argo Workflows. \nPlease modify the "

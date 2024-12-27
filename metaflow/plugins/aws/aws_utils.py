@@ -1,5 +1,4 @@
 import re
-import requests
 
 from metaflow.exception import MetaflowException
 
@@ -30,6 +29,10 @@ def get_ec2_instance_metadata():
         - ec2-region
         - ec2-availability-zone
     """
+
+    # TODO: Remove dependency on requests
+    import requests
+
     meta = {}
     # Capture AWS instance identity metadata. This is best-effort only since
     # access to this end-point might be blocked on AWS and not available
@@ -159,6 +162,8 @@ def compute_resource_attributes(decos, compute_deco, resource_defaults):
                         # Here we don't have ints, so we compare the value and raise
                         # an exception if not equal
                         if my_val != v:
+                            # TODO: Throw a better exception since the user has no
+                            #       knowledge of 'compute' decorator
                             raise MetaflowException(
                                 "'resources' and compute decorator have conflicting "
                                 "values for '%s'. Please use consistent values or "

@@ -1,6 +1,5 @@
 import sys
 import json
-import tempfile
 from typing import ClassVar, Optional, List
 
 from metaflow.plugins.aws.step_functions.step_functions import StepFunctions

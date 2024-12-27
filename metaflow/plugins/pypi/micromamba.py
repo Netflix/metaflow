@@ -3,7 +3,6 @@ import json
 import os
 import subprocess
 import tempfile
-import time
 
 from metaflow.exception import MetaflowException
 from metaflow.util import which
@@ -323,7 +322,7 @@ class Micromamba(object):
                         stderr="\n".join(err),
                     )
                 )
-            except (TypeError, ValueError) as ve:
+            except (TypeError, ValueError):
                 pass
             raise MicromambaException(
                 msg.format(

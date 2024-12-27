@@ -1,4 +1,3 @@
-import copy
 import json
 import math
 import random
@@ -7,7 +6,6 @@ from collections import namedtuple
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_JOBSET_GROUP, KUBERNETES_JOBSET_VERSION
 from metaflow.tracing import inject_tracing_vars
-from metaflow.metaflow_config import KUBERNETES_SECRETS
 
 from .kube_utils import qos_requests_and_limits
 
@@ -257,7 +255,7 @@ class RunningJobSet(object):
         def best_effort_kill():
             try:
                 self.kill()
-            except Exception as ex:
+            except Exception:
                 pass
 
         atexit.register(best_effort_kill)
@@ -342,7 +340,7 @@ class RunningJobSet(object):
                 stdout=True,
                 tty=False,
             )
-        except Exception as e:
+        except Exception:
             with client.ApiClient() as api_client:
                 # If we are unable to kill the control pod then
                 # Delete the jobset to kill the subsequent pods.
@@ -1015,7 +1013,6 @@ class KubernetesArgoJobSet(object):
 
     def dump(self):
         client = self._kubernetes_sdk
-        import json
 
         data = json.dumps(
             client.ApiClient().sanitize_for_serialization(

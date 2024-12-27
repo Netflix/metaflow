@@ -4,7 +4,6 @@ import re
 import shutil
 import subprocess
 import tempfile
-import time
 from concurrent.futures import ThreadPoolExecutor
 from itertools import chain, product
 from urllib.parse import unquote

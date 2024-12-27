@@ -8,7 +8,6 @@ from time import sleep
 
 from metaflow import JSONType, Run, current, decorators, parameters
 from metaflow._vendor import click
-from metaflow.client.core import get_metadata
 from metaflow.exception import (
     MetaflowException,
     MetaflowInternalError,

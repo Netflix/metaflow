@@ -22,7 +22,6 @@ from .kubernetes import (
     KubernetesException,
     KubernetesKilledException,
 )
-from .kubernetes_decorator import KubernetesDecorator
 
 
 @click.group()
@@ -321,7 +320,7 @@ def step(
                 labels=labels,
                 annotations=annotations,
             )
-    except Exception as e:
+    except Exception:
         traceback.print_exc(chain=False)
         _sync_metadata()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)

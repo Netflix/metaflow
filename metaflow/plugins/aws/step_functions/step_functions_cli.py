@@ -4,7 +4,6 @@ import re
 from hashlib import sha1
 
 from metaflow import JSONType, current, decorators, parameters
-from metaflow.client.core import get_metadata
 from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import (
