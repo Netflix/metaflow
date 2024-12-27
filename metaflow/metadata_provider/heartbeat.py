@@ -1,6 +1,7 @@
 import time
 import json
 
+from urllib.error import URLError
 from urllib.request import Request, urlopen
 from threading import Thread
 from metaflow.sidecar import MessageTypes, Message
@@ -56,13 +57,10 @@ class MetadataHeartBeat(object):
 
     def _heartbeat(self):
         if self.hb_url is not None:
-            from urllib.request import Request, urlopen
-            from urllib.error import URLError
-
             try:
                 req = Request(
                     url=self.hb_url,
-                    data=b"{}",  # data must be bytes
+                    data=b"{}",
                     headers=self.headers.copy(),
                     method="POST",
                 )
