@@ -99,6 +99,10 @@ SIDECARS_DESC = [
         "save_logs_periodically",
         "..mflog.save_logs_periodically.SaveLogsPeriodicallySidecar",
     ),
+    (
+        "spot_termination_monitor",
+        ".kubernetes.spot_monitor.SpotTerminationMonitorSidecar",
+    ),
     ("heartbeat", "metaflow.metadata_provider.heartbeat.MetadataHeartBeat"),
 ]
 

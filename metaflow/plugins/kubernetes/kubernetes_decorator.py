@@ -32,7 +32,7 @@ from metaflow.metaflow_config import (
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
-from metaflow.sidecar import Sidecar
+from metaflow.sidecar import Sidecar, Message, MessageTypes
 from metaflow.unbounded_foreach import UBF_CONTROL
 
 from ..aws.aws_utils import get_docker_registry, get_ec2_instance_metadata
@@ -547,6 +547,12 @@ class KubernetesDecorator(StepDecorator):
             self._save_logs_sidecar = Sidecar("save_logs_periodically")
             self._save_logs_sidecar.start()
 
+            # Start spot termination monitor sidecar.
+            self._spot_monitor = Sidecar("spot_termination_monitor")
+            self._spot_monitor.start()
+            # Send metadata provider to spot monitor sidecar
+            self._spot_monitor.send(Message(MessageTypes.MUST_SEND, metadata))
+
         num_parallel = None
         if hasattr(flow, "_parallel_ubf_iter"):
             num_parallel = flow._parallel_ubf_iter.num_parallel
@@ -605,6 +611,7 @@ class KubernetesDecorator(StepDecorator):
 
         try:
             self._save_logs_sidecar.terminate()
+            self._spot_monitor.terminate()
         except:
             # Best effort kill
             pass
