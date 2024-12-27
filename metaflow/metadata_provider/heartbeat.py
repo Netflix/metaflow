@@ -1,12 +1,12 @@
-import time
 import json
-
-from urllib.error import URLError
-from urllib.request import Request, urlopen
+import time
 from threading import Thread
-from metaflow.sidecar import MessageTypes, Message
-from metaflow.metaflow_config import SERVICE_HEADERS
+
+import requests
+
 from metaflow.exception import MetaflowException
+from metaflow.metaflow_config import SERVICE_HEADERS
+from metaflow.sidecar import Message, MessageTypes
 
 HB_URL_KEY = "hb_url"
 
@@ -57,30 +57,19 @@ class MetadataHeartBeat(object):
 
     def _heartbeat(self):
         if self.hb_url is not None:
-            try:
-                req = Request(
-                    url=self.hb_url,
-                    data=b"{}",
-                    headers=self.headers.copy(),
-                    method="POST",
-                )
-                with urlopen(req) as response:
-                    if response.status == 200:
-                        return json.loads(response.read().decode("utf-8")).get(
-                            "wait_time_in_seconds"
-                        )
-                    raise HeartBeatException(
-                        "HeartBeat request (%s) failed"
-                        " (code %s): %s"
-                        % (
-                            self.hb_url,
-                            response.status,
-                            response.read().decode("utf-8"),
-                        )
-                    )
-            except URLError as e:
+            response = requests.post(
+                url=self.hb_url, data="{}", headers=self.headers.copy()
+            )
+            # Unfortunately, response.json() returns a string that we need
+            # to cast to json; however when the request encounters an error
+            # the return type is a json blob :/
+            if response.status_code == 200:
+                return json.loads(response.json()).get("wait_time_in_seconds")
+            else:
                 raise HeartBeatException(
-                    "HeartBeat request (%s) failed: %s" % (self.hb_url, str(e))
+                    "HeartBeat request (%s) failed"
+                    " (code %s): %s"
+                    % (self.hb_url, response.status_code, response.text)
                 )
         return None
 
