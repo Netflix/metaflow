@@ -9,7 +9,6 @@ from metaflow import (
     project,
     config_expr,
     CustomFlowDecorator,
-    CustomStepDecorator,
     titus,
 )
 

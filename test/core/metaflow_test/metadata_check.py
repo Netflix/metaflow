@@ -15,7 +15,7 @@ from . import (
 
 class MetadataCheck(MetaflowCheck):
     def __init__(self, flow):
-        from metaflow.client import Flow, get_namespace
+        from metaflow.client import Flow
 
         self.flow = flow
         self.run = Flow(flow.name)[self.run_id]

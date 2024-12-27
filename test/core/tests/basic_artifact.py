@@ -1,4 +1,4 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import MetaflowTest, steps
 
 
 class BasicArtifactTest(MetaflowTest):
@@ -15,7 +15,6 @@ class BasicArtifactTest(MetaflowTest):
 
     @steps(1, ["join"])
     def step_join(self):
-        import metaflow_test
 
         inputset = {inp.data for inp in inputs}
         assert_equals({"abc"}, inputset)

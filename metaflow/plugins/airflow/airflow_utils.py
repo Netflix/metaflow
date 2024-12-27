@@ -87,7 +87,7 @@ def get_kubernetes_provider_version():
         from airflow.providers.cncf.kubernetes.get_provider_info import (
             get_provider_info,
         )
-    except ImportError as e:
+    except ImportError:
         raise KubernetesProviderNotFound(
             "This DAG utilizes `KubernetesPodOperator`. "
             "Install the Airflow Kubernetes provider using "
@@ -435,7 +435,7 @@ def get_metaflow_kubernetes_operator():
             from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import (
                 KubernetesPodOperator,
             )
-        except ImportError as e:
+        except ImportError:
             raise KubernetesProviderNotFound(
                 "This DAG utilizes `KubernetesPodOperator`. "
                 "Install the Airflow Kubernetes provider using "

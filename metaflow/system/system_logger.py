@@ -1,6 +1,6 @@
 import os
 import sys
-from typing import Dict, Any, Optional, Union
+from typing import Any, Optional
 
 
 class SystemLogger(object):

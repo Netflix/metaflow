@@ -1,6 +1,5 @@
 import uuid
 from metaflow.decorators import FlowDecorator, flow_decorators
-from ..exception import AirflowException
 from ..airflow_utils import AirflowTask, id_creator, TASK_ID_HASH_LEN
 
 

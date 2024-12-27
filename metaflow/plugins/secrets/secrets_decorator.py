@@ -6,7 +6,6 @@ from metaflow.decorators import StepDecorator
 from metaflow.metaflow_config import DEFAULT_SECRETS_ROLE
 from metaflow.unbounded_foreach import UBF_TASK
 
-from typing import Any, Dict, List, Union
 
 DISALLOWED_SECRETS_ENV_VAR_PREFIXES = ["METAFLOW_"]
 

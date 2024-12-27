@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import MetaflowTest, steps
 
 
 class TagMutationTest(MetaflowTest):

@@ -18,7 +18,6 @@ import signal
 import random
 from contextlib import contextmanager
 from functools import wraps
-from metaflow.exception import MetaflowNamespaceMismatch
 
 from .card_datastore import CardDatastore, NUM_SHORT_HASH_CHARS
 from .exception import (
@@ -474,7 +473,7 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
         """
         try:
             return func(*args, **kwargs), True
-        except NotImplementedError as e:
+        except NotImplementedError:
             return None, False
 
     def _call():
@@ -695,7 +694,7 @@ def create(
                 )
             else:
                 mf_card = filtered_card(components=component_arr, graph=graph_dict)
-        except TypeError as e:
+        except TypeError:
             if render_error_card:
                 mf_card = None
                 error_stack_trace = str(IncorrectCardArgsException(type, options))

@@ -1,12 +1,10 @@
 import os
-from re import I
 import shutil
 from hashlib import sha1
 from tempfile import mkdtemp
 from itertools import groupby, starmap
 import random
 from uuid import uuid4
-from metaflow.plugins.datatools import s3
 
 import pytest
 

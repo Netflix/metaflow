@@ -6,7 +6,6 @@ from os.path import expanduser
 
 from metaflow.util import to_unicode
 from metaflow._vendor import click
-from metaflow.util import to_unicode
 
 
 from .util import echo_always, makedirs

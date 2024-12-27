@@ -1,7 +1,6 @@
 import sys
 import subprocess
 import json
-from collections import namedtuple
 from tempfile import NamedTemporaryFile
 
 from metaflow.includefile import IncludedFile

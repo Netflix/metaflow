@@ -1,4 +1,4 @@
-from metaflow import FlowSpec, step, batch, current, pytorch_parallel, Parameter
+from metaflow import FlowSpec, step, current, pytorch_parallel, Parameter
 
 
 class PytorchParallelTest(FlowSpec):

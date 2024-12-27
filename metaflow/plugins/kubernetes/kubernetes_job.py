@@ -10,9 +10,6 @@ from metaflow.tracing import inject_tracing_vars
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
 
 from .kube_utils import qos_requests_and_limits
-from .kubernetes_jobsets import (
-    KubernetesJobSet,
-)  # We need this import for Kubernetes Client.
 
 
 class KubernetesJobException(MetaflowException):

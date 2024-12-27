@@ -47,7 +47,7 @@ def aws_retry(f):
                     )
                 else:
                     return ret
-            except MetaflowException as ex:
+            except MetaflowException:
                 # MetaflowExceptions are not related to AWS, don't retry
                 raise
             except Exception as ex:

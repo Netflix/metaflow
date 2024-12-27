@@ -1,7 +1,5 @@
-import json
 import sys
 import base64
-import datetime
 from collections import namedtuple
 
 TypeResolvedObject = namedtuple("TypeResolvedObject", ["data", "is_image", "is_table"])
@@ -183,7 +181,7 @@ class TaskToDict:
         """returns string or None"""
         try:
             return _full_classname(obj_val)
-        except AttributeError as e:
+        except AttributeError:
             pass
 
         return None
@@ -280,7 +278,7 @@ class TaskToDict:
     def _parse_bytearray(self, data_object):
         try:
             return data_object.decode("utf-8")
-        except UnicodeDecodeError as e:
+        except UnicodeDecodeError:
             return self._get_repr().repr(data_object)
 
     def _parse_str(self, data_object):
@@ -360,9 +358,9 @@ class TaskToDict:
                 if parsed_col is not None:
                     return parsed_col.fillna("null")
             return truncate_long_objects(column_object.fillna("null"))
-        except ValueError as e:
+        except ValueError:
             return "Unsupported type: {0}".format(col_type)
-        except TypeError as e:
+        except TypeError:
             return "Unsupported type: {0}".format(col_type)
 
     def _parse_pandas_dataframe(self, data_object, truncate=True):

@@ -1,4 +1,3 @@
-import importlib
 import os
 import sys
 import tarfile
@@ -7,7 +6,7 @@ import json
 from io import BytesIO
 
 from .user_configs.config_parameters import CONFIG_FILE, dump_config_values
-from .extension_support import EXT_PKG, package_mfext_all
+from .extension_support import package_mfext_all
 from .metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from .exception import MetaflowException
 from .util import to_unicode

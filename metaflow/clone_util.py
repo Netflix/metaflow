@@ -1,4 +1,3 @@
-import time
 from .metadata_provider import MetaDatum
 
 

@@ -1,7 +1,5 @@
 from metaflow.plugins.secrets import SecretsProvider
 import re
-import base64
-import codecs
 from urllib.parse import urlparse
 from metaflow.exception import MetaflowException
 import sys

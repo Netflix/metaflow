@@ -7,7 +7,7 @@ import reprlib
 from enum import Enum
 from itertools import islice
 from types import FunctionType, MethodType
-from typing import TYPE_CHECKING, Any, Callable, Generator, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 from . import cmd_with_io, parameters
 from .debug import debug

@@ -1,6 +1,5 @@
 import base64
 import json
-from json import JSONDecodeError
 
 
 from metaflow.exception import MetaflowException

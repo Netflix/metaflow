@@ -1,4 +1,4 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import MetaflowTest, steps, tag
 from metaflow import current
 
 
@@ -8,7 +8,6 @@ class CatchRetryTest(MetaflowTest):
     @tag("retry(times=3,minutes_between_retries=0)")
     @steps(0, ["start"])
     def step_start(self):
-        import os
         import sys
 
         self.test_attempt = current.retry_count
@@ -22,7 +21,6 @@ class CatchRetryTest(MetaflowTest):
     @tag("retry(times=2,minutes_between_retries=0)")
     @steps(0, ["foreach-split", "parallel-split"])
     def step_split(self):
-        import os
 
         if current.retry_count == 2:
             self.this_is_split = True
@@ -32,7 +30,6 @@ class CatchRetryTest(MetaflowTest):
     @tag("retry(times=2,minutes_between_retries=0)")
     @steps(0, ["join"])
     def step_join(self):
-        import os
 
         if current.retry_count == 2:
             self.test_attempt = inputs[0].test_attempt

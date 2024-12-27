@@ -1,7 +1,7 @@
 import sys
 
 from metaflow.event_logger import NullEventLogger
-from metaflow.sidecar import Message, MessageTypes
+from metaflow.sidecar import MessageTypes
 
 
 class DebugEventLogger(NullEventLogger):

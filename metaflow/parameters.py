@@ -269,7 +269,7 @@ class DelayedEvaluationParameter(object):
     def __call__(self, return_str=False):
         try:
             return self._fun(return_str=return_str)
-        except Exception as e:
+        except Exception:
             raise ParameterFieldFailed(self._name, self._field)
 
 

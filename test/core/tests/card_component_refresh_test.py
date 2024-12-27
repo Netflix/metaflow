@@ -1,4 +1,4 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import MetaflowTest, steps, tag
 
 
 class CardComponentRefreshTest(MetaflowTest):
@@ -44,7 +44,6 @@ class CardComponentRefreshTest(MetaflowTest):
             _component_values_to_hash,
             TestJSONComponent,
         )
-        import random
         import time
 
         possible_reload_tokens = []

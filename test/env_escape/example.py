@@ -1,7 +1,6 @@
 import os
 import sys
 
-from html.parser import HTMLParser
 
 from metaflow import FlowSpec, step, conda
 
@@ -33,7 +32,7 @@ def run_test(through_escape=False):
     print("-- Test aliasing --")
     if through_escape:
         # This tests package aliasing
-        from test_lib.alias import TestClass1
+        pass
 
     o1 = test.TestClass1(10)
     print("-- Test normal method with overrides --")
@@ -183,9 +182,9 @@ def run_test(through_escape=False):
     try:
         o1.raiseOrReturnValueError(True)
         assert False, "Should have raised"
-    except ValueError as e:
+    except ValueError:
         assert True
-    except Exception as e:
+    except Exception:
         assert False, "Should have been ValueError"
 
     try:
@@ -196,7 +195,7 @@ def run_test(through_escape=False):
         if through_escape:
             assert e.user_value == 42
             assert "Remote (on server) traceback" in str(e)
-    except Exception as e:
+    except Exception:
         assert False, "Should have been SomeException"
 
     try:
@@ -207,7 +206,7 @@ def run_test(through_escape=False):
         if through_escape:
             assert e.user_value == 43
             assert "Remote (on server) traceback" in str(e)
-    except Exception as e:
+    except Exception:
         assert False, "Should have been ExceptionAndClass"
 
     try:
@@ -218,7 +217,7 @@ def run_test(through_escape=False):
         if through_escape:
             assert e.user_value == 44
             assert "Remote (on server) traceback" in str(e)
-    except Exception as e:
+    except Exception:
         assert False, "Should have been ExceptionAndClassChild"
 
 

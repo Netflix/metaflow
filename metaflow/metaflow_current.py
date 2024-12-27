@@ -1,5 +1,4 @@
 from collections import namedtuple
-import os
 from typing import Any, Optional, TYPE_CHECKING
 
 from metaflow.metaflow_config import TEMPDIR

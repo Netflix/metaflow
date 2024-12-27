@@ -11,7 +11,7 @@ from metaflow.exception import MetaflowInternalError, MetaflowTaggingError
 from metaflow.metadata_provider.metadata import ObjectOrder
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.metadata_provider import MetadataProvider
-from metaflow.tagging_util import MAX_USER_TAG_SET_SIZE, validate_tags
+from metaflow.tagging_util import validate_tags
 
 
 class LocalMetadataProvider(MetadataProvider):

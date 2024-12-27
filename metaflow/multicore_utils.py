@@ -7,7 +7,6 @@ import time
 import metaflow.tracing as tracing
 
 from typing import (
-    Any,
     Callable,
     Iterable,
     Iterator,

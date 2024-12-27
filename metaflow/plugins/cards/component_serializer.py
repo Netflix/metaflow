@@ -170,7 +170,7 @@ def _object_is_json_serializable(obj):
     try:
         json.dumps(obj)
         return True
-    except TypeError as e:
+    except TypeError:
         return False
 
 
@@ -860,6 +860,6 @@ def _render_card_component(component):
             if not issubclass(type(component), UserComponent):
                 try:  # check if rendered object is json serializable.
                     json.dumps(rendered_obj)
-                except (TypeError, OverflowError) as e:
+                except (TypeError, OverflowError):
                     return None
         return rendered_obj

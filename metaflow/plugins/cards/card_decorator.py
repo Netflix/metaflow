@@ -250,7 +250,7 @@ class CardDecorator(StepDecorator):
         if self._config_file_name:
             try:
                 os.unlink(self._config_file_name)
-            except Exception as e:
+            except Exception:
                 pass
 
     @staticmethod

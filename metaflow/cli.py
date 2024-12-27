@@ -14,7 +14,6 @@ from .datastore import FlowDataStore, TaskDataStoreSet
 from .debug import debug
 from .exception import CommandException, MetaflowException
 from .flowspec import _FlowState
-from .graph import FlowGraph
 from .metaflow_config import (
     DECOSPECS,
     DEFAULT_DATASTORE,

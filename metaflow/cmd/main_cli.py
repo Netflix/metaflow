@@ -82,8 +82,6 @@ def start(ctx):
     global echo
     echo = echo_always
 
-    import metaflow
-
     version = get_version()
     echo("Metaflow ", fg="magenta", bold=True, nl=False)
 

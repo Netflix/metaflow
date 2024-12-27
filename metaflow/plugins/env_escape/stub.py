@@ -1,6 +1,5 @@
 import functools
 import pickle
-from typing import Any
 
 from .consts import (
     OP_GETATTR,

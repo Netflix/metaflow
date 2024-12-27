@@ -1,4 +1,4 @@
-from collections import OrderedDict, namedtuple
+from collections import namedtuple
 from datetime import datetime
 
 from typing import List, Optional, TYPE_CHECKING, Union

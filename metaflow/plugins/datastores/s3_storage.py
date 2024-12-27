@@ -1,5 +1,3 @@
-import os
-
 from itertools import starmap
 
 from metaflow.plugins.datatools.s3.s3 import S3, S3Client, S3PutObject, check_s3_deps
@@ -9,10 +7,10 @@ from metaflow.datastore.datastore_storage import CloseAfterUse, DataStoreStorage
 
 try:
     # python2
-    from urlparse import urlparse
+    pass
 except:
     # python3
-    from urllib.parse import urlparse
+    pass
 
 
 class S3Storage(DataStoreStorage):

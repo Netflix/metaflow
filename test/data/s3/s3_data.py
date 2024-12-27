@@ -1,5 +1,4 @@
 import os
-import sys
 import zlib
 import json
 from uuid import uuid4
@@ -15,7 +14,7 @@ except:
 
 from metaflow.plugins.datatools.s3 import S3PutObject
 
-from metaflow.util import to_fileobj, to_bytes, url_quote
+from metaflow.util import to_fileobj, to_bytes
 
 import numpy
 

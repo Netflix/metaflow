@@ -18,7 +18,6 @@ from metaflow.metaflow_config import (
     CARD_GSROOT,
     SKIP_CARD_DUALWRITE,
 )
-import metaflow.metaflow_config as metaflow_config
 
 from .exception import CardNotPresentException
 

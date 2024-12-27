@@ -1,8 +1,7 @@
 import os
 import sys
-from ..debug import debug
 from contextlib import contextmanager
-from typing import Optional, Union, Dict, Any
+from typing import Optional
 
 
 class SystemMonitor(object):

@@ -1,4 +1,4 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import MetaflowTest, steps, tag
 
 
 class ExtensionsTest(MetaflowTest):
@@ -14,9 +14,6 @@ class ExtensionsTest(MetaflowTest):
         from metaflow.metaflow_config import METAFLOW_ADDITIONAL_VALUE
         from metaflow import tl_value
         from metaflow.plugins.nondecoplugin import my_value
-
-        from metaflow.exception import MetaflowTestException
-        from metaflow.plugins.frameworks.pytorch import NewPytorchParallelDecorator
 
         self.plugin_value = my_value
         self.tl_value = tl_value

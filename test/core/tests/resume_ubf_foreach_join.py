@@ -1,4 +1,4 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import MetaflowTest, steps
 
 
 class ResumeUBFJoinTest(MetaflowTest):
@@ -46,7 +46,6 @@ class ResumeUBFJoinTest(MetaflowTest):
             assert_equals("start", self.data)
 
     def check_results(self, flow, checker):
-        from itertools import product
 
         checker.assert_artifact("start", "data", "start")
         checker.assert_artifact("end", "data", "resume")

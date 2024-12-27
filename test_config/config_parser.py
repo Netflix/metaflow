@@ -1,13 +1,9 @@
-import json
-import os
-
 from metaflow import (
     Config,
     FlowSpec,
     Parameter,
     config_expr,
     current,
-    environment,
     project,
     pypi_base,
     req_parser,

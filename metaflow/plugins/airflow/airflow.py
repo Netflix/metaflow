@@ -9,8 +9,6 @@ from io import BytesIO
 import metaflow.util as util
 from metaflow import current
 from metaflow.decorators import flow_decorators
-from metaflow.exception import MetaflowException
-from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import (
     AIRFLOW_KUBERNETES_CONN_ID,
     AIRFLOW_KUBERNETES_KUBECONFIG_CONTEXT,
@@ -38,8 +36,6 @@ from metaflow.metaflow_config import (
 from metaflow.metaflow_config_funcs import config_values
 
 from metaflow.parameters import (
-    DelayedEvaluationParameter,
-    JSONTypeClass,
     deploy_time_eval,
 )
 
@@ -48,7 +44,7 @@ from metaflow.plugins.cards.card_modules import chevron
 from metaflow.plugins.kubernetes.kubernetes import Kubernetes
 from metaflow.plugins.kubernetes.kube_utils import qos_requests_and_limits
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
-from metaflow.util import compress_list, dict_to_cli_options, get_username
+from metaflow.util import dict_to_cli_options, get_username
 
 from . import airflow_utils
 from .airflow_utils import AIRFLOW_MACROS, TASK_ID_XCOM_KEY, AirflowTask, Workflow

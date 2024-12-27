@@ -10,7 +10,6 @@ import typing
 
 from datetime import datetime
 from io import StringIO
-from types import ModuleType
 from typing import (
     Any,
     Callable,
@@ -20,7 +19,6 @@ from typing import (
     List,
     NewType,
     Optional,
-    Set,
     Tuple,
     TypeVar,
     Union,
@@ -400,7 +398,7 @@ class StubGenerator:
                 # Only consider modules that are safe modules
                 if (
                     any(obj.__name__.startswith(m) for m in self._safe_modules)
-                    and not obj.__name__ in self._exclude_modules
+                    and obj.__name__ not in self._exclude_modules
                 ):
                     debug.stubgen_exec(
                         "Adding child module %s to process" % obj.__name__
@@ -532,7 +530,7 @@ class StubGenerator:
             return '"%s"' % element
         # 3.10+ has NewType as a class but not before so hack around to check for NewType
         elif isinstance(element, TypeVar) or hasattr(element, "__supertype__"):
-            if not element.__name__ in self._typevars:
+            if element.__name__ not in self._typevars:
                 self._typevars[element.__name__] = element
             return element.__name__
         elif isinstance(element, type):
@@ -953,7 +951,7 @@ class StubGenerator:
         if raw_doc is None:
             return None
 
-        if not "FlowSpecDerived" in self._typevars:
+        if "FlowSpecDerived" not in self._typevars:
             self._typevars["FlowSpecDerived"] = FlowSpecDerived
             self._typevars["StepFlag"] = StepFlag
 

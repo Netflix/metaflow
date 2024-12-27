@@ -99,7 +99,7 @@ class LocalStorage(DataStoreStorage):
                             is_file=self.is_file([self.path_join(path, f)])[0],
                         )
                     )
-            except FileNotFoundError as e:
+            except FileNotFoundError:
                 pass
         return results
 

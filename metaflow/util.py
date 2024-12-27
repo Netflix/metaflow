@@ -43,7 +43,6 @@ except NameError:
     unicode_type = str
     bytes_type = bytes
     from urllib.parse import quote, unquote
-    from pathlib import Path
 
     def unquote_bytes(x):
         return unquote(to_unicode(x))
@@ -468,6 +467,6 @@ def to_pod(value):
 
 
 if sys.version_info[:2] > (3, 5):
-    from metaflow._vendor.packaging.version import parse as version_parse
+    pass
 else:
-    from distutils.version import LooseVersion as version_parse
+    pass

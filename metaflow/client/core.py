@@ -43,10 +43,10 @@ if TYPE_CHECKING:
 
 try:
     # python2
-    import cPickle as pickle
+    pass
 except:  # noqa E722
     # python3
-    import pickle
+    pass
 
 # populated at the bottom of this file
 _CLASSES = {}

@@ -295,7 +295,7 @@ class TaskDataStore(object):
                         )
                     try:
                         blob = pickle.dumps(obj, protocol=4)
-                    except TypeError as e:
+                    except TypeError:
                         raise UnpicklableArtifactException(name)
                 else:
                     try:
@@ -311,9 +311,9 @@ class TaskDataStore(object):
                             )
                         try:
                             blob = pickle.dumps(obj, protocol=4)
-                        except TypeError as e:
+                        except TypeError:
                             raise UnpicklableArtifactException(name)
-                    except TypeError as e:
+                    except TypeError:
                         raise UnpicklableArtifactException(name)
 
                 self._info[name] = {

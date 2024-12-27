@@ -6,7 +6,6 @@ from metaflow._vendor import click
 
 from .. import decorators, namespace, parameters, tracing
 from ..exception import CommandException
-from ..graph import FlowGraph
 from ..metaflow_current import current
 from ..package import MetaflowPackage
 from ..runtime import NativeRuntime

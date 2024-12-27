@@ -1,4 +1,4 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
+from metaflow_test import MetaflowTest, steps, tag
 
 
 class CardWithRefreshTest(MetaflowTest):
@@ -51,9 +51,7 @@ class CardWithRefreshTest(MetaflowTest):
             return set(arr1).issubset(set(arr2))
 
         from metaflow import current
-        from metaflow.cards import get_cards
         from metaflow.plugins.cards.card_client import Card
-        import random
         import time
 
         start_arr = [_create_random_strings(10) for i in range(5)]

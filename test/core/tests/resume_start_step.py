@@ -1,4 +1,4 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import MetaflowTest, steps
 
 
 class ResumeStartStepTest(MetaflowTest):

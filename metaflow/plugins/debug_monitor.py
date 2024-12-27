@@ -1,6 +1,6 @@
 import sys
 
-from metaflow.sidecar import MessageTypes, Message
+from metaflow.sidecar import MessageTypes
 from metaflow.monitor import NullMonitor, Metric
 
 

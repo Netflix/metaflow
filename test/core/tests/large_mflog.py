@@ -1,4 +1,4 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps
+from metaflow_test import MetaflowTest, steps
 
 
 class LargeMflogTest(MetaflowTest):
@@ -56,7 +56,6 @@ NUM_LINES = 5000
 
     def check_results(self, flow, checker):
         from itertools import groupby
-        from datetime import datetime
 
         ISOFORMAT = "%Y-%m-%dT%H:%M:%S.%f"
 

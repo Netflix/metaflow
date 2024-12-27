@@ -27,7 +27,7 @@ class Channel(object):
             self._stream.write(to_send)
         except EOFError as e:
             raise RuntimeError("Cannot send object over streaming interface: %s" % e)
-        except BaseException as e:
+        except BaseException:
             raise ValueError("Cannot serialize object: %s" % traceback.format_exc())
 
     def recv(self, timeout=None):
@@ -39,7 +39,7 @@ class Channel(object):
             return json.loads(obj_bytes)
         except EOFError as e:
             raise RuntimeError("Cannot receive object over streaming interface: %s" % e)
-        except BaseException as e:
+        except BaseException:
             raise ValueError("Cannot deserialize object: %s" % traceback.format_exc())
 
     def fileno(self):

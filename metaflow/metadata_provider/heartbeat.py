@@ -6,7 +6,7 @@ import requests
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import SERVICE_HEADERS
-from metaflow.sidecar import Message, MessageTypes
+from metaflow.sidecar import MessageTypes
 
 HB_URL_KEY = "hb_url"
 
@@ -51,7 +51,7 @@ class MetadataHeartBeat(object):
 
                 time.sleep(frequency_secs)
                 retry_counter = 0
-            except HeartBeatException as e:
+            except HeartBeatException:
                 retry_counter = retry_counter + 1
                 time.sleep(4**retry_counter)
 

@@ -1,4 +1,4 @@
-from metaflow import FlowSpec, step, batch, current, parallel, Parameter
+from metaflow import FlowSpec, step, current, parallel, Parameter
 
 
 class ParallelTest(FlowSpec):

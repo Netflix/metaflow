@@ -1,13 +1,12 @@
 from collections import namedtuple
 import gzip
 
-import importlib
 import io
 import json
 import os
 
 from hashlib import sha1
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Dict, Optional
 
 from metaflow._vendor import click
 
@@ -20,7 +19,6 @@ from .parameters import (
 )
 
 from .plugins import DATACLIENTS
-from .user_configs.config_parameters import ConfigValue
 from .util import get_username
 
 import functools
@@ -147,7 +145,7 @@ class FilePathClass(click.ParamType):
                 # to handle quoted json strings
                 if not isinstance(value, dict):
                     value = json.loads(value)
-            except json.JSONDecodeError as e:
+            except json.JSONDecodeError:
                 raise MetaflowException(
                     "IncludeFile '%s' (value: %s) is malformed" % (param.name, value)
                 )

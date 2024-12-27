@@ -23,7 +23,6 @@ from metaflow.datastore.exceptions import DataException
 from contextlib import contextmanager
 
 from . import get_namespace
-from .metadata_provider import MetaDatum
 from .metaflow_config import MAX_ATTEMPTS, UI_URL
 from .exception import (
     MetaflowException,
@@ -41,7 +40,6 @@ from .clone_util import clone_task_helper
 from .unbounded_foreach import (
     CONTROL_TASK_TAG,
     UBF_CONTROL,
-    UBF_TASK,
 )
 
 from .user_configs.config_options import ConfigInput
@@ -1129,7 +1127,7 @@ class Task(object):
                 # unexpectedly during cloning and never mark task complete.
                 try:
                     task_completed = self.results["_task_ok"]
-                except DataException as e:
+                except DataException:
                     pass
             else:
                 self._get_task_id(task_id)
