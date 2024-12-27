@@ -1,19 +1,13 @@
-import copy
 import json
 import math
 import random
-import sys
 import time
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_SECRETS
 from metaflow.tracing import inject_tracing_vars
-from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
-from .kubernetes_jobsets import (
-    KubernetesJobSet,
-)  # We need this import for Kubernetes Client.
 
 from .kube_utils import qos_requests_and_limits
 
@@ -430,7 +424,7 @@ class RunningJob(object):
         def best_effort_kill():
             try:
                 self.kill()
-            except Exception as ex:
+            except Exception:
                 pass
 
         atexit.register(best_effort_kill)

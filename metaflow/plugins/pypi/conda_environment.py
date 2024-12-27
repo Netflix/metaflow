@@ -7,20 +7,15 @@ import json
 import os
 import tarfile
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import wraps
 from hashlib import sha256
 from io import BufferedIOBase, BytesIO
-from itertools import chain
 from urllib.parse import unquote, urlparse
-
-import requests
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import get_pinned_conda_libs
 from metaflow.metaflow_environment import MetaflowEnvironment
-from metaflow.metaflow_profile import profile
 
 from . import MAGIC_FILE, _datastore_packageroot
 from .utils import conda_platform
@@ -498,6 +493,7 @@ class LazyOpen(BufferedIOBase):
         self._file = None
         self._buffer = None
         self._position = 0
+        self.requests = None
 
     def _ensure_file(self):
         if not self._file:
@@ -514,8 +510,13 @@ class LazyOpen(BufferedIOBase):
                 raise ValueError("Both filename and url are missing")
 
     def _download_to_buffer(self):
+        if self.requests is None:
+            # TODO: Remove dependency on requests
+            import requests
+
+            self.requests = requests
         # TODO: Stream it in chunks?
-        response = requests.get(self.url, stream=True)
+        response = self.requests.get(self.url, stream=True)
         response.raise_for_status()
         return response.content
 

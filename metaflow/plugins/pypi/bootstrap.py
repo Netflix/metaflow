@@ -8,12 +8,13 @@ import subprocess
 import sys
 import tarfile
 import time
-
-import requests
-
+from urllib.error import URLError
+from urllib.request import urlopen
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.plugins import DATASTORES
 from metaflow.util import which
+from urllib.request import Request
+import warnings
 
 from . import MAGIC_FILE, _datastore_packageroot
 
@@ -32,10 +33,6 @@ def timer(func):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 5:
-        print("Usage: bootstrap.py <flow_name> <id> <datastore_type> <architecture>")
-        sys.exit(1)
-    _, flow_name, id_, datastore_type, architecture = sys.argv
 
     # TODO: Detect architecture on the fly when dealing with arm architectures.
     # ARCH=$(uname -m)
@@ -60,30 +57,6 @@ if __name__ == "__main__":
     #         ARCH="64"
     #     fi
     # fi
-
-    prefix = os.path.join(os.getcwd(), architecture, id_)
-    pkgs_dir = os.path.join(os.getcwd(), ".pkgs")
-    conda_pkgs_dir = os.path.join(pkgs_dir, "conda")
-    pypi_pkgs_dir = os.path.join(pkgs_dir, "pypi")
-    manifest_dir = os.path.join(os.getcwd(), DATASTORE_LOCAL_DIR, flow_name)
-
-    datastores = [d for d in DATASTORES if d.TYPE == datastore_type]
-    if not datastores:
-        print(f"No datastore found for type: {datastore_type}")
-        sys.exit(1)
-
-    storage = datastores[0](
-        _datastore_packageroot(datastores[0], lambda *args, **kwargs: None)
-    )
-
-    # Move MAGIC_FILE inside local datastore.
-    os.makedirs(manifest_dir, exist_ok=True)
-    shutil.move(
-        os.path.join(os.getcwd(), MAGIC_FILE),
-        os.path.join(manifest_dir, MAGIC_FILE),
-    )
-    with open(os.path.join(manifest_dir, MAGIC_FILE)) as f:
-        env = json.load(f)[id_][architecture]
 
     def run_cmd(cmd):
         result = subprocess.run(
@@ -113,23 +86,37 @@ if __name__ == "__main__":
         # Prepare directory once
         os.makedirs(os.path.dirname(micromamba_path), exist_ok=True)
 
-        # Stream and process directly to file
-        with requests.get(url, stream=True, timeout=30) as response:
-            if response.status_code != 200:
-                raise Exception(
-                    f"Failed to download micromamba: HTTP {response.status_code}"
-                )
+        # Download and decompress in one go
+        headers = {
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "User-Agent": "python-urllib",
+        }
 
-            decompressor = bz2.BZ2Decompressor()
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                req = Request(url, headers=headers)
 
-            # Process in memory without temporary files
-            tar_content = decompressor.decompress(response.raw.read())
-
-            with tarfile.open(fileobj=io.BytesIO(tar_content), mode="r:") as tar:
-                member = tar.getmember("bin/micromamba")
-                # Extract directly to final location
-                with open(micromamba_path, "wb") as f:
-                    f.write(tar.extractfile(member).read())
+                with urlopen(req) as response:
+                    decompressor = bz2.BZ2Decompressor()
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings("ignore", category=DeprecationWarning)
+                        with tarfile.open(
+                            fileobj=io.BytesIO(
+                                decompressor.decompress(response.read())
+                            ),
+                            mode="r:",
+                        ) as tar:
+                            member = tar.getmember("bin/micromamba")
+                            tar.extract(member, micromamba_dir)
+                break
+            except (URLError, IOError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception(
+                        f"Failed to download micromamba after {max_retries} attempts: {e}"
+                    )
+                time.sleep(2**attempt)
 
         # Set executable permission
         os.chmod(micromamba_path, 0o755)
@@ -272,4 +259,41 @@ if __name__ == "__main__":
                 # wait for conda environment to be created
                 futures["conda_env"].result()
 
-    setup_environment(architecture, storage, env, prefix, conda_pkgs_dir, pypi_pkgs_dir)
+    if len(sys.argv) != 5:
+        print("Usage: bootstrap.py <flow_name> <id> <datastore_type> <architecture>")
+        sys.exit(1)
+
+    try:
+        _, flow_name, id_, datastore_type, architecture = sys.argv
+
+        prefix = os.path.join(os.getcwd(), architecture, id_)
+        pkgs_dir = os.path.join(os.getcwd(), ".pkgs")
+        conda_pkgs_dir = os.path.join(pkgs_dir, "conda")
+        pypi_pkgs_dir = os.path.join(pkgs_dir, "pypi")
+        manifest_dir = os.path.join(os.getcwd(), DATASTORE_LOCAL_DIR, flow_name)
+
+        datastores = [d for d in DATASTORES if d.TYPE == datastore_type]
+        if not datastores:
+            print(f"No datastore found for type: {datastore_type}")
+            sys.exit(1)
+
+        storage = datastores[0](
+            _datastore_packageroot(datastores[0], lambda *args, **kwargs: None)
+        )
+
+        # Move MAGIC_FILE inside local datastore.
+        os.makedirs(manifest_dir, exist_ok=True)
+        shutil.move(
+            os.path.join(os.getcwd(), MAGIC_FILE),
+            os.path.join(manifest_dir, MAGIC_FILE),
+        )
+        with open(os.path.join(manifest_dir, MAGIC_FILE)) as f:
+            env = json.load(f)[id_][architecture]
+
+        setup_environment(
+            architecture, storage, env, prefix, conda_pkgs_dir, pypi_pkgs_dir
+        )
+
+    except Exception as e:
+        print(f"Error: {str(e)}", file=sys.stderr)
+        sys.exit(1)

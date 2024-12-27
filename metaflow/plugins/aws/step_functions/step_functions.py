@@ -236,7 +236,7 @@ class StepFunctions(object):
                 return parameters.get("metaflow.owner"), parameters.get(
                     "metaflow.production_token"
                 )
-            except KeyError as e:
+            except KeyError:
                 raise StepFunctionsException(
                     "An existing non-metaflow "
                     "workflow with the same name as "

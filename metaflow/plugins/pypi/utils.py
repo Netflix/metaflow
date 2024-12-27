@@ -1,4 +1,3 @@
-import os
 import platform
 import sys
 
@@ -17,7 +16,7 @@ else:
     from metaflow._vendor.packaging import tags
     from metaflow._vendor.packaging.utils import parse_wheel_filename
 
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote
 
 from metaflow.exception import MetaflowException
 
