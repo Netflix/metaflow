@@ -750,7 +750,6 @@ class ArgoWorkflows(object):
             graph_info = {
                 "steps": steps_info,
                 "graph_structure": graph_structure,
-                "doc": self.graph.doc,
             }
         except Exception:
             graph_info = None
