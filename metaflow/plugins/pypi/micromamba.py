@@ -338,8 +338,8 @@ def _install_micromamba(installation_location):
     # Unfortunately no 32bit binaries are available for micromamba, which ideally
     # shouldn't be much of a problem in today's world.
     platform = conda_platform()
-    url = MICROMAMBA_URL.format(platform=platform)
-    mirror_url = MICROMAMBA_MIRROR_URL.format(platform=platform)
+    url = MICROMAMBA_URL.format(platform=platform, version="1.5.7")
+    mirror_url = MICROMAMBA_MIRROR_URL.format(platform=platform, version="1.5.7")
     os.makedirs(installation_location, exist_ok=True)
 
     def _download_and_extract(url):
