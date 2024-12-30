@@ -83,6 +83,11 @@ class KubernetesDecorator(StepDecorator):
         the scheduled node should not have GPUs.
     gpu_vendor : str, default KUBERNETES_GPU_VENDOR
         The vendor of the GPUs to be used for this step.
+    tpu : int, optional, default None
+        Number of TPUs required for this step. A value of zero implies that
+        the scheduled node should not have TPUs.
+    tpu_vendor : str, default KUBERNETES_TPU_VENDOR
+        The vendor of the TPUs to be used for this step.
     tolerations : List[str], default []
         The default is extracted from METAFLOW_KUBERNETES_TOLERATIONS.
         Kubernetes tolerations to use when launching pod in Kubernetes.
@@ -124,6 +129,8 @@ class KubernetesDecorator(StepDecorator):
         "namespace": None,
         "gpu": None,  # value of 0 implies that the scheduled node should not have GPUs
         "gpu_vendor": None,
+        "tpu": None,  # value of 0 implies that the scheduled node should not have TPUs
+        "tpu_vendor": None,
         "tolerations": None,  # e.g., [{"key": "arch", "operator": "Equal", "value": "amd"},
         #                              {"key": "foo", "operator": "Equal", "value": "bar"}]
         "use_tmpfs": None,
@@ -286,9 +293,9 @@ class KubernetesDecorator(StepDecorator):
         for deco in decos:
             if isinstance(deco, ResourcesDecorator):
                 for k, v in deco.attributes.items():
-                    # If GPU count is specified, explicitly set it in self.attributes.
-                    if k == "gpu" and v != None:
-                        self.attributes["gpu"] = v
+                    # If GPU/TPU count is specified, explicitly set it in self.attributes.
+                    if k in ("gpu","tpu") and v != None:
+                        self.attributes[k] = v
 
                     if k in self.attributes:
                         if self.defaults[k] is None:
@@ -309,6 +316,14 @@ class KubernetesDecorator(StepDecorator):
                     self.attributes["gpu_vendor"], step=step
                 )
             )
+        
+        # Check TPU vendor.
+        if self.attributes["tpu_vendor"].lower() not in ("google"):
+            raise KubernetesException(
+                "TPU vendor *{}* for step *{step}* is not currently supported.".format(
+                    self.attributes["tpu_vendor"], step=step
+                )
+            )
 
         # CPU, Disk, and Memory values should be greater than 0.
         for attr in ["cpu", "disk", "memory"]:
@@ -322,15 +337,17 @@ class KubernetesDecorator(StepDecorator):
                     )
                 )
 
-        if self.attributes["gpu"] is not None and not (
-            isinstance(self.attributes["gpu"], (int, unicode, basestring))
-            and float(self.attributes["gpu"]).is_integer()
-        ):
-            raise KubernetesException(
-                "Invalid GPU value *{}* for step *{step}*; it should be an integer".format(
-                    self.attributes["gpu"], step=step
+        for accelerator_type in ("gpu", "tpu"):
+            if self.attributes[accelerator_type] is not None and not (
+                isinstance(self.attributes[accelerator_type], (int, unicode, basestring))
+                and float(self.attributes[accelerator_type]).is_integer()
+            ):
+                raise KubernetesException(
+                    "Invalid {accelerator_type} value *{number}* for step *{step}*; it should be an integer".format(
+                        accelerator_type=accelerator_type.toUpper(), number=self.attributes[accelerator_type], step=step
+                    )
                 )
-            )
+
 
         if self.attributes["tmpfs_size"]:
             if not (

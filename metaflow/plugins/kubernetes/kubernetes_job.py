@@ -61,7 +61,7 @@ def create_gpu_vendor_string(vendor):
     device_type = "gpu"
     if vendor == "google":
         device_type = "tpu"
-    return f"{vendor}.com/{device_type}".lower()
+    return "{vendor}.com/{device_type}".format(vendor=vendor, device_type=device_type).lower()
 
 
 class KubernetesJob(object):
