@@ -17,6 +17,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_DISK,
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_GPU_VENDOR,
+    KUBERNETES_TPU_VENDOR,
     KUBERNETES_IMAGE_PULL_POLICY,
     KUBERNETES_MEMORY,
     KUBERNETES_LABELS,
@@ -176,6 +177,8 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["service_account"] = KUBERNETES_SERVICE_ACCOUNT
         if not self.attributes["gpu_vendor"]:
             self.attributes["gpu_vendor"] = KUBERNETES_GPU_VENDOR
+        if not self.attributes["tpu_vendor"]:
+            self.attributes["tpu_vendor"] = KUBERNETES_TPU_VENDOR
         if not self.attributes["node_selector"] and KUBERNETES_NODE_SELECTOR:
             self.attributes["node_selector"] = KUBERNETES_NODE_SELECTOR
         if not self.attributes["tolerations"] and KUBERNETES_TOLERATIONS:
@@ -350,7 +353,7 @@ class KubernetesDecorator(StepDecorator):
             if isinstance(deco, ResourcesDecorator):
                 for k, v in deco.attributes.items():
                     # If GPU/TPU count is specified, explicitly set it in self.attributes.
-                    if k in ("gpu","tpu") and v != None:
+                    if k in ("gpu", "tpu") and v != None:
                         self.attributes[k] = v
 
                     if k in self.attributes:
@@ -366,13 +369,13 @@ class KubernetesDecorator(StepDecorator):
                             )
 
         # Check GPU vendor.
-        if self.attributes["gpu_vendor"].lower() not in ("amd", "nvidia", "google"):
+        if self.attributes["gpu_vendor"].lower() not in ("amd", "nvidia"):
             raise KubernetesException(
                 "GPU vendor *{}* for step *{step}* is not currently supported.".format(
                     self.attributes["gpu_vendor"], step=step
                 )
             )
-        
+
         # Check TPU vendor.
         if self.attributes["tpu_vendor"].lower() not in ("google"):
             raise KubernetesException(
@@ -395,15 +398,18 @@ class KubernetesDecorator(StepDecorator):
 
         for accelerator_type in ("gpu", "tpu"):
             if self.attributes[accelerator_type] is not None and not (
-                isinstance(self.attributes[accelerator_type], (int, unicode, basestring))
+                isinstance(
+                    self.attributes[accelerator_type], (int, unicode, basestring)
+                )
                 and float(self.attributes[accelerator_type]).is_integer()
             ):
                 raise KubernetesException(
                     "Invalid {accelerator_type} value *{number}* for step *{step}*; it should be an integer".format(
-                        accelerator_type=accelerator_type.toUpper(), number=self.attributes[accelerator_type], step=step
+                        accelerator_type=accelerator_type.toUpper(),
+                        number=self.attributes[accelerator_type],
+                        step=step,
                     )
                 )
-
 
         if self.attributes["tmpfs_size"]:
             if not (

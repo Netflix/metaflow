@@ -56,13 +56,6 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
     return decorator
 
 
-def create_gpu_vendor_string(vendor):
-    device_type = "gpu"
-    if vendor == "google":
-        device_type = "tpu"
-    return "{vendor}.com/{device_type}".format(vendor=vendor, device_type=device_type).lower()
-
-
 class KubernetesJob(object):
     def __init__(self, client, **kwargs):
         self._client = client
@@ -178,6 +171,15 @@ class KubernetesJob(object):
                                         for k in [0]
                                         # Don't set GPU limits if gpu isn't specified.
                                         if self._kwargs["gpu"] is not None
+                                    },
+                                    **{
+                                        "%s.com/tpu".lower()
+                                        % self._kwargs["tpu_vendor"]: str(
+                                            self._kwargs["tpu"]
+                                        )
+                                        for k in [0]
+                                        # Don't set GPU limits if gpu isn't specified.
+                                        if self._kwargs["tpu"] is not None
                                     },
                                 },
                             ),
