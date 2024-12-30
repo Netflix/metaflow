@@ -1,6 +1,4 @@
 import json
-import os
-import sys
 
 from metaflow.exception import MetaflowException
 from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient

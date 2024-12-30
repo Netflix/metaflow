@@ -355,6 +355,8 @@ KUBERNETES_PERSISTENT_VOLUME_CLAIMS = from_conf(
 KUBERNETES_SECRETS = from_conf("KUBERNETES_SECRETS", "")
 # Default labels for kubernetes pods
 KUBERNETES_LABELS = from_conf("KUBERNETES_LABELS", "")
+# Default annotations for kubernetes pods
+KUBERNETES_ANNOTATIONS = from_conf("KUBERNETES_ANNOTATIONS", "")
 # Default GPU vendor to use by K8S jobs created by Metaflow (supports nvidia, amd)
 KUBERNETES_GPU_VENDOR = from_conf("KUBERNETES_GPU_VENDOR", "nvidia")
 # Default container image for K8S
@@ -377,6 +379,8 @@ KUBERNETES_PORT = from_conf("KUBERNETES_PORT", None)
 KUBERNETES_CPU = from_conf("KUBERNETES_CPU", None)
 KUBERNETES_MEMORY = from_conf("KUBERNETES_MEMORY", None)
 KUBERNETES_DISK = from_conf("KUBERNETES_DISK", None)
+# Default kubernetes QoS class
+KUBERNETES_QOS = from_conf("KUBERNETES_QOS", "burstable")
 
 ARGO_WORKFLOWS_KUBERNETES_SECRETS = from_conf("ARGO_WORKFLOWS_KUBERNETES_SECRETS", "")
 ARGO_WORKFLOWS_ENV_VARS_TO_SKIP = from_conf("ARGO_WORKFLOWS_ENV_VARS_TO_SKIP", "")
@@ -438,7 +442,7 @@ ESCAPE_HATCH_WARNING = from_conf("ESCAPE_HATCH_WARNING", True)
 ###
 # Debug configuration
 ###
-DEBUG_OPTIONS = ["subcommand", "sidecar", "s3client", "tracing", "stubgen"]
+DEBUG_OPTIONS = ["subcommand", "sidecar", "s3client", "tracing", "stubgen", "userconf"]
 
 for typ in DEBUG_OPTIONS:
     vars()["DEBUG_%s" % typ.upper()] = from_conf("DEBUG_%s" % typ.upper(), False)
@@ -505,6 +509,11 @@ DISABLE_TRACING = bool(os.environ.get("DISABLE_TRACING", False))
 # Note also that DataStoreSet resolves the latest attempt_id using
 # lexicographic ordering of attempts. This won't work if MAX_ATTEMPTS > 99.
 MAX_ATTEMPTS = 6
+
+# Feature flag (experimental features that are *explicitly* unsupported)
+
+# Process configs even when using the click_api for Runner/Deployer
+CLICK_API_PROCESS_CONFIG = from_conf("CLICK_API_PROCESS_CONFIG", False)
 
 
 # PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution

@@ -1,16 +1,15 @@
-import copy
 import json
 import math
 import random
-import sys
 import time
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_SECRETS
 from metaflow.tracing import inject_tracing_vars
-from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
+
+from .kube_utils import qos_requests_and_limits
 from .kubernetes_jobsets import (
     KubernetesJobSet,
 )  # We need this import for Kubernetes Client.
@@ -81,6 +80,13 @@ class KubernetesJob(object):
             if self._kwargs["shared_memory"]
             else None
         )
+        qos_requests, qos_limits = qos_requests_and_limits(
+            self._kwargs["qos"],
+            self._kwargs["cpu"],
+            self._kwargs["memory"],
+            self._kwargs["disk"],
+        )
+
         return client.V1JobSpec(
             # Retries are handled by Metaflow when it is responsible for
             # executing the flow. The responsibility is moved to Kubernetes
@@ -161,19 +167,18 @@ class KubernetesJob(object):
                             image_pull_policy=self._kwargs["image_pull_policy"],
                             name=self._kwargs["step_name"].replace("_", "-"),
                             resources=client.V1ResourceRequirements(
-                                requests={
-                                    "cpu": str(self._kwargs["cpu"]),
-                                    "memory": "%sM" % str(self._kwargs["memory"]),
-                                    "ephemeral-storage": "%sM"
-                                    % str(self._kwargs["disk"]),
-                                },
+                                requests=qos_requests,
                                 limits={
-                                    create_gpu_vendor_string(self._kwargs["gpu_vendor"]) : str(
-                                        self._kwargs["gpu"]
-                                    )
-                                    for k in [0]
-                                    # Don't set GPU limits if gpu isn't specified.
-                                    if self._kwargs["gpu"] is not None
+                                    **qos_limits,
+                                    **{
+                                        "%s.com/gpu".lower()
+                                        % self._kwargs["gpu_vendor"]: str(
+                                            self._kwargs["gpu"]
+                                        )
+                                        for k in [0]
+                                        # Don't set GPU limits if gpu isn't specified.
+                                        if self._kwargs["gpu"] is not None
+                                    },
                                 },
                             ),
                             volume_mounts=(
@@ -429,7 +434,7 @@ class RunningJob(object):
         def best_effort_kill():
             try:
                 self.kill()
-            except Exception as ex:
+            except Exception:
                 pass
 
         atexit.register(best_effort_kill)

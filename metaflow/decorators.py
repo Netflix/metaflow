@@ -12,6 +12,12 @@ from .exception import (
 )
 
 from .parameters import current_flow
+from .user_configs.config_decorators import CustomStepDecorator
+from .user_configs.config_parameters import (
+    UNPACK_KEY,
+    resolve_delayed_evaluator,
+    unpack_delayed_evaluator,
+)
 
 from metaflow._vendor import click
 
@@ -20,6 +26,11 @@ try:
 except NameError:
     unicode = str
     basestring = str
+
+# Contains the decorators on which _init was called. We want to ensure it is called
+# only once on each decorator and, as the _init() function below can be called in
+# several places, we need to track which decorator had their init function called
+_inited_decorators = set()
 
 
 class BadStepDecoratorException(MetaflowException):
@@ -115,13 +126,35 @@ class Decorator(object):
     def __init__(self, attributes=None, statically_defined=False):
         self.attributes = self.defaults.copy()
         self.statically_defined = statically_defined
+        self._user_defined_attributes = set()
+        self._ran_init = False
 
         if attributes:
             for k, v in attributes.items():
-                if k in self.defaults:
+                if k in self.defaults or k.startswith(UNPACK_KEY):
                     self.attributes[k] = v
+                    if not k.startswith(UNPACK_KEY):
+                        self._user_defined_attributes.add(k)
                 else:
                     raise InvalidDecoratorAttribute(self.name, k, self.defaults)
+
+    def init(self):
+        """
+        Initializes the decorator. In general, any operation you would do in __init__
+        should be done here.
+        """
+
+        # In some cases (specifically when using remove_decorator), we may need to call
+        # init multiple times. Short-circuit re-evaluating.
+        if self._ran_init:
+            return
+
+        # Note that by design, later values override previous ones.
+        self.attributes = unpack_delayed_evaluator(self.attributes)
+        self._user_defined_attributes.update(self.attributes.keys())
+        self.attributes = resolve_delayed_evaluator(self.attributes)
+
+        self._ran_init = True
 
     @classmethod
     def _parse_decorator_spec(cls, deco_spec):
@@ -203,10 +236,13 @@ class FlowDecorator(Decorator):
 
 # compare this to parameters.add_custom_parameters
 def add_decorator_options(cmd):
-    seen = {}
     flow_cls = getattr(current_flow, "flow_cls", None)
     if flow_cls is None:
         return cmd
+
+    seen = {}
+    existing_params = set(p.name.lower() for p in cmd.params)
+    # Add decorator options
     for deco in flow_decorators(flow_cls):
         for option, kwargs in deco.options.items():
             if option in seen:
@@ -217,7 +253,13 @@ def add_decorator_options(cmd):
                     % (deco.name, option, seen[option])
                 )
                 raise MetaflowInternalError(msg)
+            elif deco.name.lower() in existing_params:
+                raise MetaflowInternalError(
+                    "Flow decorator '%s' uses an option '%s' which is a reserved "
+                    "keyword. Please use a different option name." % (deco.name, option)
+                )
             else:
+                kwargs["envvar"] = "METAFLOW_FLOW_%s" % option.upper()
                 seen[option] = deco.name
                 cmd.params.insert(0, click.Option(("--" + option,), **kwargs))
     return cmd
@@ -425,10 +467,13 @@ def _base_step_decorator(decotype, *args, **kwargs):
     Decorator prototype for all step decorators. This function gets specialized
     and imported for all decorators types by _import_plugin_decorators().
     """
+
     if args:
         # No keyword arguments specified for the decorator, e.g. @foobar.
         # The first argument is the function to be decorated.
         func = args[0]
+        if isinstance(func, CustomStepDecorator):
+            func = func._my_step
         if not hasattr(func, "is_step"):
             raise BadStepDecoratorException(decotype.name, func)
 
@@ -508,6 +553,21 @@ def _attach_decorators_to_step(step, decospecs):
                 splits[1] if len(splits) > 1 else ""
             )
             step.decorators.append(deco)
+
+
+def _init(flow, only_non_static=False):
+    for decorators in flow._flow_decorators.values():
+        for deco in decorators:
+            if deco in _inited_decorators:
+                continue
+            deco.init()
+            _inited_decorators.add(deco)
+    for flowstep in flow:
+        for deco in flowstep.decorators:
+            if deco in _inited_decorators:
+                continue
+            deco.init()
+            _inited_decorators.add(deco)
 
 
 def _init_flow_decorators(
@@ -620,6 +680,7 @@ def step(
     """
     f.is_step = True
     f.decorators = []
+    f.config_decorators = []
     try:
         # python 3
         f.name = f.__name__

@@ -1,12 +1,11 @@
 import sys
 import json
-import tempfile
 from typing import ClassVar, Optional, List
 
 from metaflow.plugins.aws.step_functions.step_functions import StepFunctions
 from metaflow.runner.deployer import DeployedFlow, TriggeredRun
 
-from metaflow.runner.utils import get_lower_level_group, handle_timeout
+from metaflow.runner.utils import get_lower_level_group, handle_timeout, temporary_fifo
 
 
 class StepFunctionsTriggeredRun(TriggeredRun):
@@ -46,6 +45,7 @@ class StepFunctionsTriggeredRun(TriggeredRun):
         )
 
         command_obj = self.deployer.spm.get(pid)
+        command_obj.sync_wait()
         return command_obj.process.returncode == 0
 
 
@@ -174,6 +174,7 @@ class StepFunctionsDeployedFlow(DeployedFlow):
         )
 
         command_obj = self.deployer.spm.get(pid)
+        command_obj.sync_wait()
         return command_obj.process.returncode == 0
 
     def trigger(self, **kwargs) -> StepFunctionsTriggeredRun:
@@ -196,18 +197,14 @@ class StepFunctionsDeployedFlow(DeployedFlow):
         Exception
             If there is an error during the trigger process.
         """
-        with tempfile.TemporaryDirectory() as temp_dir:
-            tfp_runner_attribute = tempfile.NamedTemporaryFile(
-                dir=temp_dir, delete=False
-            )
-
+        with temporary_fifo() as (attribute_file_path, attribute_file_fd):
             # every subclass needs to have `self.deployer_kwargs`
             command = get_lower_level_group(
                 self.deployer.api,
                 self.deployer.top_level_kwargs,
                 self.deployer.TYPE,
                 self.deployer.deployer_kwargs,
-            ).trigger(deployer_attribute_file=tfp_runner_attribute.name, **kwargs)
+            ).trigger(deployer_attribute_file=attribute_file_path, **kwargs)
 
             pid = self.deployer.spm.run_command(
                 [sys.executable, *command],
@@ -218,9 +215,10 @@ class StepFunctionsDeployedFlow(DeployedFlow):
 
             command_obj = self.deployer.spm.get(pid)
             content = handle_timeout(
-                tfp_runner_attribute, command_obj, self.deployer.file_read_timeout
+                attribute_file_fd, command_obj, self.deployer.file_read_timeout
             )
 
+            command_obj.sync_wait()
             if command_obj.process.returncode == 0:
                 return StepFunctionsTriggeredRun(
                     deployer=self.deployer, content=content

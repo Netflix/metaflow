@@ -1,11 +1,12 @@
-import time
-import requests
 import json
-
+import time
 from threading import Thread
-from metaflow.sidecar import MessageTypes, Message
-from metaflow.metaflow_config import SERVICE_HEADERS
+
+import requests
+
 from metaflow.exception import MetaflowException
+from metaflow.metaflow_config import SERVICE_HEADERS
+from metaflow.sidecar import Message, MessageTypes
 
 HB_URL_KEY = "hb_url"
 

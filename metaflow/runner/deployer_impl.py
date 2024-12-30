@@ -2,12 +2,11 @@ import importlib
 import json
 import os
 import sys
-import tempfile
 
 from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING, Type
 
 from .subprocess_manager import SubprocessManager
-from .utils import get_lower_level_group, handle_timeout
+from .utils import get_lower_level_group, handle_timeout, temporary_fifo
 
 if TYPE_CHECKING:
     import metaflow.runner.deployer
@@ -38,7 +37,7 @@ class DeployerImpl(object):
         The directory to run the subprocess in; if not specified, the current
         directory is used.
     file_read_timeout : int, default 3600
-        The timeout until which we try to read the deployer attribute file.
+        The timeout until which we try to read the deployer attribute file (in seconds).
     **kwargs : Any
         Additional arguments that you would pass to `python myflow.py` before
         the deployment command.
@@ -62,8 +61,13 @@ class DeployerImpl(object):
                 "of DeployerImpl."
             )
 
+        from metaflow.parameters import flow_context
+
         if "metaflow.cli" in sys.modules:
-            importlib.reload(sys.modules["metaflow.cli"])
+            # Reload the CLI with an "empty" flow -- this will remove any configuration
+            # options. They are re-added in from_cli (called below).
+            with flow_context(None) as _:
+                importlib.reload(sys.modules["metaflow.cli"])
         from metaflow.cli import start
         from metaflow.runner.click_api import MetaflowAPI
 
@@ -121,14 +125,11 @@ class DeployerImpl(object):
     def _create(
         self, create_class: Type["metaflow.runner.deployer.DeployedFlow"], **kwargs
     ) -> "metaflow.runner.deployer.DeployedFlow":
-        with tempfile.TemporaryDirectory() as temp_dir:
-            tfp_runner_attribute = tempfile.NamedTemporaryFile(
-                dir=temp_dir, delete=False
-            )
+        with temporary_fifo() as (attribute_file_path, attribute_file_fd):
             # every subclass needs to have `self.deployer_kwargs`
             command = get_lower_level_group(
                 self.api, self.top_level_kwargs, self.TYPE, self.deployer_kwargs
-            ).create(deployer_attribute_file=tfp_runner_attribute.name, **kwargs)
+            ).create(deployer_attribute_file=attribute_file_path, **kwargs)
 
             pid = self.spm.run_command(
                 [sys.executable, *command],
@@ -139,7 +140,7 @@ class DeployerImpl(object):
 
             command_obj = self.spm.get(pid)
             content = handle_timeout(
-                tfp_runner_attribute, command_obj, self.file_read_timeout
+                attribute_file_fd, command_obj, self.file_read_timeout
             )
             content = json.loads(content)
             self.name = content.get("name")
@@ -148,7 +149,7 @@ class DeployerImpl(object):
             # Additional info is used to pass additional deployer specific information.
             # It is used in non-OSS deployers (extensions).
             self.additional_info = content.get("additional_info", {})
-
+            command_obj.sync_wait()
             if command_obj.process.returncode == 0:
                 return create_class(deployer=self)
 

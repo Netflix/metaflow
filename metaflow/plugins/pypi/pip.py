@@ -50,10 +50,14 @@ INSTALLATION_MARKER = "{prefix}/.pip/id"
 
 
 class Pip(object):
-    def __init__(self, micromamba=None):
+    def __init__(self, micromamba=None, logger=None):
         # pip is assumed to be installed inside a conda environment managed by
         # micromamba. pip commands are executed using `micromamba run --prefix`
-        self.micromamba = micromamba or Micromamba()
+        self.micromamba = micromamba or Micromamba(logger)
+        if logger:
+            self.logger = logger
+        else:
+            self.logger = lambda *args, **kwargs: None  # No-op logger if not provided
 
     def solve(self, id_, packages, python, platform):
         prefix = self.micromamba.path_to_environment(id_)
@@ -102,9 +106,8 @@ class Pip(object):
             except PipPackageNotFound as ex:
                 # pretty print package errors
                 raise PipException(
-                    "Could not find a binary distribution for %s \n"
-                    "for the platform %s\n\n"
-                    "Note that ***@pypi*** does not currently support source distributions"
+                    "Unable to find a binary distribution compatible with %s for %s.\n\n"
+                    "Note: ***@pypi*** does not currently support source distributions"
                     % (ex.package_spec, platform)
                 )
 
@@ -123,7 +126,7 @@ class Pip(object):
                         **res,
                         subdir_str=(
                             "#subdirectory=%s" % subdirectory if subdirectory else ""
-                        )
+                        ),
                     )
                     # used to deduplicate the storage location in case wheel does not
                     # build with enough unique identifiers.

@@ -1,5 +1,6 @@
 import sys
 import json
+import time
 import tempfile
 from typing import ClassVar, Optional
 
@@ -10,7 +11,7 @@ from metaflow.metaflow_config import KUBERNETES_NAMESPACE
 from metaflow.plugins.argo.argo_workflows import ArgoWorkflows
 from metaflow.runner.deployer import Deployer, DeployedFlow, TriggeredRun
 
-from metaflow.runner.utils import get_lower_level_group, handle_timeout
+from metaflow.runner.utils import get_lower_level_group, handle_timeout, temporary_fifo
 
 
 def generate_fake_flow_file_contents(
@@ -97,6 +98,7 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
         )
 
         command_obj = self.deployer.spm.get(pid)
+        command_obj.sync_wait()
         return command_obj.process.returncode == 0
 
     def unsuspend(self, **kwargs) -> bool:
@@ -131,6 +133,7 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
         )
 
         command_obj = self.deployer.spm.get(pid)
+        command_obj.sync_wait()
         return command_obj.process.returncode == 0
 
     def terminate(self, **kwargs) -> bool:
@@ -165,7 +168,49 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
         )
 
         command_obj = self.deployer.spm.get(pid)
+        command_obj.sync_wait()
         return command_obj.process.returncode == 0
+
+    def wait_for_completion(self, timeout: Optional[int] = None):
+        """
+        Wait for the workflow to complete or timeout.
+
+        Parameters
+        ----------
+        timeout : int, optional, default None
+            Maximum time in seconds to wait for workflow completion.
+            If None, waits indefinitely.
+
+        Raises
+        ------
+        TimeoutError
+            If the workflow does not complete within the specified timeout period.
+        """
+        start_time = time.time()
+        check_interval = 5
+        while self.is_running:
+            if timeout is not None and (time.time() - start_time) > timeout:
+                raise TimeoutError(
+                    "Workflow did not complete within specified timeout."
+                )
+            time.sleep(check_interval)
+
+    @property
+    def is_running(self):
+        """
+        Check if the workflow is currently running.
+
+        Returns
+        -------
+        bool
+            True if the workflow status is either 'Pending' or 'Running',
+            False otherwise.
+        """
+        workflow_status = self.status
+        # full list of all states present here:
+        # https://github.com/argoproj/argo-workflows/blob/main/pkg/apis/workflow/v1alpha1/workflow_types.go#L54
+        # we only consider non-terminal states to determine if the workflow has not finished
+        return workflow_status is not None and workflow_status in ["Pending", "Running"]
 
     @property
     def status(self) -> Optional[str]:
@@ -319,6 +364,7 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
         )
 
         command_obj = self.deployer.spm.get(pid)
+        command_obj.sync_wait()
         return command_obj.process.returncode == 0
 
     def trigger(self, **kwargs) -> ArgoWorkflowsTriggeredRun:
@@ -341,18 +387,14 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
         Exception
             If there is an error during the trigger process.
         """
-        with tempfile.TemporaryDirectory() as temp_dir:
-            tfp_runner_attribute = tempfile.NamedTemporaryFile(
-                dir=temp_dir, delete=False
-            )
-
+        with temporary_fifo() as (attribute_file_path, attribute_file_fd):
             # every subclass needs to have `self.deployer_kwargs`
             command = get_lower_level_group(
                 self.deployer.api,
                 self.deployer.top_level_kwargs,
                 self.deployer.TYPE,
                 self.deployer.deployer_kwargs,
-            ).trigger(deployer_attribute_file=tfp_runner_attribute.name, **kwargs)
+            ).trigger(deployer_attribute_file=attribute_file_path, **kwargs)
 
             pid = self.deployer.spm.run_command(
                 [sys.executable, *command],
@@ -363,9 +405,9 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
 
             command_obj = self.deployer.spm.get(pid)
             content = handle_timeout(
-                tfp_runner_attribute, command_obj, self.deployer.file_read_timeout
+                attribute_file_fd, command_obj, self.deployer.file_read_timeout
             )
-
+            command_obj.sync_wait()
             if command_obj.process.returncode == 0:
                 return ArgoWorkflowsTriggeredRun(
                     deployer=self.deployer, content=content

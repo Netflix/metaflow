@@ -1,5 +1,6 @@
-import sys
 import inspect
+
+from metaflow.user_configs.config_decorators import CustomStepDecorator
 
 INDENT = 4
 
@@ -17,6 +18,7 @@ class FlowFormatter(object):
         self.steps = self._index_steps(test)
         self.flow_code = self._pretty_print(self._flow_lines())
         self.check_code = self._pretty_print(self._check_lines())
+        self.copy_files = getattr(test, "REQUIRED_FILES", [])
         self.valid = True
 
         for step in self.steps:
@@ -49,6 +51,8 @@ class FlowFormatter(object):
         steps = []
         for attr in dir(test):
             obj = getattr(test, attr)
+            if isinstance(obj, CustomStepDecorator):
+                steps.append(obj._my_step)
             if hasattr(obj, "is_step"):
                 steps.append(obj)
         return list(sorted(steps, key=lambda x: x.prio))
@@ -85,8 +89,16 @@ class FlowFormatter(object):
             tags.extend(tag.split("(")[0] for tag in step.tags)
 
         yield 0, "# -*- coding: utf-8 -*-"
-        yield 0, "from metaflow import FlowSpec, step, Parameter, project, IncludeFile, JSONType, current, parallel"
-        yield 0, "from metaflow_test import assert_equals, assert_equals_metadata, assert_exception, ExpectationFailed, is_resumed, ResumeFromHere, TestRetry, try_to_get_card"
+        yield 0, (
+            "from metaflow import Config, config_expr, FlowSpec, step, Parameter, "
+            "project, IncludeFile, JSONType, current, parallel, CustomFlowDecorator, "
+            "CustomStepDecorator"
+        )
+        yield 0, (
+            "from metaflow_test import assert_equals, assert_equals_metadata, "
+            "assert_exception, ExpectationFailed, is_resumed, ResumeFromHere, "
+            "TestRetry, try_to_get_card"
+        )
         if tags:
             yield 0, "from metaflow import %s" % ",".join(tags)
 
@@ -103,6 +115,10 @@ class FlowFormatter(object):
         for var, include in self.test.INCLUDE_FILES.items():
             kwargs = ["%s=%s" % (k, v) for k, v in include.items()]
             yield 1, '%s = IncludeFile("%s", %s)' % (var, var, ",".join(kwargs))
+
+        for var, include in self.test.CONFIGS.items():
+            kwargs = ["%s=%s" % (k, v) for k, v in include.items()]
+            yield 1, '%s = Config("%s", %s)' % (var, var, ",".join(kwargs))
 
         for name, node in self.graphspec["graph"].items():
             step = self._choose_step(name, node)

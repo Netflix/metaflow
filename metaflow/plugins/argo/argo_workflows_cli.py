@@ -8,7 +8,6 @@ from time import sleep
 
 from metaflow import JSONType, Run, current, decorators, parameters
 from metaflow._vendor import click
-from metaflow.client.core import get_metadata
 from metaflow.exception import (
     MetaflowException,
     MetaflowInternalError,
@@ -470,6 +469,7 @@ def make_flow(
     decorators._attach_decorators(
         obj.flow, [KubernetesDecorator.name, EnvironmentDecorator.name]
     )
+    decorators._init(obj.flow)
 
     decorators._init_step_decorators(
         obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger

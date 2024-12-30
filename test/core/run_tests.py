@@ -11,7 +11,8 @@ import uuid
 from multiprocessing import Pool
 
 from metaflow._vendor import click
-from metaflow.cli import run, start
+from metaflow.cli import start
+from metaflow.cli_components.run_cmds import run
 
 skip_api_executor = False
 
@@ -170,6 +171,10 @@ def run_test(formatter, context, debug, checks, env_base, executor):
         shutil.copytree(
             os.path.join(cwd, "metaflow_test"), os.path.join(tempdir, "metaflow_test")
         )
+
+        # Copy files required by the test
+        for file in formatter.copy_files:
+            shutil.copy2(os.path.join(cwd, "tests", file), os.path.join(tempdir, file))
 
         path = os.path.join(tempdir, "test_flow.py")
 
