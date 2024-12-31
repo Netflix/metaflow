@@ -336,6 +336,8 @@ class Config(Parameter, collections.abc.Mapping):
         self.parser = parser
         self._computed_value = None
 
+        self._delayed_evaluator = None
+
     def load_parameter(self, v):
         if v is None:
             return None
@@ -344,21 +346,27 @@ class Config(Parameter, collections.abc.Mapping):
     def _store_value(self, v: Any) -> None:
         self._computed_value = v
 
+    def _init_delayed_evaluator(self) -> None:
+        if self._delayed_evaluator is None:
+            self._delayed_evaluator = DelayEvaluator(self.name.lower())
+
     # Support <config>.<var> syntax
     def __getattr__(self, name):
-        return DelayEvaluator(self.name.lower()).__getattr__(name)
+        self._init_delayed_evaluator()
+        return getattr(self._delayed_evaluator, name)
 
     # Next three methods are to implement mapping to support **<config> syntax
     def __iter__(self):
-        yield "%s%s" % (UNPACK_KEY, id(self))
+        self._init_delayed_evaluator()
+        yield from self._delayed_evaluator
 
     def __len__(self):
-        return 1
+        self._init_delayed_evaluator()
+        return len(self._delayed_evaluator)
 
     def __getitem__(self, key):
-        if key == "%s%d" % (UNPACK_KEY, id(self)):
-            return DelayEvaluator(self.name.lower())
-        raise KeyError(key)
+        self._init_delayed_evaluator()
+        return self._delayed_evaluator[key]
 
 
 def resolve_delayed_evaluator(v: Any, ignore_errors: bool = False) -> Any:
