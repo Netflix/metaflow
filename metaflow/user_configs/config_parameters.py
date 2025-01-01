@@ -352,10 +352,13 @@ class Config(Parameter, collections.abc.Mapping):
 
     # Support <config>.<var> syntax
     def __getattr__(self, name):
-        self._init_delayed_evaluator()
-        return getattr(self._delayed_evaluator, name)
+        # Need to return a new DelayEvaluator everytime because the evaluator will
+        # contain the "path" (ie: .name) and can be further accessed.
+        return getattr(DelayEvaluator(self.name.lower()), name)
 
-    # Next three methods are to implement mapping to support **<config> syntax
+    # Next three methods are to implement mapping to support **<config> syntax. We
+    # need to be careful, however, to also support a regular `config["key"]` syntax
+    # which calls into `__getitem__` and therefore behaves like __getattr__ above.
     def __iter__(self):
         self._init_delayed_evaluator()
         yield from self._delayed_evaluator
@@ -366,7 +369,9 @@ class Config(Parameter, collections.abc.Mapping):
 
     def __getitem__(self, key):
         self._init_delayed_evaluator()
-        return self._delayed_evaluator[key]
+        if key.startswith(UNPACK_KEY):
+            return self._delayed_evaluator[key]
+        return DelayEvaluator(self.name.lower())[key]
 
 
 def resolve_delayed_evaluator(v: Any, ignore_errors: bool = False) -> Any:
