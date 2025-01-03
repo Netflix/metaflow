@@ -34,7 +34,6 @@ def timer(func):
 
 
 if __name__ == "__main__":
-
     # TODO: Detect architecture on the fly when dealing with arm architectures.
     # ARCH=$(uname -m)
     # OS=$(uname)
@@ -106,7 +105,9 @@ if __name__ == "__main__":
                     with urlopen(req) as response:
                         decompressor = bz2.BZ2Decompressor()
                         with warnings.catch_warnings():
-                            warnings.filterwarnings("ignore", category=DeprecationWarning)
+                            warnings.filterwarnings(
+                                "ignore", category=DeprecationWarning
+                            )
                             with tarfile.open(
                                 fileobj=io.BytesIO(
                                     decompressor.decompress(response.read())
@@ -139,7 +140,6 @@ if __name__ == "__main__":
 
     @timer
     def download_conda_packages(storage, packages, dest_dir):
-
         def process_conda_package(args):
             # Ensure that conda packages go into architecture specific folders.
             # The path looks like REPO/CHANNEL/CONDA_SUBDIR/PACKAGE. We trick
@@ -168,7 +168,6 @@ if __name__ == "__main__":
 
     @timer
     def download_pypi_packages(storage, packages, dest_dir):
-
         def process_pypi_package(args):
             key, tmpfile, dest_dir = args
             dest = os.path.join(dest_dir, os.path.basename(key))
@@ -207,7 +206,6 @@ if __name__ == "__main__":
 
     @timer
     def install_pypi_packages(prefix, pypi_pkgs_dir):
-
         cmd = f"""set -e;
             export PATH=$PATH:$(pwd)/micromamba;
             export CONDA_PKGS_DIRS=$(pwd)/micromamba/pkgs;
