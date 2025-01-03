@@ -80,7 +80,6 @@ if __name__ == "__main__":
             return micromamba_path
 
         # Download and extract in one go
-        # TODO: Serve from cloudflare
         url = MICROMAMBA_URL.format(platform=architecture, version="2.0.4")
         mirror_url = MICROMAMBA_MIRROR_URL.format(
             platform=architecture, version="2.0.4"
