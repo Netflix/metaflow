@@ -12,6 +12,7 @@ from urllib.error import URLError
 from urllib.request import urlopen
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.plugins import DATASTORES
+from metaflow.plugins.pypi.utils import MICROMAMBA_MIRROR_URL, MICROMAMBA_URL
 from metaflow.util import which
 from urllib.request import Request
 import warnings
@@ -33,7 +34,6 @@ def timer(func):
 
 
 if __name__ == "__main__":
-
     # TODO: Detect architecture on the fly when dealing with arm architectures.
     # ARCH=$(uname -m)
     # OS=$(uname)
@@ -80,43 +80,55 @@ if __name__ == "__main__":
             return micromamba_path
 
         # Download and extract in one go
-        # TODO: Serve from cloudflare
-        url = f"https://micro.mamba.pm/api/micromamba/{architecture}/2.0.4"
+        url = MICROMAMBA_URL.format(platform=architecture, version="2.0.4")
+        mirror_url = MICROMAMBA_MIRROR_URL.format(
+            platform=architecture, version="2.0.4"
+        )
 
         # Prepare directory once
         os.makedirs(os.path.dirname(micromamba_path), exist_ok=True)
 
         # Download and decompress in one go
-        headers = {
-            "Accept-Encoding": "gzip, deflate, br",
-            "Connection": "keep-alive",
-            "User-Agent": "python-urllib",
-        }
+        def _download_and_extract(url):
+            headers = {
+                "Accept-Encoding": "gzip, deflate, br",
+                "Connection": "keep-alive",
+                "User-Agent": "python-urllib",
+            }
 
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                req = Request(url, headers=headers)
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    req = Request(url, headers=headers)
 
-                with urlopen(req) as response:
-                    decompressor = bz2.BZ2Decompressor()
-                    with warnings.catch_warnings():
-                        warnings.filterwarnings("ignore", category=DeprecationWarning)
-                        with tarfile.open(
-                            fileobj=io.BytesIO(
-                                decompressor.decompress(response.read())
-                            ),
-                            mode="r:",
-                        ) as tar:
-                            member = tar.getmember("bin/micromamba")
-                            tar.extract(member, micromamba_dir)
-                break
-            except (URLError, IOError) as e:
-                if attempt == max_retries - 1:
-                    raise Exception(
-                        f"Failed to download micromamba after {max_retries} attempts: {e}"
-                    )
-                time.sleep(2**attempt)
+                    with urlopen(req) as response:
+                        decompressor = bz2.BZ2Decompressor()
+                        with warnings.catch_warnings():
+                            warnings.filterwarnings(
+                                "ignore", category=DeprecationWarning
+                            )
+                            with tarfile.open(
+                                fileobj=io.BytesIO(
+                                    decompressor.decompress(response.read())
+                                ),
+                                mode="r:",
+                            ) as tar:
+                                member = tar.getmember("bin/micromamba")
+                                tar.extract(member, micromamba_dir)
+                    break
+                except (URLError, IOError) as e:
+                    if attempt == max_retries - 1:
+                        raise Exception(
+                            f"Failed to download micromamba after {max_retries} attempts: {e}"
+                        )
+                    time.sleep(2**attempt)
+
+        try:
+            # first try from mirror
+            _download_and_extract(mirror_url)
+        except Exception:
+            # download from mirror failed, try official source before failing.
+            _download_and_extract(url)
 
         # Set executable permission
         os.chmod(micromamba_path, 0o755)
@@ -127,7 +139,6 @@ if __name__ == "__main__":
 
     @timer
     def download_conda_packages(storage, packages, dest_dir):
-
         def process_conda_package(args):
             # Ensure that conda packages go into architecture specific folders.
             # The path looks like REPO/CHANNEL/CONDA_SUBDIR/PACKAGE. We trick
@@ -156,7 +167,6 @@ if __name__ == "__main__":
 
     @timer
     def download_pypi_packages(storage, packages, dest_dir):
-
         def process_pypi_package(args):
             key, tmpfile, dest_dir = args
             dest = os.path.join(dest_dir, os.path.basename(key))
@@ -195,7 +205,6 @@ if __name__ == "__main__":
 
     @timer
     def install_pypi_packages(prefix, pypi_pkgs_dir):
-
         cmd = f"""set -e;
             export PATH=$PATH:$(pwd)/micromamba;
             export CONDA_PKGS_DIRS=$(pwd)/micromamba/pkgs;
