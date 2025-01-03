@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 
 from metaflow.exception import MetaflowException
 from metaflow.util import which
@@ -343,24 +344,28 @@ def _install_micromamba(installation_location):
     os.makedirs(installation_location, exist_ok=True)
 
     def _download_and_extract(url):
-        try:
-            # https://mamba.readthedocs.io/en/latest/micromamba-installation.html#manual-installation
-            # requires bzip2
-            result = subprocess.Popen(
-                f"curl -Ls {url} | tar -xvj -C {installation_location} bin/micromamba",
-                shell=True,
-                stderr=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-            )
-            _, err = result.communicate()
-            if result.returncode != 0:
-                raise MicromambaException(
-                    f"Micromamba installation '{result.args}' failed:\n{err.decode()}"
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # https://mamba.readthedocs.io/en/latest/micromamba-installation.html#manual-installation
+                # requires bzip2
+                result = subprocess.Popen(
+                    f"curl -Ls {url} | tar -xvj -C {installation_location} bin/micromamba",
+                    shell=True,
+                    stderr=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
                 )
-        except subprocess.CalledProcessError as e:
-            raise MicromambaException(
-                "Micromamba installation failed:\n{}".format(e.stderr.decode())
-            )
+                _, err = result.communicate()
+                if result.returncode != 0:
+                    raise MicromambaException(
+                        f"Micromamba installation '{result.args}' failed:\n{err.decode()}"
+                    )
+            except subprocess.CalledProcessError as e:
+                if attempt == max_retries - 1:
+                    raise MicromambaException(
+                        "Micromamba installation failed:\n{}".format(e.stderr.decode())
+                    )
+                time.sleep(2**attempt)
 
     try:
         # prioritize downloading from mirror
