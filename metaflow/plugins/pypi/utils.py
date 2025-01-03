@@ -21,8 +21,9 @@ from urllib.parse import unquote
 from metaflow.exception import MetaflowException
 
 MICROMAMBA_URL = "https://micro.mamba.pm/api/micromamba/{platform}/{version}"
-# TODO: replace with working mirror
-MICROMAMBA_MIRROR_URL = "https://mirror-to/micromamba/{platform}/{version}"
+MICROMAMBA_MIRROR_URL = (
+    "https://micromamba.outerbounds.sh/micromamba/{platform}/{version}"
+)
 
 
 def conda_platform():
