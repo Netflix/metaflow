@@ -379,7 +379,7 @@ class MetaflowObject(object):
             _CLASSES[self._CHILD_CLASS]._NAME,
             query_filter,
             self._attempt,
-            *self.path_components
+            *self.path_components,
         )
         unfiltered_children = unfiltered_children if unfiltered_children else []
         children = filter(
@@ -1128,7 +1128,7 @@ class Task(MetaflowObject):
         Returns a Task object corresponding to the queried step.
         If the queried step has several tasks, the first task is returned.
         """
-        # Find any previous task for current step
+        # Find any task corresponding to the queried step
         step = Step(f"{flow_id}/{run_id}/{query_step}", _namespace_check=False)
         task = next(iter(step.tasks()), None)
         if task:
@@ -1184,28 +1184,30 @@ class Task(MetaflowObject):
                 field_value = self.metadata_dict.get("foreach-indices-truncated")
         return field_name, field_value
 
-    def _get_related_tasks(
-        self, steps_key: str, relation_type: str
-    ) -> Dict[str, List[str]]:
+    def _get_related_tasks(self, relation_type: str) -> Dict[str, List[str]]:
         flow_id, run_id, _, _ = self.path_components
-        query_steps = self.metadata_dict.get(steps_key)
+        steps = (
+            self.metadata_dict.get("previous_steps")
+            if relation_type == "ancestor"
+            else self.metadata_dict.get("successor_steps")
+        )
 
-        if not query_steps:
+        if not steps:
             return {}
 
         field_name, field_value = self._get_filter_query_value(
             flow_id,
             run_id,
             len(self.metadata_dict.get("foreach-stack", [])),
-            query_steps,
+            steps,
             relation_type,
         )
 
         return {
-            query_step: self._metaflow.metadata.filter_tasks_by_metadata(
-                flow_id, run_id, query_step, field_name, field_value
+            step: self._metaflow.metadata.filter_tasks_by_metadata(
+                flow_id, run_id, step, field_name, field_value
             )
-            for query_step in query_steps
+            for step in steps
         }
 
     @property
@@ -1221,7 +1223,7 @@ class Task(MetaflowObject):
             names of the ancestors steps and the values are the corresponding
             task ids of the ancestors.
         """
-        return self._get_related_tasks("previous_steps", "ancestor")
+        return self._get_related_tasks("ancestor")
 
     @property
     def immediate_successors(self) -> Dict[str, List[str]]:
@@ -1236,7 +1238,7 @@ class Task(MetaflowObject):
             names of the successors steps and the values are the corresponding
             task ids of the successors.
         """
-        return self._get_related_tasks("successor_steps", "successor")
+        return self._get_related_tasks("successor")
 
     @property
     def immediate_siblings(self) -> Dict[str, List[str]]:
