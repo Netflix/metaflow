@@ -672,6 +672,29 @@ class MetadataProvider(object):
         if metadata:
             self.register_metadata(run_id, step_name, task_id, metadata)
 
+    @classmethod
+    def filter_tasks_by_metadata(
+        cls, flow_id, run_id, query_step, field_name, field_value
+    ):
+        """
+        Filter tasks by metadata field and value, and returns the list of task_ids
+        that satisfy the query.
+
+        Parameters
+        ----------
+        flow_id : str
+            Flow id, that the run belongs to.
+        run_id: str
+            Run id, together with flow_id, that identifies the specific Run whose tasks to query
+        query_step: str
+            Step name to query tasks from
+        field_name: str
+            Metadata field name to query
+        field_value: str
+            Metadata field value to query
+        """
+        raise NotImplementedError()
+
     @staticmethod
     def _apply_filter(elts, filters):
         if filters is None:

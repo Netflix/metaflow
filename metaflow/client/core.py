@@ -379,7 +379,7 @@ class MetaflowObject(object):
             _CLASSES[self._CHILD_CLASS]._NAME,
             query_filter,
             self._attempt,
-            *self.path_components
+            *self.path_components,
         )
         unfiltered_children = unfiltered_children if unfiltered_children else []
         children = filter(
@@ -1122,6 +1122,194 @@ class Task(MetaflowObject):
     def _iter_filter(self, x):
         # exclude private data artifacts
         return x.id[0] != "_"
+
+    def _get_task_for_queried_step(self, flow_id, run_id, query_step):
+        """
+        Returns a Task object corresponding to the queried step.
+        If the queried step has several tasks, the first task is returned.
+        """
+        # Find any task corresponding to the queried step
+        step = Step(f"{flow_id}/{run_id}/{query_step}", _namespace_check=False)
+        task = next(iter(step.tasks()), None)
+        if task:
+            return task
+        raise MetaflowNotFound(f"No task found for the queried step {query_step}")
+
+    def _get_metadata_query_vals(
+        self,
+        flow_id: str,
+        run_id: str,
+        cur_foreach_stack_len: int,
+        steps: List[str],
+        query_type: str,
+    ):
+        """
+        Returns the field name and field value to be used for querying metadata of successor or ancestor tasks.
+
+        Parameters
+        ----------
+        flow_id : str
+            Flow ID of the task
+        run_id : str
+            Run ID of the task
+        cur_foreach_stack_len : int
+            Length of the foreach stack of the current task
+        steps : List[str]
+            List of step names whose tasks will be returned. For static joins, and static splits, we can have
+            ancestors and successors across multiple steps.
+        query_type : str
+            Type of query. Can be 'ancestor' or 'successor'.
+        """
+        # For each task, we also log additional metadata fields such as foreach-indices and foreach-indices-truncated
+        # which help us in querying ancestor and successor tasks.
+        #       `foreach-indices`: contains the indices of the foreach stack at the time of task execution.
+        #       `foreach-indices-truncated`: contains the indices of the foreach stack at the time of task execution but
+        #       truncated by 1
+        # For example, a task thats nested 3 levels deep in a foreach stack may have the following values:
+        # foreach-indices = [0, 1, 2]
+        # foreach-indices-truncated = [0, 1]
+
+        if len(steps) > 1:
+            # This is a static join or a static split. There will be no change in foreach stack length
+            query_foreach_stack_len = cur_foreach_stack_len
+        else:
+            # For linear steps, or foreach splits and joins, ancestor and successor tasks will all belong to
+            # the same step.
+            query_task = self._get_task_for_queried_step(
+                flow_id, run_id, steps[0]
+            )
+            query_foreach_stack_len = len(
+                query_task.metadata_dict.get("foreach-stack", [])
+            )
+
+        if query_foreach_stack_len == cur_foreach_stack_len:
+            # The successor or ancestor tasks belong to the same foreach stack level
+            field_name = "foreach-indices"
+            field_value = self.metadata_dict.get(field_name)
+        elif query_type == "ancestor":
+            if query_foreach_stack_len > cur_foreach_stack_len:
+                # This is a foreach join
+                # Current Task: foreach-indices = [0, 1], foreach-indices-truncated = [0]
+                # Ancestor Task: foreach-indices = [0, 1, 2], foreach-indices-truncated = [0, 1]
+                # We will compare the foreach-indices-truncated value of ancestor task with the
+                # foreach-indices value of current task
+                field_name = "foreach-indices-truncated"
+                field_value = self.metadata_dict.get("foreach-indices")
+            else:
+                # This is a foreach split
+                # Current Task: foreach-indices = [0, 1, 2], foreach-indices-truncated = [0, 1]
+                # Ancestor Task: foreach-indices = [0, 1], foreach-indices-truncated = [0]
+                # We will compare the foreach-indices value of ancestor task with the
+                # foreach-indices value of current task
+                field_name = "foreach-indices"
+                field_value = self.metadata_dict.get("foreach-indices-truncated")
+        else:
+            if query_foreach_stack_len > cur_foreach_stack_len:
+                # This is a foreach split
+                # Current Task: foreach-indices = [0, 1], foreach-indices-truncated = [0]
+                # Successor Task: foreach-indices = [0, 1, 2], foreach-indices-truncated = [0, 1]
+                # We will compare the foreach-indices value of current task with the
+                # foreach-indices-truncated value of successor tasks
+                field_name = "foreach-indices-truncated"
+                field_value = self.metadata_dict.get("foreach-indices")
+            else:
+                # This is a foreach join
+                # Current Task: foreach-indices = [0, 1, 2], foreach-indices-truncated = [0, 1]
+                # Successor Task: foreach-indices = [0, 1], foreach-indices-truncated = [0]
+                # We will compare the foreach-indices-truncated value of current task with the
+                # foreach-indices value of successor tasks
+                field_name = "foreach-indices"
+                field_value = self.metadata_dict.get("foreach-indices-truncated")
+        return field_name, field_value
+
+    def _get_related_tasks(self, relation_type: str) -> Dict[str, List[str]]:
+        flow_id, run_id, _, _ = self.path_components
+        steps = (
+            self.metadata_dict.get("previous_steps")
+            if relation_type == "ancestor"
+            else self.metadata_dict.get("successor_steps")
+        )
+
+        if not steps:
+            return {}
+
+        field_name, field_value = self._get_metadata_query_vals(
+            flow_id,
+            run_id,
+            len(self.metadata_dict.get("foreach-stack", [])),
+            steps,
+            relation_type,
+        )
+
+        return {
+            step: self._metaflow.metadata.filter_tasks_by_metadata(
+                flow_id, run_id, step, field_name, field_value
+            )
+            for step in steps
+        }
+
+    @property
+    def immediate_ancestors(self) -> Dict[str, List[str]]:
+        """
+        Returns a dictionary of immediate ancestors task ids of this task for each
+        previous step.
+
+        Returns
+        -------
+        Dict[str, List[str]]
+            Dictionary of immediate ancestors of this task. The keys are the
+            names of the ancestors steps and the values are the corresponding
+            task ids of the ancestors.
+        """
+        return self._get_related_tasks("ancestor")
+
+    @property
+    def immediate_successors(self) -> Dict[str, List[str]]:
+        """
+        Returns a dictionary of immediate successors task ids of this task for each
+        previous step.
+
+        Returns
+        -------
+        Dict[str, List[str]]
+            Dictionary of immediate successors of this task. The keys are the
+            names of the successors steps and the values are the corresponding
+            task ids of the successors.
+        """
+        return self._get_related_tasks("successor")
+
+    @property
+    def immediate_siblings(self) -> Dict[str, List[str]]:
+        """
+        Returns a dictionary of closest siblings of this task for each step.
+
+        Returns
+        -------
+        Dict[str, List[str]]
+            Dictionary of closest siblings of this task. The keys are the
+            names of the current step and the values are the corresponding
+            task ids of the siblings.
+        """
+        flow_id, run_id, step_name, _ = self.path_components
+
+        foreach_stack = self.metadata_dict.get("foreach-stack", [])
+        foreach_step_names = self.metadata_dict.get("foreach-step-names", [])
+        if len(foreach_stack) == 0:
+            raise MetaflowInternalError("Task is not part of any foreach split")
+        if step_name != foreach_step_names[-1]:
+            raise MetaflowInternalError(
+                f"Step {step_name} does not have any direct siblings since it is not part "
+                f"of a new foreach split."
+            )
+
+        field_name = "foreach-indices-truncated"
+        field_value = self.metadata_dict.get("foreach-indices-truncated")
+        # We find all tasks of the same step that have the same foreach-indices-truncated value
+        return {
+            step_name: self._metaflow.metadata.filter_tasks_by_metadata(
+                flow_id, run_id, step_name, field_name, field_value
+            )
+        }
 
     @property
     def metadata(self) -> List[Metadata]:
