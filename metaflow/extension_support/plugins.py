@@ -197,6 +197,7 @@ _plugin_categories = {
     "cli": lambda x: (
         list(x.commands)[0] if len(x.commands) == 1 else "too many commands"
     ),
+    "runner_cli": lambda x: x.name,
 }
 
 
