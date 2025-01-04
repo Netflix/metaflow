@@ -1135,36 +1135,70 @@ class Task(MetaflowObject):
             return task
         raise MetaflowNotFound(f"No task found for the queried step {query_step}")
 
-    def _get_filter_query_value(
-        self, flow_id, run_id, cur_foreach_stack_len, query_steps, query_type
+    def _get_metadata_query_vals(
+        self,
+        flow_id: str,
+        run_id: str,
+        cur_foreach_stack_len: int,
+        steps: List[str],
+        query_type: str,
     ):
         """
-        For a given query type, returns the field name and value to be used for filtering tasks
-        based on the task's metadata.
+        Returns the field name and field value to be used for querying metadata of successor or ancestor tasks.
+
+        Parameters
+        ----------
+        flow_id : str
+            Flow ID of the task
+        run_id : str
+            Run ID of the task
+        cur_foreach_stack_len : int
+            Length of the foreach stack of the current task
+        steps : List[str]
+            List of step names whose tasks will be returned. For static joins, and static splits, we can have
+            ancestors and successors across multiple steps.
+        query_type : str
+            Type of query. Can be 'ancestor' or 'successor'.
         """
-        if len(query_steps) > 1:
-            # This is a static join, so there is no change in foreach stack length
+        # For each task, we also log additional metadata fields such as foreach-indices and foreach-indices-truncated
+        # which help us in querying ancestor and successor tasks.
+        #       `foreach-indices`: contains the indices of the foreach stack at the time of task execution.
+        #       `foreach-indices-truncated`: contains the indices of the foreach stack at the time of task execution but
+        #       truncated by 1
+        # For example, a task thats nested 3 levels deep in a foreach stack may have the following values:
+        # foreach-indices = [0, 1, 2]
+        # foreach-indices-truncated = [0, 1]
+
+        if len(steps) > 1:
+            # This is a static join or a static split. There will be no change in foreach stack length
             query_foreach_stack_len = cur_foreach_stack_len
         else:
+            # For linear steps, or foreach splits and joins, ancestor and successor tasks will all belong to
+            # the same step.
             query_task = self._get_task_for_queried_step(
-                flow_id, run_id, query_steps[0]
+                flow_id, run_id, steps[0]
             )
             query_foreach_stack_len = len(
                 query_task.metadata_dict.get("foreach-stack", [])
             )
 
         if query_foreach_stack_len == cur_foreach_stack_len:
+            # The successor or ancestor tasks belong to the same foreach stack level
             field_name = "foreach-indices"
             field_value = self.metadata_dict.get(field_name)
         elif query_type == "ancestor":
             if query_foreach_stack_len > cur_foreach_stack_len:
                 # This is a foreach join
+                # Current Task: foreach-indices = [0, 1], foreach-indices-truncated = [0]
+                # Ancestor Task: foreach-indices = [0, 1, 2], foreach-indices-truncated = [0, 1]
                 # We will compare the foreach-indices-truncated value of ancestor task with the
                 # foreach-indices value of current task
                 field_name = "foreach-indices-truncated"
                 field_value = self.metadata_dict.get("foreach-indices")
             else:
                 # This is a foreach split
+                # Current Task: foreach-indices = [0, 1, 2], foreach-indices-truncated = [0, 1]
+                # Ancestor Task: foreach-indices = [0, 1], foreach-indices-truncated = [0]
                 # We will compare the foreach-indices value of ancestor task with the
                 # foreach-indices value of current task
                 field_name = "foreach-indices"
@@ -1172,12 +1206,16 @@ class Task(MetaflowObject):
         else:
             if query_foreach_stack_len > cur_foreach_stack_len:
                 # This is a foreach split
+                # Current Task: foreach-indices = [0, 1], foreach-indices-truncated = [0]
+                # Successor Task: foreach-indices = [0, 1, 2], foreach-indices-truncated = [0, 1]
                 # We will compare the foreach-indices value of current task with the
                 # foreach-indices-truncated value of successor tasks
                 field_name = "foreach-indices-truncated"
                 field_value = self.metadata_dict.get("foreach-indices")
             else:
                 # This is a foreach join
+                # Current Task: foreach-indices = [0, 1, 2], foreach-indices-truncated = [0, 1]
+                # Successor Task: foreach-indices = [0, 1], foreach-indices-truncated = [0]
                 # We will compare the foreach-indices-truncated value of current task with the
                 # foreach-indices value of successor tasks
                 field_name = "foreach-indices"
@@ -1195,7 +1233,7 @@ class Task(MetaflowObject):
         if not steps:
             return {}
 
-        field_name, field_value = self._get_filter_query_value(
+        field_name, field_value = self._get_metadata_query_vals(
             flow_id,
             run_id,
             len(self.metadata_dict.get("foreach-stack", [])),
