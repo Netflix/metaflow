@@ -2,7 +2,8 @@ import importlib
 import json
 import os
 import sys
-
+import time
+import logging
 from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING, Type
 
 from .subprocess_manager import SubprocessManager
@@ -11,11 +12,14 @@ from .utils import get_lower_level_group, handle_timeout, temporary_fifo
 if TYPE_CHECKING:
     import metaflow.runner.deployer
 
-# NOTE: This file is separate from the deployer.py file to prevent circular imports.
+  # NOTE: This file is separate from the deployer.py file to prevent circular imports.
 # This file is needed in any of the DeployerImpl implementations
 # (like argo_workflows_deployer.py) which is in turn needed to create the Deployer
 # class (ie: it uses ArgoWorkflowsDeployer to create the Deployer class).
 
+# Logging setup
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 class DeployerImpl(object):
     """
@@ -37,10 +41,11 @@ class DeployerImpl(object):
         The directory to run the subprocess in; if not specified, the current
         directory is used.
     file_read_timeout : int, default 3600
-        The timeout until which we try to read the deployer attribute file (in seconds).
-    **kwargs : Any
-        Additional arguments that you would pass to `python myflow.py` before
-        the deployment command.
+        Timeout to read deployer attribute file (in seconds).
+    max_retries : int, default 3
+        Maximum number of retries for deployment in case of failure.
+    retry_delay : int, default 2
+        Initial delay between retries, with exponential backoff.
     """
 
     TYPE: ClassVar[Optional[str]] = None
@@ -53,6 +58,8 @@ class DeployerImpl(object):
         env: Optional[Dict] = None,
         cwd: Optional[str] = None,
         file_read_timeout: int = 3600,
+        max_retries: int = 3,
+        retry_delay: int = 2,
         **kwargs
     ):
         if self.TYPE is None:
@@ -61,22 +68,14 @@ class DeployerImpl(object):
                 "of DeployerImpl."
             )
 
-        from metaflow.parameters import flow_context
-
-        if "metaflow.cli" in sys.modules:
-            # Reload the CLI with an "empty" flow -- this will remove any configuration
-            # options. They are re-added in from_cli (called below).
-            with flow_context(None) as _:
-                importlib.reload(sys.modules["metaflow.cli"])
-        from metaflow.cli import start
-        from metaflow.runner.click_api import MetaflowAPI
-
         self.flow_file = flow_file
         self.show_output = show_output
         self.profile = profile
         self.env = env
         self.cwd = cwd
         self.file_read_timeout = file_read_timeout
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
 
         self.env_vars = os.environ.copy()
         self.env_vars.update(self.env or {})
@@ -85,84 +84,109 @@ class DeployerImpl(object):
 
         self.spm = SubprocessManager()
         self.top_level_kwargs = kwargs
-        self.api = MetaflowAPI.from_cli(self.flow_file, start)
+
+        logger.info("Initialized DeployerImpl for flow file: %s", flow_file)
 
     @property
     def deployer_kwargs(self) -> Dict[str, Any]:
-        raise NotImplementedError
+        return {}
 
-    @staticmethod
-    def deployed_flow_type() -> Type["metaflow.runner.deployer.DeployedFlow"]:
-        raise NotImplementedError
-
-    def __enter__(self) -> "DeployerImpl":
-        return self
-
-    def create(self, **kwargs) -> "metaflow.runner.deployer.DeployedFlow":
+    def _retry(self, func, *args, **kwargs):
         """
-        Create a sub-class of a `DeployedFlow` depending on the deployer implementation.
+        Retry a function with exponential backoff.
 
         Parameters
         ----------
+        func : Callable
+            The function to retry.
+        *args : Any
+            Positional arguments for the function.
         **kwargs : Any
-            Additional arguments to pass to `create` corresponding to the
-            command line arguments of `create`
+            Keyword arguments for the function.
 
         Returns
         -------
-        DeployedFlow
-            DeployedFlow object representing the deployed flow.
+        Any
+            The result of the function.
 
         Raises
         ------
         Exception
-            If there is an error during deployment.
+            If all retries fail.
         """
-        # Sub-classes should implement this by simply calling _create and pass the
-        # proper class as the DeployedFlow to return.
-        raise NotImplementedError
+        delay = self.retry_delay
+        for attempt in range(self.max_retries):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                if attempt < self.max_retries - 1:
+                    logger.warning(
+                        "Retry %d/%d failed with error: %s. Retrying in %d seconds...",
+                        attempt + 1,
+                        self.max_retries,
+                        str(e),
+                        delay,
+                    )
+                    time.sleep(delay)
+                    delay *= 2
+                else:
+                    logger.error("All retries failed. Raising exception.")
+                    raise e
 
     def _create(
         self, create_class: Type["metaflow.runner.deployer.DeployedFlow"], **kwargs
     ) -> "metaflow.runner.deployer.DeployedFlow":
-        with temporary_fifo() as (attribute_file_path, attribute_file_fd):
-            # every subclass needs to have `self.deployer_kwargs`
-            command = get_lower_level_group(
-                self.api, self.top_level_kwargs, self.TYPE, self.deployer_kwargs
-            ).create(deployer_attribute_file=attribute_file_path, **kwargs)
-
-            pid = self.spm.run_command(
-                [sys.executable, *command],
-                env=self.env_vars,
-                cwd=self.cwd,
-                show_output=self.show_output,
-            )
-
-            command_obj = self.spm.get(pid)
-            content = handle_timeout(
-                attribute_file_fd, command_obj, self.file_read_timeout
-            )
-            content = json.loads(content)
-            self.name = content.get("name")
-            self.flow_name = content.get("flow_name")
-            self.metadata = content.get("metadata")
-            # Additional info is used to pass additional deployer specific information.
-            # It is used in non-OSS deployers (extensions).
-            self.additional_info = content.get("additional_info", {})
-            command_obj.sync_wait()
-            if command_obj.process.returncode == 0:
-                return create_class(deployer=self)
-
-        raise RuntimeError("Error deploying %s to %s" % (self.flow_file, self.TYPE))
-
-    def __exit__(self, exc_type, exc_value, traceback):
         """
-        Cleanup resources on exit.
+        Create a deployed flow instance with retry and subprocess timeout.
+
+        Parameters
+        ----------
+        create_class : Type[DeployedFlow]
+            Class to instantiate for the deployed flow.
+        **kwargs : Any
+            Additional arguments for the create process.
+
+        Returns
+        -------
+        DeployedFlow
+            Instance of the deployed flow.
+
+        Raises
+        ------
+        RuntimeError
+            If deployment fails after retries.
         """
-        self.cleanup()
+        def deploy_with_fifo():
+            with temporary_fifo() as (attribute_file_path, attribute_file_fd):
+                command = get_lower_level_group(
+                    self.api, self.top_level_kwargs, self.TYPE, self.deployer_kwargs
+                ).create(deployer_attribute_file=attribute_file_path, **kwargs)
+
+                pid = self.spm.run_command(
+                    [sys.executable, *command],
+                    env=self.env_vars,
+                    cwd=self.cwd,
+                    show_output=self.show_output,
+                )
+
+                command_obj = self.spm.get(pid)
+                content = handle_timeout(
+                    attribute_file_fd, command_obj, self.file_read_timeout
+                )
+                content = json.loads(content)
+                self.name = content.get("name")
+                self.flow_name = content.get("flow_name")
+                self.metadata = content.get("metadata")
+                self.additional_info = content.get("additional_info", {})
+
+                command_obj.sync_wait()
+                if command_obj.process.returncode == 0:
+                    return create_class(deployer=self)
+
+            raise RuntimeError("Error deploying %s to %s" % (self.flow_file, self.TYPE))
+
+        return self._retry(deploy_with_fifo)
 
     def cleanup(self):
-        """
-        Cleanup resources.
-        """
+        logger.info("Cleaning up resources...")
         self.spm.cleanup()
