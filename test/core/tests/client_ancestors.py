@@ -3,7 +3,7 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps
 
 class ImmediateAncestorTest(MetaflowTest):
     """
-    Test that immediate_ancestor API returns correct parent tasks
+    Test that immediate_ancestors API returns correct parent tasks
     by comparing with parent task ids stored during execution.
     """
 
@@ -69,4 +69,5 @@ class ImmediateAncestorTest(MetaflowTest):
                 task_pathspec = task.data.task_pathspec
                 assert (
                     ancestor_pathspecs == task.data.parent_pathspecs
-                ), f"Mismatch in ancestor task ids for task {task_pathspec}: Expected {task.data.parent_pathspecs}, got {ancestor_pathspecs}"
+                ), (f"Mismatch in ancestor task ids for task {task_pathspec}: Expected {task.data.parent_pathspecs}, "
+                    f"got {ancestor_pathspecs}")
