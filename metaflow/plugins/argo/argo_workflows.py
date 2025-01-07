@@ -745,11 +745,16 @@ class ArgoWorkflows(object):
             )
         try:
             # Build the DAG based on the DAGNodes given by the FlowGraph for the found FlowSpec class.
-            steps_info, graph_structure = self.graph.output_steps()
+            steps_info, _graph_structure = self.graph.output_steps()
             graph_info = {
-                "steps": steps_info,
-                "graph_structure": graph_structure,
-                "doc": self.graph.doc,
+                # for the time being, we need limited information for steps,
+                # so we clean up all excess in order to stay within annotation limits.
+                "steps": {
+                    step: {
+                        k: v for k, v in info.items() if k in ["name", "type", "next"]
+                    }
+                    for step, info in steps_info.items()
+                },
             }
         except Exception:
             graph_info = None
