@@ -19,6 +19,11 @@ CLIS_DESC = [
     ("logs", ".logs_cli.cli"),
 ]
 
+# Add additional commands to the runner here
+# These will be accessed using Runner().<command>()
+RUNNER_CLIS_DESC = []
+
+
 from .test_unbounded_foreach_decorator import InternalTestUnboundedForeachInput
 
 # Add new step decorators here
@@ -166,6 +171,14 @@ def get_plugin_cli():
 
 def get_plugin_cli_path():
     return resolve_plugins("cli", path_only=True)
+
+
+def get_runner_cli():
+    return resolve_plugins("runner_cli")
+
+
+def get_runner_cli_path():
+    return resolve_plugins("runner_cli", path_only=True)
 
 
 STEP_DECORATORS = resolve_plugins("step_decorator")
