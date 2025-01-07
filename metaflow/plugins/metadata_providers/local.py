@@ -6,6 +6,7 @@ import random
 import tempfile
 import time
 from collections import namedtuple
+from typing import List
 
 from metaflow.exception import MetaflowInternalError, MetaflowTaggingError
 from metaflow.metadata_provider.metadata import ObjectOrder
@@ -203,8 +204,14 @@ class LocalMetadataProvider(MetadataProvider):
         )
 
     @classmethod
-    def filter_tasks_by_metadata(cls, flow_id: str, run_id: str, query_step: str,
-                                 field_name: str, field_value: str) -> list:
+    def filter_tasks_by_metadata(
+        cls,
+        flow_id: str,
+        run_id: str,
+        query_step: str,
+        field_name: str,
+        field_value: str
+    ) -> List[str]:
         """
         Filter tasks by metadata field and value, returning task IDs that match criteria.
 
@@ -223,7 +230,7 @@ class LocalMetadataProvider(MetadataProvider):
 
         Returns
         -------
-        list
+        List[str]
             List of task IDs that match the query criteria
 
         Raises

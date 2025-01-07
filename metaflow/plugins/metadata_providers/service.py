@@ -4,6 +4,7 @@ import random
 import requests
 import time
 
+from typing import List
 from metaflow.exception import (
     MetaflowException,
     MetaflowTaggingError,
@@ -303,6 +304,43 @@ class ServiceMetadataProvider(MetadataProvider):
         if did_create:
             self._register_system_metadata(run_id, step_name, task["task_id"], attempt)
         return task["task_id"], did_create
+
+    @classmethod
+    def filter_tasks_by_metadata(
+        cls, flow_id: str, run_id: str, query_step: str, field_name: str, field_value: str
+    ) -> List[str]:
+        """
+        Filter tasks by metadata field and value, and returns the list of task_ids
+        that satisfy the query.
+
+        Parameters
+        ----------
+        flow_id : str
+            Flow id, that the run belongs to.
+        run_id: str
+            Run id, together with flow_id, that identifies the specific Run whose tasks to query
+        query_step: str
+            Step name to query tasks from
+        field_name: str
+            Metadata field name to query
+        field_value: str
+            Metadata field value to query
+
+        Returns
+        -------
+        List[str]
+            List of task_ids that satisfy the query
+        """
+        query_params = {
+            "field_name": field_name,
+            "field_value": field_value,
+            "query_step": query_step,
+        }
+        url = ServiceMetadataProvider._obj_path(
+            flow_id, run_id, query_step
+        )
+        url = f"{url}/tasks?{urlencode(query_params)}"
+        return cls._request(cls._monitor, url, "GET")
 
     @staticmethod
     def _obj_path(
