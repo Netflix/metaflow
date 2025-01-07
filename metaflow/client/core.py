@@ -1175,9 +1175,7 @@ class Task(MetaflowObject):
         else:
             # For linear steps, or foreach splits and joins, ancestor and successor tasks will all belong to
             # the same step.
-            query_task = self._get_task_for_queried_step(
-                flow_id, run_id, steps[0]
-            )
+            query_task = self._get_task_for_queried_step(flow_id, run_id, steps[0])
             query_foreach_stack_len = len(
                 query_task.metadata_dict.get("foreach-stack", [])
             )
@@ -1242,53 +1240,57 @@ class Task(MetaflowObject):
         )
 
         return {
-            step: self._metaflow.metadata.filter_tasks_by_metadata(
-                flow_id, run_id, step, field_name, field_value
-            )
+            step: [
+                f"{flow_id}/{run_id}/{step}/{task_id}"
+                for task_id in self._metaflow.metadata.filter_tasks_by_metadata(
+                    flow_id, run_id, step, field_name, field_value
+                )
+            ]
             for step in steps
         }
 
     @property
     def immediate_ancestors(self) -> Dict[str, List[str]]:
         """
-        Returns a dictionary of immediate ancestors task ids of this task for each
+        Returns a dictionary of immediate ancestors task pathspecs of this task for each
         previous step.
 
         Returns
         -------
         Dict[str, List[str]]
             Dictionary of immediate ancestors of this task. The keys are the
-            names of the ancestors steps and the values are the corresponding
-            task ids of the ancestors.
+            names of the ancestor steps and the values are the corresponding
+            task pathspecs of the ancestors.
         """
         return self._get_related_tasks("ancestor")
 
     @property
     def immediate_successors(self) -> Dict[str, List[str]]:
         """
-        Returns a dictionary of immediate successors task ids of this task for each
+        Returns a dictionary of immediate successors task pathspecs of this task for each
         previous step.
 
         Returns
         -------
         Dict[str, List[str]]
             Dictionary of immediate successors of this task. The keys are the
-            names of the successors steps and the values are the corresponding
-            task ids of the successors.
+            names of the successor steps and the values are the corresponding
+            task pathspecs of the successors.
         """
         return self._get_related_tasks("successor")
 
     @property
     def immediate_siblings(self) -> Dict[str, List[str]]:
         """
-        Returns a dictionary of closest siblings of this task for each step.
+        Returns a dictionary of closest sibling task pathspecs of this task for each
+        sibling step.
 
         Returns
         -------
         Dict[str, List[str]]
             Dictionary of closest siblings of this task. The keys are the
             names of the current step and the values are the corresponding
-            task ids of the siblings.
+            task pathspecs of the siblings.
         """
         flow_id, run_id, step_name, _ = self.path_components
 
@@ -1306,9 +1308,12 @@ class Task(MetaflowObject):
         field_value = self.metadata_dict.get("foreach-indices-truncated")
         # We find all tasks of the same step that have the same foreach-indices-truncated value
         return {
-            step_name: self._metaflow.metadata.filter_tasks_by_metadata(
-                flow_id, run_id, step_name, field_name, field_value
-            )
+            step_name: [
+                f"{flow_id}/{run_id}/{step_name}/{task_id}"
+                for task_id in self._metaflow.metadata.filter_tasks_by_metadata(
+                    flow_id, run_id, step_name, field_name, field_value
+                )
+            ]
         }
 
     @property
