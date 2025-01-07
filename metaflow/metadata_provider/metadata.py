@@ -5,6 +5,7 @@ import time
 from collections import namedtuple
 from itertools import chain
 
+from typing import List
 from metaflow.exception import MetaflowInternalError, MetaflowTaggingError
 from metaflow.tagging_util import validate_tag
 from metaflow.util import get_username, resolve_identity_as_tuple, is_stringish
@@ -674,8 +675,8 @@ class MetadataProvider(object):
 
     @classmethod
     def filter_tasks_by_metadata(
-        cls, flow_id, run_id, query_step, field_name, field_value
-    ):
+        cls, flow_id: str, run_id: str, query_step: str, field_name: str, field_value: str
+    ) -> List[str]:
         """
         Filter tasks by metadata field and value, and returns the list of task_ids
         that satisfy the query.
@@ -692,6 +693,11 @@ class MetadataProvider(object):
             Metadata field name to query
         field_value: str
             Metadata field value to query
+
+        Returns
+        -------
+        List[str]
+            List of task_ids that satisfy the query
         """
         raise NotImplementedError()
 
