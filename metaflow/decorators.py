@@ -150,8 +150,8 @@ class Decorator(object):
             return
 
         # Note that by design, later values override previous ones.
-        self.attributes = unpack_delayed_evaluator(self.attributes)
-        self._user_defined_attributes.update(self.attributes.keys())
+        self.attributes, new_user_attributes = unpack_delayed_evaluator(self.attributes)
+        self._user_defined_attributes.update(new_user_attributes)
         self.attributes = resolve_delayed_evaluator(self.attributes)
 
         self._ran_init = True

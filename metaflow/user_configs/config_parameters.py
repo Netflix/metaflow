@@ -3,7 +3,7 @@ import json
 import os
 import re
 
-from typing import Any, Callable, Dict, Optional, TYPE_CHECKING, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING, Union
 
 
 from ..exception import MetaflowException
@@ -406,17 +406,20 @@ def resolve_delayed_evaluator(v: Any, ignore_errors: bool = False) -> Any:
 
 def unpack_delayed_evaluator(
     to_unpack: Dict[str, Any], ignore_errors: bool = False
-) -> Dict[str, Any]:
+) -> Tuple[Dict[str, Any], List[str]]:
     result = {}
+    new_keys = []
     for k, v in to_unpack.items():
         if not isinstance(k, str) or not k.startswith(UNPACK_KEY):
             result[k] = v
         else:
             # k.startswith(UNPACK_KEY)
             try:
-                result.update(resolve_delayed_evaluator(v))
+                new_vals = resolve_delayed_evaluator(v)
+                new_keys.extend(new_vals.keys())
+                result.update(new_vals)
             except Exception as e:
                 if ignore_errors:
                     continue
                 raise e
-    return result
+    return result, new_keys
