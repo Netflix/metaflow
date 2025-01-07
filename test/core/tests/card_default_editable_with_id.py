@@ -47,7 +47,6 @@ class DefaultEditableCardWithIdTest(MetaflowTest):
 
                 cli_check_dict = checker.artifact_dict(step.name, "random_number")
                 for task_pathspec in cli_check_dict:
-
                     task_id = task_pathspec.split("/")[-1]
                     cards_info = checker.list_cards(step.name, task_id)
                     number = cli_check_dict[task_pathspec]["random_number"]
