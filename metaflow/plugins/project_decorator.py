@@ -72,7 +72,6 @@ class ProjectDecorator(FlowDecorator):
     """
 
     name = "project"
-    defaults = {"name": None}
 
     options = {
         "production": dict(
@@ -91,19 +90,40 @@ class ProjectDecorator(FlowDecorator):
         ),
     }
 
+    defaults = {"name": None} + {k: v["default"] for k, v in options.items()}
+
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
     ):
         self._option_values = options
         project_name = self.attributes.get("name")
+        for op in options:
+            if (
+                op in self.attributes
+                and options[op] != self.defaults[op]
+                and self.attributes[op] != options[op]
+            ):
+                # Exception if:
+                #  - the user provides a value in the attributes field
+                #  - AND the user provided a value in the command line (non default)
+                #  - AND the values are different
+                # Note that this won't raise an error if the user provided the default
+                # value in the command line and provided one in attribute but although
+                # slightly inconsistent, it is not incorrect.
+                raise MetaflowException(
+                    "You cannot pass %s as both a command-line argument and an attribute "
+                    "of the @project decorator." % op
+                )
+        project_branch = self.attributes.get("branch", options["branch"])
+        project_production = self.attributes.get("production", options["production"])
         project_flow_name, branch_name = format_name(
             flow.name,
             project_name,
-            options["production"],
-            options["branch"],
+            project_production,
+            project_branch,
             get_username(),
         )
-        is_user_branch = options["branch"] is None and not options["production"]
+        is_user_branch = project_branch is None and not project_production
         echo(
             "Project: *%s*, Branch: *%s*" % (project_name, branch_name),
             fg="magenta",
@@ -114,7 +134,7 @@ class ProjectDecorator(FlowDecorator):
                 "project_name": project_name,
                 "branch_name": branch_name,
                 "is_user_branch": is_user_branch,
-                "is_production": options["production"],
+                "is_production": project_production,
                 "project_flow_name": project_flow_name,
             }
         )
