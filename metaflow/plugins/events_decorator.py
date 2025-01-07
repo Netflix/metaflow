@@ -374,7 +374,8 @@ class TriggerOnFinishDecorator(FlowDecorator):
         "flow": None,  # flow_name or project_flow_name
         "flows": [],  # flow_names or project_flow_names
         "options": {},
-    } + {k: v["default"] for k, v in options.items()}
+        **{k: v["default"] for k, v in options.items()},
+    }
 
     def flow_init(
         self,

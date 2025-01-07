@@ -90,7 +90,7 @@ class ProjectDecorator(FlowDecorator):
         ),
     }
 
-    defaults = {"name": None} + {k: v["default"] for k, v in options.items()}
+    defaults = {"name": None, **{k: v["default"] for k, v in options.items()}}
 
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
@@ -99,7 +99,7 @@ class ProjectDecorator(FlowDecorator):
         project_name = self.attributes.get("name")
         for op in options:
             if (
-                op in self.attributes
+                op in self._user_defined_attributes
                 and options[op] != self.defaults[op]
                 and self.attributes[op] != options[op]
             ):
