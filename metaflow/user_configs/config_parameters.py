@@ -183,7 +183,7 @@ class DelayEvaluator(collections.abc.Mapping):
 
     def __getattr__(self, name):
         if self._access is None:
-            raise AttributeError()
+            raise AttributeError(name)
         self._access.append(name)
         return self
 
@@ -336,6 +336,8 @@ class Config(Parameter, collections.abc.Mapping):
         self.parser = parser
         self._computed_value = None
 
+        self._delayed_evaluator = None
+
     def load_parameter(self, v):
         if v is None:
             return None
@@ -344,22 +346,37 @@ class Config(Parameter, collections.abc.Mapping):
     def _store_value(self, v: Any) -> None:
         self._computed_value = v
 
+    def _init_delayed_evaluator(self) -> None:
+        if self._delayed_evaluator is None:
+            self._delayed_evaluator = DelayEvaluator(self.name.lower())
+
     # Support <config>.<var> syntax
     def __getattr__(self, name):
-        return DelayEvaluator(self.name.lower()).__getattr__(name)
+        # Need to return a new DelayEvaluator everytime because the evaluator will
+        # contain the "path" (ie: .name) and can be further accessed.
+        return getattr(DelayEvaluator(self.name.lower()), name)
 
-    # Next three methods are to implement mapping to support **<config> syntax
+    # Next three methods are to implement mapping to support **<config> syntax. We
+    # need to be careful, however, to also support a regular `config["key"]` syntax
+    # which calls into `__getitem__` and therefore behaves like __getattr__ above.
     def __iter__(self):
-        return iter(DelayEvaluator(self.name.lower()))
+        self._init_delayed_evaluator()
+        yield from self._delayed_evaluator
 
     def __len__(self):
-        return len(DelayEvaluator(self.name.lower()))
+        self._init_delayed_evaluator()
+        return len(self._delayed_evaluator)
 
     def __getitem__(self, key):
+        self._init_delayed_evaluator()
+        if key.startswith(UNPACK_KEY):
+            return self._delayed_evaluator[key]
         return DelayEvaluator(self.name.lower())[key]
 
 
 def resolve_delayed_evaluator(v: Any, ignore_errors: bool = False) -> Any:
+    # NOTE: We don't ignore errors in downstream calls because we want to have either
+    # all or nothing for the top-level call by the user.
     try:
         if isinstance(v, DelayEvaluator):
             return v()
@@ -397,7 +414,7 @@ def unpack_delayed_evaluator(
         else:
             # k.startswith(UNPACK_KEY)
             try:
-                result.update(resolve_delayed_evaluator(v[k]))
+                result.update(resolve_delayed_evaluator(v))
             except Exception as e:
                 if ignore_errors:
                     continue
