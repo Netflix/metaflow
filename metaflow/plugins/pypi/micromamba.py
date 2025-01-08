@@ -1,6 +1,7 @@
 import functools
 import json
 import os
+import re
 import subprocess
 import tempfile
 import time
@@ -22,6 +23,8 @@ class MicromambaException(MetaflowException):
 
 
 GLIBC_VERSION = os.environ.get("CONDA_OVERRIDE_GLIBC", "2.38")
+
+_double_equal_match = re.compile("==(?=[<=>!~])")
 
 
 class Micromamba(object):
@@ -101,7 +104,8 @@ class Micromamba(object):
                 cmd.append("--channel=%s" % channel)
 
             for package, version in packages.items():
-                cmd.append("%s==%s" % (package, version))
+                version_string = "%s==%s" % (package, version)
+                cmd.append(_double_equal_match.sub("", version_string))
             if python:
                 cmd.append("python==%s" % python)
             # TODO: Ensure a human readable message is returned when the environment
