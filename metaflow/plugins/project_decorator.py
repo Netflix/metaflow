@@ -114,8 +114,16 @@ class ProjectDecorator(FlowDecorator):
                     "You cannot pass %s as both a command-line argument and an attribute "
                     "of the @project decorator." % op
                 )
-        project_branch = self.attributes.get("branch", options["branch"])
-        project_production = self.attributes.get("production", options["production"])
+        if "branch" in self._user_defined_attributes:
+            project_branch = self.attributes["branch"]
+        else:
+            project_branch = options["branch"]
+
+        if "production" in self._user_defined_attributes:
+            project_production = self.attributes["production"]
+        else:
+            project_production = options["production"]
+
         project_flow_name, branch_name = format_name(
             flow.name,
             project_name,

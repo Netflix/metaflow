@@ -561,7 +561,11 @@ class TriggerOnFinishDecorator(FlowDecorator):
                     "You cannot pass %s as both a command-line argument and an attribute "
                     "of the @trigger_on_finish decorator." % op
                 )
-        trigger_option = self.attributes.get("trigger", options["trigger"])
+        if "trigger" in self._user_defined_attributes:
+            trigger_option = self.attributes["trigger"]
+        else:
+            trigger_option = options["trigger"]
+
         self._option_values = options
         if trigger_option:
             from metaflow import Run
