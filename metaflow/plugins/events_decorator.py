@@ -599,7 +599,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
             if isinstance(trigger, DeployTimeField):
                 trigger = deploy_time_eval(trigger)
             if isinstance(trigger, dict):
-                trigger["fq_name"] = trigger.get("name")
+                trigger["fq_name"] = trigger.get("fq_name")
                 trigger["project"] = trigger.get("project")
                 trigger["branch"] = trigger.get("project_branch")
             # We also added this bc it won't be formatted yet
@@ -607,6 +607,6 @@ class TriggerOnFinishDecorator(FlowDecorator):
                 trigger = {"fq_name": trigger}
                 trigger = self._parse_fq_name(trigger)
             self.triggers[self.triggers.index(old_trig)] = trigger
-
+    
     def get_top_level_options(self):
         return list(self._option_values.items())
