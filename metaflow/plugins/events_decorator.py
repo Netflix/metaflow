@@ -542,29 +542,34 @@ class TriggerOnFinishDecorator(FlowDecorator):
 
         # Handle scenario for local testing using --trigger.
 
-        # This is overkill since default is None for all options but adding this code
-        # to make it safe if other non None-default options are added in the future.
-        for op in options:
-            if (
-                op in self._user_defined_attributes
-                and options[op] != self.defaults[op]
-                and self.attributes[op] != options[op]
-            ):
-                # Exception if:
-                #  - the user provides a value in the attributes field
-                #  - AND the user provided a value in the command line (non default)
-                #  - AND the values are different
-                # Note that this won't raise an error if the user provided the default
-                # value in the command line and provided one in attribute but although
-                # slightly inconsistent, it is not incorrect.
-                raise MetaflowException(
-                    "You cannot pass %s as both a command-line argument and an attribute "
-                    "of the @trigger_on_finish decorator." % op
-                )
-        if "trigger" in self._user_defined_attributes:
-            trigger_option = self.attributes["trigger"]
-        else:
-            trigger_option = options["trigger"]
+        # Re-enable this code if you want to support passing trigger directly in the
+        # decorator in a way similar to how production and branch are passed in the
+        # project decorator.
+
+        # # This is overkill since default is None for all options but adding this code
+        # # to make it safe if other non None-default options are added in the future.
+        # for op in options:
+        #     if (
+        #         op in self._user_defined_attributes
+        #         and options[op] != self.defaults[op]
+        #         and self.attributes[op] != options[op]
+        #     ):
+        #         # Exception if:
+        #         #  - the user provides a value in the attributes field
+        #         #  - AND the user provided a value in the command line (non default)
+        #         #  - AND the values are different
+        #         # Note that this won't raise an error if the user provided the default
+        #         # value in the command line and provided one in attribute but although
+        #         # slightly inconsistent, it is not incorrect.
+        #         raise MetaflowException(
+        #             "You cannot pass %s as both a command-line argument and an attribute "
+        #             "of the @trigger_on_finish decorator." % op
+        #         )
+
+        # if "trigger" in self._user_defined_attributes:
+        #    trigger_option = self.attributes["trigger"]
+        # else:
+        trigger_option = options["trigger"]
 
         self._option_values = options
         if trigger_option:
