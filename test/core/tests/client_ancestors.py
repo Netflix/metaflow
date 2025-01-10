@@ -63,6 +63,7 @@ class ImmediateAncestorTest(MetaflowTest):
             # For each task in the step
             for task in step:
                 ancestors = task.immediate_ancestors
+                print(f"Task is {task.data.task_pathspec} and ancestors are {ancestors}")
                 ancestor_pathspecs = set(chain.from_iterable(ancestors.values()))
 
                 # Compare with stored parent_task_pathspecs
