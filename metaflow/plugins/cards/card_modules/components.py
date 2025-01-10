@@ -1,4 +1,4 @@
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional, Union, Callable
 from .basic import (
     LogComponent,
     ErrorComponent,
@@ -7,25 +7,13 @@ from .basic import (
     ImageComponent,
     SectionComponent,
     MarkdownComponent,
+    PythonCodeComponent,
 )
-from .card import MetaflowCardComponent
+from .card import MetaflowCardComponent, with_default_component_id
 from .convert_to_native_type import TaskToDict, _full_classname
 from .renderer_tools import render_safely
 import uuid
-
-
-def create_component_id(component):
-    uuid_bit = "".join(uuid.uuid4().hex.split("-"))[:6]
-    return type(component).__name__.lower() + "_" + uuid_bit
-
-
-def with_default_component_id(func):
-    def ret_func(self, *args, **kwargs):
-        if self.component_id is None:
-            self.component_id = create_component_id(self)
-        return func(self, *args, **kwargs)
-
-    return ret_func
+import inspect
 
 
 def _warning_with_component(component, msg):
@@ -823,3 +811,63 @@ class VegaChart(UserComponent):
         if self._chart_inside_table and "autosize" not in self._spec:
             data["spec"]["autosize"] = "fit-x"
         return data
+
+
+class PythonCode(UserComponent):
+    """
+    A component to display Python code with syntax highlighting.
+
+    Example:
+    ```python
+    @card
+    @step
+    def my_step(self):
+        # Using code_func
+        def my_function():
+            x = 1
+            y = 2
+            return x + y
+        current.card.append(
+            PythonCode(my_function)
+        )
+
+        # Using code_string
+        code = '''
+        def another_function():
+            return "Hello World"
+        '''
+        current.card.append(
+            PythonCode(code_string=code)
+        )
+    ```
+
+    Parameters
+    ----------
+    code_func : Callable[..., Any], optional, default None
+        The function whose source code should be displayed.
+    code_string : str, optional, default None
+        A string containing Python code to display.
+        Either code_func or code_string must be provided.
+    """
+
+    def __init__(
+        self,
+        code_func: Optional[Callable[..., Any]] = None,
+        code_string: Optional[str] = None,
+    ):
+        if code_func is not None:
+            self._code_string = inspect.getsource(code_func)
+        else:
+            self._code_string = code_string
+
+    @with_default_component_id
+    @render_safely
+    def render(self):
+        if self._code_string is None:
+            return ErrorComponent(
+                "`PythonCode` component requires a `code_func` or `code_string` argument. ",
+                "None provided for both",
+            ).render()
+        _code_component = PythonCodeComponent(self._code_string)
+        _code_component.component_id = self.component_id
+        return _code_component.render()
