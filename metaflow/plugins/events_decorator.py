@@ -374,7 +374,9 @@ class TriggerOnFinishDecorator(FlowDecorator):
         "flow": None,  # flow_name or project_flow_name
         "flows": [],  # flow_names or project_flow_names
         "options": {},
-        **{k: v["default"] for k, v in options.items()},
+        # Re-enable if you want to support TL options directly in the decorator like
+        # for @project decorator
+        #    **{k: v["default"] for k, v in options.items()},
     }
 
     def flow_init(
