@@ -60,10 +60,13 @@ class ContentAddressedStore(object):
 
         Parameters
         ----------
-        blob_iter : Iterator over bytes objects to save
+        blob_iter : Iterator[Union[bytes, Tuple[bytes, str]]]
+            Iterator over bytes objects to save. If the object is a tuple, the first
+            element is the bytes to save and the second is a compression method or "raw"
         raw : bool, optional
             Whether to save the bytes directly or process them, by default False
-        len_hint : Hint of the number of blobs that will be produced by the
+        len_hint : int, default 0
+            Hint of the number of blobs that will be produced by the
             iterator, by default 0
 
         Returns
@@ -76,11 +79,25 @@ class ContentAddressedStore(object):
 
         def packing_iter():
             for blob in blob_iter:
+                raw_setting = raw
+                pack_version = 1
+                if isinstance(blob, tuple):
+                    blob, compression = blob
+                    if compression == "raw":
+                        raw_setting = True
+                    elif compression == "gzip":
+                        raw_setting = False
+                        pack_version = 1  # Redundant for now
+                    else:
+                        raise MetaflowInternalError(
+                            "Unknown compression method '%s'" % compression
+                        )
+
                 sha = sha1(blob).hexdigest()
                 path = self._storage_impl.path_join(self._prefix, sha[:2], sha)
                 results.append(
                     self.save_blobs_result(
-                        uri=self._storage_impl.full_uri(path) if raw else None,
+                        uri=self._storage_impl.full_uri(path) if raw_setting else None,
                         key=sha,
                     )
                 )
@@ -88,11 +105,14 @@ class ContentAddressedStore(object):
                 if not self._storage_impl.is_file([path])[0]:
                     # only process blobs that don't exist already in the
                     # backing datastore
-                    meta = {"cas_raw": raw, "cas_version": 1}
-                    if raw:
+                    meta = {"cas_raw": raw_setting, "cas_version": pack_version}
+                    if raw_setting:
                         yield path, (BytesIO(blob), meta)
                     else:
-                        yield path, (self._pack_v1(blob), meta)
+                        yield path, (
+                            getattr(self, "_pack_v%d" % pack_version)(blob),
+                            meta,
+                        )
 
         # We don't actually want to overwrite but by saying =True, we avoid
         # checking again saving some operations. We are already sure we are not
