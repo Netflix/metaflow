@@ -725,6 +725,25 @@ class MetaflowTask(object):
                         payload={**task_payload, "msg": "Task ended"},
                     )
                 try:
+
+                    # Deal with MetaflowArtifact which require calling both the update_value
+                    # and the pre_persist method. We do it in two loops to give the
+                    # pre_persist method an updated view of all artifacts. This is a no-op
+
+                    for (
+                        artifact_name,
+                        data_artifact,
+                    ) in self.flow._orig_artifacts.items():
+                        data_artifact.update_value(getattr(self.flow, artifact_name))
+
+                    for (
+                        artifact_name,
+                        data_artifact,
+                    ) in self.flow._orig_artifacts.items():
+                        data_artifact.pre_persist(
+                            artifact_name, self.flow, self.flow._datastore
+                        )
+
                     # persisting might fail due to unpicklable artifacts.
                     output.persist(self.flow)
                 except Exception as ex:

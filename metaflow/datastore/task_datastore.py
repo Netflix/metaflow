@@ -17,7 +17,7 @@ from ..metadata_provider import DataArtifact, MetaDatum
 from ..parameters import Parameter
 from ..util import Path, is_stringish, to_fileobj
 
-from .artifacts import ArtifactSerializer, SerializationMetadata
+from .artifacts import ArtifactSerializer, MetaflowArtifact, SerializationMetadata
 
 from .exceptions import DataException, UnpicklableArtifactException
 
@@ -304,6 +304,21 @@ class TaskDataStore(object):
         def serialize_iter():
             for name, obj in artifacts_iter:
                 serializer = None
+                if isinstance(obj, MetaflowArtifact):
+                    # We check what serializer we should use for this artifact
+                    serializer = obj.get_serializer()
+                    if isinstance(serializer, str):
+                        serializer = self._serializers.get(serializer)
+                        if serializer is None:
+                            raise DataException(
+                                "Artifact *%s* requires serializer '%s' which is unknown. "
+                                "Known serializers are: %s"
+                                % (
+                                    name,
+                                    serializer,
+                                    ", ".join(self._serializers.keys()),
+                                )
+                            )
                 if serializer is None:
                     # Find serializers to use using the serializer order
                     for s in self._serializers_order:
@@ -764,7 +779,9 @@ class TaskDataStore(object):
                 or isinstance(val, FunctionType)
                 or isinstance(val, Parameter)
             ):
-                valid_artifacts.append((var, val))
+                # If we have a MetaflowArtifact, serialize that -- it has already
+                # had its value updated using update_value when the task completed
+                valid_artifacts.append((var, flow._orig_artifacts.get(var, val)))
 
         def artifacts_iter():
             # we consume the valid_artifacts list destructively to
@@ -779,8 +796,19 @@ class TaskDataStore(object):
                     # '_' as they are used by the Metaflow runtime.
                     delattr(flow, var)
                 yield var, val
+                art = flow._orig_artifacts.get(var)
+                if art:
+                    keep = art.post_serialize(self._info[var])
+                    if not keep:
+                        del flow._orig_artifacts[var]
 
         self.save_artifacts(artifacts_iter(), len_hint=len(valid_artifacts))
+        # At this time, we can call post_persist on all artifacts that remain in
+        # _orig_artifacts. They are the ones that returned True when post_serialize
+        # was called
+        for var, art in flow._orig_artifacts.items():
+            art.post_persist(self._info, self._objects)
+        flow._orig_artifacts.clear()
 
     @only_if_not_done
     @require_mode("w")
