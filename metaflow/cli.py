@@ -508,7 +508,7 @@ def start(
     # Note that top-level decospecs are used primarily with non run/resume
     # options as well as with the airflow/argo/sfn integrations which pass
     # all the decospecs (the ones from top-level but also the ones from the
-    # run/resume level_) through the tl decospecs.
+    # run/resume level) through the tl decospecs.
     ctx.obj.tl_decospecs = list(decospecs or [])
 
     # initialize current and parameter context for deploy-time parameters
