@@ -171,7 +171,7 @@ class DelayEvaluator(collections.abc.Mapping):
         yield "%s%d" % (UNPACK_KEY, id(self))
 
     def __getitem__(self, key):
-        if key == "%s%d" % (UNPACK_KEY, id(self)):
+        if isinstance(key, str) and key == "%s%d" % (UNPACK_KEY, id(self)):
             return self
         if self._access is None:
             raise KeyError(key)
@@ -201,7 +201,18 @@ class DelayEvaluator(collections.abc.Mapping):
             )
         if self._access is not None:
             # Build the final expression by adding all the fields in access as . fields
-            self._config_expr = ".".join([self._config_expr] + self._access)
+            access_list = [self._config_expr]
+            for a in self._access:
+                if isinstance(a, str):
+                    access_list.append(a)
+                elif isinstance(a, DelayEvaluator):
+                    # Supports things like config[other_config.selector].var
+                    access_list.append(a())
+                else:
+                    raise MetaflowException(
+                        "Field '%s' of type '%s' is not supported" % (str(a), type(a))
+                    )
+            self._config_expr = ".".join(access_list)
         # Evaluate the expression setting the config values as local variables
         try:
             return eval(
@@ -369,7 +380,7 @@ class Config(Parameter, collections.abc.Mapping):
 
     def __getitem__(self, key):
         self._init_delayed_evaluator()
-        if key.startswith(UNPACK_KEY):
+        if isinstance(key, str) and key.startswith(UNPACK_KEY):
             return self._delayed_evaluator[key]
         return DelayEvaluator(self.name.lower())[key]
 
