@@ -30,7 +30,9 @@ class ImmediateAncestorTest(MetaflowTest):
         # Set the current task id
         self.task_pathspec = f"{current.flow_name}/{current.run_id}/{current.step_name}/{current.task_id}"
 
-        print(f"Task Pathspec: {self.task_pathspec} and parent_pathspecs: {self.parent_pathspecs}")
+        print(
+            f"Task Pathspec: {self.task_pathspec} and parent_pathspecs: {self.parent_pathspecs}"
+        )
 
     @steps(2, ["all"])
     def step_all(self):
@@ -44,11 +46,13 @@ class ImmediateAncestorTest(MetaflowTest):
         # Set the current task id
         self.task_pathspec = f"{current.flow_name}/{current.run_id}/{current.step_name}/{current.task_id}"
 
-        print(f"Task Pathspec: {self.task_pathspec} and parent_pathspecs: {self.parent_pathspecs}")
-
+        print(
+            f"Task Pathspec: {self.task_pathspec} and parent_pathspecs: {self.parent_pathspecs}"
+        )
 
     def check_results(self, flow, checker):
         from itertools import chain
+
         run = checker.get_run()
 
         if run is None:
@@ -67,7 +71,7 @@ class ImmediateAncestorTest(MetaflowTest):
 
                 # Compare with stored parent_task_pathspecs
                 task_pathspec = task.data.task_pathspec
-                assert (
-                    ancestor_pathspecs == task.data.parent_pathspecs
-                ), (f"Mismatch in ancestor task ids for task {task_pathspec}: Expected {task.data.parent_pathspecs}, "
-                    f"got {ancestor_pathspecs}")
+                assert ancestor_pathspecs == task.data.parent_pathspecs, (
+                    f"Mismatch in ancestor task ids for task {task_pathspec}: Expected {task.data.parent_pathspecs}, "
+                    f"got {ancestor_pathspecs}"
+                )
