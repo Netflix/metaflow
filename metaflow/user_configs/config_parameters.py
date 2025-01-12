@@ -196,8 +196,8 @@ class DelayEvaluator(collections.abc.Mapping):
         if flow_cls is None:
             # We are not executing inside a flow (ie: not the CLI)
             raise MetaflowException(
-                "Config object can only be used directly in the FlowSpec defining them. "
-                "If using outside of the FlowSpec, please use ConfigEval"
+                "Config object can only be used directly in the FlowSpec defining them "
+                "(or their flow decorators)."
             )
         if self._access is not None:
             # Build the final expression by adding all the fields in access as . fields
