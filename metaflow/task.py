@@ -501,7 +501,6 @@ class MetaflowTask(object):
                 current_foreach_path_length += len(foreach_step)
                 foreach_stack_formatted.append(foreach_step)
 
-
             if foreach_stack_formatted:
                 metadata.append(
                     MetaDatum(
@@ -512,7 +511,10 @@ class MetaflowTask(object):
                     )
                 )
 
-            # Add runtime dag info
+            # Add runtime dag info - for a nested foreach this may look like:
+            # foreach_indices: [0, 1]
+            # foreach_indices_truncated: [0]
+            # foreach_step_names: ['step1', 'step2']
             foreach_indices, foreach_indices_truncated, foreach_step_names = (
                 self._dynamic_runtime_metadata(foreach_stack)
             )
