@@ -210,7 +210,7 @@ class LocalMetadataProvider(MetadataProvider):
         run_id: str,
         query_step: str,
         field_name: str,
-        field_value: str
+        field_value: str,
     ) -> List[str]:
         """
         Filter tasks by metadata field and value, returning task IDs that match criteria.
@@ -252,8 +252,8 @@ class LocalMetadataProvider(MetadataProvider):
 
             for file_path in json_files:
                 filename = os.path.basename(file_path)
-                name, timestamp = filename.rsplit('_', 1)
-                timestamp = timestamp.split('.')[0]
+                name, timestamp = filename.rsplit("_", 1)
+                timestamp = timestamp.split(".")[0]
 
                 if name == field_prefix:
                     matching_files.append((file_path, int(timestamp)))
@@ -266,10 +266,12 @@ class LocalMetadataProvider(MetadataProvider):
         def _read_metadata_value(file_path: str) -> dict:
             """Read and parse metadata from JSON file."""
             try:
-                with open(file_path, 'r') as f:
+                with open(file_path, "r") as f:
                     return json.load(f)
             except json.JSONDecodeError:
-                raise json.JSONDecodeError("Failed to decode metadata JSON file - may be corrupted or empty")
+                raise json.JSONDecodeError(
+                    "Failed to decode metadata JSON file - may be corrupted or empty"
+                )
             except Exception as e:
                 raise Exception(f"Error reading metadata file: {str(e)}")
 

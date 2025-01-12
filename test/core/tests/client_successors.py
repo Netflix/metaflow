@@ -69,7 +69,9 @@ class ImmediateSuccessorTest(MetaflowTest):
             for task in step:
                 cur_task_pathspec = task.data.task_pathspec
                 successors = task.immediate_successors
-                actual_successors_pathspecs_set = set(chain.from_iterable(successors.values()))
+                actual_successors_pathspecs_set = set(
+                    chain.from_iterable(successors.values())
+                )
                 expected_successor_pathspecs_set = set()
                 for successor_step_name, successor_pathspecs in successors.items():
                     # Assert that the current task is in the parent_pathspecs of the successor tasks
@@ -81,17 +83,23 @@ class ImmediateSuccessorTest(MetaflowTest):
                         assert (
                             task.data.task_pathspec
                             in successor_task.data.parent_pathspecs
-                        ), (f"Task {task.data.task_pathspec} is not in the parent_pathspecs of the successor task "
-                            f"{successor_task.data.task_pathspec}")
+                        ), (
+                            f"Task {task.data.task_pathspec} is not in the parent_pathspecs of the successor task "
+                            f"{successor_task.data.task_pathspec}"
+                        )
 
                     successor_step = run[successor_step_name]
                     for successor_task in successor_step:
                         if cur_task_pathspec in successor_task.data.parent_pathspecs:
-                            expected_successor_pathspecs_set.add(successor_task.data.task_pathspec)
+                            expected_successor_pathspecs_set.add(
+                                successor_task.data.task_pathspec
+                            )
 
                 # Assert that None of the tasks in the successor steps have the current task in their
                 # parent_pathspecs
                 assert (
                     actual_successors_pathspecs_set == expected_successor_pathspecs_set
-                ), (f"Expected successor pathspecs: {expected_successor_pathspecs_set}, got "
-                    f"{actual_successors_pathspecs_set}")
+                ), (
+                    f"Expected successor pathspecs: {expected_successor_pathspecs_set}, got "
+                    f"{actual_successors_pathspecs_set}"
+                )
