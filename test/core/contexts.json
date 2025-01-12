@@ -24,7 +24,7 @@
                 "--tag=\u523a\u8eab means sashimi",
                 "--tag=multiple tags should be ok"
             ],
-            "checks": [ "python3-cli", "python3-metadata"],
+            "checks": ["python3-cli", "python3-metadata"],
             "disabled_tests": [
                 "LargeArtifactTest",
                 "S3FailureTest",

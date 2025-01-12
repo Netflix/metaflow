@@ -291,7 +291,6 @@ class LocalMetadataProvider(MetadataProvider):
                 meta_path = LocalMetadataProvider._get_metadir(
                     flow_id, run_id, query_step, task_id
                 )
-
                 latest_file = _get_latest_metadata_file(meta_path, field_name_prefix)
                 if not latest_file:
                     continue
