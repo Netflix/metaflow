@@ -675,7 +675,12 @@ class MetadataProvider(object):
 
     @classmethod
     def filter_tasks_by_metadata(
-        cls, flow_id: str, run_id: str, query_step: str, field_name: str, field_value: str
+        cls,
+        flow_id: str,
+        run_id: str,
+        query_step: str,
+        field_name: str,
+        field_value: str,
     ) -> List[str]:
         """
         Filter tasks by metadata field and value, and returns the list of task_ids
