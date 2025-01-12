@@ -501,6 +501,7 @@ class MetaflowTask(object):
                 current_foreach_path_length += len(foreach_step)
                 foreach_stack_formatted.append(foreach_step)
 
+
             if foreach_stack_formatted:
                 metadata.append(
                     MetaDatum(

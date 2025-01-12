@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import time
 import json
 import os
 import tarfile
@@ -1177,7 +1178,7 @@ class Task(MetaflowObject):
             # the same step.
             query_task = self._get_task_for_queried_step(flow_id, run_id, steps[0])
             query_foreach_stack_len = len(
-                query_task.metadata_dict.get("foreach-stack", [])
+                query_task.metadata_dict.get("foreach-indices", [])
             )
 
         if query_foreach_stack_len == cur_foreach_stack_len:
@@ -1221,6 +1222,7 @@ class Task(MetaflowObject):
         return field_name, field_value
 
     def _get_related_tasks(self, relation_type: str) -> Dict[str, List[str]]:
+        start_time = time.time()
         flow_id, run_id, _, _ = self.path_components
         steps = (
             self.metadata_dict.get("previous_steps")
@@ -1234,10 +1236,12 @@ class Task(MetaflowObject):
         field_name, field_value = self._get_metadata_query_vals(
             flow_id,
             run_id,
-            len(self.metadata_dict.get("foreach-stack", [])),
+            len(self.metadata_dict.get("foreach-indices", [])),
             steps,
             relation_type,
         )
+
+        cur_time = time.time()
 
         return {
             step: [
