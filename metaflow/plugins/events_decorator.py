@@ -607,6 +607,6 @@ class TriggerOnFinishDecorator(FlowDecorator):
                 trigger = {"fq_name": trigger}
                 trigger = self._parse_fq_name(trigger)
             self.triggers[self.triggers.index(old_trig)] = trigger
-    
+
     def get_top_level_options(self):
         return list(self._option_values.items())
