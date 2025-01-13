@@ -134,6 +134,8 @@ def config_merge_cb(ctx, param, value):
         "step": "metaflow.cli_components.step_cmd.step",
         "run": "metaflow.cli_components.run_cmds.run",
         "resume": "metaflow.cli_components.run_cmds.resume",
+        "spin": "metaflow.cli_components.run_cmds.spin",
+        "spin-internal": "metaflow.cli_components.step_cmd.spin_internal",
     },
 )
 def cli(ctx):
@@ -384,7 +386,6 @@ def start(
     # second one processed will return the actual options. The order of processing
     # depends on what (and in what order) the user specifies on the command line.
     config_options = config_file or config_value
-
     if (
         hasattr(ctx, "saved_args")
         and ctx.saved_args
@@ -462,14 +463,10 @@ def start(
     ctx.obj.event_logger = LOGGING_SIDECARS[event_logger](
         flow=ctx.obj.flow, env=ctx.obj.environment
     )
-    ctx.obj.event_logger.start()
-    _system_logger.init_system_logger(ctx.obj.flow.name, ctx.obj.event_logger)
 
     ctx.obj.monitor = MONITOR_SIDECARS[monitor](
         flow=ctx.obj.flow, env=ctx.obj.environment
     )
-    ctx.obj.monitor.start()
-    _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
 
     ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == metadata][0](
         ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
@@ -484,6 +481,47 @@ def start(
     )
 
     ctx.obj.config_options = config_options
+
+    # Override values for spin
+    if hasattr(ctx, "saved_args") and ctx.saved_args and ctx.saved_args[0] == "spin":
+        # For spin, we will only use the local metadata provider, datastore, environment
+        # and null event logger and monitor
+        ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == "local"][0](
+            ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
+        )
+        ctx.obj.event_logger = LOGGING_SIDECARS["nullSidecarLogger"](
+            flow=ctx.obj.flow, env=ctx.obj.environment
+        )
+        ctx.obj.monitor = MONITOR_SIDECARS["nullSidecarMonitor"](
+            flow=ctx.obj.flow, env=ctx.obj.environment
+        )
+        ctx.obj.datastore_impl = [d for d in DATASTORES if d.TYPE == "local"][0]
+        datastore_root = ctx.obj.datastore_impl.get_datastore_root_from_config(
+            ctx.obj.echo
+        )
+        ctx.obj.datastore_impl.datastore_root = datastore_root
+
+        FlowDataStore.default_storage_impl = ctx.obj.datastore_impl
+        ctx.obj.flow_datastore = FlowDataStore(
+            ctx.obj.flow.name,
+            ctx.obj.environment,
+            ctx.obj.metadata,
+            ctx.obj.event_logger,
+            ctx.obj.monitor,
+        )
+        echo(
+            "Using local metadata provider, datastore, environment, and null event logger and monitor for spin."
+        )
+        print(f"Using metadata provider: {ctx.obj.metadata}")
+        echo(f"Using Datastore root: {datastore_root}")
+        echo(f"Using Flow Datastore: {ctx.obj.flow_datastore}")
+
+    # Start event logger and monitor
+    ctx.obj.event_logger.start()
+    _system_logger.init_system_logger(ctx.obj.flow.name, ctx.obj.event_logger)
+
+    ctx.obj.monitor.start()
+    _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
 
     decorators._init(ctx.obj.flow)
 
@@ -528,7 +566,7 @@ def start(
     if (
         hasattr(ctx, "saved_args")
         and ctx.saved_args
-        and ctx.saved_args[0] not in ("run", "resume")
+        and ctx.saved_args[0] not in ("run", "resume", "spin")
     ):
         # run/resume are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.

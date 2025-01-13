@@ -174,3 +174,78 @@ def step(
         )
 
     echo("Success", fg="green", bold=True, indent=True)
+
+
+@click.command(help="Internal command to spin a single task.", hidden=True)
+@click.argument("step-name")
+@click.option(
+    "--run-id",
+    default=None,
+    required=True,
+    help="Run ID for the step that's about to be spun",
+)
+@click.option(
+    "--task-id",
+    default=None,
+    required=True,
+    help="Task ID for the step that's about to be spun",
+)
+@click.option(
+    "--input-paths",
+    help="A comma-separated list of pathspecs specifying inputs for this step.",
+)
+@click.option(
+    "--split-index",
+    type=int,
+    default=None,
+    show_default=True,
+    help="Index of this foreach split.",
+)
+@click.option(
+    "--retry-count",
+    default=0,
+    help="How many times we have attempted to run this task.",
+)
+@click.option(
+    "--max-user-code-retries",
+    default=0,
+    help="How many times we should attempt running the user code.",
+)
+@click.option(
+    "--namespace",
+    "namespace",
+    default=None,
+    help="Change namespace from the default (your username) to the specified tag.",
+)
+@click.pass_context
+def spin_internal(
+    ctx,
+    step_name,
+    run_id=None,
+    task_id=None,
+    input_paths=None,
+    split_index=None,
+    retry_count=None,
+    max_user_code_retries=None,
+    namespace=None,
+):
+    if ctx.obj.is_quiet:
+        echo = echo_dev_null
+    else:
+        echo = echo_always
+    print("I am here 1")
+    print("I am here 2")
+    # echo("Spinning a task, *%s*" % step_name, fg="magenta", bold=False)
+
+    task = MetaflowTask(
+        ctx.obj.flow,
+        ctx.obj.flow_datastore,  # local datastore
+        ctx.obj.metadata,  # local metadata provider
+        ctx.obj.environment,  # local environment
+        ctx.obj.echo,
+        ctx.obj.event_logger,  # null logger
+        ctx.obj.monitor,  # null monitor
+        None,  # no unbounded foreach context
+    )
+    # echo("Task is: ", task)
+    # pass

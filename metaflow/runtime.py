@@ -73,6 +73,220 @@ mflog_msg = partial(mflog.decorate, RUNTIME_LOG_SOURCE)
 # TODO option: output dot graph periodically about execution
 
 
+class SpinRuntime(object):
+    def __init__(
+        self,
+        flow,
+        graph,
+        flow_datastore,
+        metadata,
+        environment,
+        package,
+        logger,
+        entrypoint,
+        event_logger,
+        monitor,
+        step_func,
+        task_pathspec,
+        max_log_size=MAX_LOG_SIZE,
+    ):
+        from metaflow import Task
+
+        self._flow = flow
+        self._graph = graph
+        self._flow_datastore = flow_datastore
+        self._metadata = metadata
+        self._environment = environment
+        self._package = package
+        self._logger = logger
+        self._entrypoint = entrypoint
+        self._event_logger = event_logger
+        self._monitor = monitor
+        self._args = args or []
+        self._kwargs = kwargs or {}
+
+        self._step_func = step_func
+        self._task_pathspec = task_pathspec
+        self._prev_task = Task(self._task_pathspec, _namespace_check=False)
+        self._input_paths = None
+        self._split_index = None
+        self._whitelist_decorators = None
+        self._config_file_name = None
+        self._max_log_size = max_log_size
+        self._run_queue = []
+        self._poll = procpoll.make_poll()
+        self._workers = {}  # fd -> subprocess mapping
+        self._finished = {}
+
+        # Create a new run_id for the spin task
+        self._run_id = self._metadata.new_run_id()
+        print(
+            f"New run_id for spin task: {self._run_id} and step func: {self._step_func.name}"
+        )
+
+        for deco in self._step_func.decorators:
+            deco.runtime_init(flow, graph, package, self._run_id)
+
+        print(f"Input paths: {self.input_paths}")
+
+    @property
+    def split_index(self):
+        if self._split_index:
+            return self._split_index
+        foreach_indices = self._prev_task.metadata_dict.get("foreach-indices", [])
+        self._split_index = foreach_indices[-1] if foreach_indices else None
+        return self._split_index
+
+    @property
+    def input_paths(self):
+        def _format_input_paths(task_id):
+            _, run_id, step_name, task_id = task_id.split("/")
+            return f"{run_id}/{step_name}/{task_id}"
+
+        if self._input_paths:
+            return self._input_paths
+
+        if self._step_func.name == "start":
+            from metaflow import Step
+
+            flow_name, run_id, _, _ = self._task_pathspec.split("/")
+
+            step = Step(f"{flow_name}/{run_id}/_parameters", _namespace_check=False)
+            task = next(iter(step.tasks()), None)
+            if not task:
+                raise MetaflowException(
+                    f"Task not found for {step} in the metadata store"
+                )
+            self._input_paths = [f"{run_id}/_parameters/{task.id}"]
+        else:
+            ancestors = self._prev_task.immediate_ancestors
+            self._input_paths = [
+                _format_input_paths(ancestor)
+                for i, ancestor in enumerate(chain.from_iterable(ancestors.values()))
+            ]
+        return self._input_paths
+
+    @property
+    def whitelist_decorators(self):
+        if self._whitelist_decorators:
+            return self._whitelist_decorators
+        self._whitelist_decorators = [
+            deco
+            for deco in self._step_func.decorators
+            if any(deco.name.startswith(prefix) for prefix in SPIN_ALLOWED_DECORATORS)
+        ]
+        return self._whitelist_decorators
+
+    def _new_task(self, step, input_paths=None, **kwargs):
+        return Task(
+            self._flow_datastore,
+            self._flow,
+            step,
+            self._run_id,
+            self._metadata,
+            self._environment,
+            self._entrypoint,
+            self._event_logger,
+            self._monitor,
+            input_paths=self.input_paths,
+            decos=self.whitelist_decorators,
+            logger=self._logger,
+            split_index=self.split_index,
+            **kwargs,
+        )
+
+    def execute(self):
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as config_file:
+            # Configurations are passed through a file to avoid overloading the
+            # command-line. We only need to create this file once and it can be reused
+            # for any task launch
+            config_value = dump_config_values(self._flow)
+            if config_value:
+                json.dump(config_value, config_file)
+                config_file.flush()
+                self._config_file_name = config_file.name
+            else:
+                self._config_file_name = None
+
+        task = self._new_task(self._step_func.name, {})
+        _ds = self._flow_datastore.get_task_datastore(
+            self._run_id, self._step_func.name, task.task_id, attempt=0, mode="w"
+        )
+
+        for deco in self.whitelist_decorators:
+            deco.runtime_task_created(
+                _ds,
+                task.task_id,
+                self.split_index,
+                self.input_paths,
+                is_cloned=False,
+                ubf_context=None,
+            )
+
+        # Start a new worker to spin a step
+        worker = Worker(task, self._max_log_size, self._config_file_name, spin=True)
+        for fd in worker.fds():
+            self._workers[fd] = worker
+            self._poll.add(fd)
+
+        finished_tasks = list(self._poll_workers())
+        try:
+            pass
+        except KeyboardInterrupt as ex:
+            self._logger("Workflow interrupted.", system_msg=True, bad=True)
+            self._killall()
+            exception = ex
+            raise
+
+        except Exception as ex:
+            self._logger("Workflow failed.", system_msg=True, bad=True)
+            self._killall()
+            exception = ex
+            raise
+        finally:
+            # on finish clean tasks
+            for step in self._flow:
+                for deco in step.decorators:
+                    deco.runtime_finished(exception)
+
+        def _launch_spin(self):
+            args = CLIArgs(self.task, self.spin)
+            env = dict(os.environ)
+
+            for deco in self.task.decos:
+                deco.runtime_step_cli(
+                    args,
+                    self.task.retries,
+                    self.task.user_code_retries,
+                    self.task.ubf_context,
+                )
+
+            # Add user configurations using a file to avoid using up too much space on the
+            # command line
+            if self._config_file_name:
+                args.top_level_options["local-config-file"] = self._config_file_name
+
+            print(f"Args Entrypoint updated is {args.entrypoint}")
+            env.update(args.get_env())
+            env["PYTHONUNBUFFERED"] = "x"
+            cmdline = args.get_args()
+            print(f"Command line is: {cmdline}")
+
+            process = subprocess.Popen(
+                cmdline,
+                env=env,
+                bufsize=1,
+                stdin=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+            )
+
+            # Read and print subprocess output
+            stdout, stderr = process.communicate()
+            print(f"stdout: {stdout.decode()}")
+            print(f"stderr: {stderr.decode()}")
+
+
 class NativeRuntime(object):
     def __init__(
         self,
@@ -1508,8 +1722,9 @@ class CLIArgs(object):
     for step execution in StepDecorator.runtime_step_cli().
     """
 
-    def __init__(self, task):
+    def __init__(self, task, spin=False):
         self.task = task
+        self.spin = spin
         self.entrypoint = list(task.entrypoint)
         self.top_level_options = {
             "quiet": True,
@@ -1542,18 +1757,36 @@ class CLIArgs(object):
                 (k, ConfigInput.make_key_name(k)) for k in configs
             ]
 
+        if spin:
+            self.spin_args()
+        else:
+            self.default_args()
+
+    def default_args(self):
         self.commands = ["step"]
         self.command_args = [self.task.step]
         self.command_options = {
-            "run-id": task.run_id,
-            "task-id": task.task_id,
-            "input-paths": compress_list(task.input_paths),
-            "split-index": task.split_index,
-            "retry-count": task.retries,
-            "max-user-code-retries": task.user_code_retries,
-            "tag": task.tags,
+            "run-id": self.task.run_id,
+            "task-id": self.task.task_id,
+            "input-paths": compress_list(self.task.input_paths),
+            "split-index": self.task.split_index,
+            "retry-count": self.task.retries,
+            "max-user-code-retries": self.task.user_code_retries,
+            "tag": self.task.tags,
             "namespace": get_namespace() or "",
-            "ubf-context": task.ubf_context,
+            "ubf-context": self.task.ubf_context,
+        }
+        self.env = {}
+
+    def spin_args(self):
+        self.commands = ["spin-internal"]
+        self.command_args = [self.task.step]
+
+        self.command_options = {
+            "run-id": self.task.run_id,
+            "task-id": self.task.task_id,
+            "input-paths": self.task.input_paths,
+            "split-index": self.task.split_index,
         }
         self.env = {}
 

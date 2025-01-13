@@ -48,6 +48,14 @@ DEFAULT_FROM_DEPLOYMENT_IMPL = from_conf(
 )
 
 ###
+# Spin configuration
+###
+SPIN_ALLOWED_DECORATORS = from_conf(
+    "SPIN_ALLOWED_DECORATORS", ["conda", "pypi", "environment"]
+)
+
+
+###
 # User configuration
 ###
 USER = from_conf("USER")

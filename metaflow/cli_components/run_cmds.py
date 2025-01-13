@@ -9,11 +9,11 @@ from ..exception import CommandException
 from ..graph import FlowGraph
 from ..metaflow_current import current
 from ..package import MetaflowPackage
-from ..runtime import NativeRuntime
+from ..runtime import NativeRuntime, SpinRuntime
 from ..system import _system_logger
 
 from ..tagging_util import validate_tags
-from ..util import get_latest_run_id, write_latest_run_id
+from ..util import get_latest_run_id, write_latest_run_id, get_latest_task_pathspec
 
 
 def before_run(obj, tags, decospecs):
@@ -70,6 +70,28 @@ def write_file(file_path, content):
             f.write(str(content))
 
 
+def common_runner_options(func):
+    @click.option(
+        "--run-id-file",
+        default=None,
+        show_default=True,
+        type=str,
+        help="Write the ID of this run to the file specified.",
+    )
+    @click.option(
+        "--runner-attribute-file",
+        default=None,
+        show_default=True,
+        type=str,
+        help="Write the metadata and pathspec of this run to the file specified. Used internally for Metaflow's Runner API.",
+    )
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
 def common_run_options(func):
     @click.option(
         "--tag",
@@ -109,20 +131,6 @@ def common_run_options(func):
         help="Add a decorator to all steps. You can specify this "
         "option multiple times to attach multiple decorators "
         "in steps.",
-    )
-    @click.option(
-        "--run-id-file",
-        default=None,
-        show_default=True,
-        type=str,
-        help="Write the ID of this run to the file specified.",
-    )
-    @click.option(
-        "--runner-attribute-file",
-        default=None,
-        show_default=True,
-        type=str,
-        help="Write the metadata and pathspec of this run to the file specified. Used internally for Metaflow's Runner API.",
     )
     @wraps(func)
     def wrapper(*args, **kwargs):
@@ -167,6 +175,7 @@ def common_run_options(func):
 @click.argument("step-to-rerun", required=False)
 @click.command(help="Resume execution of a previous run of this flow.")
 @common_run_options
+@common_runner_options
 @click.pass_obj
 def resume(
     obj,
@@ -285,6 +294,7 @@ def resume(
 @click.command(help="Run the workflow locally.")
 @tracing.cli_entrypoint("cli/run")
 @common_run_options
+@common_runner_options
 @click.option(
     "--namespace",
     "user_namespace",
@@ -360,3 +370,58 @@ def run(
                     f,
                 )
         runtime.execute()
+
+
+@click.command(help="Spins up a step locally")
+@click.argument(
+    "step-name",
+    required=True,
+    type=str,
+)
+@click.option(
+    "--task-pathspec",
+    default=None,
+    show_default=True,
+    help="Task ID to use when spinning up the step. The spinned up step will use the artifacts"
+    "corresponding to this task ID. If not provided, an arbitrary task ID from the latest run will be used.",
+)
+@common_runner_options
+@click.pass_obj
+def spin(
+    obj,
+    step_name,
+    task_pathspec=None,
+    run_id_file=None,
+    runner_attribute_file=None,
+    **kwargs
+):
+    before_run(obj, [], [])
+    if task_pathspec is None:
+        task_pathspec = get_latest_task_pathspec(obj.flow.name, step_name)
+
+    obj.echo(
+        f"Spinning up step *{step_name}* locally with task pathspec *{task_pathspec}*"
+    )
+    obj.flow._set_constants(obj.graph, kwargs, obj.config_options)
+    step_func = getattr(obj.flow, step_name)
+
+    spin_runtime = SpinRuntime(
+        obj.flow,
+        obj.graph,
+        obj.flow_datastore,
+        obj.metadata,
+        obj.environment,
+        obj.package,
+        obj.logger,
+        obj.entrypoint,
+        obj.event_logger,
+        obj.monitor,
+        step_func,
+        task_pathspec,
+    )
+
+    # write_latest_run_id(obj, runtime.run_id)
+    # write_file(run_id_file, runtime.run_id)
+
+    spin_runtime.execute()
+    pass
