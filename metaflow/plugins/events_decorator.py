@@ -598,10 +598,36 @@ class TriggerOnFinishDecorator(FlowDecorator):
             old_trig = trigger
             if isinstance(trigger, DeployTimeField):
                 trigger = deploy_time_eval(trigger)
-                if isinstance(trigger, dict) and "fq_name" not in trigger:
-                    # When a user has a deploy time trigger on finish which returns name,
-                    # project, branch
-                    trigger["fq_name"] = trigger.get("name")
+                if is_stringish(trigger):
+                    trigger = {"fq_name": trigger}
+                elif isinstance(trigger, dict):
+                    if "name" not in trigger:
+                        raise MetaflowException(
+                            "The *flow* attribute for *@trigger_on_finish* is missing the "
+                            "*name* key."
+                        )
+                    flow_name = trigger["name"]
+
+                    if not is_stringish(flow_name) or "." in flow_name:
+                        raise MetaflowException(
+                            "The *name* attribute of the *flow* is not a valid string"
+                        )
+                    result = {"fq_name": flow_name}
+                    if "project" in trigger:
+                        if is_stringish(trigger["project"]):
+                            result["project"] = trigger["project"]
+                        else:
+                            raise MetaflowException(
+                                "The *project* attribute of the *flow* is not a string"
+                            )
+                    if "project_branch" in trigger:
+                        if is_stringish(trigger["project_branch"]):
+                            result["branch"] = trigger["project_branch"]
+                        else:
+                            raise MetaflowException(
+                                "The *project_branch* attribute of the *flow* is not a string"
+                            )
+                    trigger = result
             if isinstance(trigger, dict):
                 trigger["fq_name"] = trigger.get("fq_name")
                 trigger["project"] = trigger.get("project")
