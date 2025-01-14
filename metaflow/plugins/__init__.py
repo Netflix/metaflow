@@ -16,7 +16,7 @@ CLIS_DESC = [
     ("argo-workflows", ".argo.argo_workflows_cli.cli"),
     ("card", ".cards.card_cli.cli"),
     ("tag", ".tag_cli.cli"),
-    ("metadata", ".metadata_cli.cli"),
+    ("spot-metadata", ".kubernetes.spot_metadata_cli.cli"),
     ("logs", ".logs_cli.cli"),
 ]
 
@@ -107,7 +107,7 @@ SIDECARS_DESC = [
     ),
     (
         "spot_termination_monitor",
-        ".kubernetes.spot_monitor.SpotTerminationMonitorSidecar",
+        ".kubernetes.spot_monitor_sidecar.SpotTerminationMonitorSidecar",
     ),
     ("heartbeat", "metaflow.metadata_provider.heartbeat.MetadataHeartBeat"),
 ]

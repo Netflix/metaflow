@@ -8,12 +8,12 @@ def cli():
     pass
 
 
-@cli.group(help="Commands related to metadata.")
-def metadata():
+@cli.group(help="Commands related to spot metadata.")
+def spot_metadata():
     pass
 
 
-@metadata.command(help="Record metadata for a task.")
+@spot_metadata.command(help="Record spot metadata for a task.")
 @click.option(
     "--run-id",
     required=True,

@@ -7,7 +7,6 @@ import subprocess
 from multiprocessing import Process
 from datetime import datetime, timezone
 from metaflow.sidecar import MessageTypes
-from metaflow.metaflow_current import current
 
 
 class SpotTerminationMonitorSidecar(object):
@@ -82,7 +81,7 @@ class SpotTerminationMonitorSidecar(object):
         command = [
             sys.executable,
             f"/metaflow/{os.getenv('FLOW_FILE_PATH')}",
-            "metadata",
+            "spot-metadata",
             "record",
             "--run-id",
             os.getenv("RUN_ID"),
