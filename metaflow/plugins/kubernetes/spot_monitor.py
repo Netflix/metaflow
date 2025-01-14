@@ -2,15 +2,16 @@ import os
 import sys
 import time
 import signal
-import datetime
 import requests
 import subprocess
 from multiprocessing import Process
+from datetime import datetime, timezone
 from metaflow.sidecar import MessageTypes
 from metaflow.metaflow_current import current
 
 
 class SpotTerminationMonitorSidecar(object):
+    EC2_TYPE_URL = "http://169.254.169.254/latest/meta-data/instance-life-cycle"
     METADATA_URL = "http://169.254.169.254/latest/meta-data/spot/termination-time"
     TOKEN_URL = "http://169.254.169.254/latest/api/token"
     POLL_INTERVAL = 5  # seconds
@@ -59,10 +60,8 @@ class SpotTerminationMonitorSidecar(object):
 
     def _is_aws_spot_instance(self):
         try:
-            response = self._make_ec2_request(url=self.METADATA_URL, timeout=1)
-            # A 404 means we're on EC2 but not a spot instance
-            # A timeout/connection error means we're not on EC2 at all
-            return response.status_code != 404
+            response = self._make_ec2_request(url=self.EC2_TYPE_URL, timeout=1)
+            return response.status_code == 200 and response.text == "spot"
         except (requests.exceptions.RequestException, requests.exceptions.Timeout):
             return False
 
@@ -82,14 +81,15 @@ class SpotTerminationMonitorSidecar(object):
     def _emit_termination_metadata(self, termination_time):
         command = [
             sys.executable,
-            current.flow_name,
+            f"/metaflow/{os.getenv('FLOW_FILE_PATH')}",
+            "metadata",
             "record",
             "--run-id",
-            current.run_id,
+            os.getenv("RUN_ID"),
             "--step-name",
-            current.step_name,
-            "--task_id",
-            current.task_id,
+            os.getenv("STEP_NAME"),
+            "--task-id",
+            os.getenv("TASK_ID"),
             "--field",
             "spot-termination-notice",
             str(True),
@@ -98,15 +98,12 @@ class SpotTerminationMonitorSidecar(object):
             termination_time,
             "--field",
             "spot-termination-received-at",
-            datetime.now(datetime.timezone.utc).isoformat(),
+            datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "--tag",
-            "attempt_id:{}".format(current.attempt),
+            "attempt_id:{}".format(os.getenv("RETRY_COUNT")),
         ]
 
         result = subprocess.run(command, capture_output=True, text=True)
 
         if result.returncode != 0:
-            print(
-                f"Failed to record spot termination metadata: {result.stderr}",
-                file=sys.stderr,
-            )
+            print(f"Failed to record spot termination metadata: {result.stderr}")

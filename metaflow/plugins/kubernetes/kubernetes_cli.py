@@ -275,6 +275,16 @@ def step(
                 ),
             )
 
+    env.update(
+        {
+            "FLOW_FILE_PATH": os.path.basename(sys.argv[0]),
+            "RUN_ID": kwargs["run_id"],
+            "STEP_NAME": step_name,
+            "TASK_ID": task_id,
+            "RETRY_COUNT": retry_count,
+        }
+    )
+
     try:
         kubernetes = Kubernetes(
             datastore=ctx.obj.flow_datastore,
