@@ -357,7 +357,7 @@ class ServiceMetadataProvider(MetadataProvider):
         }
         url = ServiceMetadataProvider._obj_path(flow_id, run_id, query_step)
         url = f"{url}/tasks?{urlencode(query_params)}"
-        return cls._request(cls._monitor, url, "GET")
+        return cls._request(None, url, "GET")
 
     @staticmethod
     def _obj_path(
