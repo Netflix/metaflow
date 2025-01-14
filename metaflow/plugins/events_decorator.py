@@ -597,6 +597,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
             # Entire trigger is a function (returns either string or dict)
             old_trig = trigger
             if isinstance(trigger, DeployTimeField):
+                # convert the trigger to string or dict
                 trigger = deploy_time_eval(trigger)
                 if is_stringish(trigger):
                     pass
@@ -628,6 +629,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
                                 "The *project_branch* attribute of the *flow* is not a string"
                             )
                     trigger = result
+            # effect is to set all fields to None if they don't exist.
             if isinstance(trigger, dict):
                 trigger["fq_name"] = trigger.get("fq_name")
                 trigger["project"] = trigger.get("project")
