@@ -247,7 +247,7 @@ class LocalMetadataProvider(MetadataProvider):
             # and the artifact files are saved as: <attempt>_artifact__<artifact_name>.json
             # We loop over all the JSON files in the directory and find the latest one
             # that matches the field prefix.
-            json_files = glob.glob(os.path.join(path, "*.json"))
+            json_files = glob.glob(os.path.join(path, f"{field_prefix}*.json"))
             matching_files = []
 
             for file_path in json_files:
@@ -287,8 +287,6 @@ class LocalMetadataProvider(MetadataProvider):
             # Filter tasks based on metadata
             for task in tasks:
                 task_id = task.get("task_id")
-                if not task_id:
-                    continue
 
                 meta_path = LocalMetadataProvider._get_metadir(
                     flow_id, run_id, query_step, task_id
