@@ -14,6 +14,7 @@ from metaflow.metadata_provider import MetadataProvider
 from metaflow.metadata_provider.heartbeat import HB_URL_KEY
 from metaflow.metaflow_config import SERVICE_HEADERS, SERVICE_RETRY_COUNT, SERVICE_URL
 from metaflow.sidecar import Message, MessageTypes, Sidecar
+from urllib.parse import urlencode
 from metaflow.util import version_parse
 
 
