@@ -598,6 +598,10 @@ class TriggerOnFinishDecorator(FlowDecorator):
             old_trig = trigger
             if isinstance(trigger, DeployTimeField):
                 trigger = deploy_time_eval(trigger)
+                if isinstance(trigger, dict) and "fq_name" not in trigger:
+                    # When a user has a deploy time trigger on finish which returns name,
+                    # project, branch
+                    trigger["fq_name"] = trigger.get("name")
             if isinstance(trigger, dict):
                 trigger["fq_name"] = trigger.get("fq_name")
                 trigger["project"] = trigger.get("project")
