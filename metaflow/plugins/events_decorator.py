@@ -599,7 +599,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
             if isinstance(trigger, DeployTimeField):
                 trigger = deploy_time_eval(trigger)
                 if is_stringish(trigger):
-                    trigger = {"fq_name": trigger}
+                    pass
                 elif isinstance(trigger, dict):
                     if "name" not in trigger:
                         raise MetaflowException(
