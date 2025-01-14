@@ -18,7 +18,7 @@ from metaflow.metaflow_config import (
 from metaflow.metadata_provider import MetadataProvider
 from metaflow.metadata_provider.heartbeat import HB_URL_KEY
 from metaflow.sidecar import Message, MessageTypes, Sidecar
-
+from urllib.parse import urlencode
 from metaflow.util import version_parse
 
 
