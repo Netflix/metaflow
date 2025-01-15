@@ -352,12 +352,12 @@ class ServiceMetadataProvider(MetadataProvider):
             List of task_ids that satisfy the query
         """
         query_params = {
-            "field_name": field_name,
-            "field_value": field_value,
+            "metadata_field_name": field_name,
+            "metadata_field_value": field_value,
             "query_step": query_step,
         }
         url = ServiceMetadataProvider._obj_path(flow_id, run_id, query_step)
-        url = f"{url}/tasks?{urlencode(query_params)}"
+        url = f"{url}/filtered_tasks?{urlencode(query_params)}"
         return cls._request(None, url, "GET")
 
     @staticmethod
