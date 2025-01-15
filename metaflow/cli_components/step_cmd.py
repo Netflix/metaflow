@@ -229,6 +229,8 @@ def spin_internal(
     max_user_code_retries=None,
     namespace=None,
 ):
+    import sys
+
     if ctx.obj.is_quiet:
         echo = echo_dev_null
     else:
@@ -248,4 +250,7 @@ def spin_internal(
         None,  # no unbounded foreach context
     )
     # echo("Task is: ", task)
+    print("Task is: ", task)
+    print("I am here 3")
+    print("sys.executable: ", sys.executable)
     # pass
