@@ -169,7 +169,7 @@ class ConfigInput:
                     "Please contact support."
                 )
             cls.loaded_configs = all_configs
-        return cls.loaded_configs.get(config_name, None)
+        return cls.loaded_configs[config_name]
 
     def process_configs(
         self,
@@ -326,6 +326,8 @@ class ConfigInput:
         for name, val in merged_configs.items():
             if val is None:
                 missing_configs.add(name)
+                to_return[name] = None
+                flow_cls._flow_state[_FlowState.CONFIGS][name] = None
                 continue
             if val.startswith(_CONVERTED_DEFAULT_NO_FILE):
                 no_default_file.append(name)
@@ -339,15 +341,16 @@ class ConfigInput:
                 val = val[len(_DEFAULT_PREFIX) :]
             if val.startswith("kv."):
                 # This means to load it from a file
-                read_value = self.get_config(val[3:])
-                if read_value is None:
+                try:
+                    read_value = self.get_config(val[3:])
+                except KeyError as e:
                     exc = click.UsageError(
                         "Could not find configuration '%s' in INFO file" % val
                     )
                     if click_obj:
                         click_obj.delayed_config_exception = exc
                         return None
-                    raise exc
+                    raise exc from e
                 flow_cls._flow_state[_FlowState.CONFIGS][name] = read_value
                 to_return[name] = ConfigValue(read_value)
             else:

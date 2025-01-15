@@ -290,17 +290,17 @@ class Config(Parameter, collections.abc.Mapping):
     default : Union[str, Callable[[ParameterContext], str], optional, default None
         Default path from where to read this configuration. A function implies that the
         value will be computed using that function.
-        You can only specify default or default_value.
+        You can only specify default or default_value, not both.
     default_value : Union[str, Dict[str, Any], Callable[[ParameterContext, Union[str, Dict[str, Any]]], Any], optional, default None
         Default value for the parameter. A function
         implies that the value will be computed using that function.
-        You can only specify default or default_value.
+        You can only specify default or default_value, not both.
     help : str, optional, default None
         Help text to show in `run --help`.
     required : bool, optional, default None
-        Require that the user specified a value for the configuration. Note that if
-        a default is provided, the required flag is ignored. A value of None is
-        equivalent to False.
+        Require that the user specifies a value for the configuration. Note that if
+        a default or default_value is provided, the required flag is ignored.
+        A value of None is equivalent to False.
     parser : Union[str, Callable[[str], Dict[Any, Any]]], optional, default None
         If a callable, it is a function that can parse the configuration string
         into an arbitrarily nested dictionary. If a string, the string should refer to
@@ -330,13 +330,13 @@ class Config(Parameter, collections.abc.Mapping):
         **kwargs: Dict[str, str]
     ):
 
-        if default and default_value:
+        if default is not None and default_value is not None:
             raise MetaflowException(
                 "For config '%s', you can only specify default or default_value, not both"
                 % name
             )
         self._default_is_file = default is not None
-        kwargs["default"] = default or default_value
+        kwargs["default"] = default if default is not None else default_value
         super(Config, self).__init__(
             name, required=required, help=help, type=str, **kwargs
         )
