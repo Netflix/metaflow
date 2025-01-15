@@ -623,7 +623,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
                             )
                     if "project_branch" in trigger:
                         if is_stringish(trigger["project_branch"]):
-                            result["branch"] = trigger["project_branch"]
+                            result["project_branch"] = trigger["project_branch"]
                         else:
                             raise MetaflowException(
                                 "The *project_branch* attribute of the *flow* is not a string"
