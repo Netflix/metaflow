@@ -82,6 +82,8 @@ def kubernetes():
 @click.option("--memory", help="Memory requirement for Kubernetes pod.")
 @click.option("--gpu", help="GPU requirement for Kubernetes pod.")
 @click.option("--gpu-vendor", help="GPU vendor requirement for Kubernetes pod.")
+@click.option("--tpu", help="TPU requirement for Kubernetes pod.")
+@click.option("--tpu-vendor", help="TPU vendor requirement for Kubernetes pod.")
 @click.option("--run-id", help="Passed to the top-level 'step'.")
 @click.option("--task-id", help="Passed to the top-level 'step'.")
 @click.option("--input-paths", help="Passed to the top-level 'step'.")
@@ -163,6 +165,8 @@ def step(
     memory=None,
     gpu=None,
     gpu_vendor=None,
+    tpu=None,
+    tpu_vendor=None,
     use_tmpfs=None,
     tmpfs_tempdir=None,
     tmpfs_size=None,
@@ -305,6 +309,8 @@ def step(
                 memory=memory,
                 gpu=gpu,
                 gpu_vendor=gpu_vendor,
+                tpu=tpu,
+                tpu_vendor=tpu_vendor,
                 use_tmpfs=use_tmpfs,
                 tmpfs_tempdir=tmpfs_tempdir,
                 tmpfs_size=tmpfs_size,
