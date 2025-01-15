@@ -269,14 +269,7 @@ class CardDecorator(StepDecorator):
             self.card_creator.create(mode="render", final=True, **create_options)
             self.card_creator.create(mode="refresh", final=True, **create_options)
 
-        self._increment_completed_counter()
-        if self.task_finished_decos == self.total_decos_on_step[step_name]:
-            # Unlink the config file if it exists
-            if self._config_file_name:
-                try:
-                    os.unlink(self._config_file_name)
-                except Exception as e:
-                    pass
+        self._cleanup(step_name)
 
     @staticmethod
     def _options(mapping):
@@ -315,6 +308,9 @@ class CardDecorator(StepDecorator):
     def task_exception(
         self, exception, step_name, flow, graph, retry_count, max_user_code_retries
     ):
+        self._cleanup(step_name)
+
+    def _cleanup(self, step_name):
         self._increment_completed_counter()
         if self.task_finished_decos == self.total_decos_on_step[step_name]:
             # Unlink the config file if it exists
