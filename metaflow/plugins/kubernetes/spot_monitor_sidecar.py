@@ -97,12 +97,8 @@ class SpotTerminationMonitorSidecar(object):
             step_name,
             "--task-id",
             task_id,
-            "--field",
-            "spot-termination-time",
+            "--termination-notice-time",
             termination_time,
-            "--field",
-            "spot-termination-received-at",
-            datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "--tag",
             "attempt_id:{}".format(retry_count),
         ]

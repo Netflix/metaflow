@@ -1,4 +1,5 @@
 from metaflow._vendor import click
+from datetime import datetime, timezone
 from metaflow.tagging_util import validate_tags
 from metaflow.metadata_provider import MetaDatum
 
@@ -13,7 +14,7 @@ def spot_metadata():
     pass
 
 
-@spot_metadata.command(help="Record spot metadata for a task.")
+@spot_metadata.command(help="Record spot termination metadata for a task.")
 @click.option(
     "--run-id",
     required=True,
@@ -30,11 +31,9 @@ def spot_metadata():
     help="Task ID for which metadata is to be recorded.",
 )
 @click.option(
-    "--field",
-    multiple=True,
+    "--termination-notice-time",
     required=True,
-    type=(str, str),
-    help="Metadata key value pairs.",
+    help="Spot termination notice time.",
 )
 @click.option(
     "--tag",
@@ -45,21 +44,25 @@ def spot_metadata():
     help="List of tags.",
 )
 @click.pass_obj
-def record(obj, run_id, step_name, task_id, field, tags=None):
+def record(obj, run_id, step_name, task_id, termination_notice_time, tags=None):
     validate_tags(tags)
 
     tag_list = list(tags) if tags else []
 
-    entries = []
-    for k, v in dict(field).items():
-        entries.append(
-            MetaDatum(
-                field=k,
-                value=v,
-                type=k,
-                tags=tag_list,
-            )
-        )
+    entries = [
+        MetaDatum(
+            field="spot-termination-received-at",
+            value=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            type="spot-termination-received-at",
+            tags=tag_list,
+        ),
+        MetaDatum(
+            field="spot-termination-time",
+            value=termination_notice_time,
+            type="spot-termination-time",
+            tags=tag_list,
+        ),
+    ]
 
     obj.metadata.register_metadata(
         run_id=run_id, step_name=step_name, task_id=task_id, metadata=entries
