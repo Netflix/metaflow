@@ -519,26 +519,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
         for trigger in self.triggers:
             if isinstance(trigger, DeployTimeField):
                 continue
-            if trigger["fq_name"].count(".") == 0:
-                # fully qualified name is just the flow name
-                trigger["flow"] = trigger["fq_name"]
-            elif trigger["fq_name"].count(".") >= 2:
-                # fully qualified name is of the format - project.branch.flow_name
-                trigger["project"], tail = trigger["fq_name"].split(".", maxsplit=1)
-                trigger["branch"], trigger["flow"] = tail.rsplit(".", maxsplit=1)
-            else:
-                raise MetaflowException(
-                    "Incorrect format for *flow* in *@trigger_on_finish* "
-                    "decorator. Specify either just the *flow_name* or a fully "
-                    "qualified name like *project_name.branch_name.flow_name*."
-                )
-            # TODO: Also sanity check project and branch names
-            if not re.match(r"^[A-Za-z0-9_]+$", trigger["flow"]):
-                raise MetaflowException(
-                    "Invalid flow name *%s* in *@trigger_on_finish* "
-                    "decorator. Only alphanumeric characters and "
-                    "underscores(_) are allowed." % trigger["flow"]
-                )
+            self._parse_fq_name(trigger)
 
         self.options = self.attributes["options"]
 
@@ -594,8 +575,6 @@ class TriggerOnFinishDecorator(FlowDecorator):
             current._update_env({"trigger": Trigger.from_runs(run_objs)})
 
     def _parse_fq_name(self, trigger):
-        if isinstance(trigger, DeployTimeField):
-            trigger["fq_name"] = deploy_time_eval(trigger["fq_name"])
         if trigger["fq_name"].count(".") == 0:
             # fully qualified name is just the flow name
             trigger["flow"] = trigger["fq_name"]
@@ -615,6 +594,11 @@ class TriggerOnFinishDecorator(FlowDecorator):
                 "decorator. Only alphanumeric characters and "
                 "underscores(_) are allowed." % trigger["flow"]
             )
+
+    def _parse_fq_deploy_time_name(self, trigger):
+        if isinstance(trigger, DeployTimeField):
+            trigger["fq_name"] = deploy_time_eval(trigger["fq_name"])
+        self._parse_fq_name(trigger)
         return trigger
 
     def format_deploytime_value(self):
@@ -632,14 +616,14 @@ class TriggerOnFinishDecorator(FlowDecorator):
             old_trig = trigger
             if isinstance(trigger, DeployTimeField):
                 trigger = deploy_time_eval(trigger)
-            if isinstance(trigger, dict):
-                trigger["fq_name"] = trigger.get("name")
-                trigger["project"] = trigger.get("project")
-                trigger["branch"] = trigger.get("project_branch")
-            # We also added this bc it won't be formatted yet
-            if isinstance(trigger, str):
-                trigger = {"fq_name": trigger}
-                trigger = self._parse_fq_name(trigger)
+                if isinstance(trigger, dict):
+                    trigger["fq_name"] = trigger.get("name")
+                    trigger["project"] = trigger.get("project")
+                    trigger["branch"] = trigger.get("project_branch")
+                # We also added this bc it won't be formatted yet
+                if isinstance(trigger, str):
+                    trigger = {"fq_name": trigger}
+                    trigger = self._parse_fq_deploy_time_name(trigger)
             self.triggers[self.triggers.index(old_trig)] = trigger
 
     def get_top_level_options(self):
