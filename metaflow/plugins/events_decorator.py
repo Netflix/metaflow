@@ -422,7 +422,9 @@ class TriggerOnFinishDecorator(FlowDecorator):
                         )
                 if "project_branch" in self.attributes["flow"]:
                     if is_stringish(self.attributes["flow"]["project_branch"]):
-                        result["branch"] = self.attributes["flow"]["project_branch"]
+                        result["project_branch"] = self.attributes["flow"][
+                            "project_branch"
+                        ]
                     else:
                         raise MetaflowException(
                             "The *project_branch* attribute of the *flow* is not a string"
@@ -467,6 +469,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
                                 "The *name* attribute '%s' is not a valid string"
                                 % str(flow_name)
                             )
+
                         result = {"fq_name": flow_name}
                         if "project" in flow:
                             if is_stringish(flow["project"]):
@@ -478,7 +481,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
                                 )
                         if "project_branch" in flow:
                             if is_stringish(flow["project_branch"]):
-                                result["branch"] = flow["project_branch"]
+                                result["project_branch"] = flow["project_branch"]
                             else:
                                 raise MetaflowException(
                                     "The *project_branch* attribute of the *flow* %s "
