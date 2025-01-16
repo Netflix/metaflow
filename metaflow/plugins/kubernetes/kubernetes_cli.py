@@ -190,7 +190,7 @@ def step(
     executable = ctx.obj.environment.executable(step_name, executable)
 
     # Set environment
-    env = {"MF_FLOW_FILENAME": os.path.basename(sys.argv[0])}
+    env = {"METAFLOW_FLOW_FILENAME": os.path.basename(sys.argv[0])}
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
         env = env_deco[0].attributes["vars"]

@@ -78,7 +78,7 @@ class SpotTerminationMonitorSidecar(object):
             time.sleep(self.POLL_INTERVAL)
 
     def _emit_termination_metadata(self, termination_time):
-        flow_filename = os.getenv("MF_FLOW_FILENAME")
+        flow_filename = os.getenv("METAFLOW_FLOW_FILENAME")
         pathspec = os.getenv("MF_PATHSPEC")
         _, run_id, step_name, task_id = pathspec.split("/")
         retry_count = os.getenv("MF_ATTEMPT")
