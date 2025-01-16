@@ -190,7 +190,7 @@ def step(
     executable = ctx.obj.environment.executable(step_name, executable)
 
     # Set environment
-    env = {}
+    env = {"MF_FLOW_FILENAME": os.path.basename(sys.argv[0])}
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
         env = env_deco[0].attributes["vars"]
@@ -274,16 +274,6 @@ def step(
                     kwargs["run_id"], step_name, task_id
                 ),
             )
-
-    env.update(
-        {
-            "FLOW_FILE_PATH": os.path.basename(sys.argv[0]),
-            "RUN_ID": kwargs["run_id"],
-            "STEP_NAME": step_name,
-            "TASK_ID": task_id,
-            "RETRY_COUNT": retry_count,
-        }
-    )
 
     try:
         kubernetes = Kubernetes(

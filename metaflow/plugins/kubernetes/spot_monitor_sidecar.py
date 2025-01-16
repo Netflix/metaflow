@@ -78,17 +78,21 @@ class SpotTerminationMonitorSidecar(object):
             time.sleep(self.POLL_INTERVAL)
 
     def _emit_termination_metadata(self, termination_time):
+        flow_filename = os.getenv("MF_FLOW_FILENAME")
+        pathspec = os.getenv("MF_PATHSPEC")
+        _, run_id, step_name, task_id = pathspec.split("/")
+        retry_count = os.getenv("MF_ATTEMPT")
         command = [
             sys.executable,
-            f"/metaflow/{os.getenv('FLOW_FILE_PATH')}",
+            f"/metaflow/{flow_filename}",
             "spot-metadata",
             "record",
             "--run-id",
-            os.getenv("RUN_ID"),
+            run_id,
             "--step-name",
-            os.getenv("STEP_NAME"),
+            step_name,
             "--task-id",
-            os.getenv("TASK_ID"),
+            task_id,
             "--field",
             "spot-termination-time",
             termination_time,
@@ -96,7 +100,7 @@ class SpotTerminationMonitorSidecar(object):
             "spot-termination-received-at",
             datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "--tag",
-            "attempt_id:{}".format(os.getenv("RETRY_COUNT")),
+            "attempt_id:{}".format(retry_count),
         ]
 
         result = subprocess.run(command, capture_output=True, text=True)
