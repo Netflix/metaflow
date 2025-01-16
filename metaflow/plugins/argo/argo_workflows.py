@@ -1705,6 +1705,7 @@ class ArgoWorkflows(object):
                     },
                     **{
                         # Some optional values for bookkeeping
+                        "METAFLOW_FLOW_FILENAME": os.path.basename(sys.argv[0]),
                         "METAFLOW_FLOW_NAME": self.flow.name,
                         "METAFLOW_STEP_NAME": node.name,
                         "METAFLOW_RUN_ID": run_id,

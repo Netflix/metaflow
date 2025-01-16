@@ -547,6 +547,13 @@ class KubernetesDecorator(StepDecorator):
             self._save_logs_sidecar = Sidecar("save_logs_periodically")
             self._save_logs_sidecar.start()
 
+            # Start spot termination monitor sidecar.
+            current._update_env(
+                {"spot_termination_notice": "/tmp/spot_termination_notice"}
+            )
+            self._spot_monitor_sidecar = Sidecar("spot_termination_monitor")
+            self._spot_monitor_sidecar.start()
+
         num_parallel = None
         if hasattr(flow, "_parallel_ubf_iter"):
             num_parallel = flow._parallel_ubf_iter.num_parallel
@@ -605,6 +612,7 @@ class KubernetesDecorator(StepDecorator):
 
         try:
             self._save_logs_sidecar.terminate()
+            self._spot_monitor_sidecar.terminate()
         except:
             # Best effort kill
             pass
