@@ -617,6 +617,18 @@ class TriggerOnFinishDecorator(FlowDecorator):
             if isinstance(trigger, DeployTimeField):
                 trigger = deploy_time_eval(trigger)
                 if isinstance(trigger, dict):
+                    if "name" not in trigger:
+                        raise MetaflowException(
+                            f"Trigger: {trigger} parsed at deploy time is missing the *name* key."
+                        )
+                    if "project" not in trigger:
+                        raise MetaflowException(
+                            f"Trigger: {trigger} parsed at deploy time is missing the *project* key."
+                        )
+                    if "project_branch" not in trigger:
+                        raise MetaflowException(
+                            f"Trigger: {trigger} parsed at deploy time is missing the *project_branch* key."
+                        )
                     trigger["fq_name"] = trigger.get("name")
                     trigger["project"] = trigger.get("project")
                     trigger["branch"] = trigger.get("project_branch")
