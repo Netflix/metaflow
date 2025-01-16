@@ -548,6 +548,9 @@ class KubernetesDecorator(StepDecorator):
             self._save_logs_sidecar.start()
 
             # Start spot termination monitor sidecar.
+            current._update_env(
+                {"spot_termination_notice": "/tmp/spot_termination_notice"}
+            )
             self._spot_monitor_sidecar = Sidecar("spot_termination_monitor")
             self._spot_monitor_sidecar.start()
 

@@ -82,6 +82,10 @@ class SpotTerminationMonitorSidecar(object):
         pathspec = os.getenv("MF_PATHSPEC")
         _, run_id, step_name, task_id = pathspec.split("/")
         retry_count = os.getenv("MF_ATTEMPT")
+
+        with open("/tmp/spot_termination_notice", "w") as fp:
+            fp.write(termination_time)
+
         command = [
             sys.executable,
             f"/metaflow/{flow_filename}",
