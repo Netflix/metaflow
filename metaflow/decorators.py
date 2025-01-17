@@ -477,15 +477,20 @@ def _base_step_decorator(decotype, *args, **kwargs):
         if not hasattr(func, "is_step"):
             raise BadStepDecoratorException(decotype.name, func)
 
-        # if `allow_multiple` is not `True` then only one decorator type is allowed per step
-        if (
-            decotype.name in [deco.name for deco in func.decorators]
-            and not decotype.allow_multiple
-        ):
-            raise DuplicateStepDecoratorException(decotype.name, func)
-        else:
-            func.decorators.append(decotype(attributes=kwargs, statically_defined=True))
+        if decotype.name in [deco.name for deco in func.decorators]:
+            if not decotype.allow_multiple:
+                # if `allow_multiple` is not `True` then only one
+                # decorator type is allowed per step
+                raise DuplicateStepDecoratorException(decotype.name, func)
 
+            # If multiple decorators of the same type are allowed, we
+            # then check if we see any duplicate attributes. If we do,
+            # we ignore the new decorator and continue.
+            for deco in func.decorators:
+                if deco.name == decotype.name and deco.attributes == kwargs:
+                    return func
+
+        func.decorators.append(decotype(attributes=kwargs, statically_defined=True))
         return func
     else:
         # Keyword arguments specified, e.g. @foobar(a=1, b=2).
