@@ -624,6 +624,16 @@ class ArgoWorkflows(object):
             for event in trigger_on_finish_deco.triggers:
                 # Actual filters are deduced here since we don't have access to
                 # the current object in the @trigger_on_finish decorator.
+                project_name = event.get("project") or current.get("project_name")
+                branch_name = event.get("branch") or current.get("branch_name")
+                # validate that we have complete project info for an event name
+                if project_name or branch_name:
+                    if not (project_name and branch_name):
+                        # if one of the two is missing, we would end up listening to an event that will never be broadcast.
+                        raise ArgoWorkflowsException(
+                            "Incomplete project info. Please specify both 'project' and 'project_branch' or use the @project decorator"
+                        )
+
                 triggers.append(
                     {
                         # Make sure this remains consistent with the event name format
@@ -632,18 +642,16 @@ class ArgoWorkflows(object):
                         % ".".join(
                             v
                             for v in [
-                                event.get("project") or current.get("project_name"),
-                                event.get("branch") or current.get("branch_name"),
+                                project_name,
+                                branch_name,
                                 event["flow"],
                             ]
                             if v
                         ),
                         "filters": {
                             "auto-generated-by-metaflow": True,
-                            "project_name": event.get("project")
-                            or current.get("project_name"),
-                            "branch_name": event.get("branch")
-                            or current.get("branch_name"),
+                            "project_name": project_name,
+                            "branch_name": branch_name,
                             # TODO: Add a time filters to guard against cached events
                         },
                         "type": "run",

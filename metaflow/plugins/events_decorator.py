@@ -635,7 +635,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
             if isinstance(trigger, dict):
                 trigger["fq_name"] = trigger.get("name")
                 trigger["project"] = trigger.get("project")
-                trigger["branch"] = trigger.get("project_branch")
+                trigger["branch"] = trigger.get("branch")
             # We also added this bc it won't be formatted yet
             if isinstance(trigger, str):
                 trigger = {"fq_name": trigger}
