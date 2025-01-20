@@ -362,17 +362,21 @@ class TriggerOnFinishDecorator(FlowDecorator):
     """
 
     name = "trigger_on_finish"
-    defaults = {
-        "flow": None,  # flow_name or project_flow_name
-        "flows": [],  # flow_names or project_flow_names
-        "options": {},
-    }
+
     options = {
         "trigger": dict(
             multiple=True,
             default=None,
             help="Specify run pathspec for testing @trigger_on_finish locally.",
         ),
+    }
+    defaults = {
+        "flow": None,  # flow_name or project_flow_name
+        "flows": [],  # flow_names or project_flow_names
+        "options": {},
+        # Re-enable if you want to support TL options directly in the decorator like
+        # for @project decorator
+        #    **{k: v["default"] for k, v in options.items()},
     }
 
     def flow_init(
@@ -539,13 +543,43 @@ class TriggerOnFinishDecorator(FlowDecorator):
         self.options = self.attributes["options"]
 
         # Handle scenario for local testing using --trigger.
+
+        # Re-enable this code if you want to support passing trigger directly in the
+        # decorator in a way similar to how production and branch are passed in the
+        # project decorator.
+
+        # # This is overkill since default is None for all options but adding this code
+        # # to make it safe if other non None-default options are added in the future.
+        # for op in options:
+        #     if (
+        #         op in self._user_defined_attributes
+        #         and options[op] != self.defaults[op]
+        #         and self.attributes[op] != options[op]
+        #     ):
+        #         # Exception if:
+        #         #  - the user provides a value in the attributes field
+        #         #  - AND the user provided a value in the command line (non default)
+        #         #  - AND the values are different
+        #         # Note that this won't raise an error if the user provided the default
+        #         # value in the command line and provided one in attribute but although
+        #         # slightly inconsistent, it is not incorrect.
+        #         raise MetaflowException(
+        #             "You cannot pass %s as both a command-line argument and an attribute "
+        #             "of the @trigger_on_finish decorator." % op
+        #         )
+
+        # if "trigger" in self._user_defined_attributes:
+        #    trigger_option = self.attributes["trigger"]
+        # else:
+        trigger_option = options["trigger"]
+
         self._option_values = options
-        if options["trigger"]:
+        if trigger_option:
             from metaflow import Run
             from metaflow.events import Trigger
 
             run_objs = []
-            for run_pathspec in options["trigger"]:
+            for run_pathspec in trigger_option:
                 if len(run_pathspec.split("/")) != 2:
                     raise MetaflowException(
                         "Incorrect format for run pathspec for *--trigger*. "
@@ -601,7 +635,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
             if isinstance(trigger, dict):
                 trigger["fq_name"] = trigger.get("name")
                 trigger["project"] = trigger.get("project")
-                trigger["branch"] = trigger.get("project_branch")
+                trigger["branch"] = trigger.get("branch")
             # We also added this bc it won't be formatted yet
             if isinstance(trigger, str):
                 trigger = {"fq_name": trigger}

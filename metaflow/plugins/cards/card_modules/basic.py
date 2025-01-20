@@ -1,9 +1,10 @@
 import base64
 import json
 import os
-from .card import MetaflowCard, MetaflowCardComponent
+from .card import MetaflowCard, MetaflowCardComponent, with_default_component_id
 from .convert_to_native_type import TaskToDict
 import uuid
+import inspect
 
 ABS_DIR_PATH = os.path.dirname(os.path.abspath(__file__))
 RENDER_TEMPLATE_PATH = os.path.join(ABS_DIR_PATH, "base.html")
@@ -236,9 +237,28 @@ class LogComponent(DefaultComponent):
         super().__init__(title=None, subtitle=None)
         self._data = data
 
+    @with_default_component_id
     def render(self):
         datadict = super().render()
         datadict["data"] = self._data
+        if self.component_id is not None:
+            datadict["id"] = self.component_id
+        return datadict
+
+
+class PythonCodeComponent(DefaultComponent):
+
+    type = "pythonCode"
+
+    def __init__(self, data=None):
+        super().__init__(title=None, subtitle=None)
+        self._data = data
+
+    def render(self):
+        datadict = super().render()
+        datadict["data"] = self._data
+        if self.component_id is not None:
+            datadict["id"] = self.component_id
         return datadict
 
 
@@ -343,6 +363,7 @@ class TaskInfoComponent(MetaflowCardComponent):
         graph=None,
         components=[],
         runtime=False,
+        flow=None,
     ):
         self._task = task
         self._only_repr = only_repr
@@ -352,6 +373,7 @@ class TaskInfoComponent(MetaflowCardComponent):
         self.final_component = None
         self.page_component = None
         self.runtime = runtime
+        self.flow = flow
 
     def render(self):
         """
@@ -475,6 +497,16 @@ class TaskInfoComponent(MetaflowCardComponent):
             contents=[param_component],
         ).render()
 
+        step_func = getattr(self.flow, self._task.parent.id)
+        code_table = SectionComponent(
+            title="Task Code",
+            contents=[
+                TableComponent(
+                    data=[[PythonCodeComponent(inspect.getsource(step_func)).render()]]
+                )
+            ],
+        ).render()
+
         # Don't include parameter ids + "name" in the task artifacts
         artifactlist = [
             task_data_dict["data"][k]
@@ -500,6 +532,7 @@ class TaskInfoComponent(MetaflowCardComponent):
         page_contents.extend(
             [
                 metadata_table,
+                code_table,
                 parameter_table,
                 artifact_section,
             ]
@@ -546,7 +579,7 @@ class ErrorCard(MetaflowCard):
 
     RELOAD_POLICY = MetaflowCard.RELOAD_POLICY_ONCHANGE
 
-    def __init__(self, options={}, components=[], graph=None):
+    def __init__(self, options={}, components=[], graph=None, **kwargs):
         self._only_repr = True
         self._graph = None if graph is None else transform_flow_graph(graph)
         self._components = components
@@ -602,9 +635,17 @@ class DefaultCardJSON(MetaflowCard):
 
     type = "default_json"
 
-    def __init__(self, options=dict(only_repr=True), components=[], graph=None):
+    def __init__(
+        self,
+        options=dict(only_repr=True),
+        components=[],
+        graph=None,
+        flow=None,
+        **kwargs
+    ):
         self._only_repr = True
         self._graph = None if graph is None else transform_flow_graph(graph)
+        self._flow = flow
         if "only_repr" in options:
             self._only_repr = options["only_repr"]
         self._components = components
@@ -615,6 +656,7 @@ class DefaultCardJSON(MetaflowCard):
             only_repr=self._only_repr,
             graph=self._graph,
             components=self._components,
+            flow=self._flow,
         ).render()
         return json.dumps(final_component_dict)
 
@@ -629,9 +671,17 @@ class DefaultCard(MetaflowCard):
 
     type = "default"
 
-    def __init__(self, options=dict(only_repr=True), components=[], graph=None):
+    def __init__(
+        self,
+        options=dict(only_repr=True),
+        components=[],
+        graph=None,
+        flow=None,
+        **kwargs
+    ):
         self._only_repr = True
         self._graph = None if graph is None else transform_flow_graph(graph)
+        self._flow = flow
         if "only_repr" in options:
             self._only_repr = options["only_repr"]
         self._components = components
@@ -646,6 +696,7 @@ class DefaultCard(MetaflowCard):
             graph=self._graph,
             components=self._components,
             runtime=runtime,
+            flow=self._flow,
         ).render()
         pt = self._get_mustache()
         data_dict = dict(
@@ -688,7 +739,7 @@ class BlankCard(MetaflowCard):
 
     type = "blank"
 
-    def __init__(self, options=dict(title=""), components=[], graph=None):
+    def __init__(self, options=dict(title=""), components=[], graph=None, **kwargs):
         self._graph = None if graph is None else transform_flow_graph(graph)
         self._title = ""
         if "title" in options:

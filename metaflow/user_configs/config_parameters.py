@@ -3,7 +3,7 @@ import json
 import os
 import re
 
-from typing import Any, Callable, Dict, Optional, TYPE_CHECKING, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING, Union
 
 
 from ..exception import MetaflowException
@@ -171,7 +171,7 @@ class DelayEvaluator(collections.abc.Mapping):
         yield "%s%d" % (UNPACK_KEY, id(self))
 
     def __getitem__(self, key):
-        if key == "%s%d" % (UNPACK_KEY, id(self)):
+        if isinstance(key, str) and key == "%s%d" % (UNPACK_KEY, id(self)):
             return self
         if self._access is None:
             raise KeyError(key)
@@ -196,12 +196,23 @@ class DelayEvaluator(collections.abc.Mapping):
         if flow_cls is None:
             # We are not executing inside a flow (ie: not the CLI)
             raise MetaflowException(
-                "Config object can only be used directly in the FlowSpec defining them. "
-                "If using outside of the FlowSpec, please use ConfigEval"
+                "Config object can only be used directly in the FlowSpec defining them "
+                "(or their flow decorators)."
             )
         if self._access is not None:
             # Build the final expression by adding all the fields in access as . fields
-            self._config_expr = ".".join([self._config_expr] + self._access)
+            access_list = [self._config_expr]
+            for a in self._access:
+                if isinstance(a, str):
+                    access_list.append(a)
+                elif isinstance(a, DelayEvaluator):
+                    # Supports things like config[other_config.selector].var
+                    access_list.append(a())
+                else:
+                    raise MetaflowException(
+                        "Field '%s' of type '%s' is not supported" % (str(a), type(a))
+                    )
+            self._config_expr = ".".join(access_list)
         # Evaluate the expression setting the config values as local variables
         try:
             return eval(
@@ -369,7 +380,7 @@ class Config(Parameter, collections.abc.Mapping):
 
     def __getitem__(self, key):
         self._init_delayed_evaluator()
-        if key.startswith(UNPACK_KEY):
+        if isinstance(key, str) and key.startswith(UNPACK_KEY):
             return self._delayed_evaluator[key]
         return DelayEvaluator(self.name.lower())[key]
 
@@ -406,17 +417,20 @@ def resolve_delayed_evaluator(v: Any, ignore_errors: bool = False) -> Any:
 
 def unpack_delayed_evaluator(
     to_unpack: Dict[str, Any], ignore_errors: bool = False
-) -> Dict[str, Any]:
+) -> Tuple[Dict[str, Any], List[str]]:
     result = {}
+    new_keys = []
     for k, v in to_unpack.items():
         if not isinstance(k, str) or not k.startswith(UNPACK_KEY):
             result[k] = v
         else:
             # k.startswith(UNPACK_KEY)
             try:
-                result.update(resolve_delayed_evaluator(v))
+                new_vals = resolve_delayed_evaluator(v)
+                new_keys.extend(new_vals.keys())
+                result.update(new_vals)
             except Exception as e:
                 if ignore_errors:
                     continue
                 raise e
-    return result
+    return result, new_keys

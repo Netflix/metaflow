@@ -1,8 +1,8 @@
 from .card_modules import MetaflowCardComponent
+from .card_modules.card import create_component_id
 from .card_modules.basic import ErrorComponent, SectionComponent
 from .card_modules.components import (
     UserComponent,
-    create_component_id,
     StubComponent,
 )
 from .exception import ComponentOverwriteNotSupportedException

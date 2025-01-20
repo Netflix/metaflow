@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING
+import uuid
 
 if TYPE_CHECKING:
     import metaflow
@@ -66,7 +67,7 @@ class MetaflowCard(object):
     # FIXME document runtime_data
     runtime_data = None
 
-    def __init__(self, options={}, components=[], graph=None):
+    def __init__(self, options={}, components=[], graph=None, flow=None):
         pass
 
     def _get_mustache(self):
@@ -140,3 +141,17 @@ class MetaflowCardComponent(object):
         `render` returns a string or dictionary. This class can be called on the client side to dynamically add components to the `MetaflowCard`
         """
         raise NotImplementedError()
+
+
+def create_component_id(component):
+    uuid_bit = "".join(uuid.uuid4().hex.split("-"))[:6]
+    return type(component).__name__.lower() + "_" + uuid_bit
+
+
+def with_default_component_id(func):
+    def ret_func(self, *args, **kwargs):
+        if self.component_id is None:
+            self.component_id = create_component_id(self)
+        return func(self, *args, **kwargs)
+
+    return ret_func
