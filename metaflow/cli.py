@@ -106,19 +106,6 @@ def logger(body="", system_msg=False, head="", bad=False, timestamp=True, nl=Tru
     click.secho(body, bold=system_msg, fg=LOGGER_BAD_COLOR if bad else None, nl=nl)
 
 
-def config_merge_cb(ctx, param, value):
-    # Callback to:
-    #  - read  the Click auto_envvar variable from both the
-    #    environment AND the configuration
-    #  - merge that value with the value passed in the command line (value)
-    #  - return the value as a tuple
-    # Note that this function gets called even if there is no option passed on the
-    # command line.
-    # NOTE: Assumes that ctx.auto_envvar_prefix is set to METAFLOW (same as in
-    # from_conf)
-    return tuple(list(value) + DECOSPECS.split())
-
-
 @click.group(
     cls=LazyGroup,
     lazy_subcommands={
