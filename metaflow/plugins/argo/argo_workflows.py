@@ -849,8 +849,15 @@ class ArgoWorkflows(object):
                     Metadata()
                     .labels(self._base_labels)
                     .label("app.kubernetes.io/name", "metaflow-task")
-                    .annotations(annotations)
-                    .annotations(self._base_annotations)
+                    .annotations(
+                        {
+                            **annotations,
+                            **self._base_annotations,
+                            **{
+                                "metaflow/run_id": "argo-{{workflow.name}}"
+                            },  # we want pods of the workflow to have the run_id as an annotation as well
+                        }
+                    )
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
