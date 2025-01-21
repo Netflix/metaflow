@@ -620,15 +620,21 @@ def _init_flow_decorators(
 def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
     for step in flow:
         for deco in step.decorators:
-            deco.step_init(
-                flow,
-                graph,
-                step.__name__,
-                step.decorators,
-                environment,
-                flow_datastore,
-                logger,
+            _init_decorator(
+                deco, flow, graph, step, environment, flow_datastore, logger
             )
+
+
+def _init_decorator(deco, flow, graph, step, environment, flow_datastore, logger):
+    deco.step_init(
+        flow,
+        graph,
+        step.__name__,
+        step.decorators,
+        environment,
+        flow_datastore,
+        logger,
+    )
 
 
 FlowSpecDerived = TypeVar("FlowSpecDerived", bound=FlowSpec)
