@@ -46,14 +46,15 @@ class MetaflowTask(object):
         foreach_step_names = [foreach_frame.step for foreach_frame in foreach_stack]
         return foreach_indices, foreach_indices_truncated, foreach_step_names
 
-    def _static_runtime_metadata(self, graph_info, step_name):
+    @staticmethod
+    def _static_runtime_metadata(graph_info, step_name):
         prev_steps = [
             node_name
             for node_name, attributes in graph_info["steps"].items()
             if step_name in attributes["next"]
         ]
-        succesor_steps = graph_info["steps"][step_name]["next"]
-        return prev_steps, succesor_steps
+        successor_steps = graph_info["steps"][step_name]["next"]
+        return prev_steps, successor_steps
 
     def __init__(
         self,
