@@ -16,7 +16,7 @@ import itertools
 import uuid
 import json
 from collections import OrderedDict
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Type
 from typing import OrderedDict as TOrderedDict
 from typing import Tuple as TTuple
 from typing import Union
@@ -184,26 +184,35 @@ def _lazy_load_command(
         raise AttributeError()
 
 
-def get_annotation(param: Union[click.Argument, click.Option]):
+def get_annotation(param: click.Parameter) -> TTuple[Type, bool]:
     py_type = click_to_python_types[type(param.type)]
+    if param.nargs == -1:
+        # This is the equivalent of *args effectively
+        # so the type annotation should be the type of the
+        # elements in the list
+        return py_type, True
     if not param.required:
-        if param.multiple or param.nargs == -1:
-            return Optional[List[py_type]]
+        if param.multiple or param.nargs > 1:
+            return Optional[TTuple[py_type]], False
         else:
-            return Optional[py_type]
+            return Optional[py_type], False
     else:
-        if param.multiple or param.nargs == -1:
-            return List[py_type]
+        if param.multiple or param.nargs > 1:
+            return TTuple[py_type], False
         else:
-            return py_type
+            return py_type, False
 
 
 def get_inspect_param_obj(p: Union[click.Argument, click.Option], kind: str):
-    return inspect.Parameter(
-        name=p.name,
-        kind=kind,
-        default=p.default,
-        annotation=get_annotation(p),
+    annotation, is_vararg = get_annotation(p)
+    return (
+        inspect.Parameter(
+            name="args" if is_vararg else p.name,
+            kind=inspect.Parameter.VAR_POSITIONAL if is_vararg else kind,
+            default=inspect.Parameter.empty if is_vararg else p.default,
+            annotation=annotation,
+        ),
+        annotation,
     )
 
 
@@ -319,7 +328,7 @@ class MetaflowAPI(object):
             defaults,
         ) = extract_all_params(cli_collection)
 
-        def _method(_self, **kwargs):
+        def _method(_self, *args, **kwargs):
             method_params = _method_sanity_check(
                 possible_arg_params,
                 possible_opt_params,
@@ -379,6 +388,9 @@ class MetaflowAPI(object):
                             else:
                                 components.append("--%s" % k)
                                 components.append(str(i))
+                    elif v is None:
+                        continue  # Skip None values -- they are defaults and converting
+                        # them to string will not be what the user wants
                     else:
                         components.append("--%s" % k)
                         if v != "flag":
@@ -490,17 +502,16 @@ def extract_all_params(cmd_obj: Union[click.Command, click.Group]):
 
     for each_param in cmd_obj.params:
         if isinstance(each_param, click.Argument):
-            arg_params_sigs[each_param.name] = get_inspect_param_obj(
-                each_param, inspect.Parameter.POSITIONAL_ONLY
+            arg_params_sigs[each_param.name], annotations[each_param.name] = (
+                get_inspect_param_obj(each_param, inspect.Parameter.POSITIONAL_ONLY)
             )
             arg_parameters[each_param.name] = each_param
         elif isinstance(each_param, click.Option):
-            opt_params_sigs[each_param.name] = get_inspect_param_obj(
-                each_param, inspect.Parameter.KEYWORD_ONLY
+            opt_params_sigs[each_param.name], annotations[each_param.name] = (
+                get_inspect_param_obj(each_param, inspect.Parameter.KEYWORD_ONLY)
             )
             opt_parameters[each_param.name] = each_param
 
-        annotations[each_param.name] = get_annotation(each_param)
         defaults[each_param.name] = each_param.default
 
     # first, fill in positional arguments
@@ -537,7 +548,7 @@ def extract_group(cmd_obj: click.Group, flow_parameters: List[Parameter]) -> Cal
         defaults,
     ) = extract_all_params(cmd_obj)
 
-    def _method(_self, **kwargs):
+    def _method(_self, *args, **kwargs):
         method_params = _method_sanity_check(
             possible_arg_params, possible_opt_params, annotations, defaults, **kwargs
         )
@@ -570,7 +581,7 @@ def extract_command(
         defaults,
     ) = extract_all_params(cmd_obj)
 
-    def _method(_self, **kwargs):
+    def _method(_self, *args, **kwargs):
         method_params = _method_sanity_check(
             possible_arg_params, possible_opt_params, annotations, defaults, **kwargs
         )
