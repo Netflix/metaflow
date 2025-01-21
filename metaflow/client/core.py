@@ -1120,7 +1120,6 @@ class Task(MetaflowObject):
     def __init__(self, *args, **kwargs):
         super(Task, self).__init__(*args, **kwargs)
         # We want to cache metadata dictionary since it's used in many places
-        self._metadata_dict = None
 
     def _iter_filter(self, x):
         # exclude private data artifacts
@@ -1140,6 +1139,7 @@ class Task(MetaflowObject):
         cur_foreach_stack_len: int,
         steps: List[str],
         is_ancestor: bool,
+        metadata_dict: Dict[str, Any],
     ):
         """
         Returns the field name and field value to be used for querying metadata of successor or ancestor tasks.
@@ -1157,7 +1157,10 @@ class Task(MetaflowObject):
             ancestors and successors across multiple steps.
         is_ancestor : bool
             If we are querying for ancestor tasks, set this to True.
+        metadata_dict : Dict[str, Any]
+            Cached metadata dictionary of the current task
         """
+
         # For each task, we also log additional metadata fields such as foreach-indices and foreach-indices-truncated
         # which help us in querying ancestor and successor tasks.
         #       `foreach-indices`: contains the indices of the foreach stack at the time of task execution.
@@ -1181,7 +1184,7 @@ class Task(MetaflowObject):
         if query_foreach_stack_len == cur_foreach_stack_len:
             # The successor or ancestor tasks belong to the same foreach stack level
             field_name = "foreach-indices"
-            field_value = self.metadata_dict.get(field_name)
+            field_value = metadata_dict.get(field_name)
         elif is_ancestor:
             if query_foreach_stack_len > cur_foreach_stack_len:
                 # This is a foreach join
@@ -1190,7 +1193,7 @@ class Task(MetaflowObject):
                 # We will compare the foreach-indices-truncated value of ancestor task with the
                 # foreach-indices value of current task
                 field_name = "foreach-indices-truncated"
-                field_value = self.metadata_dict.get("foreach-indices")
+                field_value = metadata_dict.get("foreach-indices")
             else:
                 # This is a foreach split
                 # Current Task: foreach-indices = [0, 1, 2], foreach-indices-truncated = [0, 1]
@@ -1198,7 +1201,7 @@ class Task(MetaflowObject):
                 # We will compare the foreach-indices value of ancestor task with the
                 # foreach-indices-truncated value of current task
                 field_name = "foreach-indices"
-                field_value = self.metadata_dict.get("foreach-indices-truncated")
+                field_value = metadata_dict.get("foreach-indices-truncated")
         else:
             if query_foreach_stack_len > cur_foreach_stack_len:
                 # This is a foreach split
@@ -1207,7 +1210,7 @@ class Task(MetaflowObject):
                 # We will compare the foreach-indices value of current task with the
                 # foreach-indices-truncated value of successor tasks
                 field_name = "foreach-indices-truncated"
-                field_value = self.metadata_dict.get("foreach-indices")
+                field_value = metadata_dict.get("foreach-indices")
             else:
                 # This is a foreach join
                 # Current Task: foreach-indices = [0, 1, 2], foreach-indices-truncated = [0, 1]
@@ -1215,26 +1218,32 @@ class Task(MetaflowObject):
                 # We will compare the foreach-indices-truncated value of current task with the
                 # foreach-indices value of successor tasks
                 field_name = "foreach-indices"
-                field_value = self.metadata_dict.get("foreach-indices-truncated")
+                field_value = metadata_dict.get("foreach-indices-truncated")
         return field_name, field_value
 
     def _get_related_tasks(self, is_ancestor: bool) -> Dict[str, List[str]]:
         flow_id, run_id, _, _ = self.path_components
+        metadata_dict = self.metadata_dict
         steps = (
-            self.metadata_dict.get("previous-steps")
+            metadata_dict.get("previous-steps")
             if is_ancestor
-            else self.metadata_dict.get("successor-steps")
+            else metadata_dict.get("successor-steps")
         )
 
         if not steps:
             return {}
 
+        # Convert steps to a list if it's stored as a string in the metadata
+        if is_stringish(steps):
+            steps = [steps]
+
         field_name, field_value = self._get_metadata_query_vals(
             flow_id,
             run_id,
-            len(self.metadata_dict.get("foreach-indices", [])),
+            len(metadata_dict.get("foreach-indices", [])),
             steps,
             is_ancestor=is_ancestor,
+            metadata_dict=metadata_dict,
         )
 
         return {
@@ -1419,12 +1428,9 @@ class Task(MetaflowObject):
             Dictionary mapping metadata name with value
         """
         # use the newest version of each key, hence sorting
-        if self._metadata_dict is None:
-            self._metadata_dict = {
-                m.name: m.value
-                for m in sorted(self.metadata, key=lambda m: m.created_at)
-            }
-        return self._metadata_dict
+        return {
+            m.name: m.value for m in sorted(self.metadata, key=lambda m: m.created_at)
+        }
 
     @property
     def index(self) -> Optional[int]:
