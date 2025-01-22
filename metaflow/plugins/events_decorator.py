@@ -486,7 +486,8 @@ class TriggerOnFinishDecorator(FlowDecorator):
                 run_objs.append(run_obj)
             current._update_env({"trigger": Trigger.from_runs(run_objs)})
 
-    def _parse_static_triggers(self, flows):
+    @staticmethod
+    def _parse_static_triggers(flows):
         results = []
         for flow in flows:
             if is_stringish(flow):
