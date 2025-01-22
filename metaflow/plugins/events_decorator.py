@@ -543,7 +543,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
                     "@trigger_on_finish(flow='FooFlow') or "
                     "@trigger_on_finish(flow={'name':'FooFlow', 'project_branch': 'branch'})"
                 )
-            return results
+        return results
 
     def _parse_fq_name(self, trigger):
         if trigger["fq_name"].count(".") == 0:
