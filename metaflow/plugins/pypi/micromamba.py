@@ -53,16 +53,16 @@ class Micromamba(object):
             or which("./bin/micromamba")
             or which(os.path.join(_path_to_hidden_micromamba, "bin/micromamba"))
         )
-        if self.bin is None:
+        # if self.bin is None:
             # Install Micromamba on the fly.
             # TODO: Make this optional at some point.
-            _install_micromamba(_path_to_hidden_micromamba)
-            self.bin = which(os.path.join(_path_to_hidden_micromamba, "bin/micromamba"))
+            # _install_micromamba(_path_to_hidden_micromamba)
+            # self.bin = which(os.path.join(_path_to_hidden_micromamba, "bin/micromamba"))
 
-        if self.bin is None:
-            msg = "No installation for *Micromamba* found.\n"
-            msg += "Visit https://mamba.readthedocs.io/en/latest/micromamba-installation.html for installation instructions."
-            raise MetaflowException(msg)
+        # if self.bin is None:
+        #     msg = "No installation for *Micromamba* found.\n"
+        #     msg += "Visit https://mamba.readthedocs.io/en/latest/micromamba-installation.html for installation instructions."
+        #     raise MetaflowException(msg)
 
     def solve(self, id_, packages, python, platform):
         # Performance enhancements
