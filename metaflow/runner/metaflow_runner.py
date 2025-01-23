@@ -270,16 +270,16 @@ class Runner(metaclass=RunnerMeta):
         from metaflow.parameters import flow_context
 
         # Reload the CLI with an "empty" flow -- this will remove any configuration
-        # options. They are re-added in from_cli (called below).
-        to_be_reload = [
+        # and parameter options. They are re-added in from_cli (called below).
+        to_reload = [
             "metaflow.cli",
             "metaflow.cli_components.run_cmds",
-            "metaflow.cli_components.init_cmds",
+            "metaflow.cli_components.init_cmd",
         ]
         with flow_context(None):
             [
                 importlib.reload(sys.modules[module])
-                for module in to_be_reload
+                for module in to_reload
                 if module in sys.modules
             ]
 
