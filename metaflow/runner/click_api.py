@@ -96,8 +96,13 @@ def _method_sanity_check(
             check_type(supplied_v, annotations[supplied_k])
         except TypeCheckError:
             raise TypeError(
-                "Invalid type for '%s', expected: '%s', default is '%s'"
-                % (supplied_k, annotations[supplied_k], defaults[supplied_k])
+                "Invalid type for '%s' (%s), expected: '%s', default is '%s'"
+                % (
+                    supplied_k,
+                    type(supplied_k),
+                    annotations[supplied_k],
+                    defaults[supplied_k],
+                )
             )
 
         # Clean up values to make them into what click expects
@@ -193,12 +198,12 @@ def get_annotation(param: click.Parameter) -> TTuple[Type, bool]:
         return py_type, True
     if not param.required:
         if param.multiple or param.nargs > 1:
-            return Optional[TTuple[py_type]], False
+            return Optional[Union[List[py_type], TTuple[py_type]]], False
         else:
             return Optional[py_type], False
     else:
         if param.multiple or param.nargs > 1:
-            return TTuple[py_type], False
+            return Union[List[py_type], TTuple[py_type]], False
         else:
             return py_type, False
 
