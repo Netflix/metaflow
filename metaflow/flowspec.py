@@ -86,6 +86,11 @@ class FlowSpecMeta(type):
         super().__init__(name, bases, attrs)
         if name == "FlowSpec":
             return
+
+        from .decorators import (
+            DuplicateFlowDecoratorException,
+        )  # Prevent circular import
+
         # We store some state in the flow class itself. This is primarily used to
         # attach global state to a flow. It is *not* an actual global because of
         # Runner/NBRunner. This is also created here in the meta class to avoid it being
@@ -97,6 +102,31 @@ class FlowSpecMeta(type):
 
         # Keys are _FlowState enum values
         cls._flow_state = {}
+
+        # We inherit stuff from our parent classes as well -- we need to be careful
+        # in terms of the order; we will follow the MRO with the following rules:
+        #  - decorators (cls._flow_decorators) will cause an error if they do not
+        #    support multiple and we see multiple instances of the same
+        #  - config decorators will be joined
+        #  - configs will be added later directly by the class; base class configs will
+        #    be taken into account as they would be inherited.
+
+        # We only need to do this for the base classes since the current class will
+        # get updated as decorators are parsed.
+        for base in cls.__mro__:
+            if base != cls and base != FlowSpec and issubclass(base, FlowSpec):
+                # Take care of decorators
+                for deco_name, deco in base._flow_decorators.items():
+                    if deco_name in cls._flow_decorators and not deco.allow_multiple:
+                        raise DuplicateFlowDecoratorException(deco_name)
+                    cls._flow_decorators.setdefault(deco_name, []).extend(deco)
+
+                # Take care of configs and config decorators
+                base_configs = base._flow_state.get(_FlowState.CONFIG_DECORATORS)
+                if base_configs:
+                    cls._flow_state.setdefault(_FlowState.CONFIG_DECORATORS, []).extend(
+                        base_configs
+                    )
 
         cls._init_attrs()
 
