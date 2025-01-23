@@ -26,7 +26,7 @@ class ProjectDecorator(FlowDecorator):
         projects that use the same production scheduler. The name may
         contain only lowercase alphanumeric characters and underscores.
 
-    branch : Optional[str]
+    branch : Optional[str], default None
         The branch to use. If not specified, the branch is set to
         `user.<username>` unless `production` is set to `True`. This can
         also be set on the command line using `--branch` as a top-level option.

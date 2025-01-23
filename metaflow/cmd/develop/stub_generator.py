@@ -1133,8 +1133,14 @@ class StubGenerator:
             result = result[1:]
         # Add doc to first and last overloads. Jedi uses the last one and pycharm
         # the first one. Go figure.
-        result[0] = (result[0][0], docs["func_doc"])
-        result[-1] = (result[-1][0], docs["func_doc"])
+        result[0] = (
+            result[0][0],
+            docs["func_doc"] + "\nParameters\n----------\n" + docs["param_doc"],
+        )
+        result[-1] = (
+            result[-1][0],
+            docs["func_doc"] + "\nParameters\n----------\n" + docs["param_doc"],
+        )
         return result
 
     def _generate_function_stub(
