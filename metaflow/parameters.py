@@ -316,7 +316,7 @@ class Parameter(object):
     help : str, optional, default None
         Help text to show in `run --help`.
     required : bool, optional, default None
-        Require that the user specified a value for the parameter. Note that if
+        Require that the user specifies a value for the parameter. Note that if
         a default is provide, the required flag is ignored.
         A value of None is equivalent to False.
     show_default : bool, optional, default None

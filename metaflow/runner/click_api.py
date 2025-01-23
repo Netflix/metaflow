@@ -371,6 +371,8 @@ class MetaflowAPI(object):
                     else:
                         components.append(v)
                 for k, v in options.items():
+                    if v is None:
+                        continue
                     if isinstance(v, list):
                         for i in v:
                             if isinstance(i, tuple):
