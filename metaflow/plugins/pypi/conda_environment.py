@@ -14,7 +14,7 @@ from io import BufferedIOBase, BytesIO
 from urllib.parse import unquote, urlparse
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import get_pinned_conda_libs
+from metaflow.metaflow_config import get_pinned_conda_libs, CONDA_USE_FAST_INIT
 from metaflow.metaflow_environment import MetaflowEnvironment
 
 from . import MAGIC_FILE, _datastore_packageroot
@@ -421,6 +421,7 @@ class CondaEnvironment(MetaflowEnvironment):
         # Bootstrap conda and execution environment for step
         step = next(step for step in self.flow if step.name == step_name)
         id_ = self.get_environment(step).get("id_")
+        bootstrap_module_name = "fast_bootstrap" if CONDA_USE_FAST_INIT else "bootstrap"
         if id_:
             return [
                 "echo 'Bootstrapping virtual environment...'",
@@ -428,8 +429,8 @@ class CondaEnvironment(MetaflowEnvironment):
                 # as the bootstrapping process uses the internal S3 client which would fail to import tracing
                 # due to the required dependencies being bundled into the conda environment,
                 # which is yet to be initialized at this point.
-                'DISABLE_TRACING=True python -m metaflow.plugins.pypi.bootstrap "%s" %s "%s" linux-64'
-                % (self.flow.name, id_, self.datastore_type),
+                'DISABLE_TRACING=True python -m metaflow.plugins.pypi.%s "%s" %s "%s" linux-64'
+                % (bootstrap_module_name, self.flow.name, id_, self.datastore_type),
                 "echo 'Environment bootstrapped.'",
                 # To avoid having to install micromamba in the PATH in micromamba.py, we add it to the PATH here.
                 "export PATH=$PATH:$(pwd)/micromamba/bin",

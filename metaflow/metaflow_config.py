@@ -433,6 +433,12 @@ CONDA_PACKAGE_GSROOT = from_conf("CONDA_PACKAGE_GSROOT")
 # should result in an appreciable speedup in flow environment initialization.
 CONDA_DEPENDENCY_RESOLVER = from_conf("CONDA_DEPENDENCY_RESOLVER", "conda")
 
+# Conda Fast init binary url
+CONDA_FAST_INIT_BIN_URL = from_conf("CONDA_FAST_INIT_BINARY_URL", None)
+
+# Default to not using fast init binary.
+CONDA_USE_FAST_INIT = from_conf("CONDA_USE_FAST_INIT", False)
+
 ###
 # Escape hatch configuration
 ###
