@@ -1,25 +1,18 @@
-import concurrent.futures
 import gzip
-import io
 import json
 import os
 import shutil
 import subprocess
 import sys
-import tarfile
 import time
 from urllib.error import URLError
 from urllib.request import urlopen
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
+from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, CONDA_FAST_INIT_BIN_URL
 from metaflow.plugins import DATASTORES
-from metaflow.plugins.pypi.utils import MICROMAMBA_MIRROR_URL, MICROMAMBA_URL
 from metaflow.util import which
 from urllib.request import Request
-import warnings
 
 from . import MAGIC_FILE, _datastore_packageroot
-
-URL = os.environ.get("FAST_INIT_URL")
 
 # Bootstraps a valid conda virtual environment composed of conda and pypi packages
 
@@ -37,29 +30,6 @@ def timer(func):
 
 if __name__ == "__main__":
     # TODO: Detect architecture on the fly when dealing with arm architectures.
-    # ARCH=$(uname -m)
-    # OS=$(uname)
-
-    # if [[ "$OS" == "Linux" ]]; then
-    #     PLATFORM="linux"
-    #     if [[ "$ARCH" == "aarch64" ]]; then
-    #         ARCH="aarch64";
-    #     elif [[ $ARCH == "ppc64le" ]]; then
-    #         ARCH="ppc64le";
-    #     else
-    #         ARCH="64";
-    #     fi
-    # fi
-
-    # if [[ "$OS" == "Darwin" ]]; then
-    #     PLATFORM="osx";
-    #     if [[ "$ARCH" == "arm64" ]]; then
-    #         ARCH="arm64";
-    #     else
-    #         ARCH="64"
-    #     fi
-    # fi
-
     def run_cmd(cmd, stdin_str):
         result = subprocess.run(
             cmd,
@@ -88,6 +58,9 @@ if __name__ == "__main__":
             return fast_initializer_path
 
         # TODO: take architecture into account
+        url = CONDA_FAST_INIT_BIN_URL
+        if url is None:
+            raise Exception("URL for Binary is unset.")
 
         # Prepare directory once
         os.makedirs(os.path.dirname(fast_initializer_path), exist_ok=True)
@@ -116,10 +89,7 @@ if __name__ == "__main__":
                         )
                     time.sleep(2**attempt)
 
-        if URL is None:
-            raise Exception("URL for Binary is unset.")
-
-        _download_and_extract(URL)
+        _download_and_extract(url)
 
         # Set executable permission
         os.chmod(fast_initializer_path, 0o755)
@@ -151,7 +121,9 @@ if __name__ == "__main__":
         run_cmd(cmd, all_package_urls)
 
     if len(sys.argv) != 5:
-        print("Usage: bootstrap.py <flow_name> <id> <datastore_type> <architecture>")
+        print(
+            "Usage: fast_bootstrap.py <flow_name> <id> <datastore_type> <architecture>"
+        )
         sys.exit(1)
 
     try:
