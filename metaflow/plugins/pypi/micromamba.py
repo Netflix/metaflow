@@ -37,7 +37,7 @@ class Micromamba(object):
             _home = os.environ.get("METAFLOW_TOKEN_HOME")
         else:
             _home = os.environ.get("METAFLOW_HOME", "~/.metaflowconfig")
-        _path_to_hidden_micromamba = os.path.join(
+        self._path_to_hidden_micromamba = os.path.join(
             os.path.expanduser(_home),
             "micromamba",
         )
@@ -47,22 +47,29 @@ class Micromamba(object):
         else:
             self.logger = lambda *args, **kwargs: None  # No-op logger if not provided
 
-        self.bin = (
+        self._bin = (
             which(os.environ.get("METAFLOW_PATH_TO_MICROMAMBA") or "micromamba")
             or which("./micromamba")  # to support remote execution
             or which("./bin/micromamba")
-            or which(os.path.join(_path_to_hidden_micromamba, "bin/micromamba"))
+            or which(os.path.join(self._path_to_hidden_micromamba, "bin/micromamba"))
         )
-        # if self.bin is None:
-            # Install Micromamba on the fly.
-            # TODO: Make this optional at some point.
-            # _install_micromamba(_path_to_hidden_micromamba)
-            # self.bin = which(os.path.join(_path_to_hidden_micromamba, "bin/micromamba"))
 
-        # if self.bin is None:
-        #     msg = "No installation for *Micromamba* found.\n"
-        #     msg += "Visit https://mamba.readthedocs.io/en/latest/micromamba-installation.html for installation instructions."
-        #     raise MetaflowException(msg)
+    @property
+    def bin(self):
+        "Defer installing Micromamba until when the binary path is actually requested"
+        if self._bin is not None:
+            return self._bin
+        # Install Micromamba on the fly.
+        # TODO: Make this optional at some point.
+        _install_micromamba(self._path_to_hidden_micromamba)
+        self._bin = which(
+            os.path.join(self._path_to_hidden_micromamba, "bin/micromamba")
+        )
+
+        if self._bin is None:
+            msg = "No installation for *Micromamba* found.\n"
+            msg += "Visit https://mamba.readthedocs.io/en/latest/micromamba-installation.html for installation instructions."
+            raise MetaflowException(msg)
 
     def solve(self, id_, packages, python, platform):
         # Performance enhancements
