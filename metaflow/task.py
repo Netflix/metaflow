@@ -390,6 +390,46 @@ class MetaflowTask(object):
                     )
                 )
 
+    def run_spin_step(
+        self,
+        step_name,
+        task_pathspec,
+        new_run_id,
+        new_task_id,
+        input_paths,
+        split_index,
+        retry_count,
+        max_user_code_retries,
+    ):
+        step_func = getattr(self.flow, step_name)
+        decorators = step_func.decorators
+
+        # initialize output datastore
+        output = self.flow_datastore.get_task_datastore(
+            new_run_id, step_name, new_task_id, 0, mode="w"
+        )
+
+        output.init_task()
+
+        # How we access the input and index attributes depends on the execution context.
+        # If spin is set to True, we short-circuit attribute access to getattr directly
+        # Also set the other attributes that are needed for the task to execute
+        self.flow._spin = True
+        self.flow._current_step = step_name
+        self.flow._success = False
+        self.flow._task_ok = None
+        self.flow._exception = None
+
+        # Set inputs
+        if spin_parser_validator.step_type == "join":
+            self.flow._set_datastore(output)
+        else:
+            # Set inputs
+            self.flow._set_datastore(step_datastore)
+            if step_datastore.is_foreach_step:
+                setattr(self.flow, "_spin_input", step_datastore.input)
+                setattr(self.flow, "_spin_index", step_datastore.index)
+
     def run_step(
         self,
         step_name,

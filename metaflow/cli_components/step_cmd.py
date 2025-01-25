@@ -253,4 +253,6 @@ def spin_internal(
     print("Task is: ", task)
     print("I am here 3")
     print("sys.executable: ", sys.executable)
+
+    task.run_spin_step()
     # pass

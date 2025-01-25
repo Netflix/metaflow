@@ -79,10 +79,10 @@ class LinearStepDatastore(object):
 
     @property
     def previous_task(self):
-        # This is a linear step, so we only have one immediate ancestor
         if self._previous_task:
             return self._previous_task
 
+        # This is a linear step, so we only have one immediate ancestor
         prev_task_pathspecs = self._task.immediate_ancestors
         prev_task_pathspec = list(chain.from_iterable(prev_task_pathspecs.values()))[0]
         self._previous_task = Task(prev_task_pathspec, _namespace_check=False)
