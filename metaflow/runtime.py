@@ -120,10 +120,6 @@ class SpinRuntime(object):
 
         # Create a new run_id for the spin task
         self._run_id = self._metadata.new_run_id()
-        print(
-            f"New run_id for spin task: {self._run_id} and step func: {self._step_func.name}"
-        )
-
         for deco in self.whitelist_decorators:
             print("-" * 100)
             deco.runtime_init(flow, graph, package, self._run_id)
@@ -266,7 +262,7 @@ class SpinRuntime(object):
             process = subprocess.Popen(
                 cmdline,
                 env=env,
-                bufsize=1,
+                bufsize=1,  # Line buffering
                 stdin=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 stdout=subprocess.PIPE,
@@ -275,23 +271,42 @@ class SpinRuntime(object):
         except Exception as e:
             raise TaskFailed(self.task, f"Failed to launch task: {str(e)}")
 
-        while True:
-            stdout_line = process.stdout.readline()
-            if stdout_line:
-                self._process_output(stdout_line, stdout_buffer)
+        poll = procpoll.make_poll()
+        poll.add(process.stdout.fileno())
+        poll.add(process.stderr.fileno())
 
-            stderr_line = process.stderr.readline()
-            if stderr_line:
-                self._process_output(stderr_line, stderr_buffer, is_stderr=True)
+        # Map file descriptors to their respective streams and buffers
+        fd_map = {
+            process.stdout.fileno(): (process.stdout, stdout_buffer, False),
+            process.stderr.fileno(): (process.stderr, stderr_buffer, True),
+        }
+
+        while True:
+            # Poll for events with a timeout
+            events = poll.poll(POLL_TIMEOUT)
+
+            if not events:
+                if process.poll() is not None:
+                    break
+                continue
+
+            for event in events:
+                if event.can_read:
+                    stream, buffer, is_stderr = fd_map[event.fd]
+                    line = stream.readline()
+                    if line:
+                        self._process_output(line, buffer, is_stderr)
+
+                if event.is_terminated:
+                    poll.remove(event.fd)
 
             if process.poll() is not None:
                 break
 
         # Process any remaining output
-        for line in process.stdout:
-            self._process_output(line, stdout_buffer)
-        for line in process.stderr:
-            self._process_output(line, stderr_buffer, is_stderr=True)
+        for stream, buffer, is_stderr in fd_map.values():
+            for line in stream:
+                self._process_output(line, buffer, is_stderr)
 
         returncode = process.wait()
 
