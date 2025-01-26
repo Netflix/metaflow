@@ -184,6 +184,12 @@ class FlowSpec(metaclass=FlowSpecMeta):
         self._transition = None
         self._cached_input = {}
 
+        # Spin state
+        self._spin = False
+        self._spin_index = None
+        self._spin_input = None
+        self._spin_foreach_stack = None
+
         if use_cli:
             with parameters.flow_context(self.__class__) as _:
                 from . import cli
@@ -459,6 +465,8 @@ class FlowSpec(metaclass=FlowSpecMeta):
         int, optional
             Index of the task in a foreach step.
         """
+        if self._spin:
+            return self._spin_index
         if self._foreach_stack:
             return self._foreach_stack[-1].index
 
@@ -479,6 +487,8 @@ class FlowSpec(metaclass=FlowSpecMeta):
         object, optional
             Input passed to the foreach task.
         """
+        if self._spin:
+            return self._datastore["input"]
         return self._find_input()
 
     def foreach_stack(self) -> Optional[List[Tuple[int, int, Any]]]:
@@ -528,6 +538,8 @@ class FlowSpec(metaclass=FlowSpecMeta):
         List[Tuple[int, int, Any]]
             An array describing the current stack of foreach steps.
         """
+        if self._spin:
+            return self._spin_foreach_stack
         return [
             (frame.index, frame.num_splits, self._find_input(stack_index=i))
             for i, frame in enumerate(self._foreach_stack)

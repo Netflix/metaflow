@@ -91,6 +91,7 @@ class SpinRuntime(object):
         monitor,
         step_func,
         task_pathspec,
+        skip_decorators=False,
         max_log_size=MAX_LOG_SIZE,
     ):
         from metaflow import Task
@@ -108,11 +109,12 @@ class SpinRuntime(object):
 
         self._step_func = step_func
         self._task_pathspec = task_pathspec
-        self._prev_task = Task(self._task_pathspec, _namespace_check=False)
+        self._task = Task(self._task_pathspec, _namespace_check=False)
         self._input_paths = None
         self._split_index = None
         self._whitelist_decorators = None
         self._config_file_name = None
+        self._skip_decorators = skip_decorators
         self._max_log_size = max_log_size
         self._encoding = sys.stdout.encoding or "UTF-8"
 
@@ -122,26 +124,15 @@ class SpinRuntime(object):
             f"New run_id for spin task: {self._run_id} and step func: {self._step_func.name}"
         )
 
-        print(
-            f"Decorators for {self._step_func.name}: {list(self._step_func.decorators)}"
-        )
-
-        for deco in self._step_func.decorators:
-            print(
-                f"Running runtime_init for {deco.__class__.__name__} at {self._step_func.name}"
-            )
+        for deco in self.whitelist_decorators:
             print("-" * 100)
             deco.runtime_init(flow, graph, package, self._run_id)
-            if hasattr(deco, "_metaflow_home"):
-                print(f"Metaflow home is {deco._metaflow_home}")
-
-        print(f"Input paths: {self.input_paths}")
 
     @property
     def split_index(self):
         if self._split_index:
             return self._split_index
-        foreach_indices = self._prev_task.metadata_dict.get("foreach-indices", [])
+        foreach_indices = self._task.metadata_dict.get("foreach-indices", [])
         self._split_index = foreach_indices[-1] if foreach_indices else None
         return self._split_index
 
@@ -167,7 +158,7 @@ class SpinRuntime(object):
                 )
             self._input_paths = [f"{run_id}/_parameters/{task.id}"]
         else:
-            ancestors = self._prev_task.immediate_ancestors
+            ancestors = self._task.immediate_ancestors
             self._input_paths = [
                 _format_input_paths(ancestor)
                 for i, ancestor in enumerate(chain.from_iterable(ancestors.values()))
@@ -176,6 +167,8 @@ class SpinRuntime(object):
 
     @property
     def whitelist_decorators(self):
+        if self._skip_decorators:
+            return []
         if self._whitelist_decorators:
             return self._whitelist_decorators
         self._whitelist_decorators = [
@@ -244,7 +237,7 @@ class SpinRuntime(object):
                     deco.runtime_finished(exception)
 
     def _launch_and_monitor_task(self):
-        args = CLIArgs(self.task, spin=True)
+        args = CLIArgs(self.task, spin=True, prev_task_pathspec=self._task_pathspec)
         env = dict(os.environ)
 
         for deco in self.task.decos:
@@ -1767,12 +1760,13 @@ class CLIArgs(object):
     for step execution in StepDecorator.runtime_step_cli().
     """
 
-    def __init__(self, task, spin=False):
+    def __init__(self, task, spin=False, prev_task_pathspec=None):
         self.task = task
         self.spin = spin
+        self.prev_task_pathspec = prev_task_pathspec
         self.entrypoint = list(task.entrypoint)
         self.top_level_options = {
-            "quiet": True,
+            "quiet": True if spin else False,
             "metadata": self.task.metadata_type,
             "environment": self.task.environment_type,
             "datastore": self.task.datastore_type,
@@ -1830,8 +1824,12 @@ class CLIArgs(object):
         self.command_options = {
             "run-id": self.task.run_id,
             "task-id": self.task.task_id,
+            "task-pathspec": self.prev_task_pathspec,
             "input-paths": self.task.input_paths,
             "split-index": self.task.split_index,
+            "retry-count": self.task.retries,
+            "max-user-code-retries": self.task.user_code_retries,
+            "namespace": get_namespace() or "",
         }
         self.env = {}
 

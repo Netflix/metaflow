@@ -385,12 +385,20 @@ def run(
     help="Task ID to use when spinning up the step. The spinned up step will use the artifacts"
     "corresponding to this task ID. If not provided, an arbitrary task ID from the latest run will be used.",
 )
+@click.option(
+    "--skip-decorators/--no-skip-decorators",
+    is_flag=True,
+    default=True,
+    show_default=True,
+    help="Skip decorators attached to the step.",
+)
 @common_runner_options
 @click.pass_obj
 def spin(
     obj,
     step_name,
     task_pathspec=None,
+    skip_decorators=False,
     run_id_file=None,
     runner_attribute_file=None,
     **kwargs
@@ -418,10 +426,10 @@ def spin(
         obj.monitor,
         step_func,
         task_pathspec,
+        skip_decorators,
     )
 
     # write_latest_run_id(obj, runtime.run_id)
     # write_file(run_id_file, runtime.run_id)
 
     spin_runtime.execute()
-    pass

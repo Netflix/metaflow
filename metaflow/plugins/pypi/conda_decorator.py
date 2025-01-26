@@ -287,7 +287,6 @@ class CondaStepDecorator(StepDecorator):
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context
     ):
-        print("Let's go - I am here")
         if self.disabled:
             return
         # Ensure local installation of Metaflow is visible to user code

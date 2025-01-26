@@ -509,12 +509,6 @@ def start(
             ctx.obj.event_logger,
             ctx.obj.monitor,
         )
-        echo(
-            "Using local metadata provider, datastore, environment, and null event logger and monitor for spin."
-        )
-        print(f"Using metadata provider: {ctx.obj.metadata}")
-        echo(f"Using Datastore root: {datastore_root}")
-        echo(f"Using Flow Datastore: {ctx.obj.flow_datastore}")
 
     # Start event logger and monitor
     ctx.obj.event_logger.start()

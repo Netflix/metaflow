@@ -191,6 +191,12 @@ def step(
     help="Task ID for the step that's about to be spun",
 )
 @click.option(
+    "--task-pathspec",
+    default=None,
+    show_default=True,
+    help="Task Pathspec to be used in the spun step.",
+)
+@click.option(
     "--input-paths",
     help="A comma-separated list of pathspecs specifying inputs for this step.",
 )
@@ -223,11 +229,13 @@ def spin_internal(
     step_name,
     run_id=None,
     task_id=None,
+    task_pathspec=None,
     input_paths=None,
     split_index=None,
     retry_count=None,
     max_user_code_retries=None,
     namespace=None,
+    skip_decorators=False,
 ):
     import sys
 
@@ -235,9 +243,7 @@ def spin_internal(
         echo = echo_dev_null
     else:
         echo = echo_always
-    print("I am here 1")
-    print("I am here 2")
-    # echo("Spinning a task, *%s*" % step_name, fg="magenta", bold=False)
+    echo("Spinning a task, *%s*" % step_name, fg="magenta", bold=False)
 
     task = MetaflowTask(
         ctx.obj.flow,
@@ -249,10 +255,22 @@ def spin_internal(
         ctx.obj.monitor,  # null monitor
         None,  # no unbounded foreach context
     )
-    # echo("Task is: ", task)
-    print("Task is: ", task)
-    print("I am here 3")
+    # print("Task is: ", task)
+    # print("I am here 3")
     print("sys.executable: ", sys.executable)
+    import time
 
-    task.run_spin_step()
-    # pass
+    start = time.time()
+    task.run_spin_step(
+        step_name,
+        task_pathspec,
+        run_id,
+        task_id,
+        input_paths,
+        split_index,
+        retry_count,
+        max_user_code_retries,
+        namespace,
+        skip_decorators,
+    )
+    print("Time taken for the whole thing: ", time.time() - start)

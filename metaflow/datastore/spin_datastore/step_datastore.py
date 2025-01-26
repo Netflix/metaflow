@@ -1,9 +1,11 @@
-class LinearStepDatastore(object):
-    def __init__(self, task_pathspec):
-        from metaflow import Task
+from itertools import chain
 
-        self._task_pathspec = task_pathspec
-        self._task = Task(task_pathspec, _namespace_check=False)
+
+class LinearStepDatastore(object):
+    def __init__(self, task, immediate_ancestors, artifacts={}):
+        self._task = task
+        self._immediate_ancestors = immediate_ancestors
+        self._artifacts = artifacts
         self._previous_task = None
         self._data = {}
 
@@ -31,21 +33,26 @@ class LinearStepDatastore(object):
             return self._data[name]
 
         # We always look for any artifacts provided by the user first
-        if name in self.artifacts:
-            return self.artifacts[name]
-
-        if self.run_id is None:
-            raise AttributeError(
-                f"Attribute '{name}' not provided by the user and no `run_id` was provided. "
-            )
+        if name in self._artifacts:
+            return self._artifacts[name]
 
         # If the linear step is part of a foreach step, we need to set the input attribute
         # and the index attribute
         if name == "input":
             if not self._task.index:
                 raise AttributeError(
-                    f"Attribute '{name}' does not exist for step `{self.step_name}` as it is not part of a foreach step."
+                    f"Attribute '{name}' does not exist for step `{self._task.parent.id}` as it is not part of "
+                    f"a foreach step."
                 )
+            # input only exists for steps immediately after a foreach split
+            # we check for that by comparing the length of the foreach-step-names
+            # attribute of the task and its immediate ancestors
+            foreach_step_names = self._task.metadata_dict.get("foreach-step-names")
+            prev_task_foreach_step_names = self.previous_task.metadata_dict.get(
+                "foreach-step-names"
+            )
+            if len(foreach_step_names) <= len(prev_task_foreach_step_names):
+                return None  # input does not exist, so we return None
 
             foreach_stack = self._task["_foreach_stack"].data
             foreach_index = foreach_stack[-1].index
@@ -60,7 +67,8 @@ class LinearStepDatastore(object):
         if name == "index":
             if not self._task.index:
                 raise AttributeError(
-                    f"Attribute '{name}' does not exist for step `{self.step_name}` as it is not part of a foreach step."
+                    f"Attribute '{name}' does not exist for step `{self.step_name}` as it is not part of a "
+                    f"foreach step."
                 )
             foreach_stack = self._task["_foreach_stack"].data
             foreach_index = foreach_stack[-1].index
@@ -83,8 +91,11 @@ class LinearStepDatastore(object):
             return self._previous_task
 
         # This is a linear step, so we only have one immediate ancestor
-        prev_task_pathspecs = self._task.immediate_ancestors
-        prev_task_pathspec = list(chain.from_iterable(prev_task_pathspecs.values()))[0]
+        from metaflow import Task
+
+        prev_task_pathspec = list(
+            chain.from_iterable(self._immediate_ancestors.values())
+        )[0]
         self._previous_task = Task(prev_task_pathspec, _namespace_check=False)
         return self._previous_task
 
