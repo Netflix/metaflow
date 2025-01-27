@@ -223,6 +223,13 @@ def step(
     default=None,
     help="Change namespace from the default (your username) to the specified tag.",
 )
+@click.option(
+    "--skip-decorators/--no-skip-decorators",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Skip decorators attached to the step.",
+)
 @click.pass_context
 def spin_internal(
     ctx,
@@ -255,9 +262,6 @@ def spin_internal(
         ctx.obj.monitor,  # null monitor
         None,  # no unbounded foreach context
     )
-    # print("Task is: ", task)
-    # print("I am here 3")
-    print("sys.executable: ", sys.executable)
     import time
 
     start = time.time()

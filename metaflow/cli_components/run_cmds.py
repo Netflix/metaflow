@@ -388,7 +388,7 @@ def run(
 @click.option(
     "--skip-decorators/--no-skip-decorators",
     is_flag=True,
-    default=True,
+    default=False,
     show_default=True,
     help="Skip decorators attached to the step.",
 )
@@ -429,7 +429,20 @@ def spin(
         skip_decorators,
     )
 
-    # write_latest_run_id(obj, runtime.run_id)
-    # write_file(run_id_file, runtime.run_id)
-
+    write_latest_run_id(obj, spin_runtime.run_id)
+    write_file(run_id_file, spin_runtime.run_id)
     spin_runtime.execute()
+
+    local_metadata = f"{obj.metadata.__class__.TYPE}@{obj.metadata.__class__.INFO}"
+    if runner_attribute_file:
+        with open(runner_attribute_file, "w") as f:
+            json.dump(
+                {
+                    "task_id": spin_runtime.task.task_id,
+                    "step_name": step_name,
+                    "run_id": spin_runtime.run_id,
+                    "flow_name": obj.flow.name,
+                    "metadata": local_metadata,
+                },
+                f,
+            )

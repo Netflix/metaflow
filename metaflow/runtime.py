@@ -119,10 +119,10 @@ class SpinRuntime(object):
         self._encoding = sys.stdout.encoding or "UTF-8"
 
         # Create a new run_id for the spin task
-        self._run_id = self._metadata.new_run_id()
+        self.run_id = self._metadata.new_run_id()
         for deco in self.whitelist_decorators:
             print("-" * 100)
-            deco.runtime_init(flow, graph, package, self._run_id)
+            deco.runtime_init(flow, graph, package, self.run_id)
 
     @property
     def split_index(self):
@@ -179,7 +179,7 @@ class SpinRuntime(object):
             self._flow_datastore,
             self._flow,
             step,
-            self._run_id,
+            self.run_id,
             self._metadata,
             self._environment,
             self._entrypoint,
@@ -205,7 +205,7 @@ class SpinRuntime(object):
 
             self.task = self._new_task(self._step_func.name, {})
             _ds = self._flow_datastore.get_task_datastore(
-                self._run_id,
+                self.run_id,
                 self._step_func.name,
                 self.task.task_id,
                 attempt=0,
@@ -248,6 +248,9 @@ class SpinRuntime(object):
         # command line
         if self._config_file_name:
             args.top_level_options["local-config-file"] = self._config_file_name
+
+        # Add the skip-decorators flag to the command options
+        args.command_options.update({"skip-decorators": self._skip_decorators})
 
         env.update(args.get_env())
         env["PYTHONUNBUFFERED"] = "x"
