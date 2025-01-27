@@ -1224,10 +1224,11 @@ class Task(MetaflowObject):
     def _get_related_tasks(self, is_ancestor: bool) -> Dict[str, List[str]]:
         flow_id, run_id, _, _ = self.path_components
         metadata_dict = self.metadata_dict
+        # The specific values in the metadata are json serialized strings, so we need to load them before use.
         steps = (
-            metadata_dict.get("previous-steps")
+            json.loads(metadata_dict.get("previous-steps"))
             if is_ancestor
-            else metadata_dict.get("successor-steps")
+            else json.loads(metadata_dict.get("successor-steps"))
         )
 
         if not steps:
