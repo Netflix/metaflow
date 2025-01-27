@@ -14,7 +14,7 @@ from io import BufferedIOBase, BytesIO
 from urllib.parse import unquote, urlparse
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import get_pinned_conda_libs, CONDA_USE_FAST_INIT
+from metaflow.metaflow_config import get_pinned_conda_libs
 from metaflow.metaflow_environment import MetaflowEnvironment
 
 from . import MAGIC_FILE, _datastore_packageroot
