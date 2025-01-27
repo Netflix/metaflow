@@ -523,19 +523,19 @@ class MetaflowTask(object):
                 [
                     MetaDatum(
                         field="foreach-indices",
-                        value=foreach_indices,
+                        value=json.dumps(foreach_indices),
                         type="foreach-indices",
                         tags=metadata_tags,
                     ),
                     MetaDatum(
                         field="foreach-indices-truncated",
-                        value=foreach_indices_truncated,
+                        value=json.dumps(foreach_indices_truncated),
                         type="foreach-indices-truncated",
                         tags=metadata_tags,
                     ),
                     MetaDatum(
                         field="foreach-step-names",
-                        value=foreach_step_names,
+                        value=json.dumps(foreach_step_names),
                         type="foreach-step-names",
                         tags=metadata_tags,
                     ),
@@ -783,13 +783,13 @@ class MetaflowTask(object):
                             ),
                             MetaDatum(
                                 field="previous-steps",
-                                value=previous_steps,
+                                value=json.dumps(previous_steps),
                                 type="previous-steps",
                                 tags=metadata_tags,
                             ),
                             MetaDatum(
                                 field="successor-steps",
-                                value=successor_steps,
+                                value=json.dumps(successor_steps),
                                 type="successor-steps",
                                 tags=metadata_tags,
                             ),
