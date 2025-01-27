@@ -88,7 +88,6 @@ if __name__ == "__main__":
             os.environ["PATH"] += os.pathsep + os.path.dirname(fast_initializer_path)
             return fast_initializer_path
 
-        # TODO: take architecture into account
         url = CONDA_FAST_INIT_BIN_URL
         if url is None:
             raise Exception("URL for Binary is unset.")
