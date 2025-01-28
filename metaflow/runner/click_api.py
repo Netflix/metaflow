@@ -224,21 +224,29 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
         path_was_added = True
 
     try:
+        # Get module name from the file path
+        module_name = os.path.splitext(os.path.basename(flow_file))[0]
+
         # Check if the module has already been loaded
         if flow_file in loaded_modules:
             module = loaded_modules[flow_file]
         else:
             # Load the module if it's not already loaded
-            spec = importlib.util.spec_from_file_location("module", flow_file)
+            spec = importlib.util.spec_from_file_location(module_name, flow_file)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             # Cache the loaded module
             loaded_modules[flow_file] = module
-        classes = inspect.getmembers(module, inspect.isclass)
 
+        classes = inspect.getmembers(module, inspect.isclass)
         flow_cls = None
+
         for _, kls in classes:
-            if kls != FlowSpec and issubclass(kls, FlowSpec):
+            if (
+                kls is not FlowSpec
+                and kls.__module__ == module_name
+                and issubclass(kls, FlowSpec)
+            ):
                 if flow_cls is not None:
                     raise MetaflowException(
                         "Multiple FlowSpec classes found in %s" % flow_file
