@@ -26,6 +26,24 @@ class ProjectDecorator(FlowDecorator):
         projects that use the same production scheduler. The name may
         contain only lowercase alphanumeric characters and underscores.
 
+    branch : Optional[str]
+        The branch to use. If not specified, the branch is set to
+        `user.<username>` unless `production` is set to `True`. This can
+        also be set on the command line using `--branch` as a top-level option.
+        It is an error to specify `branch` in the decorator and on the command line.
+
+    production : bool, default False
+        Whether or not the branch is the production branch. This can also be set on the
+        command line using `--production` as a top-level option. It is an error to specify
+        `production` in the decorator and on the command line.
+        The project branch name will be:
+          - if `branch` is specified:
+            - if `production` is True: `prod.<branch>`
+            - if `production` is False: `test.<branch>`
+          - if `branch` is not specified:
+            - if `production` is True: `prod`
+            - if `production` is False: `user.<username>`
+
     MF Add To Current
     -----------------
     project_name -> str
