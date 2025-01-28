@@ -4,6 +4,8 @@ import math
 import sys
 import os
 import time
+import json
+import hashlib
 import traceback
 
 from types import MethodType, FunctionType
@@ -36,6 +38,23 @@ class MetaflowTask(object):
     """
     MetaflowTask prepares a Flow instance for execution of a single step.
     """
+
+    @staticmethod
+    def _dynamic_runtime_metadata(foreach_stack):
+        foreach_indices = [foreach_frame.index for foreach_frame in foreach_stack]
+        foreach_indices_truncated = foreach_indices[:-1]
+        foreach_step_names = [foreach_frame.step for foreach_frame in foreach_stack]
+        return foreach_indices, foreach_indices_truncated, foreach_step_names
+
+    @staticmethod
+    def _static_runtime_metadata(graph_info, step_name):
+        prev_steps = [
+            node_name
+            for node_name, attributes in graph_info["steps"].items()
+            if step_name in attributes["next"]
+        ]
+        successor_steps = graph_info["steps"][step_name]["next"]
+        return prev_steps, successor_steps
 
     def __init__(
         self,
@@ -493,6 +512,36 @@ class MetaflowTask(object):
                     )
                 )
 
+            # Add runtime dag info - for a nested foreach this may look like:
+            # foreach_indices: [0, 1]
+            # foreach_indices_truncated: [0]
+            # foreach_step_names: ['step1', 'step2']
+            foreach_indices, foreach_indices_truncated, foreach_step_names = (
+                self._dynamic_runtime_metadata(foreach_stack)
+            )
+            metadata.extend(
+                [
+                    MetaDatum(
+                        field="foreach-indices",
+                        value=foreach_indices,
+                        type="foreach-indices",
+                        tags=metadata_tags,
+                    ),
+                    MetaDatum(
+                        field="foreach-indices-truncated",
+                        value=foreach_indices_truncated,
+                        type="foreach-indices-truncated",
+                        tags=metadata_tags,
+                    ),
+                    MetaDatum(
+                        field="foreach-step-names",
+                        value=foreach_step_names,
+                        type="foreach-step-names",
+                        tags=metadata_tags,
+                    ),
+                ]
+            )
+
         self.metadata.register_metadata(
             run_id,
             step_name,
@@ -559,6 +608,7 @@ class MetaflowTask(object):
                 self.flow._success = False
                 self.flow._task_ok = None
                 self.flow._exception = None
+
                 # Note: All internal flow attributes (ie: non-user artifacts)
                 # should either be set prior to running the user code or listed in
                 # FlowSpec._EPHEMERAL to allow for proper merging/importing of
@@ -616,7 +666,9 @@ class MetaflowTask(object):
                                 "graph_info": self.flow._graph_info,
                             }
                         )
-
+                previous_steps, successor_steps = self._static_runtime_metadata(
+                    self.flow._graph_info, step_name
+                )
                 for deco in decorators:
                     deco.task_pre_step(
                         step_name,
@@ -727,8 +779,20 @@ class MetaflowTask(object):
                                 field="attempt_ok",
                                 value=attempt_ok,
                                 type="internal_attempt_status",
-                                tags=["attempt_id:{0}".format(retry_count)],
-                            )
+                                tags=metadata_tags,
+                            ),
+                            MetaDatum(
+                                field="previous-steps",
+                                value=previous_steps,
+                                type="previous-steps",
+                                tags=metadata_tags,
+                            ),
+                            MetaDatum(
+                                field="successor-steps",
+                                value=successor_steps,
+                                type="successor-steps",
+                                tags=metadata_tags,
+                            ),
                         ],
                     )
 
