@@ -226,7 +226,9 @@ class FlowSpec(metaclass=FlowSpecMeta):
     def _process_config_decorators(cls, config_options, ignore_errors=False):
 
         # Fast path for no user configurations
-        if not cls._flow_state.get(_FlowState.CONFIG_DECORATORS):
+        if not cls._flow_state.get(_FlowState.CONFIG_DECORATORS) and all(
+            len(step.config_decorators) == 0 for step in cls._steps
+        ):
             # Process parameters to allow them to also use config values easily
             for var, param in cls._get_parameters():
                 if param.IS_CONFIG_PARAMETER:
