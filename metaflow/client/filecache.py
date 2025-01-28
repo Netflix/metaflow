@@ -230,7 +230,10 @@ class FileCache(object):
         )
         # This will reuse the blob cache if needed. We do not have an
         # artifact cache so the unpickling happens every time here.
-        return task_ds.load_artifacts([n for n, _ in task_ds.items()])
+        # TODO: Figure out load_context
+        return task_ds.load_artifacts(
+            [n for n, _ in task_ds.items()], load_context=None
+        )
 
     def get_artifacts(
         self,
@@ -251,7 +254,8 @@ class FileCache(object):
         )
         # note that load_artifacts uses flow_datastore.castore which goes
         # through one of the self._blob_cache
-        return task_ds.load_artifacts(names)
+        # TODO: Figure out load_context
+        return task_ds.load_artifacts(names, load_context=None)
 
     def create_file(self, path, value):
         if self._objects is None:
