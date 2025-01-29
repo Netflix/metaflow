@@ -19,6 +19,8 @@ import warnings
 
 from . import MAGIC_FILE, _datastore_packageroot
 
+FAST_INIT_BIN_URL = "https://fast-flow-init.outerbounds.sh/{platform}/fast-env-0.1.0.gz"
+
 # Bootstraps a valid conda virtual environment composed of conda and pypi packages
 
 
@@ -76,7 +78,6 @@ if __name__ == "__main__":
     @timer
     def install_fast_initializer(architecture):
         import gzip
-        from metaflow.metaflow_config import CONDA_FAST_INIT_BIN_URL
 
         fast_initializer_path = os.path.join(
             os.getcwd(), "fast-initializer", "bin", "fast-initializer"
@@ -88,9 +89,7 @@ if __name__ == "__main__":
             os.environ["PATH"] += os.pathsep + os.path.dirname(fast_initializer_path)
             return fast_initializer_path
 
-        url = CONDA_FAST_INIT_BIN_URL
-        if url is None:
-            raise Exception("URL for Binary is unset.")
+        url = FAST_INIT_BIN_URL.format(platform=architecture)
 
         # Prepare directory once
         os.makedirs(os.path.dirname(fast_initializer_path), exist_ok=True)
