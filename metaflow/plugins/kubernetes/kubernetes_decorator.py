@@ -600,9 +600,7 @@ class KubernetesDecorator(StepDecorator):
             # local file system after the user code has finished execution.
             # This happens via datastore as a communication bridge.
 
-            # TODO:  There is no guarantee that task_pre_step executes before
-            #        task_finished is invoked. This currently results in us not having access to the metadata, as it is bound in the pre_step
-            if hasattr(self, "metadata") and self.metadata.TYPE == "local":
+            if self.metadata.TYPE == "local":
                 # Note that the datastore is *always* Amazon S3 (see
                 # runtime_task_created function).
                 sync_local_metadata_to_datastore(
