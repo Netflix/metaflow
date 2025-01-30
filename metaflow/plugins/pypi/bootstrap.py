@@ -346,6 +346,7 @@ if __name__ == "__main__":
             all_package_urls += f"{storage.datastore_root}/{url}\n"
 
         # Initialize environment
+        # NOTE: For the time being the fast-initializer only works for the S3 datastore implementation
         cmd = f"fast-initializer --prefix {prefix} --packages-dir {pkgs_dir}"
         run_cmd(cmd, all_package_urls)
 
