@@ -19,7 +19,7 @@ import warnings
 
 from . import MAGIC_FILE, _datastore_packageroot
 
-FAST_INIT_BIN_URL = "https://fast-flow-init.outerbounds.sh/{platform}/fast-env-0.1.0.gz"
+FAST_INIT_BIN_URL = "https://fast-flow-init.outerbounds.sh/{platform}/fast-env-0.1.1.gz"
 
 # Bootstraps a valid conda virtual environment composed of conda and pypi packages
 
