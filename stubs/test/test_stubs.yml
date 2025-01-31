@@ -34,6 +34,10 @@
     @project(name="project_name")
     class CorrectFlow(FlowSpec):
       ...
+
+    @project(name="project_name", branch="foo", production=True)
+    class CorrectFlow2(FlowSpec):
+      ...
   out: |
     main:3: error: .*incompatible type.*expected "str"\s+\[arg-type\]
     main:4: error: .*Too many positional arguments for "project"\s+\[misc\]
