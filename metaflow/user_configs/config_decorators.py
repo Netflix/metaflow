@@ -406,19 +406,6 @@ class CustomFlowDecorator:
             self._args = args
             self._kwargs = kwargs
 
-    def __get__(self, instance, owner):
-        # Required so that we "present" as a FlowSpec when the flow decorator is
-        # of the form
-        # @MyFlowDecorator
-        # class MyFlow(FlowSpec):
-        #     pass
-        #
-        # In that case, if we don't have __get__, the object is a CustomFlowDecorator
-        # and not a FlowSpec. This is more critical for steps (and CustomStepDecorator)
-        # because other parts of the code rely on steps having is_step. There are
-        # other ways to solve this but this allowed for minimal changes going forward.
-        return self()
-
     def __call__(
         self, flow_spec: Optional["metaflow.flowspec.FlowSpecMeta"] = None
     ) -> "metaflow.flowspec.FlowSpecMeta":
@@ -447,6 +434,15 @@ class CustomFlowDecorator:
             raise MetaflowException(
                 "A CustomFlowDecorator can only be applied to a FlowSpec"
             )
+        # NOTA: This returns self._flow_cls() because the object in the case of
+        # @FlowDecorator
+        # class MyFlow(FlowSpec):
+        #     pass
+        # the object is a FlowDecorator and when the main function calls it, we end up
+        # here and need to actually call the FlowSpec. This is not the case when using
+        # a decorator with arguments because in the line above, we will have returned a
+        # FlowSpec object. Previous solution was to use __get__ but this does not seem
+        # to work properly.
         return self._flow_cls()
 
     def _set_flow_cls(
@@ -500,7 +496,16 @@ class CustomStepDecorator:
             self._kwargs = kwargs
 
     def __get__(self, instance, owner):
-        # See explanation in CustomFlowDecorator.__get__
+        # Required so that we "present" as a step when the step decorator is
+        # of the form
+        # @MyStepDecorator
+        # @step
+        # def my_step(self):
+        #     pass
+        #
+        # In that case, if we don't have __get__, the object is a CustomStepDecorator
+        # and not a step. Other parts of the code rely on steps having is_step. There are
+        # other ways to solve this but this allowed for minimal changes going forward.
         return self()
 
     def __call__(

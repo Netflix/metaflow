@@ -521,7 +521,7 @@ def config_options_with_config_input(cmd):
     cmd.params.insert(
         0,
         click.Option(
-            ["--config", "config_file"],
+            ["--config", "config"],
             nargs=2,
             multiple=True,
             type=MultipleTuple([click.Choice(config_seen), ConvertPath()]),

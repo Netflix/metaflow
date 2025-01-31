@@ -41,6 +41,7 @@ from metaflow.exception import MetaflowException
 from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
 from metaflow.parameters import JSONTypeClass, flow_context
+from metaflow.user_configs.config_decorators import CustomFlowDecorator
 from metaflow.user_configs.config_options import (
     ConfigValue,
     ConvertDictOrStr,
@@ -252,10 +253,14 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
             # Cache the loaded module
             loaded_modules[flow_file] = module
 
-        classes = inspect.getmembers(module, inspect.isclass)
+        classes = inspect.getmembers(
+            module, lambda x: inspect.isclass(x) or isinstance(x, CustomFlowDecorator)
+        )
         flow_cls = None
 
         for _, kls in classes:
+            if isinstance(kls, CustomFlowDecorator):
+                kls = kls._flow_cls
             if (
                 kls is not FlowSpec
                 and kls.__module__ == module_name
@@ -444,10 +449,10 @@ class MetaflowAPI(object):
                 ds = opts.get("datastore", defaults["datastore"])
                 quiet = opts.get("quiet", defaults["quiet"])
                 is_default = False
-                config_file = opts.get("config-file")
+                config_file = opts.get("config")
                 if config_file is None:
                     is_default = True
-                    config_file = defaults.get("config_file")
+                    config_file = defaults.get("config")
 
                 if config_file:
                     config_file = map(
@@ -480,7 +485,7 @@ class MetaflowAPI(object):
                     # Process both configurations; the second one will return all the merged
                     # configuration options properly processed.
                     self._config_input.process_configs(
-                        self._flow_cls.__name__, "config_file", config_file, quiet, ds
+                        self._flow_cls.__name__, "config", config_file, quiet, ds
                     )
                     config_options = self._config_input.process_configs(
                         self._flow_cls.__name__, "config_value", config_value, quiet, ds
@@ -493,7 +498,7 @@ class MetaflowAPI(object):
         # it will init all parameters (config_options will be None)
         # We ignore any errors if we don't check the configs in the click API.
         new_cls = self._flow_cls._process_config_decorators(
-            config_options, ignore_errors=not CLICK_API_PROCESS_CONFIG
+            config_options, process_configs=CLICK_API_PROCESS_CONFIG
         )
         if new_cls:
             self._flow_cls = new_cls
@@ -522,6 +527,12 @@ def extract_all_params(cmd_obj: Union[click.Command, click.Group]):
             )
             arg_parameters[each_param.name] = each_param
         elif isinstance(each_param, click.Option):
+            if each_param.hidden:
+                # Skip hidden options because users should not be setting those.
+                # These are typically internal only options (used by the Runner in part
+                # for example to pass state files or configs to pass local-config-file).
+                continue
+
             opt_params_sigs[each_param.name], annotations[each_param.name] = (
                 get_inspect_param_obj(each_param, inspect.Parameter.KEYWORD_ONLY)
             )
