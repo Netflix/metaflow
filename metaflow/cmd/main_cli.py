@@ -73,6 +73,7 @@ CMDS_DESC = [
 process_cmds(globals())
 diff.register_commands(main)
 
+
 @click.command(
     cls=click.CommandCollection,
     sources=[main] + resolve_cmds(),
