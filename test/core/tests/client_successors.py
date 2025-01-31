@@ -94,28 +94,6 @@ class SuccessorsTest(MetaflowTest):
                                 successor_task.data.task_pathspec
                             )
 
-                # for successor_step_name, successor_pathspecs in successors.items():
-                #     # Assert that the current task is in the parent_pathspecs of the successor tasks
-                #     for successor_pathspec in successor_pathspecs:
-                #         successor_task = Task(
-                #             successor_pathspec, _namespace_check=False
-                #         )
-                #         print(f"Successor task: {successor_task}")
-                #         assert (
-                #             task.data.task_pathspec
-                #             in successor_task.data.parent_pathspecs
-                #         ), (
-                #             f"Task {task.data.task_pathspec} is not in the parent_pathspecs of the successor task "
-                #             f"{successor_task.data.task_pathspec}"
-                #         )
-                #
-                #     successor_step = run[successor_step_name]
-                #     for successor_task in successor_step:
-                #         if cur_task_pathspec in successor_task.data.parent_pathspecs:
-                #             expected_successor_pathspecs_set.add(
-                #                 successor_task.data.task_pathspec
-                #             )
-
                 # Assert that None of the tasks in the successor steps have the current task in their
                 # parent_pathspecs
                 assert (
