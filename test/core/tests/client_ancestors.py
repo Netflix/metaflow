@@ -1,9 +1,9 @@
 from metaflow_test import MetaflowTest, ExpectationFailed, steps
 
 
-class ImmediateAncestorTest(MetaflowTest):
+class AncestorsTest(MetaflowTest):
     """
-    Test that immediate_ancestors API returns correct parent tasks
+    Test that ancestors API returns correct parent tasks
     by comparing with parent task ids stored during execution.
     """
 
@@ -66,8 +66,8 @@ class ImmediateAncestorTest(MetaflowTest):
         for step in run:
             # For each task in the step
             for task in step:
-                ancestors = task.immediate_ancestors
-                ancestor_pathspecs = set(chain.from_iterable(ancestors.values()))
+                ancestors = task.ancestors
+                ancestor_pathspecs = set([task.pathspec for task in ancestors])
 
                 # Compare with stored parent_task_pathspecs
                 task_pathspec = task.data.task_pathspec

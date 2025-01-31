@@ -328,6 +328,7 @@ class ServiceMetadataProvider(MetadataProvider):
         query_step: str,
         field_name: str,
         field_value: str,
+        use_regex: bool = False,
     ) -> List[str]:
         """
         Filter tasks by metadata field and value, and returns the list of task_ids
@@ -345,6 +346,8 @@ class ServiceMetadataProvider(MetadataProvider):
             Metadata field name to query
         field_value: str
             Metadata field value to query
+        use_regex: bool
+            If True, field_value is treated as a regex pattern
 
         Returns
         -------
@@ -355,6 +358,7 @@ class ServiceMetadataProvider(MetadataProvider):
             "metadata_field_name": field_name,
             "metadata_field_value": field_value,
             "query_step": query_step,
+            "use_regex": use_regex,
         }
         url = ServiceMetadataProvider._obj_path(flow_id, run_id, query_step)
         url = f"{url}/filtered_tasks?{urlencode(query_params)}"
