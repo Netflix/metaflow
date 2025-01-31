@@ -13,12 +13,11 @@ class BasicParameterTest(MetaflowTest):
         "list_param": {"separator": "','", "default": '"a,b,c"'},
         "json_param": {"default": """'{"a": [1,2,3]}'""", "type": "JSONType"},
     }
-    RUNTIME_PARAMETERS = {"api": {"json_param": {"a": [1, 2, 3]}}}
+    RUNTIME_PARAMETERS = {"json_param": {"a": [1, 2, 3]}}
     HEADER = """
 import os
 os.environ['METAFLOW_RUN_NO_DEFAULT_PARAM'] = 'test_str'
 os.environ['METAFLOW_RUN_BOOL_PARAM'] = 'False'
-os.environ['METAFLOW_RUN_JSON_PARAM'] = '{"a": [1,2,3]}'
 """
 
     @steps(0, ["all"])

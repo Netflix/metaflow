@@ -157,16 +157,8 @@ def run_test(formatter, context, debug, checks, env_base, executor):
 
         return top_level_dict, run_level_dict
 
-    def get_test_runtime_parameters(test, executor_type):
-        """Get any runtime parameters defined by the test for a specific executor type.
-
-        Args:
-            test: MetaflowTest instance
-            executor_type: "api" or "cli"
-        """
-        # Allow tests to specify runtime params specific to each executor
-        runtime_params = getattr(test, "RUNTIME_PARAMETERS", {})
-        return runtime_params.get(executor_type, {})
+    def get_test_runtime_parameters(test):
+        return getattr(test, "RUNTIME_PARAMETERS", {})
 
     cwd = os.getcwd()
     tempdir = tempfile.mkdtemp("_metaflow_test")
@@ -260,7 +252,7 @@ def run_test(formatter, context, debug, checks, env_base, executor):
                 )
             elif executor == "api":
                 top_level_dict, run_level_dict = construct_arg_dicts_from_click_api()
-                run_level_dict |= get_test_runtime_parameters(formatter.test, "api")
+                run_level_dict |= get_test_runtime_parameters(formatter.test)
                 runner = Runner(
                     "test_flow.py", show_output=False, env=env, **top_level_dict
                 )
