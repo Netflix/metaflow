@@ -158,8 +158,7 @@ def register_commands(main):
     @click.argument("metaflow_run")
     def diff(metaflow_run=None):
         """
-        Show a 'git diff' between the current working directory and
-        the given Metaflow run, e.g. HelloFlow/3
+        Do a 'git diff' of the current directory and a Metaflow run.
         """
         run_op(metaflow_run, op_diff, {})
 
@@ -168,7 +167,7 @@ def register_commands(main):
     @click.argument("target_run")
     def diff_runs(source_run, target_run):
         """
-        Show a 'git diff' between two Metaflow runs, e.g. HelloFlow/3 (source) and HelloFlow/4 (target)
+        Do a 'git diff' between two Metaflow runs.
         """
         run_op_diff_runs(source_run, target_run)
 
@@ -179,8 +178,7 @@ def register_commands(main):
     )
     def pull(metaflow_run=None, dir=None):
         """
-        Pull the code of a Metaflow run, e.g. HelloFlow/3, to
-        the given directory
+        Pull the code of a Metaflow run.
         """
         if dir is None:
             dir = metaflow_run.lower().replace("/", "_") + "_code"
@@ -193,8 +191,7 @@ def register_commands(main):
     )
     def patch(metaflow_run, file=None):
         """
-        Produce a patch file capturing the diff between the current
-        working directory and the given Metaflow run, e.g. HelloFlow/3
+        Create a patch file for the current dir with a Metaflow run.
         """
         if file is None:
             file = metaflow_run.lower().replace("/", "_") + ".patch"
