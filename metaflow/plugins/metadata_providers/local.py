@@ -211,6 +211,7 @@ class LocalMetadataProvider(MetadataProvider):
         query_step: str,
         field_name: str,
         field_value: str,
+        use_regex: bool = False,
     ) -> List[str]:
         """
         Filter tasks by metadata field and value, returning task IDs that match criteria.
@@ -227,6 +228,8 @@ class LocalMetadataProvider(MetadataProvider):
             Name of metadata field to query
         field_value : str
             Value to match in metadata field
+        use_regex: bool
+            If True, field_value is treated as a regex pattern
 
         Returns
         -------
@@ -281,7 +284,7 @@ class LocalMetadataProvider(MetadataProvider):
                 "step", "task", {}, None, flow_id, run_id, query_step
             )
 
-            filtered_task_ids = []
+            resp = []
             field_name_prefix = f"sysmeta_{field_name}"
 
             # Filter tasks based on metadata
@@ -297,10 +300,31 @@ class LocalMetadataProvider(MetadataProvider):
 
                 # Read metadata and check value
                 metadata = _read_metadata_value(latest_file[0])
-                if metadata.get("value") == field_value:
-                    filtered_task_ids.append(task_id)
 
-            return filtered_task_ids
+                if use_regex:
+                    # Use regex to match field value if use_regex is True
+                    import re
+
+                    if re.match(field_value, metadata.get("value")):
+                        resp.append(
+                            {
+                                "task_id": task_id,
+                                "step": query_step,
+                                "ts_epoch": metadata.get("ts_epoch"),
+                            }
+                        )
+                else:
+                    # Exact match
+                    if metadata.get("value") == field_value:
+                        resp.append(
+                            {
+                                "task_id": task_id,
+                                "step": query_step,
+                                "ts_epoch": metadata.get("ts_epoch"),
+                            }
+                        )
+
+            return resp
 
         except Exception as e:
             raise Exception(f"Failed to filter tasks: {str(e)}")

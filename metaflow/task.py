@@ -41,20 +41,14 @@ class MetaflowTask(object):
 
     @staticmethod
     def _dynamic_runtime_metadata(foreach_stack):
-        foreach_indices = [foreach_frame.index for foreach_frame in foreach_stack]
-        foreach_indices_truncated = foreach_indices[:-1]
-        foreach_step_names = [foreach_frame.step for foreach_frame in foreach_stack]
-        return foreach_indices, foreach_indices_truncated, foreach_step_names
-
-    @staticmethod
-    def _static_runtime_metadata(graph_info, step_name):
-        prev_steps = [
-            node_name
-            for node_name, attributes in graph_info["steps"].items()
-            if step_name in attributes["next"]
-        ]
-        successor_steps = graph_info["steps"][step_name]["next"]
-        return prev_steps, successor_steps
+        # Return a string representation of the foreach stack
+        # in the format "step1:idx1,step2:idx2,step3:idx3"
+        return ",".join(
+            [
+                "{}:{}".format(foreach_frame.step, foreach_frame.index)
+                for foreach_frame in foreach_stack
+            ]
+        )
 
     def __init__(
         self,
@@ -513,30 +507,14 @@ class MetaflowTask(object):
                 )
 
             # Add runtime dag info - for a nested foreach this may look like:
-            # foreach_indices: [0, 1]
-            # foreach_indices_truncated: [0]
-            # foreach_step_names: ['step1', 'step2']
-            foreach_indices, foreach_indices_truncated, foreach_step_names = (
-                self._dynamic_runtime_metadata(foreach_stack)
-            )
+            # foreach_indices: "step1:idx1,step2:idx2,step3:idx3"
+            foreach_indices = self._dynamic_runtime_metadata(foreach_stack)
             metadata.extend(
                 [
                     MetaDatum(
                         field="foreach-indices",
-                        value=json.dumps(foreach_indices),
+                        value=foreach_indices,
                         type="foreach-indices",
-                        tags=metadata_tags,
-                    ),
-                    MetaDatum(
-                        field="foreach-indices-truncated",
-                        value=json.dumps(foreach_indices_truncated),
-                        type="foreach-indices-truncated",
-                        tags=metadata_tags,
-                    ),
-                    MetaDatum(
-                        field="foreach-step-names",
-                        value=json.dumps(foreach_step_names),
-                        type="foreach-step-names",
                         tags=metadata_tags,
                     ),
                 ]
@@ -666,9 +644,6 @@ class MetaflowTask(object):
                                 "graph_info": self.flow._graph_info,
                             }
                         )
-                previous_steps, successor_steps = self._static_runtime_metadata(
-                    self.flow._graph_info, step_name
-                )
                 for deco in decorators:
                     deco.task_pre_step(
                         step_name,
@@ -779,18 +754,6 @@ class MetaflowTask(object):
                                 field="attempt_ok",
                                 value=attempt_ok,
                                 type="internal_attempt_status",
-                                tags=metadata_tags,
-                            ),
-                            MetaDatum(
-                                field="previous-steps",
-                                value=json.dumps(previous_steps),
-                                type="previous-steps",
-                                tags=metadata_tags,
-                            ),
-                            MetaDatum(
-                                field="successor-steps",
-                                value=json.dumps(successor_steps),
-                                type="successor-steps",
                                 tags=metadata_tags,
                             ),
                         ],

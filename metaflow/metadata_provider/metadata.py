@@ -681,6 +681,7 @@ class MetadataProvider(object):
         query_step: str,
         field_name: str,
         field_value: str,
+        use_regex: bool = False,
     ) -> List[str]:
         """
         Filter tasks by metadata field and value, and returns the list of task_ids
@@ -698,6 +699,8 @@ class MetadataProvider(object):
             Metadata field name to query
         field_value: str
             Metadata field value to query
+        use_regex: bool
+            If True, field_value is treated as a regex pattern
 
         Returns
         -------

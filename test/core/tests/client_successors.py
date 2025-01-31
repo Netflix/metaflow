@@ -1,9 +1,9 @@
 from metaflow_test import MetaflowTest, ExpectationFailed, steps
 
 
-class ImmediateSuccessorTest(MetaflowTest):
+class SuccessorsTest(MetaflowTest):
     """
-    Test that immediate_successors API returns correct successor tasks
+    Test that successors API returns correct successor tasks
     by comparing with parent task ids stored during execution.
     """
 
@@ -68,32 +68,53 @@ class ImmediateSuccessorTest(MetaflowTest):
             # For each task in the step
             for task in step:
                 cur_task_pathspec = task.data.task_pathspec
-                successors = task.immediate_successors
+                successors = task.successors
                 actual_successors_pathspecs_set = set(
-                    chain.from_iterable(successors.values())
+                    [task.pathspec for task in successors]
                 )
                 expected_successor_pathspecs_set = set()
-                for successor_step_name, successor_pathspecs in successors.items():
-                    # Assert that the current task is in the parent_pathspecs of the successor tasks
-                    for successor_pathspec in successor_pathspecs:
-                        successor_task = Task(
-                            successor_pathspec, _namespace_check=False
-                        )
-                        print(f"Successor task: {successor_task}")
-                        assert (
-                            task.data.task_pathspec
-                            in successor_task.data.parent_pathspecs
-                        ), (
-                            f"Task {task.data.task_pathspec} is not in the parent_pathspecs of the successor task "
-                            f"{successor_task.data.task_pathspec}"
-                        )
 
-                    successor_step = run[successor_step_name]
+                # Get successor steps for the current task
+                successor_steps = task.successor_steps
+
+                for successor_task in successors:
+                    assert (
+                        task.data.task_pathspec in successor_task.data.parent_pathspecs
+                    ), (
+                        f"Task {task.data.task_pathspec} is not in the parent_pathspecs of the successor task "
+                        f"{successor_task.data.task_pathspec}"
+                    )
+                    pass
+
+                for step in successor_steps:
+                    successor_step = run[step]
                     for successor_task in successor_step:
                         if cur_task_pathspec in successor_task.data.parent_pathspecs:
                             expected_successor_pathspecs_set.add(
                                 successor_task.data.task_pathspec
                             )
+
+                # for successor_step_name, successor_pathspecs in successors.items():
+                #     # Assert that the current task is in the parent_pathspecs of the successor tasks
+                #     for successor_pathspec in successor_pathspecs:
+                #         successor_task = Task(
+                #             successor_pathspec, _namespace_check=False
+                #         )
+                #         print(f"Successor task: {successor_task}")
+                #         assert (
+                #             task.data.task_pathspec
+                #             in successor_task.data.parent_pathspecs
+                #         ), (
+                #             f"Task {task.data.task_pathspec} is not in the parent_pathspecs of the successor task "
+                #             f"{successor_task.data.task_pathspec}"
+                #         )
+                #
+                #     successor_step = run[successor_step_name]
+                #     for successor_task in successor_step:
+                #         if cur_task_pathspec in successor_task.data.parent_pathspecs:
+                #             expected_successor_pathspecs_set.add(
+                #                 successor_task.data.task_pathspec
+                #             )
 
                 # Assert that None of the tasks in the successor steps have the current task in their
                 # parent_pathspecs
