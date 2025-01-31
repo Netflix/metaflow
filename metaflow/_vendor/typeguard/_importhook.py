@@ -3,14 +3,14 @@ from __future__ import annotations
 import ast
 import sys
 import types
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from importlib.abc import MetaPathFinder
 from importlib.machinery import ModuleSpec, SourceFileLoader
 from importlib.util import cache_from_source, decode_source
 from inspect import isclass
 from os import PathLike
 from types import CodeType, ModuleType, TracebackType
-from typing import Sequence, TypeVar
+from typing import TypeVar
 from unittest.mock import patch
 
 from ._config import global_config
@@ -29,7 +29,7 @@ else:
 if sys.version_info >= (3, 10):
     from importlib.metadata import PackageNotFoundError, version
 else:
-    from metaflow._vendor.importlib_metadata import PackageNotFoundError, version
+    from importlib_metadata import PackageNotFoundError, version
 
 try:
     OPTIMIZATION = "typeguard" + "".join(version("typeguard").split(".")[:3])
