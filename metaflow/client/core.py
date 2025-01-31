@@ -1322,7 +1322,8 @@ class Task(MetaflowObject):
     @property
     def ancestors(self) -> List["Task"]:
         """
-        Returns a list of all ancestor tasks of the current task.
+        Returns a list of all ancestor tasks of the current task for the latest successful
+        attempt.
 
         Returns
         -------
@@ -1334,7 +1335,8 @@ class Task(MetaflowObject):
     @property
     def successors(self) -> List["Task"]:
         """
-        Returns a list of all successor tasks of the current task.
+        Returns a list of all successor tasks of the current task for the latest successful
+        attempt.
 
         Returns
         -------
