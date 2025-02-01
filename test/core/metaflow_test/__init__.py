@@ -154,7 +154,6 @@ def assert_exception(func, exception):
 class MetaflowTest(object):
     PRIORITY = 999999999
     PARAMETERS = {}
-    RUNTIME_PARAMETERS = {}
     INCLUDE_FILES = {}
     CONFIGS = {}
     CLASS_VARS = {}

@@ -249,10 +249,14 @@ def run_test(formatter, context, debug, checks, env_base, executor):
                 )
             elif executor == "api":
                 top_level_dict, run_level_dict = construct_arg_dicts_from_click_api()
-                run_level_dict |= formatter.test.RUNTIME_PARAMETERS
                 runner = Runner(
                     "test_flow.py", show_output=False, env=env, **top_level_dict
                 )
+                for param_name, param_spec in formatter.test.PARAMETERS.items():
+                    if param_spec.get("type") == "JSONType":
+                        run_level_dict[param_name] = json.loads(
+                            param_spec["default"].strip("'")
+                        )
                 result = runner.run(**run_level_dict)
                 with open(
                     result.command_obj.log_files["stdout"], encoding="utf-8"
