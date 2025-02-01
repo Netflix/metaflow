@@ -29,7 +29,7 @@ else:
 if sys.version_info >= (3, 10):
     from importlib.metadata import PackageNotFoundError, version
 else:
-    from importlib_metadata import PackageNotFoundError, version
+    from metaflow._vendor.importlib_metadata import PackageNotFoundError, version
 
 try:
     OPTIMIZATION = "typeguard" + "".join(version("typeguard").split(".")[:3])

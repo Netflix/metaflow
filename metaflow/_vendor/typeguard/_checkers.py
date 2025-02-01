@@ -36,7 +36,7 @@ from unittest.mock import Mock
 from metaflow._vendor import typing_extensions
 
 # Must use this because typing.is_typeddict does not recognize
-# TypedDict from metaflow._vendor.typing_extensions, and as of version 4.12.0
+# TypedDict from typing_extensions, and as of version 4.12.0
 # typing_extensions.TypedDict is different from typing.TypedDict
 # on all versions.
 from metaflow._vendor.typing_extensions import is_typeddict
@@ -68,7 +68,7 @@ if sys.version_info >= (3, 10):
     from importlib.metadata import entry_points
     from typing import ParamSpec
 else:
-    from importlib_metadata import entry_points
+    from metaflow._vendor.importlib_metadata import entry_points
     from metaflow._vendor.typing_extensions import ParamSpec
 
 TypeCheckerCallable: TypeAlias = Callable[
