@@ -10,6 +10,6 @@
 ``` sh
 cp ${TYPEGUARD_DIR}/src/typeguard ${METAFLOW_DIR}/metaflow/_vendor/typeguard
 cd ${METAFLOW_DIR}/metaflow/_vendor/typeguard
-bash ./_patch_typeguard.sh # Updates imports, removes extraneous files.
+bash ./patch_typeguard.sh # Updates imports, removes extraneous files.
 ```
 
