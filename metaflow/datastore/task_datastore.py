@@ -269,11 +269,6 @@ class TaskDataStore(object):
         artifacts : Iterator[(string, object)]
             Iterator over the human-readable name of the object to save
             and the object itself
-        force_v4 : boolean or Dict[string -> boolean]
-            Indicates whether the artifact should be pickled using the v4
-            version of pickle. If a single boolean, applies to all artifacts.
-            If a dictionary, applies to the object named only. Defaults to False
-            if not present or not specified
         len_hint: integer
             Estimated number of items in artifacts_iter
         """
