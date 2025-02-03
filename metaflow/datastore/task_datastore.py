@@ -253,7 +253,7 @@ class TaskDataStore(object):
 
     @only_if_not_done
     @require_mode("w")
-    def save_artifacts(self, artifacts_iter, force_v4=False, len_hint=0):
+    def save_artifacts(self, artifacts_iter, len_hint=0):
         """
         Saves Metaflow Artifacts (Python objects) to the datastore and stores
         any relevant metadata needed to retrieve them.
@@ -281,39 +281,23 @@ class TaskDataStore(object):
 
         def pickle_iter():
             for name, obj in artifacts_iter:
-                do_v4 = (
-                    force_v4 and force_v4
-                    if isinstance(force_v4, bool)
-                    else force_v4.get(name, False)
-                )
-                if do_v4:
-                    encode_type = "gzip+pickle-v4"
-                    if encode_type not in self._encodings:
-                        raise DataException(
-                            "Artifact *%s* requires a serialization encoding that "
-                            "requires Python 3.4 or newer." % name
-                        )
+                encode_type = "gzip+pickle-v4"
+                if encode_type in self._encodings:
                     try:
                         blob = pickle.dumps(obj, protocol=4)
-                    except TypeError as e:
+                    except TypeError:
                         raise UnpicklableArtifactException(name)
                 else:
                     try:
                         blob = pickle.dumps(obj, protocol=2)
                         encode_type = "gzip+pickle-v2"
                     except (SystemError, OverflowError):
-                        encode_type = "gzip+pickle-v4"
-                        if encode_type not in self._encodings:
-                            raise DataException(
-                                "Artifact *%s* is very large (over 2GB). "
-                                "You need to use Python 3.4 or newer if you want to "
-                                "serialize large objects." % name
-                            )
-                        try:
-                            blob = pickle.dumps(obj, protocol=4)
-                        except TypeError as e:
-                            raise UnpicklableArtifactException(name)
-                    except TypeError as e:
+                        raise DataException(
+                            "Artifact *%s* is very large (over 2GB). "
+                            "You need to use Python 3.4 or newer if you want to "
+                            "serialize large objects." % name
+                        )
+                    except TypeError:
                         raise UnpicklableArtifactException(name)
 
                 self._info[name] = {
