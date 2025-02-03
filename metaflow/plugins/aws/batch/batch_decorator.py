@@ -70,7 +70,7 @@ class BatchDecorator(StepDecorator):
         A swappiness value of 0 causes swapping not to happen unless absolutely
         necessary. A swappiness value of 100 causes pages to be swapped very
         aggressively. Accepted values are whole numbers between 0 and 100.
-    tags: map, optional
+    tags: Dict[str, str], optional
         Sets arbitrary AWS tags on the AWS Batch compute environment.
         Set as string key-value pairs.
     use_tmpfs : bool, default False
