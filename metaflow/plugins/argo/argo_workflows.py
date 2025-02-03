@@ -111,6 +111,7 @@ class ArgoWorkflows(object):
         notify_on_success=False,
         notify_slack_webhook_url=None,
         notify_pager_duty_integration_key=None,
+        notify_incident_io_api_key=None,
         enable_heartbeat_daemon=True,
         enable_error_msg_capture=False,
     ):
@@ -160,6 +161,7 @@ class ArgoWorkflows(object):
         self.notify_on_success = notify_on_success
         self.notify_slack_webhook_url = notify_slack_webhook_url
         self.notify_pager_duty_integration_key = notify_pager_duty_integration_key
+        self.notify_incident_io_api_key = notify_incident_io_api_key
         self.enable_heartbeat_daemon = enable_heartbeat_daemon
         self.enable_error_msg_capture = enable_error_msg_capture
         self.parameters = self._process_parameters()
@@ -2270,6 +2272,7 @@ class ArgoWorkflows(object):
         if self.notify_on_error:
             templates.append(self._slack_error_template())
             templates.append(self._pager_duty_alert_template())
+            templates.append(self._incident_io_alert_template())
         if self.notify_on_success:
             templates.append(self._slack_success_template())
             templates.append(self._pager_duty_change_template())
@@ -2461,6 +2464,36 @@ class ArgoWorkflows(object):
                             },
                         },
                         "links": self._pager_duty_notification_links(),
+                    }
+                )
+            )
+        )
+
+    def _incident_io_alert_template(self):
+        if self.notify_incident_io_api_key is None:
+            return None
+        return Template("notify-incident-io-on-error").http(
+            Http("POST")
+            .url("https://api.incident.io/v2/incidents")
+            .header("Content-Type", "application/json")
+            .header("Authorization", "Bearer: %s" % self.notify_incident_io_api_key)
+            .body(
+                json.dumps(
+                    {
+                        "idempotency_key": "argo-{{workflow.name}}",  # use run id to deduplicate alerts.
+                        "mode": "test",  # still testing. TODO: Remove once finished.
+                        # We can't have severities either as these are user defined.
+                        # "severity_id": "info",
+                        "name": "Flow {{workflow.labels['workflows.argoproj.io/workflow-template']}} has failed.",
+                        "summary": "Metaflow run %s/argo-{{workflow.name}} failed!"
+                        % self.flow.name,
+                        # We can't have custom field entries as these require a custom_field_id which is user-defined.
+                        # "custom_field_entries": [
+                        #     {
+                        #         "Flow": self.flow.name,
+                        #         "Run ID": "argo-{{workflow.name}}",
+                        #     },
+                        # ],
                     }
                 )
             )

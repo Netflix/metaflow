@@ -177,6 +177,11 @@ def argo_workflows(obj, name=None):
     help="PagerDuty Events API V2 Integration key for workflow success/failure notifications.",
 )
 @click.option(
+    "--notify-incident-io-api-key",
+    default="",
+    help="Incident.io API V2 key for workflow success/failure notifications.",
+)
+@click.option(
     "--enable-heartbeat-daemon/--no-enable-heartbeat-daemon",
     default=False,
     show_default=True,
@@ -213,6 +218,7 @@ def create(
     notify_on_success=False,
     notify_slack_webhook_url=None,
     notify_pager_duty_integration_key=None,
+    notify_incident_io_api_key=None,
     enable_heartbeat_daemon=True,
     deployer_attribute_file=None,
     enable_error_msg_capture=False,
@@ -268,6 +274,7 @@ def create(
         notify_on_success,
         notify_slack_webhook_url,
         notify_pager_duty_integration_key,
+        notify_incident_io_api_key,
         enable_heartbeat_daemon,
         enable_error_msg_capture,
     )
@@ -442,6 +449,7 @@ def make_flow(
     notify_on_success,
     notify_slack_webhook_url,
     notify_pager_duty_integration_key,
+    notify_incident_io_api_key,
     enable_heartbeat_daemon,
     enable_error_msg_capture,
 ):
@@ -453,11 +461,13 @@ def make_flow(
         )
 
     if (notify_on_error or notify_on_success) and not (
-        notify_slack_webhook_url or notify_pager_duty_integration_key
+        notify_slack_webhook_url
+        or notify_pager_duty_integration_key
+        or notify_incident_io_api_key
     ):
         raise MetaflowException(
-            "Notifications require specifying an incoming Slack webhook url via --notify-slack-webhook-url or "
-            "PagerDuty events v2 integration key via --notify-pager-duty-integration-key.\n If you would like to set up "
+            "Notifications require specifying an incoming Slack webhook url via --notify-slack-webhook-url, "
+            "PagerDuty events v2 integration key via --notify-pager-duty-integration-key or Incident.io integration API key via --notify-incident-io-api-key.\n If you would like to set up "
             "notifications for your Slack workspace, follow the instructions at "
             "https://api.slack.com/messaging/webhooks to generate a webhook url.\n For notifications through PagerDuty, "
             "generate an integration key by following the instructions at "
@@ -507,6 +517,7 @@ def make_flow(
         notify_on_success=notify_on_success,
         notify_slack_webhook_url=notify_slack_webhook_url,
         notify_pager_duty_integration_key=notify_pager_duty_integration_key,
+        notify_incident_io_api_key=notify_incident_io_api_key,
         enable_heartbeat_daemon=enable_heartbeat_daemon,
         enable_error_msg_capture=enable_error_msg_capture,
     )
