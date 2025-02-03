@@ -145,6 +145,12 @@ def kubernetes():
     type=JSONTypeClass(),
     multiple=False,
 )
+@click.option(
+    "--extended-resources",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=False,
+)
 @click.pass_context
 def step(
     ctx,
@@ -176,6 +182,7 @@ def step(
     qos=None,
     labels=None,
     annotations=None,
+    extended_resources=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None, **kwargs):
@@ -319,6 +326,7 @@ def step(
                 qos=qos,
                 labels=labels,
                 annotations=annotations,
+                extended_resources=extended_resources,
             )
     except Exception:
         traceback.print_exc(chain=False)

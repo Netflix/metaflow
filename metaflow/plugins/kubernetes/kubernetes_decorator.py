@@ -121,6 +121,9 @@ class KubernetesDecorator(StepDecorator):
         Only applicable when @parallel is used.
     qos: str, default: Burstable
         Quality of Service class to assign to the pod. Supported values are: Guaranteed, Burstable, BestEffort
+    extended_resources: Dict[str, str], optional, default None
+        Extended resources to be requested for the pod.
+        https://kubernetes.io/docs/tasks/administer-cluster/extended-resource-node/
     """
 
     name = "kubernetes"
@@ -151,6 +154,7 @@ class KubernetesDecorator(StepDecorator):
         "executable": None,
         "hostname_resolution_timeout": 10 * 60,
         "qos": KUBERNETES_QOS,
+        "extended_resources": {},
     }
     package_url = None
     package_sha = None
@@ -473,6 +477,7 @@ class KubernetesDecorator(StepDecorator):
                     "persistent_volume_claims",
                     "labels",
                     "annotations",
+                    "extended_resources",
                 ]:
                     cli_args.command_options[k] = json.dumps(v)
                 else:
