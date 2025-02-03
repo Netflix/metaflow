@@ -188,7 +188,7 @@ class Batch(object):
         host_volumes=None,
         efs_volumes=None,
         use_tmpfs=None,
-        tags=None,
+        aws_tags=None,
         step_function_tags=None,
         tmpfs_tempdir=None,
         tmpfs_size=None,
@@ -353,12 +353,12 @@ class Batch(object):
                     validate_aws_tag(tag)
                     job.tag(tag['key'], tag['value'])
 
-            if tags is not None:
-                if not isinstance(tags, dict):
+            if aws_tags is not None:
+                if not isinstance(aws_tags, dict):
                     raise BatchException("tags must be a dictionary of key-value tags.")
                 decorator_aws_tags_list = [
                     {'key': key,
-                        'value': val} for key, val in tags.items()
+                        'value': val} for key, val in aws_tags.items()
                 ]
                 for tag in decorator_aws_tags_list:
                     validate_aws_tag(tag)
@@ -433,7 +433,7 @@ class Batch(object):
             host_volumes=host_volumes,
             efs_volumes=efs_volumes,
             use_tmpfs=use_tmpfs,
-            tags=tags,
+            aws_tags=tags,
             tmpfs_tempdir=tmpfs_tempdir,
             tmpfs_size=tmpfs_size,
             tmpfs_path=tmpfs_path,
