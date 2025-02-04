@@ -18,6 +18,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_NAMESPACE,
     SERVICE_VERSION_CHECK,
     UI_URL,
+    INCIDENT_IO_API_KEY,
 )
 from metaflow.package import MetaflowPackage
 
@@ -178,7 +179,7 @@ def argo_workflows(obj, name=None):
 )
 @click.option(
     "--notify-incident-io-api-key",
-    default="",
+    default=INCIDENT_IO_API_KEY,
     help="Incident.io API V2 key for workflow success/failure notifications.",
 )
 @click.option(

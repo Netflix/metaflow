@@ -279,6 +279,15 @@ CONTACT_INFO = from_conf(
     },
 )
 
+###
+# Notify on success/error configuration
+###
+
+# Incident.io
+INCIDENT_IO_API_KEY = from_conf("INCIDENT_IO_API_KEY", None)
+INCIDENT_IO_SUCCESS_SEVERITY_ID = from_conf("INCIDENT_IO_SUCCESS_SEVERITY_ID", None)
+INCIDENT_IO_ERROR_SEVERITY_ID = from_conf("INCIDENT_IO_ERROR_SEVERITY_ID", None)
+
 
 ###
 # Decorators
