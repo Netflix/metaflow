@@ -2,8 +2,9 @@
 import os
 import shutil
 import sys
-from subprocess import PIPE, run
+from subprocess import PIPE, run, CompletedProcess
 from tempfile import TemporaryDirectory
+from typing import List, Optional, Callable, Dict, Any, Union
 
 from metaflow._vendor import click
 from metaflow import Run, namespace
@@ -18,14 +19,13 @@ EXCLUSIONS = [
 ]
 
 
-def echo(line):
+def echo(line: str) -> None:
     echo_always(line, err=True, fg="magenta")
 
 
-def extract_code_package(runspec, exclusions):
+def extract_code_package(runspec: str, exclusions: List[str]) -> TemporaryDirectory:
     try:
-        namespace(None)
-        run = Run(runspec)
+        run = Run(runspec, _namespace_check=False)
         echo(f"✅  Run *{runspec}* found, downloading code..")
     except:
         echo(f"❌  Run **{runspec}** not found")
@@ -39,7 +39,12 @@ def extract_code_package(runspec, exclusions):
 
     tar = run.code.tarball
     members = [
-        m for m in tar.getmembers() if not any(m.name.startswith(x) for x in exclusions)
+        m
+        for m in tar.getmembers()
+        if not any(
+            (x.endswith("/") and m.name.startswith(x)) or (m.name == x)
+            for x in exclusions
+        )
     ]
 
     tmp = TemporaryDirectory()
@@ -47,7 +52,7 @@ def extract_code_package(runspec, exclusions):
     return tmp
 
 
-def perform_diff(source_dir, target_dir=None, output=False):
+def perform_diff(source_dir: str, target_dir: Optional[str] = None, output: bool = False) -> Optional[List[str]]:
     if target_dir is None:
         target_dir = os.getcwd()
 
@@ -79,9 +84,9 @@ def perform_diff(source_dir, target_dir=None, output=False):
                         source_file,
                     ]
                 )
-                result = run(cmd, text=True, stdout=PIPE, cwd=target_dir)
+                result: CompletedProcess = run(cmd, text=True, stdout=PIPE, cwd=target_dir)
                 if result.returncode == 0:
-                    echo(f"✅ {target_file} is identical, skipping")
+                    echo(f"✅  {target_file} is identical, skipping")
                     continue
 
                 if output:
@@ -89,11 +94,11 @@ def perform_diff(source_dir, target_dir=None, output=False):
                 else:
                     run(["less", "-R"], input=result.stdout, text=True)
             else:
-                echo(f"❗ {target_file} not in the target directory, skipping")
+                echo(f"❗  {target_file} not in the target directory, skipping")
     return diffs if output else None
 
 
-def run_op(runspec, op, op_args):
+def run_op(runspec: str, op: Callable[..., None], op_args: Dict[str, Any]) -> None:
     tmp = None
     try:
         tmp = extract_code_package(runspec, EXCLUSIONS)
@@ -103,7 +108,7 @@ def run_op(runspec, op, op_args):
             shutil.rmtree(tmp.name)
 
 
-def run_op_diff_runs(source_run, target_run):
+def run_op_diff_runs(source_run: str, target_run: str) -> None:
     source_tmp = None
     target_tmp = None
     try:
@@ -117,11 +122,11 @@ def run_op_diff_runs(source_run, target_run):
             shutil.rmtree(target_tmp.name)
 
 
-def op_diff(tmpdir):
+def op_diff(tmpdir: str) -> None:
     perform_diff(tmpdir)
 
 
-def op_pull(tmpdir, dst=None):
+def op_pull(tmpdir: str, dst: str) -> None:
     if os.path.exists(dst):
         echo(f"❌  Directory *{dst}* already exists")
     else:
@@ -129,8 +134,8 @@ def op_pull(tmpdir, dst=None):
         echo(f"Code downloaded to *{dst}*")
 
 
-def op_patch(tmpdir, dst=None):
-    diffs = perform_diff(tmpdir, output=True)
+def op_patch(tmpdir: str, dst: str) -> None:
+    diffs = perform_diff(tmpdir, output=True) or []
     with open(dst, "w") as f:
         for out in diffs:
             out = out.replace(tmpdir, "/.")
@@ -153,10 +158,10 @@ def op_patch(tmpdir, dst=None):
     )
 
 
-def register_commands(main):
+def register_commands(main: click.Group) -> None:
     @main.command()
     @click.argument("metaflow_run")
-    def diff(metaflow_run=None):
+    def diff(metaflow_run: str) -> None:
         """
         Do a 'git diff' of the current directory and a Metaflow run.
         """
@@ -165,7 +170,7 @@ def register_commands(main):
     @main.command()
     @click.argument("source_run")
     @click.argument("target_run")
-    def diff_runs(source_run, target_run):
+    def diff_runs(source_run: str, target_run: str) -> None:
         """
         Do a 'git diff' between two Metaflow runs.
         """
@@ -176,7 +181,7 @@ def register_commands(main):
     @click.option(
         "--dir", help="Destination directory (default: {runspec}_code)", default=None
     )
-    def pull(metaflow_run=None, dir=None):
+    def pull(metaflow_run: str, dir: Optional[str] = None) -> None:
         """
         Pull the code of a Metaflow run.
         """
@@ -189,7 +194,7 @@ def register_commands(main):
     @click.option(
         "--file", help="Patch file name (default: {runspec}.patch", default=None
     )
-    def patch(metaflow_run, file=None):
+    def patch(metaflow_run: str, file: Optional[str] = None) -> None:
         """
         Create a patch file for the current dir with a Metaflow run.
         """

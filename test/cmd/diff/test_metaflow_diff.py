@@ -18,8 +18,7 @@ from metaflow.cmd.diff import (
 class TestMetaflowDiff:
 
     @patch("metaflow.cmd.diff.Run")
-    @patch("metaflow.cmd.diff.namespace")
-    def test_extract_code_package(self, mock_namespace, mock_run):
+    def test_extract_code_package(self, mock_run):
         mock_run.return_value.code.tarball.getmembers.return_value = []
         mock_run.return_value.code.tarball.extractall = MagicMock()
         runspec = "HelloFlow/3"
@@ -29,8 +28,7 @@ class TestMetaflowDiff:
         ) as mock_tmp:
             tmp = extract_code_package(runspec, EXCLUSIONS)
 
-        mock_namespace.assert_called_once_with(None)
-        mock_run.assert_called_once_with(runspec)
+        mock_run.assert_called_once_with(runspec, _namespace_check=False)
         assert os.path.exists(tmp.name)
 
     @pytest.mark.parametrize("use_tty", [True, False])
