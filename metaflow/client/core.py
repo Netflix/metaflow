@@ -930,7 +930,7 @@ class MetaflowCode(object):
         return tmp
 
     @property
-    def script(self) -> str:
+    def script_name(self) -> str:
         """
         Returns the filename of the Python script containing the FlowSpec.
 
