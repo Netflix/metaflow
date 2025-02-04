@@ -926,6 +926,21 @@ class MetaflowCode(object):
         self.tarball.extractall(tmp.name, members)
         return tmp
 
+    @property
+    def script(self) -> str:
+        """
+        Returns the filename of the Python script containing the FlowSpec.
+
+        This is the main Python file that was used to execute the flow. For example,
+        if your flow is defined in 'myflow.py', this property will return 'myflow.py'.
+
+        Returns
+        -------
+        str
+            Name of the Python file containing the FlowSpec
+        """
+        return self._info["script"]
+
     def __str__(self):
         return "<MetaflowCode: %s>" % self._info["script"]
 
