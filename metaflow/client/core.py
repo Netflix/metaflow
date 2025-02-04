@@ -915,6 +915,7 @@ class MetaflowCode(object):
             "INFO",
             "CONFIG_PARAMETERS",
             "conda.manifest",
+            "condav2-1.cnd",
         ]
         members = [
             m
