@@ -909,7 +909,7 @@ class MetaflowCode(object):
             The directory and its contents are automatically deleted when
             this object is garbage collected.
         """
-        EXCLUSIONS = [
+        exclusions = [
             "metaflow/",
             "metaflow_extensions/",
             "INFO",
@@ -919,7 +919,10 @@ class MetaflowCode(object):
         members = [
             m
             for m in self.tarball.getmembers()
-            if not any(m.name.startswith(x) for x in EXCLUSIONS)
+            if not any(
+                (x.endswith("/") and m.name.startswith(x)) or (m.name == x)
+                for x in exclusions
+            )
         ]
 
         tmp = TemporaryDirectory()
