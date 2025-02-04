@@ -206,15 +206,15 @@ def output_raw(obj, json):
     else:
         _graph = str(obj.graph)
         _msg = "Internal representation of the flow:"
-    echo(_msg, fg="magenta", bold=False)
+    echo_always(_msg, fg="magenta", bold=False)
     echo_always(_graph, err=False)
 
 
 @cli.command(help="Visualize the flow with Graphviz.")
 @click.pass_obj
 def output_dot(obj):
-    echo("Visualizing the flow as a GraphViz graph", fg="magenta", bold=False)
-    echo(
+    echo_always("Visualizing the flow as a GraphViz graph", fg="magenta", bold=False)
+    echo_always(
         "Try piping the output to 'dot -Tpng -o graph.png' to produce "
         "an actual image.",
         indent=True,
