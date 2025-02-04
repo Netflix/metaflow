@@ -46,8 +46,6 @@ from metaflow.metaflow_config import (
     SERVICE_HEADERS,
     SERVICE_INTERNAL_URL,
     UI_URL,
-    INCIDENT_IO_ERROR_SEVERITY_ID,
-    INCIDENT_IO_SUCCESS_SEVERITY_ID,
 )
 from metaflow.metaflow_config_funcs import config_values
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
@@ -114,6 +112,8 @@ class ArgoWorkflows(object):
         notify_slack_webhook_url=None,
         notify_pager_duty_integration_key=None,
         notify_incident_io_api_key=None,
+        incident_io_success_severity_id=None,
+        incident_io_error_severity_id=None,
         enable_heartbeat_daemon=True,
         enable_error_msg_capture=False,
     ):
@@ -164,6 +164,8 @@ class ArgoWorkflows(object):
         self.notify_slack_webhook_url = notify_slack_webhook_url
         self.notify_pager_duty_integration_key = notify_pager_duty_integration_key
         self.notify_incident_io_api_key = notify_incident_io_api_key
+        self.incident_io_success_severity_id = incident_io_success_severity_id
+        self.incident_io_error_severity_id = incident_io_error_severity_id
         self.enable_heartbeat_daemon = enable_heartbeat_daemon
         self.enable_error_msg_capture = enable_error_msg_capture
         self.parameters = self._process_parameters()
@@ -2499,9 +2501,9 @@ class ArgoWorkflows(object):
     def _incident_io_alert_template(self):
         if self.notify_incident_io_api_key is None:
             return None
-        if INCIDENT_IO_ERROR_SEVERITY_ID is None:
+        if self.incident_io_error_severity_id is None:
             raise MetaflowException(
-                "Creating incidents for errors requires a severity id.\nPlease configure one for errors by setting *METAFLOW_INCIDENT_IO_ERROR_SEVERITY_ID*"
+                "Creating incidents for errors requires a severity id."
             )
         return Template("notify-incident-io-on-error").http(
             Http("POST")
@@ -2513,7 +2515,7 @@ class ArgoWorkflows(object):
                     {
                         "idempotency_key": "argo-{{workflow.name}}",  # use run id to deduplicate alerts.
                         "visibility": "public",
-                        "severity_id": INCIDENT_IO_ERROR_SEVERITY_ID,
+                        "severity_id": self.incident_io_error_severity_id,
                         "name": "Flow %s has failed." % self.flow.name,
                         "summary": "Metaflow run %s/argo-{{workflow.name}} failed! %s"
                         % (self.flow.name, self._incident_io_ui_urls_for_run()),
@@ -2526,9 +2528,9 @@ class ArgoWorkflows(object):
     def _incident_io_change_template(self):
         if self.notify_incident_io_api_key is None:
             return None
-        if INCIDENT_IO_SUCCESS_SEVERITY_ID is None:
+        if self.incident_io_success_severity_id is None:
             raise MetaflowException(
-                "Creating incidents for successes requires a severity id.\nPlease configure one for errors by setting *METAFLOW_INCIDENT_IO_SUCCESS_SEVERITY_ID*"
+                "Creating incidents for successes requires a severity id."
             )
         return Template("notify-incident-io-on-success").http(
             Http("POST")
@@ -2540,7 +2542,7 @@ class ArgoWorkflows(object):
                     {
                         "idempotency_key": "argo-{{workflow.name}}",  # use run id to deduplicate alerts.
                         "visibility": "public",
-                        "severity_id": INCIDENT_IO_SUCCESS_SEVERITY_ID,
+                        "severity_id": self.incident_io_success_severity_id,
                         # TODO: Do we need to make incident type configurable for successes? otherwise they are created as 'investigating'
                         # "incident_type_id": ""
                         "name": "Flow %s has succeeded." % self.flow.name,
