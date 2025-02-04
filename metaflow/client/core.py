@@ -5,6 +5,7 @@ import os
 import tarfile
 from collections import namedtuple
 from datetime import datetime
+from tempfile import TemporaryDirectory
 from io import BytesIO
 from itertools import chain
 from typing import (
@@ -877,6 +878,53 @@ class MetaflowCode(object):
             TarFile for everything in this code package
         """
         return self._tar
+
+    @property
+    def extract(self) -> TemporaryDirectory:
+        """
+        Extracts the code package to a temporary directory.
+
+        This creates a temporary directory containing all user code
+        files from the code package. The temporary directory is
+        automatically deleted when the returned TemporaryDirectory
+        object is garbage collected or when its cleanup() is called.
+
+        To preserve the contents to a permanent location, use
+        os.replace() which performs a zero-copy move on the same
+        filesystem:
+
+        ```python
+        with task.code.extract as tmp_dir:
+            # Move contents to permanent location
+            for item in os.listdir(tmp_dir):
+                src = os.path.join(tmp_dir, item)
+                dst = os.path.join('/path/to/permanent/dir', item)
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                os.replace(src, dst)  # Atomic move operation
+        ```
+        Returns
+        -------
+        TemporaryDirectory
+            A temporary directory containing the extracted code files.
+            The directory and its contents are automatically deleted when
+            this object is garbage collected.
+        """
+        EXCLUSIONS = [
+            "metaflow/",
+            "metaflow_extensions/",
+            "INFO",
+            "CONFIG_PARAMETERS",
+            "conda.manifest",
+        ]
+        members = [
+            m
+            for m in self.tarball.getmembers()
+            if not any(m.name.startswith(x) for x in EXCLUSIONS)
+        ]
+
+        tmp = TemporaryDirectory()
+        self.tarball.extractall(tmp.name, members)
+        return tmp
 
     def __str__(self):
         return "<MetaflowCode: %s>" % self._info["script"]
