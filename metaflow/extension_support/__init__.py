@@ -12,7 +12,7 @@ from importlib.abc import MetaPathFinder, Loader
 from itertools import chain
 from pathlib import Path
 
-from metaflow.info_file import read_info_file
+from metaflow.special_files import read_info_file
 
 
 #
