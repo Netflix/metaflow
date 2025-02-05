@@ -274,9 +274,10 @@ def step(
     ]
 
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
-    env = {}
     if env_deco:
-        type(env_deco[0]).merge_vars(env_deco, env)
+        env = type(env_deco[0]).merge_vars(env_deco)
+    else:
+        env = {}
 
     # Add the environment variables related to the input-paths argument
     if split_vars:

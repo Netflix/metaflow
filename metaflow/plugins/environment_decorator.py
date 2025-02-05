@@ -23,12 +23,15 @@ class EnvironmentDecorator(StepDecorator):
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context
     ):
-        self.merge_vars([self], cli_args.env)
+        cli_args.env.update(
+            {key: str(value) for key, value in self.attributes["vars"].items()}
+        )
 
     @classmethod
-    def merge_vars(cls, decorators, dest):
-        """Merge variables from a list of environment decorators into an existing dictionary."""
-        for deco in decorators:
+    def merge_vars(cls, environment_decorators):
+        """Merge variables from a list of environment decorators and return a new dictionary."""
+        dest = {}
+        for deco in environment_decorators:
             for key, value in deco.attributes["vars"].items():
                 if key in dest and value != dest[key]:
                     deco.logger(
@@ -38,3 +41,4 @@ class EnvironmentDecorator(StepDecorator):
                     )
                 dest[key] = value
             dest.update(deco.attributes["vars"])
+        return dest

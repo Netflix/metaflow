@@ -1701,8 +1701,10 @@ class ArgoWorkflows(object):
             #   (3) @kubernetes, @argo_workflows_internal bookkeeping environment
             #       variables
             env_deco = [deco for deco in node.decorators if deco.name == "environment"]
-            env = {}
-            type(env_deco[0]).merge_vars(env_deco, env)
+            if env_deco:
+                env = type(env_deco[0]).merge_vars(env_deco)
+            else:
+                env = {}
 
             # Temporary passing of *some* environment variables. Do not rely on this
             # mechanism as it will be removed in the near future
