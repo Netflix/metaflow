@@ -4,7 +4,6 @@ import sys
 import json
 
 from typing import Dict, Iterator, Optional, Tuple
-
 from metaflow import Run
 
 from metaflow.plugins import get_runner_cli
@@ -17,27 +16,33 @@ from .utils import (
 from .subprocess_manager import CommandManager, SubprocessManager
 
 
-class ExecutingRun(object):
+class ExecutingProcess(object):
     """
-    This class contains a reference to a `metaflow.Run` object representing
-    the currently executing or finished run, as well as metadata related
-    to the process.
+    This is a base class for `ExecutingRun` and `ExecutingTask` classes.
+    The `ExecutingRun` and `ExecutingTask` classes are returned by methods
+    in `Runner` and `NBRunner`, and they are subclasses of this class.
 
-    `ExecutingRun` is returned by methods in `Runner` and `NBRunner`. It is not
-    meant to be instantiated directly.
+    The `ExecutingRun` class for instance contains a reference to a `metaflow.Run`
+    object representing the currently executing or finished run, as well as the metadata
+    related to the process.
 
-    This class works as a context manager, allowing you to use a pattern like
+    Similarly, the `ExecutingTask` class contains a reference to a `metaflow.Task`
+    object representing the currently executing or finished task, as well as the metadata
+    related to the process.
+
+    This class or its subclasses are not meant to be instantiated directly. The class
+    works as a context manager, allowing you to use a pattern like:
+
     ```python
     with Runner(...).run() as running:
         ...
     ```
-    Note that you should use either this object as the context manager or
-    `Runner`, not both in a nested manner.
+
+    Note that you should use either this object as the context manager or `Runner`, not both
+    in a nested manner.
     """
 
-    def __init__(
-        self, runner: "Runner", command_obj: CommandManager, run_obj: Run
-    ) -> None:
+    def __init__(self, runner: "Runner", command_obj: CommandManager) -> None:
         """
         Create a new ExecutingRun -- this should not be done by the user directly but
         instead user Runner.run()
@@ -48,12 +53,9 @@ class ExecutingRun(object):
             Parent runner for this run.
         command_obj : CommandManager
             CommandManager containing the subprocess executing this run.
-        run_obj : Run
-            Run object corresponding to this run.
         """
         self.runner = runner
         self.command_obj = command_obj
-        self.run = run_obj
 
     def __enter__(self) -> "ExecutingRun":
         return self
@@ -72,11 +74,10 @@ class ExecutingRun(object):
 
         Parameters
         ----------
-        timeout : float, optional, default None
-            The maximum time, in seconds, to wait for the run to finish.
-            If the timeout is reached, the run is terminated. If not specified, wait
-            forever.
-        stream : str, optional, default None
+        timeout : Optional[float], default None
+            The maximum time to wait for the run to finish.
+            If the timeout is reached, the run is terminated
+        stream : Optional[str], default None
             If specified, the specified stream is printed to stdout. `stream` can
             be one of `stdout` or `stderr`.
 
@@ -173,7 +174,7 @@ class ExecutingRun(object):
         ----------
         stream : str
             The stream to stream logs from. Can be one of `stdout` or `stderr`.
-        position : int, optional, default None
+        position : Optional[int], default None
             The position in the log file to start streaming from. If None, it starts
             from the beginning of the log file. This allows resuming streaming from
             a previously known position
@@ -187,6 +188,83 @@ class ExecutingRun(object):
         """
         async for position, line in self.command_obj.stream_log(stream, position):
             yield position, line
+
+
+class ExecutingTask(ExecutingProcess):
+    """
+    This class contains a reference to a `metaflow.Task` object representing
+    the currently executing or finished task, as well as metadata related
+    to the process.
+
+    `ExecutingTask` is returned by methods in `Runner` and `NBRunner`. It is not
+    meant to be instantiated directly.
+
+    This class works as a context manager, allowing you to use a pattern like
+    ```python
+    with Runner(...).spin() as running:
+        ...
+    ```
+    Note that you should use either this object as the context manager or
+    `Runner`, not both in a nested manner.
+
+    """
+
+    def __init__(
+        self, runner: "Runner", command_obj: CommandManager, task_obj: "metaflow.Task"
+    ) -> None:
+        """
+        Create a new ExecutingTask -- this should not be done by the user directly but
+        instead user Runner.spin()
+
+        Parameters
+        ----------
+        runner : Runner
+            Parent runner for this task.
+        command_obj : CommandManager
+            CommandManager containing the subprocess executing this task.
+        task_obj : Task
+            Task object corresponding to this task.
+        """
+        super().__init__(runner, command_obj)
+        self.task = task_obj
+
+
+class ExecutingRun(ExecutingProcess):
+    """
+    This class contains a reference to a `metaflow.Run` object representing
+    the currently executing or finished run, as well as metadata related
+    to the process.
+
+    `ExecutingRun` is returned by methods in `Runner` and `NBRunner`. It is not
+    meant to be instantiated directly.
+
+    This class works as a context manager, allowing you to use a pattern like
+    ```python
+    with Runner(...).run() as running:
+        ...
+    ```
+    Note that you should use either this object as the context manager or
+    `Runner`, not both in a nested manner.
+    """
+
+    def __init__(
+        self, runner: "Runner", command_obj: CommandManager, run_obj: Run
+    ) -> None:
+        """
+        Create a new ExecutingRun -- this should not be done by the user directly but
+        instead user Runner.run()
+
+        Parameters
+        ----------
+        runner : Runner
+            Parent runner for this run.
+        command_obj : CommandManager
+            CommandManager containing the subprocess executing this run.
+        run_obj : Run
+            Run object corresponding to this run.
+        """
+        super().__init__(runner, command_obj)
+        self.run = run_obj
 
 
 class RunnerMeta(type):
@@ -322,6 +400,23 @@ class Runner(metaclass=RunnerMeta):
         )
         return ExecutingRun(self, command_obj, run_object)
 
+    def __get_executing_task(self, attribute_file_fd, command_obj):
+        content = handle_timeout(attribute_file_fd, command_obj, self.file_read_timeout)
+
+        command_obj.sync_wait()
+
+        content = json.loads(content)
+        pathspec = f"{content.get('flow_name')}/{content.get('run_id')}/{content.get('step_name')}/{content.get('task_id')}"
+
+        # Set the correct metadata from the runner_attribute file corresponding to this run.
+        metadata_for_flow = content.get("metadata")
+        from metaflow import Task
+
+        task_object = Task(
+            pathspec, _namespace_check=False, _current_metadata=metadata_for_flow
+        )
+        return ExecutingTask(self, command_obj, task_object)
+
     async def __async_get_executing_run(self, attribute_file_fd, command_obj):
         content = await async_handle_timeout(
             attribute_file_fd, command_obj, self.file_read_timeout
@@ -336,6 +431,23 @@ class Runner(metaclass=RunnerMeta):
             pathspec, _namespace_check=False, _current_metadata=metadata_for_flow
         )
         return ExecutingRun(self, command_obj, run_object)
+
+    async def __async_get_executing_task(self, attribute_file_fd, command_obj):
+        content = await async_handle_timeout(
+            attribute_file_fd, command_obj, self.file_read_timeout
+        )
+        content = json.loads(content)
+        pathspec = f"{content.get('flow_name')}/{content.get('run_id')}/{content.get('step_name')}/{content.get('task_id')}"
+
+        # Set the correct metadata from the runner_attribute file corresponding to this run.
+        metadata_for_flow = content.get("metadata")
+
+        from metaflow import Task
+
+        task_object = Task(
+            pathspec, _namespace_check=False, _current_metadata=metadata_for_flow
+        )
+        return ExecutingTask(self, command_obj, task_object)
 
     def run(self, **kwargs) -> ExecutingRun:
         """
@@ -398,6 +510,44 @@ class Runner(metaclass=RunnerMeta):
             command_obj = self.spm.get(pid)
 
             return self.__get_executing_run(attribute_file_fd, command_obj)
+
+    def spin(self, step_name, task_pathspec, **kwargs):
+        """
+        Blocking spin execution of the run.
+        This method will wait until the spun run has completed execution.
+
+        Parameters
+        ----------
+        step_name : str
+            The name of the step to spin.
+        task_pathspec : str, optional, default None
+            The task pathspec to be used in the spun task.
+        **kwargs : Any
+            Additional arguments that you would pass to `python ./myflow.py` after
+            the `spin` command.
+
+        Returns
+        -------
+        ExecutingTask
+            ExecutingTask containing the results of the spun task.
+        """
+        with temporary_fifo() as (attribute_file_path, attribute_file_fd):
+            command = self.api(**self.top_level_kwargs).spin(
+                step_name=step_name,
+                task_pathspec=task_pathspec,
+                runner_attribute_file=attribute_file_path,
+                **kwargs,
+            )
+
+            pid = self.spm.run_command(
+                [sys.executable, *command],
+                env=self.env_vars,
+                cwd=self.cwd,
+                show_output=self.show_output,
+            )
+            command_obj = self.spm.get(pid)
+
+            return self.__get_executing_task(attribute_file_fd, command_obj)
 
     async def async_run(self, **kwargs) -> ExecutingRun:
         """

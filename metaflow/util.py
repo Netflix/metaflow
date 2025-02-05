@@ -9,6 +9,7 @@ from io import BytesIO
 from itertools import takewhile
 import re
 
+from typing import Callable
 from metaflow.exception import MetaflowUnknownUser, MetaflowInternalError
 
 try:
@@ -191,6 +192,49 @@ def get_latest_run_id(echo, flow_name):
             with open(path) as f:
                 return f.read()
     return None
+
+
+def get_latest_task_pathspec(flow_name: str, step_name: str) -> str:
+    """
+    Returns a task pathspec from the latest run of the flow for the queried step.
+    If the queried step has several tasks, the task pathspec of the first task is returned.
+
+    Parameters
+    ----------
+    flow_name : str
+        The name of the flow.
+    step_name : str
+        The name of the step.
+
+    Returns
+    -------
+    str
+        The task pathspec of the first task of the queried step.
+
+    Raises
+    ------
+    MetaflowNotFound
+        If no task or run is found for the queried step.
+    """
+    from metaflow import Flow, Step
+    from metaflow.exception import MetaflowNotFound
+
+    run = Flow(flow_name, _namespace_check=False).latest_run
+
+    if run is None:
+        raise MetaflowNotFound(f"No run found for the flow {flow_name}")
+
+    try:
+        step = Step(f"{flow_name}/{run.id}/{step_name}", _namespace_check=False)
+    except Exception:
+        raise MetaflowNotFound(
+            f"No step *{step_name}* found in run *{run.id}* for flow *{flow_name}*"
+        )
+
+    task = next(iter(step.tasks()), None)
+    if task:
+        return f"{flow_name}/{run.id}/{step_name}/{task.id}"
+    raise MetaflowNotFound(f"No task found for the queried step {query_step}")
 
 
 def write_latest_run_id(obj, run_id):

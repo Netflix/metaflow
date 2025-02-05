@@ -4,9 +4,12 @@ import math
 import sys
 import os
 import time
+import json
+import hashlib
 import traceback
 
 from types import MethodType, FunctionType
+from itertools import chain
 
 from metaflow.sidecar import Message, MessageTypes
 from metaflow.datastore.exceptions import DataException
@@ -14,7 +17,13 @@ from metaflow.datastore.exceptions import DataException
 from .metaflow_config import MAX_ATTEMPTS
 from .metadata_provider import MetaDatum
 from .mflog import TASK_LOG_SOURCE
-from .datastore import Inputs, TaskDataStoreSet
+from .datastore import (
+    Inputs,
+    TaskDataStoreSet,
+    LinearStepDatastore,
+    SpinInputsDatastore,
+    StaticSpinInputsDatastore,
+)
 from .exception import (
     MetaflowInternalError,
     MetaflowDataMissing,
@@ -27,6 +36,7 @@ from .metaflow_current import current
 from metaflow.system import _system_logger, _system_monitor
 from metaflow.tracing import get_trace_id
 from metaflow.tuple_util import ForeachFrame
+from .metaflow_config import SPIN_ALLOWED_DECORATORS
 
 # Maximum number of characters of the foreach path that we store in the metadata.
 MAX_FOREACH_PATH_LENGTH = 256
@@ -36,6 +46,22 @@ class MetaflowTask(object):
     """
     MetaflowTask prepares a Flow instance for execution of a single step.
     """
+
+    @staticmethod
+    def _dynamic_runtime_metadata(foreach_stack):
+        foreach_indices = [foreach_frame.index for foreach_frame in foreach_stack]
+        foreach_indices_truncated = foreach_indices[:-1]
+        foreach_step_names = [foreach_frame.step for foreach_frame in foreach_stack]
+        return foreach_indices, foreach_indices_truncated, foreach_step_names
+
+    def _static_runtime_metadata(self, graph_info, step_name):
+        prev_steps = [
+            node_name
+            for node_name, attributes in graph_info["steps"].items()
+            if step_name in attributes["next"]
+        ]
+        succesor_steps = graph_info["steps"][step_name]["next"]
+        return prev_steps, succesor_steps
 
     def __init__(
         self,
@@ -372,6 +398,176 @@ class MetaflowTask(object):
                     )
                 )
 
+    def run_spin_step(
+        self,
+        step_name,
+        task_pathspec,
+        new_run_id,
+        new_task_id,
+        input_paths,
+        split_index,
+        retry_count,
+        max_user_code_retries,
+        namespace,
+        skip_decorators,
+    ):
+        def is_join_step(immediate_ancestors):
+            prev_task_pathspecs = set(chain.from_iterable(immediate_ancestors.values()))
+            return len(prev_task_pathspecs) > 1
+
+        step_func = getattr(self.flow, step_name)
+        whitelisted_decorators = (
+            []
+            if skip_decorators
+            else [
+                deco
+                for deco in step_func.decorators
+                if any(
+                    deco.name.startswith(prefix) for prefix in SPIN_ALLOWED_DECORATORS
+                )
+            ]
+        )
+
+        # initialize output datastore
+        output = self.flow_datastore.get_task_datastore(
+            new_run_id, step_name, new_task_id, 0, mode="w"
+        )
+
+        output.init_task()
+
+        # How we access the input and index attributes depends on the execution context.
+        # If spin is set to True, we short-circuit attribute access to getattr directly
+        # Also set the other attributes that are needed for the task to execute
+        from metaflow import Task
+
+        self.task = Task(task_pathspec, _namespace_check=False)
+        immediate_ancestors = self.task.immediate_ancestors
+        self.flow._spin = True
+        self.flow._spin_foreach_stack = self.task["_foreach_stack"].data
+        self.flow._spin_index = split_index
+        self.flow._current_step = step_name
+        self.flow._success = False
+        self.flow._task_ok = None
+        self.flow._exception = None
+
+        # Set inputs
+        inp_datastore = None
+        is_join = is_join_step(immediate_ancestors)
+        if is_join:
+            # Join step
+            if len(self.task.metadata_dict.get("previous-steps")) > 1:
+                # Static join step
+                inp_datastore = StaticSpinInputsDatastore(
+                    self.task, immediate_ancestors, artifacts={}
+                )
+            else:
+                # Foreach join step
+                inp_datastore = SpinInputsDatastore(
+                    self.task, immediate_ancestors, artifacts={}
+                )
+            self.flow._set_datastore(output)
+        else:
+            # Linear step
+            self.flow._set_datastore(
+                LinearStepDatastore(self.task, immediate_ancestors, artifacts={})
+            )
+
+        current._set_env(
+            flow=self.flow,
+            run_id=new_run_id,
+            step_name=step_name,
+            task_id=new_task_id,
+            retry_count=retry_count,
+            namespace=resolve_identity(),
+            username=get_username(),
+            metadata_str="%s@%s"
+            % (self.metadata.__class__.TYPE, self.metadata.__class__.INFO),
+            is_running=True,
+            is_spin=True,
+        )
+
+        # task_pre_step decorator hooks
+        for deco in whitelisted_decorators:
+            deco.task_pre_step(
+                step_name=step_name,
+                task_datastore=output,
+                metadata=self.metadata,
+                run_id=new_run_id,
+                task_id=new_task_id,
+                flow=self.flow,
+                graph=self.flow._graph,
+                retry_count=retry_count,
+                max_user_code_retries=max_user_code_retries,
+                ubf_context=self.ubf_context,
+                inputs=inp_datastore,
+            )
+
+        # task_decorate decorator hooks
+        for deco in whitelisted_decorators:
+            step_func = deco.task_decorate(
+                step_func=step_func,
+                flow=self.flow,
+                graph=self.flow._graph,
+                retry_count=retry_count,
+                max_user_code_retries=max_user_code_retries,
+                ubf_context=self.ubf_context,
+            )
+
+        # Execute the step function
+        try:
+            if is_join:
+                # Join step
+                self._exec_step_function(step_func, input_obj=inp_datastore)
+            else:
+                self._exec_step_function(step_func)
+
+            # task_post_step decorator hooks
+            for deco in whitelisted_decorators:
+                deco.task_post_step(
+                    step_name,
+                    self.flow,
+                    self.flow._graph,
+                    retry_count,
+                    max_user_code_retries,
+                )
+
+            self.flow._task_ok = True
+            self.flow._success = True
+        except Exception as ex:
+            exception_handled = False
+            for deco in whitelisted_decorators:
+                res = deco.task_exception(
+                    ex,
+                    step_name,
+                    self.flow,
+                    self.flow._graph,
+                    retry_count,
+                    max_user_code_retries,
+                )
+                exception_handled = bool(res) or exception_handled
+
+            if exception_handled:
+                self.flow._task_ok = True
+            else:
+                self.flow._task_ok = False
+                self.flow._exception = MetaflowExceptionWrapper(ex)
+                print("%s failed:" % self.flow, file=sys.stderr)
+                raise
+        finally:
+            output.persist(self.flow)
+            output.done()
+
+            # task_finish decorator hooks
+            for deco in whitelisted_decorators:
+                deco.task_finished(
+                    step_name,
+                    self.flow,
+                    self.flow._graph,
+                    self.flow._task_ok,
+                    retry_count,
+                    max_user_code_retries,
+                )
+
     def run_step(
         self,
         step_name,
@@ -493,6 +689,36 @@ class MetaflowTask(object):
                     )
                 )
 
+            # Add runtime dag info - for a nested foreach this may look like:
+            # foreach_indices: [0, 1]
+            # foreach_indices_truncated: [0]
+            # foreach_step_names: ['step1', 'step2']
+            foreach_indices, foreach_indices_truncated, foreach_step_names = (
+                self._dynamic_runtime_metadata(foreach_stack)
+            )
+            metadata.extend(
+                [
+                    MetaDatum(
+                        field="foreach-indices",
+                        value=foreach_indices,
+                        type="foreach-indices",
+                        tags=metadata_tags,
+                    ),
+                    MetaDatum(
+                        field="foreach-indices-truncated",
+                        value=foreach_indices_truncated,
+                        type="foreach-indices-truncated",
+                        tags=metadata_tags,
+                    ),
+                    MetaDatum(
+                        field="foreach-step-names",
+                        value=foreach_step_names,
+                        type="foreach-step-names",
+                        tags=metadata_tags,
+                    ),
+                ]
+            )
+
         self.metadata.register_metadata(
             run_id,
             step_name,
@@ -559,6 +785,7 @@ class MetaflowTask(object):
                 self.flow._success = False
                 self.flow._task_ok = None
                 self.flow._exception = None
+
                 # Note: All internal flow attributes (ie: non-user artifacts)
                 # should either be set prior to running the user code or listed in
                 # FlowSpec._EPHEMERAL to allow for proper merging/importing of
@@ -616,7 +843,9 @@ class MetaflowTask(object):
                                 "graph_info": self.flow._graph_info,
                             }
                         )
-
+                previous_steps, successor_steps = self._static_runtime_metadata(
+                    self.flow._graph_info, step_name
+                )
                 for deco in decorators:
                     deco.task_pre_step(
                         step_name,
@@ -727,8 +956,20 @@ class MetaflowTask(object):
                                 field="attempt_ok",
                                 value=attempt_ok,
                                 type="internal_attempt_status",
-                                tags=["attempt_id:{0}".format(retry_count)],
-                            )
+                                tags=metadata_tags,
+                            ),
+                            MetaDatum(
+                                field="previous-steps",
+                                value=previous_steps,
+                                type="previous-steps",
+                                tags=metadata_tags,
+                            ),
+                            MetaDatum(
+                                field="successor-steps",
+                                value=successor_steps,
+                                type="successor-steps",
+                                tags=metadata_tags,
+                            ),
                         ],
                     )
 
