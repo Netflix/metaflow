@@ -111,6 +111,9 @@ class ArgoWorkflows(object):
         notify_on_success=False,
         notify_slack_webhook_url=None,
         notify_pager_duty_integration_key=None,
+        notify_incident_io_api_key=None,
+        incident_io_success_severity_id=None,
+        incident_io_error_severity_id=None,
         enable_heartbeat_daemon=True,
         enable_error_msg_capture=False,
     ):
@@ -160,6 +163,9 @@ class ArgoWorkflows(object):
         self.notify_on_success = notify_on_success
         self.notify_slack_webhook_url = notify_slack_webhook_url
         self.notify_pager_duty_integration_key = notify_pager_duty_integration_key
+        self.notify_incident_io_api_key = notify_incident_io_api_key
+        self.incident_io_success_severity_id = incident_io_success_severity_id
+        self.incident_io_error_severity_id = incident_io_error_severity_id
         self.enable_heartbeat_daemon = enable_heartbeat_daemon
         self.enable_error_msg_capture = enable_error_msg_capture
         self.parameters = self._process_parameters()
@@ -893,6 +899,17 @@ class ArgoWorkflows(object):
                         ),
                         **(
                             {
+                                # workflow status maps to Completed
+                                "notify-incident-io-on-success": LifecycleHook()
+                                .expression("workflow.status == 'Succeeded'")
+                                .template("notify-incident-io-on-success"),
+                            }
+                            if self.notify_on_success
+                            and self.notify_incident_io_api_key
+                            else {}
+                        ),
+                        **(
+                            {
                                 # workflow status maps to Failed or Error
                                 "notify-slack-on-failure": LifecycleHook()
                                 .expression("workflow.status == 'Failed'")
@@ -916,6 +933,19 @@ class ArgoWorkflows(object):
                             }
                             if self.notify_on_error
                             and self.notify_pager_duty_integration_key
+                            else {}
+                        ),
+                        **(
+                            {
+                                # workflow status maps to Failed or Error
+                                "notify-incident-io-on-failure": LifecycleHook()
+                                .expression("workflow.status == 'Failed'")
+                                .template("notify-incident-io-on-error"),
+                                "notify-incident-io-on-error": LifecycleHook()
+                                .expression("workflow.status == 'Error'")
+                                .template("notify-incident-io-on-error"),
+                            }
+                            if self.notify_on_error and self.notify_incident_io_api_key
                             else {}
                         ),
                         # Warning: terrible hack to workaround a bug in Argo Workflow
@@ -2270,9 +2300,11 @@ class ArgoWorkflows(object):
         if self.notify_on_error:
             templates.append(self._slack_error_template())
             templates.append(self._pager_duty_alert_template())
+            templates.append(self._incident_io_alert_template())
         if self.notify_on_success:
             templates.append(self._slack_success_template())
             templates.append(self._pager_duty_change_template())
+            templates.append(self._incident_io_change_template())
         if self.notify_on_error or self.notify_on_success:
             # Warning: terrible hack to workaround a bug in Argo Workflow where the
             #          templates listed above do not execute unless there is an
@@ -2465,6 +2497,82 @@ class ArgoWorkflows(object):
                 )
             )
         )
+
+    def _incident_io_alert_template(self):
+        if self.notify_incident_io_api_key is None:
+            return None
+        if self.incident_io_error_severity_id is None:
+            raise MetaflowException(
+                "Creating incidents for errors requires a severity id."
+            )
+        return Template("notify-incident-io-on-error").http(
+            Http("POST")
+            .url("https://api.incident.io/v2/incidents")
+            .header("Content-Type", "application/json")
+            .header("Authorization", "Bearer %s" % self.notify_incident_io_api_key)
+            .body(
+                json.dumps(
+                    {
+                        "idempotency_key": "argo-{{workflow.name}}",  # use run id to deduplicate alerts.
+                        "visibility": "public",
+                        "severity_id": self.incident_io_error_severity_id,
+                        "name": "Flow %s has failed." % self.flow.name,
+                        "summary": "Metaflow run %s/argo-{{workflow.name}} failed! %s"
+                        % (self.flow.name, self._incident_io_ui_urls_for_run()),
+                        # TODO: Add support for custom field entries.
+                    }
+                )
+            )
+        )
+
+    def _incident_io_change_template(self):
+        if self.notify_incident_io_api_key is None:
+            return None
+        if self.incident_io_success_severity_id is None:
+            raise MetaflowException(
+                "Creating incidents for successes requires a severity id."
+            )
+        return Template("notify-incident-io-on-success").http(
+            Http("POST")
+            .url("https://api.incident.io/v2/incidents")
+            .header("Content-Type", "application/json")
+            .header("Authorization", "Bearer %s" % self.notify_incident_io_api_key)
+            .body(
+                json.dumps(
+                    {
+                        "idempotency_key": "argo-{{workflow.name}}",  # use run id to deduplicate alerts.
+                        "visibility": "public",
+                        "severity_id": self.incident_io_success_severity_id,
+                        # TODO: Do we need to make incident type configurable for successes? otherwise they are created as 'investigating'
+                        # "incident_type_id": ""
+                        "name": "Flow %s has succeeded." % self.flow.name,
+                        "summary": "Metaflow run %s/argo-{{workflow.name}} succeeded!%s"
+                        % (self.flow.name, self._incident_io_ui_urls_for_run()),
+                        # TODO: Add support for custom field entries.
+                    }
+                )
+            )
+        )
+
+    def _incident_io_ui_urls_for_run(self):
+        links = []
+        if UI_URL:
+            url = "[Metaflow UI](%s/%s/%s)" % (
+                UI_URL.rstrip("/"),
+                self.flow.name,
+                "argo-{{workflow.name}}",
+            )
+            links.append(url)
+        if ARGO_WORKFLOWS_UI_URL:
+            url = "[Argo UI](%s/workflows/%s/%s)" % (
+                ARGO_WORKFLOWS_UI_URL.rstrip("/"),
+                "{{workflow.namespace}}",
+                "{{workflow.name}}",
+            )
+            links.append(url)
+        if links:
+            links = ["See details for the run at: ", *links]
+        return "\n\n".join(links)
 
     def _pager_duty_change_template(self):
         # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgy-send-a-change-event
