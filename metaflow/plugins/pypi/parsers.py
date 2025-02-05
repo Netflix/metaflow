@@ -1,8 +1,6 @@
 import re
 from typing import Any, Dict, List, Optional
 
-from packaging.requirements import InvalidRequirement, Requirement
-
 REQ_SPLIT_LINE = re.compile(r"([^~<=>]*)([~<=>]+.*)?")
 
 # Allows things like:
@@ -104,6 +102,8 @@ def parse_req_value(
     np_deps: Dict[str, str],
     sys_deps: Dict[str, str],
 ) -> Optional[str]:
+    from packaging.requirements import InvalidRequirement, Requirement
+
     python_version = None
     for line in file_content.splitlines():
         line = line.strip()
