@@ -7,9 +7,10 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from metaflow._vendor import click
 from metaflow.debug import debug
 
-from .config_parameters import CONFIG_FILE, ConfigValue
+from .config_parameters import ConfigValue
 from ..exception import MetaflowException, MetaflowInternalError
 from ..parameters import DeployTimeField, ParameterContext, current_flow
+from ..special_files import SpecialFile
 from ..util import get_username
 
 
@@ -24,7 +25,7 @@ _CONVERTED_DEFAULT_NO_FILE = _CONVERTED_DEFAULT + _NO_FILE
 
 def _load_config_values(info_file: Optional[str] = None) -> Optional[Dict[Any, Any]]:
     if info_file is None:
-        info_file = os.path.basename(CONFIG_FILE)
+        info_file = os.path.basename(SpecialFile.CONFIG_FILE.value)
     try:
         with open(info_file, encoding="utf-8") as contents:
             return json.load(contents).get("user_configs", {})
