@@ -18,13 +18,14 @@ from datetime import datetime
 from io import BytesIO
 from functools import partial
 from concurrent import futures
-
-from metaflow.datastore.exceptions import DataException
+from itertools import chain
 from contextlib import contextmanager
 
 from . import get_namespace
+from metaflow.datastore.exceptions import DataException
 from .metadata_provider import MetaDatum
 from .metaflow_config import MAX_ATTEMPTS, UI_URL
+from .metaflow_config import SPIN_ALLOWED_DECORATORS
 from .exception import (
     MetaflowException,
     MetaflowInternalError,
@@ -71,6 +72,251 @@ RESUME_POLL_SECONDS = 60
 mflog_msg = partial(mflog.decorate, RUNTIME_LOG_SOURCE)
 
 # TODO option: output dot graph periodically about execution
+
+
+class SpinRuntime(object):
+    def __init__(
+        self,
+        flow,
+        graph,
+        flow_datastore,
+        metadata,
+        environment,
+        package,
+        logger,
+        entrypoint,
+        event_logger,
+        monitor,
+        spin_metadata,
+        spin_flow_datastore,
+        step_func,
+        task_pathspec,
+        skip_decorators=False,
+        max_log_size=MAX_LOG_SIZE,
+    ):
+        from metaflow import Task
+
+        self._flow = flow
+        self._graph = graph
+        self._flow_datastore = flow_datastore
+        self._metadata = metadata
+        self._environment = environment
+        self._package = package
+        self._logger = logger
+        self._entrypoint = entrypoint
+        self._event_logger = event_logger
+        self._monitor = monitor
+
+        # Spin specific metadata, event_logger, monitor, and flow_datastore
+        self._spin_metadata = spin_metadata
+        self._spin_flow_datastore = spin_flow_datastore
+        print(f"Spin Flow Datastore in SpinRuntime: {self._spin_flow_datastore}")
+
+        self._step_func = step_func
+        self._task_pathspec = task_pathspec
+        self._task = Task(self._task_pathspec, _namespace_check=False)
+        self._input_paths = None
+        self._split_index = None
+        self._whitelist_decorators = None
+        self._config_file_name = None
+        self._skip_decorators = skip_decorators
+        self._max_log_size = max_log_size
+        self._encoding = sys.stdout.encoding or "UTF-8"
+
+        # Create a new run_id for the spin task
+        self.run_id = self._spin_metadata.new_run_id()
+        for deco in self.whitelist_decorators:
+            print("-" * 100)
+            deco.runtime_init(flow, graph, package, self.run_id)
+
+    @property
+    def split_index(self):
+        if self._split_index:
+            return self._split_index
+
+        self._split_index = self._task.index
+        return self._split_index
+
+    @property
+    def input_paths(self):
+        if self._input_paths:
+            return self._input_paths
+
+        # We use the _input_paths artifact to get the input paths for the task
+        self._input_paths = self._task["_input_paths"].data
+        return self._input_paths
+
+    @property
+    def whitelist_decorators(self):
+        if self._skip_decorators:
+            return []
+        if self._whitelist_decorators:
+            return self._whitelist_decorators
+        self._whitelist_decorators = [
+            deco
+            for deco in self._step_func.decorators
+            if any(deco.name.startswith(prefix) for prefix in SPIN_ALLOWED_DECORATORS)
+        ]
+        return self._whitelist_decorators
+
+    def _new_task(self, step, input_paths=None, **kwargs):
+        return Task(
+            self._flow_datastore,
+            self._flow,
+            step,
+            self.run_id,
+            self._metadata,
+            self._environment,
+            self._entrypoint,
+            self._event_logger,
+            self._monitor,
+            input_paths=self.input_paths,
+            decos=self.whitelist_decorators,
+            logger=self._logger,
+            split_index=self.split_index,
+            spin_flow_datastore=self._spin_flow_datastore,
+            spin_metadata=self._spin_metadata,
+            is_spin=True,
+            **kwargs,
+        )
+
+    def execute(self):
+        exception = None
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as config_file:
+            config_value = dump_config_values(self._flow)
+            if config_value:
+                json.dump(config_value, config_file)
+                config_file.flush()
+                self._config_file_name = config_file.name
+            else:
+                self._config_file_name = None
+
+            self.task = self._new_task(self._step_func.name, {})
+            _ds = self._spin_flow_datastore.get_task_datastore(
+                self.run_id,
+                self._step_func.name,
+                self.task.task_id,
+                attempt=0,
+                mode="w",
+            )
+
+            try:
+                self._launch_and_monitor_task()
+            except Exception as ex:
+                self._logger("Task failed.", system_msg=True, bad=True)
+                exception = ex
+                raise
+            finally:
+                for deco in self.whitelist_decorators:
+                    deco.runtime_finished(exception)
+
+    def _launch_and_monitor_task(self):
+        args = CLIArgs(self.task, spin=True, prev_task_pathspec=self._task_pathspec)
+        env = dict(os.environ)
+
+        for deco in self.task.decos:
+            deco.runtime_step_cli(
+                args,
+                self.task.retries,
+                self.task.user_code_retries,
+                self.task.ubf_context,
+            )
+
+        # Add user configurations using a file to avoid using up too much space on the
+        # command line
+        if self._config_file_name:
+            args.top_level_options["local-config-file"] = self._config_file_name
+
+        # Add the skip-decorators flag to the command options
+        args.command_options.update({"skip-decorators": self._skip_decorators})
+
+        env.update(args.get_env())
+        env["PYTHONUNBUFFERED"] = "x"
+
+        stdout_buffer = TruncatedBuffer("stdout", self._max_log_size)
+        stderr_buffer = TruncatedBuffer("stderr", self._max_log_size)
+
+        cmdline = args.get_args()
+        self._logger(f"Launching command: {' '.join(cmdline)}", system_msg=True)
+
+        try:
+            process = subprocess.Popen(
+                cmdline,
+                env=env,
+                bufsize=1,  # Line buffering
+                stdin=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                text=True,
+            )
+        except Exception as e:
+            raise TaskFailed(self.task, f"Failed to launch task: {str(e)}")
+
+        poll = procpoll.make_poll()
+        poll.add(process.stdout.fileno())
+        poll.add(process.stderr.fileno())
+
+        fd_map = {
+            process.stdout.fileno(): (process.stdout, stdout_buffer, False),
+            process.stderr.fileno(): (process.stderr, stderr_buffer, True),
+        }
+
+        while True:
+            events = poll.poll(POLL_TIMEOUT)
+
+            if not events:
+                if process.poll() is not None:
+                    break
+                continue
+
+            for event in events:
+                if event.can_read:
+                    stream, buffer, is_stderr = fd_map[event.fd]
+                    line = stream.readline()
+                    if line:
+                        self._process_output(line, buffer, is_stderr)
+
+                if event.is_terminated:
+                    poll.remove(event.fd)
+
+            if process.poll() is not None:
+                break
+
+        # Process remaining output
+        for stream, buffer, is_stderr in fd_map.values():
+            for line in stream:
+                self._process_output(line, buffer, is_stderr)
+
+        returncode = process.wait()
+
+        self.task.save_metadata(
+            "runtime",
+            {
+                "return_code": returncode,
+                "success": returncode == 0,
+            },
+        )
+
+        if returncode != 0:
+            raise TaskFailed(self.task, f"Task failed with return code {returncode}")
+        else:
+            self._logger("Task finished successfully.", system_msg=True)
+
+        self.task.save_logs(
+            {
+                "stdout": stdout_buffer.get_buffer(),
+                "stderr": stderr_buffer.get_buffer(),
+            }
+        )
+
+    def _process_output(self, line, buffer, is_stderr=False):
+        buffer.write(line.encode(self._encoding))
+        text = line.strip()
+        self.task.log(
+            text,
+            system_msg=False,
+            timestamp=datetime.now(),
+        )
 
 
 class NativeRuntime(object):
@@ -439,6 +685,8 @@ class NativeRuntime(object):
                         ubf_context,
                     )
                 )
+
+        print(f"Inputs: {inputs}")
 
         with futures.ThreadPoolExecutor(max_workers=self._max_workers) as executor:
             all_tasks = [
@@ -1030,6 +1278,9 @@ class Task(object):
         task_id=None,
         resume_identifier=None,
         pathspec_index=None,
+        spin_flow_datastore=None,
+        spin_metadata=None,
+        is_spin=False,
     ):
         self.step = step
         self.flow = flow
@@ -1067,6 +1318,11 @@ class Task(object):
         self._flow_datastore = flow_datastore
         self.datastore_sysroot = flow_datastore.datastore_root
         self._results_ds = None
+
+        # Spin metadata and flow datastore
+        self.spin_flow_datastore = spin_flow_datastore
+        self.spin_metadata = spin_metadata
+        self.is_spin = is_spin
 
         # Only used in clone-only resume.
         self._is_resume_leader = None
@@ -1258,6 +1514,7 @@ class Task(object):
                         system_msg=True,
                     )
         else:
+            # For spin tasks we will always short-circuit to here
             self._is_cloned = False
             if clone_only:
                 # We are done -- we don't proceed to create new task-ids
@@ -1267,10 +1524,11 @@ class Task(object):
         # Open the output datastore only if the task is not being cloned.
         if not self._is_cloned:
             self.new_attempt()
+            print(f"I am already running runtime_task_created decorator hook here")
             for deco in decos:
                 deco.runtime_task_created(
                     self._ds,
-                    task_id,
+                    self.task_id,
                     split_index,
                     input_paths,
                     self._is_cloned,
@@ -1302,9 +1560,15 @@ class Task(object):
                 self.error_retries = 0
 
     def new_attempt(self):
-        self._ds = self._flow_datastore.get_task_datastore(
-            self.run_id, self.step, self.task_id, attempt=self.retries, mode="w"
-        )
+        print(f"I am in new_attempt and self.task_id: {self.task_id}")
+        if self.is_spin:
+            self._ds = self.spin_flow_datastore.get_task_datastore(
+                self.run_id, self.step, self.task_id, attempt=self.retries, mode="w"
+            )
+        else:
+            self._ds = self._flow_datastore.get_task_datastore(
+                self.run_id, self.step, self.task_id, attempt=self.retries, mode="w"
+            )
         self._ds.init_task()
 
     def log(self, msg, system_msg=False, pid=None, timestamp=True):
@@ -1350,17 +1614,30 @@ class Task(object):
         if task_id is None:
             task_id = str(
                 self.metadata.new_task_id(self.run_id, self.step, sys_tags=tags)
+                if not self.is_spin
+                else self.spin_metadata.new_task_id(
+                    self.run_id, self.step, sys_tags=tags
+                )
             )
             already_existed = False
         else:
             # task_id is preset only by persist_constants().
-            already_existed = not self.metadata.register_task_id(
-                self.run_id,
-                self.step,
-                task_id,
-                0,
-                sys_tags=tags,
-            )
+            if self.is_spin:
+                already_existed = not self.spin_metadata.register_task_id(
+                    self.run_id,
+                    self.step,
+                    task_id,
+                    0,
+                    sys_tags=tags,
+                )
+            else:
+                already_existed = not self.metadata.register_task_id(
+                    self.run_id,
+                    self.step,
+                    task_id,
+                    0,
+                    sys_tags=tags,
+                )
 
         self.task_id = task_id
         self._path = "%s/%s/%s" % (self.run_id, self.step, self.task_id)
@@ -1508,11 +1785,13 @@ class CLIArgs(object):
     for step execution in StepDecorator.runtime_step_cli().
     """
 
-    def __init__(self, task):
+    def __init__(self, task, spin=False, prev_task_pathspec=None):
         self.task = task
+        self.spin = spin
+        self.prev_task_pathspec = prev_task_pathspec
         self.entrypoint = list(task.entrypoint)
         self.top_level_options = {
-            "quiet": True,
+            "quiet": True if spin else False,
             "metadata": self.task.metadata_type,
             "environment": self.task.environment_type,
             "datastore": self.task.datastore_type,
@@ -1542,18 +1821,42 @@ class CLIArgs(object):
                 (k, ConfigInput.make_key_name(k)) for k in configs
             ]
 
+        # print(f"top_level_options: {self.top_level_options}")
+
+        if spin:
+            self.spin_args()
+        else:
+            self.default_args()
+
+    def default_args(self):
         self.commands = ["step"]
         self.command_args = [self.task.step]
         self.command_options = {
-            "run-id": task.run_id,
-            "task-id": task.task_id,
-            "input-paths": compress_list(task.input_paths),
-            "split-index": task.split_index,
-            "retry-count": task.retries,
-            "max-user-code-retries": task.user_code_retries,
-            "tag": task.tags,
+            "run-id": self.task.run_id,
+            "task-id": self.task.task_id,
+            "input-paths": compress_list(self.task.input_paths),
+            "split-index": self.task.split_index,
+            "retry-count": self.task.retries,
+            "max-user-code-retries": self.task.user_code_retries,
+            "tag": self.task.tags,
             "namespace": get_namespace() or "",
-            "ubf-context": task.ubf_context,
+            "ubf-context": self.task.ubf_context,
+        }
+        self.env = {}
+
+    def spin_args(self):
+        self.commands = ["spin-internal"]
+        self.command_args = [self.task.step]
+
+        self.command_options = {
+            "run-id": self.task.run_id,
+            "task-id": self.task.task_id,
+            "task-pathspec": self.prev_task_pathspec,
+            "input-paths": self.task.input_paths,
+            "split-index": self.task.split_index,
+            "retry-count": self.task.retries,
+            "max-user-code-retries": self.task.user_code_retries,
+            "namespace": get_namespace() or "",
         }
         self.env = {}
 
