@@ -580,11 +580,10 @@ class StepFunctions(object):
             attrs["metaflow.production_token"] = self.production_token
 
         # Add env vars from the optional @environment decorator.
+        env = {}
         env_deco = [deco for deco in node.decorators if deco.name == "environment"]
         if env_deco:
             env = type(env_deco[0]).merge_vars(env_deco)
-        else:
-            env = {}
 
         # add METAFLOW_S3_ENDPOINT_URL
         if S3_ENDPOINT_URL is not None:
