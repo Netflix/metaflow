@@ -330,7 +330,7 @@ def start(
     event_logger=None,
     monitor=None,
     local_config_file=None,
-    config_file=None,
+    config=None,
     config_value=None,
     **deco_options
 ):
@@ -383,7 +383,7 @@ def start(
     # When we process the options, the first one processed will return None and the
     # second one processed will return the actual options. The order of processing
     # depends on what (and in what order) the user specifies on the command line.
-    config_options = config_file or config_value
+    config_options = config or config_value
 
     if (
         hasattr(ctx, "saved_args")
@@ -396,7 +396,7 @@ def start(
         # if we need to in the first place
         if getattr(ctx.obj, "has_cl_config_options", False):
             raise click.UsageError(
-                "Cannot specify --config-file or --config-value with 'resume'"
+                "Cannot specify --config or --config-value with 'resume'"
             )
         # We now load the config artifacts from the original run id
         run_id = None
