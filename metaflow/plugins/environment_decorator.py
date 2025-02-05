@@ -39,6 +39,5 @@ class EnvironmentDecorator(StepDecorator):
                             dest[key], key, value
                         )
                     )
-                dest[key] = value
             dest.update(deco.attributes["vars"])
         return dest
