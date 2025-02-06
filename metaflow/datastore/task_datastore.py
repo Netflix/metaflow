@@ -280,20 +280,20 @@ class TaskDataStore(object):
                 if encode_type in self._encodings:
                     try:
                         blob = pickle.dumps(obj, protocol=4)
-                    except TypeError:
-                        raise UnpicklableArtifactException(name)
+                    except TypeError as e:
+                        raise UnpicklableArtifactException(name) from e
                 else:
                     try:
                         blob = pickle.dumps(obj, protocol=2)
                         encode_type = "gzip+pickle-v2"
-                    except (SystemError, OverflowError):
+                    except (SystemError, OverflowError) as e:
                         raise DataException(
                             "Artifact *%s* is very large (over 2GB). "
                             "You need to use Python 3.4 or newer if you want to "
                             "serialize large objects." % name
                         )
-                    except TypeError:
-                        raise UnpicklableArtifactException(name)
+                    except TypeError as e:
+                        raise UnpicklableArtifactException(name) from e
 
                 self._info[name] = {
                     "size": len(blob),
