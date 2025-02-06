@@ -230,7 +230,6 @@ class TriggerDecorator(FlowDecorator):
 
         self.triggers = new_triggers
         for trigger in self.triggers:
-            old_trigger = trigger
             trigger_params = trigger.get("parameters", {})
             # Case where param is a function (can return list or dict)
             if isinstance(trigger_params, DeployTimeField):
@@ -287,22 +286,37 @@ class TriggerDecorator(FlowDecorator):
             # Third layer
             # {name:, parameters:[func, ..., ...]}
             # {name:, parameters:{func : func2}}
-            for trigger in self.triggers:
-                old_trigger = trigger
-                trigger_params = trigger.get("parameters", {})
-                new_trigger_params = {}
-                for key, value in trigger_params.items():
-                    if isinstance(value, DeployTimeField) and key is value:
-                        evaluated_param = deploy_time_eval(value)
-                        new_trigger_params[evaluated_param] = evaluated_param
-                    elif isinstance(value, DeployTimeField):
-                        new_trigger_params[key] = deploy_time_eval(value)
-                    elif isinstance(key, DeployTimeField):
-                        new_trigger_params[deploy_time_eval(key)] = value
-                    else:
-                        new_trigger_params[key] = value
-                trigger["parameters"] = new_trigger_params
-            self.triggers[self.triggers.index(old_trigger)] = trigger
+            new_trigger_params = {}
+            for key, value in trigger["parameters"].items():
+                final_key = (
+                    deploy_time_eval(key) if isinstance(key, DeployTimeField) else key
+                )
+                final_value = (
+                    deploy_time_eval(value)
+                    if isinstance(value, DeployTimeField)
+                    else value
+                )
+                new_trigger_params[final_key] = final_value
+
+            trigger["parameters"] = new_trigger_params
+
+            # print(f"Now trigger is: {trigger}")
+            # for trigger in self.triggers:
+            #     old_trigger = trigger
+            #     trigger_params = trigger.get("parameters", {})
+            #     new_trigger_params = {}
+            #     for key, value in trigger_params.items():
+            #         if isinstance(value, DeployTimeField) and key is value:
+            #             evaluated_param = deploy_time_eval(value)
+            #             new_trigger_params[evaluated_param] = evaluated_param
+            #         elif isinstance(value, DeployTimeField):
+            #             new_trigger_params[key] = deploy_time_eval(value)
+            #         elif isinstance(key, DeployTimeField):
+            #             new_trigger_params[deploy_time_eval(key)] = value
+            #         else:
+            #             new_trigger_params[key] = value
+            #     trigger["parameters"] = new_trigger_params
+            # self.triggers[self.triggers.index(old_trigger)] = trigger
 
 
 class TriggerOnFinishDecorator(FlowDecorator):
