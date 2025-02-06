@@ -291,7 +291,7 @@ class TaskDataStore(object):
                             "Artifact *%s* is very large (over 2GB). "
                             "You need to use Python 3.4 or newer if you want to "
                             "serialize large objects." % name
-                        )
+                        ) from e
                     except TypeError as e:
                         raise UnpicklableArtifactException(name) from e
 
