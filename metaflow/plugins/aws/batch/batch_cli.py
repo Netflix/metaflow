@@ -12,6 +12,7 @@ from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.mflog import TASK_LOG_SOURCE
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from .batch import Batch, BatchKilledException
+from metaflow.tagging_util import validate_tags, validate_aws_tag
 
 
 @click.group()
@@ -45,7 +46,6 @@ def _execute_cmd(func, flow_name, run_id, user, my_runs, echo):
             raise CommandException("A previous run id was not found. Specify --run-id.")
 
     func(flow_name, run_id, user, echo)
-
 
 @batch.command(help="List unfinished AWS Batch tasks of this flow")
 @click.option(
@@ -146,7 +146,7 @@ def kill(ctx, run_id, user, my_runs):
     help="Activate designated number of elastic fabric adapter devices. "
     "EFA driver must be installed and instance type compatible with EFA",
 )
-@click.option("--aws-tags", multiple=True, default=None, help="AWS tags.")
+@click.option("--aws-tags", multiple=True, default=None, help="AWS tags. Format: key=value, multiple allowed")
 @click.option("--use-tmpfs", is_flag=True, help="tmpfs requirement for AWS Batch.")
 @click.option("--tmpfs-tempdir", is_flag=True, help="tmpfs requirement for AWS Batch.")
 @click.option("--tmpfs-size", help="tmpfs requirement for AWS Batch.")
@@ -275,6 +275,19 @@ def step(
         "metaflow_version"
     ]
 
+
+
+    if aws_tags is not None:
+        if not isinstance(aws_tags, list[str]):
+            raise CommandException("aws_tags must be list[str]")
+        aws_tags_list = [
+            {'key': item.split('=')[0],
+                'value': item.split('=')[1]} for item in aws_tags.items()
+        ]
+        for tag in aws_tags_list:
+            validate_aws_tag(tag)
+                
+
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
         env = env_deco[0].attributes["vars"]
@@ -340,7 +353,7 @@ def step(
                 host_volumes=host_volumes,
                 efs_volumes=efs_volumes,
                 use_tmpfs=use_tmpfs,
-                tags=aws_tags,
+                aws_tags=aws_tags,
                 tmpfs_tempdir=tmpfs_tempdir,
                 tmpfs_size=tmpfs_size,
                 tmpfs_path=tmpfs_path,
