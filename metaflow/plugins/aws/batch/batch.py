@@ -200,7 +200,7 @@ class Batch(object):
         efs_volumes=None,
         use_tmpfs=None,
         aws_tags=None,
-        step_function_tags=None,
+        step_function_aws_tags=None,
         tmpfs_tempdir=None,
         tmpfs_size=None,
         tmpfs_path=None,
@@ -357,9 +357,9 @@ class Batch(object):
                 validate_aws_tag(aws_tag)
                 job.tag(name, value)
 
-            if step_function_tags is not None:
+            if step_function_aws_tags is not None:
                 aws_tags_list = []
-                for tag in step_function_tags:
+                for tag in step_function_aws_tags:
                     key_value = tag.split("=", 1)
                     if len(key_value) == 2:
                         aws_tags_list.append({
