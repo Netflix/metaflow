@@ -10,7 +10,7 @@ import tarfile
 import time
 from urllib.error import URLError
 from urllib.request import urlopen
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, CONDA_USE_FAST_INIT
+from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.plugins import DATASTORES
 from metaflow.plugins.pypi.utils import MICROMAMBA_MIRROR_URL, MICROMAMBA_URL
 from metaflow.util import which
@@ -329,8 +329,6 @@ if __name__ == "__main__":
 
     @timer
     def fast_setup_environment(architecture, storage, env, prefix, pkgs_dir):
-        install_fast_initializer(architecture)
-
         # Get package urls
         conda_pkgs = env["conda"]
         pypi_pkgs = env.get("pypi", [])
@@ -381,7 +379,9 @@ if __name__ == "__main__":
         with open(os.path.join(manifest_dir, MAGIC_FILE)) as f:
             env = json.load(f)[id_][architecture]
 
-        if CONDA_USE_FAST_INIT:
+        if datastore_type == "s3":
+            # TODO: Remove this once fast-initializer is ready for all datastores
+            install_fast_initializer(architecture)
             fast_setup_environment(architecture, storage, env, prefix, pkgs_dir)
         else:
             setup_environment(
