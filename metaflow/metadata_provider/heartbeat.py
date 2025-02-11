@@ -23,7 +23,7 @@ class MetadataHeartBeat(object):
         self.headers = SERVICE_HEADERS
         self.req_thread = Thread(target=self._ping)
         self.req_thread.daemon = True
-        self.default_frequency_secs = 10
+        self.default_frequency_secs = 1
         self.hb_url = None
 
     def process_message(self, msg):
@@ -52,6 +52,7 @@ class MetadataHeartBeat(object):
                 time.sleep(frequency_secs)
                 retry_counter = 0
             except HeartBeatException as e:
+                print(e)
                 retry_counter = retry_counter + 1
                 time.sleep(1.5**retry_counter)
 

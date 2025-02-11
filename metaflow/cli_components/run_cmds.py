@@ -283,7 +283,7 @@ def resume(
 
 @parameters.add_custom_parameters(deploy_mode=True)
 @click.command(help="Run the workflow locally.")
-@tracing.cli_entrypoint("cli/run")
+@tracing.cli("cli/run")
 @common_run_options
 @click.option(
     "--namespace",

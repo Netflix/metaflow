@@ -12,7 +12,7 @@ import metaflow.tracing as tracing
 
 
 @click.group()
-@tracing.cli_entrypoint("cli/main")
+@tracing.cli("cli/main")
 def main():
     pass
 
