@@ -185,7 +185,7 @@ class BatchDecorator(StepDecorator):
             self.attributes["inferentia"] = self.attributes["trainium"]
 
         if self.attributes["aws_tags"] is not None:
-            if not isinstance(self.attributes["aws_tags"], dict[str, str]):
+            if not isinstance(self.attributes["aws_tags"], dict) and not all(isinstance(k, str) and isinstance(v, str) for k, v in self.attributes["aws_tags"].items()):
                 raise BatchException("aws_tags must be Dict[str, str]")
             decorator_aws_tags_list = [
                 {'key': key,
