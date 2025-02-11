@@ -1,23 +1,18 @@
 import os
 import random
+import time
 
 import requests
-import time
 
 from metaflow.exception import (
     MetaflowException,
-    MetaflowTaggingError,
     MetaflowInternalError,
-)
-from metaflow.metaflow_config import (
-    SERVICE_RETRY_COUNT,
-    SERVICE_HEADERS,
-    SERVICE_URL,
+    MetaflowTaggingError,
 )
 from metaflow.metadata_provider import MetadataProvider
 from metaflow.metadata_provider.heartbeat import HB_URL_KEY
+from metaflow.metaflow_config import SERVICE_HEADERS, SERVICE_RETRY_COUNT, SERVICE_URL
 from metaflow.sidecar import Message, MessageTypes, Sidecar
-
 from metaflow.util import version_parse
 
 
@@ -38,6 +33,23 @@ class ServiceException(MetaflowException):
 
 class ServiceMetadataProvider(MetadataProvider):
     TYPE = "service"
+
+    _session = requests.Session()
+    _session.mount(
+        "http://",
+        requests.adapters.HTTPAdapter(
+            pool_connections=20,
+            pool_maxsize=20,
+            max_retries=0,  # Handle retries explicitly
+            pool_block=False,
+        ),
+    )
+    _session.mount(
+        "https://",
+        requests.adapters.HTTPAdapter(
+            pool_connections=20, pool_maxsize=20, max_retries=0, pool_block=False
+        ),
+    )
 
     _supports_attempt_gets = None
     _supports_tag_mutation = None
@@ -412,27 +424,27 @@ class ServiceMetadataProvider(MetadataProvider):
                 if method == "GET":
                     if monitor:
                         with monitor.measure("metaflow.service_metadata.get"):
-                            resp = requests.get(url, headers=SERVICE_HEADERS.copy())
+                            resp = cls._session.get(url, headers=SERVICE_HEADERS.copy())
                     else:
-                        resp = requests.get(url, headers=SERVICE_HEADERS.copy())
+                        resp = cls._session.get(url, headers=SERVICE_HEADERS.copy())
                 elif method == "POST":
                     if monitor:
                         with monitor.measure("metaflow.service_metadata.post"):
-                            resp = requests.post(
+                            resp = cls._session.post(
                                 url, headers=SERVICE_HEADERS.copy(), json=data
                             )
                     else:
-                        resp = requests.post(
+                        resp = cls._session.post(
                             url, headers=SERVICE_HEADERS.copy(), json=data
                         )
                 elif method == "PATCH":
                     if monitor:
                         with monitor.measure("metaflow.service_metadata.patch"):
-                            resp = requests.patch(
+                            resp = cls._session.patch(
                                 url, headers=SERVICE_HEADERS.copy(), json=data
                             )
                     else:
-                        resp = requests.patch(
+                        resp = cls._session.patch(
                             url, headers=SERVICE_HEADERS.copy(), json=data
                         )
                 else:
@@ -475,7 +487,6 @@ class ServiceMetadataProvider(MetadataProvider):
                         resp.text,
                     )
             time.sleep(2**i)
-
         if resp:
             raise ServiceException(
                 "Metadata request (%s) failed (code %s): %s"
@@ -499,9 +510,9 @@ class ServiceMetadataProvider(MetadataProvider):
             try:
                 if monitor:
                     with monitor.measure("metaflow.service_metadata.get"):
-                        resp = requests.get(url, headers=SERVICE_HEADERS.copy())
+                        resp = cls._session.get(url, headers=SERVICE_HEADERS.copy())
                 else:
-                    resp = requests.get(url, headers=SERVICE_HEADERS.copy())
+                    resp = cls._session.get(url, headers=SERVICE_HEADERS.copy())
             except:
                 if monitor:
                     with monitor.count("metaflow.service_metadata.failed_request"):
