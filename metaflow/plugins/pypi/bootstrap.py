@@ -29,7 +29,7 @@ def timer(func):
         start_time = time.time()
         result = func(*args, **kwargs)
         duration = time.time() - start_time
-        print(f"Time taken for {func.__name__}: {duration:.2f} seconds")
+        # print(f"Time taken for {func.__name__}: {duration:.2f} seconds")
         return result
 
     return wrapper
