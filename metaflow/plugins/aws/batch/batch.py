@@ -353,6 +353,10 @@ class Batch(object):
                     validate_aws_tag(tag)
                     job.tag(tag['key'], tag['value'])
 
+            if aws_tags is not None:
+                for tag in aws_tags:
+                    job.tag(tag['key'], tag['value'])
+
         return job
 
     def launch_job(
