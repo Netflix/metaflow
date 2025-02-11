@@ -191,6 +191,7 @@ class BatchDecorator(StepDecorator):
             ]
             for tag in decorator_aws_tags_list:
                 validate_aws_tag(tag)
+            self.attributes["aws_tags"] = decorator_aws_tags_list
 
         # clean up the alias attribute so it is not passed on.
         self.attributes.pop("trainium", None)
