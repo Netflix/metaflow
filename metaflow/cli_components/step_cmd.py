@@ -162,6 +162,7 @@ def step(
             retry_count,
         )
     else:
+        echo(f"Custom log in step.....{step_name}")
         task.run_step(
             step_name,
             run_id,
