@@ -23,7 +23,7 @@ class MetadataHeartBeat(object):
         self.headers = SERVICE_HEADERS
         self.req_thread = Thread(target=self._ping)
         self.req_thread.daemon = True
-        self.default_frequency_secs = 1
+        self.default_frequency_secs = 10
         self.hb_url = None
 
     def process_message(self, msg):

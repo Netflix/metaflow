@@ -346,6 +346,7 @@ def run(
             "msg": "Starting run",
         },
     )
+
     runtime.print_workflow_info()
     runtime.persist_constants()
     if runner_attribute_file:
