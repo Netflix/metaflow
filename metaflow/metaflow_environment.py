@@ -125,7 +125,9 @@ class MetaflowEnvironment(object):
             )
 
     def _get_install_dependencies_cmd(self, datastore_type):
-        base_cmd = "{} -m pip install -qqq".format(self._python())
+        base_cmd = "{} -m pip install -qqq --no-compile --no-cache-dir --disable-pip-version-check".format(
+            self._python()
+        )
 
         datastore_packages = {
             "s3": ["boto3"],
