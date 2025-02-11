@@ -203,7 +203,6 @@ def argo_workflows(obj, name=None):
     show_default=True,
     type=str,
     help="Write the workflow name to the file specified. Used internally for Metaflow's Deployer API.",
-    hidden=True,
 )
 @click.option(
     "--enable-error-msg-capture/--no-enable-error-msg-capture",
