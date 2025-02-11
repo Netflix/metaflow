@@ -495,7 +495,7 @@ if AWS_SANDBOX_ENABLED:
 
 KUBERNETES_SANDBOX_INIT_SCRIPT = from_conf("KUBERNETES_SANDBOX_INIT_SCRIPT")
 
-OTEL_ENDPOINT = from_conf("OTEL_ENDPOINT", "http://localhost:4318/v1/traces")
+OTEL_ENDPOINT = from_conf("OTEL_ENDPOINT")
 ZIPKIN_ENDPOINT = from_conf("ZIPKIN_ENDPOINT")
 CONSOLE_TRACE_ENABLED = from_conf("CONSOLE_TRACE_ENABLED", False)
 # internal env used for preventing the tracing module from loading during Conda bootstrapping.
