@@ -382,6 +382,7 @@ class Airflow(object):
             "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
             "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
             "METAFLOW_DEFAULT_METADATA": "service",
+            "METAFLOW_S3_WORKER_COUNT": max(1, int(k8s_deco.attributes["cpu"]) - 2),
             "METAFLOW_KUBERNETES_WORKLOAD": str(
                 1
             ),  # This is used by kubernetes decorator.
