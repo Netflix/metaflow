@@ -148,11 +148,19 @@ class MetaflowEnvironment(object):
                 "Unknown datastore type: {}".format(datastore_type)
             )
 
-        cmd = "{} {}".format(
-            base_cmd, " ".join(datastore_packages[datastore_type] + ["requests"])
+        packages = datastore_packages[datastore_type] + ["requests"]
+        # Just check if any package directory is missing in site-packages
+        check_script = (
+            "from distutils.sysconfig import get_python_lib; import os; exit(not all(any(os.path.exists(os.path.join(p, n.replace('-', '_'))) for p in [get_python_lib()]) for n in '%s'.split()))"
+            % " ".join(packages)
         )
-        # skip pip installs if we know that packages might already be available
-        return "if [ -z $METAFLOW_SKIP_INSTALL_DEPENDENCIES ]; then {}; fi".format(cmd)
+
+        cmd = "{} {}".format(base_cmd, " ".join(packages))
+        # Only run pip install if package check fails and SKIP flag is not set
+        return (
+            "if [ -z $METAFLOW_SKIP_INSTALL_DEPENDENCIES ] && ! python -c '%s' 2>/dev/null; then %s; fi"
+            % (check_script, cmd)
+        )
 
     def get_package_commands(self, code_package_url, datastore_type):
         cmds = [
