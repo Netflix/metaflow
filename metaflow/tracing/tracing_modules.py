@@ -44,7 +44,9 @@ def init_tracing():
     try:
         from opentelemetry.instrumentation.requests import RequestsInstrumentor
 
-        RequestsInstrumentor().instrument()
+        RequestsInstrumentor().instrument(
+            tracer_provider=tracer_provider,
+        )
     except ImportError:
         pass
 

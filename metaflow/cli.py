@@ -238,7 +238,6 @@ def version(obj):
     lazy_sources=plugins.get_plugin_cli_path(),
     invoke_without_command=True,
 )
-@tracing.cli("cli/start")
 # Quiet is eager to make sure it is available when processing --config options since
 # we need it to construct a context to pass to any DeployTimeField for the default
 # value.

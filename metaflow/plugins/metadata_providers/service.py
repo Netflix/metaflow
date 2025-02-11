@@ -163,6 +163,7 @@ class ServiceMetadataProvider(MetadataProvider):
         else:
             self.sidecar = Sidecar("heartbeat")
         self.sidecar.start()
+        print("started sidecar heartbeat", heartbeat_type)
         self.sidecar.send(Message(MessageTypes.BEST_EFFORT, payload))
 
     def start_run_heartbeat(self, flow_id, run_id):

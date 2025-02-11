@@ -166,6 +166,7 @@ def common_run_options(func):
 )
 @click.argument("step-to-rerun", required=False)
 @click.command(help="Resume execution of a previous run of this flow.")
+@tracing.cli("cli/resume")
 @common_run_options
 @click.pass_obj
 def resume(
@@ -345,18 +346,17 @@ def run(
             "msg": "Starting run",
         },
     )
+    runtime.print_workflow_info()
+    runtime.persist_constants()
+    if runner_attribute_file:
+        with open(runner_attribute_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "run_id": runtime.run_id,
+                    "flow_name": obj.flow.name,
+                    "metadata": obj.metadata.metadata_str(),
+                },
+                f,
+            )
     with runtime.run_heartbeat():
-        runtime.print_workflow_info()
-        runtime.persist_constants()
-
-        if runner_attribute_file:
-            with open(runner_attribute_file, "w", encoding="utf-8") as f:
-                json.dump(
-                    {
-                        "run_id": runtime.run_id,
-                        "flow_name": obj.flow.name,
-                        "metadata": obj.metadata.metadata_str(),
-                    },
-                    f,
-                )
         runtime.execute()
