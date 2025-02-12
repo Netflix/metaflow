@@ -276,9 +276,21 @@ class MetaWithConnection(StubMetaClass):
         if len(args) > 0 and id(args[0]) == id(cls.___class_connection___):
             return super(MetaWithConnection, cls).__call__(*args, **kwargs)
         else:
-            return cls.___class_connection___.stub_request(
-                None, OP_INIT, cls.___class_remote_class_name___, *args, **kwargs
-            )
+            if hasattr(cls, "__init_overriden__"):
+                return cls.__init_overriden__(
+                    None,
+                    functools.partial(
+                        cls.___class_connection___.stub_request(
+                            None, OP_INIT, cls.___class_remote_class_name___
+                        )
+                    ),
+                    *args,
+                    **kwargs
+                )
+            else:
+                return cls.___class_connection___.stub_request(
+                    None, OP_INIT, cls.___class_remote_class_name___, *args, **kwargs
+                )
 
     def __subclasscheck__(cls, subclass):
         subclass_name = "%s.%s" % (subclass.__module__, subclass.__name__)
@@ -381,7 +393,10 @@ def create_class(
             name = name[7:]
             method_type = CLASS_METHOD
         if name in overriden_methods:
-            if method_type == NORMAL_METHOD:
+            if name == "__init__":
+                class_dict["__init_overriden__"] = overriden_methods["__init__"]
+
+            elif method_type == NORMAL_METHOD:
                 class_dict[name] = (
                     lambda override, orig_method: lambda obj, *args, **kwargs: override(
                         obj, functools.partial(orig_method, obj), *args, **kwargs
@@ -412,6 +427,7 @@ def create_class(
             class_dict[name] = _make_method(
                 method_type, connection, class_name, name, doc
             )
+
     # Check for any getattr/setattr overrides
     special_attributes = set(getattr_overrides.keys())
     special_attributes.update(set(setattr_overrides.keys()))
