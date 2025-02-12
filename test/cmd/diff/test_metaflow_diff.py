@@ -4,7 +4,7 @@ import tempfile
 from subprocess import PIPE
 from unittest.mock import MagicMock, patch
 
-from metaflow.cmd.diff import (
+from metaflow.cmd.code import (
     EXCLUSIONS,
     extract_code_package,
     op_diff,
@@ -17,7 +17,7 @@ from metaflow.cmd.diff import (
 
 class TestMetaflowDiff:
 
-    @patch("metaflow.cmd.diff.Run")
+    @patch("metaflow.cmd.code.Run")
     def test_extract_code_package(self, mock_run):
         mock_run.return_value.code.tarball.getmembers.return_value = []
         mock_run.return_value.code.tarball.extractall = MagicMock()
@@ -32,7 +32,7 @@ class TestMetaflowDiff:
         assert os.path.exists(tmp.name)
 
     @pytest.mark.parametrize("use_tty", [True, False])
-    @patch("metaflow.cmd.diff.run")
+    @patch("metaflow.cmd.code.run")
     @patch("sys.stdout.isatty")
     def test_perform_diff_output_false(self, mock_isatty, mock_run, use_tty):
         mock_isatty.return_value = use_tty
@@ -82,7 +82,7 @@ class TestMetaflowDiff:
                 ["less", "-R"], input=mock_process.stdout, text=True
             )
 
-    @patch("metaflow.cmd.diff.run")
+    @patch("metaflow.cmd.code.run")
     def test_perform_diff_output_true(self, mock_run):
         with tempfile.TemporaryDirectory() as source_dir, tempfile.TemporaryDirectory() as target_dir:
             source_file = os.path.join(source_dir, "file.txt")
@@ -112,8 +112,8 @@ class TestMetaflowDiff:
             )
 
     @patch("shutil.rmtree")
-    @patch("metaflow.cmd.diff.extract_code_package")
-    @patch("metaflow.cmd.diff.op_diff")
+    @patch("metaflow.cmd.code.extract_code_package")
+    @patch("metaflow.cmd.code.op_diff")
     def test_run_op(self, mock_op_diff, mock_extract_code_package, mock_rmtree):
         mock_tmp = tempfile.TemporaryDirectory()
         mock_extract_code_package.return_value = mock_tmp
@@ -126,7 +126,7 @@ class TestMetaflowDiff:
 
         mock_rmtree.assert_any_call(mock_tmp.name)
 
-    @patch("metaflow.cmd.diff.perform_diff")
+    @patch("metaflow.cmd.code.perform_diff")
     def test_op_patch(self, mock_perform_diff):
         mock_perform_diff.return_value = ["diff --git a/file.txt b/file.txt\n"]
 

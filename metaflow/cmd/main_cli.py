@@ -6,7 +6,6 @@ from metaflow.extension_support.cmd import process_cmds, resolve_cmds
 from metaflow.plugins.datastores.local_storage import LocalStorage
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, CONTACT_INFO
 from metaflow.metaflow_version import get_version
-from metaflow.cmd import diff
 
 from .util import echo_always
 import metaflow.tracing as tracing
@@ -68,10 +67,10 @@ CMDS_DESC = [
     ("configure", ".configure_cmd.cli"),
     ("tutorials", ".tutorials_cmd.cli"),
     ("develop", ".develop.cli"),
+    ("code", ".code.cli"),
 ]
 
 process_cmds(globals())
-diff.register_commands(main)
 
 
 @click.command(
