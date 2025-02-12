@@ -169,7 +169,8 @@ def step(
             t_datastore = task.flow_datastore.get_task_datastore(
                 run_id=run_id,
                 step_name=step_name,
-                task_id=task_id
+                task_id=task_id,
+                allow_not_done=True,
             )
             retry_count = t_datastore.attempt
         except DataException:
