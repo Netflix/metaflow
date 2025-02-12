@@ -99,6 +99,7 @@ def step_functions(obj, name=None):
 )
 @click.option(
     "--aws-tags",
+    "aws_tags",
     multiple=True,
     default=None,
     help="AWS tags.")
@@ -345,7 +346,7 @@ def make_flow(
         [obj.package.blob], len_hint=1
     )[0]
 
-    
+
 
     return StepFunctions(
         name,
