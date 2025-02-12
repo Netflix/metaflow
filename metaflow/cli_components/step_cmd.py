@@ -168,7 +168,7 @@ def step(
             run_id=run_id,
             step_name=step_name,
             task_id=task_id,
-            allow_not_done=True,
+            allow_not_done=True,  # hack to not run into DataException
         )
         echo_always(f"data store metadata: {t_datastore.ds_metadata}")
         retry_count = t_datastore.attempt
