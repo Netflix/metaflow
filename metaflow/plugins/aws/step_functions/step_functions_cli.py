@@ -349,8 +349,10 @@ def make_flow(
 
     
     if aws_tags is not None:
-        if not isinstance(aws_tags, list) or not all(isinstance(item, str) for item in aws_tags.items()):
-            raise MetaflowException("AWS Step Functions --aws-tags must be strings")
+        if not isinstance(aws_tags, list):
+            raise MetaflowException("AWS Step Functions --aws-tags must be list of strings")
+        if not all(isinstance(item, str) for item in aws_tags.items()):
+            raise MetaflowException("AWS Step Functions --aws-tags all items in list must be strings")
         for item in aws_tags.items():
             if len(item.split('=')) != 2:
                 raise MetaflowException("AWS Step Functions --aws-tags strings must be in format 'key=value'")
