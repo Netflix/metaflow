@@ -680,8 +680,7 @@ class MetadataProvider(object):
         run_id: str,
         query_step: str,
         field_name: str,
-        field_value: str,
-        use_regex: bool = False,
+        pattern: str,
     ) -> List[str]:
         """
         Filter tasks by metadata field and value, and returns the list of task_ids
@@ -697,15 +696,13 @@ class MetadataProvider(object):
             Step name to query tasks from
         field_name: str
             Metadata field name to query
-        field_value: str
-            Metadata field value to query
-        use_regex: bool
-            If True, field_value is treated as a regex pattern
+        pattern: str
+            Pattern to match in metadata field value
 
         Returns
         -------
         List[str]
-            List of task_ids that satisfy the query
+            List of task pathspecs that satisfy the query
         """
         raise NotImplementedError()
 

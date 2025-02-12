@@ -325,14 +325,12 @@ class ServiceMetadataProvider(MetadataProvider):
         cls,
         flow_id: str,
         run_id: str,
-        query_step: str,
+        step_name: str,
         field_name: str,
-        field_value: str,
-        use_regex: bool = False,
+        pattern: str,
     ) -> List[str]:
         """
-        Filter tasks by metadata field and value, and returns the list of task_ids
-        that satisfy the query.
+        Filter tasks by metadata field and pattern, returning task pathspecs that match criteria.
 
         Parameters
         ----------
@@ -340,27 +338,25 @@ class ServiceMetadataProvider(MetadataProvider):
             Flow id, that the run belongs to.
         run_id: str
             Run id, together with flow_id, that identifies the specific Run whose tasks to query
-        query_step: str
+        step_name: str
             Step name to query tasks from
         field_name: str
             Metadata field name to query
-        field_value: str
-            Metadata field value to query
-        use_regex: bool
-            If True, field_value is treated as a regex pattern
+        pattern: str
+            Pattern to match in metadata field value
 
         Returns
         -------
         List[str]
-            List of task_ids that satisfy the query
+            List of task pathspecs that satisfy the query
         """
         query_params = {
             "metadata_field_name": field_name,
             "metadata_field_value": field_value,
-            "query_step": query_step,
+            "step_name": step_name,
             "use_regex": use_regex,
         }
-        url = ServiceMetadataProvider._obj_path(flow_id, run_id, query_step)
+        url = ServiceMetadataProvider._obj_path(flow_id, run_id, step_name)
         url = f"{url}/filtered_tasks?{urlencode(query_params)}"
         return cls._request(None, url, "GET")
 

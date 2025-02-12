@@ -1,9 +1,9 @@
 from metaflow_test import MetaflowTest, ExpectationFailed, steps
 
 
-class AncestorsTest(MetaflowTest):
+class ParentsTest(MetaflowTest):
     """
-    Test that ancestors API returns correct parent tasks
+    Test that parent_tasks API returns correct parent tasks
     by comparing with parent task ids stored during execution.
     """
 
@@ -14,7 +14,7 @@ class AncestorsTest(MetaflowTest):
         from metaflow import current
 
         self.step_name = current.step_name
-        self.task_pathspec = f"{current.flow_name}/{current.run_id}/{current.step_name}/{current.task_id}"
+        self.task_pathspec = current.pathspec
         self.parent_pathspecs = set()
 
     @steps(1, ["join"])
@@ -28,7 +28,7 @@ class AncestorsTest(MetaflowTest):
         self.parent_pathspecs = set(inp.task_pathspec for inp in inputs)
 
         # Set the current task id
-        self.task_pathspec = f"{current.flow_name}/{current.run_id}/{current.step_name}/{current.task_id}"
+        self.task_pathspec = current.pathspec
 
         print(
             f"Task Pathspec: {self.task_pathspec} and parent_pathspecs: {self.parent_pathspecs}"
@@ -44,7 +44,7 @@ class AncestorsTest(MetaflowTest):
         self.parent_pathspecs = set([self.task_pathspec])
 
         # Set the current task id
-        self.task_pathspec = f"{current.flow_name}/{current.run_id}/{current.step_name}/{current.task_id}"
+        self.task_pathspec = current.pathspec
 
         print(
             f"Task Pathspec: {self.task_pathspec} and parent_pathspecs: {self.parent_pathspecs}"
@@ -66,12 +66,24 @@ class AncestorsTest(MetaflowTest):
         for step in run:
             # For each task in the step
             for task in step:
-                ancestors = task.ancestors
-                ancestor_pathspecs = set([task.pathspec for task in ancestors])
-
-                # Compare with stored parent_task_pathspecs
-                task_pathspec = task.data.task_pathspec
-                assert ancestor_pathspecs == task.data.parent_pathspecs, (
-                    f"Mismatch in ancestor task ids for task {task_pathspec}: Expected {task.data.parent_pathspecs}, "
-                    f"got {ancestor_pathspecs}"
+                parent_tasks = task.parent_tasks
+                expected_parent_pathspecs = task.data.parent_pathspecs
+                actual_parent_pathspecs = set([task.pathspec for task in parent_tasks])
+                assert actual_parent_pathspecs == expected_parent_pathspecs, (
+                    f"Mismatch in ancestor task pathspecs for task {task.pathspec}: Expected {expected_parent_pathspecs}, "
+                    f"got {actual_parent_pathspecs}"
                 )
+
+                # assert parent_tasks == expected_parent_tasks, (
+                #     f"Mismatch in parent task ids for task {task.pathspec}: Expected {expected_parent_tasks}, "
+                #     f"got {parent_tasks}"
+                # )
+                # ancestors = task.ancestors
+                # ancestor_pathspecs = set([task.pathspec for task in ancestors])
+                #
+                # # Compare with stored parent_task_pathspecs
+                # task_pathspec = task.data.task_pathspec
+                # assert ancestor_pathspecs == task.data.parent_pathspecs, (
+                #     f"Mismatch in ancestor task ids for task {task_pathspec}: Expected {task.data.parent_pathspecs}, "
+                #     f"got {ancestor_pathspecs}"
+                # )

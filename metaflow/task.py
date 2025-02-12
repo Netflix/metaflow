@@ -4,8 +4,6 @@ import math
 import sys
 import os
 import time
-import json
-import hashlib
 import traceback
 
 from types import MethodType, FunctionType
@@ -506,15 +504,15 @@ class MetaflowTask(object):
                     )
                 )
 
-            # Add runtime dag info - for a nested foreach this may look like:
-            # foreach_indices: "step1:idx1,step2:idx2,step3:idx3"
-            foreach_indices = self._dynamic_runtime_metadata(foreach_stack)
+            # if foreach_stack:
+            # Add runtime dag information to the metadata of the task
+            foreach_execution_path = self._dynamic_runtime_metadata(foreach_stack)
             metadata.extend(
                 [
                     MetaDatum(
-                        field="foreach-indices",
-                        value=foreach_indices,
-                        type="foreach-indices",
+                        field="foreach-execution-path",
+                        value=foreach_execution_path,
+                        type="foreach-execution-path",
                         tags=metadata_tags,
                     ),
                 ]
@@ -754,7 +752,7 @@ class MetaflowTask(object):
                                 field="attempt_ok",
                                 value=attempt_ok,
                                 type="internal_attempt_status",
-                                tags=metadata_tags,
+                                tags=["attempt_id:{0}".format(retry_count)],
                             ),
                         ],
                     )
