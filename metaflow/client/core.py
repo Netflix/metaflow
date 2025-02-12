@@ -1123,13 +1123,6 @@ class Task(MetaflowObject):
         # exclude private data artifacts
         return x.id[0] != "_"
 
-    def _get_task_for_queried_step(self, flow_id, run_id, query_step):
-        """
-        Returns a Task object corresponding to the queried step.
-        If the queried step has several tasks, the first task is returned.
-        """
-        return Step(f"{flow_id}/{run_id}/{query_step}", _namespace_check=False).task
-
     def _iter_matching_tasks(self, steps, pattern):
         """
         Yield tasks from specified steps matching a foreach path pattern.
