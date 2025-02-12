@@ -172,7 +172,7 @@ def op_patch(tmpdir: str, dst: str) -> None:
     )
 
 
-@code.group()
+@code.command()
 @click.argument("metaflow_run")
 def diff(metaflow_run: str) -> None:
     """
@@ -181,7 +181,7 @@ def diff(metaflow_run: str) -> None:
     run_op(metaflow_run, op_diff, {})
 
 
-@code.group()
+@code.command()
 @click.argument("source_run")
 @click.argument("target_run")
 def diff_runs(source_run: str, target_run: str) -> None:
@@ -191,7 +191,7 @@ def diff_runs(source_run: str, target_run: str) -> None:
     run_op_diff_runs(source_run, target_run)
 
 
-@code.group()
+@code.command()
 @click.argument("metaflow_run")
 @click.option(
     "--dir", help="Destination directory (default: {runspec}_code)", default=None
@@ -205,7 +205,7 @@ def pull(metaflow_run: str, dir: Optional[str] = None) -> None:
     run_op(metaflow_run, op_pull, {"dst": dir})
 
 
-@code.group()
+@code.command()
 @click.argument("metaflow_run")
 @click.option("--file", help="Patch file name (default: {runspec}.patch", default=None)
 def patch(metaflow_run: str, file: Optional[str] = None) -> None:
