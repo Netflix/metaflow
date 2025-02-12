@@ -73,17 +73,3 @@ class ParentsTest(MetaflowTest):
                     f"Mismatch in ancestor task pathspecs for task {task.pathspec}: Expected {expected_parent_pathspecs}, "
                     f"got {actual_parent_pathspecs}"
                 )
-
-                # assert parent_tasks == expected_parent_tasks, (
-                #     f"Mismatch in parent task ids for task {task.pathspec}: Expected {expected_parent_tasks}, "
-                #     f"got {parent_tasks}"
-                # )
-                # ancestors = task.ancestors
-                # ancestor_pathspecs = set([task.pathspec for task in ancestors])
-                #
-                # # Compare with stored parent_task_pathspecs
-                # task_pathspec = task.data.task_pathspec
-                # assert ancestor_pathspecs == task.data.parent_pathspecs, (
-                #     f"Mismatch in ancestor task ids for task {task_pathspec}: Expected {task.data.parent_pathspecs}, "
-                #     f"got {ancestor_pathspecs}"
-                # )
