@@ -1,14 +1,13 @@
 from itertools import chain
 
 
-class LinearStepDatastore(object):
-    def __init__(self, inp_datastore, foreach_stack, task_index=None, artifacts={}):
-        self._inp_datastore = inp_datastore
-        self._input_paths = input_paths
-        self._foreach_stack = foreach_stack
-        self._task_index = task_index
+class SpinStepDatastore(object):
+    def __init__(self, inp_datastores, _foreach_stack, artifacts={}):
+        # This is a linear step, so we only have one input datastore
+        self._inp_datastores = inp_datastores[0]
+        self._foreach_stack = _foreach_stack
         self._artifacts = artifacts
-        self._step_name = self._inp_datastore.step_name
+        self._step_name = self._inp_datastores.step_name
 
         # Set them to empty dictionaries in order to persist artifacts
         # See `persist` method in `TaskDatastore` for more details
@@ -41,7 +40,7 @@ class LinearStepDatastore(object):
         # If the linear step is part of a foreach step, we need to set the input attribute
         # and the index attribute
         if name == "input":
-            if not self._task.index:
+            if len(self._foreach_stack) == 0:
                 raise AttributeError(
                     f"Attribute '{name}' does not exist for step `{self._step_name}` as it is not part of "
                     f"a foreach step."
@@ -49,31 +48,27 @@ class LinearStepDatastore(object):
             # input only exists for steps immediately after a foreach split
             # we check for that by comparing the length of the foreach-step-names
             # attribute of the task and its immediate ancestors
-            foreach_step_names = self._task.metadata_dict.get("foreach-step-names")
-            prev_task_foreach_step_names = self.previous_task.metadata_dict.get(
-                "foreach-step-names"
-            )
-            if len(foreach_step_names) <= len(prev_task_foreach_step_names):
+            foreach_step = self._foreach_stack[-1].step
+            if self._step_name != foreach_step:
                 return None  # input does not exist, so we return None
 
-            foreach_stack = self._task["_foreach_stack"].data
-            foreach_index = foreach_stack[-1].index
-            foreach_var = foreach_stack[-1].var
+            foreach_index = self._foreach_stack[-1].index
+            foreach_var = self._foreach_stack[-1].var
 
             # Fetch the artifact corresponding to the foreach var and index from the previous task
-            input_val = self.previous_task[foreach_var].data[foreach_index]
+            input_val = self._inp_datastores[foreach_var].data[foreach_index]
             setattr(self, name, input_val)
             return input_val
 
         # If the linear step is part of a foreach step, we need to set the index attribute
         if name == "index":
-            if not self._task.index:
+            if len(self._foreach_stack) == 0:
                 raise AttributeError(
                     f"Attribute '{name}' does not exist for step `{self.step_name}` as it is not part of a "
                     f"foreach step."
                 )
-            foreach_stack = self._task["_foreach_stack"].data
-            foreach_index = foreach_stack[-1].index
+
+            foreach_index = self._foreach_stack[-1].index
             setattr(self, name, foreach_index)
             return foreach_index
 
@@ -86,20 +81,6 @@ class LinearStepDatastore(object):
                 f"Attribute '{name}' not found in the previous execution of the task for "
                 f"`{self.step_name}`."
             )
-
-    @property
-    def previous_task(self):
-        if self._previous_task:
-            return self._previous_task
-
-        # This is a linear step, so we only have one immediate ancestor
-        from metaflow import Task
-
-        prev_task_pathspec = list(
-            chain.from_iterable(self._immediate_ancestors.values())
-        )[0]
-        self._previous_task = Task(prev_task_pathspec, _namespace_check=False)
-        return self._previous_task
 
     def get(self, key, default=None):
         try:

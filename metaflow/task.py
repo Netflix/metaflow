@@ -15,7 +15,7 @@ from metaflow.datastore.exceptions import DataException
 from .metaflow_config import MAX_ATTEMPTS
 from .metadata_provider import MetaDatum
 from .mflog import TASK_LOG_SOURCE
-from .datastore import Inputs, TaskDataStoreSet
+from .datastore import Inputs, TaskDataStoreSet, SpinStepDatastore
 from .exception import (
     MetaflowInternalError,
     MetaflowDataMissing,
@@ -453,8 +453,15 @@ class MetaflowTask(object):
         self.flow._spin_foreach_stack = prev_task_datastore["_foreach_stack"]
         t8 = time.time()
         print(f"t8 - t7: {t8 - t7}")
+
+        inp_datastore = SpinStepDatastore(
+            inputs,
+            self.flow._spin_foreach_stack,
+            artifacts={},
+        )
+
         #
-        # # Set inputs
+        # Set inputs
         # if node.type == "join":
         #     if join_type == "foreach":
         #         pass
@@ -468,6 +475,7 @@ class MetaflowTask(object):
         #         task_index=split_index,
         #         artifacts={}
         #     )
+        # print(f"inp_datastore: {inp_datastore}")
         # inp_datastore = None
         # is_join = is_join_step(immediate_ancestors)
         # if is_join:
@@ -489,101 +497,102 @@ class MetaflowTask(object):
         #         LinearStepDatastore(self.task, immediate_ancestors, artifacts={})
         #     )
         #
-        # current._set_env(
-        #     flow=self.flow,
-        #     run_id=new_run_id,
-        #     step_name=step_name,
-        #     task_id=new_task_id,
-        #     retry_count=retry_count,
-        #     namespace=resolve_identity(),
-        #     username=get_username(),
-        #     metadata_str="%s@%s"
-        #     % (self.metadata.__class__.TYPE, self.metadata.__class__.INFO),
-        #     is_running=True,
-        #     is_spin=True,
-        # )
+        current._set_env(
+            flow=self.flow,
+            run_id=new_run_id,
+            step_name=step_name,
+            task_id=new_task_id,
+            retry_count=retry_count,
+            namespace=resolve_identity(),
+            username=get_username(),
+            metadata_str="%s@%s"
+            % (self.metadata.__class__.TYPE, self.metadata.__class__.INFO),
+            is_running=True,
+            is_spin=True,
+        )
 
         # task_pre_step decorator hooks
-        # for deco in whitelisted_decorators:
-        #     deco.task_pre_step(
-        #         step_name=step_name,
-        #         task_datastore=output,
-        #         metadata=self.metadata,
-        #         run_id=new_run_id,
-        #         task_id=new_task_id,
-        #         flow=self.flow,
-        #         graph=self.flow._graph,
-        #         retry_count=retry_count,
-        #         max_user_code_retries=max_user_code_retries,
-        #         ubf_context=self.ubf_context,
-        #         inputs=inp_datastore,
-        #     )
-        #
-        # # task_decorate decorator hooks
-        # for deco in whitelisted_decorators:
-        #     step_func = deco.task_decorate(
-        #         step_func=step_func,
-        #         flow=self.flow,
-        #         graph=self.flow._graph,
-        #         retry_count=retry_count,
-        #         max_user_code_retries=max_user_code_retries,
-        #         ubf_context=self.ubf_context,
-        #     )
-        #
-        # # Execute the step function
-        # try:
-        #     if is_join:
-        #         # Join step
-        #         self._exec_step_function(step_func, input_obj=inp_datastore)
-        #     else:
-        #         self._exec_step_function(step_func)
-        #
-        #     # task_post_step decorator hooks
-        #     for deco in whitelisted_decorators:
-        #         deco.task_post_step(
-        #             step_name,
-        #             self.flow,
-        #             self.flow._graph,
-        #             retry_count,
-        #             max_user_code_retries,
-        #         )
-        #
-        #     self.flow._task_ok = True
-        #     self.flow._success = True
-        # except Exception as ex:
-        #     exception_handled = False
-        #     for deco in whitelisted_decorators:
-        #         res = deco.task_exception(
-        #             ex,
-        #             step_name,
-        #             self.flow,
-        #             self.flow._graph,
-        #             retry_count,
-        #             max_user_code_retries,
-        #         )
-        #         exception_handled = bool(res) or exception_handled
-        #
-        #     if exception_handled:
-        #         self.flow._task_ok = True
-        #     else:
-        #         self.flow._task_ok = False
-        #         self.flow._exception = MetaflowExceptionWrapper(ex)
-        #         print("%s failed:" % self.flow, file=sys.stderr)
-        #         raise
-        # finally:
-        #     output.persist(self.flow)
-        #     output.done()
-        #
-        #     # task_finish decorator hooks
-        #     for deco in whitelisted_decorators:
-        #         deco.task_finished(
-        #             step_name,
-        #             self.flow,
-        #             self.flow._graph,
-        #             self.flow._task_ok,
-        #             retry_count,
-        #             max_user_code_retries,
-        #         )
+        for deco in whitelisted_decorators:
+            deco.task_pre_step(
+                step_name=step_name,
+                task_datastore=output,
+                metadata=self.metadata,
+                run_id=new_run_id,
+                task_id=new_task_id,
+                flow=self.flow,
+                graph=self.flow._graph,
+                retry_count=retry_count,
+                max_user_code_retries=max_user_code_retries,
+                ubf_context=self.ubf_context,
+                inputs=inp_datastore,
+            )
+
+        # task_decorate decorator hooks
+        for deco in whitelisted_decorators:
+            step_func = deco.task_decorate(
+                step_func=step_func,
+                flow=self.flow,
+                graph=self.flow._graph,
+                retry_count=retry_count,
+                max_user_code_retries=max_user_code_retries,
+                ubf_context=self.ubf_context,
+            )
+
+        # Execute the step function
+        try:
+            # if is_join:
+            #     # Join step
+            #     self._exec_step_function(step_func, input_obj=inp_datastore)
+            # else:
+            #     self._exec_step_function(step_func)
+            self._exec_step_function(step_func)
+
+            # task_post_step decorator hooks
+            for deco in whitelisted_decorators:
+                deco.task_post_step(
+                    step_name,
+                    self.flow,
+                    self.flow._graph,
+                    retry_count,
+                    max_user_code_retries,
+                )
+
+            self.flow._task_ok = True
+            self.flow._success = True
+        except Exception as ex:
+            exception_handled = False
+            for deco in whitelisted_decorators:
+                res = deco.task_exception(
+                    ex,
+                    step_name,
+                    self.flow,
+                    self.flow._graph,
+                    retry_count,
+                    max_user_code_retries,
+                )
+                exception_handled = bool(res) or exception_handled
+
+            if exception_handled:
+                self.flow._task_ok = True
+            else:
+                self.flow._task_ok = False
+                self.flow._exception = MetaflowExceptionWrapper(ex)
+                print("%s failed:" % self.flow, file=sys.stderr)
+                raise
+        finally:
+            output.persist(self.flow)
+            output.done()
+
+            # task_finish decorator hooks
+            for deco in whitelisted_decorators:
+                deco.task_finished(
+                    step_name,
+                    self.flow,
+                    self.flow._graph,
+                    self.flow._task_ok,
+                    retry_count,
+                    max_user_code_retries,
+                )
 
     def run_step(
         self,
