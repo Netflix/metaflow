@@ -162,7 +162,8 @@ def step(
             retry_count,
         )
     else:
-        echo_always(f"Custom log in step.....{step_name}")
+        t_datastore = task.flow_datastore.get_task_datastore()
+        echo_always(f"attempt: {t_datastore.attempt}")
         task.run_step(
             step_name,
             run_id,
