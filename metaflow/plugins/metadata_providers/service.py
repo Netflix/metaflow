@@ -352,9 +352,8 @@ class ServiceMetadataProvider(MetadataProvider):
         """
         query_params = {
             "metadata_field_name": field_name,
-            "metadata_field_value": field_value,
+            "pattern": pattern,
             "step_name": step_name,
-            "use_regex": use_regex,
         }
         url = ServiceMetadataProvider._obj_path(flow_id, run_id, step_name)
         url = f"{url}/filtered_tasks?{urlencode(query_params)}"
