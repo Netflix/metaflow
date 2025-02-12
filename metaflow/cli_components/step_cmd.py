@@ -163,7 +163,7 @@ def step(
         )
     else:
         echo_always(f" run_id: {run_id}, step_name: {step_name}, task_id: {task_id}")
-        echo_always(f"attempt: {task.flow_datastore.attempt}, ds_root: {task.flow_datastore.datastore_root}, ca_store: {task.flow_datastore.ca_store}")
+        echo_always(f"ca_store: {task.flow_datastore.ca_store.TYPE}, {task.flow_datastore.datastore_root}")
         t_datastore = task.flow_datastore.get_task_datastore(
             run_id=run_id,
             step_name=step_name,
