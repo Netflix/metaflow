@@ -19,6 +19,7 @@ from metaflow.util import get_username, to_bytes, to_unicode, version_parse
 
 from .production_token import load_token, new_token, store_token
 from .step_functions import StepFunctions
+from metaflow.tagging_util import validate_tags, validate_aws_tag
 
 VALID_NAME = re.compile(r"[^a-zA-Z0-9_\-\.]")
 
@@ -357,6 +358,21 @@ def make_flow(
             [obj.package.blob], len_hint=1
         )[0]
 
+    
+    if aws_tags is not None:
+        if not isinstance(aws_tags, list[str]):
+            raise MetaflowException("AWS Step Functions --aws-tags must be strings")
+        for item in aws_tags.items():
+            if len(item.split('=')) != 2:
+                raise MetaflowException("AWS Step Functions --aws-tags strings must be in format 'key=value'")
+        aws_tags_list = [
+            {'key': item.split('=')[0],
+                'value': item.split('=')[1]} for item in aws_tags.items()
+        ]
+        for tag in aws_tags_list:
+            validate_aws_tag(tag)
+    else: aws_tags_list = None
+            
 
 
     return StepFunctions(
@@ -373,7 +389,7 @@ def make_flow(
         obj.event_logger,
         obj.monitor,
         tags=tags,
-        aws_tags=aws_tags,
+        aws_tags=aws_tags_list,
         namespace=namespace,
         max_workers=max_workers,
         username=get_username(),
