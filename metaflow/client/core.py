@@ -1156,57 +1156,6 @@ class Task(MetaflowObject):
             for task_pathspec in task_pathspecs:
                 yield Task(pathspec=task_pathspec, _namespace_check=False)
 
-    # @property
-    # def parent_tasks(self) -> List["Task"]:
-    #     """
-    #     Returns a list of all parent tasks of the current task for the latest successful
-    #     attempt.
-    #
-    #     Returns
-    #     -------
-    #     List["Task"]
-    #         List of all ancestor tasks of the current task.
-    #     """
-    #     flow_id, run_id, _, _ = self.path_components
-    #     steps = self.parent.parent_steps
-    #     if not steps:
-    #         return
-    #
-    #     if len(steps) > 1:
-    #         # Static join - use exact path matching
-    #         pattern = self.metadata_dict.get("foreach-execution-path", ".*")
-    #     else:
-    #         current_path = self.metadata_dict.get("foreach-execution-path", "")
-    #         if not current_path:
-    #             pattern = ".*"
-    #         else:
-    #             target_task = Step(f"{flow_id}/{run_id}/{steps[0]}", _namespace_check=False).task
-    #             target_path = target_task.metadata_dict.get("foreach-execution-path", "")
-    #             current_depth = len(current_path.split(","))
-    #             target_depth = len(target_path.split(","))
-    #             print(f"current_path: {current_path}")
-    #             print(f"target_path: {target_path}")
-    #             if target_path == "":
-    #                 # (Current task, "A:10") and (Ancestor task, "")
-    #                 # Pattern: ".*"
-    #                 pattern = ".*"
-    #             elif current_depth < target_depth:
-    #                 # Foreach join
-    #                 # (Current task, "A:10,B:13") and (Ancestor task, "A:10,B:13,C:21")
-    #                 # Pattern: "A:10,B:13,.*"
-    #                 pattern = f"{current_path},.*"
-    #             else:
-    #                 # Foreach split or linear step
-    #                 # Option 1:
-    #                 # (Current task, "A:10,B:13,C:21") and (Ancestor task, "A:10,B:13")
-    #                 # Option 2:
-    #                 # (Current task, "A:10,B:13") and (Ancestor task, "A:10,B:13")
-    #                 # Pattern: "A:10,B:13"
-    #                 pattern = ",".join(current_path.split(",")[:target_depth])
-    #             print(f"pattern: {pattern}")
-    #
-    #     yield from self._iter_matching_tasks(steps, pattern)
-
     @property
     def parent_tasks(self) -> List["Task"]:
         """
@@ -1314,64 +1263,6 @@ class Task(MetaflowObject):
                 pattern = ",".join(current_path.split(",")[:target_depth])
 
         yield from self._iter_matching_tasks(steps, pattern)
-
-    # @property
-    # def child_tasks(self) -> List["Task"]:
-    #     """
-    #     Returns a list of all child/children tasks of the current task for the latest successful
-    #     attempt.
-    #
-    #     Returns
-    #     -------
-    #     List["Task"]
-    #         List of all successor tasks of the current task.
-    #     """
-    #     flow_id, run_id, _, _ = self.path_components
-    #     steps = self.parent.child_steps
-    #     if not steps:
-    #         return
-    #
-    #     if len(steps) > 1:
-    #         # Static split - use exact path matching
-    #         pattern = self.metadata_dict.get("foreach-execution-path", ".*")
-    #     else:
-    #         current_path = self.metadata_dict.get("foreach-execution-path", "")
-    #         if not current_path:
-    #             pattern = ".*"
-    #         else:
-    #             target_task = Step(f"{flow_id}/{run_id}/{steps[0]}", _namespace_check=False).task
-    #             target_path = target_task.metadata_dict.get("foreach-execution-path", "")
-    #             current_depth = len(current_path.split(","))
-    #             target_depth = len(target_path.split(","))
-    #             print(f"current_path: {current_path}")
-    #             print(f"target_path: {target_path}")
-    #             if target_path == "":
-    #                 # (Current task, "A:10") and (Child task, "")
-    #                 # Pattern: ".*"
-    #                 pattern = ".*"
-    #             elif current_depth < target_depth:
-    #                 # Foreach split
-    #                 # (Current task, "A:10,B:13") and (Child task, "A:10,B:13,C:21")
-    #                 # Pattern: "A:10,B:13,.*"
-    #                 pattern = f"{current_path},.*"
-    #             else:
-    #                 print(f"In else")
-    #                 print(f"target_depth: {target_depth}")
-    #                 # Foreach join or linear step
-    #                 # Option 1:
-    #                 # (Current task, "A:10,B:13,C:21") and (Child task, "A:10,B:13")
-    #                 # Option 2:
-    #                 # (Current task, "A:10,B:13") and (Child task, "A:10,B:13")
-    #                 # Pattern: "A:10,B:13"
-    #                 pattern = ",".join(current_path.split(",")[:target_depth])
-    #
-    #             print(f"pattern: {pattern}")
-    #
-    #         # # Foreach split - match tasks with longer foreach path
-    #         # current_path = self.metadata_dict.get("foreach-execution-path", "")
-    #         # pattern = f"{current_path},.*" if current_path else ".*"
-    #
-    #     yield from self._iter_matching_tasks(steps, pattern)
 
     @property
     def metadata(self) -> List[Metadata]:
