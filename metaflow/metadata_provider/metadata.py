@@ -683,8 +683,7 @@ class MetadataProvider(object):
         pattern: str,
     ) -> List[str]:
         """
-        Filter tasks by metadata field and value, and returns the list of task_ids
-        that satisfy the query.
+        Filter tasks by metadata field and pattern, returning task pathspecs that match criteria.
 
         Parameters
         ----------
