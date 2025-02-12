@@ -504,7 +504,6 @@ class MetaflowTask(object):
                     )
                 )
 
-            # if foreach_stack:
             # Add runtime dag information to the metadata of the task
             foreach_execution_path = self._dynamic_runtime_metadata(foreach_stack)
             metadata.extend(
