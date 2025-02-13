@@ -277,7 +277,7 @@ def step(
     if env_deco:
         env = env_deco[0].attributes["vars"]
     else:
-        env = {}
+        env = {"METAFLOW_FLOW_FILENAME": os.path.basename(sys.argv[0])}
 
     # Add the environment variables related to the input-paths argument
     if split_vars:
