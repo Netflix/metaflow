@@ -275,7 +275,7 @@ def step(
 
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
-        env = env_deco[0].attributes["vars"]
+        env = type(env_deco[0]).merge_vars(env_deco)
     else:
         env = {}
 

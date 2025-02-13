@@ -283,7 +283,7 @@ class Airflow(object):
         env_deco = [deco for deco in node.decorators if deco.name == "environment"]
         env = {}
         if env_deco:
-            env = env_deco[0].attributes["vars"].copy()
+            env = type(env_deco[0]).merge_vars(env_deco)
 
         # The below if/else block handles "input paths".
         # Input Paths help manage dataflow across the graph.
