@@ -162,15 +162,21 @@ def step(
             retry_count,
         )
     else:
+        from metaflow.datastore.exceptions import DataException
+
         echo_always(f" run_id: {run_id}, step_name: {step_name}, task_id: {task_id}")
         echo_always(f"ca_store: {task.flow_datastore.ca_store.TYPE}, {task.flow_datastore.datastore_root}")
-        t_datastore = task.flow_datastore.get_task_datastore(
-            run_id=run_id,
-            step_name=step_name,
-            task_id=task_id,
-            allow_not_done=True,  # hack to not run into DataException
-        )
-        retry_count = t_datastore.attempt
+        echo_always(task.flow_datastore.ca_store)
+        try:
+            # this will hit exception on first run
+            t_datastore = task.flow_datastore.get_task_datastore(
+                run_id=run_id,
+                step_name=step_name,
+                task_id=task_id,
+            )
+            retry_count += getattr(t_datastore, "attempt", 0)
+        except DataException as e:
+            echo_always(f"Warning: Failed to retrieve datastore. Exception: {e}")
         echo_always(f"retry count: {retry_count}")
         task.run_step(
             step_name,
