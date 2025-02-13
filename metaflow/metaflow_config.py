@@ -488,6 +488,8 @@ AWS_SANDBOX_REGION = from_conf("AWS_SANDBOX_REGION")
 
 AWS_RETRY_MODE = from_conf("AWS_RETRY_MODE", "standard")
 AWS_RETRY_MAX_ATTEMPTS = from_conf("AWS_RETRY_MAX_ATTEMPTS", 10)
+os.environ["AWS_RETRY_MODE"] = AWS_RETRY_MODE
+os.environ["AWS_RETRY_MAX_ATTEMPTS"] = str(AWS_RETRY_MAX_ATTEMPTS)
 
 
 # Finalize configuration
