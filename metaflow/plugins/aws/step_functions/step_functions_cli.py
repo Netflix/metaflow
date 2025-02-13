@@ -349,7 +349,7 @@ def make_flow(
 
     
     if aws_tags is not None:
-        if not all(isinstance(item, str) for item in aws_tags:
+        if not all(isinstance(item, str) for item in aws_tags):
             raise MetaflowException("AWS Step Functions --aws-tags all items in list must be strings")
         for item in aws_tags:
             if len(item.split('=')) != 2:
