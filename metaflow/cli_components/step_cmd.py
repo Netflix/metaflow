@@ -171,6 +171,7 @@ def step(
                 run_id=run_id,
                 step_name=step_name,
                 task_id=task_id,
+                allow_not_done=True
             )
             echo_always(f"latest attempt number: {t_datastore.attempt}")
             retry_count = getattr(t_datastore, "attempt", 0) + 1
@@ -178,6 +179,9 @@ def step(
             retry_count = 0
             echo_always(f"This is a first ever run, Exception: {e}")
         echo_always(f"retry count: {retry_count}")
+        # Not sure what are the side effects to this.
+        # if retry_count >= max_user_code_retries:
+        #     max_user_code_retries = retry_count
         task.run_step(
             step_name,
             run_id,
