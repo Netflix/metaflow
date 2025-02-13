@@ -165,8 +165,6 @@ def step(
         from metaflow.datastore.exceptions import DataException
 
         echo_always(f" run_id: {run_id}, step_name: {step_name}, task_id: {task_id}")
-        echo_always(f"ca_store: {task.flow_datastore.ca_store.TYPE}, {task.flow_datastore.datastore_root}")
-        echo_always(task.flow_datastore.ca_store)
         try:
             # this will hit exception on first run
             t_datastore = task.flow_datastore.get_task_datastore(
