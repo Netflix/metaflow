@@ -222,15 +222,12 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
     if flow_dir not in sys.path:
         sys.path.insert(0, flow_dir)
         path_was_added = True
-    print("path_was_added", path_was_added)
 
     try:
         # Check if the module has already been loaded
         if flow_file in loaded_modules:
-            print("cached path")
             module = loaded_modules[flow_file]
         else:
-            print("uncached path")
             # Load the module if it's not already loaded
             spec = importlib.util.spec_from_file_location("module", flow_file)
             module = importlib.util.module_from_spec(spec)
@@ -238,10 +235,9 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
             # Cache the loaded module
             loaded_modules[flow_file] = module
         classes = inspect.getmembers(module, inspect.isclass)
-        print(classes)
+
         flow_cls = None
         for _, kls in classes:
-            print(kls)
             if kls != FlowSpec and issubclass(kls, FlowSpec):
                 if flow_cls is not None:
                     raise MetaflowException(
