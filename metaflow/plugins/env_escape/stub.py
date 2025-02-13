@@ -280,9 +280,10 @@ class MetaWithConnection(StubMetaClass):
                 return cls.__init_overriden__(
                     None,
                     functools.partial(
-                        cls.___class_connection___.stub_request(
-                            None, OP_INIT, cls.___class_remote_class_name___
-                        )
+                        cls.___class_connection___.stub_request,
+                        None,
+                        OP_INIT,
+                        cls.___class_remote_class_name___,
                     ),
                     *args,
                     **kwargs
