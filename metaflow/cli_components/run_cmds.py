@@ -88,7 +88,7 @@ def config_merge_cb(ctx, param, value):
     splits = DEFAULT_DECOSPECS.split()
     if len(splits) == len(value) and all([a == b for (a, b) in zip(splits, value)]):
         return value
-    return tuple(list(value) + DEFAULT_DECOSPECS.split())
+    return tuple(list(value) + splits)
 
 
 def common_run_options(func):
