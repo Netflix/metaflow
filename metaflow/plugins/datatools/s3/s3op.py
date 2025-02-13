@@ -155,7 +155,7 @@ def normalize_client_error(err):
 # S3 worker pool
 
 
-@tracing.cli_entrypoint("s3op/worker")
+@tracing.cli("s3op/worker")
 def worker(result_file_name, queue, mode, s3config):
     # Interpret mode, it can either be a single op or something like
     # info_download or info_upload which implies:
@@ -723,7 +723,7 @@ def cli():
 
 
 @cli.command("list", help="List S3 objects")
-@tracing.cli_entrypoint("s3op/list")
+@tracing.cli("s3op/list")
 @click.option(
     "--recursive/--no-recursive",
     default=False,
@@ -783,7 +783,7 @@ def lst(
 
 
 @cli.command(help="Upload files to S3")
-@tracing.cli_entrypoint("s3op/put")
+@tracing.cli("s3op/put")
 @click.option(
     "--file",
     "files",
@@ -978,7 +978,7 @@ def _populate_prefixes(prefixes, inputs):
 
 
 @cli.command(help="Download files from S3")
-@tracing.cli_entrypoint("s3op/get")
+@tracing.cli("s3op/get")
 @click.option(
     "--recursive/--no-recursive",
     default=False,

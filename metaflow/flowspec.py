@@ -223,15 +223,18 @@ class FlowSpec(metaclass=FlowSpecMeta):
             seen.add(norm)
 
     @classmethod
-    def _process_config_decorators(cls, config_options, ignore_errors=False):
+    def _process_config_decorators(cls, config_options, process_configs=True):
 
         # Fast path for no user configurations
-        if not cls._flow_state.get(_FlowState.CONFIG_DECORATORS):
+        if not process_configs or (
+            not cls._flow_state.get(_FlowState.CONFIG_DECORATORS)
+            and all(len(step.config_decorators) == 0 for step in cls._steps)
+        ):
             # Process parameters to allow them to also use config values easily
             for var, param in cls._get_parameters():
                 if param.IS_CONFIG_PARAMETER:
                     continue
-                param.init(ignore_errors)
+                param.init(not process_configs)
             return None
 
         debug.userconf_exec("Processing mutating step/flow decorators")
@@ -256,6 +259,11 @@ class FlowSpec(metaclass=FlowSpecMeta):
             debug.userconf_exec("Setting config %s to %s" % (var, str(val)))
             setattr(cls, var, val)
 
+        # Reset cached parameters since we have replaced configs already with ConfigValue
+        # so they are not parameters anymore to be re-evaluated when we do _get_parameters
+        if _FlowState.CACHED_PARAMETERS in cls._flow_state:
+            del cls._flow_state[_FlowState.CACHED_PARAMETERS]
+
         # Run all the decorators. Step decorators are directly in the step and
         # we will run those first and *then* we run all the flow level decorators
         for step in cls._steps:
@@ -275,7 +283,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
                 setattr(cls, step.name, step)
 
         mutable_flow = MutableFlow(cls)
-        for deco in cls._flow_state[_FlowState.CONFIG_DECORATORS]:
+        for deco in cls._flow_state.get(_FlowState.CONFIG_DECORATORS, []):
             if isinstance(deco, CustomFlowDecorator):
                 # Sanity check to make sure we are applying the decorator to the right
                 # class

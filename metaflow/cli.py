@@ -206,15 +206,15 @@ def output_raw(obj, json):
     else:
         _graph = str(obj.graph)
         _msg = "Internal representation of the flow:"
-    echo(_msg, fg="magenta", bold=False)
+    echo_always(_msg, fg="magenta", bold=False)
     echo_always(_graph, err=False)
 
 
 @cli.command(help="Visualize the flow with Graphviz.")
 @click.pass_obj
 def output_dot(obj):
-    echo("Visualizing the flow as a GraphViz graph", fg="magenta", bold=False)
-    echo(
+    echo_always("Visualizing the flow as a GraphViz graph", fg="magenta", bold=False)
+    echo_always(
         "Try piping the output to 'dot -Tpng -o graph.png' to produce "
         "an actual image.",
         indent=True,
@@ -238,7 +238,6 @@ def version(obj):
     lazy_sources=plugins.get_plugin_cli_path(),
     invoke_without_command=True,
 )
-@tracing.cli_entrypoint("cli/start")
 # Quiet is eager to make sure it is available when processing --config options since
 # we need it to construct a context to pass to any DeployTimeField for the default
 # value.
@@ -330,7 +329,7 @@ def start(
     event_logger=None,
     monitor=None,
     local_config_file=None,
-    config_file=None,
+    config=None,
     config_value=None,
     **deco_options
 ):
@@ -383,7 +382,7 @@ def start(
     # When we process the options, the first one processed will return None and the
     # second one processed will return the actual options. The order of processing
     # depends on what (and in what order) the user specifies on the command line.
-    config_options = config_file or config_value
+    config_options = config or config_value
 
     if (
         hasattr(ctx, "saved_args")
@@ -396,7 +395,7 @@ def start(
         # if we need to in the first place
         if getattr(ctx.obj, "has_cl_config_options", False):
             raise click.UsageError(
-                "Cannot specify --config-file or --config-value with 'resume'"
+                "Cannot specify --config or --config-value with 'resume'"
             )
         # We now load the config artifacts from the original run id
         run_id = None
