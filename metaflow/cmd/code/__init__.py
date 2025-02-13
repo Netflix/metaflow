@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 import os
 import shutil
 import sys
@@ -35,19 +34,19 @@ def echo(line: str) -> None:
 
 def extract_code_package(runspec: str, exclusions: List[str]) -> TemporaryDirectory:
     try:
-        run = Run(runspec, _namespace_check=False)
+        mf_run = Run(runspec, _namespace_check=False)
         echo(f"✅  Run *{runspec}* found, downloading code..")
-    except:
+    except Exception as e:
         echo(f"❌  Run **{runspec}** not found")
-        sys.exit(1)
+        raise e
 
-    if run.code is None:
+    if mf_run.code is None:
         echo(
             f"❌  Run **{runspec}** doesn't have a code package. Maybe it's a local run?"
         )
-        sys.exit(1)
+        raise RuntimeError("no code package found")
 
-    tar = run.code.tarball
+    tar = mf_run.code.tarball
     members = [
         m
         for m in tar.getmembers()
@@ -74,7 +73,7 @@ def perform_diff(
             # NOTE: the paths below need to be set up carefully
             # for the `patch` command to work. Better not to touch
             # the directories below. If you must, test that patches
-            # work after you changes.
+            # work after your changes.
             #
             # target_file is the git repo in the current working directory
             rel = os.path.relpath(dirpath, source_dir)
@@ -100,7 +99,8 @@ def perform_diff(
                     cmd, text=True, stdout=PIPE, cwd=target_dir
                 )
                 if result.returncode == 0:
-                    echo(f"✅  {target_file} is identical, skipping")
+                    if not output:
+                        echo(f"✅  {target_file} is identical, skipping")
                     continue
 
                 if output:
@@ -108,7 +108,8 @@ def perform_diff(
                 else:
                     run(["less", "-R"], input=result.stdout, text=True)
             else:
-                echo(f"❗  {target_file} not in the target directory, skipping")
+                if not output:
+                    echo(f"❗  {target_file} not in the target directory, skipping")
     return diffs if output else None
 
 
@@ -130,10 +131,9 @@ def run_op_diff_runs(source_run: str, target_run: str) -> None:
         target_tmp = extract_code_package(target_run, EXCLUSIONS)
         perform_diff(source_tmp.name, target_tmp.name)
     finally:
-        if source_tmp and os.path.exists(source_tmp.name):
-            shutil.rmtree(source_tmp.name)
-        if target_tmp and os.path.exists(target_tmp.name):
-            shutil.rmtree(target_tmp.name)
+        for d in [source_tmp, target_tmp]:
+            if d and os.path.exists(d.name):
+                shutil.rmtree(d.name)
 
 
 def op_diff(tmpdir: str) -> None:
@@ -150,7 +150,7 @@ def op_pull(tmpdir: str, dst: str) -> None:
 
 def op_patch(tmpdir: str, dst: str) -> None:
     diffs = perform_diff(tmpdir, output=True) or []
-    with open(dst, "w") as f:
+    with open(dst, "w", encoding="utf-8") as f:
         for out in diffs:
             out = out.replace(tmpdir, "/.")
             out = out.replace("+++ b/./", "+++ b/")
@@ -214,4 +214,16 @@ def patch(metaflow_run: str, file: Optional[str] = None) -> None:
     """
     if file is None:
         file = metaflow_run.lower().replace("/", "_") + ".patch"
-    run_op(metaflow_run, op_patch, {"dst": file})
+    if confirm_overwrite(file):
+        run_op(metaflow_run, op_patch, {"dst": file})
+
+
+def confirm_overwrite(file):
+    if os.path.exists(file):
+        response = (
+            input(f"{file} already exists. Overwrite? (Y/n) [default: Y]: ")
+            .strip()
+            .lower()
+        )
+        return response in ("y", "")
+    return True
