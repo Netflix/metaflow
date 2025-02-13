@@ -739,9 +739,7 @@ class BlankCard(MetaflowCard):
 
     type = "blank"
 
-    def __init__(
-        self, options=dict(title=""), components=[], graph=None, flow=None, **kwargs
-    ):
+    def __init__(self, options=dict(title=""), components=[], graph=None, **kwargs):
         self._graph = None if graph is None else transform_flow_graph(graph)
         self._title = ""
         if "title" in options:

@@ -8,7 +8,6 @@ from ..task import MetaflowTask
 from ..unbounded_foreach import UBF_CONTROL, UBF_TASK
 from ..util import decompress_list
 import metaflow.tracing as tracing
-from ..metaflow_config import DECOSPECS
 
 
 @click.command(help="Internal command to execute a single task.", hidden=True)
@@ -130,20 +129,6 @@ def step(
         raise CommandException("Function *%s* is not a step." % step_name)
     echo("Executing a step, *%s*" % step_name, fg="magenta", bold=False)
 
-    decospecs = tuple(DECOSPECS.split())
-    if decospecs:
-        decorators._attach_decorators_to_step(func, decospecs)
-        for deco in func.decorators:
-            deco.init()
-            decorators._init_decorator(
-                deco,
-                ctx.obj.flow,
-                ctx.obj.graph,
-                func,
-                ctx.obj.environment,
-                ctx.obj.flow_datastore,
-                ctx.obj.logger,
-            )
     step_kwargs = ctx.params
     # Remove argument `step_name` from `step_kwargs`.
     step_kwargs.pop("step_name", None)

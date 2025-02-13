@@ -477,20 +477,15 @@ def _base_step_decorator(decotype, *args, **kwargs):
         if not hasattr(func, "is_step"):
             raise BadStepDecoratorException(decotype.name, func)
 
-        if decotype.name in [deco.name for deco in func.decorators]:
-            if not decotype.allow_multiple:
-                # if `allow_multiple` is not `True` then only one
-                # decorator type is allowed per step
-                raise DuplicateStepDecoratorException(decotype.name, func)
+        # if `allow_multiple` is not `True` then only one decorator type is allowed per step
+        if (
+            decotype.name in [deco.name for deco in func.decorators]
+            and not decotype.allow_multiple
+        ):
+            raise DuplicateStepDecoratorException(decotype.name, func)
+        else:
+            func.decorators.append(decotype(attributes=kwargs, statically_defined=True))
 
-            # If multiple decorators of the same type are allowed, we
-            # then check if we see any duplicate attributes. If we do,
-            # we ignore the new decorator and continue.
-            for deco in func.decorators:
-                if deco.name == decotype.name and deco.attributes == kwargs:
-                    return func
-
-        func.decorators.append(decotype(attributes=kwargs, statically_defined=True))
         return func
     else:
         # Keyword arguments specified, e.g. @foobar(a=1, b=2).
@@ -526,7 +521,6 @@ def _attach_decorators(flow, decospecs):
     #
     # Note that each step gets its own instance of the decorator class,
     # so decorator can maintain step-specific state.
-
     for step in flow:
         _attach_decorators_to_step(step, decospecs)
 
@@ -620,21 +614,15 @@ def _init_flow_decorators(
 def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
     for step in flow:
         for deco in step.decorators:
-            _init_decorator(
-                deco, flow, graph, step, environment, flow_datastore, logger
+            deco.step_init(
+                flow,
+                graph,
+                step.__name__,
+                step.decorators,
+                environment,
+                flow_datastore,
+                logger,
             )
-
-
-def _init_decorator(deco, flow, graph, step, environment, flow_datastore, logger):
-    deco.step_init(
-        flow,
-        graph,
-        step.__name__,
-        step.decorators,
-        environment,
-        flow_datastore,
-        logger,
-    )
 
 
 FlowSpecDerived = TypeVar("FlowSpecDerived", bound=FlowSpec)
