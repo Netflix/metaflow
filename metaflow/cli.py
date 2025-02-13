@@ -16,7 +16,6 @@ from .exception import CommandException, MetaflowException
 from .flowspec import _FlowState
 from .graph import FlowGraph
 from .metaflow_config import (
-    DECOSPECS,
     DEFAULT_DATASTORE,
     DEFAULT_ENVIRONMENT,
     DEFAULT_EVENT_LOGGER,

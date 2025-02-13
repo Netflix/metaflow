@@ -521,6 +521,7 @@ def _attach_decorators(flow, decospecs):
     #
     # Note that each step gets its own instance of the decorator class,
     # so decorator can maintain step-specific state.
+
     for step in flow:
         _attach_decorators_to_step(step, decospecs)
 

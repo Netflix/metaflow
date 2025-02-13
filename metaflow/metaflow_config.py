@@ -284,7 +284,7 @@ CONTACT_INFO = from_conf(
 ###
 # Format is a space separated string of decospecs (what is passed
 # using --with)
-DECOSPECS = from_conf("DEFAULT_DECOSPECS", "")
+DEFAULT_DECOSPECS = from_conf("DEFAULT_DECOSPECS", "")
 
 ###
 # AWS Batch configuration
@@ -577,9 +577,9 @@ try:
                 _TOGGLE_DECOSPECS.extend(o)
             elif not n.startswith("__") and not isinstance(o, types.ModuleType):
                 globals()[n] = o
-    # If DECOSPECS is set, use that, else extrapolate from extensions
-    if not DECOSPECS:
-        DECOSPECS = " ".join(_TOGGLE_DECOSPECS)
+    # If DEFAULT_DECOSPECS is set, use that, else extrapolate from extensions
+    if not DEFAULT_DECOSPECS:
+        DEFAULT_DECOSPECS = " ".join(_TOGGLE_DECOSPECS)
 
 finally:
     # Erase all temporary names to avoid leaking things

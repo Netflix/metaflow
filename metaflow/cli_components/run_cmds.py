@@ -8,7 +8,7 @@ from .. import decorators, namespace, parameters, tracing
 from ..exception import CommandException
 from ..graph import FlowGraph
 from ..metaflow_current import current
-from ..metaflow_config import DECOSPECS
+from ..metaflow_config import DEFAULT_DECOSPECS
 from ..package import MetaflowPackage
 from ..runtime import NativeRuntime
 from ..system import _system_logger
@@ -82,13 +82,13 @@ def config_merge_cb(ctx, param, value):
     # NOTE: Assumes that ctx.auto_envvar_prefix is set to METAFLOW (same as in
     # from_conf)
 
-    # Special case where DECOSPECS and value are the same. This happens
-    # when there is no --with option at the TL and DECOSPECS is read from
+    # Special case where DEFAULT_DECOSPECS and value are the same. This happens
+    # when there is no --with option at the TL and DEFAULT_DECOSPECS is read from
     # the env var. In this case, click also passes it as value
-    splits = DECOSPECS.split()
+    splits = DEFAULT_DECOSPECS.split()
     if len(splits) == len(value) and all([a == b for (a, b) in zip(splits, value)]):
         return value
-    return tuple(list(value) + DECOSPECS.split())
+    return tuple(list(value) + DEFAULT_DECOSPECS.split())
 
 
 def common_run_options(func):
