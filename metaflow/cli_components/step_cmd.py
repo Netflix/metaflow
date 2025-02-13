@@ -173,7 +173,7 @@ def step(
                 task_id=task_id,
             )
             echo_always(f"latest attempt number: {t_datastore.attempt}")
-            retry_count = t_datastore.attempt + 1
+            retry_count = getattr(t_datastore, "attempt", 0) + 1
         except DataException as e:
             retry_count = 0
             echo_always(f"This is a first ever run, Exception: {e}")
