@@ -168,6 +168,7 @@ def step(
         )
         latest_done_attempt = max([t.attempt for t in t_datastores], default=-1)  # default=-1, this is first run.
         retry_count = latest_done_attempt + 1
+        echo_always(f"{latest_done_attempt=}")
         echo_always(f"{retry_count=}")
         # Not sure what are the side effects to this.
         if retry_count >= max_user_code_retries:
