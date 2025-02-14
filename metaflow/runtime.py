@@ -125,7 +125,7 @@ class NativeRuntime(object):
         self._clone_run_id = clone_run_id
         self._clone_only = clone_only
         self._cloned_tasks = []
-        self._cloned_task_index = set()
+        self._ran_or_scheduled_task_index = set()
         self._reentrant = reentrant
         self._run_url = None
 
@@ -297,7 +297,7 @@ class NativeRuntime(object):
                     task.ubf_context = ubf_context
                 new_task_id = task.task_id
                 self._cloned_tasks.append(task)
-                self._cloned_task_index.add(cloned_task_pathspec_index)
+                self._ran_or_scheduled_task_index.add(cloned_task_pathspec_index)
                 task_pathspec = "{}/{}/{}".format(self._run_id, step_name, new_task_id)
             else:
                 task_pathspec = "{}/{}/{}".format(self._run_id, step_name, new_task_id)
@@ -384,8 +384,10 @@ class NativeRuntime(object):
                 and step_name != "_parameters"
                 and (step_name not in self._steps_to_rerun)
             ):
-                # "_unbounded_foreach" is a special flag to indicate that the transition is an unbounded foreach.
-                # Both parent and splitted children tasks will have this flag set. The splitted control/mapper tasks
+                # "_unbounded_foreach" is a special flag to indicate that the transition
+                # is an unbounded foreach.
+                # Both parent and splitted children tasks will have this flag set.
+                # The splitted control/mapper tasks
                 # are not foreach types because UBF is always followed by a join step.
                 is_ubf_task = (
                     "_unbounded_foreach" in task_ds and task_ds["_unbounded_foreach"]
@@ -647,10 +649,18 @@ class NativeRuntime(object):
     # Store the parameters needed for task creation, so that pushing on items
     # onto the run_queue is an inexpensive operation.
     def _queue_push(self, step, task_kwargs, index=None):
-        # If the to-be-pushed task is already cloned before, we don't need
-        # to re-run it.
-        if index and index in self._cloned_task_index:
-            return
+        # In the case of cloning, we set all the cloned tasks as the
+        # finished tasks when pushing tasks using _queue_tasks. This means that we
+        # could potentially try to push the same task multiple times (for example
+        # if multiple parents of a join are cloned). We therefore keep track of what
+        # has executed (been cloned) or what has been scheduled and avoid scheduling
+        # it again.
+        if index:
+            if index in self._ran_or_scheduled_task_index:
+                # It has already run or been scheduled
+                return
+            # Note that we are scheduling this to run
+            self._ran_or_scheduled_task_index.add(index)
         self._run_queue.insert(0, (step, task_kwargs))
         # For foreaches, this will happen multiple time but is ok, becomes a no-op
         self._unprocessed_steps.discard(step)

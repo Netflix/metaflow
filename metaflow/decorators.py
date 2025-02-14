@@ -150,8 +150,8 @@ class Decorator(object):
             return
 
         # Note that by design, later values override previous ones.
-        self.attributes = unpack_delayed_evaluator(self.attributes)
-        self._user_defined_attributes.update(self.attributes.keys())
+        self.attributes, new_user_attributes = unpack_delayed_evaluator(self.attributes)
+        self._user_defined_attributes.update(new_user_attributes)
         self.attributes = resolve_delayed_evaluator(self.attributes)
 
         self._ran_init = True
@@ -591,9 +591,13 @@ def _init_flow_decorators(
                 )
         else:
             # Each "non-multiple" flow decorator is only allowed to have one set of options
+            # Note that there may be no deco_options if a MutableFlow config injected
+            # the decorator.
             deco_flow_init_options = {
-                option: deco_options[option.replace("-", "_")]
-                for option in deco.options
+                option: deco_options.get(
+                    option.replace("-", "_"), option_info["default"]
+                )
+                for option, option_info in deco.options.items()
             }
         for deco in decorators:
             deco.flow_init(

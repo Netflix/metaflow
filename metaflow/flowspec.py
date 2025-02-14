@@ -86,6 +86,11 @@ class FlowSpecMeta(type):
         super().__init__(name, bases, attrs)
         if name == "FlowSpec":
             return
+
+        from .decorators import (
+            DuplicateFlowDecoratorException,
+        )  # Prevent circular import
+
         # We store some state in the flow class itself. This is primarily used to
         # attach global state to a flow. It is *not* an actual global because of
         # Runner/NBRunner. This is also created here in the meta class to avoid it being
@@ -97,6 +102,31 @@ class FlowSpecMeta(type):
 
         # Keys are _FlowState enum values
         cls._flow_state = {}
+
+        # We inherit stuff from our parent classes as well -- we need to be careful
+        # in terms of the order; we will follow the MRO with the following rules:
+        #  - decorators (cls._flow_decorators) will cause an error if they do not
+        #    support multiple and we see multiple instances of the same
+        #  - config decorators will be joined
+        #  - configs will be added later directly by the class; base class configs will
+        #    be taken into account as they would be inherited.
+
+        # We only need to do this for the base classes since the current class will
+        # get updated as decorators are parsed.
+        for base in cls.__mro__:
+            if base != cls and base != FlowSpec and issubclass(base, FlowSpec):
+                # Take care of decorators
+                for deco_name, deco in base._flow_decorators.items():
+                    if deco_name in cls._flow_decorators and not deco.allow_multiple:
+                        raise DuplicateFlowDecoratorException(deco_name)
+                    cls._flow_decorators.setdefault(deco_name, []).extend(deco)
+
+                # Take care of configs and config decorators
+                base_configs = base._flow_state.get(_FlowState.CONFIG_DECORATORS)
+                if base_configs:
+                    cls._flow_state.setdefault(_FlowState.CONFIG_DECORATORS, []).extend(
+                        base_configs
+                    )
 
         cls._init_attrs()
 
@@ -193,15 +223,18 @@ class FlowSpec(metaclass=FlowSpecMeta):
             seen.add(norm)
 
     @classmethod
-    def _process_config_decorators(cls, config_options, ignore_errors=False):
+    def _process_config_decorators(cls, config_options, process_configs=True):
 
         # Fast path for no user configurations
-        if not cls._flow_state.get(_FlowState.CONFIG_DECORATORS):
+        if not process_configs or (
+            not cls._flow_state.get(_FlowState.CONFIG_DECORATORS)
+            and all(len(step.config_decorators) == 0 for step in cls._steps)
+        ):
             # Process parameters to allow them to also use config values easily
             for var, param in cls._get_parameters():
                 if param.IS_CONFIG_PARAMETER:
                     continue
-                param.init(ignore_errors)
+                param.init(not process_configs)
             return None
 
         debug.userconf_exec("Processing mutating step/flow decorators")
@@ -226,6 +259,11 @@ class FlowSpec(metaclass=FlowSpecMeta):
             debug.userconf_exec("Setting config %s to %s" % (var, str(val)))
             setattr(cls, var, val)
 
+        # Reset cached parameters since we have replaced configs already with ConfigValue
+        # so they are not parameters anymore to be re-evaluated when we do _get_parameters
+        if _FlowState.CACHED_PARAMETERS in cls._flow_state:
+            del cls._flow_state[_FlowState.CACHED_PARAMETERS]
+
         # Run all the decorators. Step decorators are directly in the step and
         # we will run those first and *then* we run all the flow level decorators
         for step in cls._steps:
@@ -245,7 +283,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
                 setattr(cls, step.name, step)
 
         mutable_flow = MutableFlow(cls)
-        for deco in cls._flow_state[_FlowState.CONFIG_DECORATORS]:
+        for deco in cls._flow_state.get(_FlowState.CONFIG_DECORATORS, []):
             if isinstance(deco, CustomFlowDecorator):
                 # Sanity check to make sure we are applying the decorator to the right
                 # class

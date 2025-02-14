@@ -16,8 +16,14 @@ CLIS_DESC = [
     ("argo-workflows", ".argo.argo_workflows_cli.cli"),
     ("card", ".cards.card_cli.cli"),
     ("tag", ".tag_cli.cli"),
+    ("spot-metadata", ".kubernetes.spot_metadata_cli.cli"),
     ("logs", ".logs_cli.cli"),
 ]
+
+# Add additional commands to the runner here
+# These will be accessed using Runner().<command>()
+RUNNER_CLIS_DESC = []
+
 
 from .test_unbounded_foreach_decorator import InternalTestUnboundedForeachInput
 
@@ -99,6 +105,10 @@ SIDECARS_DESC = [
         "save_logs_periodically",
         "..mflog.save_logs_periodically.SaveLogsPeriodicallySidecar",
     ),
+    (
+        "spot_termination_monitor",
+        ".kubernetes.spot_monitor_sidecar.SpotTerminationMonitorSidecar",
+    ),
     ("heartbeat", "metaflow.metadata_provider.heartbeat.MetadataHeartBeat"),
 ]
 
@@ -166,6 +176,14 @@ def get_plugin_cli():
 
 def get_plugin_cli_path():
     return resolve_plugins("cli", path_only=True)
+
+
+def get_runner_cli():
+    return resolve_plugins("runner_cli")
+
+
+def get_runner_cli_path():
+    return resolve_plugins("runner_cli", path_only=True)
 
 
 STEP_DECORATORS = resolve_plugins("step_decorator")

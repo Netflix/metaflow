@@ -677,15 +677,6 @@ class Kubernetes(object):
         for name, value in system_annotations.items():
             job.annotation(name, value)
 
-        (
-            job.annotation("metaflow/run_id", run_id)
-            .annotation("metaflow/step_name", step_name)
-            .annotation("metaflow/task_id", task_id)
-            .annotation("metaflow/attempt", attempt)
-            .label("app.kubernetes.io/name", "metaflow-task")
-            .label("app.kubernetes.io/part-of", "metaflow")
-        )
-
         return job
 
     def create_k8sjob(self, job):

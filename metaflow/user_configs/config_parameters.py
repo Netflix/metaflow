@@ -3,7 +3,7 @@ import json
 import os
 import re
 
-from typing import Any, Callable, Dict, Optional, TYPE_CHECKING, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING, Union
 
 
 from ..exception import MetaflowException
@@ -171,7 +171,7 @@ class DelayEvaluator(collections.abc.Mapping):
         yield "%s%d" % (UNPACK_KEY, id(self))
 
     def __getitem__(self, key):
-        if key == "%s%d" % (UNPACK_KEY, id(self)):
+        if isinstance(key, str) and key == "%s%d" % (UNPACK_KEY, id(self)):
             return self
         if self._access is None:
             raise KeyError(key)
@@ -183,7 +183,7 @@ class DelayEvaluator(collections.abc.Mapping):
 
     def __getattr__(self, name):
         if self._access is None:
-            raise AttributeError()
+            raise AttributeError(name)
         self._access.append(name)
         return self
 
@@ -196,12 +196,23 @@ class DelayEvaluator(collections.abc.Mapping):
         if flow_cls is None:
             # We are not executing inside a flow (ie: not the CLI)
             raise MetaflowException(
-                "Config object can only be used directly in the FlowSpec defining them. "
-                "If using outside of the FlowSpec, please use ConfigEval"
+                "Config object can only be used directly in the FlowSpec defining them "
+                "(or their flow decorators)."
             )
         if self._access is not None:
             # Build the final expression by adding all the fields in access as . fields
-            self._config_expr = ".".join([self._config_expr] + self._access)
+            access_list = [self._config_expr]
+            for a in self._access:
+                if isinstance(a, str):
+                    access_list.append(a)
+                elif isinstance(a, DelayEvaluator):
+                    # Supports things like config[other_config.selector].var
+                    access_list.append(a())
+                else:
+                    raise MetaflowException(
+                        "Field '%s' of type '%s' is not supported" % (str(a), type(a))
+                    )
+            self._config_expr = ".".join(access_list)
         # Evaluate the expression setting the config values as local variables
         try:
             return eval(
@@ -279,17 +290,17 @@ class Config(Parameter, collections.abc.Mapping):
     default : Union[str, Callable[[ParameterContext], str], optional, default None
         Default path from where to read this configuration. A function implies that the
         value will be computed using that function.
-        You can only specify default or default_value.
+        You can only specify default or default_value, not both.
     default_value : Union[str, Dict[str, Any], Callable[[ParameterContext, Union[str, Dict[str, Any]]], Any], optional, default None
         Default value for the parameter. A function
         implies that the value will be computed using that function.
-        You can only specify default or default_value.
+        You can only specify default or default_value, not both.
     help : str, optional, default None
         Help text to show in `run --help`.
     required : bool, optional, default None
-        Require that the user specified a value for the configuration. Note that if
-        a default is provided, the required flag is ignored. A value of None is
-        equivalent to False.
+        Require that the user specifies a value for the configuration. Note that if
+        a default or default_value is provided, the required flag is ignored.
+        A value of None is equivalent to False.
     parser : Union[str, Callable[[str], Dict[Any, Any]]], optional, default None
         If a callable, it is a function that can parse the configuration string
         into an arbitrarily nested dictionary. If a string, the string should refer to
@@ -319,13 +330,13 @@ class Config(Parameter, collections.abc.Mapping):
         **kwargs: Dict[str, str]
     ):
 
-        if default and default_value:
+        if default is not None and default_value is not None:
             raise MetaflowException(
                 "For config '%s', you can only specify default or default_value, not both"
                 % name
             )
         self._default_is_file = default is not None
-        kwargs["default"] = default or default_value
+        kwargs["default"] = default if default is not None else default_value
         super(Config, self).__init__(
             name, required=required, help=help, type=str, **kwargs
         )
@@ -336,6 +347,8 @@ class Config(Parameter, collections.abc.Mapping):
         self.parser = parser
         self._computed_value = None
 
+        self._delayed_evaluator = None
+
     def load_parameter(self, v):
         if v is None:
             return None
@@ -344,22 +357,37 @@ class Config(Parameter, collections.abc.Mapping):
     def _store_value(self, v: Any) -> None:
         self._computed_value = v
 
+    def _init_delayed_evaluator(self) -> None:
+        if self._delayed_evaluator is None:
+            self._delayed_evaluator = DelayEvaluator(self.name.lower())
+
     # Support <config>.<var> syntax
     def __getattr__(self, name):
-        return DelayEvaluator(self.name.lower()).__getattr__(name)
+        # Need to return a new DelayEvaluator everytime because the evaluator will
+        # contain the "path" (ie: .name) and can be further accessed.
+        return getattr(DelayEvaluator(self.name.lower()), name)
 
-    # Next three methods are to implement mapping to support **<config> syntax
+    # Next three methods are to implement mapping to support **<config> syntax. We
+    # need to be careful, however, to also support a regular `config["key"]` syntax
+    # which calls into `__getitem__` and therefore behaves like __getattr__ above.
     def __iter__(self):
-        return iter(DelayEvaluator(self.name.lower()))
+        self._init_delayed_evaluator()
+        yield from self._delayed_evaluator
 
     def __len__(self):
-        return len(DelayEvaluator(self.name.lower()))
+        self._init_delayed_evaluator()
+        return len(self._delayed_evaluator)
 
     def __getitem__(self, key):
+        self._init_delayed_evaluator()
+        if isinstance(key, str) and key.startswith(UNPACK_KEY):
+            return self._delayed_evaluator[key]
         return DelayEvaluator(self.name.lower())[key]
 
 
 def resolve_delayed_evaluator(v: Any, ignore_errors: bool = False) -> Any:
+    # NOTE: We don't ignore errors in downstream calls because we want to have either
+    # all or nothing for the top-level call by the user.
     try:
         if isinstance(v, DelayEvaluator):
             return v()
@@ -389,17 +417,20 @@ def resolve_delayed_evaluator(v: Any, ignore_errors: bool = False) -> Any:
 
 def unpack_delayed_evaluator(
     to_unpack: Dict[str, Any], ignore_errors: bool = False
-) -> Dict[str, Any]:
+) -> Tuple[Dict[str, Any], List[str]]:
     result = {}
+    new_keys = []
     for k, v in to_unpack.items():
         if not isinstance(k, str) or not k.startswith(UNPACK_KEY):
             result[k] = v
         else:
             # k.startswith(UNPACK_KEY)
             try:
-                result.update(resolve_delayed_evaluator(v[k]))
+                new_vals = resolve_delayed_evaluator(v)
+                new_keys.extend(new_vals.keys())
+                result.update(new_vals)
             except Exception as e:
                 if ignore_errors:
                     continue
                 raise e
-    return result
+    return result, new_keys

@@ -316,7 +316,7 @@ class Parameter(object):
     help : str, optional, default None
         Help text to show in `run --help`.
     required : bool, optional, default None
-        Require that the user specified a value for the parameter. Note that if
+        Require that the user specifies a value for the parameter. Note that if
         a default is provide, the required flag is ignored.
         A value of None is equivalent to False.
     show_default : bool, optional, default None
@@ -367,9 +367,11 @@ class Parameter(object):
         )
 
         # Resolve any value from configurations
-        self.kwargs = unpack_delayed_evaluator(self.kwargs, ignore_errors=ignore_errors)
+        self.kwargs, _ = unpack_delayed_evaluator(
+            self.kwargs, ignore_errors=ignore_errors
+        )
         # Do it one item at a time so errors are ignored at that level (as opposed to
-        # at the entire kwargs leve)
+        # at the entire kwargs level)
         self.kwargs = {
             k: resolve_delayed_evaluator(v, ignore_errors=ignore_errors)
             for k, v in self.kwargs.items()

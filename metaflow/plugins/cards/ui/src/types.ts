@@ -34,7 +34,8 @@ export type TableDataCell =
   | MarkdownComponent
   | ProgressBarComponent
   | TextComponent
-  | VegaChartComponent;
+  | VegaChartComponent
+  | PythonCodeComponent;
 
 export type TableColumns = string[];
 export type TableData = TableDataCell[][];
@@ -179,6 +180,12 @@ export interface LogComponent {
   data: string;
 }
 
+export interface PythonCodeComponent {
+  type: "pythonCode";
+  id?: string;
+  data: string;
+}
+
 export interface MarkdownComponent {
   type: "markdown";
   id?: string;
@@ -207,4 +214,5 @@ export type CardComponent =
   | TableComponent
   | TextComponent
   | TitleComponent
-  | VegaChartComponent;
+  | VegaChartComponent
+  | PythonCodeComponent;

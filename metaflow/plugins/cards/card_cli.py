@@ -691,10 +691,15 @@ def create(
         try:
             if options is not None:
                 mf_card = filtered_card(
-                    options=options, components=component_arr, graph=graph_dict
+                    options=options,
+                    components=component_arr,
+                    graph=graph_dict,
+                    flow=ctx.obj.flow,
                 )
             else:
-                mf_card = filtered_card(components=component_arr, graph=graph_dict)
+                mf_card = filtered_card(
+                    components=component_arr, graph=graph_dict, flow=ctx.obj.flow
+                )
         except TypeError as e:
             if render_error_card:
                 mf_card = None

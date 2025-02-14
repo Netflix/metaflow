@@ -12,11 +12,14 @@ from urllib.error import URLError
 from urllib.request import urlopen
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.plugins import DATASTORES
+from metaflow.plugins.pypi.utils import MICROMAMBA_MIRROR_URL, MICROMAMBA_URL
 from metaflow.util import which
 from urllib.request import Request
 import warnings
 
 from . import MAGIC_FILE, _datastore_packageroot
+
+FAST_INIT_BIN_URL = "https://fast-flow-init.outerbounds.sh/{platform}/fast-env-0.1.1.gz"
 
 # Bootstraps a valid conda virtual environment composed of conda and pypi packages
 
@@ -33,7 +36,6 @@ def timer(func):
 
 
 if __name__ == "__main__":
-
     # TODO: Detect architecture on the fly when dealing with arm architectures.
     # ARCH=$(uname -m)
     # OS=$(uname)
@@ -58,15 +60,72 @@ if __name__ == "__main__":
     #     fi
     # fi
 
-    def run_cmd(cmd):
+    def run_cmd(cmd, stdin_str=None):
         result = subprocess.run(
-            cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            cmd,
+            shell=True,
+            input=stdin_str,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
         )
         if result.returncode != 0:
             print(f"Bootstrap failed while executing: {cmd}")
             print("Stdout:", result.stdout)
             print("Stderr:", result.stderr)
             sys.exit(1)
+
+    @timer
+    def install_fast_initializer(architecture):
+        import gzip
+
+        fast_initializer_path = os.path.join(
+            os.getcwd(), "fast-initializer", "bin", "fast-initializer"
+        )
+
+        if which("fast-initializer"):
+            return which("fast-initializer")
+        if os.path.exists(fast_initializer_path):
+            os.environ["PATH"] += os.pathsep + os.path.dirname(fast_initializer_path)
+            return fast_initializer_path
+
+        url = FAST_INIT_BIN_URL.format(platform=architecture)
+
+        # Prepare directory once
+        os.makedirs(os.path.dirname(fast_initializer_path), exist_ok=True)
+
+        # Download and decompress in one go
+        def _download_and_extract(url):
+            headers = {
+                "Accept-Encoding": "gzip, deflate, br",
+                "Connection": "keep-alive",
+                "User-Agent": "python-urllib",
+            }
+
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    req = Request(url, headers=headers)
+                    with urlopen(req) as response:
+                        with gzip.GzipFile(fileobj=response) as gz:
+                            with open(fast_initializer_path, "wb") as f:
+                                f.write(gz.read())
+                    break
+                except (URLError, IOError) as e:
+                    if attempt == max_retries - 1:
+                        raise Exception(
+                            f"Failed to download fast-initializer after {max_retries} attempts: {e}"
+                        )
+                    time.sleep(2**attempt)
+
+        _download_and_extract(url)
+
+        # Set executable permission
+        os.chmod(fast_initializer_path, 0o755)
+
+        # Update PATH only once at the end
+        os.environ["PATH"] += os.pathsep + os.path.dirname(fast_initializer_path)
+        return fast_initializer_path
 
     @timer
     def install_micromamba(architecture):
@@ -80,43 +139,55 @@ if __name__ == "__main__":
             return micromamba_path
 
         # Download and extract in one go
-        # TODO: Serve from cloudflare
-        url = f"https://micro.mamba.pm/api/micromamba/{architecture}/2.0.4"
+        url = MICROMAMBA_URL.format(platform=architecture, version="2.0.4")
+        mirror_url = MICROMAMBA_MIRROR_URL.format(
+            platform=architecture, version="2.0.4"
+        )
 
         # Prepare directory once
         os.makedirs(os.path.dirname(micromamba_path), exist_ok=True)
 
         # Download and decompress in one go
-        headers = {
-            "Accept-Encoding": "gzip, deflate, br",
-            "Connection": "keep-alive",
-            "User-Agent": "python-urllib",
-        }
+        def _download_and_extract(url):
+            headers = {
+                "Accept-Encoding": "gzip, deflate, br",
+                "Connection": "keep-alive",
+                "User-Agent": "python-urllib",
+            }
 
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                req = Request(url, headers=headers)
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    req = Request(url, headers=headers)
 
-                with urlopen(req) as response:
-                    decompressor = bz2.BZ2Decompressor()
-                    with warnings.catch_warnings():
-                        warnings.filterwarnings("ignore", category=DeprecationWarning)
-                        with tarfile.open(
-                            fileobj=io.BytesIO(
-                                decompressor.decompress(response.read())
-                            ),
-                            mode="r:",
-                        ) as tar:
-                            member = tar.getmember("bin/micromamba")
-                            tar.extract(member, micromamba_dir)
-                break
-            except (URLError, IOError) as e:
-                if attempt == max_retries - 1:
-                    raise Exception(
-                        f"Failed to download micromamba after {max_retries} attempts: {e}"
-                    )
-                time.sleep(2**attempt)
+                    with urlopen(req) as response:
+                        decompressor = bz2.BZ2Decompressor()
+                        with warnings.catch_warnings():
+                            warnings.filterwarnings(
+                                "ignore", category=DeprecationWarning
+                            )
+                            with tarfile.open(
+                                fileobj=io.BytesIO(
+                                    decompressor.decompress(response.read())
+                                ),
+                                mode="r:",
+                            ) as tar:
+                                member = tar.getmember("bin/micromamba")
+                                tar.extract(member, micromamba_dir)
+                    break
+                except (URLError, IOError) as e:
+                    if attempt == max_retries - 1:
+                        raise Exception(
+                            f"Failed to download micromamba after {max_retries} attempts: {e}"
+                        )
+                    time.sleep(2**attempt)
+
+        try:
+            # first try from mirror
+            _download_and_extract(mirror_url)
+        except Exception:
+            # download from mirror failed, try official source before failing.
+            _download_and_extract(url)
 
         # Set executable permission
         os.chmod(micromamba_path, 0o755)
@@ -127,7 +198,6 @@ if __name__ == "__main__":
 
     @timer
     def download_conda_packages(storage, packages, dest_dir):
-
         def process_conda_package(args):
             # Ensure that conda packages go into architecture specific folders.
             # The path looks like REPO/CHANNEL/CONDA_SUBDIR/PACKAGE. We trick
@@ -156,7 +226,6 @@ if __name__ == "__main__":
 
     @timer
     def download_pypi_packages(storage, packages, dest_dir):
-
         def process_pypi_package(args):
             key, tmpfile, dest_dir = args
             dest = os.path.join(dest_dir, os.path.basename(key))
@@ -195,7 +264,6 @@ if __name__ == "__main__":
 
     @timer
     def install_pypi_packages(prefix, pypi_pkgs_dir):
-
         cmd = f"""set -e;
             export PATH=$PATH:$(pwd)/micromamba;
             export CONDA_PKGS_DIRS=$(pwd)/micromamba/pkgs;
@@ -259,6 +327,27 @@ if __name__ == "__main__":
                 # wait for conda environment to be created
                 futures["conda_env"].result()
 
+    @timer
+    def fast_setup_environment(architecture, storage, env, prefix, pkgs_dir):
+        # Get package urls
+        conda_pkgs = env["conda"]
+        pypi_pkgs = env.get("pypi", [])
+        conda_pkg_urls = [package["path"] for package in conda_pkgs]
+        pypi_pkg_urls = [package["path"] for package in pypi_pkgs]
+
+        # Create string with package URLs
+        all_package_urls = ""
+        for url in conda_pkg_urls:
+            all_package_urls += f"{storage.datastore_root}/{url}\n"
+        all_package_urls += "---\n"
+        for url in pypi_pkg_urls:
+            all_package_urls += f"{storage.datastore_root}/{url}\n"
+
+        # Initialize environment
+        # NOTE: For the time being the fast-initializer only works for the S3 datastore implementation
+        cmd = f"fast-initializer --prefix {prefix} --packages-dir {pkgs_dir}"
+        run_cmd(cmd, all_package_urls)
+
     if len(sys.argv) != 5:
         print("Usage: bootstrap.py <flow_name> <id> <datastore_type> <architecture>")
         sys.exit(1)
@@ -290,9 +379,14 @@ if __name__ == "__main__":
         with open(os.path.join(manifest_dir, MAGIC_FILE)) as f:
             env = json.load(f)[id_][architecture]
 
-        setup_environment(
-            architecture, storage, env, prefix, conda_pkgs_dir, pypi_pkgs_dir
-        )
+        if datastore_type == "s3":
+            # TODO: Remove this once fast-initializer is ready for all datastores
+            install_fast_initializer(architecture)
+            fast_setup_environment(architecture, storage, env, prefix, pkgs_dir)
+        else:
+            setup_environment(
+                architecture, storage, env, prefix, conda_pkgs_dir, pypi_pkgs_dir
+            )
 
     except Exception as e:
         print(f"Error: {str(e)}", file=sys.stderr)

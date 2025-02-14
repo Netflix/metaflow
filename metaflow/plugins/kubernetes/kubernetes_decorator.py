@@ -570,6 +570,13 @@ class KubernetesDecorator(StepDecorator):
             self._save_logs_sidecar = Sidecar("save_logs_periodically")
             self._save_logs_sidecar.start()
 
+            # Start spot termination monitor sidecar.
+            current._update_env(
+                {"spot_termination_notice": "/tmp/spot_termination_notice"}
+            )
+            self._spot_monitor_sidecar = Sidecar("spot_termination_monitor")
+            self._spot_monitor_sidecar.start()
+
         num_parallel = None
         if hasattr(flow, "_parallel_ubf_iter"):
             num_parallel = flow._parallel_ubf_iter.num_parallel
@@ -616,10 +623,10 @@ class KubernetesDecorator(StepDecorator):
             # local file system after the user code has finished execution.
             # This happens via datastore as a communication bridge.
 
-            # TODO:  There is no guarantee that task_prestep executes before
-            #        task_finished is invoked. That will result in AttributeError:
-            #        'KubernetesDecorator' object has no attribute 'metadata' error.
-            if self.metadata.TYPE == "local":
+            # TODO:  There is no guarantee that task_pre_step executes before
+            #        task_finished is invoked.
+            # For now we guard against the missing metadata object in this case.
+            if hasattr(self, "metadata") and self.metadata.TYPE == "local":
                 # Note that the datastore is *always* Amazon S3 (see
                 # runtime_task_created function).
                 sync_local_metadata_to_datastore(
@@ -628,6 +635,7 @@ class KubernetesDecorator(StepDecorator):
 
         try:
             self._save_logs_sidecar.terminate()
+            self._spot_monitor_sidecar.terminate()
         except:
             # Best effort kill
             pass

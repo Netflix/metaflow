@@ -39,7 +39,7 @@ def kubernetes():
     "command inside a Kubernetes pod with the given options. Typically you do not call "
     "this command directly; it is used internally by Metaflow."
 )
-@tracing.cli_entrypoint("kubernetes/step")
+@tracing.cli("kubernetes/step")
 @click.argument("step-name")
 @click.argument("code-package-sha")
 @click.argument("code-package-url")
@@ -194,7 +194,7 @@ def step(
     executable = ctx.obj.environment.executable(step_name, executable)
 
     # Set environment
-    env = {}
+    env = {"METAFLOW_FLOW_FILENAME": os.path.basename(sys.argv[0])}
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
         env = env_deco[0].attributes["vars"]

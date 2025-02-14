@@ -20,15 +20,15 @@ def post_fork():
     yield
 
 
-def cli_entrypoint(name: str):
-    def cli_entrypoint_wrap(func):
+def cli(name: str):
+    def cli_wrap(func):
         @wraps(func)
         def wrapper_func(*args, **kwargs):
             return func(*args, **kwargs)
 
         return wrapper_func
 
-    return cli_entrypoint_wrap
+    return cli_wrap
 
 
 def inject_tracing_vars(env_dict: Dict[str, str]) -> Dict[str, str]:
@@ -40,7 +40,9 @@ def get_trace_id() -> str:
 
 
 @contextlib.contextmanager
-def traced(name, attrs={}):
+def traced(name, attrs=None):
+    if attrs is None:
+        attrs = {}
     yield
 
 
@@ -54,17 +56,15 @@ def tracing(func):
 
 if not DISABLE_TRACING and (CONSOLE_TRACE_ENABLED or OTEL_ENDPOINT or ZIPKIN_ENDPOINT):
     try:
-        # Overrides No-Op implementations if a specific provider is configured.
         from .tracing_modules import (
             init_tracing,
             post_fork,
-            cli_entrypoint,
+            cli,
             inject_tracing_vars,
             get_trace_id,
             traced,
             tracing,
         )
-
     except ImportError as e:
         # We keep the errors silent by default so that having tracing environment variables present
         # does not affect users with no need for tracing.
