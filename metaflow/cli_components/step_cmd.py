@@ -162,26 +162,16 @@ def step(
             retry_count,
         )
     else:
-        from metaflow.datastore.exceptions import DataException
-
-        echo_always(f" run_id: {run_id}, step_name: {step_name}, task_id: {task_id}")
-        try:
-            # this will hit exception on first run
-            t_datastore = task.flow_datastore.get_task_datastore(
-                run_id=run_id,
-                step_name=step_name,
-                task_id=task_id,
-                allow_not_done=True
-            )
-            echo_always(f"latest attempt number: {t_datastore.attempt}")
-            retry_count = getattr(t_datastore, "attempt", 0) + 1
-        except DataException as e:
-            retry_count = 0
-            echo_always(f"This is a first ever run, Exception: {e}")
-        echo_always(f"retry count: {retry_count}")
+        t_datastores = task.flow_datastore.get_task_datastores(
+            pathspecs=[f"{run_id}/{step_name}/{task_id}"],
+            include_prior=True,
+        )
+        latest_done_attempt = max([t.attempt for t in t_datastores], default=-1)  # default=-1, this is first run.
+        retry_count = latest_done_attempt + 1
+        echo_always(f"{retry_count=}")
         # Not sure what are the side effects to this.
-        # if retry_count >= max_user_code_retries:
-        #     max_user_code_retries = retry_count
+        if retry_count >= max_user_code_retries:
+            max_user_code_retries = retry_count
         task.run_step(
             step_name,
             run_id,
