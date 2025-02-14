@@ -1578,142 +1578,132 @@ class S3(object):
                 addl_cmdline = ["--recursive"]
             with NamedTemporaryFile(
                 dir=self._tmpdir,
-                mode="wb+",
+                mode="wb",
                 delete=not debug.s3client,
-                prefix="metaflow.s3op.stderr.",
-            ) as stderr:
-                with NamedTemporaryFile(
-                    dir=self._tmpdir,
-                    mode="wb",
-                    delete=not debug.s3client,
-                    prefix="metaflow.s3op.transientretry.",
-                ) as tmp_input:
-                    if len(pending_retries) > 0:
-                        # We try a little bit more than the previous success (to still
-                        # be aggressive but not too much). If there is a lot of
-                        # transient errors and we are having issues pushing through
-                        # things, this will shrink more and more until we are doing a
-                        # single operation at a time. If things start going better, it
-                        # will increase by 20% every round.
-                        max_count = min(int(last_ok_count * 1.2), len(pending_retries))
-                        tmp_input.writelines(pending_retries[:max_count])
-                        tmp_input.flush()
-                        debug.s3client_exec(
-                            "Have %d pending; succeeded in %d => trying for %d and "
-                            "leaving %d for the next round"
-                            % (
-                                len(pending_retries),
-                                last_ok_count,
-                                max_count,
-                                len(pending_retries) - max_count,
-                            )
+                prefix="metaflow.s3op.transientretry.",
+            ) as tmp_input:
+                if len(pending_retries) > 0:
+                    # We try a little bit more than the previous success (to still
+                    # be aggressive but not too much). If there is a lot of
+                    # transient errors and we are having issues pushing through
+                    # things, this will shrink more and more until we are doing a
+                    # single operation at a time. If things start going better, it
+                    # will increase by 20% every round.
+                    max_count = min(int(last_ok_count * 1.2), len(pending_retries))
+                    tmp_input.writelines(pending_retries[:max_count])
+                    tmp_input.flush()
+                    debug.s3client_exec(
+                        "Have %d pending; succeeded in %d => trying for %d and "
+                        "leaving %d for the next round"
+                        % (
+                            len(pending_retries),
+                            last_ok_count,
+                            max_count,
+                            len(pending_retries) - max_count,
                         )
-                        del pending_retries[:max_count]
+                    )
+                    del pending_retries[:max_count]
 
-                        input_filename = tmp_input.name
+                    input_filename = tmp_input.name
+                else:
+                    input_filename = base_input_filename
+
+                addl_cmdline.extend(["--inputs", input_filename])
+
+                # Check if we want to inject failures (for testing)
+                if inject_failures > 0:
+                    addl_cmdline.extend(["--inject-failure", str(inject_failures)])
+                    # Logic here is to have higher and lower failure rates to try to
+                    # exercise as much of the code as possible. The failure rate
+                    # trends towards 0.
+                    if loop_count % 2 == 0:
+                        inject_failures = int(inject_failures / 3)
                     else:
-                        input_filename = base_input_filename
+                        # We cap at 90 (and not 100) for injection of failures to
+                        # reduce the likelihood of having flaky test. If the
+                        # failure injection rate is too high, this can cause actual
+                        # retries more often and then lead to too many actual
+                        # retries
+                        inject_failures = min(90, int(inject_failures * 1.5))
 
-                    addl_cmdline.extend(["--inputs", input_filename])
+                try:
+                    debug.s3client_exec(cmdline + addl_cmdline)
+                    # Run the operation.
+                    env = os.environ.copy()
+                    tracing.inject_tracing_vars(env)
+                    env["METAFLOW_ESCAPE_HATCH_WARNING"] = "False"
+                    result = subprocess.run(
+                        cmdline + addl_cmdline,
+                        cwd=self._tmpdir,
+                        env=env,
+                        encoding="utf-8",
+                        errors="replace",
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
+                    # Here we did not have any error -- transient or otherwise.
+                    ok_lines = result.stdout.splitlines()
+                    _update_out_lines(out_lines, ok_lines, resize=loop_count == 0)
+                    return len(ok_lines), 0, inject_failures, None
 
-                    # Check if we want to inject failures (for testing)
-                    if inject_failures > 0:
-                        addl_cmdline.extend(["--inject-failure", str(inject_failures)])
-                        # Logic here is to have higher and lower failure rates to try to
-                        # exercise as much of the code as possible. The failure rate
-                        # trends towards 0.
-                        if loop_count % 2 == 0:
-                            inject_failures = int(inject_failures / 3)
-                        else:
-                            # We cap at 90 (and not 100) for injection of failures to
-                            # reduce the likelihood of having flaky test. If the
-                            # failure injection rate is too high, this can cause actual
-                            # retries more often and then lead to too many actual
-                            # retries
-                            inject_failures = min(90, int(inject_failures * 1.5))
-                    try:
-                        debug.s3client_exec(cmdline + addl_cmdline)
-                        # Run the operation.
-                        env = os.environ.copy()
-                        tracing.inject_tracing_vars(env)
-                        env["METAFLOW_ESCAPE_HATCH_WARNING"] = "False"
-                        result = subprocess.run(
-                            cmdline + addl_cmdline,
-                            cwd=self._tmpdir,
-                            stderr=stderr.file,
-                            env=env,
-                            capture_output=True,
-                            text=True,
-                            check=True,
-                        )
-                        # Here we did not have any error -- transient or otherwise.
-                        ok_lines = result.stdout.splitlines()
-                        _update_out_lines(out_lines, ok_lines, resize=loop_count == 0)
-                        return (len(ok_lines), 0, inject_failures, None)
-                    except subprocess.CalledProcessError as ex:
-                        if ex.returncode == s3op.ERROR_TRANSIENT:
-                            # In this special case, we failed transiently on *some* of
-                            # the files but not necessarily all. This is typically
-                            # caused by limits on the number of operations that can
-                            # occur per second or some other temporary limitation.
-                            # We will retry only those that we failed on and we will not
-                            # count this as a retry *unless* we are making no forward
-                            # progress. In effect, we consider that as long as *some*
-                            # operations are going through, we should just keep going as
-                            # if it was a single operation.
-                            ok_lines = ex.stdout.splitlines()
-                            stderr.seek(0)
-                            do_output = False
-                            retry_lines = []
-                            for l in stderr:
-                                if do_output:
-                                    retry_lines.append(l)
-                                    continue
-                                if (
-                                    l.decode(encoding="utf-8")
-                                    == "%s\n" % TRANSIENT_RETRY_START_LINE
-                                ):
-                                    # Look for a special marker as the start of the
-                                    # "failed inputs that need to be retried"
-                                    do_output = True
-                            stderr.seek(0)
-                            if do_output is False:
-                                return (
-                                    0,
-                                    0,
-                                    inject_failures,
-                                    "Could not find inputs to retry",
-                                )
-                            else:
-                                _update_out_lines(
-                                    out_lines, ok_lines, resize=loop_count == 0
-                                )
-                                pending_retries.extend(retry_lines)
-
-                                return (
-                                    len(ok_lines),
-                                    len(retry_lines),
-                                    inject_failures,
-                                    None,
-                                )
-
-                        # Here, this is a "normal" failure that we need to send back up.
-                        # These failures are not retried.
-                        stderr.seek(0)
-                        err_out = stderr.read().decode("utf-8", errors="replace")
-                        stderr.seek(0)
-                        if ex.returncode == s3op.ERROR_URL_NOT_FOUND:
-                            raise MetaflowS3NotFound(err_out)
-                        elif ex.returncode == s3op.ERROR_URL_ACCESS_DENIED:
-                            raise MetaflowS3AccessDenied(err_out)
-                        elif ex.returncode == s3op.ERROR_INVALID_RANGE:
-                            raise MetaflowS3InvalidRange(err_out)
-
-                        # Here, this is some other error that we will retry. We still
-                        # update the successful lines
+                except subprocess.CalledProcessError as ex:
+                    if ex.returncode == s3op.ERROR_TRANSIENT:
+                        # In this special case, we failed transiently on *some* of
+                        # the files but not necessarily all. This is typically
+                        # caused by limits on the number of operations that can
+                        # occur per second or some other temporary limitation.
+                        # We will retry only those that we failed on and we will not
+                        # count this as a retry *unless* we are making no forward
+                        # progress. In effect, we consider that as long as *some*
+                        # operations are going through, we should just keep going as
+                        # if it was a single operation.
                         ok_lines = ex.stdout.splitlines()
-                        _update_out_lines(out_lines, ok_lines, resize=loop_count == 0)
-                        return 0, 0, inject_failures, err_out
+                        stderr_lines = ex.stderr.splitlines()
+                        do_output = False
+                        retry_lines = []
+                        for line in stderr_lines:
+                            if do_output:
+                                retry_lines.append(line)
+                                continue
+                            if line == TRANSIENT_RETRY_START_LINE:
+                                # Look for a special marker as the start of the
+                                # "failed inputs that need to be retried"
+                                do_output = True
+                        if do_output is False:
+                            return (
+                                0,
+                                0,
+                                inject_failures,
+                                "Could not find inputs to retry",
+                            )
+                        else:
+                            _update_out_lines(
+                                out_lines, ok_lines, resize=loop_count == 0
+                            )
+                            pending_retries.extend(retry_lines)
+                            return (
+                                len(ok_lines),
+                                len(retry_lines),
+                                inject_failures,
+                                None,
+                            )
+
+                    # Here, this is a "normal" failure that we need to send back up.
+                    # These failures are not retried.
+                    err_out = ex.stderr
+                    if ex.returncode == s3op.ERROR_URL_NOT_FOUND:
+                        raise MetaflowS3NotFound(err_out)
+                    elif ex.returncode == s3op.ERROR_URL_ACCESS_DENIED:
+                        raise MetaflowS3AccessDenied(err_out)
+                    elif ex.returncode == s3op.ERROR_INVALID_RANGE:
+                        raise MetaflowS3InvalidRange(err_out)
+
+                    # Here, this is some other error that we will retry. We still
+                    # update the successful lines
+                    ok_lines = ex.stdout.splitlines()
+                    _update_out_lines(out_lines, ok_lines, resize=loop_count == 0)
+                    return 0, 0, inject_failures, err_out
 
         while retry_count <= S3_RETRY_COUNT:
             (
