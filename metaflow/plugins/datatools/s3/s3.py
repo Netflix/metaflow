@@ -1637,14 +1637,17 @@ class S3(object):
                         env = os.environ.copy()
                         tracing.inject_tracing_vars(env)
                         env["METAFLOW_ESCAPE_HATCH_WARNING"] = "False"
-                        stdout = subprocess.check_output(
+                        result = subprocess.run(
                             cmdline + addl_cmdline,
                             cwd=self._tmpdir,
                             stderr=stderr.file,
                             env=env,
+                            capture_output=True,
+                            text=True,
+                            check=True,
                         )
                         # Here we did not have any error -- transient or otherwise.
-                        ok_lines = stdout.splitlines()
+                        ok_lines = result.stdout.splitlines()
                         _update_out_lines(out_lines, ok_lines, resize=loop_count == 0)
                         return (len(ok_lines), 0, inject_failures, None)
                     except subprocess.CalledProcessError as ex:
