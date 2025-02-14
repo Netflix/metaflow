@@ -42,7 +42,10 @@ class Boto3ClientProvider(object):
             # Use the adaptive retry strategy by default -- do not set anything if
             # the user has already set something
             config = client_params.get("config", Config())
-            config.retries = {"max_attempts": AWS_RETRY_MAX_ATTEMPTS, "mode": AWS_RETRY_MODE}
+            config.retries = {
+                "max_attempts": AWS_RETRY_MAX_ATTEMPTS,
+                "mode": AWS_RETRY_MODE,
+            }
 
         if AWS_SANDBOX_ENABLED:
             # role is ignored in the sandbox
