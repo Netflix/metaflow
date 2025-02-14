@@ -67,6 +67,13 @@ class FlowDataStore(object):
     def datastore_root(self):
         return self._storage_impl.datastore_root
 
+    def get_latest_done_attempt(self, run_id, step_name, task_id) -> int:
+        t_datastores = self.get_task_datastores(
+            pathspecs=[f"{run_id}/{step_name}/{task_id}"],
+            include_prior=True
+        )
+        return max([t.attempt for t in t_datastores], default=-1)  # default=-1, when no successful done_attempts found.
+
     def get_task_datastores(
         self,
         run_id=None,

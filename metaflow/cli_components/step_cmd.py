@@ -162,11 +162,11 @@ def step(
             retry_count,
         )
     else:
-        t_datastores = task.flow_datastore.get_task_datastores(
-            pathspecs=[f"{run_id}/{step_name}/{task_id}"],
-            include_prior=True,
+        latest_done_attempt = task.flow_datastore.get_latest_done_attempt(
+            run_id=run_id,
+            step_name=step_name,
+            task_id=task_id
         )
-        latest_done_attempt = max([t.attempt for t in t_datastores], default=-1)  # default=-1, when no successful done_attempts found.
         retry_count = latest_done_attempt + 1
         echo_always(f"{latest_done_attempt=}")
         echo_always(f"{retry_count=}")
