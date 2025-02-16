@@ -882,7 +882,7 @@ class StepFunctions(object):
                 efa=resources["efa"],
                 use_tmpfs=resources["use_tmpfs"],
                 aws_tags=resources["aws_tags"],
-                step_function_aws_tags=self.aws_tags,
+                cli_aws_batch_tags=self.aws_tags,
                 tmpfs_tempdir=resources["tmpfs_tempdir"],
                 tmpfs_size=resources["tmpfs_size"],
                 tmpfs_path=resources["tmpfs_path"],
