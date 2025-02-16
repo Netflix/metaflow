@@ -72,7 +72,7 @@ class BatchDecorator(StepDecorator):
         A swappiness value of 0 causes swapping not to happen unless absolutely
         necessary. A swappiness value of 100 causes pages to be swapped very
         aggressively. Accepted values are whole numbers between 0 and 100.
-    aws_tags: Dict[str, str], optional
+    aws_batch_tags: Dict[str, str], optional
         Sets arbitrary AWS tags on the AWS Batch compute environment.
         Set as string key-value pairs.
     use_tmpfs : bool, default False
@@ -121,7 +121,7 @@ class BatchDecorator(StepDecorator):
         "host_volumes": None,
         "efs_volumes": None,
         "use_tmpfs": False,
-        "aws_tags": None,
+        "aws_batch_tags": None,
         "tmpfs_tempdir": True,
         "tmpfs_size": None,
         "tmpfs_path": "/metaflow_temp",
@@ -184,16 +184,16 @@ class BatchDecorator(StepDecorator):
         if self.attributes["trainium"] is not None:
             self.attributes["inferentia"] = self.attributes["trainium"]
 
-        if self.attributes["aws_tags"] is not None:
-            if not isinstance(self.attributes["aws_tags"], dict) and not all(isinstance(k, str) and isinstance(v, str) for k, v in self.attributes["aws_tags"].items()):
-                raise BatchException("aws_tags must be Dict[str, str]")
+        if self.attributes["aws_batch_tags"] is not None:
+            if not isinstance(self.attributes["aws_tags"], dict) and not all(isinstance(k, str) and isinstance(v, str) for k, v in self.attributes["aws_batch_tags"].items()):
+                raise BatchException("aws_batch_tags must be Dict[str, str]")
             decorator_aws_tags_list = [
                 {'key': key,
-                    'value': val} for key, val in self.attributes["aws_tags"].items()
+                    'value': val} for key, val in self.attributes["aws_batch_tags"].items()
             ]
             for tag in decorator_aws_tags_list:
                 validate_aws_tag(tag)
-            self.attributes["aws_tags"] = decorator_aws_tags_list
+            self.attributes["aws_batch_tags"] = decorator_aws_tags_list
 
         # clean up the alias attribute so it is not passed on.
         self.attributes.pop("trainium", None)
