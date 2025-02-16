@@ -188,7 +188,7 @@ class Batch(object):
         host_volumes=None,
         efs_volumes=None,
         use_tmpfs=None,
-        aws_tags=None,
+        aws_batch_tags=None,
         cli_aws_batch_tags=None,
         tmpfs_tempdir=None,
         tmpfs_size=None,
@@ -344,8 +344,8 @@ class Batch(object):
                 for tag in cli_aws_batch_tags:
                     job.tag(tag['key'], tag['value'])
 
-            if aws_tags is not None:
-                for tag in aws_tags:
+            if aws_batch_tags is not None:
+                for tag in aws_batch_tags:
                     job.tag(tag['key'], tag['value'])
 
         return job
@@ -417,7 +417,7 @@ class Batch(object):
             host_volumes=host_volumes,
             efs_volumes=efs_volumes,
             use_tmpfs=use_tmpfs,
-            aws_tags=aws_tags,
+            aws_batch_tags=aws_tags,
             tmpfs_tempdir=tmpfs_tempdir,
             tmpfs_size=tmpfs_size,
             tmpfs_path=tmpfs_path,

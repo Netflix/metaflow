@@ -99,8 +99,8 @@ def step_functions(obj, name=None):
     "times to attach multiple tags.",
 )
 @click.option(
-    "--aws-tags",
-    "aws_tags",
+    "--aws-batch-tags",
+    "aws_batch_tags",
     multiple=True,
     default=None,
     help="AWS tags.")
@@ -150,7 +150,7 @@ def step_functions(obj, name=None):
 def create(
     obj,
     tags=None,
-    aws_tags=None,
+    aws_batch_tags=None,
     user_namespace=None,
     only_json=False,
     authorize=None,
@@ -204,7 +204,7 @@ def create(
         token,
         obj.state_machine_name,
         tags,
-        aws_tags,
+        aws_batch_tags,
         user_namespace,
         max_workers,
         workflow_timeout,
@@ -324,7 +324,7 @@ def make_flow(
     token,
     name,
     tags,
-    aws_tags,
+    aws_batch_tags,
     namespace,
     max_workers,
     workflow_timeout,
@@ -348,15 +348,15 @@ def make_flow(
     )[0]
 
     
-    if aws_tags is not None:
-        if not all(isinstance(item, str) for item in aws_tags):
+    if aws_batch_tags is not None:
+        if not all(isinstance(item, str) for item in aws_batch_tags):
             raise MetaflowException("AWS Step Functions --aws-tags all items in list must be strings")
-        for item in aws_tags:
+        for item in aws_batch_tags:
             if len(item.split('=')) != 2:
                 raise MetaflowException("AWS Step Functions --aws-tags strings must be in format 'key=value'")
         aws_tags_list = [
             {'key': item.split('=')[0],
-                'value': item.split('=')[1]} for item in aws_tags
+                'value': item.split('=')[1]} for item in aws_batch_tags
         ]
         for tag in aws_tags_list:
             validate_aws_tag(tag)
@@ -377,7 +377,7 @@ def make_flow(
         obj.event_logger,
         obj.monitor,
         tags=tags,
-        aws_tags=aws_tags_list,
+        aws_batch_tags=aws_tags_list,
         namespace=namespace,
         max_workers=max_workers,
         username=get_username(),
