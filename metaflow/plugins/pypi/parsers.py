@@ -94,6 +94,20 @@ def yml_parser(config_value: str) -> Dict[str, Any]:
     return result
 
 
+def toml_parser(config_value: str) -> Dict[str, Any]:
+    pypi_deps = {}
+    python_version = parse_toml_value(config_value, pypi_deps)
+    result = {}
+
+    if python_version:
+        result["python"] = python_version
+
+    if pypi_deps:
+        result["packages"] = pypi_deps
+
+    return result
+
+
 def parse_req_value(
     file_content: str,
     extra_args: Dict[str, List[str]],
@@ -256,5 +270,54 @@ def parse_yml_value(
                             dep_name = "%s@%s" % (depname, dep_name)
 
                         to_update[dep_name] = dep_version
+
+    return python_version
+
+
+def parse_toml_value(
+    file_content: str,
+    pypi_deps: Dict[str, str],
+):
+    from packaging.requirements import Requirement, InvalidRequirement
+
+    python_version = None
+    try:
+        import tomllib as toml
+    except ImportError:
+        try:
+            # try to import a backported toml library for python version <3.11
+            import tomli as toml
+        except ImportError:
+            raise Exception(
+                "Could not import a TOML library for parsing. For Python <3.11, please install 'tomli'"
+            )
+
+    content = toml.loads(file_content)
+
+    project = content.get("project", {})
+    if project.get("requires-python"):
+        python_version = project["requires-python"]
+
+    if project.get("dependencies"):
+        for line in project["dependencies"]:
+            try:
+                parsed_req = Requirement(line)
+            except InvalidRequirement as ex:
+                raise ValueError("Could not parse '%s'" % line) from ex
+            if parsed_req.marker is not None:
+                raise ValueError(
+                    "Environment markers are not supported for '%s'" % line
+                )
+            dep_name = parsed_req.name
+            if parsed_req.extras:
+                dep_name += "[%s]" % ",".join(parsed_req.extras)
+            if parsed_req.url:
+                dep_name += "@%s" % parsed_req.url
+            specifier = str(parsed_req.specifier).lstrip(" =")
+            if dep_name == "python":
+                if specifier:
+                    python_version = specifier
+            else:
+                pypi_deps[dep_name] = specifier
 
     return python_version
