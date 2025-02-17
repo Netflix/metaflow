@@ -72,7 +72,7 @@ class FlowDataStore(object):
             pathspecs=[f"{run_id}/{step_name}/{task_id}"],
             include_prior=True
         )
-        return max([t.attempt for t in t_datastores], default=-1)  # default=-1, when no successful done_attempts found.
+        return max([t.attempt for t in t_datastores], default=0)  # returns default, if this was a first attempt.
 
     def get_task_datastores(
         self,

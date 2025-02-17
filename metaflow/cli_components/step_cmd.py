@@ -167,7 +167,9 @@ def step(
             step_name=step_name,
             task_id=task_id
         )
-        retry_count = latest_done_attempt + 1
+        retry_count = 0
+        if not latest_done_attempt == 0:
+            retry_count += latest_done_attempt
         echo_always(f"{latest_done_attempt=}")
         echo_always(f"{retry_count=}")
         # Not sure what are the side effects to this.
