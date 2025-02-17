@@ -248,8 +248,7 @@ DEFAULT_CONTAINER_IMAGE = from_conf("DEFAULT_CONTAINER_IMAGE")
 # Default container registry
 DEFAULT_CONTAINER_REGISTRY = from_conf("DEFAULT_CONTAINER_REGISTRY")
 # Controls whether to include foreach stack information in metadata.
-# TODO(Darin, 05/01/24): Remove this flag once we are confident with this feature.
-INCLUDE_FOREACH_STACK = from_conf("INCLUDE_FOREACH_STACK", False)
+INCLUDE_FOREACH_STACK = from_conf("INCLUDE_FOREACH_STACK", True)
 # Maximum length of the foreach value string to be stored in each ForeachFrame.
 MAXIMUM_FOREACH_VALUE_CHARS = from_conf("MAXIMUM_FOREACH_VALUE_CHARS", 30)
 # The default runtime limit (In seconds) of jobs launched by any compute provider. Default of 5 days.
@@ -432,9 +431,6 @@ CONDA_PACKAGE_GSROOT = from_conf("CONDA_PACKAGE_GSROOT")
 # Mamba promises faster package dependency resolution times, which
 # should result in an appreciable speedup in flow environment initialization.
 CONDA_DEPENDENCY_RESOLVER = from_conf("CONDA_DEPENDENCY_RESOLVER", "conda")
-
-# Default to not using fast init binary.
-CONDA_USE_FAST_INIT = from_conf("CONDA_USE_FAST_INIT", False)
 
 ###
 # Escape hatch configuration

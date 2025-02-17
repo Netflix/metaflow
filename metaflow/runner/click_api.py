@@ -97,12 +97,13 @@ def _method_sanity_check(
             check_type(supplied_v, annotations[supplied_k])
         except TypeCheckError:
             raise TypeError(
-                "Invalid type for '%s' (%s), expected: '%s', default is '%s'"
+                "Invalid type for '%s' (%s), expected: '%s', default is '%s' but found '%s'"
                 % (
                     supplied_k,
                     type(supplied_k),
                     annotations[supplied_k],
                     defaults[supplied_k],
+                    str(supplied_v),
                 )
             )
 
@@ -218,7 +219,7 @@ def get_inspect_param_obj(p: Union[click.Argument, click.Option], kind: str):
             default=inspect.Parameter.empty if is_vararg else p.default,
             annotation=annotation,
         ),
-        annotation,
+        Optional[TTuple[annotation]] if is_vararg else annotation,
     )
 
 
@@ -392,7 +393,9 @@ class MetaflowAPI(object):
                 options = params.pop("options", {})
 
                 for _, v in args.items():
-                    if isinstance(v, list):
+                    if v is None:
+                        continue
+                    if isinstance(v, (list, tuple)):
                         for i in v:
                             components.append(i)
                     else:
@@ -527,12 +530,6 @@ def extract_all_params(cmd_obj: Union[click.Command, click.Group]):
             )
             arg_parameters[each_param.name] = each_param
         elif isinstance(each_param, click.Option):
-            if each_param.hidden:
-                # Skip hidden options because users should not be setting those.
-                # These are typically internal only options (used by the Runner in part
-                # for example to pass state files or configs to pass local-config-file).
-                continue
-
             opt_params_sigs[each_param.name], annotations[each_param.name] = (
                 get_inspect_param_obj(each_param, inspect.Parameter.KEYWORD_ONLY)
             )
