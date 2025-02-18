@@ -1427,7 +1427,7 @@ class S3(object):
                 )
             else:
                 for line in stdout_lines:
-                    yield tuple(map(url_unquote, line.strip("\n").split(" ")))
+                    yield tuple(map(url_unquote, line.strip(b"\n").split(b" ")))
 
     def _put_many_files(self, url_info, overwrite):
         url_info = list(url_info)
@@ -1463,7 +1463,7 @@ class S3(object):
             else:
                 urls = set()
                 for line in stdout_lines:
-                    url, _, _ = map(url_unquote, line.strip("\n").split(" "))
+                    url, _, _ = map(url_unquote, line.strip(b"\n").split(b" "))
                     urls.add(url)
                 return [(info["key"], url) for _, url, info in url_info if url in urls]
 
@@ -1562,7 +1562,7 @@ class S3(object):
                 # partial result), there may be stuff in it
                 out_lines.extend([None] * (len(ok_lines) - len(out_lines)))
             for l in ok_lines:
-                idx, rest = l.split(" ", maxsplit=1)
+                idx, rest = l.split(b" ", maxsplit=1)
                 if rest.decode(encoding="utf-8") != TRANSIENT_RETRY_LINE_CONTENT:
                     # Update the proper location in the out_lines array; we maintain
                     # position as if transient retries did not exist. This
