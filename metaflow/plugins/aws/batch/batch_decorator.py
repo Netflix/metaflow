@@ -32,7 +32,7 @@ from ..aws_utils import (
     get_ec2_instance_metadata,
 )
 from .batch import BatchException
-from metaflow.tagging_util import validate_tags, validate_aws_tag
+from metaflow.tagging_util import validate_aws_tag
 
 
 class BatchDecorator(StepDecorator):
@@ -188,7 +188,7 @@ class BatchDecorator(StepDecorator):
             self.attributes["inferentia"] = self.attributes["trainium"]
 
         if not isinstance(BATCH_DEFAULT_TAGS, dict) and not all(
-            instance(k, str) and isinstance(v, str)
+            isinstance(k, str) and isinstance(v, str)
             for k, v in BATCH_DEFAULT_TAGS.items()
         ):
             raise BatchException(
