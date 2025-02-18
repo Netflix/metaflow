@@ -211,9 +211,7 @@ class BatchDecorator(StepDecorator):
                 {"key": key, "value": val}
                 for key, val in self.attributes["aws_batch_tags"].items()
             ]
-            for tag in decorator_aws_batch_tags_list:
-                validate_aws_tag(tag)
-            self.attributes["aws_batch_tags"] = decorator_aws_batch_tags_list
+            self.attributes["aws_batch_tags"] = decorator_aws_tags_list
 
         # clean up the alias attribute so it is not passed on.
         self.attributes.pop("trainium", None)
@@ -246,6 +244,11 @@ class BatchDecorator(StepDecorator):
         # Validate tmpfs_path. Batch requires this to be an absolute path
         if self.attributes["tmpfs_path"] and self.attributes["tmpfs_path"][0] != "/":
             raise BatchException("'tmpfs_path' needs to be an absolute path")
+
+        # Validate Batch tags
+        if self.attributes["aws_batch_tags"]:
+            for tag in self.attributes["aws_batch_tags"]:
+                validate_aws_tag(tag)
 
     def runtime_init(self, flow, graph, package, run_id):
         # Set some more internal state.
