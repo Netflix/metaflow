@@ -98,8 +98,7 @@ S3_SERVER_SIDE_ENCRYPTION = from_conf("S3_SERVER_SIDE_ENCRYPTION")
 S3_RETRY_COUNT = from_conf("S3_RETRY_COUNT", 7)
 
 # Number of concurrent S3 processes for parallel operations.
-cpu_count = len(getattr(os, "sched_getaffinity", lambda _: [])(0)) or os.cpu_count()
-S3_WORKER_COUNT = from_conf("S3_WORKER_COUNT", cpu_count)
+S3_WORKER_COUNT = from_conf("S3_WORKER_COUNT", 64)
 
 # Number of retries on *transient* failures (such as SlowDown errors). Note
 # that if after S3_TRANSIENT_RETRY_COUNT times, all operations haven't been done,
