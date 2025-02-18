@@ -202,10 +202,10 @@ class BatchDecorator(StepDecorator):
             ):
                 raise BatchException("aws_batch_tags must be Dict[str, str]")
 
-            batch_default_tags_copy = BATCH_DEFAULT_TAGS.copy()
-            self.attributes["aws_batch_tags"] = batch_default_tags_copy.update(
-                self.attributes["aws_batch_tags"]
-            )
+            self.attributes["aws_batch_tags"] = {
+                **BATCH_DEFAULT_TAGS,
+                **self.attributes["aws_batch_tags"],
+            }
 
             decorator_aws_tags_list = [
                 {"key": key, "value": val}
