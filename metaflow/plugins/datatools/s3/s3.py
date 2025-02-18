@@ -1590,9 +1590,7 @@ class S3(object):
                     # single operation at a time. If things start going better, it
                     # will increase by 20% every round.
                     max_count = min(int(last_ok_count * 1.2), len(pending_retries))
-                    tmp_input.writelines(
-                        [line.encode("utf-8") for line in pending_retries[:max_count]]
-                    )
+                    tmp_input.writelines(pending_retries[:max_count])
                     tmp_input.flush()
                     debug.s3client_exec(
                         "Have %d pending; succeeded in %d => trying for %d and "
