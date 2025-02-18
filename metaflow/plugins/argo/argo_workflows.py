@@ -1733,7 +1733,7 @@ class ArgoWorkflows(object):
                         "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
                         "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
                         "METAFLOW_S3_WORKER_COUNT": max(
-                            1, int(resources.attributes["cpu"]) - 2
+                            1, int(float(resources["cpu"])) - 2
                         ),
                         "METAFLOW_CARD_S3ROOT": CARD_S3ROOT,
                         "METAFLOW_KUBERNETES_WORKLOAD": 1,

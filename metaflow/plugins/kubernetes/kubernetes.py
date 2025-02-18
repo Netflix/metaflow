@@ -293,7 +293,9 @@ class Kubernetes(object):
                 "METAFLOW_ARGO_WORKFLOWS_ENV_VARS_TO_SKIP",
                 ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
             )
-            .environment_variable("METAFLOW_S3_WORKER_COUNT", max(1, int(cpu) - 2))
+            .environment_variable(
+                "METAFLOW_S3_WORKER_COUNT", max(1, int(float(cpu)) - 2)
+            )
             .environment_variable("METAFLOW_OTEL_ENDPOINT", OTEL_ENDPOINT)
             # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync
             # between the local user instance and the remote Kubernetes pod
@@ -597,7 +599,9 @@ class Kubernetes(object):
                 "METAFLOW_ARGO_WORKFLOWS_ENV_VARS_TO_SKIP",
                 ARGO_WORKFLOWS_ENV_VARS_TO_SKIP,
             )
-            .environment_variable("METAFLOW_S3_WORKER_COUNT", max(1, int(cpu) - 2))
+            .environment_variable(
+                "METAFLOW_S3_WORKER_COUNT", max(1, int(float(cpu)) - 2)
+            )
             .environment_variable("METAFLOW_OTEL_ENDPOINT", OTEL_ENDPOINT)
             # Skip setting METAFLOW_DATASTORE_SYSROOT_LOCAL because metadata sync
             # between the local user instance and the remote Kubernetes pod
