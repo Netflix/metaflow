@@ -329,17 +329,7 @@ class Batch(object):
                 if key in attrs:
                     k, v = sanitize_batch_tag(key, attrs.get(key))
                     job.tag(k, v)
-
-            if not isinstance(BATCH_DEFAULT_TAGS, dict):
-                raise BatchException(
-                    "The BATCH_DEFAULT_TAGS config option must be a dictionary of key-value tags."
-                )
-            
-            for name, value in BATCH_DEFAULT_TAGS.items():
-                aws_tag = {'key': name, 'value': value}
-                validate_aws_tag(aws_tag)
-                job.tag(name, value)
-
+ 
             if cli_aws_batch_tags is not None:
                 for tag in cli_aws_batch_tags:
                     job.tag(tag['key'], tag['value'])
