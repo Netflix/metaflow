@@ -1563,12 +1563,12 @@ class S3(object):
                 out_lines.extend([None] * (len(ok_lines) - len(out_lines)))
             for l in ok_lines:
                 idx, rest = l.split(" ", maxsplit=1)
-                if rest.decode(encoding="utf-8") != TRANSIENT_RETRY_LINE_CONTENT:
+                if rest != TRANSIENT_RETRY_LINE_CONTENT:
                     # Update the proper location in the out_lines array; we maintain
                     # position as if transient retries did not exist. This
                     # makes sure that order is respected even in the presence of
                     # transient retries.
-                    out_lines[int(idx.decode(encoding="utf-8"))] = rest
+                    out_lines[int(idx)] = rest
 
         def try_s3_op(last_ok_count, pending_retries, out_lines, inject_failures):
             # NOTE: Make sure to update pending_retries and out_lines in place
