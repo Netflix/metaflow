@@ -879,7 +879,6 @@ class MetaflowCode(object):
         """
         return self._tar
 
-    @property
     def extract(self) -> TemporaryDirectory:
         """
         Extracts the code package to a temporary directory.
@@ -894,7 +893,7 @@ class MetaflowCode(object):
         filesystem:
 
         ```python
-        with task.code.extract as tmp_dir:
+        with task.code.extract() as tmp_dir:
             # Move contents to permanent location
             for item in os.listdir(tmp_dir):
                 src = os.path.join(tmp_dir, item)
@@ -915,6 +914,8 @@ class MetaflowCode(object):
             "INFO",
             "CONFIG_PARAMETERS",
             "conda.manifest",
+            # This file is created when using the conda/pypi features available in
+            # nflx-metaflow-extensions: https://github.com/Netflix/metaflow-nflx-extensions
             "condav2-1.cnd",
         ]
         members = [
