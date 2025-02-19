@@ -86,6 +86,7 @@ CLIENT_CACHE_MAX_TASKDATASTORE_COUNT = from_conf(
 # Datatools (S3) configuration
 ###
 S3_ENDPOINT_URL = from_conf("S3_ENDPOINT_URL")
+S3_INTERNAL_ENDPOINT_URL = from_conf("S3_INTERNAL_ENDPOINT_URL", S3_ENDPOINT_URL)
 S3_VERIFY_CERTIFICATE = from_conf("S3_VERIFY_CERTIFICATE")
 
 # Set ServerSideEncryption for S3 uploads
