@@ -9,6 +9,7 @@ from metaflow.exception import (
     MetaflowException,
     MetaflowInternalError,
     MetaflowTaggingError,
+    ServiceException,
 )
 from metaflow.metadata_provider import MetadataProvider
 from metaflow.metadata_provider.heartbeat import HB_URL_KEY
@@ -22,15 +23,6 @@ from metaflow.util import version_parse
 class HeartbeatTypes(object):
     RUN = 1
     TASK = 2
-
-
-class ServiceException(MetaflowException):
-    headline = "Metaflow service error"
-
-    def __init__(self, msg, http_code=None, body=None):
-        self.http_code = None if http_code is None else int(http_code)
-        self.response = body
-        super(ServiceException, self).__init__(msg)
 
 
 class ServiceMetadataProvider(MetadataProvider):

@@ -678,7 +678,7 @@ class MetadataProvider(object):
         cls,
         flow_id: str,
         run_id: str,
-        query_step: str,
+        step_name: str,
         field_name: str,
         pattern: str,
     ) -> List[str]:
@@ -691,7 +691,7 @@ class MetadataProvider(object):
             Flow id, that the run belongs to.
         run_id: str
             Run id, together with flow_id, that identifies the specific Run whose tasks to query
-        query_step: str
+        step_name: str
             Step name to query tasks from
         field_name: str
             Metadata field name to query

@@ -246,7 +246,12 @@ class LocalMetadataProvider(MetadataProvider):
             if not task_id:
                 continue
 
-            task_name = task.get("task_name")
+            if pattern == ".*":
+                # If the pattern is ".*", we can match all tasks without reading metadata
+                matching_task_pathspecs.append(
+                    f"{flow_id}/{run_id}/{step_name}/{task_id}"
+                )
+                continue
 
             metadata = cls.get_object(
                 "task", "metadata", {}, None, flow_id, run_id, step_name, task_id
@@ -257,12 +262,9 @@ class LocalMetadataProvider(MetadataProvider):
                 and regex.match(meta.get("value", ""))
                 for meta in metadata
             ):
-                matching_task_pathspec = (
-                    f"{flow_id}/{run_id}/{step_name}/{task_name}"
-                    if task_name
-                    else f"{flow_id}/{run_id}/{step_name}/{task_id}"
+                matching_task_pathspecs.append(
+                    f"{flow_id}/{run_id}/{step_name}/{task_id}"
                 )
-                matching_task_pathspecs.append(matching_task_pathspec)
 
         return matching_task_pathspecs
 

@@ -160,6 +160,15 @@ class MissingInMergeArtifactsException(MetaflowException):
         self.artifact_names = unhandled
 
 
+class ServiceException(MetaflowException):
+    headline = "Metaflow service error"
+
+    def __init__(self, msg, http_code=None, body=None):
+        self.http_code = None if http_code is None else int(http_code)
+        self.response = body
+        super(ServiceException, self).__init__(msg)
+
+
 # Import any exceptions defined by a Metaflow extensions packages
 try:
     from metaflow.extension_support import get_modules, multiload_globals
