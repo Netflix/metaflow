@@ -2017,6 +2017,8 @@ class ArgoWorkflows(object):
                 kubernetes_labels = {
                     "task_id_entropy": "{{inputs.parameters.task-id-entropy}}",
                     "num_parallel": "{{inputs.parameters.num-parallel}}",
+                    "metaflow/argo-workflows-name": "{{workflow.name}}",
+                    "workflows.argoproj.io/workflow": "{{workflow.name}}",
                 }
                 jobset.labels(
                     {
