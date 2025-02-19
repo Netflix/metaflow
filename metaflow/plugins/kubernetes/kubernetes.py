@@ -604,6 +604,7 @@ class Kubernetes(object):
             # assumes metadata is stored in DATASTORE_LOCAL_DIR on the Kubernetes
             # pod; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set (
             # see get_datastore_root_from_config in datastore/local.py).
+            .environment_variable("METAFLOW_MAX_ATTEMPTS", MAX_ATTEMPTS)
         )
 
         # Temporary passing of *some* environment variables. Do not rely on this
