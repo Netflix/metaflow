@@ -39,6 +39,7 @@ from metaflow.metaflow_config import (
     SERVICE_HEADERS,
     KUBERNETES_SECRETS,
     SERVICE_INTERNAL_URL,
+    MAX_ATTEMPTS,
 )
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow.metaflow_config_funcs import config_values
@@ -299,6 +300,7 @@ class Kubernetes(object):
             # assumes metadata is stored in DATASTORE_LOCAL_DIR on the Kubernetes
             # pod; this happens when METAFLOW_DATASTORE_SYSROOT_LOCAL is NOT set (
             # see get_datastore_root_from_config in datastore/local.py).
+            .environment_variable("METAFLOW_MAX_ATTEMPTS", MAX_ATTEMPTS)
         )
 
         for k in list(
