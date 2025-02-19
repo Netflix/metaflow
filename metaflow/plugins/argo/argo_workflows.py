@@ -3631,7 +3631,7 @@ class Template(object):
     def resource(self, action, manifest, success_criteria, failure_criteria):
         self.payload["resource"] = {}
         self.payload["resource"]["action"] = action
-        self.payload["setOwnerReference"] = True
+        self.payload["resource"]["setOwnerReference"] = True
         self.payload["resource"]["successCondition"] = success_criteria
         self.payload["resource"]["failureCondition"] = failure_criteria
         self.payload["resource"]["manifest"] = manifest
