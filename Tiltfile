@@ -32,6 +32,12 @@ components = {
 
 requested_components = list(components.keys())
 
+# TODO: Get this from makefile
+local_config_dir = ".devtools"
+def ensure_local_config_dir():
+    local(shell_cmd="mkdir -p {}".format(local_config_dir))
+metaflow_config = {}
+aws_config = []
 
 load('ext://helm_resource', 'helm_resource', 'helm_repo')
 load('ext://helm_remote', 'helm_remote')
@@ -64,7 +70,8 @@ for component in requested_components:
     for result in resolve(component):
         if result not in enabled_components:
             enabled_components.append(result)
-            
+
+# Print a friendly summary when running `tilt up`.            
 if config.tilt_subcommand == 'up':
     print("\n📦 Components to install:")
     for component in enabled_components:
@@ -72,6 +79,9 @@ if config.tilt_subcommand == 'up':
         if component in components and components[component]:
             print("  ↳ requires: " + ", ".join(components[component]))
 
+#################################################
+# MINIO
+#################################################
 if "minio" in enabled_components:
     helm_remote(
         'minio',
@@ -88,7 +98,6 @@ if "minio" in enabled_components:
             'resources.requests.cpu=50m',
             'resources.limits.memory=256Mi',
             'resources.limits.cpu=100m',
-            # Add faster startup
             'startupProbe.initialDelaySeconds=1',
             'livenessProbe.initialDelaySeconds=1',
             'readinessProbe.initialDelaySeconds=1'
@@ -116,10 +125,27 @@ if "minio" in enabled_components:
         'type': 'Opaque',
         'stringData': {
             'AWS_ACCESS_KEY_ID': 'rootuser',
-            'AWS_SECRET_ACCESS_KEY': 'rootpass123'
+            'AWS_SECRET_ACCESS_KEY': 'rootpass123',
+            'AWS_ENDPOINT_URL': 'http://minio:9000'
         }
     }))
 
+    # Metaflow config overrides for MinIO usage
+    metaflow_config["METAFLOW_DEFAULT_DATASTORE"] = "s3"
+    metaflow_config["METAFLOW_DATASTORE_SYSROOT_S3"] = "s3://metaflow-test/metaflow"
+
+    aws_config = """[metaflow-local-minio]
+aws_access_key_id = rootuser
+aws_secret_access_key = rootpass123
+region = us-east-1
+s3 =
+    endpoint_url = http://localhost:9000
+
+"""
+
+#################################################
+# POSTGRESQL
+#################################################
 if "postgresql" in enabled_components:
     helm_remote(
         'postgresql',
@@ -154,7 +180,9 @@ if "postgresql" in enabled_components:
         resource_deps=components['postgresql'],
     )
 
-
+#################################################
+# ARGO WORKFLOWS
+#################################################
 if "argo-workflows" in enabled_components:
     helm_remote(
         'argo-workflows',
@@ -226,6 +254,9 @@ if "argo-workflows" in enabled_components:
         }
     }))
 
+#################################################
+# ARGO EVENTS
+#################################################
 if "argo-events" in enabled_components:
     helm_remote(
         'argo-events',
@@ -313,29 +344,21 @@ if "argo-events" in enabled_components:
         }
     }))
 
+
     k8s_resource(
         'argo-events-controller-manager',
         labels=['argo-events'],
     )
 
     # k8s_resource(
-    #     'argo-events-bus',
-    #     objects=['EventBus/argo-events-bus'],
-    #     labels=['argo-events'],
-    #     resource_deps=['argo-events-controller-manager', 'wait-for-crds']
-    # )
+	# 	"argo-events-webhook-eventsource-svc",
+	# 	port_forwards=["12000:12000"],
+	# )
 
-    # k8s_resource(
-    #     'argo-events-webhook',
-    #     port_forwards=['12000:12000'],
-    #     links=[
-    #         link('http://localhost:12000/webhook', 'Argo Events Webhook')
-    #     ],
-    #     labels=['argo-events'],
-    #     resource_deps=['argo-events-controller-manager', 'argo-events-bus', 'wait-for-crds']
-    # )
-
-if "metadata-service" in enabled_components:    
+#################################################
+# METADATA SERVICE
+#################################################
+if "metadata-service" in enabled_components:
     helm_remote(
         'metaflow-service',
         repo_name='metaflow',
@@ -352,7 +375,6 @@ if "metadata-service" in enabled_components:
         ]
     )
 
-
     k8s_resource(
         'metaflow-service',
         port_forwards=['8080:8080'],
@@ -361,30 +383,34 @@ if "metadata-service" in enabled_components:
         resource_deps=components['metadata-service']
     )
 
+#################################################
+# KUEUE
+#################################################
+if "kueue" in enabled_components:
+    helm_remote(
+        'kueue',
+        repo_name='kueue',
+        repo_url='oci://us-central1-docker.pkg.dev/k8s-staging-images/charts',
+        version='v0.10.1',
+        set=[
+            'resources.requests.memory=64Mi',
+            'resources.requests.cpu=25m',
+            'resources.limits.memory=128Mi',
+            'resources.limits.cpu=50m',
+            'controllerManager.replicas=1',
+            # 'webhookService.name=kueue-webhook-service',
+            # 'webhookService.namespace=kueue-system',
+            # 'admissionWebhooks.enabled=true'
+        ]
+    )
+
+    k8s_resource(
+        'kueue-controller-manager',
+        labels=['kueue'],
+		resource_deps=['postgresql']
+    )
 
 
-# if "kueue" in enabled_components:
-#     helm_remote(
-#         'kueue',
-#         repo_name='kueue',
-#         repo_url='oci://us-central1-docker.pkg.dev/k8s-staging-images/charts',
-#         version='v0.10.1',
-#         set=[
-#             'resources.requests.memory=64Mi',
-#             'resources.requests.cpu=25m',
-#             'resources.limits.memory=128Mi',
-#             'resources.limits.cpu=50m',
-#             'controllerManager.replicas=1',
-#             'webhookService.name=kueue-webhook-service',
-#             'webhookService.namespace=kueue-system',
-#             'admissionWebhooks.enabled=true'
-#         ]
-#     )
-
-#     k8s_resource(
-#         'kueue-controller-manager',
-#         labels=['kueue'],
-#     )
 
 # if "jobsets" in enabled_components:
 #     local_resource(
