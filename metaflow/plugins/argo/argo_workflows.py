@@ -738,6 +738,7 @@ class ArgoWorkflows(object):
                         {
                             "slack": bool(self.notify_slack_webhook_url),
                             "pager_duty": bool(self.notify_pager_duty_integration_key),
+                            "incident_io": bool(self.notify_incident_io_api_key),
                         }
                     )
                 }
@@ -749,6 +750,7 @@ class ArgoWorkflows(object):
                         {
                             "slack": bool(self.notify_slack_webhook_url),
                             "pager_duty": bool(self.notify_pager_duty_integration_key),
+                            "incident_io": bool(self.notify_incident_io_api_key),
                         }
                     )
                 }
