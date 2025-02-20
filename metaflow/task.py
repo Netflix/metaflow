@@ -37,17 +37,6 @@ class MetaflowTask(object):
     MetaflowTask prepares a Flow instance for execution of a single step.
     """
 
-    @staticmethod
-    def _dynamic_runtime_metadata(foreach_stack):
-        # Return a string representation of the foreach stack
-        # in the format "step1:idx1,step2:idx2,step3:idx3"
-        return ",".join(
-            [
-                "{}:{}".format(foreach_frame.step, foreach_frame.index)
-                for foreach_frame in foreach_stack
-            ]
-        )
-
     def __init__(
         self,
         flow,
@@ -505,7 +494,12 @@ class MetaflowTask(object):
                 )
 
             # Add runtime dag information to the metadata of the task
-            foreach_execution_path = self._dynamic_runtime_metadata(foreach_stack)
+            foreach_execution_path = ",".join(
+                [
+                    "{}:{}".format(foreach_frame.step, foreach_frame.index)
+                    for foreach_frame in foreach_stack
+                ]
+            )
             if foreach_execution_path:
                 metadata.extend(
                     [

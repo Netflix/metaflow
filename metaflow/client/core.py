@@ -27,7 +27,6 @@ from metaflow.exception import (
     MetaflowInvalidPathspec,
     MetaflowNamespaceMismatch,
     MetaflowNotFound,
-    ServiceException,
 )
 from metaflow.includefile import IncludedFile
 from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
@@ -1143,19 +1142,9 @@ class Task(MetaflowObject):
         flow_id, run_id, _, _ = self.path_components
 
         for step in steps:
-            try:
-                task_pathspecs = self._metaflow.metadata.filter_tasks_by_metadata(
-                    flow_id, run_id, step.id, metadata_key, metadata_pattern
-                )
-            except Exception as e:
-                if e.http_code == 404:
-                    # filter_tasks_by_metadata endpoint does not exist in the version of metadata service
-                    # deployed currently. Raise a more informative error message.
-                    raise MetaflowInternalError(
-                        "The version of metadata service deployed currently does not support filtering tasks by metadata. "
-                        "Upgrade to a newer version of Metadata service to use this feature."
-                    ) from e
-
+            task_pathspecs = self._metaflow.metadata.filter_tasks_by_metadata(
+                flow_id, run_id, step.id, metadata_key, metadata_pattern
+            )
             for task_pathspec in task_pathspecs:
                 yield Task(pathspec=task_pathspec, _namespace_check=False)
 
@@ -1986,7 +1975,7 @@ class Step(MetaflowObject):
             return t.environment_info
 
     @property
-    def parent_steps(self) -> "Step":
+    def parent_steps(self) -> Optional[List["Step"]]:
         """
         Yields parent steps for the current step.
 
@@ -2023,7 +2012,7 @@ class Step(MetaflowObject):
                 yield Step(f"{flow}/{run}/{node_name}", _namespace_check=False)
 
     @property
-    def child_steps(self) -> "Step":
+    def child_steps(self) -> Optional[List["Step"]]:
         """
         Yields child steps for the current step.
 

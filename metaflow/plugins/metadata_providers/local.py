@@ -207,7 +207,7 @@ class LocalMetadataProvider(MetadataProvider):
     @classmethod
     def filter_tasks_by_metadata(
         cls,
-        flow_id: str,
+        flow_name: str,
         run_id: str,
         step_name: str,
         field_name: str,
@@ -218,7 +218,7 @@ class LocalMetadataProvider(MetadataProvider):
 
         Parameters
         ----------
-        flow_id : str
+        flow_name : str
             Identifier for the flow
         run_id : str
             Identifier for the run
@@ -234,7 +234,7 @@ class LocalMetadataProvider(MetadataProvider):
         List[str]
             List of task pathspecs that match the query criteria
         """
-        tasks = cls.get_object("step", "task", {}, None, flow_id, run_id, step_name)
+        tasks = cls.get_object("step", "task", {}, None, flow_name, run_id, step_name)
         if not tasks:
             return []
 
@@ -249,12 +249,12 @@ class LocalMetadataProvider(MetadataProvider):
             if pattern == ".*":
                 # If the pattern is ".*", we can match all tasks without reading metadata
                 matching_task_pathspecs.append(
-                    f"{flow_id}/{run_id}/{step_name}/{task_id}"
+                    f"{flow_name}/{run_id}/{step_name}/{task_id}"
                 )
                 continue
 
             metadata = cls.get_object(
-                "task", "metadata", {}, None, flow_id, run_id, step_name, task_id
+                "task", "metadata", {}, None, flow_name, run_id, step_name, task_id
             )
 
             if any(
@@ -263,7 +263,7 @@ class LocalMetadataProvider(MetadataProvider):
                 for meta in metadata
             ):
                 matching_task_pathspecs.append(
-                    f"{flow_id}/{run_id}/{step_name}/{task_id}"
+                    f"{flow_name}/{run_id}/{step_name}/{task_id}"
                 )
 
         return matching_task_pathspecs

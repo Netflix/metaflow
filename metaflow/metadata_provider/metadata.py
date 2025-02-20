@@ -676,7 +676,7 @@ class MetadataProvider(object):
     @classmethod
     def filter_tasks_by_metadata(
         cls,
-        flow_id: str,
+        flow_name: str,
         run_id: str,
         step_name: str,
         field_name: str,
@@ -687,8 +687,8 @@ class MetadataProvider(object):
 
         Parameters
         ----------
-        flow_id : str
-            Flow id, that the run belongs to.
+        flow_name : str
+            Flow name, that the run belongs to.
         run_id: str
             Run id, together with flow_id, that identifies the specific Run whose tasks to query
         step_name: str

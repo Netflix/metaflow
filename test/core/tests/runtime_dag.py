@@ -1,7 +1,7 @@
 from metaflow_test import MetaflowTest, ExpectationFailed, steps
 
 
-class RuntimeDagTests(MetaflowTest):
+class RuntimeDagTest(MetaflowTest):
     """
     Test that `parent_tasks` and `child_tasks` API returns correct parent and child tasks
     respectively by comparing task ids stored during step execution.
@@ -74,6 +74,8 @@ class RuntimeDagTests(MetaflowTest):
 
         def _verify_parent_tasks(task):
             # Verify that the parent tasks are correct
+            from metaflow import Task
+
             parent_tasks = list(task.parent_tasks)
             expected_parent_pathspecs = task.data.parent_pathspecs
             actual_parent_pathspecs = set([task.pathspec for task in parent_tasks])
@@ -106,6 +108,8 @@ class RuntimeDagTests(MetaflowTest):
 
         def _verify_child_tasks(task):
             # Verify that the child tasks are correct
+            from metaflow import Task
+
             cur_task_pathspec = task.pathspec
             child_tasks = task.child_tasks
             actual_children_pathspecs_set = set([task.pathspec for task in child_tasks])
@@ -157,7 +161,6 @@ class RuntimeDagTests(MetaflowTest):
                         f"Actual child task: {child_task}"
                     ) from e
 
-        from metaflow import Task
         from itertools import chain
 
         run = checker.get_run()
