@@ -77,13 +77,9 @@ class ArgoWorkflowsSchedulingException(MetaflowException):
 # List of future enhancements -
 #     1. Configure Argo metrics.
 #     2. Support resuming failed workflows within Argo Workflows.
-#     3. Support gang-scheduled clusters for distributed PyTorch/TF - One option is to
-#        use volcano - https://github.com/volcano-sh/volcano/tree/master/example/integrations/argo
-#     4. Support GitOps workflows.
-#     5. Add Metaflow tags to labels/annotations.
-#     6. Support Multi-cluster scheduling - https://github.com/argoproj/argo-workflows/issues/3523#issuecomment-792307297
-#     7. Support R lang.
-#     8. Ping @savin at slack.outerbounds.co for any feature request
+#     3. Add Metaflow tags to labels/annotations.
+#     4. Support R lang.
+#     5. Ping @savin at slack.outerbounds.co for any feature request
 
 
 class ArgoWorkflows(object):
@@ -2021,6 +2017,8 @@ class ArgoWorkflows(object):
                 kubernetes_labels = {
                     "task_id_entropy": "{{inputs.parameters.task-id-entropy}}",
                     "num_parallel": "{{inputs.parameters.num-parallel}}",
+                    "metaflow/argo-workflows-name": "{{workflow.name}}",
+                    "workflows.argoproj.io/workflow": "{{workflow.name}}",
                 }
                 jobset.labels(
                     {
@@ -3635,7 +3633,7 @@ class Template(object):
     def resource(self, action, manifest, success_criteria, failure_criteria):
         self.payload["resource"] = {}
         self.payload["resource"]["action"] = action
-        self.payload["setOwnerReference"] = True
+        self.payload["resource"]["setOwnerReference"] = True
         self.payload["resource"]["successCondition"] = success_criteria
         self.payload["resource"]["failureCondition"] = failure_criteria
         self.payload["resource"]["manifest"] = manifest
