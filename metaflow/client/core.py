@@ -1993,26 +1993,7 @@ class Step(MetaflowObject):
                     yield Step(f"{flow}/{run}/{node_name}", _namespace_check=False)
 
     @property
-    def parent_steps(self) -> Iterator["Step"]:
-        """
-        Yields parent steps for the current step.
-
-        Yields
-        ------
-        Step
-            Parent step
-        """
-        if self.id == "start":
-            return
-        graph_info = self.task["_graph_info"].data
-        flow, run, _ = self.path_components
-        previous_nodes = []
-        for node_name, attributes in graph_info["steps"].items():
-            if self.id in attributes["next"]:
-                yield Step(f"{flow}/{run}/{node_name}", _namespace_check=False)
-
-    @property
-    def child_steps(self) -> Optional[List["Step"]]:
+    def child_steps(self) -> Iterator["Step"]:
         """
         Yields child steps for the current step.
 
