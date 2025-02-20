@@ -2303,6 +2303,10 @@ class ArgoWorkflows(object):
             templates.append(self._slack_success_template())
             templates.append(self._pager_duty_change_template())
             templates.append(self._incident_io_change_template())
+
+        # Clean up None values from templates.
+        templates = list(filter(None, templates))
+
         if self.notify_on_error or self.notify_on_success:
             # Warning: terrible hack to workaround a bug in Argo Workflow where the
             #          templates listed above do not execute unless there is an
