@@ -365,7 +365,7 @@ class ServiceMetadataProvider(MetadataProvider):
                 # deployed currently. Raise a more informative error message.
                 raise MetaflowInternalError(
                     "The version of metadata service deployed currently does not support filtering tasks by metadata. "
-                    "Upgrade to a newer version of Metadata service to use this feature."
+                    "Upgrade Metadata service to version 2.15 or greater to use this feature."
                 ) from e
         return resp
 
