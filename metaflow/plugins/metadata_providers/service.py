@@ -4,6 +4,7 @@ import time
 
 import requests
 
+from typing import List
 from metaflow.exception import (
     MetaflowException,
     MetaflowInternalError,
@@ -13,6 +14,7 @@ from metaflow.metadata_provider import MetadataProvider
 from metaflow.metadata_provider.heartbeat import HB_URL_KEY
 from metaflow.metaflow_config import SERVICE_HEADERS, SERVICE_RETRY_COUNT, SERVICE_URL
 from metaflow.sidecar import Message, MessageTypes, Sidecar
+from urllib.parse import urlencode
 from metaflow.util import version_parse
 
 
@@ -317,6 +319,55 @@ class ServiceMetadataProvider(MetadataProvider):
         if did_create:
             self._register_system_metadata(run_id, step_name, task["task_id"], attempt)
         return task["task_id"], did_create
+
+    @classmethod
+    def filter_tasks_by_metadata(
+        cls,
+        flow_name: str,
+        run_id: str,
+        step_name: str,
+        field_name: str,
+        pattern: str,
+    ) -> List[str]:
+        """
+        Filter tasks by metadata field and pattern, returning task pathspecs that match criteria.
+
+        Parameters
+        ----------
+        flow_name : str
+            Flow name, that the run belongs to.
+        run_id: str
+            Run id, together with flow_id, that identifies the specific Run whose tasks to query
+        step_name: str
+            Step name to query tasks from
+        field_name: str
+            Metadata field name to query
+        pattern: str
+            Pattern to match in metadata field value
+
+        Returns
+        -------
+        List[str]
+            List of task pathspecs that satisfy the query
+        """
+        query_params = {
+            "metadata_field_name": field_name,
+            "pattern": pattern,
+            "step_name": step_name,
+        }
+        url = ServiceMetadataProvider._obj_path(flow_name, run_id, step_name)
+        url = f"{url}/filtered_tasks?{urlencode(query_params)}"
+        try:
+            resp = cls._request(None, url, "GET")
+        except Exception as e:
+            if e.http_code == 404:
+                # filter_tasks_by_metadata endpoint does not exist in the version of metadata service
+                # deployed currently. Raise a more informative error message.
+                raise MetaflowInternalError(
+                    "The version of metadata service deployed currently does not support filtering tasks by metadata. "
+                    "Upgrade Metadata service to version 2.15 or greater to use this feature."
+                ) from e
+        return resp
 
     @staticmethod
     def _obj_path(

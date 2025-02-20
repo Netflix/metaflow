@@ -2,10 +2,12 @@ import collections
 import glob
 import json
 import os
+import re
 import random
 import tempfile
 import time
 from collections import namedtuple
+from typing import List
 
 from metaflow.exception import MetaflowInternalError, MetaflowTaggingError
 from metaflow.metadata_provider.metadata import ObjectOrder
@@ -201,6 +203,70 @@ class LocalMetadataProvider(MetadataProvider):
         raise MetaflowTaggingError(
             "Tagging failed due to too many conflicting updates from other processes"
         )
+
+    @classmethod
+    def filter_tasks_by_metadata(
+        cls,
+        flow_name: str,
+        run_id: str,
+        step_name: str,
+        field_name: str,
+        pattern: str,
+    ) -> List[str]:
+        """
+        Filter tasks by metadata field and pattern, returning task pathspecs that match criteria.
+
+        Parameters
+        ----------
+        flow_name : str
+            Identifier for the flow
+        run_id : str
+            Identifier for the run
+        step_name : str
+            Name of the step to query tasks from
+        field_name : str
+            Name of metadata field to query
+        pattern : str
+            Pattern to match in metadata field value
+
+        Returns
+        -------
+        List[str]
+            List of task pathspecs that match the query criteria
+        """
+        tasks = cls.get_object("step", "task", {}, None, flow_name, run_id, step_name)
+        if not tasks:
+            return []
+
+        regex = re.compile(pattern)
+        matching_task_pathspecs = []
+
+        for task in tasks:
+            task_id = task.get("task_id")
+            if not task_id:
+                continue
+
+            if pattern == ".*":
+                # If the pattern is ".*", we can match all tasks without reading metadata
+                matching_task_pathspecs.append(
+                    f"{flow_name}/{run_id}/{step_name}/{task_id}"
+                )
+                continue
+
+            metadata = cls.get_object(
+                "task", "metadata", {}, None, flow_name, run_id, step_name, task_id
+            )
+
+            if any(
+                meta.get("field_name") == field_name
+                and regex.match(meta.get("value", ""))
+                for meta in metadata
+            ):
+                matching_task_pathspecs.append(
+                    f"{flow_name}/{run_id}/{step_name}/{task_id}"
+                )
+
+        return matching_task_pathspecs
 
     @classmethod
     def _get_object_internal(

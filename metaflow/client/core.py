@@ -380,7 +380,7 @@ class MetaflowObject(object):
             _CLASSES[self._CHILD_CLASS]._NAME,
             query_filter,
             self._attempt,
-            *self.path_components
+            *self.path_components,
         )
         unfiltered_children = unfiltered_children if unfiltered_children else []
         children = filter(
@@ -1191,6 +1191,143 @@ class Task(MetaflowObject):
         # exclude private data artifacts
         return x.id[0] != "_"
 
+    def _iter_matching_tasks(self, steps, metadata_key, metadata_pattern):
+        """
+        Yield tasks from specified steps matching a foreach path pattern.
+
+        Parameters
+        ----------
+        steps : List[str]
+            List of step names to search for tasks
+        pattern : str
+            Regex pattern to match foreach-indices metadata
+
+        Returns
+        -------
+        Iterator[Task]
+            Tasks matching the foreach path pattern
+        """
+        flow_id, run_id, _, _ = self.path_components
+
+        for step in steps:
+            task_pathspecs = self._metaflow.metadata.filter_tasks_by_metadata(
+                flow_id, run_id, step.id, metadata_key, metadata_pattern
+            )
+            for task_pathspec in task_pathspecs:
+                yield Task(pathspec=task_pathspec, _namespace_check=False)
+
+    @property
+    def parent_tasks(self) -> Iterator["Task"]:
+        """
+        Yields all parent tasks of the current task if one exists.
+
+        Yields
+        ------
+        Task
+            Parent task of the current task
+
+        """
+        flow_id, run_id, _, _ = self.path_components
+
+        steps = list(self.parent.parent_steps)
+        if not steps:
+            return []
+
+        current_path = self.metadata_dict.get("foreach-execution-path", "")
+
+        if len(steps) > 1:
+            # Static join - use exact path matching
+            pattern = current_path or ".*"
+            yield from self._iter_matching_tasks(
+                steps, "foreach-execution-path", pattern
+            )
+            return
+
+        # Handle single step case
+        target_task = Step(
+            f"{flow_id}/{run_id}/{steps[0].id}", _namespace_check=False
+        ).task
+        target_path = target_task.metadata_dict.get("foreach-execution-path")
+
+        if not target_path or not current_path:
+            # (Current task, "A:10") and (Parent task, "")
+            # Pattern: ".*"
+            pattern = ".*"
+        else:
+            current_depth = len(current_path.split(","))
+            target_depth = len(target_path.split(","))
+
+            if current_depth < target_depth:
+                # Foreach join
+                # (Current task, "A:10,B:13") and (Parent task, "A:10,B:13,C:21")
+                # Pattern: "A:10,B:13,.*"
+                pattern = f"{current_path},.*"
+            else:
+                # Foreach split or linear step
+                # Option 1:
+                # (Current task, "A:10,B:13,C:21") and (Parent task, "A:10,B:13")
+                # Option 2:
+                # (Current task, "A:10,B:13") and (Parent task, "A:10,B:13")
+                # Pattern: "A:10,B:13"
+                pattern = ",".join(current_path.split(",")[:target_depth])
+
+        yield from self._iter_matching_tasks(steps, "foreach-execution-path", pattern)
+
+    @property
+    def child_tasks(self) -> Iterator["Task"]:
+        """
+        Yield all child tasks of the current task if one exists.
+
+        Yields
+        ------
+        Task
+            Child task of the current task
+        """
+        flow_id, run_id, _, _ = self.path_components
+        steps = list(self.parent.child_steps)
+        if not steps:
+            return []
+
+        current_path = self.metadata_dict.get("foreach-execution-path", "")
+
+        if len(steps) > 1:
+            # Static split - use exact path matching
+            pattern = current_path or ".*"
+            yield from self._iter_matching_tasks(
+                steps, "foreach-execution-path", pattern
+            )
+            return
+
+        # Handle single step case
+        target_task = Step(
+            f"{flow_id}/{run_id}/{steps[0].id}", _namespace_check=False
+        ).task
+        target_path = target_task.metadata_dict.get("foreach-execution-path")
+
+        if not target_path or not current_path:
+            # (Current task, "A:10") and (Child task, "")
+            # Pattern: ".*"
+            pattern = ".*"
+        else:
+            current_depth = len(current_path.split(","))
+            target_depth = len(target_path.split(","))
+
+            if current_depth < target_depth:
+                # Foreach split
+                # (Current task, "A:10,B:13") and (Child task, "A:10,B:13,C:21")
+                # Pattern: "A:10,B:13,.*"
+                pattern = f"{current_path},.*"
+            else:
+                # Foreach join or linear step
+                # Option 1:
+                # (Current task, "A:10,B:13,C:21") and (Child task, "A:10,B:13")
+                # Option 2:
+                # (Current task, "A:10,B:13") and (Child task, "A:10,B:13")
+                # Pattern: "A:10,B:13"
+                pattern = ",".join(current_path.split(",")[:target_depth])
+
+        yield from self._iter_matching_tasks(steps, "foreach-execution-path", pattern)
+
     @property
     def metadata(self) -> List[Metadata]:
         """
@@ -1904,6 +2041,41 @@ class Step(MetaflowObject):
         # All tasks have the same environment info so just use the first one
         for t in self:
             return t.environment_info
+
+    @property
+    def parent_steps(self) -> Iterator["Step"]:
+        """
+        Yields parent steps for the current step.
+
+        Yields
+        ------
+        Step
+            Parent step
+        """
+        graph_info = self.task["_graph_info"].data
+
+        if self.id != "start":
+            flow, run, _ = self.path_components
+            for node_name, attributes in graph_info["steps"].items():
+                if self.id in attributes["next"]:
+                    yield Step(f"{flow}/{run}/{node_name}", _namespace_check=False)
+
+    @property
+    def child_steps(self) -> Iterator["Step"]:
+        """
+        Yields child steps for the current step.
+
+        Yields
+        ------
+        Step
+            Child step
+        """
+        graph_info = self.task["_graph_info"].data
+
+        if self.id != "end":
+            flow, run, _ = self.path_components
+            for next_step in graph_info["steps"][self.id]["next"]:
+                yield Step(f"{flow}/{run}/{next_step}", _namespace_check=False)
 
 
 class Run(MetaflowObject):
