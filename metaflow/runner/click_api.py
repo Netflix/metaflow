@@ -41,6 +41,7 @@ from metaflow.exception import MetaflowException
 from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
 from metaflow.parameters import JSONTypeClass, flow_context
+from metaflow.user_configs.config_decorators import CustomFlowDecorator
 from metaflow.user_configs.config_options import (
     ConfigValue,
     ConvertDictOrStr,
@@ -96,12 +97,13 @@ def _method_sanity_check(
             check_type(supplied_v, annotations[supplied_k])
         except TypeCheckError:
             raise TypeError(
-                "Invalid type for '%s' (%s), expected: '%s', default is '%s'"
+                "Invalid type for '%s' (%s), expected: '%s', default is '%s' but found '%s'"
                 % (
                     supplied_k,
                     type(supplied_k),
                     annotations[supplied_k],
                     defaults[supplied_k],
+                    str(supplied_v),
                 )
             )
 
@@ -217,7 +219,7 @@ def get_inspect_param_obj(p: Union[click.Argument, click.Option], kind: str):
             default=inspect.Parameter.empty if is_vararg else p.default,
             annotation=annotation,
         ),
-        annotation,
+        Optional[TTuple[annotation]] if is_vararg else annotation,
     )
 
 
@@ -252,10 +254,14 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
             # Cache the loaded module
             loaded_modules[flow_file] = module
 
-        classes = inspect.getmembers(module, inspect.isclass)
+        classes = inspect.getmembers(
+            module, lambda x: inspect.isclass(x) or isinstance(x, CustomFlowDecorator)
+        )
         flow_cls = None
 
         for _, kls in classes:
+            if isinstance(kls, CustomFlowDecorator):
+                kls = kls._flow_cls
             if (
                 kls is not FlowSpec
                 and kls.__module__ == module_name
@@ -387,7 +393,9 @@ class MetaflowAPI(object):
                 options = params.pop("options", {})
 
                 for _, v in args.items():
-                    if isinstance(v, list):
+                    if v is None:
+                        continue
+                    if isinstance(v, (list, tuple)):
                         for i in v:
                             components.append(i)
                     else:
@@ -444,10 +452,10 @@ class MetaflowAPI(object):
                 ds = opts.get("datastore", defaults["datastore"])
                 quiet = opts.get("quiet", defaults["quiet"])
                 is_default = False
-                config_file = opts.get("config-file")
+                config_file = opts.get("config")
                 if config_file is None:
                     is_default = True
-                    config_file = defaults.get("config_file")
+                    config_file = defaults.get("config")
 
                 if config_file:
                     config_file = map(
@@ -480,7 +488,7 @@ class MetaflowAPI(object):
                     # Process both configurations; the second one will return all the merged
                     # configuration options properly processed.
                     self._config_input.process_configs(
-                        self._flow_cls.__name__, "config_file", config_file, quiet, ds
+                        self._flow_cls.__name__, "config", config_file, quiet, ds
                     )
                     config_options = self._config_input.process_configs(
                         self._flow_cls.__name__, "config_value", config_value, quiet, ds
@@ -493,7 +501,7 @@ class MetaflowAPI(object):
         # it will init all parameters (config_options will be None)
         # We ignore any errors if we don't check the configs in the click API.
         new_cls = self._flow_cls._process_config_decorators(
-            config_options, ignore_errors=not CLICK_API_PROCESS_CONFIG
+            config_options, process_configs=CLICK_API_PROCESS_CONFIG
         )
         if new_cls:
             self._flow_cls = new_cls

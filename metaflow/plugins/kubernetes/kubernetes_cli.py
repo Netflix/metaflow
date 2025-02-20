@@ -39,7 +39,7 @@ def kubernetes():
     "command inside a Kubernetes pod with the given options. Typically you do not call "
     "this command directly; it is used internally by Metaflow."
 )
-@tracing.cli_entrypoint("kubernetes/step")
+@tracing.cli("kubernetes/step")
 @click.argument("step-name")
 @click.argument("code-package-sha")
 @click.argument("code-package-url")
