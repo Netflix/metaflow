@@ -1,21 +1,13 @@
 import os
 import shutil
 import sys
-from subprocess import PIPE, run, CompletedProcess
+from subprocess import PIPE, CompletedProcess, run
 from tempfile import TemporaryDirectory
-from typing import List, Optional, Callable, Dict, Any
+from typing import Any, Callable, List, Mapping, Optional, cast
 
-from metaflow._vendor import click
 from metaflow import Run
+from metaflow._vendor import click
 from metaflow.cli import echo_always
-
-EXCLUSIONS = [
-    "metaflow/",
-    "metaflow_extensions/",
-    "INFO",
-    "CONFIG_PARAMETERS",
-    "conda.manifest",
-]
 
 
 @click.group()
@@ -32,7 +24,7 @@ def echo(line: str) -> None:
     echo_always(line, err=True, fg="magenta")
 
 
-def extract_code_package(runspec: str, exclusions: List[str]) -> TemporaryDirectory:
+def extract_code_package(runspec: str) -> TemporaryDirectory:
     try:
         mf_run = Run(runspec, _namespace_check=False)
         echo(f"✅  Run *{runspec}* found, downloading code..")
@@ -46,23 +38,14 @@ def extract_code_package(runspec: str, exclusions: List[str]) -> TemporaryDirect
         )
         raise RuntimeError("no code package found")
 
-    tar = mf_run.code.tarball
-    members = [
-        m
-        for m in tar.getmembers()
-        if not any(
-            (x.endswith("/") and m.name.startswith(x)) or (m.name == x)
-            for x in exclusions
-        )
-    ]
-
-    tmp = TemporaryDirectory()
-    tar.extractall(tmp.name, members)
-    return tmp
+    return mf_run.code.extract()
 
 
 def perform_diff(
-    source_dir: str, target_dir: Optional[str] = None, output: bool = False
+    source_dir: str,
+    target_dir: Optional[str] = None,
+    output: bool = False,
+    **kwargs: Mapping[str, Any],
 ) -> Optional[List[str]]:
     if target_dir is None:
         target_dir = os.getcwd()
@@ -113,34 +96,42 @@ def perform_diff(
     return diffs if output else None
 
 
-def run_op(runspec: str, op: Callable[..., None], op_args: Dict[str, Any]) -> None:
+def run_op(
+    runspec: str, op: Callable[..., Optional[List[str]]], **op_args: Mapping[str, Any]
+) -> Optional[List[str]]:
     tmp = None
     try:
-        tmp = extract_code_package(runspec, EXCLUSIONS)
-        op(tmp.name, **op_args)
+        tmp = extract_code_package(runspec)
+        return op(tmp.name, **op_args)
     finally:
         if tmp and os.path.exists(tmp.name):
             shutil.rmtree(tmp.name)
 
 
-def run_op_diff_runs(source_run: str, target_run: str) -> None:
+def run_op_diff_runs(
+    source_run: str, target_run: str, **op_args: Mapping[str, Any]
+) -> Optional[List[str]]:
     source_tmp = None
     target_tmp = None
     try:
-        source_tmp = extract_code_package(source_run, EXCLUSIONS)
-        target_tmp = extract_code_package(target_run, EXCLUSIONS)
-        perform_diff(source_tmp.name, target_tmp.name)
+        source_tmp = extract_code_package(source_run)
+        target_tmp = extract_code_package(target_run)
+        return perform_diff(source_tmp.name, target_tmp.name)
     finally:
         for d in [source_tmp, target_tmp]:
             if d and os.path.exists(d.name):
                 shutil.rmtree(d.name)
 
 
-def op_diff(tmpdir: str) -> None:
-    perform_diff(tmpdir)
+def op_diff(tmpdir: str, **kwargs: Mapping[str, Any]) -> Optional[List[str]]:
+    kwargs_dict = dict(kwargs)
+    target_dir = cast(Optional[str], kwargs_dict.pop("target_dir", None))
+    output: bool = bool(kwargs_dict.pop("output", False))
+    op_args: Mapping[str, Any] = {**kwargs_dict}
+    return perform_diff(tmpdir, target_dir=target_dir, output=output, **op_args)
 
 
-def op_pull(tmpdir: str, dst: str) -> None:
+def op_pull(tmpdir: str, dst: str, **kwargs: Mapping[str, Any]) -> None:
     if os.path.exists(dst):
         echo(f"❌  Directory *{dst}* already exists")
     else:
@@ -148,7 +139,7 @@ def op_pull(tmpdir: str, dst: str) -> None:
         echo(f"Code downloaded to *{dst}*")
 
 
-def op_patch(tmpdir: str, dst: str) -> None:
+def op_patch(tmpdir: str, dst: str, **kwargs: Mapping[str, Any]) -> None:
     diffs = perform_diff(tmpdir, output=True) or []
     with open(dst, "w", encoding="utf-8") as f:
         for out in diffs:
@@ -173,22 +164,22 @@ def op_patch(tmpdir: str, dst: str) -> None:
 
 
 @code.command()
-@click.argument("metaflow_run")
-def diff(metaflow_run: str) -> None:
+@click.argument("metaflow-run")
+def diff(metaflow_run: str, **kwargs: Mapping[str, Any]) -> None:
     """
     Do a 'git diff' of the current directory and a Metaflow run.
     """
-    run_op(metaflow_run, op_diff, {})
+    _ = run_op(metaflow_run, op_diff, **kwargs)
 
 
 @code.command()
 @click.argument("source_run")
 @click.argument("target_run")
-def diff_runs(source_run: str, target_run: str) -> None:
+def diff_runs(source_run: str, target_run: str, **kwargs: Mapping[str, Any]) -> None:
     """
     Do a 'git diff' between two Metaflow runs.
     """
-    run_op_diff_runs(source_run, target_run)
+    _ = run_op_diff_runs(source_run, target_run, **kwargs)
 
 
 @code.command()
@@ -196,26 +187,32 @@ def diff_runs(source_run: str, target_run: str) -> None:
 @click.option(
     "--dir", help="Destination directory (default: {runspec}_code)", default=None
 )
-def pull(metaflow_run: str, dir: Optional[str] = None) -> None:
+def pull(
+    metaflow_run: str, dir: Optional[str] = None, **kwargs: Mapping[str, Any]
+) -> None:
     """
     Pull the code of a Metaflow run.
     """
     if dir is None:
         dir = metaflow_run.lower().replace("/", "_") + "_code"
-    run_op(metaflow_run, op_pull, {"dst": dir})
+    op_args: Mapping[str, Any] = {**kwargs, "dst": dir}
+    run_op(metaflow_run, op_pull, **op_args)
 
 
 @code.command()
 @click.argument("metaflow_run")
 @click.option("--file", help="Patch file name (default: {runspec}.patch", default=None)
-def patch(metaflow_run: str, file: Optional[str] = None) -> None:
+def patch(
+    metaflow_run: str, file: Optional[str] = None, **kwargs: Mapping[str, Any]
+) -> None:
     """
     Create a patch file for the current dir with a Metaflow run.
     """
     if file is None:
         file = metaflow_run.lower().replace("/", "_") + ".patch"
     if confirm_overwrite(file):
-        run_op(metaflow_run, op_patch, {"dst": file})
+        op_args: Mapping[str, Any] = {**kwargs, "dst": file}
+        run_op(metaflow_run, op_patch, **op_args)
 
 
 def confirm_overwrite(file):

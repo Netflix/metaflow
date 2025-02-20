@@ -5,7 +5,6 @@ from subprocess import PIPE
 from unittest.mock import MagicMock, patch
 
 from metaflow.cmd.code import (
-    EXCLUSIONS,
     extract_code_package,
     op_diff,
     op_patch,
@@ -26,7 +25,7 @@ class TestMetaflowDiff:
         with patch(
             "tempfile.TemporaryDirectory", return_value=tempfile.TemporaryDirectory()
         ) as mock_tmp:
-            tmp = extract_code_package(runspec, EXCLUSIONS)
+            tmp = extract_code_package(runspec)
 
         mock_run.assert_called_once_with(runspec, _namespace_check=False)
         assert os.path.exists(tmp.name)
@@ -119,9 +118,9 @@ class TestMetaflowDiff:
         mock_extract_code_package.return_value = mock_tmp
         runspec = "HelloFlow/3"
 
-        run_op(runspec, mock_op_diff, {})
+        run_op(runspec, mock_op_diff)
 
-        mock_extract_code_package.assert_called_once_with(runspec, EXCLUSIONS)
+        mock_extract_code_package.assert_called_once_with(runspec)
         mock_op_diff.assert_called_once_with(mock_tmp.name)
 
         mock_rmtree.assert_any_call(mock_tmp.name)
