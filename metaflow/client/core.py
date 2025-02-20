@@ -1149,7 +1149,7 @@ class Task(MetaflowObject):
                 yield Task(pathspec=task_pathspec, _namespace_check=False)
 
     @property
-    def parent_tasks(self) -> "Task":
+    def parent_tasks(self) -> Iterator["Task"]:
         """
         Yields all parent tasks of the current task if one exists.
 
@@ -1206,7 +1206,7 @@ class Task(MetaflowObject):
         yield from self._iter_matching_tasks(steps, "foreach-execution-path", pattern)
 
     @property
-    def child_tasks(self) -> "Task":
+    def child_tasks(self) -> Iterator["Task"]:
         """
         Yield all child tasks of the current task if one exists.
 
@@ -1975,7 +1975,7 @@ class Step(MetaflowObject):
             return t.environment_info
 
     @property
-    def parent_steps(self) -> Optional[List["Step"]]:
+    def parent_steps(self) -> Iterator["Step"]:
         """
         Yields parent steps for the current step.
 
@@ -1993,7 +1993,7 @@ class Step(MetaflowObject):
                     yield Step(f"{flow}/{run}/{node_name}", _namespace_check=False)
 
     @property
-    def parent_steps(self) -> Optional["Step"]:
+    def parent_steps(self) -> Iterator["Step"]:
         """
         Yields parent steps for the current step.
 
