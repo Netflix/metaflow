@@ -82,12 +82,9 @@ def config_merge_cb(ctx, param, value):
     # NOTE: Assumes that ctx.auto_envvar_prefix is set to METAFLOW (same as in
     # from_conf)
 
-    # Special case where DEFAULT_DECOSPECS and value are the same. This happens
-    # when there is no --with option at the TL and DEFAULT_DECOSPECS is read from
-    # the env var. In this case, click also passes it as value
+    # Read decospecs options from the environment (METAFLOW_DEFAULT_DECOSPECS=...)
+    # and merge them with the one provided as --with.
     splits = DEFAULT_DECOSPECS.split()
-    if len(splits) == len(value) and all([a == b for (a, b) in zip(splits, value)]):
-        return value
     return tuple(list(value) + splits)
 
 
