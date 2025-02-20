@@ -264,6 +264,8 @@ class Server(object):
     def serve(self, path=None, port=None):
         # Open up a connection
         if path is not None:
+            # Keep the print line to facilitate debugging
+            # print("SERVER: Starting at %s" % path)
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             __try_op__("bind", sock.bind, BIND_RETRY, path)
         elif port is not None:

@@ -276,8 +276,8 @@ class MetaWithConnection(StubMetaClass):
         if len(args) > 0 and id(args[0]) == id(cls.___class_connection___):
             return super(MetaWithConnection, cls).__call__(*args, **kwargs)
         else:
-            if hasattr(cls, "__init_overriden__"):
-                return cls.__init_overriden__(
+            if hasattr(cls, "__overriden_init__"):
+                return cls.__overriden_init__(
                     None,
                     functools.partial(
                         cls.___class_connection___.stub_request,
@@ -395,7 +395,7 @@ def create_class(
             method_type = CLASS_METHOD
         if name in overriden_methods:
             if name == "__init__":
-                class_dict["__init_overriden__"] = overriden_methods["__init__"]
+                class_dict["__overriden_init__"] = overriden_methods["__init__"]
 
             elif method_type == NORMAL_METHOD:
                 class_dict[name] = (
