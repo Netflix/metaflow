@@ -16,7 +16,6 @@ from .exception import CommandException, MetaflowException
 from .flowspec import _FlowState
 from .graph import FlowGraph
 from .metaflow_config import (
-    DECOSPECS,
     DEFAULT_DATASTORE,
     DEFAULT_ENVIRONMENT,
     DEFAULT_EVENT_LOGGER,
@@ -104,26 +103,6 @@ def logger(body="", system_msg=False, head="", bad=False, timestamp=True, nl=Tru
     if head:
         click.secho(head, fg=LOGGER_COLOR, nl=False)
     click.secho(body, bold=system_msg, fg=LOGGER_BAD_COLOR if bad else None, nl=nl)
-
-
-def config_merge_cb(ctx, param, value):
-    # Callback to:
-    #  - read  the Click auto_envvar variable from both the
-    #    environment AND the configuration
-    #  - merge that value with the value passed in the command line (value)
-    #  - return the value as a tuple
-    # Note that this function gets called even if there is no option passed on the
-    # command line.
-    # NOTE: Assumes that ctx.auto_envvar_prefix is set to METAFLOW (same as in
-    # from_conf)
-
-    # Special case where DECOSPECS and value are the same. This happens
-    # when there is no --with option at the TL and DECOSPECS is read from
-    # the env var. In this case, click also passes it as value
-    splits = DECOSPECS.split()
-    if len(splits) == len(value) and all([a == b for (a, b) in zip(splits, value)]):
-        return value
-    return tuple(list(value) + DECOSPECS.split())
 
 
 @click.group(
@@ -284,7 +263,6 @@ def version(obj):
     multiple=True,
     help="Add a decorator to all steps. You can specify this option "
     "multiple times to attach multiple decorators in steps.",
-    callback=config_merge_cb,
 )
 @click.option(
     "--pylint/--no-pylint",

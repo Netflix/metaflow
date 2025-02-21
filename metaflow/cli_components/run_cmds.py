@@ -8,6 +8,7 @@ from .. import decorators, namespace, parameters, tracing
 from ..exception import CommandException
 from ..graph import FlowGraph
 from ..metaflow_current import current
+from ..metaflow_config import DEFAULT_DECOSPECS
 from ..package import MetaflowPackage
 from ..runtime import NativeRuntime
 from ..system import _system_logger
@@ -70,6 +71,23 @@ def write_file(file_path, content):
             f.write(str(content))
 
 
+def config_merge_cb(ctx, param, value):
+    # Callback to:
+    #  - read  the Click auto_envvar variable from both the
+    #    environment AND the configuration
+    #  - merge that value with the value passed in the command line (value)
+    #  - return the value as a tuple
+    # Note that this function gets called even if there is no option passed on the
+    # command line.
+    # NOTE: Assumes that ctx.auto_envvar_prefix is set to METAFLOW (same as in
+    # from_conf)
+
+    # Read decospecs options from the environment (METAFLOW_DEFAULT_DECOSPECS=...)
+    # and merge them with the one provided as --with.
+    splits = DEFAULT_DECOSPECS.split()
+    return tuple(list(value) + splits)
+
+
 def common_run_options(func):
     @click.option(
         "--tag",
@@ -109,6 +127,7 @@ def common_run_options(func):
         help="Add a decorator to all steps. You can specify this "
         "option multiple times to attach multiple decorators "
         "in steps.",
+        callback=config_merge_cb,
     )
     @click.option(
         "--run-id-file",
