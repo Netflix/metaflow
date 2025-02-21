@@ -168,12 +168,12 @@ def argo_workflows(obj, name=None):
 )
 @click.option(
     "--notify-slack-webhook-url",
-    default="",
+    default=None,
     help="Slack incoming webhook url for workflow success/failure notifications.",
 )
 @click.option(
     "--notify-pager-duty-integration-key",
-    default="",
+    default=None,
     help="PagerDuty Events API V2 Integration key for workflow success/failure notifications.",
 )
 @click.option(
