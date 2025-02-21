@@ -161,9 +161,6 @@ def step(
     )
     if latest_done_attempt:
         retry_count = latest_done_attempt + 1
-    # Not sure what are the side effects to this.
-    if retry_count >= max_user_code_retries:
-        max_user_code_retries = retry_count
 
     if clone_only:
         task.clone_only(
