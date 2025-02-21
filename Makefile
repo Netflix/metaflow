@@ -58,7 +58,7 @@ install-curl:
 	@if ! command -v curl >/dev/null 2>&1; then \
 		echo "📥 Installing curl..."; \
 		if [ "$(shell uname)" = "Darwin" ]; then \
-			brew install curl; \
+			HOMEBREW_NO_AUTO_UPDATE=1 brew install curl; \
 		elif command -v apt-get >/dev/null 2>&1; then \
 			sudo apt-get update && sudo apt-get install -y curl; \
 		elif command -v yum >/dev/null 2>&1; then \
@@ -77,7 +77,7 @@ install-gum:
 	@if ! command -v gum >/dev/null 2>&1; then \
 		echo "📥 Installing gum..."; \
 		if [ "$(shell uname)" = "Darwin" ]; then \
-			brew install gum; \
+			HOMEBREW_NO_AUTO_UPDATE=1 brew install gum; \
 		elif command -v apt-get >/dev/null 2>&1; then \
 			sudo apt-get update && sudo apt-get install -y gum; \
 		elif command -v yum >/dev/null 2>&1; then \
