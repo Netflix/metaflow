@@ -275,8 +275,13 @@ class TriggerDecorator(FlowDecorator):
             # Need to do this bc we need to iterate over list later
             if isinstance(trigger, DeployTimeField):
                 evaluated_trigger = deploy_time_eval(trigger)
-                trigger = self.process_event(evaluated_trigger)
-            new_triggers.append(trigger)
+                if isinstance(evaluated_trigger, list):
+                    for event in evaluated_trigger:
+                        new_triggers.append(self.process_event(event))
+                else:
+                    new_triggers.append(self.process_event(evaluated_trigger))
+            else:
+                new_triggers.append(trigger)
 
         # Second pass to evaluate names
         for trigger in new_triggers:
