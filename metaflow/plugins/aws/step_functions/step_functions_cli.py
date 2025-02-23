@@ -361,17 +361,17 @@ def make_flow(
     
     if aws_batch_tags is not None:
         if not all(isinstance(item, str) for item in aws_batch_tags):
-            raise MetaflowException("AWS Step Functions --aws-tags all items in list must be strings")
+            raise MetaflowException("AWS Step Functions --aws-batch-tags all items in list must be strings")
         for item in aws_batch_tags:
             if len(item.split('=')) != 2:
-                raise MetaflowException("AWS Step Functions --aws-tags strings must be in format 'key=value'")
-        aws_tags_list = [
+                raise MetaflowException("AWS Step Functions --aws-batch-tags strings must be in format 'key=value'")
+        aws_batch_tags_list = [
             {'key': item.split('=')[0],
                 'value': item.split('=')[1]} for item in aws_batch_tags
         ]
-        for tag in aws_tags_list:
+        for tag in aws_batch_tags_list:
             validate_aws_tag(tag)
-    else: aws_tags_list = None
+    else: aws_batch_tags_list = None
             
 
 
@@ -389,7 +389,7 @@ def make_flow(
         obj.event_logger,
         obj.monitor,
         tags=tags,
-        aws_batch_tags=aws_tags_list,
+        aws_batch_tags=aws_batch_tags_list,
         namespace=namespace,
         max_workers=max_workers,
         username=get_username(),
