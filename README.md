@@ -37,7 +37,6 @@ If you are eager to try out Metaflow in practice, you can start with the [tutori
 ### Deploying infrastructure for Metaflow in your cloud
 <img src="./docs/multicloud.png" width="800px">
 
-
 While you can get started with Metaflow easily on your laptop, the main benefits of Metaflow lie in its ability to [scale out to external compute clusters](https://docs.metaflow.org/scaling/remote-tasks/introduction) 
 and to [deploy to production-grade workflow orchestrators](https://docs.metaflow.org/production/introduction). To benefit from these features, follow this [guide](https://outerbounds.com/engineering/welcome/) to 
 configure Metaflow and the infrastructure behind it appropriately.
@@ -46,19 +45,6 @@ configure Metaflow and the infrastructure behind it appropriately.
 
 ### [Slack Community](http://slack.outerbounds.co/)
 An active [community](http://slack.outerbounds.co/) of thousands of data scientists and ML engineers discussing the ins-and-outs of applied machine learning.
-
-### [Tutorials](https://outerbounds.com/docs/tutorials-index/)
-- [Introduction to Metaflow](https://outerbounds.com/docs/intro-tutorial-overview/)
-- [Natural Language Processing with Metaflow](https://outerbounds.com/docs/nlp-tutorial-overview/)
-- [Computer Vision with Metaflow](https://outerbounds.com/docs/cv-tutorial-overview/)
-- [Recommender Systems with Metaflow](https://outerbounds.com/docs/recsys-tutorial-overview/)
-- And more advanced content [here](https://outerbounds.com/docs/tutorials-index/)
-
-### [Generative AI and LLM use cases](https://outerbounds.com/blog/?category=Foundation%20Models)
-- [Infrastructure Stack for Large Language Models](https://outerbounds.com/blog/llm-infrastructure-stack/)
-- [Parallelizing Stable Diffusion for Production Use Cases](https://outerbounds.com/blog/parallelizing-stable-diffusion-production-use-cases/)
-- [Whisper with Metaflow on Kubernetes](https://outerbounds.com/blog/whisper-kubernetes/)
-- [Training a Large Language Model With Metaflow, Featuring Dolly](https://outerbounds.com/blog/train-dolly-metaflow/)
 
 ## Get in touch
 There are several ways to get in touch with us:
