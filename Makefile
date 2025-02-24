@@ -85,6 +85,7 @@ install-curl:
 		echo "✅ curl installation complete"; \
 	fi
 
+# TODO: fix gum install on linux
 install-gum:
 	@echo "🔍 Checking if gum is installed..."
 	@if ! command -v gum >/dev/null 2>&1; then \
