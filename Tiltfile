@@ -102,16 +102,16 @@ if "minio" in enabled_components:
         set=[
             'rootUser=rootuser',
             'rootPassword=rootpass123',
-			'buckets[0].name=metaflow-test',
-			'buckets[0].policy=none',
-			'buckets[0].purge=false',
-			'mode=standalone',
-			'replicas=1',
+            'buckets[0].name=metaflow-test',
+            'buckets[0].policy=none',
+            'buckets[0].purge=false',
+            'mode=standalone',
+            'replicas=1',
             'persistence.enabled=false',
             'resources.requests.memory=128Mi',
             'resources.requests.cpu=50m',
-			'resources.limits.memory=256Mi',
-			'resources.limits.cpu=100m',
+            'resources.limits.memory=256Mi',
+            'resources.limits.cpu=100m',
         ]
     )
 
@@ -356,7 +356,7 @@ if "argo-events" in enabled_components:
         }
     }))
 
-	# Create a custom service and port-forward it because tilt :/
+    # Create a custom service and port-forward it because tilt :/
     k8s_yaml(encode_yaml(
         {
         'apiVersion': 'v1',
@@ -386,7 +386,7 @@ if "argo-events" in enabled_components:
         serve_cmd='while ! kubectl get service/argo-events-webhook-eventsource-svc-tilt >/dev/null 2>&1 || ! kubectl get pods -l eventsource-name=argo-events-webhook -o jsonpath="{.items[*].status.phase}" | grep -q "Running"; do sleep 5; done && kubectl port-forward service/argo-events-webhook-eventsource-svc-tilt 12000:12000',
         links=[
             link('http://localhost:12000/metaflow-event', 'Argo Events Webhook'),
-    	],
+        ],
     labels=['argo-events']
 )
 
@@ -415,8 +415,8 @@ if "metadata-service" in enabled_components:
             'metadatadb.password=metaflow123',
             'metadatadb.database=metaflow',
             'metadatadb.host=postgresql',
-			'image.repository=public.ecr.aws/p7g1e3j4/metaflow-service',
-			'image.tag=2.4.13-fbcc7d04',
+            'image.repository=public.ecr.aws/p7g1e3j4/metaflow-service',
+            'image.tag=2.4.13-fbcc7d04',
             'resources.requests.cpu=25m',
             'resources.requests.memory=64Mi',
             'resources.limits.cpu=50m',
@@ -451,18 +451,18 @@ if "ui" in enabled_components:
             'uiBackend.metadatadb.host=postgresql',
             'uiBackend.metaflowDatastoreSysRootS3=s3://metaflow-test',
             'uiBackend.metaflowS3EndpointURL=http://minio.default.svc.cluster.local:9000',
-			'uiBackend.image.name=public.ecr.aws/p7g1e3j4/metaflow-service',
-			'uiBackend.image.tag=2.4.13-fbcc7d04',
+            'uiBackend.image.name=public.ecr.aws/p7g1e3j4/metaflow-service',
+            'uiBackend.image.tag=2.4.13-fbcc7d04',
             'uiBackend.env[0].name=AWS_ACCESS_KEY_ID',
             'uiBackend.env[0].value=rootuser',
             'uiBackend.env[1].name=AWS_SECRET_ACCESS_KEY',
             'uiBackend.env[1].value=rootpass123',
-			# TODO: configure lower cache limits
-			'uiBackend.resources.requests.cpu=100m',
+            # TODO: configure lower cache limits
+            'uiBackend.resources.requests.cpu=100m',
             'uiBackend.resources.requests.memory=256Mi',
             'uiStatic.metaflowUIBackendURL=http://localhost:8083/api',
-			'uiStatic.image.name=public.ecr.aws/p7g1e3j4/metaflow-ui',
-			'uiStatic.image.tag=1.3.13-5dd049e',
+            'uiStatic.image.name=public.ecr.aws/p7g1e3j4/metaflow-ui',
+            'uiStatic.image.tag=1.3.13-5dd049e',
             'uiStatic.resources.requests.cpu=25m',
             'uiStatic.resources.requests.memory=64Mi',
             'uiStatic.resources.limits.cpu=50m',
@@ -481,7 +481,7 @@ if "ui" in enabled_components:
     k8s_resource(
         'metaflow-ui',
         port_forwards=['8083:8083'],
-		links=[link('http://localhost:3000', 'Metaflow UI')],
+        links=[link('http://localhost:3000', 'Metaflow UI')],
         labels=['metaflow-ui'],
         resource_deps=components['ui']
     )
