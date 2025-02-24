@@ -40,7 +40,7 @@ aws_config = []
 
 def write_config_files():
     metaflow_json = encode_json(metaflow_config)
-    cmd = '''cat > .devtools/metaflow_config.json <<EOF
+    cmd = '''cat > .devtools/config_local.json <<EOF
 %s
 EOF
 ''' % (metaflow_json)
