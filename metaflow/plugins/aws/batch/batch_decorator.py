@@ -2,6 +2,7 @@ import os
 import platform
 import sys
 import time
+import json
 
 import requests
 
@@ -184,6 +185,10 @@ class BatchDecorator(StepDecorator):
             self.attributes["inferentia"] = self.attributes["trainium"]
 
         if BATCH_DEFAULT_TAGS is not None:
+            try:
+                BATCH_DEFAULT_TAGS = json.loads(BATCH_DEFAULT_TAGS)
+            except json.JSONDecodeError:
+                raise BatchException("Error converting BATCH_DEFAULT_TAGS environment variable to dictionary, must be string in format Dict[str, str]")
             if not isinstance(BATCH_DEFAULT_TAGS, dict) and not all(isinstance(k, str) and isinstance(v, str) for k, v in BATCH_DEFAULT_TAGS.items()):
                 raise BatchException("BATCH_DEFAULT_TAGS environment variable must be Dict[str, str]")
             if self.attributes["aws_batch_tags"] is None:
