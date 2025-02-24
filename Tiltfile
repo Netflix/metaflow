@@ -1,7 +1,5 @@
 # Tilt configuration for running Metaflow on a local Kubernetes stack
 #
-# TODO: Document all components
-#
 # Usage:
 #   Start the development environment:
 #     $ tilt up
@@ -11,20 +9,20 @@
 # TODO:
 # 1. helm repo update can be slow
 # 2. pass selected components to tilt up
-# 
+# 3. move away from temporary images
+# 4. introduce kueue and jobsets
+# 5. lock versions
 
 version_settings(constraint='>=0.22.2')
 allow_k8s_contexts('minikube')
 
 components = {
     "metadata-service": ["postgresql"],
-    "ui": ["metadata-service", "minio"],
+    "ui": ["postgresql", "minio"],
     "minio": [],
     "postgresql": [],
     "argo-workflows": [],
     "argo-events": ["argo-workflows"],
-    "jobset": ["kueue"], # for gang-scheduled workloads
-    "kueue": [],
     
 }
 
@@ -34,10 +32,24 @@ requested_components = list(components.keys())
 
 # TODO: Get this from makefile
 local_config_dir = ".devtools"
-def ensure_local_config_dir():
-    local(shell_cmd="mkdir -p {}".format(local_config_dir))
+
 metaflow_config = {}
+metaflow_config["METAFLOW_KUBERNETES_NAMESPACE"] = "default"
+
 aws_config = []
+
+def write_config_files():
+    metaflow_json = encode_json(metaflow_config)
+    cmd = '''cat > .devtools/metaflow_config.json <<EOF
+%s
+EOF
+''' % (metaflow_json)
+    if aws_config and aws_config.strip():
+        cmd += '''cat > .devtools/aws_config <<EOF
+%s
+EOF
+''' % (aws_config.strip())
+    return cmd
 
 load('ext://helm_resource', 'helm_resource', 'helm_repo')
 load('ext://helm_remote', 'helm_remote')
@@ -85,22 +97,21 @@ if config.tilt_subcommand == 'up':
 if "minio" in enabled_components:
     helm_remote(
         'minio',
-        repo_name='minio',
-        repo_url='https://charts.bitnami.com/bitnami',
+        repo_name='minio-s3',
+        repo_url='https://charts.min.io/',
         set=[
-            'auth.rootUser=rootuser',
-            'auth.rootPassword=rootpass123',
-            'defaultBuckets=metaflow-test',
+            'rootUser=rootuser',
+            'rootPassword=rootpass123',
+			'buckets[0].name=metaflow-test',
+			'buckets[0].policy=none',
+			'buckets[0].purge=false',
+			'mode=standalone',
+			'replicas=1',
             'persistence.enabled=false',
-            'ingress.enabled=false',
-            'consoleIngress.enabled=false',
             'resources.requests.memory=128Mi',
             'resources.requests.cpu=50m',
-            'resources.limits.memory=256Mi',
-            'resources.limits.cpu=100m',
-            'startupProbe.initialDelaySeconds=1',
-            'livenessProbe.initialDelaySeconds=1',
-            'readinessProbe.initialDelaySeconds=1'
+			'resources.limits.memory=256Mi',
+			'resources.limits.cpu=100m',
         ]
     )
 
@@ -115,7 +126,11 @@ if "minio" in enabled_components:
             link('http://localhost:9001/login', 'MinIO Console (rootuser/rootpass123)')
         ],
         labels=['minio'],
-        resource_deps=['minio-secret']
+    )
+
+    k8s_resource(
+        "minio-post-job",
+        labels=['minio'],
     )
 
     k8s_yaml(encode_yaml({
@@ -126,21 +141,18 @@ if "minio" in enabled_components:
         'stringData': {
             'AWS_ACCESS_KEY_ID': 'rootuser',
             'AWS_SECRET_ACCESS_KEY': 'rootpass123',
-            'AWS_ENDPOINT_URL': 'http://minio:9000'
+            'AWS_ENDPOINT_URL_S3': 'http://minio.default.svc.cluster.local:9000',
         }
     }))
 
-    # Metaflow config overrides for MinIO usage
     metaflow_config["METAFLOW_DEFAULT_DATASTORE"] = "s3"
     metaflow_config["METAFLOW_DATASTORE_SYSROOT_S3"] = "s3://metaflow-test/metaflow"
+    metaflow_config["METAFLOW_KUBERNETES_SECRETS"] = "minio-secret"
 
-    aws_config = """[metaflow-local-minio]
+    aws_config = """[default]
 aws_access_key_id = rootuser
 aws_secret_access_key = rootpass123
-region = us-east-1
-s3 =
-    endpoint_url = http://localhost:9000
-
+endpoint_url = http://localhost:9000
 """
 
 #################################################
@@ -154,7 +166,7 @@ if "postgresql" in enabled_components:
         repo_url='https://charts.bitnami.com/bitnami',
         set=[
             'auth.username=metaflow',
-            'auth.password=metaflow',
+            'auth.password=metaflow123',
             'auth.database=metaflow',
             'primary.persistence.enabled=false',
             'primary.resources.requests.memory=128Mi',
@@ -205,22 +217,6 @@ if "argo-workflows" in enabled_components:
         ]
     )
 
-    k8s_resource(
-        workload='argo-workflows-server',
-        port_forwards=['2746:2746'],
-        links=[
-            link('http://localhost:2746', 'Argo Workflows UI')
-        ],
-        labels=['argo-workflows'],
-        resource_deps=components['argo-workflows']
-    )
-
-    k8s_resource(
-        workload='argo-workflows-workflow-controller',
-        labels=['argo-workflows'],
-        resource_deps=components['argo-workflows']
-    )
-
     k8s_yaml(encode_yaml({
         'apiVersion': 'rbac.authorization.k8s.io/v1',
         'kind': 'Role',
@@ -253,6 +249,22 @@ if "argo-workflows" in enabled_components:
             'apiGroup': 'rbac.authorization.k8s.io'
         }
     }))
+
+    k8s_resource(
+        workload='argo-workflows-server',
+        port_forwards=['2746:2746'],
+        links=[
+            link('http://localhost:2746', 'Argo Workflows UI')
+        ],
+        labels=['argo-workflows'],
+        resource_deps=components['argo-workflows']
+    )
+
+    k8s_resource(
+        workload='argo-workflows-workflow-controller',
+        labels=['argo-workflows'],
+        resource_deps=components['argo-workflows']
+    )
 
 #################################################
 # ARGO EVENTS
@@ -344,16 +356,51 @@ if "argo-events" in enabled_components:
         }
     }))
 
+	# Create a custom service and port-forward it because tilt :/
+    k8s_yaml(encode_yaml(
+        {
+        'apiVersion': 'v1',
+        'kind': 'Service',
+        'metadata': {
+            'name': 'argo-events-webhook-eventsource-svc-tilt',
+            'namespace': 'default',
+        },
+        'spec': {
+            'ports': [{
+                'port': 12000,
+                'protocol': 'TCP',
+                'targetPort': 12000
+            }],
+            'selector': {
+                'controller': 'eventsource-controller',
+                'eventsource-name': 'argo-events-webhook',
+                'owner-name': 'argo-events-webhook'
+            },
+                'type': 'ClusterIP'
+            }
+        }
+    ))
+
+    local_resource(
+        name='argo-events-webhook-eventsource-svc',
+        serve_cmd='while ! kubectl get service/argo-events-webhook-eventsource-svc-tilt >/dev/null 2>&1 || ! kubectl get pods -l eventsource-name=argo-events-webhook -o jsonpath="{.items[*].status.phase}" | grep -q "Running"; do sleep 5; done && kubectl port-forward service/argo-events-webhook-eventsource-svc-tilt 12000:12000',
+        links=[
+            link('http://localhost:12000/metaflow-event', 'Argo Events Webhook'),
+    	],
+    labels=['argo-events']
+)
 
     k8s_resource(
         'argo-events-controller-manager',
         labels=['argo-events'],
     )
-
-    # k8s_resource(
-	# 	"argo-events-webhook-eventsource-svc",
-	# 	port_forwards=["12000:12000"],
-	# )
+    
+    metaflow_config["METAFLOW_ARGO_EVENTS_EVENT"] = "metaflow-event"
+    metaflow_config["METAFLOW_ARGO_EVENTS_EVENT_BUS"] = "default"
+    metaflow_config["METAFLOW_ARGO_EVENTS_EVENT_SOURCE"] = "argo-events-webhook"
+    metaflow_config["METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT"] = "operate-workflow-sa"
+    metaflow_config["METAFLOW_ARGO_EVENTS_WEBHOOK_AUTH"] = "service"
+    metaflow_config["METAFLOW_ARGO_EVENTS_WEBHOOK_URL"] = "http://argo-events-webhook-eventsource-svc:12000/metaflow-event"
 
 #################################################
 # METADATA SERVICE
@@ -361,13 +408,15 @@ if "argo-events" in enabled_components:
 if "metadata-service" in enabled_components:
     helm_remote(
         'metaflow-service',
-        repo_name='metaflow',
+        repo_name='metaflow-tools',
         repo_url='https://outerbounds.github.io/metaflow-tools',
         set=[
             'metadatadb.user=metaflow',
-            'metadatadb.password=metaflow',
+            'metadatadb.password=metaflow123',
             'metadatadb.database=metaflow',
             'metadatadb.host=postgresql',
+			'image.repository=public.ecr.aws/p7g1e3j4/metaflow-service',
+			'image.tag=2.4.13-fbcc7d04',
             'resources.requests.cpu=25m',
             'resources.requests.memory=64Mi',
             'resources.limits.cpu=50m',
@@ -379,62 +428,66 @@ if "metadata-service" in enabled_components:
         'metaflow-service',
         port_forwards=['8080:8080'],
         links=[link('http://localhost:8080/ping', 'Ping Metaflow Service')],
-        labels=['metaflow-service'],
+        labels=['metadata-service'],
         resource_deps=components['metadata-service']
     )
 
+    metaflow_config["METAFLOW_DEFAULT_METADATA"] = "service"
+    metaflow_config["METAFLOW_SERVICE_URL"] = "http://localhost:8080"
+    metaflow_config["METAFLOW_SERVICE_INTERNAL_URL"] = "http://metaflow-service.default.svc.cluster.local:8080"
+
 #################################################
-# KUEUE
+# METAFLOW UI
 #################################################
-if "kueue" in enabled_components:
+if "ui" in enabled_components:
     helm_remote(
-        'kueue',
-        repo_name='kueue',
-        repo_url='oci://us-central1-docker.pkg.dev/k8s-staging-images/charts',
-        version='v0.10.1',
+        'metaflow-ui',
+        repo_name='metaflow-tools',
+        repo_url='https://outerbounds.github.io/metaflow-tools',
         set=[
-            'resources.requests.memory=64Mi',
-            'resources.requests.cpu=25m',
-            'resources.limits.memory=128Mi',
-            'resources.limits.cpu=50m',
-            'controllerManager.replicas=1',
-            # 'webhookService.name=kueue-webhook-service',
-            # 'webhookService.namespace=kueue-system',
-            # 'admissionWebhooks.enabled=true'
+            'uiBackend.metadatadb.user=metaflow',
+            'uiBackend.metadatadb.password=metaflow123',
+            'uiBackend.metadatadb.name=metaflow',
+            'uiBackend.metadatadb.host=postgresql',
+            'uiBackend.metaflowDatastoreSysRootS3=s3://metaflow-test',
+            'uiBackend.metaflowS3EndpointURL=http://minio.default.svc.cluster.local:9000',
+			'uiBackend.image.name=public.ecr.aws/p7g1e3j4/metaflow-service',
+			'uiBackend.image.tag=2.4.13-fbcc7d04',
+            'uiBackend.env[0].name=AWS_ACCESS_KEY_ID',
+            'uiBackend.env[0].value=rootuser',
+            'uiBackend.env[1].name=AWS_SECRET_ACCESS_KEY',
+            'uiBackend.env[1].value=rootpass123',
+			# TODO: configure lower cache limits
+			'uiBackend.resources.requests.cpu=100m',
+            'uiBackend.resources.requests.memory=256Mi',
+            'uiStatic.metaflowUIBackendURL=http://localhost:8083/api',
+			'uiStatic.image.name=public.ecr.aws/p7g1e3j4/metaflow-ui',
+			'uiStatic.image.tag=1.3.13-5dd049e',
+            'uiStatic.resources.requests.cpu=25m',
+            'uiStatic.resources.requests.memory=64Mi',
+            'uiStatic.resources.limits.cpu=50m',
+            'uiStatic.resources.limits.memory=128Mi',
         ]
     )
 
     k8s_resource(
-        'kueue-controller-manager',
-        labels=['kueue'],
-		resource_deps=['postgresql']
+        'metaflow-ui-static',
+        port_forwards=['3000:3000'],
+        links=[link('http://localhost:3000', 'Metaflow UI')],
+        labels=['metaflow-ui'],
+        resource_deps=components['ui']
     )
 
+    k8s_resource(
+        'metaflow-ui',
+        port_forwards=['8083:8083'],
+		links=[link('http://localhost:3000', 'Metaflow UI')],
+        labels=['metaflow-ui'],
+        resource_deps=components['ui']
+    )
 
-
-# if "jobsets" in enabled_components:
-#     local_resource(
-#         'fetch-jobset-manifests',
-#         'curl -L https://github.com/kubernetes-sigs/jobset/releases/download/v0.7.2/manifests.yaml -o jobset-manifests.yaml',
-#         deps=[],
-#     )
-
-#     # Apply resource constraints to the JobSet controller
-#     k8s_yaml(blob(read_file('jobset-manifests.yaml')
-#         .replace(
-#             'resources:',
-#             '''resources:
-#             limits:
-#               cpu: 50m
-#               memory: 128Mi
-#             requests:
-#               cpu: 25m
-#               memory: 64Mi'''
-#         )),
-#         resource_deps=['fetch-jobset-manifests'])
-
-#     k8s_resource(
-#         'jobset-controller-manager',
-#         labels=['jobset'],
-#         resource_deps=['kueue-controller-manager']
-#     )
+    local_resource(
+        name="generate-configs",
+        cmd=write_config_files(),
+        deps=["Tiltfile"],
+)
