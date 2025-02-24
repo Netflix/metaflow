@@ -41,6 +41,7 @@ jobs:
         AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         METAFLOW_S3_TEST_ROOT: ${{ secrets.METAFLOW_S3_TEST_ROOT }}
+        METAFLOW_DATASTORE_SYSROOT_S3: ${{ secrets.METAFLOW_S3_TEST_ROOT }}
       run: |
         cd test/data
         PYTHONPATH=$(pwd)/../../ python3 -m pytest --benchmark-skip -x -s -v -n 4
