@@ -211,7 +211,7 @@ def step(
     log_driver=None,
     log_options=None,
     num_parallel=None,
-    **kwargs
+    **kwargs,
 ):
     def echo(msg, stream="stderr", batch_id=None, **kwargs):
         msg = util.to_unicode(msg)
@@ -273,11 +273,11 @@ def step(
         "metaflow_version"
     ]
 
+    env = {"METAFLOW_FLOW_FILENAME": os.path.basename(sys.argv[0])}
+
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
-        env = env_deco[0].attributes["vars"]
-    else:
-        env = {"METAFLOW_FLOW_FILENAME": os.path.basename(sys.argv[0])}
+        env.update(env_deco[0].attributes["vars"])
 
     # Add the environment variables related to the input-paths argument
     if split_vars:
