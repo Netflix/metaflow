@@ -163,6 +163,7 @@ up: install-brew check-docker install-curl install-gum setup-minikube install-he
 	@echo 'eval $$($(MINIKUBE) docker-env)' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'echo "📝 Selecting services..."' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'SERVICES=$$(./pick_services.sh)' >> $(DEVTOOLS_DIR)/start.sh
+	@echo 'echo "Selected services: $$SERVICES"' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'PATH="$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" $(MINIKUBE) tunnel &' >> $(DEVTOOLS_DIR)/start.sh
 	@echo '$(MAKE) create-dev-shell' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'echo "🔥 Starting Tilt with selected services..."' >> $(DEVTOOLS_DIR)/start.sh

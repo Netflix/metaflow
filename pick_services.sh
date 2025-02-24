@@ -2,18 +2,15 @@
 
 set -e
 
-COLOR="11"
+COLOR="214"
 
 # TODO: Improve logo
 LOGO="
-                                                                 
-                           ░░                 ░░                 
   ░▒▓▒  ░▒▓▓ ▒▓▒▒▒▒▒▓█▓▓▓░▒▓▓▓  ▒▓▒▒▒▒▒▒▓░ ░▓▓▓▓▓▒░▓▒  ░▒▓░ ░▓▒░ 
   ░▓██░░▒▓██░▓▓░░░░ ▒█░ ░▒▓░██ ░▓▓░░░░ ▓▓░░▓▓░  ▓▓░▓▓ ░▓██░░▓▓░  
  ░▓▓▒█▒▓█▒█▓░▓▓▓▓▓▒░▓▓ ░▒▓▓▒▓█░░▓▓▓▓▓▒░▓▓░▓█░  ░▓▓░▓▓░▓▓▒█░▒█▒   
  ▒▓▒░▓██░░▓▒▒▓▒░░░░░▓▓ ▒▓▒▒░▒█▒▒▓░    ▒▓▒░▓█▒░░▒▓▒ ▓▓▓█░░▓▒█▓░   
  ▒▒░ ░▒░ ░▒░▒▒▒▒▒▒░░▒░░▒▒   ░▒▒▒▒░    ▒▒▒▒▒▒▒▒▒▒░  ▒▒▓░ ░▒▒▓░    
-                                                                 
 "
 
 SERVICE_OPTIONS=(
@@ -26,17 +23,13 @@ SERVICE_OPTIONS=(
 
 gum style "$LOGO" \
   --foreground "$COLOR" \
-  --padding "0 2" \
+  --padding "0 1" \
   --margin "0 1" \
   --align center >&2
 
-gum style "Select services to deploy:" --foreground $COLOR >&2
-# gum style "Pick the services you want to run. If you don't pick any, all will be automatically selected.\n
-# Metaflow’s main components:
-# • 🗃️ datastore (e.g. Minio) to store artifacts
-# ...
-# " \
-#   --foreground "$COLOR" --bold >&2
+gum style "Select services to deploy:" \
+  --foreground "$COLOR" \
+  --bold >&2
 
 pretty_print() {
   local items=("$@")
@@ -52,7 +45,7 @@ pretty_print() {
   fi
 
   local last_item="${items[-1]}"
-  unset 'items[-1]'  # remove last item from array
+  unset 'items[-1]'
   echo "$(IFS=,; echo "${items[*]}"), and $last_item"
 }
 
@@ -88,12 +81,17 @@ pretty_print() {
   echo "$joined, and $last_item"
 }
 
-SELECTED_SERVICES="$(
+SELECTED="$(
   gum choose "${SERVICE_OPTIONS[@]}" \
     --no-limit \
     --cursor.foreground="$COLOR" \
     --selected.foreground="$COLOR"
 )"
+
+SELECTED_SERVICES=()
+while IFS= read -r line; do
+  [ -n "$line" ] && SELECTED_SERVICES+=("$line")
+done <<< "$SELECTED"
 
 # If nothing was chosen, default to all
 if [ -z "$SELECTED_SERVICES" ]; then
