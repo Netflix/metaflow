@@ -248,8 +248,7 @@ DEFAULT_CONTAINER_IMAGE = from_conf("DEFAULT_CONTAINER_IMAGE")
 # Default container registry
 DEFAULT_CONTAINER_REGISTRY = from_conf("DEFAULT_CONTAINER_REGISTRY")
 # Controls whether to include foreach stack information in metadata.
-# TODO(Darin, 05/01/24): Remove this flag once we are confident with this feature.
-INCLUDE_FOREACH_STACK = from_conf("INCLUDE_FOREACH_STACK", False)
+INCLUDE_FOREACH_STACK = from_conf("INCLUDE_FOREACH_STACK", True)
 # Maximum length of the foreach value string to be stored in each ForeachFrame.
 MAXIMUM_FOREACH_VALUE_CHARS = from_conf("MAXIMUM_FOREACH_VALUE_CHARS", 30)
 # The default runtime limit (In seconds) of jobs launched by any compute provider. Default of 5 days.
@@ -285,7 +284,7 @@ CONTACT_INFO = from_conf(
 ###
 # Format is a space separated string of decospecs (what is passed
 # using --with)
-DECOSPECS = from_conf("DECOSPECS", "")
+DEFAULT_DECOSPECS = from_conf("DEFAULT_DECOSPECS", "")
 
 ###
 # AWS Batch configuration
@@ -587,9 +586,9 @@ try:
                 _TOGGLE_DECOSPECS.extend(o)
             elif not n.startswith("__") and not isinstance(o, types.ModuleType):
                 globals()[n] = o
-    # If DECOSPECS is set, use that, else extrapolate from extensions
-    if not DECOSPECS:
-        DECOSPECS = " ".join(_TOGGLE_DECOSPECS)
+    # If DEFAULT_DECOSPECS is set, use that, else extrapolate from extensions
+    if not DEFAULT_DECOSPECS:
+        DEFAULT_DECOSPECS = " ".join(_TOGGLE_DECOSPECS)
 
 finally:
     # Erase all temporary names to avoid leaking things

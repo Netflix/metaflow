@@ -168,13 +168,28 @@ def argo_workflows(obj, name=None):
 )
 @click.option(
     "--notify-slack-webhook-url",
-    default="",
+    default=None,
     help="Slack incoming webhook url for workflow success/failure notifications.",
 )
 @click.option(
     "--notify-pager-duty-integration-key",
-    default="",
+    default=None,
     help="PagerDuty Events API V2 Integration key for workflow success/failure notifications.",
+)
+@click.option(
+    "--notify-incident-io-api-key",
+    default=None,
+    help="Incident.io API V2 key for workflow success/failure notifications.",
+)
+@click.option(
+    "--incident-io-success-severity-id",
+    default=None,
+    help="Incident.io severity id for success alerts.",
+)
+@click.option(
+    "--incident-io-error-severity-id",
+    default=None,
+    help="Incident.io severity id for error alerts.",
 )
 @click.option(
     "--enable-heartbeat-daemon/--no-enable-heartbeat-daemon",
@@ -213,6 +228,9 @@ def create(
     notify_on_success=False,
     notify_slack_webhook_url=None,
     notify_pager_duty_integration_key=None,
+    notify_incident_io_api_key=None,
+    incident_io_success_severity_id=None,
+    incident_io_error_severity_id=None,
     enable_heartbeat_daemon=True,
     deployer_attribute_file=None,
     enable_error_msg_capture=False,
@@ -268,6 +286,9 @@ def create(
         notify_on_success,
         notify_slack_webhook_url,
         notify_pager_duty_integration_key,
+        notify_incident_io_api_key,
+        incident_io_success_severity_id,
+        incident_io_error_severity_id,
         enable_heartbeat_daemon,
         enable_error_msg_capture,
     )
@@ -442,6 +463,9 @@ def make_flow(
     notify_on_success,
     notify_slack_webhook_url,
     notify_pager_duty_integration_key,
+    notify_incident_io_api_key,
+    incident_io_success_severity_id,
+    incident_io_error_severity_id,
     enable_heartbeat_daemon,
     enable_error_msg_capture,
 ):
@@ -453,17 +477,30 @@ def make_flow(
         )
 
     if (notify_on_error or notify_on_success) and not (
-        notify_slack_webhook_url or notify_pager_duty_integration_key
+        notify_slack_webhook_url
+        or notify_pager_duty_integration_key
+        or notify_incident_io_api_key
     ):
         raise MetaflowException(
-            "Notifications require specifying an incoming Slack webhook url via --notify-slack-webhook-url or "
-            "PagerDuty events v2 integration key via --notify-pager-duty-integration-key.\n If you would like to set up "
-            "notifications for your Slack workspace, follow the instructions at "
-            "https://api.slack.com/messaging/webhooks to generate a webhook url.\n For notifications through PagerDuty, "
-            "generate an integration key by following the instructions at "
-            "https://support.pagerduty.com/docs/services-and-integrations#create-a-generic-events-api-integration"
+            "Notifications require specifying an incoming Slack webhook url via --notify-slack-webhook-url, PagerDuty events v2 integration key via --notify-pager-duty-integration-key or\n"
+            "Incident.io integration API key via --notify-incident-io-api-key.\n"
+            " If you would like to set up notifications for your Slack workspace, follow the instructions at "
+            "https://api.slack.com/messaging/webhooks to generate a webhook url.\n"
+            " For notifications through PagerDuty, generate an integration key by following the instructions at "
+            "https://support.pagerduty.com/docs/services-and-integrations#create-a-generic-events-api-integration\n"
+            " For notifications through Incident.io, generate an API key with a permission to create incidents."
         )
 
+    if notify_incident_io_api_key:
+        if notify_on_error and incident_io_error_severity_id is None:
+            raise MetaflowException(
+                "Incident.io error notifications require a severity id. Please set one with --incident-io-error-severity-id"
+            )
+
+        if notify_on_success and incident_io_success_severity_id is None:
+            raise MetaflowException(
+                "Incident.io success notifications require a severity id. Please set one with --incident-io-success-severity-id"
+            )
     # Attach @kubernetes and @environment decorator to the flow to
     # ensure that the related decorator hooks are invoked.
     decorators._attach_decorators(
@@ -507,6 +544,9 @@ def make_flow(
         notify_on_success=notify_on_success,
         notify_slack_webhook_url=notify_slack_webhook_url,
         notify_pager_duty_integration_key=notify_pager_duty_integration_key,
+        notify_incident_io_api_key=notify_incident_io_api_key,
+        incident_io_success_severity_id=incident_io_success_severity_id,
+        incident_io_error_severity_id=incident_io_error_severity_id,
         enable_heartbeat_daemon=enable_heartbeat_daemon,
         enable_error_msg_capture=enable_error_msg_capture,
     )

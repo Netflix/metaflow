@@ -16,7 +16,6 @@ from .exception import CommandException, MetaflowException
 from .flowspec import _FlowState
 from .graph import FlowGraph
 from .metaflow_config import (
-    DECOSPECS,
     DEFAULT_DATASTORE,
     DEFAULT_ENVIRONMENT,
     DEFAULT_EVENT_LOGGER,
@@ -106,26 +105,6 @@ def logger(body="", system_msg=False, head="", bad=False, timestamp=True, nl=Tru
     click.secho(body, bold=system_msg, fg=LOGGER_BAD_COLOR if bad else None, nl=nl)
 
 
-def config_merge_cb(ctx, param, value):
-    # Callback to:
-    #  - read  the Click auto_envvar variable from both the
-    #    environment AND the configuration
-    #  - merge that value with the value passed in the command line (value)
-    #  - return the value as a tuple
-    # Note that this function gets called even if there is no option passed on the
-    # command line.
-    # NOTE: Assumes that ctx.auto_envvar_prefix is set to METAFLOW (same as in
-    # from_conf)
-
-    # Special case where DECOSPECS and value are the same. This happens
-    # when there is no --with option at the TL and DECOSPECS is read from
-    # the env var. In this case, click also passes it as value
-    splits = DECOSPECS.split()
-    if len(splits) == len(value) and all([a == b for (a, b) in zip(splits, value)]):
-        return value
-    return tuple(list(value) + DECOSPECS.split())
-
-
 @click.group(
     cls=LazyGroup,
     lazy_subcommands={
@@ -206,15 +185,15 @@ def output_raw(obj, json):
     else:
         _graph = str(obj.graph)
         _msg = "Internal representation of the flow:"
-    echo(_msg, fg="magenta", bold=False)
+    echo_always(_msg, fg="magenta", bold=False)
     echo_always(_graph, err=False)
 
 
 @cli.command(help="Visualize the flow with Graphviz.")
 @click.pass_obj
 def output_dot(obj):
-    echo("Visualizing the flow as a GraphViz graph", fg="magenta", bold=False)
-    echo(
+    echo_always("Visualizing the flow as a GraphViz graph", fg="magenta", bold=False)
+    echo_always(
         "Try piping the output to 'dot -Tpng -o graph.png' to produce "
         "an actual image.",
         indent=True,
@@ -238,7 +217,6 @@ def version(obj):
     lazy_sources=plugins.get_plugin_cli_path(),
     invoke_without_command=True,
 )
-@tracing.cli_entrypoint("cli/start")
 # Quiet is eager to make sure it is available when processing --config options since
 # we need it to construct a context to pass to any DeployTimeField for the default
 # value.
@@ -285,7 +263,6 @@ def version(obj):
     multiple=True,
     help="Add a decorator to all steps. You can specify this option "
     "multiple times to attach multiple decorators in steps.",
-    callback=config_merge_cb,
 )
 @click.option(
     "--pylint/--no-pylint",
@@ -330,7 +307,7 @@ def start(
     event_logger=None,
     monitor=None,
     local_config_file=None,
-    config_file=None,
+    config=None,
     config_value=None,
     **deco_options
 ):
@@ -383,7 +360,7 @@ def start(
     # When we process the options, the first one processed will return None and the
     # second one processed will return the actual options. The order of processing
     # depends on what (and in what order) the user specifies on the command line.
-    config_options = config_file or config_value
+    config_options = config or config_value
 
     if (
         hasattr(ctx, "saved_args")
@@ -396,7 +373,7 @@ def start(
         # if we need to in the first place
         if getattr(ctx.obj, "has_cl_config_options", False):
             raise click.UsageError(
-                "Cannot specify --config-file or --config-value with 'resume'"
+                "Cannot specify --config or --config-value with 'resume'"
             )
         # We now load the config artifacts from the original run id
         run_id = None

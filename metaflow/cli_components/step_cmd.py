@@ -7,9 +7,11 @@ from ..exception import CommandException
 from ..task import MetaflowTask
 from ..unbounded_foreach import UBF_CONTROL, UBF_TASK
 from ..util import decompress_list
+import metaflow.tracing as tracing
 
 
 @click.command(help="Internal command to execute a single task.", hidden=True)
+@tracing.cli("cli/step")
 @click.argument("step-name")
 @click.option(
     "--run-id",

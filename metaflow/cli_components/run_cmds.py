@@ -8,6 +8,7 @@ from .. import decorators, namespace, parameters, tracing
 from ..exception import CommandException
 from ..graph import FlowGraph
 from ..metaflow_current import current
+from ..metaflow_config import DEFAULT_DECOSPECS
 from ..package import MetaflowPackage
 from ..runtime import NativeRuntime
 from ..system import _system_logger
@@ -70,6 +71,23 @@ def write_file(file_path, content):
             f.write(str(content))
 
 
+def config_merge_cb(ctx, param, value):
+    # Callback to:
+    #  - read  the Click auto_envvar variable from both the
+    #    environment AND the configuration
+    #  - merge that value with the value passed in the command line (value)
+    #  - return the value as a tuple
+    # Note that this function gets called even if there is no option passed on the
+    # command line.
+    # NOTE: Assumes that ctx.auto_envvar_prefix is set to METAFLOW (same as in
+    # from_conf)
+
+    # Read decospecs options from the environment (METAFLOW_DEFAULT_DECOSPECS=...)
+    # and merge them with the one provided as --with.
+    splits = DEFAULT_DECOSPECS.split()
+    return tuple(list(value) + splits)
+
+
 def common_run_options(func):
     @click.option(
         "--tag",
@@ -109,6 +127,7 @@ def common_run_options(func):
         help="Add a decorator to all steps. You can specify this "
         "option multiple times to attach multiple decorators "
         "in steps.",
+        callback=config_merge_cb,
     )
     @click.option(
         "--run-id-file",
@@ -166,6 +185,7 @@ def common_run_options(func):
 )
 @click.argument("step-to-rerun", required=False)
 @click.command(help="Resume execution of a previous run of this flow.")
+@tracing.cli("cli/resume")
 @common_run_options
 @click.pass_obj
 def resume(
@@ -283,7 +303,7 @@ def resume(
 
 @parameters.add_custom_parameters(deploy_mode=True)
 @click.command(help="Run the workflow locally.")
-@tracing.cli_entrypoint("cli/run")
+@tracing.cli("cli/run")
 @common_run_options
 @click.option(
     "--namespace",
@@ -345,18 +365,18 @@ def run(
             "msg": "Starting run",
         },
     )
-    with runtime.run_heartbeat():
-        runtime.print_workflow_info()
-        runtime.persist_constants()
 
-        if runner_attribute_file:
-            with open(runner_attribute_file, "w", encoding="utf-8") as f:
-                json.dump(
-                    {
-                        "run_id": runtime.run_id,
-                        "flow_name": obj.flow.name,
-                        "metadata": obj.metadata.metadata_str(),
-                    },
-                    f,
-                )
+    runtime.print_workflow_info()
+    runtime.persist_constants()
+    if runner_attribute_file:
+        with open(runner_attribute_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "run_id": runtime.run_id,
+                    "flow_name": obj.flow.name,
+                    "metadata": obj.metadata.metadata_str(),
+                },
+                f,
+            )
+    with runtime.run_heartbeat():
         runtime.execute()
