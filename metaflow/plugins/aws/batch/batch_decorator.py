@@ -184,16 +184,14 @@ class BatchDecorator(StepDecorator):
 
         if self.attributes["trainium"] is not None:
             self.attributes["inferentia"] = self.attributes["trainium"]
+            
+        if not isinstance(metaflow_config.BATCH_DEFAULT_TAGS, dict):
+            raise BatchException("BATCH_DEFAULT_TAGS environment variable must be Dict[str, str]")
+        if not all(isinstance(k, str) and isinstance(v, str) for k, v in metaflow_config.BATCH_DEFAULT_TAGS.items()):
+            raise BatchException("BATCH_DEFAULT_TAGS environment variable must be Dict[str, str]")
 
-        if metaflow_config.BATCH_DEFAULT_TAGS is not None:
-            try:
-                metaflow_config.BATCH_DEFAULT_TAGS = json.loads(metaflow_config.BATCH_DEFAULT_TAGS)
-            except json.JSONDecodeError:
-                raise BatchException("Error converting BATCH_DEFAULT_TAGS environment variable to dictionary, must be string in format Dict[str, str]")
-            if not isinstance(metaflow_config.BATCH_DEFAULT_TAGS, dict) and not all(isinstance(k, str) and isinstance(v, str) for k, v in metaflow_config.BATCH_DEFAULT_TAGS.items()):
-                raise BatchException("BATCH_DEFAULT_TAGS environment variable must be Dict[str, str]")
-            if self.attributes["aws_batch_tags"] is None:
-                self.attributes["aws_batch_tags"] = metaflow_config.BATCH_DEFAULT_TAGS
+        if self.attributes["aws_batch_tags"] is None:
+            self.attributes["aws_batch_tags"] = metaflow_config.BATCH_DEFAULT_TAGS
 
         if self.attributes["aws_batch_tags"] is not None:
             if not isinstance(self.attributes["aws_batch_tags"], dict) and not all(isinstance(k, str) and isinstance(v, str) for k, v in self.attributes["aws_batch_tags"].items()):
@@ -203,9 +201,14 @@ class BatchDecorator(StepDecorator):
                 batch_default_tags_copy = metaflow_config.BATCH_DEFAULT_TAGS.copy()
                 self.attributes["aws_batch_tags"] = batch_default_tags_copy.update(self.attributes["aws_batch_tags"]) 
 
+            self.attributes["aws_batch_tags"] = {
+                **metaflow_config.BATCH_DEFAULT_TAGS,
+                **self.attributes["aws_batch_tags"],
+            }
+
             decorator_aws_batch_tags_list = [
-                {'key': key,
-                    'value': val} for key, val in self.attributes["aws_batch_tags"].items()
+                {"key": key, "value": val}
+                for key, val in self.attributes["aws_batch_tags"].items()
             ]
             for tag in decorator_aws_batch_tags_list:
                 validate_aws_tag(tag)
