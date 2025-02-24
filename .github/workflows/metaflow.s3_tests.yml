@@ -34,7 +34,7 @@ jobs:
     - name: Install Python ${{ matrix.ver }} dependencies
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install tox numpy pytest click boto3 requests pylint pytest-benchmark
+        python3 -m pip install tox numpy pytest click boto3 requests pylint pytest-benchmark pytest-xdist
     - name: Execute tests
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -43,4 +43,4 @@ jobs:
         METAFLOW_S3_TEST_ROOT: ${{ secrets.METAFLOW_S3_TEST_ROOT }}
       run: |
         cd test/data
-        PYTHONPATH=$(pwd)/../../ python3 -m pytest --benchmark-skip -x -s -v
+        PYTHONPATH=$(pwd)/../../ python3 -m pytest --benchmark-skip -x -s -v -n 4
