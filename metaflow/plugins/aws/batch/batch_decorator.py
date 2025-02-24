@@ -184,7 +184,9 @@ class BatchDecorator(StepDecorator):
 
         if self.attributes["trainium"] is not None:
             self.attributes["inferentia"] = self.attributes["trainium"]
-            
+           
+        
+        print(f"Recieved BATCH_DEFAULT_TAGS as: {metaflow_config.BATCH_DEFAULT_TAGS}")
         if not isinstance(metaflow_config.BATCH_DEFAULT_TAGS, dict):
             raise BatchException("BATCH_DEFAULT_TAGS environment variable must be Dict[str, str]")
         if not all(isinstance(k, str) and isinstance(v, str) for k, v in metaflow_config.BATCH_DEFAULT_TAGS.items()):
