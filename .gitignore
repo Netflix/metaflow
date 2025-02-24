@@ -31,3 +31,6 @@ main.js.map
 
 .devtools/
 stubs/version.py
+
+# devtools
+.devtools

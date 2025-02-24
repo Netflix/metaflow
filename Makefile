@@ -32,8 +32,10 @@ endif
 
 ifeq ($(shell uname -m), x86_64)
 	arch = amd64
+	tilt_arch = x86_64
 else
 	arch = arm64
+	tilt_arch = arm64
 endif
 
 # TODO: Move scripts to a folder
@@ -132,8 +134,7 @@ setup-tilt:
 	@if [ ! -f "$(TILT)" ]; then \
 		echo "📥 Installing Tilt $(TILT_VERSION)"; \
 		mkdir -p $(TILT_DIR); \
-		curl -L --fail https://github.com/tilt-dev/tilt/releases/download/$(TILT_VERSION)/tilt.$(TILT_VERSION:v%=%).$(tilt_os).$(arch).tar.gz | tar -xz -C $(TILT_DIR) || (echo "❌ Failed to install Tilt" && exit 1); \
-		echo "✅ Tilt $(TILT_VERSION) installed successfully"; \
+		(curl -L https://github.com/tilt-dev/tilt/releases/download/$(TILT_VERSION)/tilt.$(TILT_VERSION:v%=%).$(tilt_os).$(tilt_arch).tar.gz | tar -xz -C $(TILT_DIR)) && echo "✅ Tilt $(TILT_VERSION) installed successfully" || (echo "❌ Failed to install Tilt" && exit 1); \
 	fi
 
 tunnel:
