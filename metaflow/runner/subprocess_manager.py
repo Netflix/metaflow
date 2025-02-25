@@ -78,13 +78,19 @@ class SubprocessManager(object):
         self.commands: Dict[int, CommandManager] = {}
 
         try:
-            loop = asyncio.get_running_loop()
-            loop.add_signal_handler(
-                signal.SIGINT,
-                lambda: asyncio.create_task(self._async_handle_sigint()),
+            try:
+                loop = asyncio.get_running_loop()
+                loop.add_signal_handler(
+                    signal.SIGINT,
+                    lambda: asyncio.create_task(self._async_handle_sigint()),
+                )
+            except RuntimeError:
+                signal.signal(signal.SIGINT, self._handle_sigint)
+        except ValueError:
+            sys.stderr.write(
+                "Warning: Unable to set signal handlers in non-main thread. "
+                "Interrupt handling will be limited.\n"
             )
-        except RuntimeError:
-            signal.signal(signal.SIGINT, self._handle_sigint)
 
     async def _async_handle_sigint(self):
         pids = [
