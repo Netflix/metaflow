@@ -89,7 +89,7 @@ class SubprocessManager(object):
         except ValueError:
             sys.stderr.write(
                 "Warning: Unable to set signal handlers in non-main thread. "
-                "Ctrl+C handling will be limited.\n"
+                "Interrupt handling will be limited.\n"
             )
 
     async def _async_handle_sigint(self):
