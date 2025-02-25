@@ -570,8 +570,8 @@ if "ui" in enabled_components:
             'uiBackend.resources.requests.cpu=100m',
             'uiBackend.resources.requests.memory=256Mi',
             'uiStatic.metaflowUIBackendURL=http://localhost:8083/api',
-            'uiStatic.image.name=public.ecr.aws/p7g1e3j4/metaflow-ui',
-            'uiStatic.image.tag=1.3.13-5dd049e',
+            'uiStatic.image.name=public.ecr.aws/outerbounds/metaflow_ui',
+            'uiStatic.image.tag=v1.3.13-5-g5dd049e',
             'uiStatic.resources.requests.cpu=25m',
             'uiStatic.resources.requests.memory=64Mi',
             'uiStatic.resources.limits.cpu=50m',
@@ -594,6 +594,8 @@ if "ui" in enabled_components:
         labels=['metaflow-ui'],
         resource_deps=components['ui']
     )
+
+    metaflow_config["METAFLOW_UI_URL"] = "http://localhost:3000"
 
     config_resources.append('metaflow-ui')
     config_resources.append('metaflow-ui-static')
