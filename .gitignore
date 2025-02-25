@@ -29,7 +29,6 @@ main.js.map
 # Pycharm
 .idea
 
-.devtools/
 stubs/version.py
 
 # devtools
