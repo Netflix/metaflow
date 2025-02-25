@@ -24,10 +24,11 @@ components = {
     
 }
 
-requested_components = os.getenv("SERVICES", "").split(",")
+if os.getenv("SERVICES", "").strip():
+    requested_components = os.getenv("SERVICES", "").split(",")
+else:
+    requested_components = list(components.keys())
 
-# TODO: Get this from makefile
-local_config_dir = ".devtools"
 
 metaflow_config = {}
 metaflow_config["METAFLOW_KUBERNETES_NAMESPACE"] = "default"

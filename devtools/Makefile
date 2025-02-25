@@ -3,22 +3,28 @@ SHELL := /bin/bash
 
 help:
 	@echo "Available targets:"
-	@echo "  make up          - Start the development environment"
-	@echo "  make shell       - Switch to development environment's shell"
-	@echo "  make metaflow-ui - Open Metaflow UI"
-	@echo "  make dashboard   - Open Minikube dashboard"
-	@echo "  make down        - Stop and clean up the environment"
-	@echo "  make help        - Show this help message"
+	@echo "  up            - Start the development environment"
+	@echo "  shell         - Switch to development environment's shell"
+	@echo "  ui            - Open Metaflow UI"
+	@echo "  dashboard     - Open Minikube dashboard"
+	@echo "  down          - Stop and clean up the environment"
+	@echo "  help          - Show this help message"
 
 HELM_VERSION := v3.14.0
 MINIKUBE_VERSION := v1.32.0
 TILT_VERSION := v0.33.11
 GUM_VERSION := v0.15.2
-DEVTOOLS_DIR := $(CURDIR)/.devtools
+
+MKFILE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
+MKFILE_DIR := $(dir $(MKFILE_PATH))
+DEVTOOLS_DIR := $(MKFILE_DIR).devtools
+PICK_SERVICES := $(MKFILE_DIR)pick_services.sh
 MINIKUBE_DIR := $(DEVTOOLS_DIR)/minikube
 MINIKUBE := $(MINIKUBE_DIR)/minikube
 TILT_DIR := $(DEVTOOLS_DIR)/tilt
 TILT := $(TILT_DIR)/tilt
+TILTFILE := $(MKFILE_DIR)/Tiltfile
+MAKE_CMD := $(MAKE) -C "$(MKFILE_DIR)"
 
 MINIKUBE_CPUS ?= 4
 MINIKUBE_MEMORY ?= 6000
@@ -155,7 +161,7 @@ dashboard:
 	@echo "🔗 Opening Minikube Dashboard..."
 	@$(MINIKUBE) dashboard
 
-# TODO: Move from @echo to @cat
+# make shell is symlinked to metaflow-dev shell by metaflow
 up: install-brew check-docker install-curl install-gum setup-minikube install-helm setup-tilt
 	@echo "🚀 Starting up (may require sudo access)..."
 	@mkdir -p $(DEVTOOLS_DIR)
@@ -165,13 +171,11 @@ up: install-brew check-docker install-curl install-gum setup-minikube install-he
 	@echo 'trap "kill 0" EXIT' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'eval $$($(MINIKUBE) docker-env)' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'echo "📝 Selecting services..."' >> $(DEVTOOLS_DIR)/start.sh
-	@echo 'SERVICES=$$(./pick_services.sh)' >> $(DEVTOOLS_DIR)/start.sh
-	@echo 'echo "Selected services: $$SERVICES"' >> $(DEVTOOLS_DIR)/start.sh
+	@echo 'SERVICES=$$($(PICK_SERVICES))' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'PATH="$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" $(MINIKUBE) tunnel &' >> $(DEVTOOLS_DIR)/start.sh
-	@echo '$(MAKE) create-dev-shell' >> $(DEVTOOLS_DIR)/start.sh
-	@echo 'echo "🔥 Starting Tilt with selected services..."' >> $(DEVTOOLS_DIR)/start.sh
-	@echo 'PATH="$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" SERVICES="$$SERVICES" tilt up' >> $(DEVTOOLS_DIR)/start.sh
-	@echo 'rm -f /tmp/metaflow-devshell-*' >> $(DEVTOOLS_DIR)/start.sh
+	@echo 'echo -e "\033[1;38;5;46m\n🔥 \033[1;38;5;196mNext Steps:\033[0;38;5;46m Use \033[3mmetaflow-dev shell\033[23m to switch to the development\n   environment'\''s shell and start executing your Metaflow flows.\033[0m"' >> "$(DEVTOOLS_DIR)/start.sh"
+	@echo 'echo -e "\n🚀 Starting Tilt with selected services..."' >> $(DEVTOOLS_DIR)/start.sh
+	@echo 'PATH="$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" SERVICES="$$SERVICES" tilt up -f $(TILTFILE)' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'wait' >> $(DEVTOOLS_DIR)/start.sh
 	@chmod +x $(DEVTOOLS_DIR)/start.sh
 	@$(DEVTOOLS_DIR)/start.sh
@@ -180,15 +184,16 @@ down:
 	@echo "🛑 Stopping all services..."
 	@-pkill -f "$(MINIKUBE) tunnel" 2>/dev/null || true
 	@echo "⏹️  Stopping Tilt..."
-	-PATH="$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" tilt down
+	-PATH="$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" tilt down -f $(TILTFILE)
 	@echo "🧹 Cleaning up Minikube..."
-	$(MAKE) teardown-minikube
+	$(MAKE_CMD) teardown-minikube
 	@echo "🗑️  Removing Tilt binary and directory..."
 	-rm -rf $(TILT_DIR)
 	@echo "🧹 Removing temporary scripts..."
 	-rm -f $(DEVTOOLS_DIR)/start.sh
 	@echo "✨ All done!"
 
+# TODO: sleep for uiresource/generate-configs
 shell: setup-tilt
 	@echo "⏳ Checking if development environment is up..."
 	@if ! $(TILT) get session > /dev/null 2>&1; then \
@@ -206,17 +211,22 @@ shell: setup-tilt
 			user_shell="$(SHELL)"; \
 		fi; \
 		echo "🔎 Using $$user_shell for interactive session."; \
-		if [ -f "$(PWD)/.devtools/aws_config" ]; then \
-			env METAFLOW_HOME="$(PWD)/.devtools" \
+		echo "🐍 If you installed Metaflow in a virtual environment, activate it now."; \
+		if [ -f "$(DEVTOOLS_DIR)/aws_config" ]; then \
+			env METAFLOW_HOME="$(DEVTOOLS_DIR)" \
 				METAFLOW_PROFILE=local \
-				AWS_CONFIG_FILE="$(PWD)/.devtools/aws_config" \
+				AWS_CONFIG_FILE="$(DEVTOOLS_DIR)/aws_config" \
 				"$$user_shell" -i; \
 		else \
-			env METAFLOW_HOME="$(PWD)/.devtools" \
+			env METAFLOW_HOME="$(DEVTOOLS_DIR)" \
 				METAFLOW_PROFILE=local \
 				"$$user_shell" -i; \
 		fi'
 
+# TODO: This can be done away with in a while since we now have metaflow-dev command.
+#
+# @echo '$(MAKE_CMD) create-dev-shell' >> $(DEVTOOLS_DIR)/start.sh
+# @echo 'rm -f /tmp/metaflow-devshell-*' >> $(DEVTOOLS_DIR)/start.sh
 create-dev-shell: setup-tilt
 	@bash -c '\
 		SHELL_PATH=/tmp/metaflow-dev-shell-$$$$ && \
@@ -240,13 +250,14 @@ create-dev-shell: setup-tilt
 		echo "    user_shell=\"$(SHELL)\"" >> $$SHELL_PATH && \
 		echo "fi" >> $$SHELL_PATH && \
 		echo "echo \"🔎 Using \$$user_shell for interactive session.\"" >> $$SHELL_PATH && \
-		echo "if [ -f \"$$(pwd)/.devtools/aws_config\" ]; then" >> $$SHELL_PATH && \
-		echo "    env METAFLOW_HOME=\"$$(pwd)/.devtools\" \\" >> $$SHELL_PATH && \
+		echo "echo \"🐍 If you installed Metaflow in a virtual environment, activate it now.\"" >> $$SHELL_PATH && \
+		echo "if [ -f \"$(DEVTOOLS_DIR)/aws_config\" ]; then" >> $$SHELL_PATH && \
+		echo "    env METAFLOW_HOME=\"$(DEVTOOLS_DIR)\" \\" >> $$SHELL_PATH && \
 		echo "        METAFLOW_PROFILE=local \\" >> $$SHELL_PATH && \
-		echo "        AWS_CONFIG_FILE=\"$$(pwd)/.devtools/aws_config\" \\" >> $$SHELL_PATH && \
+		echo "        AWS_CONFIG_FILE=\"$(DEVTOOLS_DIR)/aws_config\" \\" >> $$SHELL_PATH && \
 		echo "        \"\$$user_shell\" -i" >> $$SHELL_PATH && \
 		echo "else" >> $$SHELL_PATH && \
-		echo "    env METAFLOW_HOME=\"$$(pwd)/.devtools\" \\" >> $$SHELL_PATH && \
+		echo "    env METAFLOW_HOME=\"$(DEVTOOLS_DIR)\" \\" >> $$SHELL_PATH && \
 		echo "        METAFLOW_PROFILE=local \\" >> $$SHELL_PATH && \
 		echo "        \"\$$user_shell\" -i" >> $$SHELL_PATH && \
 		echo "fi" >> $$SHELL_PATH && \
