@@ -196,7 +196,7 @@ down:
 	@echo "🗑️  Removing Tilt binary and directory..."
 	-rm -rf $(TILT_DIR)
 	@echo "🧹 Removing temporary scripts..."
-	-rm -f $(DEVTOOLS_DIR)/start.sh
+	-rm -rf $(DEVTOOLS_DIR)
 	@echo "✨ All done!"
 
 shell: setup-tilt
