@@ -96,8 +96,6 @@ done <<< "$SELECTED"
 if [ -z "$SELECTED_SERVICES" ]; then
   gum style "🙅 No services selected. Deploying all..." --foreground "$COLOR" >&2
   SELECTED_SERVICES=("${SERVICE_OPTIONS[@]}")
-else
-  read -r -a SELECTED_SERVICES <<< "$SELECTED_SERVICES"
 fi
 
 PRINTABLE="$(pretty_print "${SELECTED_SERVICES[@]}")"
