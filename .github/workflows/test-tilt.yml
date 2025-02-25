@@ -1,0 +1,25 @@
+name: Test Tilt
+on:
+  push:
+    branches:
+    - master
+  pull_request:
+    branches:
+    - master
+
+jobs:
+  tilt-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v3
+
+      - name: Bring up environment
+        run: |
+          SERVICES_OVERRIDE=minio,postgresql,metadata-service,argo-workflows,argo-events make -C devtools up
+        timeout-minutes: 15
+
+      - name: Tear down environment
+        run: |
+          make -C devtools down
+        timeout-minutes: 5

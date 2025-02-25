@@ -21,14 +21,12 @@ components = {
     "postgresql": [],
     "argo-workflows": [],
     "argo-events": ["argo-workflows"],
-    
 }
 
 if os.getenv("SERVICES", "").strip():
     requested_components = os.getenv("SERVICES", "").split(",")
 else:
     requested_components = list(components.keys())
-
 
 metaflow_config = {}
 metaflow_config["METAFLOW_KUBERNETES_NAMESPACE"] = "default"
