@@ -4,7 +4,6 @@ set -e
 
 COLOR="214"
 
-# TODO: Improve logo
 LOGO="
   ░▒▓▒  ░▒▓▓ ▒▓▒▒▒▒▒▓█▓▓▓░▒▓▓▓  ▒▓▒▒▒▒▒▒▓░ ░▓▓▓▓▓▒░▓▒  ░▒▓░ ░▓▒░ 
   ░▓██░░▒▓██░▓▓░░░░ ▒█░ ░▒▓░██ ░▓▓░░░░ ▓▓░░▓▓░  ▓▓░▓▓ ░▓██░░▓▓░  
@@ -27,7 +26,7 @@ gum style "$LOGO" \
   --margin "0 1" \
   --align center >&2
 
-gum style "Select services to deploy:" \
+gum style "Select services to deploy (press enter to select all):" \
   --foreground "$COLOR" \
   --bold >&2
 

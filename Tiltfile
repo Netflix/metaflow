@@ -7,11 +7,9 @@
 #     $ tilt down
 
 # TODO:
-# 1. helm repo update can be slow
-# 2. pass selected components to tilt up
-# 3. move away from temporary images
-# 4. introduce kueue and jobsets
-# 5. lock versions
+# 1. move away from temporary images
+# 2. introduce kueue and jobsets
+# 3. lock versions
 
 version_settings(constraint='>=0.22.2')
 allow_k8s_contexts('minikube')
@@ -26,9 +24,7 @@ components = {
     
 }
 
-# TODO: Make this work with a list of services
-
-requested_components = list(components.keys())
+requested_components = os.getenv("SERVICES", "").split(",")
 
 # TODO: Get this from makefile
 local_config_dir = ".devtools"
@@ -90,6 +86,8 @@ if config.tilt_subcommand == 'up':
         print("• " + component)
         if component in components and components[component]:
             print("  ↳ requires: " + ", ".join(components[component]))
+
+config_resources = []
 
 #################################################
 # MINIO
@@ -154,6 +152,7 @@ aws_access_key_id = rootuser
 aws_secret_access_key = rootpass123
 endpoint_url = http://localhost:9000
 """
+    config_resources.append('minio')
 
 #################################################
 # POSTGRESQL
@@ -182,6 +181,7 @@ if "postgresql" in enabled_components:
             'primary.extraVolumeMounts=null'
         ]
     )
+
     k8s_resource(
         'postgresql',
         port_forwards=['5432:5432'],
@@ -191,6 +191,8 @@ if "postgresql" in enabled_components:
         labels=['postgresql'],
         resource_deps=components['postgresql'],
     )
+
+    config_resources.append('postgresql')
 
 #################################################
 # ARGO WORKFLOWS
@@ -265,6 +267,9 @@ if "argo-workflows" in enabled_components:
         labels=['argo-workflows'],
         resource_deps=components['argo-workflows']
     )
+
+    config_resources.append('argo-workflows-workflow-controller')
+    config_resources.append('argo-workflows-server')
 
 #################################################
 # ARGO EVENTS
@@ -387,8 +392,8 @@ if "argo-events" in enabled_components:
         links=[
             link('http://localhost:12000/metaflow-event', 'Argo Events Webhook'),
         ],
-    labels=['argo-events']
-)
+        labels=['argo-events']
+    )
 
     k8s_resource(
         'argo-events-controller-manager',
@@ -401,6 +406,9 @@ if "argo-events" in enabled_components:
     metaflow_config["METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT"] = "operate-workflow-sa"
     metaflow_config["METAFLOW_ARGO_EVENTS_WEBHOOK_AUTH"] = "service"
     metaflow_config["METAFLOW_ARGO_EVENTS_WEBHOOK_URL"] = "http://argo-events-webhook-eventsource-svc:12000/metaflow-event"
+
+    config_resources.append('argo-events-controller-manager')
+    config_resources.append('argo-events-webhook-eventsource-svc')
 
 #################################################
 # METADATA SERVICE
@@ -435,6 +443,8 @@ if "metadata-service" in enabled_components:
     metaflow_config["METAFLOW_DEFAULT_METADATA"] = "service"
     metaflow_config["METAFLOW_SERVICE_URL"] = "http://localhost:8080"
     metaflow_config["METAFLOW_SERVICE_INTERNAL_URL"] = "http://metaflow-service.default.svc.cluster.local:8080"
+
+    config_resources.append('metaflow-service')
 
 #################################################
 # METAFLOW UI
@@ -486,8 +496,11 @@ if "ui" in enabled_components:
         resource_deps=components['ui']
     )
 
-    local_resource(
-        name="generate-configs",
-        cmd=write_config_files(),
-        deps=["Tiltfile"],
+    config_resources.append('metaflow-ui')
+    config_resources.append('metaflow-ui-static')
+
+local_resource(
+    name="generate-configs",
+    cmd=write_config_files(),
+    resource_deps=config_resources,
 )

@@ -169,8 +169,7 @@ up: install-brew check-docker install-curl install-gum setup-minikube install-he
 	@echo 'PATH="$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" $(MINIKUBE) tunnel &' >> $(DEVTOOLS_DIR)/start.sh
 	@echo '$(MAKE) create-dev-shell' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'echo "🔥 Starting Tilt with selected services..."' >> $(DEVTOOLS_DIR)/start.sh
-	@echo 'PATH="$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" tilt up' >> $(DEVTOOLS_DIR)/start.sh
-# @echo 'PATH="$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" tilt up -- services="$$SERVICES"' >> $(DEVTOOLS_DIR)/start.sh
+	@echo 'PATH="$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" SERVICES="$$SERVICES" tilt up' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'rm -f /tmp/metaflow-devshell-*' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'wait' >> $(DEVTOOLS_DIR)/start.sh
 	@chmod +x $(DEVTOOLS_DIR)/start.sh
@@ -253,7 +252,19 @@ create-dev-shell: setup-tilt
 		chmod +x $$SHELL_PATH && \
 		echo "✨ Created $$SHELL_PATH" && \
 		echo "🔑  Execute it from ANY directory to switch to development environment shell!" \
-	'	
+	'
+
+metaflow-ui: setup-tilt
+	@echo "⏳ Checking if the development environment is up..."
+	@if ! $(TILT) get session >/dev/null 2>&1; then \
+		echo "❌ Development environment is not up."; \
+		echo "   Please run 'make up' in another terminal, then re-run 'make metaflow-ui'."; \
+		exit 1; \
+	fi
+	@echo "⏳ Waiting for Metaflow UI to be ready..."
+	@$(TILT) wait --for=condition=Ready uiresource/metaflow-ui
+	@echo "🔗 Opening Metaflow UI at http://localhost:3000"
+	@open http://localhost:3000
 
 .PHONY: install-helm setup-minikube setup-tilt teardown-minikube tunnel up down check-docker install-curl install-gum install-brew up down dashboard shell help
 
