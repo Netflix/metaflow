@@ -170,11 +170,17 @@ up: install-brew check-docker install-curl install-gum setup-minikube install-he
 	@echo 'trap "exit" INT TERM' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'trap "kill 0" EXIT' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'eval $$($(MINIKUBE) docker-env)' >> $(DEVTOOLS_DIR)/start.sh
-	@echo 'echo "📝 Selecting services..."' >> $(DEVTOOLS_DIR)/start.sh
-	@echo 'SERVICES=$$($(PICK_SERVICES))' >> $(DEVTOOLS_DIR)/start.sh
+	
+	@echo 'if [ -n "$$SERVICES_OVERRIDE" ]; then' >> "$(DEVTOOLS_DIR)/start.sh"
+	@echo '    echo "🌐 Using user-provided list of services: $$SERVICES_OVERRIDE"' >> "$(DEVTOOLS_DIR)/start.sh"
+	@echo '    SERVICES="$$SERVICES_OVERRIDE"' >> "$(DEVTOOLS_DIR)/start.sh"
+	@echo 'else' >> "$(DEVTOOLS_DIR)/start.sh"
+	@echo '    echo "📝 Selecting services..."' >> "$(DEVTOOLS_DIR)/start.sh"
+	@echo '    SERVICES=$$($(PICK_SERVICES))' >> "$(DEVTOOLS_DIR)/start.sh"
+	@echo 'fi' >> "$(DEVTOOLS_DIR)/start.sh"
 	@echo 'PATH="$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" $(MINIKUBE) tunnel &' >> $(DEVTOOLS_DIR)/start.sh
-	@echo 'echo -e "\033[1;38;5;46m\n🔥 \033[1;38;5;196mNext Steps:\033[0;38;5;46m Use \033[3mmetaflow-dev shell\033[23m to switch to the development\n   environment'\''s shell and start executing your Metaflow flows.\033[0m"' >> "$(DEVTOOLS_DIR)/start.sh"
-	@echo 'echo -e "\n🚀 Starting Tilt with selected services..."' >> $(DEVTOOLS_DIR)/start.sh
+	@echo 'echo -e "🚀 Starting Tilt with selected services..."' >> $(DEVTOOLS_DIR)/start.sh
+	@echo 'echo -e "\033[1;38;5;46m\n🔥 \033[1;38;5;196mNext Steps:\033[0;38;5;46m Use \033[3mmetaflow-dev shell\033[23m to switch to the development\n   environment'\''s shell and start executing your Metaflow flows.\n\033[0m"' >> "$(DEVTOOLS_DIR)/start.sh"
 	@echo 'PATH="$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" SERVICES="$$SERVICES" tilt up -f $(TILTFILE)' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'wait' >> $(DEVTOOLS_DIR)/start.sh
 	@chmod +x $(DEVTOOLS_DIR)/start.sh
@@ -198,11 +204,24 @@ shell: setup-tilt
 	@echo "⏳ Checking if development environment is up..."
 	@if ! $(TILT) get session > /dev/null 2>&1; then \
 		echo "❌ Development environment is not up."; \
-		echo "   Please run 'make up' in another terminal, then re-run 'make shell'."; \
+		echo "   Please run 'metaflow-dev up' in another terminal, then re-run 'metaflow-dev shell'."; \
 		exit 1; \
 	fi
 	@echo "⏳ Waiting for development environment to be ready..."
-	@$(TILT) wait --for=condition=Ready uiresource/generate-configs
+	@while true; do \
+		"$(TILT)" get uiresource generate-configs >/dev/null 2>&1; \
+		status=$$?; \
+		if [ $$status -eq 0 ]; then \
+			"$(TILT)" wait --for=condition=Ready uiresource/generate-configs; \
+			break; \
+		elif [ $$status -eq 127 ]; then \
+			echo "❌ Development environment is not up."; \
+			echo "   Please run 'metaflow-dev up' in another terminal, then re-run 'metaflow-dev shell'."; \
+			exit 1; \
+		else \
+			sleep 1; \
+		fi; \
+	done
 	@echo "🔧 Starting a new shell for development environment..."
 	@bash -c '\
 		if [ -n "$$SHELL" ]; then \
