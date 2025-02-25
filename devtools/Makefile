@@ -292,7 +292,6 @@ create-dev-shell: setup-tilt
 		echo "🔑  Execute it from ANY directory to switch to development environment shell!" \
 	'
 
-<<<<<<< HEAD
 ui: setup-tilt
 	@echo "⏳ Checking if the development environment is up..."
 	@if ! $(TILT) get session >/dev/null 2>&1; then \
@@ -319,20 +318,32 @@ ui: setup-tilt
 	@open http://localhost:3000
 
 .PHONY: install-helm setup-minikube setup-tilt teardown-minikube tunnel up down check-docker install-curl install-gum install-brew up down dashboard shell ui help
-=======
-metaflow-ui: setup-tilt
+
+ui: setup-tilt
 	@echo "⏳ Checking if the development environment is up..."
 	@if ! $(TILT) get session >/dev/null 2>&1; then \
 		echo "❌ Development environment is not up."; \
-		echo "   Please run 'make up' in another terminal, then re-run 'make metaflow-ui'."; \
+		echo "   Please run 'metaflow-dev up' in another terminal, then re-run 'metaflow-dev ui'."; \
 		exit 1; \
 	fi
 	@echo "⏳ Waiting for Metaflow UI to be ready..."
-	@$(TILT) wait --for=condition=Ready uiresource/metaflow-ui
+	@while true; do \
+		"$(TILT)" get uiresource metaflow-ui >/dev/null 2>&1; \
+		status=$$?; \
+		if [ $$status -eq 0 ]; then \
+			"$(TILT)" wait --for=condition=Ready uiresource/metaflow-ui; \
+			break; \
+		elif [ $$status -eq 127 ]; then \
+			echo "❌ Development environment is not up."; \
+			echo "   Please run 'metaflow-dev up' in another terminal, then re-run 'metaflow-dev shell'."; \
+			exit 1; \
+		else \
+			sleep 1; \
+		fi; \
+	done
 	@echo "🔗 Opening Metaflow UI at http://localhost:3000"
 	@open http://localhost:3000
 
-.PHONY: install-helm setup-minikube setup-tilt teardown-minikube tunnel up down check-docker install-curl install-gum install-brew up down dashboard shell help
->>>>>>> 006b662 (mo changes)
+.PHONY: install-helm setup-minikube setup-tilt teardown-minikube tunnel up down check-docker install-curl install-gum install-brew up down dashboard shell ui help
 
 .DEFAULT_GOAL := up
