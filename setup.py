@@ -19,7 +19,7 @@ setup(
     include_package_data=True,
     name="metaflow",
     version=version,
-    description="Metaflow: More AI/ML, Less Engineering",
+    description="Metaflow: More AI and ML, Less Engineering",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     author="Metaflow Developers",
