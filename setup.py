@@ -6,12 +6,10 @@ with open("metaflow/version.py", mode="r") as f:
 
 
 def find_devtools_files():
-    print("Finding devtools files")
     filepaths = []
     for path in glob.iglob("devtools/**/*", recursive=True):
         if os.path.isfile(path):
             filepaths.append(path)
-    print(filepaths)
     return filepaths
 
 
