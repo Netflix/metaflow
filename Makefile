@@ -5,6 +5,7 @@ help:
 	@echo "Available targets:"
 	@echo "  make up          - Start the development environment"
 	@echo "  make shell       - Switch to development environment's shell"
+	@echo "  make metaflow-ui - Open Metaflow UI"
 	@echo "  make dashboard   - Open Minikube dashboard"
 	@echo "  make down        - Stop and clean up the environment"
 	@echo "  make help        - Show this help message"
