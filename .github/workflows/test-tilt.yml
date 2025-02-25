@@ -27,15 +27,11 @@ jobs:
           tail -f tilt.log &
           echo $! > /tmp/tail.pid
         
-      - name: Run tests
-        run: |
           make -C devtools shell
           python3 -m pip install --upgrade pip setuptools
           python3 -m pip install tox
           tox
 
-      - name: Tear down environment
-        run: |
           if [ -f /tmp/tail.pid ] && kill -0 $(cat /tmp/tail.pid) 2>/dev/null; then
             kill $(cat /tmp/tail.pid) || true
           fi
@@ -43,4 +39,3 @@ jobs:
             kill $(cat /tmp/tilt.pid) || true
           fi
           make -C devtools down || true
-        timeout-minutes: 5
