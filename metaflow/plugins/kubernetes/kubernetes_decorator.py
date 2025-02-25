@@ -158,7 +158,7 @@ class KubernetesDecorator(StepDecorator):
 
     # Conda environment support
     supports_conda_environment = True
-    target_platform = "linux-64"
+    target_platform = "linux-aarch64"
 
     def init(self):
         super(KubernetesDecorator, self).init()

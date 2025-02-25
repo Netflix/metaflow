@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tarfile
 import time
+import platform
 from urllib.error import URLError
 from urllib.request import urlopen
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, CONDA_USE_FAST_INIT
@@ -36,29 +37,6 @@ def timer(func):
 
 
 if __name__ == "__main__":
-    # TODO: Detect architecture on the fly when dealing with arm architectures.
-    # ARCH=$(uname -m)
-    # OS=$(uname)
-
-    # if [[ "$OS" == "Linux" ]]; then
-    #     PLATFORM="linux"
-    #     if [[ "$ARCH" == "aarch64" ]]; then
-    #         ARCH="aarch64";
-    #     elif [[ $ARCH == "ppc64le" ]]; then
-    #         ARCH="ppc64le";
-    #     else
-    #         ARCH="64";
-    #     fi
-    # fi
-
-    # if [[ "$OS" == "Darwin" ]]; then
-    #     PLATFORM="osx";
-    #     if [[ "$ARCH" == "arm64" ]]; then
-    #         ARCH="arm64";
-    #     else
-    #         ARCH="64"
-    #     fi
-    # fi
 
     def run_cmd(cmd, stdin_str=None):
         result = subprocess.run(
@@ -350,12 +328,25 @@ if __name__ == "__main__":
         cmd = f"fast-initializer --prefix {prefix} --packages-dir {pkgs_dir}"
         run_cmd(cmd, all_package_urls)
 
-    if len(sys.argv) != 5:
-        print("Usage: bootstrap.py <flow_name> <id> <datastore_type> <architecture>")
+    if len(sys.argv) != 4:
+        print("Usage: bootstrap.py <flow_name> <id> <datastore_type>")
         sys.exit(1)
 
     try:
-        _, flow_name, id_, datastore_type, architecture = sys.argv
+        _, flow_name, id_, datastore_type = sys.argv
+
+        system = platform.system().lower()
+        arch_machine = platform.machine().lower()
+
+        if system == "darwin" and arch_machine == "arm64":
+            architecture = "osx-arm64"
+        elif system == "darwin":
+            architecture = "osx-64"
+        elif system == "linux" and arch_machine == "aarch64":
+            architecture = "linux-aarch64"
+        else:
+            # default fallback
+            architecture = "linux-64"
 
         prefix = os.path.join(os.getcwd(), architecture, id_)
         pkgs_dir = os.path.join(os.getcwd(), ".pkgs")

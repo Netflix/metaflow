@@ -242,7 +242,7 @@ class CondaEnvironment(MetaflowEnvironment):
         if id_:
             # bootstrap.py is responsible for ensuring the validity of this executable.
             # -s is important! Can otherwise leak packages to other environments.
-            return os.path.join("linux-64", id_, "bin/python -s")
+            return os.path.join("$MF_ARCH", id_, "bin/python -s")
         else:
             # for @conda/@pypi(disabled=True).
             return super().executable(step_name, default)
@@ -428,11 +428,12 @@ class CondaEnvironment(MetaflowEnvironment):
                 # as the bootstrapping process uses the internal S3 client which would fail to import tracing
                 # due to the required dependencies being bundled into the conda environment,
                 # which is yet to be initialized at this point.
-                'DISABLE_TRACING=True python -m metaflow.plugins.pypi.bootstrap "%s" %s "%s" linux-64'
+                'DISABLE_TRACING=True python -m metaflow.plugins.pypi.bootstrap "%s" %s "%s"'
                 % (self.flow.name, id_, self.datastore_type),
                 "echo 'Environment bootstrapped.'",
                 # To avoid having to install micromamba in the PATH in micromamba.py, we add it to the PATH here.
                 "export PATH=$PATH:$(pwd)/micromamba/bin",
+                "export MF_ARCH=$(case $(uname)/$(uname -m) in Darwin/arm64)echo osx-arm64;;Darwin/*)echo osx-64;;Linux/aarch64)echo linux-aarch64;;*)echo linux-64;;esac)",
             ]
         else:
             # for @conda/@pypi(disabled=True).
