@@ -15,11 +15,32 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Bring up environment
+        shell: bash
         run: |
-          SERVICES_OVERRIDE=minio,postgresql,metadata-service,argo-workflows,argo-events make -C devtools up
-        timeout-minutes: 15
+          mkdir -p /tmp/tilt-logs
+          mkfifo /tmp/tilt-logs/tilt.pipe
+          cat /tmp/tilt-logs/tilt.pipe > tilt.log &
+          
+          SERVICES_OVERRIDE=minio,postgresql,metadata-service,argo-workflows,argo-events make -C devtools up > /tmp/tilt-logs/tilt.pipe 2>&1 &
+          echo $! > /tmp/tilt.pid
+
+          tail -f tilt.log &
+          echo $! > /tmp/tail.pid
+        
+      - name: Run tests
+        run: |
+          make -C devtools shell
+          python3 -m pip install --upgrade pip setuptools
+          python3 -m pip install tox
+          tox
 
       - name: Tear down environment
         run: |
-          make -C devtools down
+          if [ -f /tmp/tail.pid ] && kill -0 $(cat /tmp/tail.pid) 2>/dev/null; then
+            kill $(cat /tmp/tail.pid) || true
+          fi
+          if [ -f /tmp/tilt.pid ] && kill -0 $(cat /tmp/tilt.pid) 2>/dev/null; then
+            kill $(cat /tmp/tilt.pid) || true
+          fi
+          make -C devtools down || true
         timeout-minutes: 5
