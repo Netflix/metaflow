@@ -13,6 +13,7 @@ help:
 HELM_VERSION := v3.14.0
 MINIKUBE_VERSION := v1.32.0
 TILT_VERSION := v0.33.11
+GUM_VERSION := v0.15.2
 DEVTOOLS_DIR := $(CURDIR)/.devtools
 MINIKUBE_DIR := $(DEVTOOLS_DIR)/minikube
 MINIKUBE := $(MINIKUBE_DIR)/minikube
@@ -86,7 +87,6 @@ install-curl:
 		echo "✅ curl installation complete"; \
 	fi
 
-# TODO: fix gum install on linux
 install-gum:
 	@echo "🔍 Checking if gum is installed..."
 	@if ! command -v gum >/dev/null 2>&1; then \
@@ -94,11 +94,11 @@ install-gum:
 		if [ "$(shell uname)" = "Darwin" ]; then \
 			HOMEBREW_NO_AUTO_UPDATE=1 brew install gum; \
 		elif command -v apt-get >/dev/null 2>&1; then \
-			sudo apt-get update && sudo apt-get install -y gum; \
-		elif command -v yum >/dev/null 2>&1; then \
-			sudo yum install -y gum; \
-		elif command -v dnf >/dev/null 2>&1; then \
-			sudo dnf install -y gum; \
+			curl -fsSL -o /tmp/gum.deb \
+			"https://github.com/charmbracelet/gum/releases/download/$(GUM_VERSION)/gum_$(GUM_VERSION:v%=%)_$(arch).deb"; \
+			sudo apt-get update -qq; \
+			sudo apt-get install -y /tmp/gum.deb || sudo dpkg -i /tmp/gum.deb; \
+			rm -f /tmp/gum.deb; \
 		else \
 			echo "❌ Could not determine how to install gum for your platform. Please install manually."; \
 			exit 1; \
