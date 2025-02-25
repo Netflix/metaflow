@@ -289,20 +289,121 @@ if "argo-events" in enabled_components:
             'controller.resources.limits.cpu=50m',
             'configs.jetstream.streamConfig.maxAge=72h',
             'configs.jetstream.streamConfig.replicas=1',
+            'controller.rbac.enabled=true',
+            'controller.rbac.namespaced=false',
+            'controller.serviceAccount.create=true',
+            'controller.serviceAccount.name=argo-events-events-controller-sa',
+            'configs.jetstream.versions[0].configReloaderImage=natsio/nats-server-config-reloader:latest',
+            'configs.jetstream.versions[0].metricsExporterImage=natsio/prometheus-nats-exporter:latest',
+            'configs.jetstream.versions[0].natsImage=nats:latest',
+            'configs.jetstream.versions[0].startCommand=/nats-server',
+            'configs.jetstream.versions[0].version=latest',
+            'configs.jetstream.versions[1].configReloaderImage=natsio/nats-server-config-reloader:latest',
+            'configs.jetstream.versions[1].metricsExporterImage=natsio/prometheus-nats-exporter:latest',
+            'configs.jetstream.versions[1].natsImage=nats:2.9.15',
+            'configs.jetstream.versions[1].startCommand=/nats-server',
+            'configs.jetstream.versions[1].version=2.9.15',
         ]
     )
+
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'v1',
+        'kind': 'ServiceAccount',
+        'metadata': {
+            'name': 'operate-workflow-sa',
+            'namespace': 'default'
+        }
+    }))
+
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'rbac.authorization.k8s.io/v1',
+        'kind': 'Role',
+        'metadata': {
+            'name': 'operate-workflow-role',
+            'namespace': 'default'
+        },
+        'rules': [{
+            'apiGroups': ['argoproj.io'],
+            'resources': [
+                'workflows',
+                'workflowtemplates',
+                'cronworkflows',
+                'clusterworkflowtemplates'
+            ],
+            'verbs': ['*']
+        }]
+    }))
+
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'rbac.authorization.k8s.io/v1',
+        'kind': 'RoleBinding',
+        'metadata': {
+            'name': 'operate-workflow-role-binding',
+            'namespace': 'default'
+        },
+        'roleRef': {
+            'apiGroup': 'rbac.authorization.k8s.io',
+            'kind': 'Role',
+            'name': 'operate-workflow-role'
+        },
+        'subjects': [{
+            'kind': 'ServiceAccount',
+            'name': 'operate-workflow-sa'
+        }]
+    }))
+
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'rbac.authorization.k8s.io/v1',
+        'kind': 'Role',
+        'metadata': {
+            'name': 'view-events-role',
+            'namespace': 'default'
+        },
+        'rules': [{
+            'apiGroups': ['argoproj.io'],
+            'resources': [
+                'eventsources',
+                'eventbuses',
+                'sensors'
+            ],
+            'verbs': [
+                'get',
+                'list',
+                'watch'
+            ]
+        }]
+    }))
+
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'rbac.authorization.k8s.io/v1',
+        'kind': 'RoleBinding',
+        'metadata': {
+            'name': 'view-events-role-binding',
+            'namespace': 'default'
+        },
+        'roleRef': {
+            'apiGroup': 'rbac.authorization.k8s.io',
+            'kind': 'Role',
+            'name': 'view-events-role'
+        },
+        'subjects': [{
+            'kind': 'ServiceAccount',
+            'name': 'argo-workflows',
+            'namespace': 'default'
+        }]
+    }))
 
     k8s_yaml(encode_yaml({
         'apiVersion': 'argoproj.io/v1alpha1',
         'kind': 'EventBus',
         'metadata': {
-            'name': 'argo-events-bus',
+            'name': 'default',
             'namespace': 'default'
         },
         'spec': {
             'jetstream': {
-                'version': 'latest',
-                'replicas': 1,
+                'version': '2.9.15',
+                'replicas': 3,
                 'containerTemplate': {
                     'resources': {
                         'limits': {
@@ -327,7 +428,6 @@ if "argo-events" in enabled_components:
             'namespace': 'default'
         },
         'spec': {
-            'eventBusName': 'argo-events-bus',
             'template': {
                 'container': {
                     'resources': {
