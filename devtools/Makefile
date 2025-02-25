@@ -170,7 +170,6 @@ up: install-brew check-docker install-curl install-gum setup-minikube install-he
 	@echo 'trap "exit" INT TERM' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'trap "kill 0" EXIT' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'eval $$($(MINIKUBE) docker-env)' >> $(DEVTOOLS_DIR)/start.sh
-	
 	@echo 'if [ -n "$$SERVICES_OVERRIDE" ]; then' >> "$(DEVTOOLS_DIR)/start.sh"
 	@echo '    echo "🌐 Using user-provided list of services: $$SERVICES_OVERRIDE"' >> "$(DEVTOOLS_DIR)/start.sh"
 	@echo '    SERVICES="$$SERVICES_OVERRIDE"' >> "$(DEVTOOLS_DIR)/start.sh"
@@ -293,6 +292,7 @@ create-dev-shell: setup-tilt
 		echo "🔑  Execute it from ANY directory to switch to development environment shell!" \
 	'
 
+<<<<<<< HEAD
 ui: setup-tilt
 	@echo "⏳ Checking if the development environment is up..."
 	@if ! $(TILT) get session >/dev/null 2>&1; then \
@@ -319,5 +319,20 @@ ui: setup-tilt
 	@open http://localhost:3000
 
 .PHONY: install-helm setup-minikube setup-tilt teardown-minikube tunnel up down check-docker install-curl install-gum install-brew up down dashboard shell ui help
+=======
+metaflow-ui: setup-tilt
+	@echo "⏳ Checking if the development environment is up..."
+	@if ! $(TILT) get session >/dev/null 2>&1; then \
+		echo "❌ Development environment is not up."; \
+		echo "   Please run 'make up' in another terminal, then re-run 'make metaflow-ui'."; \
+		exit 1; \
+	fi
+	@echo "⏳ Waiting for Metaflow UI to be ready..."
+	@$(TILT) wait --for=condition=Ready uiresource/metaflow-ui
+	@echo "🔗 Opening Metaflow UI at http://localhost:3000"
+	@open http://localhost:3000
+
+.PHONY: install-helm setup-minikube setup-tilt teardown-minikube tunnel up down check-docker install-curl install-gum install-brew up down dashboard shell help
+>>>>>>> 006b662 (mo changes)
 
 .DEFAULT_GOAL := up
