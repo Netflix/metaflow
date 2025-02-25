@@ -134,7 +134,7 @@ class ArgoEvent(object):
                     try:
                         urllib.request.urlopen(request, timeout=10.0)
                         print(
-                            "Argo Event (%s) published." % self._name, file=sys.stderr
+                            "Argo Event (%s) published." % self._name, file=sys.stdout
                         )
                         return data["payload"]["id"]
                     except urllib.error.HTTPError as e:
