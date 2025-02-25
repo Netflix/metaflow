@@ -298,6 +298,13 @@ class BatchDecorator(StepDecorator):
             self._save_logs_sidecar = Sidecar("save_logs_periodically")
             self._save_logs_sidecar.start()
 
+            # Start spot termination monitor sidecar.
+            current._update_env(
+                {"spot_termination_notice": "/tmp/spot_termination_notice"}
+            )
+            self._spot_monitor_sidecar = Sidecar("spot_termination_monitor")
+            self._spot_monitor_sidecar.start()
+
         num_parallel = int(os.environ.get("AWS_BATCH_JOB_NUM_NODES", 0))
         if num_parallel >= 1 and ubf_context == UBF_CONTROL:
             # UBF handling for multinode case
@@ -350,6 +357,7 @@ class BatchDecorator(StepDecorator):
 
         try:
             self._save_logs_sidecar.terminate()
+            self._spot_monitor_sidecar.terminate()
         except:
             # Best effort kill
             pass
