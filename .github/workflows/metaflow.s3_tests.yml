@@ -21,7 +21,7 @@ jobs:
       labels: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest-64core, windows-latest-64core]
+        os: [ubuntu-latest-64core]
         ver: ['3.10']
 
     steps:
