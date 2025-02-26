@@ -113,6 +113,9 @@ from .user_configs.config_decorators import CustomFlowDecorator, CustomStepDecor
 lazy_load_aliases({"metaflow.datatools": "metaflow.plugins.datatools"})
 from .plugins.datatools import S3
 
+# requirement parsers, top-level import for convenience
+from .plugins.pypi.parsers import req_parser, yml_parser
+
 # includefile
 from .includefile import IncludeFile
 
