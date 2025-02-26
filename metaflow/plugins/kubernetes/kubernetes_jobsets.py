@@ -560,6 +560,11 @@ class JobSetSpec(object):
             self._kwargs["memory"],
             self._kwargs["disk"],
         )
+
+        extended_resources = self._kwargs.get("extended_resources", {})
+        qos_requests = {**qos_requests, **extended_resources}
+        qos_limits = {**qos_limits, **extended_resources}
+
         return dict(
             name=self.name,
             template=client.api_client.ApiClient().sanitize_for_serialization(
