@@ -6,7 +6,7 @@ from .util import get_username
 from . import metaflow_version
 from metaflow.exception import MetaflowException
 from metaflow.extension_support import dump_module_info
-from metaflow.mflog import BASH_MFLOG
+from metaflow.mflog import BASH_MFLOG, BASH_FLUSH_LOGS
 from . import R
 
 
@@ -159,6 +159,7 @@ class MetaflowEnvironment(object):
     def get_package_commands(self, code_package_url, datastore_type):
         cmds = [
             BASH_MFLOG,
+            BASH_FLUSH_LOGS,
             "mflog 'Setting up task environment.'",
             self._get_install_dependencies_cmd(datastore_type),
             "mkdir metaflow",
@@ -176,6 +177,7 @@ class MetaflowEnvironment(object):
             "fi" % code_package_url,
             "TAR_OPTIONS='--warning=no-timestamp' tar xf job.tar",
             "mflog 'Task is starting.'",
+            "flush_mflogs",
         ]
         return cmds
 
