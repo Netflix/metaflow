@@ -119,6 +119,13 @@ from .includefile import IncludeFile
 # Decorators
 from .decorators import step, _import_plugin_decorators
 
+# Config parsers
+from .plugins.pypi.parsers import (
+    requirements_txt_parser,
+    pyproject_toml_parser,
+    conda_environment_yml_parser,
+)
+
 # this auto-generates decorator functions from Decorator objects
 # in the top-level metaflow namespace
 _import_plugin_decorators(globals())
