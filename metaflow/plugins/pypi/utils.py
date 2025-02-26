@@ -72,6 +72,24 @@ def pip_tags(python_version, mamba_platform):
             )
         ]
         platforms.append("linux_x86_64")
+    elif mamba_platform == "linux-aarch64":
+        platforms = [
+            "manylinux%s_aarch64" % s
+            for s in (
+                "2014",
+                "_2_17",
+                "_2_18",
+                "_2_19",
+                "_2_20",
+                "_2_21",
+                "_2_23",
+                "_2_24",
+                "_2_25",
+                "_2_26",
+                "_2_27",
+            )
+        ]
+        platforms.append("linux_aarch64")
     elif mamba_platform == "osx-64":
         platforms = tags.mac_platforms(arch="x86_64")
     elif mamba_platform == "osx-arm64":

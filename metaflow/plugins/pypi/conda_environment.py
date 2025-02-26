@@ -190,7 +190,6 @@ class CondaEnvironment(MetaflowEnvironment):
         #  4. Start PyPI solves in parallel after each conda environment is created
         #  5. Download PyPI packages sequentially
         #  6. Create and cache PyPI environments in parallel
-
         with ThreadPoolExecutor() as executor:
             # Start all conda solves in parallel
             conda_futures = [
@@ -213,14 +212,14 @@ class CondaEnvironment(MetaflowEnvironment):
 
                 # Queue PyPI solve to start after conda create
                 if result[0] in pypi_envs:
+                    # solve pypi envs uniquely
+                    pypi_env = pypi_envs.pop(result[0])
 
                     def pypi_solve(env):
                         create_future.result()  # Wait for conda create
                         return solve(*env, "pypi")
 
-                    pypi_futures.append(
-                        executor.submit(pypi_solve, pypi_envs[result[0]])
-                    )
+                    pypi_futures.append(executor.submit(pypi_solve, pypi_env))
 
             # Process PyPI results sequentially for downloads
             for solve_future in pypi_futures:
@@ -242,7 +241,7 @@ class CondaEnvironment(MetaflowEnvironment):
         if id_:
             # bootstrap.py is responsible for ensuring the validity of this executable.
             # -s is important! Can otherwise leak packages to other environments.
-            return os.path.join("linux-64", id_, "bin/python -s")
+            return os.path.join("$MF_ARCH", id_, "bin/python -s")
         else:
             # for @conda/@pypi(disabled=True).
             return super().executable(step_name, default)
@@ -315,7 +314,6 @@ class CondaEnvironment(MetaflowEnvironment):
         # 5. All resolved packages (Conda or PyPI) are cached
         # 6. PyPI packages are only installed for local platform
 
-        # Resolve `linux-64` Conda environments if @batch or @kubernetes are in play
         target_platform = conda_platform()
         for decorator in step.decorators:
             # NOTE: Keep the list of supported decorator names for backward compatibility purposes.
@@ -329,7 +327,6 @@ class CondaEnvironment(MetaflowEnvironment):
                 "snowpark",
                 "slurm",
             ]:
-                # TODO: Support arm architectures
                 target_platform = getattr(decorator, "target_platform", "linux-64")
                 break
 
@@ -428,11 +425,12 @@ class CondaEnvironment(MetaflowEnvironment):
                 # as the bootstrapping process uses the internal S3 client which would fail to import tracing
                 # due to the required dependencies being bundled into the conda environment,
                 # which is yet to be initialized at this point.
-                'DISABLE_TRACING=True python -m metaflow.plugins.pypi.bootstrap "%s" %s "%s" linux-64'
+                'DISABLE_TRACING=True python -m metaflow.plugins.pypi.bootstrap "%s" %s "%s"'
                 % (self.flow.name, id_, self.datastore_type),
                 "echo 'Environment bootstrapped.'",
                 # To avoid having to install micromamba in the PATH in micromamba.py, we add it to the PATH here.
                 "export PATH=$PATH:$(pwd)/micromamba/bin",
+                "export MF_ARCH=$(case $(uname)/$(uname -m) in Darwin/arm64)echo osx-arm64;;Darwin/*)echo osx-64;;Linux/aarch64)echo linux-aarch64;;*)echo linux-64;;esac)",
             ]
         else:
             # for @conda/@pypi(disabled=True).

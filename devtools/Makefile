@@ -250,8 +250,7 @@ shell: setup-tilt
 				"$$user_shell" -i; \
 		fi'
 
-# TODO: This can be done away with in a while since we now have metaflow-dev command.
-#
+
 # @echo '$(MAKE_CMD) create-dev-shell' >> $(DEVTOOLS_DIR)/start.sh
 # @echo 'rm -f /tmp/metaflow-devshell-*' >> $(DEVTOOLS_DIR)/start.sh
 create-dev-shell: setup-tilt
