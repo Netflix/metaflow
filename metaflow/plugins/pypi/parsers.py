@@ -40,6 +40,7 @@ def requirements_txt_parser(content: str):
     inline_comment_pattern = re.compile(r"\s+#.*$")
     for line in content.splitlines():
         line = line.strip()
+
         if not line or line.startswith("#"):
             continue
 
@@ -202,10 +203,15 @@ def conda_environment_yml_parser(content: str):
     # Group 1: package name
     # Group 2: optional operator + version (could be "=1.21.2", "==1.21.2", etc.)
     line_regex = re.compile(r"^([A-Za-z0-9_\-\.]+)([=<>!~].+)?$")
+    inline_comment_pattern = re.compile(r"\s+#.*$")
 
     for line in content.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
+            continue
+
+        line = inline_comment_pattern.sub("", line).strip()
+        if not line:
             continue
 
         if line.lower().startswith("dependencies:"):
