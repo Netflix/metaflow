@@ -1,6 +1,3 @@
-import re
-from metaflow._vendor.packaging.requirements import Requirement, InvalidRequirement
-
 # this file can be overridden by extensions as is (e.g. metaflow-nflx-extensions)
 
 
@@ -35,11 +32,19 @@ def requirements_txt_parser(content: str):
         If a requirement line is invalid PEP 508 or if environment markers are
         detected, or if multiple Python constraints are specified.
     """
+    import re
+    from metaflow._vendor.packaging.requirements import Requirement, InvalidRequirement
+
     parsed = {"packages": {}, "python": None}
 
+    inline_comment_pattern = re.compile(r"\s+#.*$")
     for line in content.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
+            continue
+
+        line = inline_comment_pattern.sub("", line).strip()
+        if not line:
             continue
 
         try:
@@ -111,6 +116,7 @@ def pyproject_toml_parser(content: str):
             raise RuntimeError(
                 "Could not import a TOML library. For Python <3.11, please install 'tomli'."
             )
+    from metaflow._vendor.packaging.requirements import Requirement, InvalidRequirement
 
     data = toml.loads(content)
 
@@ -185,6 +191,8 @@ def conda_environment_yml_parser(content: str):
     ValueError
         If the file has malformed lines or unsupported sections.
     """
+    import re
+
     packages = {}
     python_version = None
 
