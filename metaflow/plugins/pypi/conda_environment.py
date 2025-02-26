@@ -190,7 +190,6 @@ class CondaEnvironment(MetaflowEnvironment):
         #  4. Start PyPI solves in parallel after each conda environment is created
         #  5. Download PyPI packages sequentially
         #  6. Create and cache PyPI environments in parallel
-
         with ThreadPoolExecutor() as executor:
             # Start all conda solves in parallel
             conda_futures = [
@@ -213,14 +212,14 @@ class CondaEnvironment(MetaflowEnvironment):
 
                 # Queue PyPI solve to start after conda create
                 if result[0] in pypi_envs:
+                    # solve pypi envs uniquely
+                    pypi_env = pypi_envs.pop(result[0])
 
                     def pypi_solve(env):
                         create_future.result()  # Wait for conda create
                         return solve(*env, "pypi")
 
-                    pypi_futures.append(
-                        executor.submit(pypi_solve, pypi_envs[result[0]])
-                    )
+                    pypi_futures.append(executor.submit(pypi_solve, pypi_env))
 
             # Process PyPI results sequentially for downloads
             for solve_future in pypi_futures:
