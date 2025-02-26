@@ -15,7 +15,7 @@ def cli():
     pass
 
 
-@cli.group(help="Metaflow code commands")
+@cli.group(help="Access, compare, and manage code associated with Metaflow runs.")
 def code():
     pass
 
@@ -51,7 +51,7 @@ def perform_diff(
         target_dir = os.getcwd()
 
     diffs = []
-    for dirpath, dirnames, filenames in os.walk(source_dir):
+    for dirpath, dirnames, filenames in os.walk(source_dir, followlinks=True):
         for fname in filenames:
             # NOTE: the paths below need to be set up carefully
             # for the `patch` command to work. Better not to touch
@@ -109,14 +109,14 @@ def run_op(
 
 
 def run_op_diff_runs(
-    source_run: str, target_run: str, **op_args: Mapping[str, Any]
+    source_run_pathspec: str, target_run_pathspec: str, **op_args: Mapping[str, Any]
 ) -> Optional[List[str]]:
     source_tmp = None
     target_tmp = None
     try:
-        source_tmp = extract_code_package(source_run)
-        target_tmp = extract_code_package(target_run)
-        return perform_diff(source_tmp.name, target_tmp.name)
+        source_tmp = extract_code_package(source_run_pathspec)
+        target_tmp = extract_code_package(target_run_pathspec)
+        return perform_diff(source_tmp.name, target_tmp.name, **op_args)
     finally:
         for d in [source_tmp, target_tmp]:
             if d and os.path.exists(d.name):
@@ -164,63 +164,64 @@ def op_patch(tmpdir: str, dst: str, **kwargs: Mapping[str, Any]) -> None:
 
 
 @code.command()
-@click.argument("metaflow-run")
-def diff(metaflow_run: str, **kwargs: Mapping[str, Any]) -> None:
+@click.argument("run_pathspec")
+def diff(run_pathspec: str, **kwargs: Mapping[str, Any]) -> None:
     """
     Do a 'git diff' of the current directory and a Metaflow run.
     """
-    _ = run_op(metaflow_run, op_diff, **kwargs)
+    _ = run_op(run_pathspec, op_diff, **kwargs)
 
 
 @code.command()
-@click.argument("source_run")
-@click.argument("target_run")
-def diff_runs(source_run: str, target_run: str, **kwargs: Mapping[str, Any]) -> None:
+@click.argument("source_run_pathspec")
+@click.argument("target_run_pathspec")
+def diff_runs(
+    source_run_pathspec: str, target_run_pathspec: str, **kwargs: Mapping[str, Any]
+) -> None:
     """
     Do a 'git diff' between two Metaflow runs.
     """
-    _ = run_op_diff_runs(source_run, target_run, **kwargs)
+    _ = run_op_diff_runs(source_run_pathspec, target_run_pathspec, **kwargs)
 
 
 @code.command()
-@click.argument("metaflow_run")
+@click.argument("run_pathspec")
 @click.option(
-    "--dir", help="Destination directory (default: {runspec}_code)", default=None
+    "--dir", help="Destination directory (default: {run_pathspec}_code)", default=None
 )
 def pull(
-    metaflow_run: str, dir: Optional[str] = None, **kwargs: Mapping[str, Any]
+    run_pathspec: str, dir: Optional[str] = None, **kwargs: Mapping[str, Any]
 ) -> None:
     """
     Pull the code of a Metaflow run.
     """
     if dir is None:
-        dir = metaflow_run.lower().replace("/", "_") + "_code"
+        dir = run_pathspec.lower().replace("/", "_") + "_code"
     op_args: Mapping[str, Any] = {**kwargs, "dst": dir}
-    run_op(metaflow_run, op_pull, **op_args)
+    run_op(run_pathspec, op_pull, **op_args)
 
 
 @code.command()
-@click.argument("metaflow_run")
-@click.option("--file", help="Patch file name (default: {runspec}.patch", default=None)
+@click.argument("run_pathspec")
+@click.option(
+    "--file_path", help="Patch file name (default: {run_pathspec}.patch", default=None
+)
+@click.option(
+    "--overwrite", is_flag=True, help="Overwrite the patch file if it exists."
+)
 def patch(
-    metaflow_run: str, file: Optional[str] = None, **kwargs: Mapping[str, Any]
+    run_pathspec: str,
+    file_path: Optional[str] = None,
+    overwrite: bool = False,
+    **kwargs: Mapping[str, Any],
 ) -> None:
     """
-    Create a patch file for the current dir with a Metaflow run.
+    Create a patch by comparing current dir with a Metaflow run.
     """
-    if file is None:
-        file = metaflow_run.lower().replace("/", "_") + ".patch"
-    if confirm_overwrite(file):
-        op_args: Mapping[str, Any] = {**kwargs, "dst": file}
-        run_op(metaflow_run, op_patch, **op_args)
-
-
-def confirm_overwrite(file):
-    if os.path.exists(file):
-        response = (
-            input(f"{file} already exists. Overwrite? (Y/n) [default: Y]: ")
-            .strip()
-            .lower()
-        )
-        return response in ("y", "")
-    return True
+    if file_path is None:
+        file_path = run_pathspec.lower().replace("/", "_") + ".patch"
+    if os.path.exists(file_path) and not overwrite:
+        echo(f"File *{file_path}* already exists. To overwrite, specify --overwrite.")
+        return
+    op_args: Mapping[str, Any] = {**kwargs, "dst": file_path}
+    run_op(run_pathspec, op_patch, **op_args)
