@@ -381,6 +381,8 @@ KUBERNETES_DISK = from_conf("KUBERNETES_DISK", None)
 # Default kubernetes QoS class
 KUBERNETES_QOS = from_conf("KUBERNETES_QOS", "burstable")
 
+# Architecture of kubernetes nodes - used for @conda/@pypi in metaflow-dev
+KUBERNETES_CONDA_ARCH = from_conf("KUBERNETES_CONDA_ARCH")
 ARGO_WORKFLOWS_KUBERNETES_SECRETS = from_conf("ARGO_WORKFLOWS_KUBERNETES_SECRETS", "")
 ARGO_WORKFLOWS_ENV_VARS_TO_SKIP = from_conf("ARGO_WORKFLOWS_ENV_VARS_TO_SKIP", "")
 

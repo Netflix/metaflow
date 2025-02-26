@@ -315,7 +315,6 @@ class CondaEnvironment(MetaflowEnvironment):
         # 5. All resolved packages (Conda or PyPI) are cached
         # 6. PyPI packages are only installed for local platform
 
-        # Resolve `linux-64` Conda environments if @batch or @kubernetes are in play
         target_platform = conda_platform()
         for decorator in step.decorators:
             # NOTE: Keep the list of supported decorator names for backward compatibility purposes.
@@ -329,7 +328,6 @@ class CondaEnvironment(MetaflowEnvironment):
                 "snowpark",
                 "slurm",
             ]:
-                # TODO: Support arm architectures
                 target_platform = getattr(decorator, "target_platform", "linux-64")
                 break
 

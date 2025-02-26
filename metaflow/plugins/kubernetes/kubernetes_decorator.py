@@ -29,6 +29,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_SHARED_MEMORY,
     KUBERNETES_TOLERATIONS,
     KUBERNETES_QOS,
+    KUBERNETES_CONDA_ARCH,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -158,7 +159,7 @@ class KubernetesDecorator(StepDecorator):
 
     # Conda environment support
     supports_conda_environment = True
-    target_platform = "linux-aarch64"
+    target_platform = KUBERNETES_CONDA_ARCH or "linux-64"
 
     def init(self):
         super(KubernetesDecorator, self).init()

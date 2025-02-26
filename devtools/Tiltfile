@@ -99,6 +99,7 @@ if "minio" in enabled_components:
         set=[
             'rootUser=rootuser',
             'rootPassword=rootpass123',
+            # TODO: perturb the bucket name to avoid conflicts
             'buckets[0].name=metaflow-test',
             'buckets[0].policy=none',
             'buckets[0].purge=false',
@@ -599,6 +600,18 @@ if "ui" in enabled_components:
 
     config_resources.append('metaflow-ui')
     config_resources.append('metaflow-ui-static')
+
+cmd = '''
+ARCH=$(kubectl get nodes -o jsonpath='{.items[0].status.nodeInfo.architecture}')
+case "$ARCH" in
+  arm64)   echo linux-aarch64 ;;
+  amd64)   echo linux-64 ;;
+  *)       echo linux-64 ;;
+esac
+'''
+
+# For @conda/@pypi emulation
+metaflow_config["METAFLOW_KUBERNETES_CONDA_ARCH"] = str(local(cmd)).strip()
 
 local_resource(
     name="generate-configs",
