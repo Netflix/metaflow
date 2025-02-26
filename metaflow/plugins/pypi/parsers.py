@@ -148,7 +148,6 @@ def pyproject_toml_parser(content: str):
 
         if req.name.lower() == "python":
             if parsed["python"] is not None and dep_spec:
-                # multiple python specs is generally not allowed
                 raise ValueError(
                     f"Multiple Python version specs not allowed: '{dep_line_stripped}'"
                 )
@@ -206,7 +205,6 @@ def conda_environment_yml_parser(content: str):
             continue
 
         if inside_dependencies and not line.startswith("-"):
-            # Stop processing dependencies entirely.
             inside_dependencies = False
             continue
 
