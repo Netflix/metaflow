@@ -1,5 +1,5 @@
 import re
-from packaging.requirements import Requirement, InvalidRequirement
+from metaflow._vendor.packaging.requirements import Requirement, InvalidRequirement
 
 # this file can be overridden by extensions as is (e.g. metaflow-nflx-extensions)
 
@@ -124,7 +124,7 @@ def pyproject_toml_parser(content: str):
         # If present, store verbatim; note that PEP 621 does not necessarily
         # require "python" to be a dependency in the usual sense.
         # Example: "requires-python" = ">=3.7,<4"
-        parsed["python"] = requires_python.strip()
+        parsed["python"] = requires_python.lstrip("=").strip()
 
     for dep_line in requirements:
         dep_line_stripped = dep_line.strip()
@@ -144,7 +144,7 @@ def pyproject_toml_parser(content: str):
         if req.url:
             dep_key += f"@{req.url}"
 
-        dep_spec = str(req.specifier).lstrip(" =")
+        dep_spec = str(req.specifier).lstrip("=")
 
         if req.name.lower() == "python":
             if parsed["python"] is not None and dep_spec:
@@ -196,24 +196,30 @@ def conda_environment_yml_parser(content: str):
     # Group 2: optional operator + version (could be "=1.21.2", "==1.21.2", etc.)
     line_regex = re.compile(r"^([A-Za-z0-9_\-\.]+)([=<>!~].+)?$")
 
-    for line in content.splitlines():
-        line = line.strip()
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+
+        # Ignore empty lines or comment lines
         if not line or line.startswith("#"):
             continue
 
+        # Mark the start of dependencies
         if line.lower().startswith("dependencies:"):
             inside_dependencies = True
             continue
 
-        if not inside_dependencies:
-            # skip 'name:', 'channels:', or anything before 'dependencies:'.
+        # If we're already parsing dependencies but see a line that doesn't
+        # start with '-', that means we're done with the dependencies section.
+        if inside_dependencies and not line.startswith("-"):
+            # Stop processing dependencies entirely.
+            inside_dependencies = False
             continue
 
-        if not line.startswith("-"):
-            raise ValueError(
-                f"Unsupported or malformed line in 'dependencies:' section: '{line}'"
-            )
+        # If we're not inside 'dependencies:' yet or are done with it, just ignore
+        if not inside_dependencies:
+            continue
 
+        # Now parse each dependency line
         dep_line = line.lstrip("-").strip()
         if dep_line.endswith(":"):
             raise ValueError(f"Unsupported subsection '{dep_line}' in environment.yml.")
