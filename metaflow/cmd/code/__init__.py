@@ -131,7 +131,7 @@ def op_diff(tmpdir: str, **kwargs: Mapping[str, Any]) -> Optional[List[str]]:
     return perform_diff(tmpdir, target_dir=target_dir, output=output, **op_args)
 
 
-def op_pull(tmpdir: str, dst: str, **kwargs: Mapping[str, Any]) -> None:
+def op_pull(tmpdir: str, dst: str, **op_args: Mapping[str, Any]) -> None:
     if os.path.exists(dst):
         echo(f"❌  Directory *{dst}* already exists")
     else:
