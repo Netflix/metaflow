@@ -196,30 +196,23 @@ def conda_environment_yml_parser(content: str):
     # Group 2: optional operator + version (could be "=1.21.2", "==1.21.2", etc.)
     line_regex = re.compile(r"^([A-Za-z0-9_\-\.]+)([=<>!~].+)?$")
 
-    for raw_line in content.splitlines():
-        line = raw_line.strip()
-
-        # Ignore empty lines or comment lines
+    for line in content.splitlines():
+        line = line.strip()
         if not line or line.startswith("#"):
             continue
 
-        # Mark the start of dependencies
         if line.lower().startswith("dependencies:"):
             inside_dependencies = True
             continue
 
-        # If we're already parsing dependencies but see a line that doesn't
-        # start with '-', that means we're done with the dependencies section.
         if inside_dependencies and not line.startswith("-"):
             # Stop processing dependencies entirely.
             inside_dependencies = False
             continue
 
-        # If we're not inside 'dependencies:' yet or are done with it, just ignore
         if not inside_dependencies:
             continue
 
-        # Now parse each dependency line
         dep_line = line.lstrip("-").strip()
         if dep_line.endswith(":"):
             raise ValueError(f"Unsupported subsection '{dep_line}' in environment.yml.")
