@@ -46,6 +46,10 @@ def requirements_txt_parser(content: str):
     for line in content.splitlines():
         line = line.strip()
 
+        # support Rye lockfiles by skipping lines not compliant with requirements
+        if line == "-e file:.":
+            continue
+
         if not line or line.startswith("#"):
             continue
 
