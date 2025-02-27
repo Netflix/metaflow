@@ -204,7 +204,10 @@ def pull(
 @code.command()
 @click.argument("run_pathspec")
 @click.option(
-    "--file_path", help="Patch file name (default: {run_pathspec}.patch", default=None
+    "--file_path",
+    help="Patch file name. If not provided, defaults to a sanitized version of RUN_PATHSPEC "
+    "with slashes replaced by underscores, plus '.patch'.",
+    show_default=False,
 )
 @click.option(
     "--overwrite", is_flag=True, help="Overwrite the patch file if it exists."
