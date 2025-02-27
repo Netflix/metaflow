@@ -1,4 +1,9 @@
 # this file can be overridden by extensions as is (e.g. metaflow-nflx-extensions)
+from metaflow.exception import MetaflowException
+
+
+class ParserValueError(MetaflowException):
+    headline = "Value error"
 
 
 def requirements_txt_parser(content: str):
@@ -28,7 +33,7 @@ def requirements_txt_parser(content: str):
 
     Raises
     ------
-    ValueError
+     ParserValueError
         If a requirement line is invalid PEP 508 or if environment markers are
         detected, or if multiple Python constraints are specified.
     """
@@ -41,6 +46,10 @@ def requirements_txt_parser(content: str):
     for line in content.splitlines():
         line = line.strip()
 
+        # support Rye lockfiles by skipping lines not compliant with requirements
+        if line == "-e file:.":
+            continue
+
         if not line or line.startswith("#"):
             continue
 
@@ -51,10 +60,10 @@ def requirements_txt_parser(content: str):
         try:
             req = Requirement(line)
         except InvalidRequirement:
-            raise ValueError(f"Not a valid PEP 508 requirement: '{line}'")
+            raise ParserValueError(f"Not a valid PEP 508 requirement: '{line}'")
 
         if req.marker is not None:
-            raise ValueError(
+            raise ParserValueError(
                 "Environment markers (e.g. 'platform_system==\"Linux\"') "
                 f"are not supported for line: '{line}'"
             )
@@ -69,7 +78,9 @@ def requirements_txt_parser(content: str):
 
         if req.name.lower() == "python":
             if parsed["python"] is not None and dep_spec:
-                raise ValueError(f"Multiple Python version specs not allowed: '{line}'")
+                raise ParserValueError(
+                    f"Multiple Python version specs not allowed: '{line}'"
+                )
             parsed["python"] = dep_spec or None
         else:
             parsed["packages"][dep_key] = dep_spec
@@ -104,7 +115,7 @@ def pyproject_toml_parser(content: str):
     ------
     RuntimeError
         If no TOML library (tomllib in Python 3.11+ or tomli in earlier versions) is found.
-    ValueError
+     ParserValueError
         If a dependency is not valid PEP 508, if environment markers are used, or if
         multiple Python constraints are specified.
     """
@@ -138,10 +149,12 @@ def pyproject_toml_parser(content: str):
         try:
             req = Requirement(dep_line_stripped)
         except InvalidRequirement:
-            raise ValueError(f"Not a valid PEP 508 requirement: '{dep_line_stripped}'")
+            raise ParserValueError(
+                f"Not a valid PEP 508 requirement: '{dep_line_stripped}'"
+            )
 
         if req.marker is not None:
-            raise ValueError(
+            raise ParserValueError(
                 f"Environment markers not supported for line: '{dep_line_stripped}'"
             )
 
@@ -155,7 +168,7 @@ def pyproject_toml_parser(content: str):
 
         if req.name.lower() == "python":
             if parsed["python"] is not None and dep_spec:
-                raise ValueError(
+                raise ParserValueError(
                     f"Multiple Python version specs not allowed: '{dep_line_stripped}'"
                 )
             parsed["python"] = dep_spec or None
@@ -171,7 +184,7 @@ def conda_environment_yml_parser(content: str):
 
     The file must contain a 'dependencies:' line, after which each dependency line
     appears with a '- ' prefix. Python can appear as 'python=3.9', etc.; other
-    packages as 'numpy=1.21.2' or simply 'numpy'. Non-compliant lines raise ValueError.
+    packages as 'numpy=1.21.2' or simply 'numpy'. Non-compliant lines raise  ParserValueError.
 
     Parameters
     ----------
@@ -189,7 +202,7 @@ def conda_environment_yml_parser(content: str):
 
     Raises
     ------
-    ValueError
+     ParserValueError
         If the file has malformed lines or unsupported sections.
     """
     import re
@@ -202,7 +215,7 @@ def conda_environment_yml_parser(content: str):
     # Basic pattern for lines like "numpy=1.21.2"
     # Group 1: package name
     # Group 2: optional operator + version (could be "=1.21.2", "==1.21.2", etc.)
-    line_regex = re.compile(r"^([A-Za-z0-9_\-\.]+)([=<>!~].+)?$")
+    line_regex = re.compile(r"^([A-Za-z0-9_\-\.]+)(\s*[=<>!~].+\s*)?$")
     inline_comment_pattern = re.compile(r"\s+#.*$")
 
     for line in content.splitlines():
@@ -227,11 +240,13 @@ def conda_environment_yml_parser(content: str):
 
         dep_line = line.lstrip("-").strip()
         if dep_line.endswith(":"):
-            raise ValueError(f"Unsupported subsection '{dep_line}' in environment.yml.")
+            raise ParserValueError(
+                f"Unsupported subsection '{dep_line}' in environment.yml."
+            )
 
         match = line_regex.match(dep_line)
         if not match:
-            raise ValueError(
+            raise ParserValueError(
                 f"Line '{dep_line}' is not a valid conda package specifier."
             )
 
@@ -243,7 +258,7 @@ def conda_environment_yml_parser(content: str):
 
         if pkg_name.lower() == "python":
             if python_version is not None and version_spec:
-                raise ValueError(
+                raise ParserValueError(
                     f"Multiple Python version specs detected: '{dep_line}'"
                 )
             python_version = version_spec
