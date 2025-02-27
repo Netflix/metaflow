@@ -215,7 +215,7 @@ def conda_environment_yml_parser(content: str):
     # Basic pattern for lines like "numpy=1.21.2"
     # Group 1: package name
     # Group 2: optional operator + version (could be "=1.21.2", "==1.21.2", etc.)
-    line_regex = re.compile(r"^([A-Za-z0-9_\-\.]+)([=<>!~].+)?$")
+    line_regex = re.compile(r"^([A-Za-z0-9_\-\.]+)(\s*[=<>!~].+\s*)?$")
     inline_comment_pattern = re.compile(r"\s+#.*$")
 
     for line in content.splitlines():
