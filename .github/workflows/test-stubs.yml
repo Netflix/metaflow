@@ -48,10 +48,17 @@ jobs:
     - name: Install metaflow-stubs
       run: metaflow develop stubs install --force
 
+    - name: Create version-specific mypy config
+      run: |
+          # Copy the existing setup.cfg
+          cp ./stubs/test/setup.cfg ./stubs/test/mypy_${{ matrix.ver }}.cfg
+          # Add Python version setting
+          echo "python_version = ${{ matrix.ver }}" >> ./stubs/test/mypy_${{ matrix.ver }}.cfg
+
     - name: Run mypy tests
       uses: nick-fields/retry@v2
       with:
         max_attempts: 2
         timeout_minutes: 3
         retry_on: error
-        command: cd ./stubs && pytest --mypy-ini-file test/setup.cfg --mypy-only-local-stub && cd -
+        command: cd ./stubs && pytest --mypy-ini-file test/mypy_${{ matrix.ver }}.cfg --mypy-only-local-stub && cd -
