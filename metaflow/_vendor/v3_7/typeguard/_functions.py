@@ -18,7 +18,7 @@ from ._utils import get_stacklevel, qualified_name
 if sys.version_info >= (3, 11):
     from typing import Literal, Never, TypeAlias
 else:
-    from metaflow._vendor.typing_extensions import Literal, Never, TypeAlias
+    from metaflow._vendor.v3_7.typing_extensions import Literal, Never, TypeAlias
 
 T = TypeVar("T")
 TypeCheckFailCallback: TypeAlias = Callable[[TypeCheckError, TypeCheckMemo], Any]
@@ -32,7 +32,8 @@ def check_type(
     forward_ref_policy: ForwardRefPolicy = ...,
     typecheck_fail_callback: TypeCheckFailCallback | None = ...,
     collection_check_strategy: CollectionCheckStrategy = ...,
-) -> T: ...
+) -> T:
+    ...
 
 
 @overload
@@ -43,7 +44,8 @@ def check_type(
     forward_ref_policy: ForwardRefPolicy = ...,
     typecheck_fail_callback: TypeCheckFailCallback | None = ...,
     collection_check_strategy: CollectionCheckStrategy = ...,
-) -> Any: ...
+) -> Any:
+    ...
 
 
 def check_type(
@@ -51,7 +53,7 @@ def check_type(
     expected_type: Any,
     *,
     forward_ref_policy: ForwardRefPolicy = TypeCheckConfiguration().forward_ref_policy,
-    typecheck_fail_callback: TypeCheckFailCallback | None = (
+    typecheck_fail_callback: (TypeCheckFailCallback | None) = (
         TypeCheckConfiguration().typecheck_fail_callback
     ),
     collection_check_strategy: CollectionCheckStrategy = (
