@@ -1,0 +1,2 @@
+typeguard==4.1.2
+typing_extensions==4.7.1
