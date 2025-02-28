@@ -2,7 +2,7 @@ import json
 
 from metaflow.exception import MetaflowException
 from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
-
+from metaflow.util import resolve_identity
 
 class ArgoClientException(MetaflowException):
     headline = "Argo Client error"
@@ -255,13 +255,21 @@ class ArgoClient(object):
             raise ArgoClientException(
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
-
+    
+    def _get_identity_parts(self, identity):
+        id_parts = identity.split(":")
+        parts_size = len(id_parts)
+        usertype = id_parts[0] if parts_size > 0 else "unknown"
+        username = id_parts[1] if parts_size > 1 else "unknown"
+        return usertype, username
+    
     def trigger_workflow_template(self, name, parameters={}):
         client = self._client.get()
+        usertype, username = self._get_identity_parts(resolve_identity())
         body = {
             "apiVersion": "argoproj.io/v1alpha1",
             "kind": "Workflow",
-            "metadata": {"generateName": name + "-"},
+            "metadata": {"generateName": name + "-", "annotations": {"metaflow/triggered_by_user": json.dumps({'type': usertype, 'name': username})}},
             "spec": {
                 "workflowTemplateRef": {"name": name},
                 "arguments": {
