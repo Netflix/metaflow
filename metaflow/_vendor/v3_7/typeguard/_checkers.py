@@ -69,7 +69,7 @@ if sys.version_info >= (3, 10):
     from importlib.metadata import entry_points
     from typing import ParamSpec
 else:
-    from importlib_metadata import entry_points
+    from metaflow._vendor.v3_7.importlib_metadata import entry_points
     from metaflow._vendor.v3_7.typing_extensions import ParamSpec
 
 TypeCheckerCallable: TypeAlias = Callable[
