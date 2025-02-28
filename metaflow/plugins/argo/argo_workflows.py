@@ -64,6 +64,7 @@ from metaflow.util import (
 )
 
 from .argo_client import ArgoClient
+from metaflow.util import resolve_identity
 
 
 class ArgoWorkflowsException(MetaflowException):
@@ -315,8 +316,16 @@ class ArgoWorkflows(object):
                     "Workflows before proceeding." % name
                 )
         try:
+            id_parts = resolve_identity().split(":")
+            parts_size = len(id_parts)
+            usertype = id_parts[0] if parts_size > 0 else "unknown"
+            username = id_parts[1] if parts_size > 1 else "unknown"
+
             return ArgoClient(namespace=KUBERNETES_NAMESPACE).trigger_workflow_template(
-                name, parameters
+                name,
+                usertype,
+                username,
+                parameters,
             )
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
