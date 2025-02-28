@@ -28,7 +28,7 @@ class ResourcesDecorator(StepDecorator):
     disk : int, optional, default None
         Disk size (in MB) required for this step. Only applies on Kubernetes.
     memory : int, default 4096
-        Memory size (in MB) required for this step.
+        Memory size (in MiB) required for this step.
     shared_memory : int, optional, default None
         The value for the size (in MiB) of the /dev/shm volume for this step.
         This parameter maps to the `--shm-size` option in Docker.
