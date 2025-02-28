@@ -1,7 +1,13 @@
 import os
 import sys
 
-if sys.version_info < (3, 7):
+_py_ver = sys.version_info[:2]
+
+if _py_ver >= (3, 8):
+    from metaflow._vendor.typeguard import TypeCheckError, check_type
+elif _py_ver >= (3, 7):
+    from metaflow._vendor.v3_7.typeguard import TypeCheckError, check_type
+else:
     raise RuntimeError(
         """
         The Metaflow Programmatic API is not supported for versions of Python less than 3.7
@@ -35,7 +41,6 @@ from metaflow._vendor.click.types import (
     Tuple,
     UUIDParameterType,
 )
-from metaflow._vendor.typeguard import TypeCheckError, check_type
 from metaflow.decorators import add_decorator_options
 from metaflow.exception import MetaflowException
 from metaflow.includefile import FilePathClass
