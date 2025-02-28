@@ -1133,13 +1133,16 @@ class StubGenerator:
             result = result[1:]
         # Add doc to first and last overloads. Jedi uses the last one and pycharm
         # the first one. Go figure.
+        result_docstring = docs["func_doc"]
+        if docs["param_doc"]:
+            result_docstring += "\nParameters\n----------\n" + docs["param_doc"]
         result[0] = (
             result[0][0],
-            docs["func_doc"] + "\nParameters\n----------\n" + docs["param_doc"],
+            result_docstring,
         )
         result[-1] = (
             result[-1][0],
-            docs["func_doc"] + "\nParameters\n----------\n" + docs["param_doc"],
+            result_docstring,
         )
         return result
 
