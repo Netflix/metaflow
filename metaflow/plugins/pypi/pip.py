@@ -107,9 +107,9 @@ class Pip(object):
             except PipPackageNotFound as ex:
                 # pretty print package errors
                 raise PipException(
-                    "Unable to find a binary distribution compatible with %s for %s.\n\n %s"
+                    "Unable to find a binary distribution compatible with %s for %s.\n\n"
                     "Note: ***@pypi*** does not currently support source distributions"
-                    % (ex.package_spec, platform, ex.error)
+                    % (ex.package_spec, platform)
                 )
 
             def _format(dl_info):
