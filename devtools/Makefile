@@ -8,6 +8,7 @@ help:
 	@echo "  ui            - Open Metaflow UI"
 	@echo "  dashboard     - Open Minikube dashboard"
 	@echo "  down          - Stop and clean up the environment"
+	@echo "  all-up        - Start the development environment with all services"
 	@echo "  help          - Show this help message"
 
 HELM_VERSION := v3.14.0
@@ -186,6 +187,10 @@ up: install-brew check-docker install-curl install-gum setup-minikube install-he
 	@chmod +x $(DEVTOOLS_DIR)/start.sh
 	@$(DEVTOOLS_DIR)/start.sh
 
+all-up:
+	@echo "🚀 Starting up all services..."
+	SERVICES_OVERRIDE=all $(MAKE) up
+
 down:
 	@echo "🛑 Stopping all services..."
 	@-pkill -f "$(MINIKUBE) tunnel" 2>/dev/null || true
@@ -322,6 +327,6 @@ ui: setup-tilt
 	@echo "🔗 Opening Metaflow UI at http://localhost:3000"
 	@open http://localhost:3000
 
-.PHONY: install-helm setup-minikube setup-tilt teardown-minikube tunnel up down check-docker install-curl install-gum install-brew up down dashboard shell ui help
+.PHONY: install-helm setup-minikube setup-tilt teardown-minikube tunnel up down check-docker install-curl install-gum install-brew up down dashboard shell ui all-up help
 
 .DEFAULT_GOAL := up
