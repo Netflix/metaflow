@@ -23,8 +23,13 @@ components = {
     "argo-events": ["argo-workflows"],
 }
 
-if os.getenv("SERVICES", "").strip():
-    requested_components = os.getenv("SERVICES", "").split(",")
+services_env = os.getenv("SERVICES", "").strip().lower()
+
+if services_env:
+    if services_env == "all":
+        requested_components = list(components.keys())
+    else:
+        requested_components = services_env.split(",")
 else:
     requested_components = list(components.keys())
 
@@ -78,7 +83,7 @@ for component in requested_components:
         if result not in enabled_components:
             enabled_components.append(result)
 
-# Print a friendly summary when running `tilt up`.            
+# Print a friendly summary when running `tilt up`.
 if config.tilt_subcommand == 'up':
     print("\n📦 Components to install:")
     for component in enabled_components:
@@ -499,7 +504,7 @@ if "argo-events" in enabled_components:
         'argo-events-controller-manager',
         labels=['argo-events'],
     )
-    
+
     metaflow_config["METAFLOW_ARGO_EVENTS_EVENT"] = "metaflow-event"
     metaflow_config["METAFLOW_ARGO_EVENTS_EVENT_BUS"] = "default"
     metaflow_config["METAFLOW_ARGO_EVENTS_EVENT_SOURCE"] = "argo-events-webhook"
