@@ -189,7 +189,7 @@ up: install-brew check-docker install-curl install-gum setup-minikube install-he
 
 all-up:
 	@echo "🚀 Starting up all services..."
-	SERVICES_OVERRIDE=all $(MAKE) up
+	SERVICES_OVERRIDE=all $(MAKE_CMD) up
 
 down:
 	@echo "🛑 Stopping all services..."
