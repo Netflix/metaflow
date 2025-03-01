@@ -23,8 +23,13 @@ components = {
     "argo-events": ["argo-workflows"],
 }
 
-if os.getenv("SERVICES", "").strip():
-    requested_components = os.getenv("SERVICES", "").split(",")
+services_env = os.getenv("SERVICES", "").strip().lower()
+
+if services_env:
+    if services_env == "all":
+        requested_components = list(components.keys())
+    else:
+        requested_components = services_env.split(",")
 else:
     requested_components = list(components.keys())
 
