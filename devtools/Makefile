@@ -205,7 +205,7 @@ down:
 
 shell: setup-tilt
 	@echo "⏳ Checking if development environment is up..."
-	@set -e; \
+	@set -eu; \
 	for i in $$(seq 1 90); do \
 		if "$(TILT)" get session >/dev/null 2>&1; then \
 			found_session=1; \
@@ -214,7 +214,7 @@ shell: setup-tilt
 			sleep 2; \
 		fi; \
 	done; \
-	if [ -z "$${found_session}" ]; then \
+	if [ -z "$${found_session:-}" ]; then \
 		echo "❌ Development environment is not up."; \
 		echo "   Please run 'metaflow-dev up' in another terminal, then re-run 'metaflow-dev shell'."; \
 		exit 1; \
