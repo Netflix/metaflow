@@ -69,6 +69,8 @@ def pip_tags(python_version, mamba_platform):
                 "_2_25",
                 "_2_26",
                 "_2_27",
+                "_2_28",
+                "_2_29",
             )
         ]
         platforms.append("linux_x86_64")
@@ -87,6 +89,8 @@ def pip_tags(python_version, mamba_platform):
                 "_2_25",
                 "_2_26",
                 "_2_27",
+                "_2_28",
+                "_2_29",
             )
         ]
         platforms.append("linux_aarch64")
