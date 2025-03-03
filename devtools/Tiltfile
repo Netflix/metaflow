@@ -510,7 +510,8 @@ if "argo-events" in enabled_components:
     metaflow_config["METAFLOW_ARGO_EVENTS_EVENT_SOURCE"] = "argo-events-webhook"
     metaflow_config["METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT"] = "operate-workflow-sa"
     metaflow_config["METAFLOW_ARGO_EVENTS_WEBHOOK_AUTH"] = "service"
-    metaflow_config["METAFLOW_ARGO_EVENTS_WEBHOOK_URL"] = "http://argo-events-webhook-eventsource-svc:12000/metaflow-event"
+    metaflow_config["METAFLOW_ARGO_EVENTS_INTERNAL_WEBHOOK_URL"] = "http://argo-events-webhook-eventsource-svc:12000/metaflow-event"
+    metaflow_config["METAFLOW_ARGO_EVENTS_WEBHOOK_URL"] = "http://localhost:12000/metaflow-event"
 
     config_resources.append('argo-events-controller-manager')
     config_resources.append('argo-events-webhook-eventsource-svc')
