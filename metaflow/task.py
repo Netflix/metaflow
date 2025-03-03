@@ -11,10 +11,10 @@ from types import MethodType, FunctionType
 from metaflow.sidecar import Message, MessageTypes
 from metaflow.datastore.exceptions import DataException
 
-from .metaflow_config import MAX_ATTEMPTS
+from .metaflow_config import MAX_ATTEMPTS, SPIN_ALLOWED_DECORATORS
 from .metadata_provider import MetaDatum
 from .mflog import TASK_LOG_SOURCE
-from .datastore import Inputs, TaskDataStoreSet
+from .datastore import Inputs, TaskDataStoreSet, SpinInputsDatastore
 from .exception import (
     MetaflowInternalError,
     MetaflowDataMissing,
@@ -47,6 +47,8 @@ class MetaflowTask(object):
         event_logger,
         monitor,
         ubf_context,
+        spin_flow_datastore=None,
+        spin_metadata=None,
     ):
         self.flow = flow
         self.flow_datastore = flow_datastore
@@ -56,6 +58,14 @@ class MetaflowTask(object):
         self.event_logger = event_logger
         self.monitor = monitor
         self.ubf_context = ubf_context
+
+        # Store the original flow datastore and metadata provider
+        self.original_flow_datastore = flow_datastore
+        self.original_metadata = metadata
+        self.spin = spin_flow_datastore is not None
+        if spin_flow_datastore:
+            self.flow_datastore = spin_flow_datastore
+            self.metadata = spin_metadata
 
     def _exec_step_function(self, step_function, input_obj=None):
         if input_obj is None:
@@ -143,7 +153,7 @@ class MetaflowTask(object):
             # Note: Specify `pathspecs` while creating the datastore set to
             # guarantee strong consistency and guard against missing input.
             datastore_set = TaskDataStoreSet(
-                self.flow_datastore,
+                self.original_flow_datastore,
                 run_id,
                 pathspecs=input_paths,
                 prefetch_data_artifacts=prefetch_data_artifacts,
@@ -160,7 +170,9 @@ class MetaflowTask(object):
             for input_path in input_paths:
                 run_id, step_name, task_id = input_path.split("/")
                 ds_list.append(
-                    self.flow_datastore.get_task_datastore(run_id, step_name, task_id)
+                    self.original_flow_datastore.get_task_datastore(
+                        run_id, step_name, task_id
+                    )
                 )
         if not ds_list:
             # this guards against errors in input paths
@@ -382,7 +394,9 @@ class MetaflowTask(object):
         split_index,
         retry_count,
         max_user_code_retries,
+        spin_pathspec=None,
     ):
+        _, spin_run_id, spin_step_name, spin_task_id = spin_pathspec.split("/")
         if run_id and task_id:
             self.metadata.register_run_id(run_id)
             self.metadata.register_task_id(run_id, step_name, task_id, retry_count)
@@ -440,6 +454,14 @@ class MetaflowTask(object):
 
         step_func = getattr(self.flow, step_name)
         decorators = step_func.decorators
+        if self.spin:
+            decorators = [
+                deco
+                for deco in decorators
+                if any(
+                    deco.name.startswith(prefix) for prefix in SPIN_ALLOWED_DECORATORS
+                )
+            ]
 
         node = self.flow._graph[step_name]
         join_type = None
@@ -455,7 +477,7 @@ class MetaflowTask(object):
 
         if input_paths:
             # 2. initialize input datastores
-            inputs = self._init_data(run_id, join_type, input_paths)
+            inputs = self._init_data(spin_run_id, join_type, input_paths)
 
             # 3. initialize foreach state
             self._init_foreach(step_name, join_type, inputs, split_index)
@@ -467,6 +489,8 @@ class MetaflowTask(object):
                 if hasattr(self.flow, "_foreach_stack") and self.flow._foreach_stack
                 else []
             )
+
+            # print(f"I am here after foreach_stack has been initialized: {foreach_stack}")
 
             foreach_stack_formatted = []
             current_foreach_path_length = 0
@@ -509,6 +533,12 @@ class MetaflowTask(object):
                             type="foreach-execution-path",
                             tags=metadata_tags,
                         ),
+                        MetaDatum(
+                            field="previous-step-names",
+                            value=[frame.step for frame in foreach_stack],
+                            type="prev-step-names",
+                            tags=metadata_tags,
+                        ),
                     ]
                 )
 
@@ -533,6 +563,12 @@ class MetaflowTask(object):
             is_running=True,
             tags=self.metadata.sticky_tags,
         )
+        if self.spin:
+            current._update_env(
+                {
+                    "spin": True,
+                }
+            )
 
         # 5. run task
         output.save_metadata(
@@ -584,6 +620,8 @@ class MetaflowTask(object):
                 # FlowSpec._EPHEMERAL to allow for proper merging/importing of
                 # user artifacts in the user's step code.
 
+                # print("I am right here")
+
                 if join_type:
                     # Join step:
 
@@ -598,7 +636,30 @@ class MetaflowTask(object):
 
                     # Multiple input contexts are passed in as an argument
                     # to the step function.
-                    input_obj = Inputs(self._clone_flow(inp) for inp in inputs)
+                    # print(f"I am here with inputs: {inputs}")
+                    if self.spin:
+                        # We will sort the inputs by the index of the foreach stack
+                        # If there is no foreach stack, we will sort by step name
+                        inputs = sorted(
+                            inputs,
+                            key=lambda x: (
+                                x["_foreach_stack"][-1].index
+                                if x["_foreach_stack"]
+                                else x.step_name
+                            ),
+                        )
+                    # for inp in inputs:
+                    #     print(f"Input has index: {inp['_foreach_stack'][-1].index}")
+                    #     print(f"Input step name: {inp.step_name}")
+
+                    inp_datastore = [
+                        SpinInputsDatastore(inp, artifacts={}) for inp in inputs
+                    ]
+
+                    input_obj = Inputs(self._clone_flow(inp) for inp in inp_datastore)
+                    # input_obj = Inputs(self._clone_flow(inp) for inp in inputs)
+                    # print(f"Inputs has index: {inputs[0]['_foreach_stack']}")
+                    # print(f"Inputs step name: {inputs[0].step_name}")
                     self.flow._set_datastore(output)
                     # initialize parameters (if they exist)
                     # We take Parameter values from the first input,
@@ -623,7 +684,11 @@ class MetaflowTask(object):
                             "step but it gets multiple "
                             "inputs." % step_name
                         )
-                    self.flow._set_datastore(inputs[0])
+                    inp_datastore = SpinInputsDatastore(
+                        inputs[0],
+                        artifacts={},
+                    )
+                    self.flow._set_datastore(inp_datastore)
                     if input_paths:
                         # initialize parameters (if they exist)
                         # We take Parameter values from the first input,
