@@ -319,6 +319,8 @@ class RunningJobSet(object):
     def kill(self):
         plural = "jobsets"
         client = self._client.get()
+        if not (self.is_running or self.is_waiting):
+            return
         try:
             # Killing the control pod will trigger the jobset to mark everything as failed.
             # Since jobsets have a successPolicy set to `All` which ensures that everything has
