@@ -13,6 +13,7 @@ import sys
     "platform.system", lambda: os.environ.get("PIP_PATCH_SYSTEM", os.uname().sysname)
 )
 def _main(args):
+    # TODO: Pip has deprecated using script wrappers for the cli. this will break in the future, and make patching the sys internals much harder
     from pip import main
 
     exitcode = main(args)
