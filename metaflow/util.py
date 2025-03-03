@@ -177,6 +177,42 @@ def resolve_identity():
     return "%s:%s" % (identity_type, identity_value)
 
 
+def get_latest_task_pathspec(flow_name: str, step_name: str) -> str:
+    """
+    Returns a task pathspec from the latest run of the flow for the queried step.
+    If the queried step has several tasks, the task pathspec of the first task is returned.
+    Parameters
+    ----------
+    flow_name : str
+        The name of the flow.
+    step_name : str
+        The name of the step.
+    Returns
+    -------
+    str
+        The task pathspec of the first task of the queried step.
+    Raises
+    ------
+    MetaflowNotFound
+        If no task or run is found for the queried step.
+    """
+    from metaflow import Flow, Step
+    from metaflow.exception import MetaflowNotFound
+
+    run = Flow(flow_name, _namespace_check=False).latest_run
+
+    if run is None:
+        raise MetaflowNotFound(f"No run found for the flow {flow_name}")
+
+    try:
+        task = Step(f"{flow_name}/{run.id}/{step_name}", _namespace_check=False).task
+        return task.pathspec
+    except Exception:
+        raise MetaflowNotFound(
+            f"No step *{step_name}* found in run *{run.id}* for flow *{flow_name}*"
+        )
+
+
 def get_latest_run_id(echo, flow_name):
     from metaflow.plugins.datastores.local_storage import LocalStorage
 

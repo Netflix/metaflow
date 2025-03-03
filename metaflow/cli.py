@@ -113,6 +113,8 @@ def logger(body="", system_msg=False, head="", bad=False, timestamp=True, nl=Tru
         "step": "metaflow.cli_components.step_cmd.step",
         "run": "metaflow.cli_components.run_cmds.run",
         "resume": "metaflow.cli_components.run_cmds.resume",
+        "spin": "metaflow.cli_components.run_cmds.spin",
+        "spin-internal": "metaflow.cli_components.step_cmd.spin_internal",
     },
 )
 def cli(ctx):
@@ -151,7 +153,7 @@ def show(obj):
     echo_always("\n%s" % obj.graph.doc)
     for node_name in obj.graph.sorted_nodes:
         node = obj.graph[node_name]
-        echo_always("\nStep *%s*" % node.name, err=False)
+        echo_always("\nStep *%s* and type: *%s*" % (node.name, node.type), err=False)
         echo_always(node.doc if node.doc else "?", indent=True, err=False)
         if node.type != "end":
             echo_always(
@@ -349,7 +351,6 @@ def start(
         )
 
     ctx.obj.datastore_impl.datastore_root = datastore_root
-
     FlowDataStore.default_storage_impl = ctx.obj.datastore_impl
 
     # At this point, we are able to resolve the user-configuration options so we can
@@ -439,14 +440,10 @@ def start(
     ctx.obj.event_logger = LOGGING_SIDECARS[event_logger](
         flow=ctx.obj.flow, env=ctx.obj.environment
     )
-    ctx.obj.event_logger.start()
-    _system_logger.init_system_logger(ctx.obj.flow.name, ctx.obj.event_logger)
 
     ctx.obj.monitor = MONITOR_SIDECARS[monitor](
         flow=ctx.obj.flow, env=ctx.obj.environment
     )
-    ctx.obj.monitor.start()
-    _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
 
     ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == metadata][0](
         ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
@@ -461,6 +458,44 @@ def start(
     )
 
     ctx.obj.config_options = config_options
+    ctx.obj.is_spin = False
+
+    # Override values for spin
+    if hasattr(ctx, "saved_args") and ctx.saved_args and "spin" in ctx.saved_args[0]:
+        # For spin, we will only use the local metadata provider, datastore, environment
+        # and null event logger and monitor
+        ctx.obj.is_spin = True
+        ctx.obj.spin_metadata = [m for m in METADATA_PROVIDERS if m.TYPE == "local"][0](
+            ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
+        )
+        # ctx.obj.event_logger = LOGGING_SIDECARS["nullSidecarLogger"](
+        #     flow=ctx.obj.flow, env=ctx.obj.environment
+        # )
+        # ctx.obj.monitor = MONITOR_SIDECARS["nullSidecarMonitor"](
+        #     flow=ctx.obj.flow, env=ctx.obj.environment
+        # )
+        # ctx.obj.spin_datastore_impl = [d for d in DATASTORES if d.TYPE == "local"][0]
+        ctx.obj.spin_datastore_impl = [d for d in DATASTORES if d.TYPE == "s3"][0]
+        if datastore_root is None:
+            datastore_root = ctx.obj.spin_datastore_impl.get_datastore_root_from_config(
+                ctx.obj.echo
+            )
+        ctx.obj.spin_datastore_impl.datastore_root = datastore_root
+        ctx.obj.spin_flow_datastore = FlowDataStore(
+            ctx.obj.flow.name,
+            ctx.obj.environment,  # Same environment as run/resume
+            ctx.obj.spin_metadata,  # local metadata provider
+            ctx.obj.event_logger,  # null event logger
+            ctx.obj.monitor,  # null monitor
+            storage_impl=ctx.obj.spin_datastore_impl,
+        )
+
+    # Start event logger and monitor
+    ctx.obj.event_logger.start()
+    _system_logger.init_system_logger(ctx.obj.flow.name, ctx.obj.event_logger)
+
+    ctx.obj.monitor.start()
+    _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
 
     decorators._init(ctx.obj.flow)
 
@@ -470,14 +505,14 @@ def start(
         ctx.obj.flow,
         ctx.obj.graph,
         ctx.obj.environment,
-        ctx.obj.flow_datastore,
-        ctx.obj.metadata,
+        ctx.obj.flow_datastore if not ctx.obj.is_spin else ctx.obj.spin_flow_datastore,
+        ctx.obj.metadata if not ctx.obj.is_spin else ctx.obj.spin_metadata,
         ctx.obj.logger,
         echo,
         deco_options,
     )
 
-    # In the case of run/resume, we will want to apply the TL decospecs
+    # In the case of run/resume/spin, we will want to apply the TL decospecs
     # *after* the run decospecs so that they don't take precedence. In other
     # words, for the same decorator, we want `myflow.py run --with foo` to
     # take precedence over any other `foo` decospec
@@ -493,7 +528,7 @@ def start(
     parameters.set_parameter_context(
         ctx.obj.flow.name,
         ctx.obj.echo,
-        ctx.obj.flow_datastore,
+        ctx.obj.flow_datastore if not ctx.obj.is_spin else ctx.obj.spin_flow_datastore,
         {
             k: ConfigValue(v)
             for k, v in ctx.obj.flow.__class__._flow_state.get(
@@ -505,9 +540,9 @@ def start(
     if (
         hasattr(ctx, "saved_args")
         and ctx.saved_args
-        and ctx.saved_args[0] not in ("run", "resume")
+        and ctx.saved_args[0] not in ("run", "resume", "spin")
     ):
-        # run/resume are special cases because they can add more decorators with --with,
+        # run/resume/spin are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.
         all_decospecs = ctx.obj.tl_decospecs + list(
             ctx.obj.environment.decospecs() or []

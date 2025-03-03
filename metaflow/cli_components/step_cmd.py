@@ -176,3 +176,141 @@ def step(
         )
 
     echo("Success", fg="green", bold=True, indent=True)
+
+
+@click.command(help="Internal command to spin a single task.", hidden=True)
+@click.argument("step-name")
+@click.option(
+    "--run-id",
+    default=None,
+    required=True,
+    help="Run ID for the step that's about to be spun",
+)
+@click.option(
+    "--task-id",
+    default=None,
+    required=True,
+    help="Task ID for the step that's about to be spun",
+)
+@click.option(
+    "--spin-pathspec",
+    default=None,
+    show_default=True,
+    help="Task Pathspec to be used in the spun step.",
+)
+@click.option(
+    "--input-paths",
+    help="A comma-separated list of pathspecs specifying inputs for this step.",
+)
+@click.option(
+    "--split-index",
+    type=int,
+    default=None,
+    show_default=True,
+    help="Index of this foreach split.",
+)
+@click.option(
+    "--retry-count",
+    default=0,
+    help="How many times we have attempted to run this task.",
+)
+@click.option(
+    "--max-user-code-retries",
+    default=0,
+    help="How many times we should attempt running the user code.",
+)
+@click.option(
+    "--namespace",
+    "namespace",
+    default=None,
+    help="Change namespace from the default (your username) to the specified tag.",
+)
+@click.option(
+    "--skip-decorators/--no-skip-decorators",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Skip decorators attached to the step.",
+)
+@click.pass_context
+def spin_internal(
+    ctx,
+    step_name,
+    run_id=None,
+    task_id=None,
+    spin_pathspec=None,
+    input_paths=None,
+    split_index=None,
+    retry_count=None,
+    max_user_code_retries=None,
+    namespace=None,
+    skip_decorators=False,
+):
+    import time
+
+    start = time.time()
+    import sys
+
+    if ctx.obj.is_quiet:
+        print("Echo dev null")
+        echo = echo_dev_null
+    else:
+        print("Echo always")
+        echo = echo_always
+
+    input_paths = decompress_list(input_paths) if input_paths else []
+    # print(f"Input paths: {input_paths} and type: {type(input_paths)}")
+    # print(f"Split index: {split_index} and type: {type(split_index)}")
+    # print(f"Retry count: {retry_count} and type: {type(retry_count)}")
+    # print(f"Max user code retries: {max_user_code_retries} and type: {type(max_user_code_retries)}")
+
+    echo(
+        f"Spinning a task, *{step_name}* with previous task pathspec: {spin_pathspec}",
+        fg="magenta",
+        bold=False,
+    )
+
+    task = MetaflowTask(
+        ctx.obj.flow,
+        ctx.obj.flow_datastore,  # local datastore
+        ctx.obj.metadata,  # local metadata provider
+        ctx.obj.environment,  # local environment
+        ctx.obj.echo,
+        ctx.obj.event_logger,  # null logger
+        ctx.obj.monitor,  # null monitor
+        None,  # no unbounded foreach context
+        ctx.obj.spin_flow_datastore,  # spin flow datastore
+        ctx.obj.spin_metadata,  # spin metadata provider
+    )
+    echo(
+        "I am here",
+        fg="magenta",
+        bold=False,
+    )
+
+    task.run_step(
+        step_name,
+        run_id,
+        task_id,
+        None,
+        input_paths,
+        split_index,
+        retry_count,
+        max_user_code_retries,
+        spin_pathspec,
+    )
+
+    #
+    # task.run_spin_step(
+    #     step_name,
+    #     task_pathspec,
+    #     run_id,
+    #     task_id,
+    #     input_paths,
+    #     split_index,
+    #     retry_count,
+    #     max_user_code_retries,
+    #     namespace,
+    #     skip_decorators,
+    # )
+    # print("Time taken for the whole thing: ", time.time() - start)
