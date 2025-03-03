@@ -15,7 +15,10 @@ from tempfile import NamedTemporaryFile
 from multiprocessing import Process, Queue
 from itertools import starmap, chain, islice
 
+from boto3.exceptions import RetriesExceededError, S3UploadFailedError
 from boto3.s3.transfer import TransferConfig
+from botocore.config import Config
+from botocore.exceptions import ClientError, SSLError
 
 try:
     # python2
@@ -46,11 +49,13 @@ from metaflow.plugins.datatools.s3.s3util import (
 import metaflow.tracing as tracing
 from metaflow.metaflow_config import (
     S3_WORKER_COUNT,
+    S3_CLIENT_RETRY_CONFIG,
 )
 
 DOWNLOAD_FILE_THRESHOLD = 2 * TransferConfig().multipart_threshold
 DOWNLOAD_MAX_CHUNK = 2 * 1024 * 1024 * 1024 - 1
 
+DEFAULT_S3_CLIENT_PARAMS = {"config": Config(retries=S3_CLIENT_RETRY_CONFIG)}
 RANGE_MATCH = re.compile(r"bytes (?P<start>[0-9]+)-(?P<end>[0-9]+)/(?P<total>[0-9]+)")
 
 S3Config = namedtuple("S3Config", "role session_vars client_params")
@@ -147,6 +152,7 @@ def normalize_client_error(err):
             "LimitExceededException",
             "RequestThrottled",
             "EC2ThrottledException",
+            "InternalError",
         ):
             return 503
     return error_code
@@ -254,21 +260,27 @@ def worker(result_file_name, queue, mode, s3config):
                     except client_error as err:
                         tmp.close()
                         os.unlink(tmp.name)
-                        error_code = normalize_client_error(err)
-                        if error_code == 404:
-                            result_file.write("%d %d\n" % (idx, -ERROR_URL_NOT_FOUND))
-                            continue
-                        elif error_code == 403:
-                            result_file.write(
-                                "%d %d\n" % (idx, -ERROR_URL_ACCESS_DENIED)
-                            )
-                            continue
-                        elif error_code == 503:
-                            result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
-                            continue
-                        else:
-                            raise
-                        # TODO specific error message for out of disk space
+                        handle_client_error(err, idx, result_file)
+                        continue
+                    except RetriesExceededError as e:
+                        tmp.close()
+                        os.unlink(tmp.name)
+                        err = convert_to_client_error(e)
+                        handle_client_error(err, idx, result_file)
+                        continue
+                    except SSLError as e:
+                        tmp.close()
+                        os.unlink(tmp.name)
+                        result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
+                        result_file.flush()
+                        continue
+                    except Exception as e:
+                        tmp.close()
+                        os.unlink(tmp.name)
+                        # assume anything else is transient
+                        result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
+                        result_file.flush()
+                        continue
                     # If we need the metadata, get it and write it out
                     if pre_op_info:
                         with open("%s_meta" % url.local, mode="w") as f:
@@ -322,20 +334,59 @@ def worker(result_file_name, queue, mode, s3config):
                             # We indicate that the file was uploaded
                             result_file.write("%d %d\n" % (idx, 0))
                         except client_error as err:
-                            error_code = normalize_client_error(err)
-                            if error_code == 403:
-                                result_file.write(
-                                    "%d %d\n" % (idx, -ERROR_URL_ACCESS_DENIED)
-                                )
-                                continue
-                            elif error_code == 503:
-                                result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
-                                continue
-                            else:
-                                raise
+                            # shouldn't get here, but just in case
+                            handle_client_error(err, idx, result_file)
+                            continue
+                        except S3UploadFailedError as e:
+                            err = convert_to_client_error(e)
+                            handle_client_error(err, idx, result_file)
+                            continue
+                        except SSLError as e:
+                            result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
+                            result_file.flush()
+                            continue
+                        except Exception as e:
+                            # assume anything else is transient
+                            result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
+                            result_file.flush()
+                            continue
         except:
             traceback.print_exc()
+            result_file.flush()
             sys.exit(ERROR_WORKER_EXCEPTION)
+
+
+def convert_to_client_error(e):
+    match = re.search(
+        r"An error occurred \((\w+)\) when calling the (\w+) operation.*: (.+)", str(e)
+    )
+    assert match, "Failed to parse error message"
+    error_code = match.group(1)
+    operation_name = match.group(2)
+    error_message = match.group(3)
+    response = {
+        "Error": {
+            "Code": error_code,
+            "Message": error_message,
+        }
+    }
+    return ClientError(response, operation_name)
+
+
+def handle_client_error(err, idx, result_file):
+    error_code = normalize_client_error(err)
+    if error_code == 404:
+        result_file.write("%d %d\n" % (idx, -ERROR_URL_NOT_FOUND))
+        result_file.flush()
+    elif error_code == 403:
+        result_file.write("%d %d\n" % (idx, -ERROR_URL_ACCESS_DENIED))
+        result_file.flush()
+    elif error_code == 503:
+        result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
+        result_file.flush()
+    else:
+        raise
+    # TODO specific error message for out of disk space
 
 
 def start_workers(mode, urls, num_workers, inject_failure, s3config):
@@ -381,6 +432,12 @@ def start_workers(mode, urls, num_workers, inject_failure, s3config):
                 if proc.exitcode is not None:
                     if proc.exitcode != 0:
                         msg = "Worker process failed (exit code %d)" % proc.exitcode
+
+                        # IMPORTANT: if a child process has put items on a queue, then that process will not
+                        # terminate until all buffered items have been flushed to the pipe, causing a deadlock.
+                        # `cancel_join_thread()` allows the subprocess to exit without flushing the queue.
+                        queue.cancel_join_thread()
+
                         exit(msg, proc.exitcode)
                     # Read the output file if all went well
                     with open(out_path, "r") as out_file:
@@ -745,7 +802,7 @@ def lst(
     s3config = S3Config(
         s3role,
         json.loads(s3sessionvars) if s3sessionvars else None,
-        json.loads(s3clientparams) if s3clientparams else None,
+        json.loads(s3clientparams) if s3clientparams else DEFAULT_S3_CLIENT_PARAMS,
     )
 
     urllist = []
@@ -878,7 +935,7 @@ def put(
     s3config = S3Config(
         s3role,
         json.loads(s3sessionvars) if s3sessionvars else None,
-        json.loads(s3clientparams) if s3clientparams else None,
+        json.loads(s3clientparams) if s3clientparams else DEFAULT_S3_CLIENT_PARAMS,
     )
 
     urls = list(starmap(_make_url, _files()))
@@ -1025,7 +1082,7 @@ def get(
     s3config = S3Config(
         s3role,
         json.loads(s3sessionvars) if s3sessionvars else None,
-        json.loads(s3clientparams) if s3clientparams else None,
+        json.loads(s3clientparams) if s3clientparams else DEFAULT_S3_CLIENT_PARAMS,
     )
 
     # Construct a list of URL (prefix) objects
@@ -1172,7 +1229,7 @@ def info(
     s3config = S3Config(
         s3role,
         json.loads(s3sessionvars) if s3sessionvars else None,
-        json.loads(s3clientparams) if s3clientparams else None,
+        json.loads(s3clientparams) if s3clientparams else DEFAULT_S3_CLIENT_PARAMS,
     )
 
     # Construct a list of URL (prefix) objects
