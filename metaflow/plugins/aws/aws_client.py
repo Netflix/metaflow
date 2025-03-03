@@ -41,7 +41,7 @@ class Boto3ClientProvider(object):
             # Use the adaptive retry strategy by default -- do not set anything if
             # the user has already set something
             config = client_params.get("config", Config())
-            config.retries = S3_CLIENT_RETRY_CONFIG,
+            config.retries = (S3_CLIENT_RETRY_CONFIG,)
             client_params["config"] = config
 
         if AWS_SANDBOX_ENABLED:

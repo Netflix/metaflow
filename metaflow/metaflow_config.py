@@ -110,7 +110,9 @@ S3_WORKER_COUNT = from_conf("S3_WORKER_COUNT", 64)
 S3_TRANSIENT_RETRY_COUNT = from_conf("S3_TRANSIENT_RETRY_COUNT", 20)
 
 # S3 retry configuration used in the aws client
-S3_CLIENT_RETRY_CONFIG = from_conf("S3_CLIENT_RETRY_CONFIG", {"max_attempts": 10, "mode": "adaptive"})
+S3_CLIENT_RETRY_CONFIG = from_conf(
+    "S3_CLIENT_RETRY_CONFIG", {"max_attempts": 10, "mode": "adaptive"}
+)
 
 # Threshold to start printing warnings for an AWS retry
 RETRY_WARNING_THRESHOLD = 3
