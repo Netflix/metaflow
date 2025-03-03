@@ -15,7 +15,8 @@ import sys
 def _main(args):
     from pip import main
 
-    main(args)
+    exitcode = main(args)
+    sys.exit(exitcode)
 
 
 if __name__ == "__main__":
