@@ -10,7 +10,7 @@ from typing import ContextManager, TypeVar, overload
 if sys.version_info >= (3, 10):
     from typing import ParamSpec
 else:
-    from metaflow._vendor.typing_extensions import ParamSpec
+    from metaflow._vendor.v3_7.typing_extensions import ParamSpec
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -20,15 +20,17 @@ type_checks_suppress_lock = Lock()
 
 
 @overload
-def suppress_type_checks(func: Callable[P, T]) -> Callable[P, T]: ...
+def suppress_type_checks(func: Callable[P, T]) -> Callable[P, T]:
+    ...
 
 
 @overload
-def suppress_type_checks() -> ContextManager[None]: ...
+def suppress_type_checks() -> ContextManager[None]:
+    ...
 
 
 def suppress_type_checks(
-    func: Callable[P, T] | None = None,
+    func: Callable[P, T] | None = None
 ) -> Callable[P, T] | ContextManager[None]:
     """
     Temporarily suppress all type checking.
