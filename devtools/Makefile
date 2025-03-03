@@ -99,7 +99,7 @@ install-gum:
 	@if ! command -v gum >/dev/null 2>&1; then \
 		echo "📥 Installing gum..."; \
 		if [ "$(shell uname)" = "Darwin" ]; then \
-			HOMEBREW_NO_AUTO_UPDATE=1 brew install gum; \
+			HOMEBREW_NO_AUTO_UPDATE=1 brew install gum|| { echo "❌ Failed to install gum via Homebrew"; exit 1; }; \
 		elif command -v apt-get >/dev/null 2>&1; then \
 			curl -fsSL -o /tmp/gum.deb \
 			"https://github.com/charmbracelet/gum/releases/download/$(GUM_VERSION)/gum_$(GUM_VERSION:v%=%)_$(arch).deb"; \
