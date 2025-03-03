@@ -197,10 +197,10 @@ class BatchDecorator(StepDecorator):
 
         if self.attributes["aws_batch_tags"] is not None:
             if not isinstance(self.attributes["aws_batch_tags"], dict):
-                raise BatchException("aws_batch_tags must be Dict[str, str]")
+                raise BatchException("aws_batch_tags is not a dictionary must be Dict[str, str]")
             print(f'Recieved Decorator AWS Tags Dictionary as: {self.attributes["aws_batch_tags"]}' )
             if not all(isinstance(k, str) and isinstance(v, str) for k, v in self.attributes["aws_batch_tags"].items()):
-                raise BatchException("aws_batch_tags must be Dict[str, str]")
+                raise BatchException("Not all keys and values in aws_batch_tags are strings, must be Dict[str, str]")
             
             if metaflow_config.BATCH_DEFAULT_TAGS is not {}: 
                 self.attributes["aws_batch_tags"] = {
