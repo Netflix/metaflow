@@ -256,12 +256,19 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def trigger_workflow_template(self, name, parameters={}):
+    def trigger_workflow_template(self, name, usertype, username, parameters={}):
         client = self._client.get()
         body = {
             "apiVersion": "argoproj.io/v1alpha1",
             "kind": "Workflow",
-            "metadata": {"generateName": name + "-"},
+            "metadata": {
+                "generateName": name + "-",
+                "annotations": {
+                    "metaflow/triggered_by_user": json.dumps(
+                        {"type": usertype, "name": username}
+                    )
+                },
+            },
             "spec": {
                 "workflowTemplateRef": {"name": name},
                 "arguments": {
