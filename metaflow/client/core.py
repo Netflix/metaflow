@@ -1217,31 +1217,6 @@ class Task(MetaflowObject):
             for task_pathspec in task_pathspecs:
                 yield task_pathspec
 
-    def _iter_matching_tasks(self, steps, metadata_key, metadata_pattern):
-        """
-        Yield tasks from specified steps matching a foreach path pattern.
-
-        Parameters
-        ----------
-        steps : List[str]
-            List of step names to search for tasks
-        pattern : str
-            Regex pattern to match foreach-indices metadata
-
-        Returns
-        -------
-        Iterator[Task]
-            Tasks matching the foreach path pattern
-        """
-        flow_id, run_id, _, _ = self.path_components
-
-        for step in steps:
-            task_pathspecs = self._metaflow.metadata.filter_tasks_by_metadata(
-                flow_id, run_id, step.id, metadata_key, metadata_pattern
-            )
-            for task_pathspec in task_pathspecs:
-                yield Task(pathspec=task_pathspec, _namespace_check=False)
-
     @property
     def parent_task_pathspecs(self) -> Iterator[str]:
         """
