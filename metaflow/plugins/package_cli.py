@@ -38,14 +38,24 @@ def info(obj):
 
 
 @package.command(help="List files included in the code package.")
+@click.option(
+    "--archive/--no-archive",
+    default=False,
+    help="If True, lists the file paths as present in the tarball. "
+    "If False, lists the files on the filesystem.",
+    show_default=True,
+)
 @click.pass_obj
-def list(obj):
+def list(obj, archive=False):
     obj.echo(
         "Files included in the code package " "(change with --package-suffixes):",
         fg="magenta",
         bold=False,
     )
-    obj.echo_always("\n".join(path for path, _ in obj.package.path_tuples()))
+    if archive:
+        obj.echo_always("\n".join(path for _, path in obj.package.path_tuples()))
+    else:
+        obj.echo_always("\n".join(path for path, _ in obj.package.path_tuples()))
 
 
 @package.command(help="Save the current code package in a tar file")
