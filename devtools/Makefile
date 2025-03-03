@@ -329,4 +329,4 @@ ui: setup-tilt
 
 .PHONY: install-helm setup-minikube setup-tilt teardown-minikube tunnel up down check-docker install-curl install-gum install-brew up down dashboard shell ui all-up help
 
-.DEFAULT_GOAL := up
+.DEFAULT_GOAL := help
