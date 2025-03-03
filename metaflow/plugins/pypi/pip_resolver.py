@@ -119,7 +119,10 @@ class Pip(object):
                 else:
                     cmd.append(f"{package}=={version}")
             try:
-                self._call(prefix, cmd)
+                env = {}
+                if platform == "linux-64":
+                    env = {"PIP_PATCH_SYSTEM": "Linux", "PIP_PATCH_MACHINE": "x86_64"}
+                self._call(prefix, cmd, env)
             except PipPackageNotFound as ex:
                 # pretty print package errors
                 raise PipException(
@@ -337,7 +340,8 @@ class Pip(object):
                         "run",
                         "--prefix",
                         prefix,
-                        "pip3",
+                        "python",
+                        os.path.join(os.path.dirname(__file__), "pip_patcher.py"),
                         "--disable-pip-version-check",
                         "--no-color",
                     ]
