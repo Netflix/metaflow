@@ -57,6 +57,7 @@ install-helm:
 		curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 \
 			| HELM_INSTALL_VERSION="$(HELM_VERSION)" \
 			  USE_SUDO="false" \
+			  PATH="$(HELM_DIR):$$PATH" \
 			  HELM_INSTALL_DIR="$(HELM_DIR)" \
 			  bash; \
 		chmod +x "$(HELM_DIR)/helm"; \
