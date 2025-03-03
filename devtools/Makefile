@@ -22,6 +22,7 @@ DEVTOOLS_DIR := $(MKFILE_DIR).devtools
 PICK_SERVICES := $(MKFILE_DIR)pick_services.sh
 MINIKUBE_DIR := $(DEVTOOLS_DIR)/minikube
 MINIKUBE := $(MINIKUBE_DIR)/minikube
+HELM_DIR := $(DEVTOOLS_DIR)/helm
 TILT_DIR := $(DEVTOOLS_DIR)/tilt
 TILT := $(TILT_DIR)/tilt
 TILTFILE := $(MKFILE_DIR)/Tiltfile
@@ -51,9 +52,17 @@ endif
 
 install-helm:
 	@if ! command -v helm >/dev/null 2>&1; then \
-		echo "📥 Installing Helm $(HELM_VERSION) (may require sudo access)..."; \
-		curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | HELM_INSTALL_VERSION=$(HELM_VERSION) bash; \
+		echo "📥 Installing Helm $(HELM_VERSION)..."; \
+		mkdir -p "$(HELM_DIR)"; \
+		curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 \
+			| HELM_INSTALL_VERSION="$(HELM_VERSION)" \
+			  USE_SUDO="false" \
+			  HELM_INSTALL_DIR="$(HELM_DIR)" \
+			  bash; \
+		chmod +x "$(HELM_DIR)/helm"; \
 		echo "✅ Helm installation complete"; \
+	else \
+		echo "✅ Helm is already installed at $$(command -v helm)"; \
 	fi
 
 check-docker:
@@ -182,7 +191,7 @@ up: install-brew check-docker install-curl install-gum setup-minikube install-he
 	@echo 'PATH="$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" $(MINIKUBE) tunnel &' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'echo -e "🚀 Starting Tilt with selected services..."' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'echo -e "\033[1;38;5;46m\n🔥 \033[1;38;5;196mNext Steps:\033[0;38;5;46m Use \033[3mmetaflow-dev shell\033[23m to switch to the development\n   environment'\''s shell and start executing your Metaflow flows.\n\033[0m"' >> "$(DEVTOOLS_DIR)/start.sh"
-	@echo 'PATH="$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" SERVICES="$$SERVICES" tilt up -f $(TILTFILE)' >> $(DEVTOOLS_DIR)/start.sh
+	@echo 'PATH="$(HELM_DIR):$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" SERVICES="$$SERVICES" tilt up -f $(TILTFILE)' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'wait' >> $(DEVTOOLS_DIR)/start.sh
 	@chmod +x $(DEVTOOLS_DIR)/start.sh
 	@$(DEVTOOLS_DIR)/start.sh
