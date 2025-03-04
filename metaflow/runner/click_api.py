@@ -219,7 +219,11 @@ def get_inspect_param_obj(p: Union[click.Argument, click.Option], kind: str):
             default=inspect.Parameter.empty if is_vararg else p.default,
             annotation=annotation,
         ),
-        Optional[TTuple[annotation]] if is_vararg else annotation,
+        (
+            Optional[Union[TTuple[annotation], List[annotation]]]
+            if is_vararg
+            else annotation
+        ),
     )
 
 
