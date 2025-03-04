@@ -385,7 +385,9 @@ def handle_client_error(err, idx, result_file):
         result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
         result_file.flush()
     else:
-        raise
+        # optimistically assume it is a transient error
+        result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
+        result_file.flush()
     # TODO specific error message for out of disk space
 
 

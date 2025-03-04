@@ -1390,9 +1390,27 @@ class S3(object):
         )
 
     # add some jitter to make sure retries are not synchronized
-    def _jitter_sleep(self, trynum, multiplier=2):
-        interval = multiplier**trynum + random.randint(0, 10)
-        time.sleep(interval)
+    def _jitter_sleep(self, trynum, base=2, cap=360, jitter=0.1):
+        """
+        Sleep for an exponentially increasing interval with added jitter.
+
+        :param trynum: The current retry attempt number.
+        :param base: The base multiplier for the exponential backoff.
+        :param cap: The maximum interval to sleep.
+        :param jitter: The maximum jitter percentage to add to the interval.
+        """
+        # Calculate the exponential backoff interval
+        interval = min(cap, base**trynum)
+
+        # Add random jitter
+        jitter_value = interval * jitter * random.uniform(-1, 1)
+        interval_with_jitter = interval + jitter_value
+
+        # Ensure the interval is not negative
+        interval_with_jitter = max(0, interval_with_jitter)
+
+        # Sleep for the calculated interval
+        time.sleep(interval_with_jitter)
 
     # NOTE: re: _read_many_files and _put_many_files
     # All file IO is through binary files - we write bytes, we read
@@ -1739,7 +1757,6 @@ class S3(object):
                 print(
                     "S3 non-transient error (attempt #%d): %s" % (retry_count, err_msg)
                 )
-                _reset()
                 if retry_count <= S3_RETRY_COUNT:
                     self._jitter_sleep(retry_count)
                 continue
