@@ -18,6 +18,7 @@ from metaflow.metaflow_config import (
     S3_RETRY_COUNT,
     S3_TRANSIENT_RETRY_COUNT,
     S3_SERVER_SIDE_ENCRYPTION,
+    S3_WORKER_COUNT,
     TEMPDIR,
 )
 from metaflow.util import (
@@ -1498,20 +1499,8 @@ class S3(object):
         #    - a known transient failure (SlowDown for example) in which case we will
         #      retry *only* the inputs that have this transient failure.
         #    - an unknown failure (something went wrong but we cannot say if it was
-        #      a known permanent failure or something else). In this case, we retry
-        #      the operation completely.
-        #
-        # There are therefore two retry counts:
-        #  - the transient failure retry count: how many times do we try on known
-        #    transient errors
-        #  - the top-level retry count: how many times do we try on unknown failures
-        #
-        # Note that, if the operation runs out of transient failure retries, it will
-        # count as an "unknown" failure (ie: it will be retried according to the
-        # outer top-level retry count). In other words, you can potentially have
-        # transient_retry_count * retry_count tries).
-        # Finally, if on transient failures, we make NO progress (ie: no input is
-        # successfully processed), that counts as an "unknown" failure.
+        #      a known permanent failure or something else). In this case, we assume
+        #      it's a transient failure and retry only those inputs (same as above).
         cmdline = [sys.executable, os.path.abspath(s3op.__file__), mode]
         recursive_get = False
         for key, value in options.items():
@@ -1612,9 +1601,12 @@ class S3(object):
                         # things, this will shrink more and more until we are doing a
                         # single operation at a time. If things start going better, it
                         # will increase by 20% every round.
+                        #
+                        # If we made no progress (last_ok_count == 0) we retry at most
+                        # 2*S3_WORKER_COUNT from whatever is left in `pending_retries`
                         max_count = min(
                             int(last_ok_count * 1.2), len(pending_retries)
-                        ) or len(pending_retries)
+                        ) or min(2 * S3_WORKER_COUNT, len(pending_retries))
                         tmp_input.writelines(pending_retries[:max_count])
                         tmp_input.flush()
                         debug.s3client_exec(

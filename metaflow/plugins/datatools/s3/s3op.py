@@ -268,13 +268,7 @@ def worker(result_file_name, queue, mode, s3config):
                         err = convert_to_client_error(e)
                         handle_client_error(err, idx, result_file)
                         continue
-                    except SSLError as e:
-                        tmp.close()
-                        os.unlink(tmp.name)
-                        result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
-                        result_file.flush()
-                        continue
-                    except Exception as e:
+                    except (SSLError, Exception) as e:
                         tmp.close()
                         os.unlink(tmp.name)
                         # assume anything else is transient
@@ -341,11 +335,7 @@ def worker(result_file_name, queue, mode, s3config):
                             err = convert_to_client_error(e)
                             handle_client_error(err, idx, result_file)
                             continue
-                        except SSLError as e:
-                            result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
-                            result_file.flush()
-                            continue
-                        except Exception as e:
+                        except (SSLError, Exception) as e:
                             # assume anything else is transient
                             result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
                             result_file.flush()
