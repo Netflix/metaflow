@@ -1546,7 +1546,6 @@ class S3(object):
             # Otherwise, we cap the failure rate at 90%
             return min(90, self._s3_inject_failures)
 
-        retry_count = 0  # Number of retries (excluding transient failures)
         transient_retry_count = 0  # Number of transient retries (per top-level retry)
         inject_failures = _inject_failure_rate()
         out_lines = []  # List to contain the lines returned by _s3op_with_retries
@@ -1730,37 +1729,16 @@ class S3(object):
                         _update_out_lines(out_lines, ok_lines, resize=loop_count == 0)
                         return 0, 0, inject_failures, err_out
 
-        while retry_count <= S3_RETRY_COUNT:
+        while transient_retry_count <= S3_TRANSIENT_RETRY_COUNT:
             (
                 last_ok_count,
                 last_retry_count,
                 inject_failures,
                 err_out,
             ) = try_s3_op(last_ok_count, pending_retries, out_lines, inject_failures)
-            if err_out or (
-                last_retry_count != 0
-                and (
-                    last_ok_count == 0
-                    or transient_retry_count > S3_TRANSIENT_RETRY_COUNT
-                )
-            ):
-                # We had a fatal failure (err_out is not None)
-                # or we made no progress (last_ok_count is 0)
-                # or we are out of transient retries
-                # so we will restart from scratch (being very conservative)
-                retry_count += 1
-                err_msg = err_out
-                if err_msg is None and last_ok_count == 0:
-                    err_msg = "No progress"
-                if err_msg is None:
-                    err_msg = "Too many transient errors"
-                print(
-                    "S3 non-transient error (attempt #%d): %s" % (retry_count, err_msg)
-                )
-                if retry_count <= S3_RETRY_COUNT:
-                    self._jitter_sleep(retry_count)
-                continue
-            elif last_retry_count != 0:
+            if err_out:
+                break
+            if last_retry_count != 0:
                 # During our last try, we did not manage to process everything we wanted
                 # due to a transient failure so we try again.
                 transient_retry_count += 1
