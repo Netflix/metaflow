@@ -1612,7 +1612,9 @@ class S3(object):
                         # things, this will shrink more and more until we are doing a
                         # single operation at a time. If things start going better, it
                         # will increase by 20% every round.
-                        max_count = min(int(last_ok_count * 1.2), len(pending_retries))
+                        max_count = min(
+                            int(last_ok_count * 1.2), len(pending_retries)
+                        ) or len(pending_retries)
                         tmp_input.writelines(pending_retries[:max_count])
                         tmp_input.flush()
                         debug.s3client_exec(
