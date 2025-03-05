@@ -9,7 +9,7 @@ jobs:
     uses: './.github/workflows/test-stubs.yml'
   deploy:
     needs: [test, test-stubs]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
     - name: Set up Python 3.x
