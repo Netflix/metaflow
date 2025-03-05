@@ -1,0 +1,43 @@
+name: Test Metaflow with complete Kubernetes stack
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install Metaflow
+        run: |
+          python -m pip install --upgrade pip
+          pip install metaflow kubernetes
+
+
+      - name: Bring up the environment
+        run: |
+          echo "Starting environment in the background..."
+          MINIKUBE_CPUS=2 metaflow-dev all-up &
+          # Give time to spin up. Adjust as needed:
+          sleep 150
+
+      - name: Wait & run flow
+        run: |
+          # When the environment is up, metaflow-dev shell will wait for readiness
+          # and then drop into a shell. We feed commands via a heredoc:
+          cat <<EOF | metaflow-dev shell
+          echo "Environment is ready; running flow now..."
+          python metaflow/tutorials/00-helloworld/helloworld.py run --with kubernetes
+          EOF
+
+      - name: Tear down environment
+        run: |
+          metaflow-dev down
