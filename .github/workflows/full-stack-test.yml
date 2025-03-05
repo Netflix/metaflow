@@ -19,7 +19,7 @@ jobs:
       - name: Install Metaflow
         run: |
           python -m pip install --upgrade pip
-          pip install metaflow kubernetes
+          pip install . kubernetes
 
 
       - name: Bring up the environment
