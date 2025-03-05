@@ -12,7 +12,7 @@ permissions: read-all
 
 jobs:
   pre-commit:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
     - uses: actions/setup-python@75f3110429a8c05be0e1bf360334e4cced2b63fa # v2.3.3
@@ -24,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04]
+        os: [ubuntu-latest]
         ver: ['3.6', '3.7', '3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
         include:
           - os: macos-latest
@@ -60,7 +60,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04]
+        os: [ubuntu-latest]
         ver: ['4.4.1']
 
     steps:
@@ -71,7 +71,7 @@ jobs:
         r-version: ${{ matrix.ver }}
 
     - name: Install R ${{ matrix.ver }} system dependencies
-      if: matrix.os == 'ubuntu-20.04'
+      if: matrix.os == 'ubuntu-latest'
       run: sudo apt-get update; sudo apt-get install -y libcurl4-openssl-dev qpdf libgit2-dev libharfbuzz-dev libfribidi-dev
 
     - name: Install R ${{ matrix.ver }} Rlang dependencies
