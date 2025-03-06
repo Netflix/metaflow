@@ -167,6 +167,12 @@ DEPLOYER_IMPL_PROVIDERS_DESC = [
     ),
 ]
 
+TL_PLUGINS_DESC = [
+    ("requirements_txt_parser", ".pypi.parsers.requirements_txt_parser"),
+    ("pyproject_toml_parser", ".pypi.parsers.pyproject_toml_parser"),
+    ("conda_environment_yml_parser", ".pypi.parsers.conda_environment_yml_parser"),
+]
+
 process_plugins(globals())
 
 
@@ -206,6 +212,8 @@ GCP_CLIENT_PROVIDERS = resolve_plugins("gcp_client_provider")
 
 if sys.version_info >= (3, 7):
     DEPLOYER_IMPL_PROVIDERS = resolve_plugins("deployer_impl_provider")
+
+TL_PLUGINS = resolve_plugins("tl_plugin")
 
 from .cards.card_modules import MF_EXTERNAL_CARDS
 
@@ -251,3 +259,9 @@ CARDS = [
     TestRefreshComponentCard,
 ]
 merge_lists(CARDS, MF_EXTERNAL_CARDS, "type")
+
+
+def _import_tl_plugins(globals_dict):
+
+    for name, p in TL_PLUGINS.items():
+        globals_dict[name] = p
