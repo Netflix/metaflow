@@ -395,8 +395,11 @@ class MetaflowTask(object):
         retry_count,
         max_user_code_retries,
         spin_pathspec=None,
+        skip_decorators=False,
+        spin_artifacts=None,
     ):
-        _, spin_run_id, spin_step_name, spin_task_id = spin_pathspec.split("/")
+        if spin_pathspec:
+            _, spin_run_id, spin_step_name, spin_task_id = spin_pathspec.split("/")
         if run_id and task_id:
             self.metadata.register_run_id(run_id)
             self.metadata.register_task_id(run_id, step_name, task_id, retry_count)
@@ -455,13 +458,18 @@ class MetaflowTask(object):
         step_func = getattr(self.flow, step_name)
         decorators = step_func.decorators
         if self.spin:
-            decorators = [
-                deco
-                for deco in decorators
-                if any(
-                    deco.name.startswith(prefix) for prefix in SPIN_ALLOWED_DECORATORS
-                )
-            ]
+            decorators = (
+                [
+                    deco
+                    for deco in decorators
+                    if any(
+                        deco.name.startswith(prefix)
+                        for prefix in SPIN_ALLOWED_DECORATORS
+                    )
+                ]
+                if not skip_decorators
+                else []
+            )
 
         node = self.flow._graph[step_name]
         join_type = None
@@ -477,7 +485,13 @@ class MetaflowTask(object):
 
         if input_paths:
             # 2. initialize input datastores
-            inputs = self._init_data(spin_run_id, join_type, input_paths)
+            if self.spin:
+                st = time.time()
+                inputs = self._init_data(spin_run_id, join_type, input_paths)
+                et = time.time()
+                print(f"Time taken to initialize datastores: {et - st}")
+            else:
+                inputs = self._init_data(run_id, join_type, input_paths)
 
             # 3. initialize foreach state
             self._init_foreach(step_name, join_type, inputs, split_index)
@@ -531,12 +545,6 @@ class MetaflowTask(object):
                             field="foreach-execution-path",
                             value=foreach_execution_path,
                             type="foreach-execution-path",
-                            tags=metadata_tags,
-                        ),
-                        MetaDatum(
-                            field="previous-step-names",
-                            value=[frame.step for frame in foreach_stack],
-                            type="prev-step-names",
                             tags=metadata_tags,
                         ),
                     ]
@@ -648,15 +656,17 @@ class MetaflowTask(object):
                                 else x.step_name
                             ),
                         )
-                    # for inp in inputs:
-                    #     print(f"Input has index: {inp['_foreach_stack'][-1].index}")
-                    #     print(f"Input step name: {inp.step_name}")
+                        # for inp in inputs:
+                        #     print(f"Input has index: {inp['_foreach_stack'][-1].index}")
+                        #     print(f"Input step name: {inp.step_name}")
+                        inputs = [
+                            SpinInputsDatastore(
+                                inp, artifacts=spin_artifacts.get(i, {})
+                            )
+                            for i, inp in enumerate(inputs)
+                        ]
 
-                    inp_datastore = [
-                        SpinInputsDatastore(inp, artifacts={}) for inp in inputs
-                    ]
-
-                    input_obj = Inputs(self._clone_flow(inp) for inp in inp_datastore)
+                    input_obj = Inputs(self._clone_flow(inp) for inp in inputs)
                     # input_obj = Inputs(self._clone_flow(inp) for inp in inputs)
                     # print(f"Inputs has index: {inputs[0]['_foreach_stack']}")
                     # print(f"Inputs step name: {inputs[0].step_name}")
@@ -684,11 +694,14 @@ class MetaflowTask(object):
                             "step but it gets multiple "
                             "inputs." % step_name
                         )
-                    inp_datastore = SpinInputsDatastore(
-                        inputs[0],
-                        artifacts={},
-                    )
-                    self.flow._set_datastore(inp_datastore)
+                    if self.spin:
+                        inputs = [
+                            SpinInputsDatastore(
+                                inputs[0],
+                                artifacts=spin_artifacts,
+                            )
+                        ]
+                    self.flow._set_datastore(inputs[0])
                     if input_paths:
                         # initialize parameters (if they exist)
                         # We take Parameter values from the first input,

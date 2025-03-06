@@ -153,7 +153,7 @@ def show(obj):
     echo_always("\n%s" % obj.graph.doc)
     for node_name in obj.graph.sorted_nodes:
         node = obj.graph[node_name]
-        echo_always("\nStep *%s* and type: *%s*" % (node.name, node.type), err=False)
+        echo_always("\nStep *%s* " % node.name, err=False)
         echo_always(node.doc if node.doc else "?", indent=True, err=False)
         if node.type != "end":
             echo_always(
@@ -474,8 +474,8 @@ def start(
         # ctx.obj.monitor = MONITOR_SIDECARS["nullSidecarMonitor"](
         #     flow=ctx.obj.flow, env=ctx.obj.environment
         # )
-        # ctx.obj.spin_datastore_impl = [d for d in DATASTORES if d.TYPE == "local"][0]
-        ctx.obj.spin_datastore_impl = [d for d in DATASTORES if d.TYPE == "s3"][0]
+        ctx.obj.spin_datastore_impl = [d for d in DATASTORES if d.TYPE == "local"][0]
+        # ctx.obj.spin_datastore_impl = [d for d in DATASTORES if d.TYPE == "s3"][0]
         if datastore_root is None:
             datastore_root = ctx.obj.spin_datastore_impl.get_datastore_root_from_config(
                 ctx.obj.echo
