@@ -2,7 +2,7 @@
 
 # Metaflow
 
-[Metaflow](https://metaflow.org) is a human-centric framework designed to help scientists and engineers **build and manage real-life AI and ML systems**. Serving teams of all sizes and scale, Metaflow streamlines the entire lifecycle — from prototyping in notebooks to production deployments — making it easier than ever to deliver robust solutions.
+[Metaflow](https://metaflow.org) is a human-centric framework designed to help scientists and engineers **build and manage real-life AI and ML systems**. Serving teams of all sizes and scale, Metaflow streamlines the entire lifecycle, allowing rapid iteration from prototyping in notebooks to robust, maintainable production deployments — making it easier than ever to deliver robust systems.
 
 Originally developed at [Netflix](https://netflixtechblog.com/open-sourcing-metaflow-a-human-centric-framework-for-data-science-fa72e04a5d9), Metaflow is designed to boost the productivity for research and engineering teams working on [a wide variety of projects](https://netflixtechblog.com/supporting-diverse-ml-systems-at-netflix-2d2e6b6d205d), from classical statistics to state-of-the-art deep learning and foundation models. Metaflow helps unify code, data, and compute at every stage, ensuring robust, end-to-end systems for real-world AI and ML.
 
@@ -10,12 +10,12 @@ Today, Metaflow powers thousands of AI and ML experiences across a diverse array
 
 ## From prototype to production (and back)
 
-Metaflow provides a simple, friendly [API](https://docs.metaflow.org) that covers foundational needs of AI and ML systems:
+Metaflow provides a simple and friendly pythonic [API](https://docs.metaflow.org) that covers foundational needs of AI and ML systems:
 <img src="./docs/prototype-to-prod.png" width="800px">
 
 1. [Rapid local prototyping](https://docs.metaflow.org/metaflow/basics), [support for notebooks](https://docs.metaflow.org/metaflow/managing-flows/notebook-runs), and built-in support for [experiment tracking, versioning](https://docs.metaflow.org/metaflow/client) and [visualization](https://docs.metaflow.org/metaflow/visualizing-results).
-2. [Horizontal and vertical scalability in any cloud](https://docs.metaflow.org/scaling/remote-tasks/introduction), utilizing both CPUs and GPUs, with [fast data access](https://docs.metaflow.org/scaling/data) for running [massive embarrassingly parallel](https://docs.metaflow.org/metaflow/basics#foreach) as well as [gang-scheduled](https://docs.metaflow.org/scaling/remote-tasks/distributed-computing) compute workloads [reliably](https://docs.metaflow.org/scaling/failures) and [efficiently](https://docs.metaflow.org/scaling/checkpoint/introduction).
-3. [Managing dependencies](https://docs.metaflow.org/scaling/dependencies) and [one-click deployments to highly available production orchestrators](https://docs.metaflow.org/production/introduction) with built in support for [reactive orchestration](https://docs.metaflow.org/production/event-triggering).
+2. [Effortlessly scale horizontally and vertically in your cloud](https://docs.metaflow.org/scaling/remote-tasks/introduction), utilizing both CPUs and GPUs, with [fast data access](https://docs.metaflow.org/scaling/data) for running [massive embarrassingly parallel](https://docs.metaflow.org/metaflow/basics#foreach) as well as [gang-scheduled](https://docs.metaflow.org/scaling/remote-tasks/distributed-computing) compute workloads [reliably](https://docs.metaflow.org/scaling/failures) and [efficiently](https://docs.metaflow.org/scaling/checkpoint/introduction).
+3. [Easily manage dependencies](https://docs.metaflow.org/scaling/dependencies) and [deploy with one-click](https://docs.metaflow.org/production/introduction) to highly available production orchestrators with built in support for [reactive orchestration](https://docs.metaflow.org/production/event-triggering).
 
 For full documentation, check out our [API Reference](https://docs.metaflow.org/api) or see our [Release Notes](https://github.com/Netflix/metaflow/releases) for the latest features and improvements. 
 
