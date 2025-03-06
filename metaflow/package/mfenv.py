@@ -1,5 +1,7 @@
 import inspect
+import json
 import os
+import re
 import sys
 import tarfile
 
@@ -26,7 +28,7 @@ from types import ModuleType
 from ..debug import debug
 from ..extension_support import EXT_EXCLUDE_SUFFIXES, metadata, package_mfext_all
 
-from ..special_files import MFENV_DIR, SpecialFile
+from ..meta_files import MFENV_DIR, MetaFile
 from ..util import get_metaflow_root, to_unicode
 
 packages_distributions = None
@@ -80,6 +82,8 @@ if TYPE_CHECKING:
 
 _cached_distributions = None
 
+name_normalizer = re.compile(r"[-_.]+")
+
 
 def modules_to_distributions() -> Dict[str, List[metadata.Distribution]]:
     """
@@ -104,6 +108,50 @@ class _ModuleInfo:
     name: str
     root_paths: Set[str]
     module: ModuleType
+
+
+class PackagedDistribution(metadata.Distribution):
+    """
+    A Python Package packaged within a MFEnv. This allows users to use use importlib
+    as they would regularly and the packaged Python Package would be considered as a
+    distribution even if it really isn't (since it is just included in the PythonPath).
+    """
+
+    def __init__(self, root: str, content: Dict[str, str]):
+        self._root = Path(root)
+        self._content = content
+
+    # Strongly inspired from PathDistribution in metadata.py
+    def read_text(self, filename: Union[str, os.PathLike[str]]) -> Optional[str]:
+        if str(filename) in self._content:
+            return self._content[str(filename)]
+        return None
+
+    read_text.__doc__ = metadata.Distribution.read_text.__doc__
+
+    def locate_file(self, path: Union[str, os.PathLike[str]]) -> metadata.SimplePath:
+        return self._root / path
+
+
+class PackagedDistributionFinder(metadata.DistributionFinder):
+
+    def __init__(self, dist_info: Dict[str, Dict[str, str]]):
+        self._dist_info = dist_info
+
+    def find_distributions(self, context=metadata.DistributionFinder.Context()):
+        if context.name is None:
+            # Yields all known distributions
+            for name, info in self._dist_info.items():
+                yield PackagedDistribution(
+                    os.path.join(get_metaflow_root(), name), info
+                )
+        name = name_normalizer.sub("-", context.name).lower()
+        if name in self._dist_info:
+            yield PackagedDistribution(
+                os.path.join(get_metaflow_root(), context.name),
+                self._dist_info[name],
+            )
+        return None
 
 
 class MFEnv:
@@ -172,20 +220,17 @@ class MFEnv:
                     yield p, p[prefixlen:]
 
     @classmethod
-    def get_filename(cls, name: Union[SpecialFile, str]) -> Optional[str]:
-        # In all cases, the special files are siblings of the metaflow root
-        # directory.
-        if isinstance(name, SpecialFile):
-            r = get_metaflow_root()
-            path_to_file = os.path.join(r, name.value)
-        else:
-            path_to_file = os.path.join(MFENV_DIR, name)
+    def get_filename(cls, name: Union[MetaFile, str]) -> Optional[str]:
+        # Get the filename of the expanded file -- it will always be expanded next to
+        # metaflow_root which is already in MFENV_DIR.
+        real_name = name.value if isinstance(name, MetaFile) else name
+        path_to_file = os.path.join(get_metaflow_root(), real_name)
         if os.path.isfile(path_to_file):
             return path_to_file
         return None
 
     @classmethod
-    def get_content(cls, name: Union[SpecialFile, str]) -> Optional[str]:
+    def get_content(cls, name: Union[MetaFile, str]) -> Optional[str]:
         file_to_read = cls.get_filename(name)
         if file_to_read:
             with open(file_to_read, "r", encoding="utf-8") as f:
@@ -194,11 +239,11 @@ class MFEnv:
 
     @classmethod
     def get_archive_filename(
-        cls, archive: tarfile.TarFile, name: Union[SpecialFile, str]
+        cls, archive: tarfile.TarFile, name: Union[MetaFile, str]
     ) -> Optional[str]:
         # Backward compatible way of accessing all special files. Prior to MFEnv, they
         # were stored at the TL of the archive.
-        real_name = name.value if isinstance(name, SpecialFile) else name
+        real_name = name.value if isinstance(name, MetaFile) else name
         if archive.getmember(MFENV_DIR):
             file_path = os.path.join(MFENV_DIR, real_name)
         else:
@@ -209,7 +254,7 @@ class MFEnv:
 
     @classmethod
     def get_archive_content(
-        cls, archive: tarfile.TarFile, name: Union[SpecialFile, str]
+        cls, archive: tarfile.TarFile, name: Union[MetaFile, str]
     ) -> Optional[str]:
         file_to_read = cls.get_archive_filename(archive, name)
         if file_to_read:
@@ -240,13 +285,13 @@ class MFEnv:
 
         # Contain metadata information regarding the distributions packaged.
         # This allows Metaflow to "fake" distribution information when packaged
-        self._metainfo = {}  # type: Dict[str, Dict[str, str]]
+        self._distmetainfo = {}  # type: Dict[str, Dict[str, str]]
 
         # Maps an absolute path on the filesystem to the path of the file in the
         # archive.
         self._files = {}  # type: Dict[str, str]
 
-        self._content = {}  # type: Dict[SpecialFile, bytes]
+        self._metacontent = {}  # type: Dict[MetaFile, bytes]
 
         debug.package_exec(f"Used system modules found: {str(self._modules)}")
 
@@ -264,21 +309,21 @@ class MFEnv:
     def root_dir(self):
         return MFENV_DIR
 
-    def add_special_content(self, name: SpecialFile, content: bytes) -> None:
+    def add_meta_content(self, name: MetaFile, content: bytes) -> None:
         """
-        Add a special file to the MF environment.
+        Add a metafile to the MF environment.
 
         This file will be included in the resulting code package in `MFENV_DIR`.
 
         Parameters
         ----------
-        name : SpecialFile
-            The special file to add to the MF environment
+        name : MetaFile
+            The metafile to add to the MF environment
         content : bytes
-            The content of the special file
+            The content of the metafile
         """
         debug.package_exec(f"Adding special content {name.value} to the MF environment")
-        self._content[name] = content
+        self._metacontent[name] = content
 
     def add_module(self, module: ModuleType) -> None:
         """
@@ -394,19 +439,24 @@ class MFEnv:
         """
         return self._files.items()
 
-    def contents(self) -> Generator[Tuple[bytes, str], None, None]:
+    def metacontents(self) -> Generator[Tuple[bytes, str], None, None]:
         """
-        Return a generator of all special files included in the MF environment.
+        Return a generator of all metafiles included in the MF environment.
 
         Returns
         -------
         Generator[Tuple[bytes, str], None, None]
-            A generator of all special files included in the MF environment. The first
+            A generator of all metafiles included in the MF environment. The first
             element of the tuple is the content to add; the second element is path in the
             archive.
         """
-        for name, content in self._content.items():
+        for name, content in self._metacontent.items():
             yield content, os.path.join(MFENV_DIR, name.value)
+        if self._distmetainfo:
+            yield (
+                json.dumps(self._distmetainfo).encode("utf-8"),
+                os.path.join(MFENV_DIR, MetaFile.INCLUDED_DIST_INFO.value),
+            )
 
     def _module_files(
         self, name: str, paths: Set[str]
@@ -432,18 +482,19 @@ class MFEnv:
                 debug.package_exec(
                     f"    Including distribution {dist_name} for module {name}"
                 )
-                dist_root = dist.locate_file(name)
+                dist_root = str(dist.locate_file(name))
                 if dist_root not in paths:
                     # This is an error because it means that this distribution is
                     # not contributing to the module.
                     raise RuntimeError(
                         f"Distribution '{dist.metadata['Name']}' is not "
-                        "contributing to module '{name}' as expected."
+                        f"contributing to module '{name}' as expected (got '{dist_root}' "
+                        f"when expected one of {paths})"
                     )
                 paths.discard(dist_root)
-                if dist_name not in self._metainfo:
+                if dist_name not in self._distmetainfo:
                     # Possible that a distribution contributes to multiple modules
-                    self._metainfo[dist_name] = {
+                    self._distmetainfo[dist_name] = {
                         # We can add more if needed but these are likely the most
                         # useful (captures, name, version, etc and files which can
                         # be used to find non-python files in the distribution).
@@ -453,13 +504,13 @@ class MFEnv:
                 for file in dist.files or []:
                     # Skip files that do not belong to this module (distribution may
                     # provide multiple modules)
-                    if not file.startswith(prefix):
+                    if file.parts[0] != name:
                         continue
                     if file == init_file:
                         has_init = True
-                    yield str(dist.locate(file).resolve().as_posix()), os.path.join(
-                        MFENV_DIR, str(file)
-                    )
+                    yield str(
+                        dist.locate_file(file).resolve().as_posix()
+                    ), os.path.join(MFENV_DIR, str(file))
 
         # Now if there are more paths left in paths, it means there is a non-distribution
         # component to this package which we also include.
