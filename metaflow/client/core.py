@@ -34,7 +34,7 @@ from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.package.mfenv import MFEnv
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
-from metaflow.special_files import SpecialFile
+from metaflow.meta_files import MetaFile
 from metaflow.unbounded_foreach import CONTROL_TASK_TAG
 from metaflow.util import cached_property, is_stringish, resolve_identity, to_unicode
 
@@ -825,7 +825,7 @@ class MetaflowCode(object):
         )
         code_obj = BytesIO(blobdata)
         self._tar = tarfile.open(fileobj=code_obj, mode="r:gz")
-        info_str = MFEnv.get_archive_content(self._tar, SpecialFile.INFO_FILE)
+        info_str = MFEnv.get_archive_content(self._tar, MetaFile.INFO_FILE)
         self._info = json.loads(info_str)
         self._flowspec = self._tar.extractfile(self._info["script"]).read()
 
