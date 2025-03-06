@@ -8,7 +8,7 @@ from io import BytesIO
 
 from ..metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from ..exception import MetaflowException
-from ..special_files import SpecialFile
+from ..meta_files import MetaFile
 from ..user_configs.config_parameters import dump_config_values
 from .. import R
 
@@ -46,16 +46,16 @@ class MetaflowPackage(object):
 
         self._code_env = MFEnv(lambda x: hasattr(x, "METAFLOW_PACKAGE"))
 
-        # Add special content
-        self._code_env.add_special_content(
-            SpecialFile.INFO_FILE,
+        # Add metacontent
+        self._code_env.add_meta_content(
+            MetaFile.INFO_FILE,
             json.dumps(
                 self.environment.get_environment_info(include_ext_info=True)
             ).encode("utf-8"),
         )
 
-        self._code_env.add_special_content(
-            SpecialFile.CONFIG_FILE,
+        self._code_env.add_meta_content(
+            MetaFile.CONFIG_FILE,
             json.dumps(dump_config_values(self._flow)).encode("utf-8"),
         )
 
@@ -68,7 +68,7 @@ class MetaflowPackage(object):
         # Package the environment
         for path, arcname in self._code_env.files():
             yield path, arcname
-        for _, arcname in self._code_env.contents():
+        for _, arcname in self._code_env.metacontents():
             yield f"<generated>{arcname}", arcname
 
         # Package the user code
@@ -139,7 +139,7 @@ class MetaflowPackage(object):
             # Package the environment
             for path, arcname in self._code_env.files():
                 tar.add(path, arcname=arcname, recursive=False, filter=no_mtime)
-            for content, arcname in self._code_env.contents():
+            for content, arcname in self._code_env.metacontents():
                 self._add_file(tar, arcname, BytesIO(content))
 
             # Package the user code
