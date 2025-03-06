@@ -398,10 +398,11 @@ def run(
 
 
 @click.command(help="Spins up a task for a given step from a previous run locally.")
-@click.argument(
-    "step-name",
-    required=True,
-    type=str,
+@click.option(
+    "--step-name",
+    default=None,
+    show_default=True,
+    help="Step name to spin up. Must provide either step-name or spin-pathspec.",
 )
 @click.option(
     "--spin-pathspec",
@@ -419,6 +420,15 @@ def run(
     help="Skip decorators attached to the step.",
 )
 @click.option(
+    "--artifacts-module",
+    default=None,
+    show_default=True,
+    help="Path to a module that contains artifacts to be used in the spun step. The artifacts should "
+    "be defined as a dictionary called ARTIFACTS with keys as the artifact names and values as the "
+    "artifact values. The artifact values will overwrite the default values of the artifacts used in "
+    "the spun step.",
+)
+@click.option(
     "--max-log-size",
     default=10,
     show_default=True,
@@ -430,8 +440,9 @@ def run(
 @click.pass_obj
 def spin(
     obj,
-    step_name,
+    step_name=None,
     spin_pathspec=None,
+    artifacts_module=None,
     skip_decorators=False,
     max_log_size=None,
     run_id_file=None,
@@ -439,11 +450,21 @@ def spin(
     **kwargs
 ):
     before_run(obj, [], [])
-    if spin_pathspec is None:
+    if step_name and spin_pathspec:
+        raise CommandException(
+            "Cannot specify both step-name and spin-pathspec. Please specify only one."
+        )
+    if not (step_name or spin_pathspec):
+        raise CommandException(
+            "Please specify either step-name or spin-pathspec to spin a task."
+        )
+    if step_name is not None:
         spin_pathspec = get_latest_task_pathspec(obj.flow.name, step_name)
+    else:
+        step_name = spin_pathspec.split("/")[2]
 
     obj.echo(
-        f"Spinning up step *{step_name}* locally with task pathspec *{spin_pathspec}*"
+        f"Spinning up step *{step_name}* locally using previous task pathspec *{spin_pathspec}*"
     )
     obj.flow._set_constants(obj.graph, kwargs, obj.config_options)
     step_func = getattr(obj.flow, step_name)
@@ -464,6 +485,7 @@ def spin(
         step_func,
         spin_pathspec,
         skip_decorators,
+        artifacts_module,
         max_log_size * 1024 * 1024,
     )
     _system_logger.log_event(

@@ -91,6 +91,7 @@ class SpinRuntime(object):
         step_func,
         task_pathspec,
         skip_decorators=False,
+        artifacts_module=None,
         max_log_size=MAX_LOG_SIZE,
     ):
         from metaflow import Task
@@ -109,7 +110,6 @@ class SpinRuntime(object):
         # Spin specific metadata, event_logger, monitor, and flow_datastore
         self._spin_metadata = spin_metadata
         self._spin_flow_datastore = spin_flow_datastore
-        print(f"Spin Flow Datastore in SpinRuntime: {self._spin_flow_datastore}")
 
         self._step_func = step_func
         self._task_pathspec = task_pathspec
@@ -119,6 +119,7 @@ class SpinRuntime(object):
         self._whitelist_decorators = None
         self._config_file_name = None
         self._skip_decorators = skip_decorators
+        self._artifacts_module = artifacts_module
         self._max_log_size = max_log_size
         self._encoding = sys.stdout.encoding or "UTF-8"
 
@@ -139,7 +140,7 @@ class SpinRuntime(object):
 
     @property
     def input_paths(self):
-        start_time = time.time()
+        st = time.time()
 
         def _format_input_paths(task_pathspec):
             _, run_id, step_name, task_id = task_pathspec.split("/")
@@ -158,13 +159,12 @@ class SpinRuntime(object):
             ).task
             self._input_paths = [_format_input_paths(task.pathspec)]
         else:
-            # print("I am in else of input_paths")
             self._input_paths = [
                 _format_input_paths(task_pathspec)
                 for task_pathspec in self._task.parent_task_pathspecs
             ]
-        end_time = time.time()
-        # print(f"Time taken to get input paths: {end_time - start_time}")
+        et = time.time()
+        print(f"Time taken to get input paths: {et - st}")
         return self._input_paths
 
     @property
@@ -232,6 +232,8 @@ class SpinRuntime(object):
             self._max_log_size,
             self._config_file_name,
             spin_pathspec=self._task_pathspec,
+            skip_decorators=self._skip_decorators,
+            artifacts_module=self._artifacts_module,
         )
 
         # print("Worker created")
@@ -1710,9 +1712,13 @@ class CLIArgs(object):
     for step execution in StepDecorator.runtime_step_cli().
     """
 
-    def __init__(self, task, spin_pathspec=None):
+    def __init__(
+        self, task, spin_pathspec=None, skip_decorators=False, artifacts_module=None
+    ):
         self.task = task
         self.spin_pathspec = spin_pathspec
+        self.skip_decorators = skip_decorators
+        self.artifacts_module = artifacts_module
         self.entrypoint = list(task.entrypoint)
         self.top_level_options = {
             "quiet": False,
@@ -1779,6 +1785,8 @@ class CLIArgs(object):
             "max-user-code-retries": self.task.user_code_retries,
             "namespace": get_namespace() or "",
             "spin-pathspec": self.spin_pathspec,
+            "skip-decorators": self.skip_decorators,
+            "artifacts-module": self.artifacts_module,
         }
         self.env = {}
 
@@ -1820,10 +1828,20 @@ class CLIArgs(object):
 
 
 class Worker(object):
-    def __init__(self, task, max_logs_size, config_file_name, spin_pathspec=None):
+    def __init__(
+        self,
+        task,
+        max_logs_size,
+        config_file_name,
+        spin_pathspec=None,
+        skip_decorators=False,
+        artifacts_module=None,
+    ):
         self.task = task
         self._config_file_name = config_file_name
         self.spin_pathspec = spin_pathspec
+        self.skip_decorators = skip_decorators
+        self.artifacts_module = artifacts_module
         self._proc = self._launch()
 
         if task.retries > task.user_code_retries:
@@ -1855,7 +1873,12 @@ class Worker(object):
         # not it is properly shut down)
 
     def _launch(self):
-        args = CLIArgs(self.task, spin_pathspec=self.spin_pathspec)
+        args = CLIArgs(
+            self.task,
+            spin_pathspec=self.spin_pathspec,
+            skip_decorators=self.skip_decorators,
+            artifacts_module=self.artifacts_module,
+        )
         env = dict(os.environ)
 
         if self.task.clone_run_id:

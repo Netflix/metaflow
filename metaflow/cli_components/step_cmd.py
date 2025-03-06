@@ -6,7 +6,7 @@ from ..cli_args import cli_args
 from ..exception import CommandException
 from ..task import MetaflowTask
 from ..unbounded_foreach import UBF_CONTROL, UBF_TASK
-from ..util import decompress_list
+from ..util import decompress_list, read_artifacts_module
 import metaflow.tracing as tracing
 
 
@@ -232,6 +232,15 @@ def step(
     show_default=True,
     help="Skip decorators attached to the step.",
 )
+@click.option(
+    "--artifacts-module",
+    default=None,
+    show_default=True,
+    help="Path to a module that contains artifacts to be used in the spun step. The artifacts should "
+    "be defined as a dictionary called ARTIFACTS with keys as the artifact names and values as the "
+    "artifact values. The artifact values will overwrite the default values of the artifacts used in "
+    "the spun step.",
+)
 @click.pass_context
 def spin_internal(
     ctx,
@@ -245,6 +254,7 @@ def spin_internal(
     max_user_code_retries=None,
     namespace=None,
     skip_decorators=False,
+    artifacts_module=None,
 ):
     import time
 
@@ -259,16 +269,18 @@ def spin_internal(
         echo = echo_always
 
     input_paths = decompress_list(input_paths) if input_paths else []
-    # print(f"Input paths: {input_paths} and type: {type(input_paths)}")
-    # print(f"Split index: {split_index} and type: {type(split_index)}")
-    # print(f"Retry count: {retry_count} and type: {type(retry_count)}")
-    # print(f"Max user code retries: {max_user_code_retries} and type: {type(max_user_code_retries)}")
-
     echo(
         f"Spinning a task, *{step_name}* with previous task pathspec: {spin_pathspec}",
         fg="magenta",
         bold=False,
     )
+    # if namespace is not None:
+    #     namespace(namespace or None)
+
+    spin_artifacts = read_artifacts_module(artifacts_module) if artifacts_module else {}
+    spin_artifacts = spin_artifacts.get("ARTIFACTS", {})
+
+    print(f"spin_artifacts: {spin_artifacts}")
 
     task = MetaflowTask(
         ctx.obj.flow,
@@ -298,19 +310,8 @@ def spin_internal(
         retry_count,
         max_user_code_retries,
         spin_pathspec,
+        skip_decorators,
+        spin_artifacts,
     )
 
-    #
-    # task.run_spin_step(
-    #     step_name,
-    #     task_pathspec,
-    #     run_id,
-    #     task_id,
-    #     input_paths,
-    #     split_index,
-    #     retry_count,
-    #     max_user_code_retries,
-    #     namespace,
-    #     skip_decorators,
-    # )
-    # print("Time taken for the whole thing: ", time.time() - start)
+    echo(f"Time taken for the whole thing: {time.time() - start}")

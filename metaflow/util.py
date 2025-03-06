@@ -503,6 +503,19 @@ def to_pod(value):
     return str(value)
 
 
+def read_artifacts_module(file_path):
+    import importlib.util
+
+    try:
+        spec = importlib.util.spec_from_file_location("artifacts_module", file_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        variables = vars(module)
+        return variables
+    except Exception as e:
+        raise MetaflowInternalError(f"Error reading file {file_path}") from e
+
+
 if sys.version_info[:2] > (3, 5):
     from metaflow._vendor.packaging.version import parse as version_parse
 else:
