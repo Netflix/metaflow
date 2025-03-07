@@ -120,7 +120,7 @@ class PackagedDistribution(metadata.Distribution):
         self._content = content
 
     # Strongly inspired from PathDistribution in metadata.py
-    def read_text(self, filename: Union[str, os.PathLike[str]]) -> Optional[str]:
+    def read_text(self, filename: Union[str, os.PathLike]) -> Optional[str]:
         if str(filename) in self._content:
             return self._content[str(filename)]
         return None
