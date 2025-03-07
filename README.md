@@ -2,11 +2,11 @@
 
 # Metaflow
 
-[Metaflow](https://metaflow.org) is a human-centric framework designed to help scientists and engineers **build and manage real-life AI and ML systems**. Serving teams of all sizes and scale, Metaflow streamlines the entire lifecycle, allowing rapid iteration from prototyping in notebooks to robust, maintainable production deployments — making it easier than ever to deliver robust systems.
+[Metaflow](https://metaflow.org) is a human-centric framework designed to help scientists and engineers **build and manage real-life AI and ML systems**. Serving teams of all sizes, Metaflow streamlines the entire development lifecycle—from rapid prototyping in notebooks to reliable, maintainable production deployments—enabling teams to iterate quickly and deliver robust systems efficiently.
 
-Originally developed at [Netflix](https://netflixtechblog.com/open-sourcing-metaflow-a-human-centric-framework-for-data-science-fa72e04a5d9), Metaflow is designed to boost the productivity for research and engineering teams working on [a wide variety of projects](https://netflixtechblog.com/supporting-diverse-ml-systems-at-netflix-2d2e6b6d205d), from classical statistics to state-of-the-art deep learning and foundation models. Metaflow helps unify code, data, and compute at every stage, ensuring robust, end-to-end systems for real-world AI and ML.
+Originally developed at [Netflix](https://netflixtechblog.com/open-sourcing-metaflow-a-human-centric-framework-for-data-science-fa72e04a5d9), Metaflow is designed to boost the productivity for research and engineering teams working on [a wide variety of projects](https://netflixtechblog.com/supporting-diverse-ml-systems-at-netflix-2d2e6b6d205d), from classical statistics to state-of-the-art deep learning and foundation models. By unifying code, data, and compute at every stage, Metaflow ensures seamless, end-to-end management of real-world AI and ML workflows.
 
-Today, Metaflow powers thousands of AI and ML experiences across a diverse array of companies, large and small, including Amazon, Doordash, Dyson, Goldman Sachs, Ramp, and [more](ADOPTERS.md). At Netflix, Metaflow supports over 3000 AI and ML systems, executing hundreds of millions of data-intensive, high-performance compute jobs and managing tens of petabytes of models and artifacts in it's datastore across hundreds of users within Netflix's AI, ML, data science, and engineering teams.
+Today, Metaflow powers thousands of AI and ML experiences across a diverse array of companies, large and small, including Amazon, Doordash, Dyson, Goldman Sachs, Ramp, and [more](ADOPTERS.md). At Netflix alone, Metaflow supports over 3000 AI and ML systems, executes hundreds of millions of data-intensive high-performance compute jobs, and manages tens of petabytes of models and artifacts for hundreds of users across its AI, ML, data science, and engineering teams.
 
 ## From prototype to production (and back)
 
@@ -56,7 +56,7 @@ configure Metaflow and the infrastructure behind it appropriately.
 
 
 ## Get in touch
-We'd love to hear from you. Join our community [Slack workspace]((http://slack.outerbounds.co/))!
+We'd love to hear from you. Join our community [Slack workspace](http://slack.outerbounds.co/)!
 
 ## Contributing
 We welcome contributions to Metaflow. Please see our [contribution guide](https://docs.metaflow.org/introduction/contributing-to-metaflow) for more details.
