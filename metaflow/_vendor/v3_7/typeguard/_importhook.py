@@ -19,12 +19,12 @@ from ._transformer import TypeguardTransformer
 if sys.version_info >= (3, 12):
     from collections.abc import Buffer
 else:
-    from metaflow._vendor.typing_extensions import Buffer
+    from metaflow._vendor.v3_7.typing_extensions import Buffer
 
 if sys.version_info >= (3, 11):
     from typing import ParamSpec
 else:
-    from metaflow._vendor.typing_extensions import ParamSpec
+    from metaflow._vendor.v3_7.typing_extensions import ParamSpec
 
 if sys.version_info >= (3, 10):
     from importlib.metadata import PackageNotFoundError, version

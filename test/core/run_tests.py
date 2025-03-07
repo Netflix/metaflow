@@ -252,6 +252,11 @@ def run_test(formatter, context, debug, checks, env_base, executor):
                 runner = Runner(
                     "test_flow.py", show_output=False, env=env, **top_level_dict
                 )
+                for param_name, param_spec in formatter.test.PARAMETERS.items():
+                    if param_spec.get("type") == "JSONType":
+                        run_level_dict[param_name] = json.loads(
+                            param_spec["default"].strip("'")
+                        )
                 result = runner.run(**run_level_dict)
                 with open(
                     result.command_obj.log_files["stdout"], encoding="utf-8"
