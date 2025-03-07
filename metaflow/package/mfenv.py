@@ -6,7 +6,6 @@ import sys
 import tarfile
 
 from collections import defaultdict
-from dataclasses import dataclass
 from pathlib import Path
 from typing import (
     Callable,
@@ -15,6 +14,7 @@ from typing import (
     Iterator,
     List,
     Mapping,
+    NamedTuple,
     Optional,
     Set,
     Tuple,
@@ -103,11 +103,9 @@ def modules_to_distributions() -> Dict[str, List[metadata.Distribution]]:
     return _cached_distributions
 
 
-@dataclass
-class _ModuleInfo:
-    name: str
-    root_paths: Set[str]
-    module: ModuleType
+_ModuleInfo = NamedTuple(
+    "_ModuleInfo", [("name", str), ("root_paths", Set[str]), ("module", ModuleType)]
+)
 
 
 class PackagedDistribution(metadata.Distribution):
@@ -129,7 +127,9 @@ class PackagedDistribution(metadata.Distribution):
 
     read_text.__doc__ = metadata.Distribution.read_text.__doc__
 
-    def locate_file(self, path: Union[str, os.PathLike[str]]) -> metadata.SimplePath:
+    # Returns a metadata.SimplePath but not always present in importlib.metadata libs so
+    # skipping return type.
+    def locate_file(self, path: Union[str, os.PathLike]):
         return self._root / path
 
 
