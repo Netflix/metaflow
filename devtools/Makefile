@@ -75,7 +75,7 @@ check-docker:
 	@if [ "$(shell uname)" = "Darwin" ]; then \
 		open -a Docker || (echo "❌ Please start Docker Desktop" && exit 1); \
 	else \
-		systemctl is-active --quiet docker || (echo "❌ Docker daemon is not running. Start with 'sudo systemctl start docker'" && exit 1); \
+                docker info >/dev/null 2>&1 || (echo "❌ Docker daemon is not running." && exit 1); \
 	fi
 	@echo "✅ Docker is running"
 
