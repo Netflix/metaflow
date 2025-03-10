@@ -193,8 +193,12 @@ class BatchDecorator(StepDecorator):
             raise BatchException(
                 "BATCH_DEFAULT_TAGS environment variable must be Dict[str, str]"
             )
-        if self.attributes["aws_batch_tags"] is None:
-            self.attributes["aws_batch_tags"] = BATCH_DEFAULT_TAGS
+            
+        #if self.attributes["aws_batch_tags"] is None:
+        #    self.attributes["aws_batch_tags"] = BATCH_DEFAULT_TAGS
+
+        print(f"BATCH_DEFAULT_TAGS: {BATCH_DEFAULT_TAGS}")
+        print(f'aws_batch_tags: {self.attributes["aws_batch_tags"]}')
 
         if self.attributes["aws_batch_tags"] is not None:
             if not isinstance(self.attributes["aws_batch_tags"], dict) and not all(
@@ -203,11 +207,15 @@ class BatchDecorator(StepDecorator):
             ):
                 raise BatchException("aws_batch_tags must be Dict[str, str]")
 
+    
+        if BATCH_DEFAULT_TAGS is not {}:
             self.attributes["aws_batch_tags"] = {
                 **BATCH_DEFAULT_TAGS,
                 **self.attributes["aws_batch_tags"],
             }
 
+        
+        if self.attributes["aws_batch_tags"] is not None:
             decorator_aws_tags_list = [
                 {"key": key, "value": val}
                 for key, val in self.attributes["aws_batch_tags"].items()
