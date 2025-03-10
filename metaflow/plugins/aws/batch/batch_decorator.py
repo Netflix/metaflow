@@ -208,6 +208,8 @@ class BatchDecorator(StepDecorator):
                 for k, v in self.attributes["aws_batch_tags"].items()
             ):
                 raise BatchException("aws_batch_tags must be Dict[str, str]")
+        else:
+            self.attributes["aws_batch_tags"] = {}
 
     
         if BATCH_DEFAULT_TAGS is not {}:
