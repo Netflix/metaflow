@@ -285,12 +285,13 @@ class BatchDecorator(StepDecorator):
             cli_args.command_args.append(self.package_metadata)
             cli_args.command_args.append(self.package_sha)
             cli_args.command_args.append(self.package_url)
-            for k, v in self.attributes.items():
-                # Some attributes need to be serialized for the CLI
-                if k in ["aws_batch_tags"]:
-                    cli_args.command_options[k] = json.dumps(v)
-                else:
-                    cli_args.command_options[k] = v
+            cli_args.command_options.update(self.attributes)
+            #for k, v in self.attributes.items():
+            #    # Some attributes need to be serialized for the CLI
+            #    if k in ["aws_batch_tags"]:
+            #        cli_args.command_options[k] = json.dumps(v)
+            #    else:
+            #        cli_args.command_options[k] = v
             cli_args.command_options["run-time-limit"] = self.run_time_limit
             if not R.use_r():
                 cli_args.entrypoint[0] = sys.executable
