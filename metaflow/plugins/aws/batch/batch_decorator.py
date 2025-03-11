@@ -222,6 +222,7 @@ class BatchDecorator(StepDecorator):
                 {"key": key, "value": val}
                 for key, val in self.attributes["aws_batch_tags"].items()
             ]
+            print(f'Generating aws compatible list. Old aws_batch_tags: {self.attributes["aws_batch_tags"]}, new generated list: {decorator_aws_tags_list}')
             self.attributes["aws_batch_tags"] = decorator_aws_tags_list
 
         # clean up the alias attribute so it is not passed on.
