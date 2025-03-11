@@ -126,6 +126,7 @@ class BatchDecorator(StepDecorator):
         "efs_volumes": None,
         "use_tmpfs": False,
         "aws_batch_tags": None,
+        "aws_batch_tags_list": None,
         "tmpfs_tempdir": True,
         "tmpfs_size": None,
         "tmpfs_path": "/metaflow_temp",
@@ -225,7 +226,7 @@ class BatchDecorator(StepDecorator):
                 for key, val in self.attributes["aws_batch_tags"].items()
             ]
             print(f'Generating aws compatible list. Old aws_batch_tags: {self.attributes["aws_batch_tags"]}, new generated list: {decorator_aws_tags_list}')
-            self.attributes["aws_batch_tags"] = decorator_aws_tags_list
+            self.attributes["aws_batch_tags_list"] = decorator_aws_tags_list
 
         # clean up the alias attribute so it is not passed on.
         self.attributes.pop("trainium", None)
@@ -260,8 +261,8 @@ class BatchDecorator(StepDecorator):
             raise BatchException("'tmpfs_path' needs to be an absolute path")
 
         # Validate Batch tags
-        if self.attributes["aws_batch_tags"]:
-            for tag in self.attributes["aws_batch_tags"]:
+        if self.attributes["aws_batch_tags_list"]:
+            for tag in self.attributes["aws_batch_tags_list"]:
                 validate_aws_tag(tag)
 
     def runtime_init(self, flow, graph, package, run_id):

@@ -834,7 +834,7 @@ class StepFunctions(object):
                 swappiness=resources["swappiness"],
                 efa=resources["efa"],
                 use_tmpfs=resources["use_tmpfs"],
-                aws_batch_tags=resources["aws_batch_tags"],
+                aws_batch_tags=resources["aws_batch_tags_list"],
                 cli_aws_batch_tags=self.aws_batch_tags,
                 tmpfs_tempdir=resources["tmpfs_tempdir"],
                 tmpfs_size=resources["tmpfs_size"],
