@@ -350,12 +350,19 @@ class ServiceMetadataProvider(MetadataProvider):
         List[str]
             List of task pathspecs that satisfy the query
         """
-        query_params = {
-            "metadata_field_name": field_name,
-            "pattern": pattern,
-        }
         url = ServiceMetadataProvider._obj_path(flow_name, run_id, step_name)
-        url = f"{url}/filtered_tasks?{urlencode(query_params)}"
+        full_tasks_response = False
+        if pattern == ".*":
+            # we do not need to filter tasks at all if pattern allows 'any'
+            url = f"{url}/tasks"
+            full_tasks_response = True
+        else:
+            query_params = {
+                "metadata_field_name": field_name,
+                "pattern": pattern,
+            }
+            url = f"{url}/filtered_tasks?{urlencode(query_params)}"
+
         try:
             resp, _ = cls._request(None, url, "GET")
         except Exception as e:
@@ -368,6 +375,11 @@ class ServiceMetadataProvider(MetadataProvider):
                 ) from e
             # Other unknown exception
             raise e
+        if full_tasks_response:
+            return [
+                f"{task['flow_id']}/{task['run_number']}/{task['step_name']}/{task['task_id']}"
+                for task in resp
+            ]
         return resp
 
     @staticmethod
