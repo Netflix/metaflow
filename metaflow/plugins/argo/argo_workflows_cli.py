@@ -130,6 +130,7 @@ def argo_workflows(obj, name=None):
     is_flag=True,
     default=False,
     help="Only print out JSON sent to Argo Workflows. Do not deploy anything.",
+    hidden=True,
 )
 @click.option(
     "--max-workers",
