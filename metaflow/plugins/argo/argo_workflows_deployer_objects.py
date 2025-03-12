@@ -171,12 +171,16 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
         command_obj.sync_wait()
         return command_obj.process.returncode == 0
 
-    def wait_for_completion(self, timeout: Optional[int] = None):
+    def wait_for_completion(
+        self, check_interval: int = 5, timeout: Optional[int] = None
+    ):
         """
         Wait for the workflow to complete or timeout.
 
         Parameters
         ----------
+        check_interval: int, default: 5
+            Frequency of checking for workflow completion, in seconds.
         timeout : int, optional, default None
             Maximum time in seconds to wait for workflow completion.
             If None, waits indefinitely.
@@ -187,7 +191,6 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
             If the workflow does not complete within the specified timeout period.
         """
         start_time = time.time()
-        check_interval = 5
         while self.is_running:
             if timeout is not None and (time.time() - start_time) > timeout:
                 raise TimeoutError(
