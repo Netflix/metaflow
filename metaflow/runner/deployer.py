@@ -106,7 +106,7 @@ class TriggeredRun(object):
         self.pathspec = content_json.get("pathspec")
         self.name = content_json.get("name")
 
-    def wait_for_run(self, timeout: Optional[int] = None):
+    def wait_for_run(self, check_interval: int = 5, timeout: Optional[int] = None):
         """
         Wait for the `run` property to become available.
 
@@ -115,6 +115,8 @@ class TriggeredRun(object):
 
         Parameters
         ----------
+        check_interval: int, default: 5
+            Frequency of checking for the `run` to become available, in seconds.
         timeout : int, optional, default None
             Maximum time to wait for the `run` to become available, in seconds. If
             None, wait indefinitely.
@@ -125,7 +127,6 @@ class TriggeredRun(object):
             If the `run` is not available within the specified timeout.
         """
         start_time = time.time()
-        check_interval = 5
         while True:
             if self.run is not None:
                 return self.run
