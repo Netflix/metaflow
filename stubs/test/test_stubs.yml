@@ -1,13 +1,5 @@
 - case: project_decorator_validity
   regex: yes
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, project
 
@@ -48,14 +40,6 @@
 
 - case: pypi_base_decorator_validity
   regex: yes
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, pypi_base
 
@@ -96,14 +80,6 @@
 
 - case: conda_base_decorator_validity
   regex: yes
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, conda_base
 
@@ -144,14 +120,6 @@
 
 - case: schedule_decorator_validity
   regex: yes
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, schedule
 
@@ -192,14 +160,6 @@
 
 - case: trigger_decorator_validity
   regex: yes
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, trigger
 
@@ -240,14 +200,6 @@
 
 - case: trigger_on_finish_decorator_validity
   regex: yes
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, trigger_on_finish
 
@@ -288,14 +240,6 @@
 
 - case: step_decorator_validity
   regex: yes
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step
 
@@ -352,14 +296,6 @@
 
 - case: decorator_order
   regex: yes
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, retry, catch
 
@@ -390,14 +326,6 @@
 
 - case: batch_decorator_validity
   regex: yes
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, batch
 
@@ -450,14 +378,6 @@
 
 - case: kubernetes_decorator_validity
   regex: yes
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, kubernetes
 
@@ -506,14 +426,6 @@
 
 - case: environment_decorator_validity
   regex: yes
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, environment
 
@@ -566,14 +478,6 @@
 
 - case: card_decorator_validity
   regex: yes
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, card
 
@@ -626,14 +530,6 @@
 
 - case: catch_decorator_validity
   regex: yes
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, catch
 
@@ -686,14 +582,6 @@
 
 - case: pypi_decorator_validity
   regex: yes
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, pypi
 
@@ -746,14 +634,6 @@
 
 - case: conda_decorator_validity
   regex: yes
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, conda
 
@@ -806,14 +686,6 @@
 
 - case: resources_decorator_validity
   regex: yes
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, resources
 
@@ -866,14 +738,6 @@
 
 - case: retry_decorator_validity
   regex: yes
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, retry
 
@@ -926,14 +790,6 @@
 
 - case: secrets_decorator_validity
   regex: yes
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, secrets
 
@@ -986,14 +842,6 @@
 
 - case: timeout_decorator_validity
   regex: yes
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, timeout
 
@@ -1045,14 +893,6 @@
     main:22: error: .*incompatible type.*\[arg-type\]
 
 - case: client_types
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import Flow, Run, Step, Task, DataArtifact
 
@@ -1076,14 +916,6 @@
     main:11: error: Invalid index type "int" for "Step"; expected type "str"  [index]
 
 - case: current_object
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import current
 
@@ -1097,14 +929,6 @@
     main:7: error: Property "flow_name" defined in "Current" is read-only  [misc]
 
 - case: sample_flow
-  parametrized:
-    - python_version: "3.7"
-    - python_version: "3.8"
-    - python_version: "3.9"
-    - python_version: "3.10"
-    - python_version: "3.11"
-    - python_version: "3.12"
-  mypy_config: python_version = {{ python_version }}
   main: |
     from metaflow import FlowSpec, step, batch, project, schedule
 
