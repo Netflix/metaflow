@@ -350,7 +350,8 @@ def convert_to_client_error(e):
     match = re.search(
         r"An error occurred \((\w+)\) when calling the (\w+) operation.*: (.+)", str(e)
     )
-    assert match, "Failed to parse error message"
+    if not match:
+        raise e
     error_code = match.group(1)
     operation_name = match.group(2)
     error_message = match.group(3)
@@ -428,6 +429,9 @@ def start_workers(mode, urls, num_workers, inject_failure, s3config):
                         # IMPORTANT: if a child process has put items on a queue, then that process will not
                         # terminate until all buffered items have been flushed to the pipe, causing a deadlock.
                         # `cancel_join_thread()` allows the subprocess to exit without flushing the queue.
+                        #
+                        # Without this line, the subprocess would hang indefinitely when it did not exit cleanly
+                        # in the case of unhandled exceptions
                         queue.cancel_join_thread()
 
                         exit(msg, proc.exitcode)

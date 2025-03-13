@@ -38,8 +38,7 @@ class Boto3ClientProvider(object):
         if module == "s3" and (
             "config" not in client_params or client_params["config"].retries is None
         ):
-            # Use the adaptive retry strategy by default -- do not set anything if
-            # the user has already set something
+            # do not set anything if the user has already set something
             config = client_params.get("config", Config())
             config.retries = S3_CLIENT_RETRY_CONFIG
             client_params["config"] = config

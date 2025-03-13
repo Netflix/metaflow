@@ -1501,6 +1501,15 @@ class S3(object):
         #    - an unknown failure (something went wrong but we cannot say if it was
         #      a known permanent failure or something else). In this case, we assume
         #      it's a transient failure and retry only those inputs (same as above).
+        #
+        # NOTES(npow): 2025-05-13
+        # Previously, this code would also retry the fatal failures, including no_progress
+        # and unknown failures, from the beginning. This is not ideal because:
+        # 1. Fatal errors are not supposed to be retried.
+        # 2. Retrying from the beginning does not improve the situation, and is
+        #    wasteful since we have already uploaded some files.
+        # 3. The number of transient errors is far more than fatal errors, so we
+        #    can be optimistic and assume the unknown errors are transient.
         cmdline = [sys.executable, os.path.abspath(s3op.__file__), mode]
         recursive_get = False
         for key, value in options.items():
