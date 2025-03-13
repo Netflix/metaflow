@@ -2532,6 +2532,11 @@ class ArgoWorkflows(object):
                         "title": "Flow %s has failed." % self.flow.name,
                         "description": "Metaflow run %s/argo-{{workflow.name}} failed! %s"
                         % (self.flow.name, self._incident_io_ui_urls_for_run()),
+                        "metadata": {
+                            "run_status": "failed",
+                            "flow_name": self.flow.name,
+                            "run_id": "argo-{{workflow.name}}",
+                        },
                     }
                 )
             )
@@ -2560,6 +2565,11 @@ class ArgoWorkflows(object):
                         "title": "Flow %s has succeeded." % self.flow.name,
                         "description": "Metaflow run %s/argo-{{workflow.name}} succeeded!%s"
                         % (self.flow.name, self._incident_io_ui_urls_for_run()),
+                        "metadata": {
+                            "run_status": "succeeded",
+                            "flow_name": self.flow.name,
+                            "run_id": "argo-{{workflow.name}}",
+                        },
                     }
                 )
             )
