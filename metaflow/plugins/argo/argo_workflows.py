@@ -2516,6 +2516,7 @@ class ArgoWorkflows(object):
             raise MetaflowException(
                 "Creating alerts for errors requires a alert source config ID."
             )
+        ui_links = self._incident_io_ui_urls_for_run()
         return Template("notify-incident-io-on-error").http(
             Http("POST")
             .url(
@@ -2530,8 +2531,25 @@ class ArgoWorkflows(object):
                         "idempotency_key": "argo-{{workflow.name}}",  # use run id to deduplicate alerts.
                         "status": "firing",
                         "title": "Flow %s has failed." % self.flow.name,
-                        "description": "Metaflow run %s/argo-{{workflow.name}} failed! %s"
-                        % (self.flow.name, self._incident_io_ui_urls_for_run()),
+                        "description": "Metaflow run {run_pathspec} failed!{urls}".format(
+                            run_pathspec="%s/argo-{{workflow.name}}" % self.flow.name,
+                            urls=(
+                                "\n\nSee details for the run at:\n\n"
+                                + "\n\n".join(ui_links)
+                                if ui_links
+                                else ""
+                            ),
+                        ),
+                        "source_url": (
+                            "%s/%s/%s"
+                            % (
+                                UI_URL.rstrip("/"),
+                                self.flow.name,
+                                "argo-{{workflow.name}}",
+                            )
+                            if UI_URL
+                            else None
+                        ),
                         "metadata": {
                             "run_status": "failed",
                             "flow_name": self.flow.name,
@@ -2549,6 +2567,7 @@ class ArgoWorkflows(object):
             raise MetaflowException(
                 "Creating alerts for successes requires an alert source config ID."
             )
+        ui_links = self._incident_io_ui_urls_for_run()
         return Template("notify-incident-io-on-success").http(
             Http("POST")
             .url(
@@ -2563,8 +2582,25 @@ class ArgoWorkflows(object):
                         "idempotency_key": "argo-{{workflow.name}}",  # use run id to deduplicate alerts.
                         "status": "firing",
                         "title": "Flow %s has succeeded." % self.flow.name,
-                        "description": "Metaflow run %s/argo-{{workflow.name}} succeeded!%s"
-                        % (self.flow.name, self._incident_io_ui_urls_for_run()),
+                        "description": "Metaflow run {run_pathspec} succeeded!{urls}".format(
+                            run_pathspec="%s/argo-{{workflow.name}}" % self.flow.name,
+                            urls=(
+                                "\n\nSee details for the run at:\n\n"
+                                + "\n\n".join(ui_links)
+                                if ui_links
+                                else ""
+                            ),
+                        ),
+                        "source_url": (
+                            "%s/%s/%s"
+                            % (
+                                UI_URL.rstrip("/"),
+                                self.flow.name,
+                                "argo-{{workflow.name}}",
+                            )
+                            if UI_URL
+                            else None
+                        ),
                         "metadata": {
                             "run_status": "succeeded",
                             "flow_name": self.flow.name,
@@ -2591,9 +2627,7 @@ class ArgoWorkflows(object):
                 "{{workflow.name}}",
             )
             links.append(url)
-        if links:
-            links = ["See details for the run at: ", *links]
-        return "\n\n".join(links)
+        return links
 
     def _pager_duty_change_template(self):
         # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgy-send-a-change-event
