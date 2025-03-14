@@ -144,6 +144,19 @@ class MutableStep:
         self._my_step.decorators = new_deco_list
         return did_remove
 
+    def add_wrapper(
+        self,
+        wrapper: Callable[
+            [str, "metaflow.flowspec.FlowSpec"],
+            Generator[
+                Optional[Callable[["metaflow.flowspec.FlowSpec", Optional[any]], any]],
+                None,
+                None,
+            ],
+        ],
+    ):
+        self._my_step.wrappers.append(wrapper)
+
 
 class MutableFlow:
     def __init__(self, flow_spec: "metaflow.flowspec.FlowSpec"):
@@ -384,6 +397,8 @@ class CustomFlowDecorator:
     def __init__(self, *args, **kwargs):
         from ..flowspec import FlowSpecMeta
 
+        self._flow_cls = None
+
         if args and isinstance(args[0], (CustomFlowDecorator, FlowSpecMeta)):
             # This means the decorator is bare like @MyDecorator
             # and the first argument is the FlowSpec or another decorator (they
@@ -420,12 +435,24 @@ class CustomFlowDecorator:
             new_kwargs = {
                 k: resolve_delayed_evaluator(v) for k, v in self._kwargs.items()
             }
-            self.init(*new_args, **new_kwargs)
-            if hasattr(self, "_empty_init"):
-                raise MetaflowException(
-                    "CustomFlowDecorator '%s' is used with arguments "
-                    "but does not implement init" % str(self.__class__)
-                )
+            if new_args or new_kwargs:
+                self.init(*new_args, **new_kwargs)
+                if hasattr(self, "_empty_init"):
+                    raise MetaflowException(
+                        "CustomFlowDecorator '%s' is used with arguments "
+                        "but does not implement init" % str(self.__class__)
+                    )
+            else:
+                # If there are no actual arguments so @MyDecorator(), we behave like
+                # @MyDecorator with one *crucial* difference: the return value will
+                # be the flow_cls and NOT an object of type MyDecorator. This is
+                # useful to add flow level decorators to children classes of FlowSpec
+                # and effectively give default decorators to all instances of those
+                # children classes.
+                try:
+                    self.init()
+                except NotImplementedError:
+                    pass
 
             return self._set_flow_cls(flow_spec)
         elif not self._flow_cls:
