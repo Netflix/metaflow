@@ -8,6 +8,7 @@ import tarfile
 from collections import defaultdict
 from pathlib import Path
 from typing import (
+    Any,
     Callable,
     Dict,
     Generator,
@@ -24,12 +25,14 @@ from typing import (
 
 from types import ModuleType
 
+from .tar_backend import TarPackagingBackend
+from .utils import walk
 
 from ..debug import debug
 from ..extension_support import EXT_EXCLUDE_SUFFIXES, metadata, package_mfext_all
 
 from ..meta_files import MFENV_DIR, MetaFile
-from ..util import get_metaflow_root, to_unicode
+from ..util import get_metaflow_root
 
 packages_distributions = None
 
@@ -158,71 +161,10 @@ class MFEnv:
 
     METAFLOW_SUFFIXES_LIST = [".py", ".html", ".css", ".js"]
 
-    # this is os.walk(follow_symlinks=True) with cycle detection
-    @classmethod
-    def walk_without_cycles(
-        cls,
-        top_root: str,
-    ) -> Generator[Tuple[str, List[str]], None, None]:
-        seen = set()
-
-        def _recurse(root):
-            for parent, dirs, files in os.walk(root):
-                for d in dirs:
-                    path = os.path.join(parent, d)
-                    if os.path.islink(path):
-                        # Breaking loops: never follow the same symlink twice
-                        #
-                        # NOTE: this also means that links to sibling links are
-                        # not followed. In this case:
-                        #
-                        #   x -> y
-                        #   y -> oo
-                        #   oo/real_file
-                        #
-                        # real_file is only included twice, not three times
-                        reallink = os.path.realpath(path)
-                        if reallink not in seen:
-                            seen.add(reallink)
-                            for x in _recurse(path):
-                                yield x
-                yield parent, files
-
-        for x in _recurse(top_root):
-            yield x
-
-    @classmethod
-    def walk(
-        cls,
-        root: str,
-        exclude_hidden: bool = True,
-        suffixes: Optional[List[str]] = None,
-    ) -> Generator[Tuple[str, str], None, None]:
-        if suffixes is None:
-            suffixes = []
-        root = to_unicode(root)  # handle files/folder with non ascii chars
-        prefixlen = len("%s/" % os.path.dirname(root))
-        for (
-            path,
-            files,
-        ) in cls.walk_without_cycles(root):
-            if exclude_hidden and "/." in path:
-                continue
-            # path = path[2:] # strip the ./ prefix
-            # if path and (path[0] == '.' or './' in path):
-            #    continue
-            for fname in files:
-                if (fname[0] == "." and fname in suffixes) or (
-                    fname[0] != "."
-                    and any(fname.endswith(suffix) for suffix in suffixes)
-                ):
-                    p = os.path.join(path, fname)
-                    yield p, p[prefixlen:]
-
     @classmethod
     def get_filename(cls, name: Union[MetaFile, str]) -> Optional[str]:
         # Get the filename of the expanded file -- it will always be expanded next to
-        # metaflow_root which is already in MFENV_DIR.
+        # metaflow_root
         real_name = name.value if isinstance(name, MetaFile) else name
         path_to_file = os.path.join(get_metaflow_root(), real_name)
         if os.path.isfile(path_to_file):
@@ -239,35 +181,52 @@ class MFEnv:
 
     @classmethod
     def get_archive_filename(
-        cls, archive: tarfile.TarFile, name: Union[MetaFile, str]
+        cls,
+        archive: Any,
+        name: Union[MetaFile, str],
+        package_path=MFENV_DIR,
+        packaging_backend=TarPackagingBackend,
     ) -> Optional[str]:
         # Backward compatible way of accessing all special files. Prior to MFEnv, they
         # were stored at the TL of the archive.
         real_name = name.value if isinstance(name, MetaFile) else name
-        if archive.getmember(MFENV_DIR):
-            file_path = os.path.join(MFENV_DIR, real_name)
+        if packaging_backend.cls_has_member(archive, package_path):
+            file_path = os.path.join(package_path, real_name)
         else:
             file_path = real_name
-        if archive.getmember(file_path):
+        if packaging_backend.cls_has_member(archive, file_path):
             return file_path
         return None
 
     @classmethod
     def get_archive_content(
-        cls, archive: tarfile.TarFile, name: Union[MetaFile, str]
-    ) -> Optional[str]:
-        file_to_read = cls.get_archive_filename(archive, name)
-        if file_to_read:
-            with archive.extractfile(file_to_read) as f:
-                return f.read().decode("utf-8")
-        return None
+        cls,
+        archive: tarfile.TarFile,
+        name: Union[MetaFile, str],
+        package_path=MFENV_DIR,
+        packaging_backend=TarPackagingBackend,
+    ) -> Optional[bytes]:
+        real_name = name.value if isinstance(name, MetaFile) else name
+        if packaging_backend.cls_has_member(archive, package_path):
+            file_path = os.path.join(package_path, real_name)
+        else:
+            file_path = real_name
+        return packaging_backend.cls_extract_member(archive, file_path)
 
-    def __init__(self, criteria: Callable[[ModuleType], bool]) -> None:
+    def __init__(
+        self,
+        criteria: Callable[[ModuleType], bool],
+        package_path=MFENV_DIR,
+    ) -> None:
+        # package_path is the directory within the archive where the files will be
+        # stored (by default MFENV_DIR). This is used in internal Netflix code.
+
         # Look at top-level modules that are present when MFEnv is initialized
         modules = filter(lambda x: "." not in x[0], sys.modules.items())
 
         # Determine the version of Metaflow that we are part of
         self._metaflow_root = get_metaflow_root()
+        self._package_path = package_path
 
         self._modules = {
             name: _ModuleInfo(
@@ -305,15 +264,12 @@ class MFEnv:
         # Include extensions as well
         self._files.update(self._metaflow_extension_files())
 
-    @property
-    def root_dir(self):
-        return MFENV_DIR
-
     def add_meta_content(self, name: MetaFile, content: bytes) -> None:
         """
         Add a metafile to the MF environment.
 
-        This file will be included in the resulting code package in `MFENV_DIR`.
+        This file will be included in the resulting code package in tar_dir
+        (defaults to`MFENV_DIR`).
 
         Parameters
         ----------
@@ -329,7 +285,8 @@ class MFEnv:
         """
         Add a module to the MF environment.
 
-        This module will be included in the resulting code package in `MFENV_DIR`.
+        This module will be included in the resulting code package in tar_dir
+        (defaults to `MFENV_DIR`).
 
         Parameters
         ----------
@@ -359,7 +316,8 @@ class MFEnv:
         """
         Add a directory to the MF environment.
 
-        This directory will be included in the resulting code package in `MFENV_DIR`.
+        This directory will be included in the resulting code package in tar_dir
+        (defaults to`MFENV_DIR`).
         You can optionally specify a criteria function that takes a file path and
         returns a boolean indicating whether or not the file should be included in the
         code package.
@@ -391,7 +349,8 @@ class MFEnv:
         """
         Add a list of files to the MF environment.
 
-        These files will be included in the resulting code package in `MFENV_DIR`.
+        These files will be included in the resulting code package in the package_path
+        (defaults to`MFENV_DIR`).
 
 
         Parameters
@@ -403,7 +362,9 @@ class MFEnv:
         """
         for file, arcname in files:
             debug.package_exec(f"Adding file {file} as {arcname} to the MF environment")
-            self._files[os.path.realpath(file)] = os.path.join(MFENV_DIR, arcname)
+            self._files[os.path.realpath(file)] = os.path.join(
+                self._package_path, arcname
+            )
 
     def path_in_archive(self, path: str) -> Optional[str]:
         """
@@ -451,11 +412,11 @@ class MFEnv:
             archive.
         """
         for name, content in self._metacontent.items():
-            yield content, os.path.join(MFENV_DIR, name.value)
+            yield content, os.path.join(self._package_path, name.value)
         if self._distmetainfo:
             yield (
                 json.dumps(self._distmetainfo).encode("utf-8"),
-                os.path.join(MFENV_DIR, MetaFile.INCLUDED_DIST_INFO.value),
+                os.path.join(self._package_path, MetaFile.INCLUDED_DIST_INFO.value),
             )
 
     def _module_files(
@@ -510,7 +471,7 @@ class MFEnv:
                         has_init = True
                     yield str(
                         dist.locate_file(file).resolve().as_posix()
-                    ), os.path.join(MFENV_DIR, str(file))
+                    ), os.path.join(self._package_path, str(file))
 
         # Now if there are more paths left in paths, it means there is a non-distribution
         # component to this package which we also include.
@@ -520,7 +481,7 @@ class MFEnv:
         for path in paths:
             if not Path(path).is_dir():
                 # Single file for the module -- this will be something like <name>.py
-                yield path, os.path.join(MFENV_DIR, os.path.basename(path))
+                yield path, os.path.join(self._package_path, os.path.basename(path))
             else:
                 for root, _, files in os.walk(path):
                     for file in files:
@@ -530,7 +491,7 @@ class MFEnv:
                         if rel_path == "__init__.py":
                             has_init = True
                         yield os.path.join(root, file), os.path.join(
-                            MFENV_DIR,
+                            self._package_path,
                             name,
                             rel_path,
                         )
@@ -539,18 +500,18 @@ class MFEnv:
         if not has_init:
             yield os.path.join(
                 self._metaflow_root, "metaflow", "extension_support", "_empty_file.py"
-            ), os.path.join(MFENV_DIR, name, "__init__.py")
+            ), os.path.join(self._package_path, name, "__init__.py")
 
     def _metaflow_distribution_files(self) -> Generator[Tuple[str, str], None, None]:
         debug.package_exec(
             f"    Including Metaflow from {self._metaflow_root} to the MF Environment"
         )
-        for path_tuple in self.walk(
+        for path_tuple in walk(
             os.path.join(self._metaflow_root, "metaflow"),
             exclude_hidden=False,
             suffixes=self.METAFLOW_SUFFIXES_LIST,
         ):
-            yield path_tuple[0], os.path.join(MFENV_DIR, path_tuple[1])
+            yield path_tuple[0], os.path.join(self._package_path, path_tuple[1])
 
     def _metaflow_extension_files(self) -> Generator[Tuple[str, str], None, None]:
         # Metaflow extensions; for now, we package *all* extensions but this may change
@@ -560,4 +521,4 @@ class MFEnv:
         # package and prevent other extensions from being loaded that may be
         # present in the rest of the system
         for path_tuple in package_mfext_all():
-            yield path_tuple[0], os.path.join(MFENV_DIR, path_tuple[1])
+            yield path_tuple[0], os.path.join(self._package_path, path_tuple[1])
