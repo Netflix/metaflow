@@ -685,6 +685,7 @@ def step(
     f.is_step = True
     f.decorators = []
     f.config_decorators = []
+    f.wrappers = []
     try:
         # python 3
         f.name = f.__name__
