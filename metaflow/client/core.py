@@ -825,7 +825,9 @@ class MetaflowCode(object):
         )
         code_obj = BytesIO(blobdata)
         self._tar = tarfile.open(fileobj=code_obj, mode="r:gz")
-        info_str = MFEnv.get_archive_content(self._tar, MetaFile.INFO_FILE)
+        info_str = MFEnv.get_archive_content(self._tar, MetaFile.INFO_FILE).decode(
+            encoding="utf-8"
+        )
         self._info = json.loads(info_str)
         self._flowspec = self._tar.extractfile(self._info["script"]).read()
 
