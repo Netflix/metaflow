@@ -7,6 +7,8 @@ from . import metaflow_version
 from metaflow.exception import MetaflowException
 from metaflow.extension_support import dump_module_info
 from metaflow.mflog import BASH_MFLOG, BASH_FLUSH_LOGS
+
+from .meta_files import MFENV_DIR
 from . import R
 
 
@@ -176,6 +178,7 @@ class MetaflowEnvironment(object):
             "after 6 tries. Exiting...' && exit 1; "
             "fi" % code_package_url,
             "TAR_OPTIONS='--warning=no-timestamp' tar xf job.tar",
+            "export PYTHONPATH=`pwd`/%s:$PYTHONPATH" % MFENV_DIR,
             "mflog 'Task is starting.'",
             "flush_mflogs",
         ]
