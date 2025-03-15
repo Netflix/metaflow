@@ -54,6 +54,9 @@ jobs:
           cp ./stubs/test/setup.cfg ./stubs/test/mypy_${{ matrix.ver }}.cfg
           # Add Python version setting
           echo "python_version = ${{ matrix.ver }}" >> ./stubs/test/mypy_${{ matrix.ver }}.cfg
+          if [[ "${{ matrix.ver }}" == "3.7" ]]; then
+            echo "follow_imports = skip" >> ./stubs/test/mypy_${{ matrix.ver }}.cfg
+          fi
 
     - name: Run mypy tests
       uses: nick-fields/retry@v2
