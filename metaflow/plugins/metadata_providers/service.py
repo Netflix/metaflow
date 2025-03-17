@@ -350,23 +350,32 @@ class ServiceMetadataProvider(MetadataProvider):
         List[str]
             List of task pathspecs that satisfy the query
         """
-        query_params = {
-            "metadata_field_name": field_name,
-            "pattern": pattern,
-            "step_name": step_name,
-        }
+        query_params = {}
+
+        if pattern == ".*":
+            # we do not need to filter tasks at all if pattern allows 'any'
+            query_params = {}
+        else:
+            if field_name:
+                query_params["metadata_field_name"] = field_name
+            if pattern:
+                query_params["pattern"] = pattern
+
         url = ServiceMetadataProvider._obj_path(flow_name, run_id, step_name)
         url = f"{url}/filtered_tasks?{urlencode(query_params)}"
+
         try:
-            resp = cls._request(None, url, "GET")
+            resp, _ = cls._request(None, url, "GET")
         except Exception as e:
             if e.http_code == 404:
                 # filter_tasks_by_metadata endpoint does not exist in the version of metadata service
                 # deployed currently. Raise a more informative error message.
                 raise MetaflowInternalError(
                     "The version of metadata service deployed currently does not support filtering tasks by metadata. "
-                    "Upgrade Metadata service to version 2.15 or greater to use this feature."
+                    "Upgrade Metadata service to version 2.5.0 or greater to use this feature."
                 ) from e
+            # Other unknown exception
+            raise e
         return resp
 
     @staticmethod

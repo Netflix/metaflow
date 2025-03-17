@@ -130,6 +130,7 @@ def argo_workflows(obj, name=None):
     is_flag=True,
     default=False,
     help="Only print out JSON sent to Argo Workflows. Do not deploy anything.",
+    hidden=True,
 )
 @click.option(
     "--max-workers",
@@ -182,14 +183,9 @@ def argo_workflows(obj, name=None):
     help="Incident.io API V2 key for workflow success/failure notifications.",
 )
 @click.option(
-    "--incident-io-success-severity-id",
+    "--incident-io-alert-source-config-id",
     default=None,
-    help="Incident.io severity id for success alerts.",
-)
-@click.option(
-    "--incident-io-error-severity-id",
-    default=None,
-    help="Incident.io severity id for error alerts.",
+    help="Incident.io Alert source config ID. Example '01GW2G3V0S59R238FAHPDS1R66'",
 )
 @click.option(
     "--enable-heartbeat-daemon/--no-enable-heartbeat-daemon",
@@ -229,8 +225,7 @@ def create(
     notify_slack_webhook_url=None,
     notify_pager_duty_integration_key=None,
     notify_incident_io_api_key=None,
-    incident_io_success_severity_id=None,
-    incident_io_error_severity_id=None,
+    incident_io_alert_source_config_id=None,
     enable_heartbeat_daemon=True,
     deployer_attribute_file=None,
     enable_error_msg_capture=False,
@@ -287,8 +282,7 @@ def create(
         notify_slack_webhook_url,
         notify_pager_duty_integration_key,
         notify_incident_io_api_key,
-        incident_io_success_severity_id,
-        incident_io_error_severity_id,
+        incident_io_alert_source_config_id,
         enable_heartbeat_daemon,
         enable_error_msg_capture,
     )
@@ -464,8 +458,7 @@ def make_flow(
     notify_slack_webhook_url,
     notify_pager_duty_integration_key,
     notify_incident_io_api_key,
-    incident_io_success_severity_id,
-    incident_io_error_severity_id,
+    incident_io_alert_source_config_id,
     enable_heartbeat_daemon,
     enable_error_msg_capture,
 ):
@@ -488,19 +481,18 @@ def make_flow(
             "https://api.slack.com/messaging/webhooks to generate a webhook url.\n"
             " For notifications through PagerDuty, generate an integration key by following the instructions at "
             "https://support.pagerduty.com/docs/services-and-integrations#create-a-generic-events-api-integration\n"
-            " For notifications through Incident.io, generate an API key with a permission to create incidents."
+            " For notifications through Incident.io, generate an alert source config."
         )
 
-    if notify_incident_io_api_key:
-        if notify_on_error and incident_io_error_severity_id is None:
-            raise MetaflowException(
-                "Incident.io error notifications require a severity id. Please set one with --incident-io-error-severity-id"
-            )
+    if (
+        (notify_on_error or notify_on_success)
+        and notify_incident_io_api_key
+        and incident_io_alert_source_config_id is None
+    ):
+        raise MetaflowException(
+            "Incident.io alerts require an alert source configuration ID. Please set one with --incident-io-alert-source-config-id"
+        )
 
-        if notify_on_success and incident_io_success_severity_id is None:
-            raise MetaflowException(
-                "Incident.io success notifications require a severity id. Please set one with --incident-io-success-severity-id"
-            )
     # Attach @kubernetes and @environment decorator to the flow to
     # ensure that the related decorator hooks are invoked.
     decorators._attach_decorators(
@@ -545,8 +537,7 @@ def make_flow(
         notify_slack_webhook_url=notify_slack_webhook_url,
         notify_pager_duty_integration_key=notify_pager_duty_integration_key,
         notify_incident_io_api_key=notify_incident_io_api_key,
-        incident_io_success_severity_id=incident_io_success_severity_id,
-        incident_io_error_severity_id=incident_io_error_severity_id,
+        incident_io_alert_source_config_id=incident_io_alert_source_config_id,
         enable_heartbeat_daemon=enable_heartbeat_daemon,
         enable_error_msg_capture=enable_error_msg_capture,
     )
