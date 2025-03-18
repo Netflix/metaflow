@@ -1391,14 +1391,18 @@ class S3(object):
         )
 
     # add some jitter to make sure retries are not synchronized
-    def _jitter_sleep(self, trynum, base=2, cap=360, jitter=0.1):
+    def _jitter_sleep(
+        self, trynum: int, base: int = 2, cap: int = 360, jitter: float = 0.1
+    ) -> None:
         """
         Sleep for an exponentially increasing interval with added jitter.
 
-        :param trynum: The current retry attempt number.
-        :param base: The base multiplier for the exponential backoff.
-        :param cap: The maximum interval to sleep.
-        :param jitter: The maximum jitter percentage to add to the interval.
+        Parameters
+        ----------
+        trynum: The current retry attempt number.
+        base: The base multiplier for the exponential backoff.
+        cap: The maximum interval to sleep.
+        jitter: The maximum jitter percentage to add to the interval.
         """
         # Calculate the exponential backoff interval
         interval = min(cap, base**trynum)

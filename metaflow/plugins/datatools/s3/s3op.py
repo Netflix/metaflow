@@ -57,6 +57,9 @@ DOWNLOAD_MAX_CHUNK = 2 * 1024 * 1024 * 1024 - 1
 
 DEFAULT_S3_CLIENT_PARAMS = {"config": Config(retries=S3_CLIENT_RETRY_CONFIG)}
 RANGE_MATCH = re.compile(r"bytes (?P<start>[0-9]+)-(?P<end>[0-9]+)/(?P<total>[0-9]+)")
+BOTOCORE_MSG_TEMPLATE_MATCH = re.compile(
+    r"An error occurred \((\w+)\) when calling the (\w+) operation.*: (.+)"
+)
 
 S3Config = namedtuple("S3Config", "role session_vars client_params")
 
@@ -347,9 +350,7 @@ def worker(result_file_name, queue, mode, s3config):
 
 
 def convert_to_client_error(e):
-    match = re.search(
-        r"An error occurred \((\w+)\) when calling the (\w+) operation.*: (.+)", str(e)
-    )
+    match = BOTOCORE_MSG_TEMPLATE_MATCH.search(str(e))
     if not match:
         raise e
     error_code = match.group(1)
@@ -426,12 +427,19 @@ def start_workers(mode, urls, num_workers, inject_failure, s3config):
                     if proc.exitcode != 0:
                         msg = "Worker process failed (exit code %d)" % proc.exitcode
 
-                        # IMPORTANT: if a child process has put items on a queue, then that process will not
-                        # terminate until all buffered items have been flushed to the pipe, causing a deadlock.
-                        # `cancel_join_thread()` allows the subprocess to exit without flushing the queue.
+                        # IMPORTANT: if this process has put items on a queue, then it will not terminate
+                        # until all buffered items have been flushed to the pipe, causing a deadlock.
+                        # `cancel_join_thread()` allows it to exit without flushing the queue.
+                        # Without this line, the parent process would hang indefinitely when a subprocess
+                        # did not exit cleanly in the case of unhandled exceptions.
                         #
-                        # Without this line, the subprocess would hang indefinitely when it did not exit cleanly
-                        # in the case of unhandled exceptions
+                        # The error situation is:
+                        # 1. this process puts stuff in queue
+                        # 2. subprocess dies so doesn't consume its end-of-queue marker (the None)
+                        # 3. other subprocesses consume all useful bits AND their end-of-queue marker
+                        # 4. one marker is left and not consumed
+                        # 5. this process cannot shut down until the queue is empty.
+                        # 6. it will never be empty because all subprocesses (workers) have died.
                         queue.cancel_join_thread()
 
                         exit(msg, proc.exitcode)
