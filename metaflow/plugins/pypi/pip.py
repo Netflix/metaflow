@@ -87,11 +87,18 @@ class Pip(object):
                 *(["--index-url", custom_index_url] if custom_index_url else []),
                 *(
                     chain.from_iterable(
-                        product(["--extra-index-url"], iter(dict.fromkeys(extra_index_urls)))
+                        product(
+                            ["--extra-index-url"], iter(dict.fromkeys(extra_index_urls))
+                        )
                     )
                 ),
+                # Ordered dedup so pip command sees the `--platform abc` options in deterministic order every time.
                 *(chain.from_iterable(product(["--abi"], iter(dict.fromkeys(abis))))),
-                *(chain.from_iterable(product(["--platform"], iter(dict.fromkeys(platforms))))),
+                *(
+                    chain.from_iterable(
+                        product(["--platform"], iter(dict.fromkeys(platforms)))
+                    )
+                ),
                 # *(chain.from_iterable(product(["--implementations"], set(implementations)))),
             ]
             for package, version in packages.items():
@@ -138,9 +145,10 @@ class Pip(object):
                     if archive_info:
                         hash_value = archive_info.get("hash")
                         if hash_value:
-                            res["hash"] = hash_value.split('=', 1)[-1]
+                            res["hash"] = hash_value.split("=", 1)[-1]
                     else:
                         import hashlib
+
                         hash_obj = hashlib.sha256(res["url"].encode())
                         res["hash"] = hash_obj.hexdigest()
                 return res
@@ -235,11 +243,18 @@ class Pip(object):
             *(["--index-url", custom_index_url] if custom_index_url else []),
             *(
                 chain.from_iterable(
-                    product(["--extra-index-url"], iter(dict.fromkeys(extra_index_urls)))
+                    product(
+                        ["--extra-index-url"], iter(dict.fromkeys(extra_index_urls))
+                    )
                 )
             ),
+            # Ordered dedup so pip command sees the `--platform abc` options in deterministic order every time.
             *(chain.from_iterable(product(["--abi"], iter(dict.fromkeys(abis))))),
-            *(chain.from_iterable(product(["--platform"], iter(dict.fromkeys(platforms))))),
+            *(
+                chain.from_iterable(
+                    product(["--platform"], iter(dict.fromkeys(platforms)))
+                )
+            ),
             # *(chain.from_iterable(product(["--implementations"], set(implementations)))),
         ]
         packages = [package for package in packages if not package["require_build"]]

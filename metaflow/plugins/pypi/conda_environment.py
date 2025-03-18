@@ -131,7 +131,7 @@ class CondaEnvironment(MetaflowEnvironment):
                     base = os.path.dirname(parsed_url.path)
                     # Using file extension from local_path instead of url
                     file = os.path.basename(local_path)
-                    return  parsed_url.netloc + os.path.join(base, file)
+                    return parsed_url.netloc + os.path.join(base, file)
 
             local_packages = {
                 url: {
