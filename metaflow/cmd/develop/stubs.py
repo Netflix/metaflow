@@ -24,7 +24,7 @@ def _check_stubs_supported():
             if _py_ver >= (3, 8):
                 from importlib import metadata
             elif _py_ver >= (3, 7):
-                from metaflow._vendor import importlib_metadata as metadata
+                from metaflow._vendor.v3_7 import importlib_metadata as metadata
             elif _py_ver >= (3, 6):
                 from metaflow._vendor.v3_6 import importlib_metadata as metadata
             else:

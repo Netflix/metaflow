@@ -510,7 +510,8 @@ if "argo-events" in enabled_components:
     metaflow_config["METAFLOW_ARGO_EVENTS_EVENT_SOURCE"] = "argo-events-webhook"
     metaflow_config["METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT"] = "operate-workflow-sa"
     metaflow_config["METAFLOW_ARGO_EVENTS_WEBHOOK_AUTH"] = "service"
-    metaflow_config["METAFLOW_ARGO_EVENTS_WEBHOOK_URL"] = "http://argo-events-webhook-eventsource-svc:12000/metaflow-event"
+    metaflow_config["METAFLOW_ARGO_EVENTS_INTERNAL_WEBHOOK_URL"] = "http://argo-events-webhook-eventsource-svc:12000/metaflow-event"
+    metaflow_config["METAFLOW_ARGO_EVENTS_WEBHOOK_URL"] = "http://localhost:12000/metaflow-event"
 
     config_resources.append('argo-events-controller-manager')
     config_resources.append('argo-events-webhook-eventsource-svc')
@@ -528,8 +529,8 @@ if "metadata-service" in enabled_components:
             'metadatadb.password=metaflow123',
             'metadatadb.database=metaflow',
             'metadatadb.host=postgresql',
-            'image.repository=public.ecr.aws/p7g1e3j4/metaflow-service',
-            'image.tag=2.4.13-fbcc7d04',
+            'image.repository=public.ecr.aws/outerbounds/metaflow_metadata_service',
+            'image.tag=2.4.13-2-g70af4ed',
             'resources.requests.cpu=25m',
             'resources.requests.memory=64Mi',
             'resources.limits.cpu=50m',
@@ -566,8 +567,8 @@ if "ui" in enabled_components:
             'uiBackend.metadatadb.host=postgresql',
             'uiBackend.metaflowDatastoreSysRootS3=s3://metaflow-test',
             'uiBackend.metaflowS3EndpointURL=http://minio.default.svc.cluster.local:9000',
-            'uiBackend.image.name=public.ecr.aws/p7g1e3j4/metaflow-service',
-            'uiBackend.image.tag=2.4.13-fbcc7d04',
+            'uiBackend.image.name=public.ecr.aws/outerbounds/metaflow_metadata_service',
+            'uiBackend.image.tag=2.4.13-2-g70af4ed',
             'uiBackend.env[0].name=AWS_ACCESS_KEY_ID',
             'uiBackend.env[0].value=rootuser',
             'uiBackend.env[1].name=AWS_SECRET_ACCESS_KEY',

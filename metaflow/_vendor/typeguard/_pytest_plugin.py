@@ -2,16 +2,29 @@ from __future__ import annotations
 
 import sys
 import warnings
-
-from pytest import Config, Parser
+from typing import TYPE_CHECKING, Any, Literal
 
 from metaflow._vendor.typeguard._config import CollectionCheckStrategy, ForwardRefPolicy, global_config
 from metaflow._vendor.typeguard._exceptions import InstrumentationWarning
 from metaflow._vendor.typeguard._importhook import install_import_hook
 from metaflow._vendor.typeguard._utils import qualified_name, resolve_reference
 
+if TYPE_CHECKING:
+    from pytest import Config, Parser
+
 
 def pytest_addoption(parser: Parser) -> None:
+    def add_ini_option(
+        opt_type: (
+            Literal["string", "paths", "pathlist", "args", "linelist", "bool"] | None
+        ),
+    ) -> None:
+        parser.addini(
+            group.options[-1].names()[0][2:],
+            group.options[-1].attrs()["help"],
+            opt_type,
+        )
+
     group = parser.getgroup("typeguard")
     group.addoption(
         "--typeguard-packages",
@@ -19,11 +32,15 @@ def pytest_addoption(parser: Parser) -> None:
         help="comma separated name list of packages and modules to instrument for "
         "type checking, or :all: to instrument all modules loaded after typeguard",
     )
+    add_ini_option("linelist")
+
     group.addoption(
         "--typeguard-debug-instrumentation",
         action="store_true",
         help="print all instrumented code to stderr",
     )
+    add_ini_option("bool")
+
     group.addoption(
         "--typeguard-typecheck-fail-callback",
         action="store",
@@ -33,6 +50,8 @@ def pytest_addoption(parser: Parser) -> None:
             "handle a TypeCheckError"
         ),
     )
+    add_ini_option("string")
+
     group.addoption(
         "--typeguard-forward-ref-policy",
         action="store",
@@ -42,21 +61,31 @@ def pytest_addoption(parser: Parser) -> None:
             "annotations"
         ),
     )
+    add_ini_option("string")
+
     group.addoption(
         "--typeguard-collection-check-strategy",
         action="store",
         choices=list(CollectionCheckStrategy.__members__),
         help="determines how thoroughly to check collections (list, dict, etc)",
     )
+    add_ini_option("string")
 
 
 def pytest_configure(config: Config) -> None:
-    packages_option = config.getoption("typeguard_packages")
-    if packages_option:
-        if packages_option == ":all:":
-            packages: list[str] | None = None
+    def getoption(name: str) -> Any:
+        return config.getoption(name.replace("-", "_")) or config.getini(name)
+
+    packages: list[str] | None = []
+    if packages_option := config.getoption("typeguard_packages"):
+        packages = [pkg.strip() for pkg in packages_option.split(",")]
+    elif packages_ini := config.getini("typeguard-packages"):
+        packages = packages_ini
+
+    if packages:
+        if packages == [":all:"]:
+            packages = None
         else:
-            packages = [pkg.strip() for pkg in packages_option.split(",")]
             already_imported_packages = sorted(
                 package for package in packages if package in sys.modules
             )
@@ -70,11 +99,11 @@ def pytest_configure(config: Config) -> None:
 
         install_import_hook(packages=packages)
 
-    debug_option = config.getoption("typeguard_debug_instrumentation")
+    debug_option = getoption("typeguard-debug-instrumentation")
     if debug_option:
         global_config.debug_instrumentation = True
 
-    fail_callback_option = config.getoption("typeguard_typecheck_fail_callback")
+    fail_callback_option = getoption("typeguard-typecheck-fail-callback")
     if fail_callback_option:
         callback = resolve_reference(fail_callback_option)
         if not callable(callback):
@@ -85,14 +114,12 @@ def pytest_configure(config: Config) -> None:
 
         global_config.typecheck_fail_callback = callback
 
-    forward_ref_policy_option = config.getoption("typeguard_forward_ref_policy")
+    forward_ref_policy_option = getoption("typeguard-forward-ref-policy")
     if forward_ref_policy_option:
         forward_ref_policy = ForwardRefPolicy.__members__[forward_ref_policy_option]
         global_config.forward_ref_policy = forward_ref_policy
 
-    collection_check_strategy_option = config.getoption(
-        "typeguard_collection_check_strategy"
-    )
+    collection_check_strategy_option = getoption("typeguard-collection-check-strategy")
     if collection_check_strategy_option:
         collection_check_strategy = CollectionCheckStrategy.__members__[
             collection_check_strategy_option

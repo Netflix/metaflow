@@ -22,6 +22,7 @@ DEVTOOLS_DIR := $(MKFILE_DIR).devtools
 PICK_SERVICES := $(MKFILE_DIR)pick_services.sh
 MINIKUBE_DIR := $(DEVTOOLS_DIR)/minikube
 MINIKUBE := $(MINIKUBE_DIR)/minikube
+HELM_DIR := $(DEVTOOLS_DIR)/helm
 TILT_DIR := $(DEVTOOLS_DIR)/tilt
 TILT := $(TILT_DIR)/tilt
 TILTFILE := $(MKFILE_DIR)/Tiltfile
@@ -51,9 +52,18 @@ endif
 
 install-helm:
 	@if ! command -v helm >/dev/null 2>&1; then \
-		echo "📥 Installing Helm $(HELM_VERSION) (may require sudo access)..."; \
-		curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | HELM_INSTALL_VERSION=$(HELM_VERSION) bash; \
+		echo "📥 Installing Helm $(HELM_VERSION)..."; \
+		mkdir -p "$(HELM_DIR)"; \
+		curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 \
+			| HELM_INSTALL_VERSION="$(HELM_VERSION)" \
+			  USE_SUDO="false" \
+			  PATH="$(HELM_DIR):$$PATH" \
+			  HELM_INSTALL_DIR="$(HELM_DIR)" \
+			  bash; \
+		chmod +x "$(HELM_DIR)/helm"; \
 		echo "✅ Helm installation complete"; \
+	else \
+		echo "✅ Helm is already installed at $$(command -v helm)"; \
 	fi
 
 check-docker:
@@ -65,7 +75,7 @@ check-docker:
 	@if [ "$(shell uname)" = "Darwin" ]; then \
 		open -a Docker || (echo "❌ Please start Docker Desktop" && exit 1); \
 	else \
-		systemctl is-active --quiet docker || (echo "❌ Docker daemon is not running. Start with 'sudo systemctl start docker'" && exit 1); \
+                docker info >/dev/null 2>&1 || (echo "❌ Docker daemon is not running." && exit 1); \
 	fi
 	@echo "✅ Docker is running"
 
@@ -99,7 +109,7 @@ install-gum:
 	@if ! command -v gum >/dev/null 2>&1; then \
 		echo "📥 Installing gum..."; \
 		if [ "$(shell uname)" = "Darwin" ]; then \
-			HOMEBREW_NO_AUTO_UPDATE=1 brew install gum; \
+			HOMEBREW_NO_AUTO_UPDATE=1 brew install gum|| { echo "❌ Failed to install gum via Homebrew"; exit 1; }; \
 		elif command -v apt-get >/dev/null 2>&1; then \
 			curl -fsSL -o /tmp/gum.deb \
 			"https://github.com/charmbracelet/gum/releases/download/$(GUM_VERSION)/gum_$(GUM_VERSION:v%=%)_$(arch).deb"; \
@@ -182,7 +192,7 @@ up: install-brew check-docker install-curl install-gum setup-minikube install-he
 	@echo 'PATH="$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" $(MINIKUBE) tunnel &' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'echo -e "🚀 Starting Tilt with selected services..."' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'echo -e "\033[1;38;5;46m\n🔥 \033[1;38;5;196mNext Steps:\033[0;38;5;46m Use \033[3mmetaflow-dev shell\033[23m to switch to the development\n   environment'\''s shell and start executing your Metaflow flows.\n\033[0m"' >> "$(DEVTOOLS_DIR)/start.sh"
-	@echo 'PATH="$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" SERVICES="$$SERVICES" tilt up -f $(TILTFILE)' >> $(DEVTOOLS_DIR)/start.sh
+	@echo 'PATH="$(HELM_DIR):$(MINIKUBE_DIR):$(TILT_DIR):$$PATH" SERVICES="$$SERVICES" tilt up -f $(TILTFILE)' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'wait' >> $(DEVTOOLS_DIR)/start.sh
 	@chmod +x $(DEVTOOLS_DIR)/start.sh
 	@$(DEVTOOLS_DIR)/start.sh
@@ -329,4 +339,4 @@ ui: setup-tilt
 
 .PHONY: install-helm setup-minikube setup-tilt teardown-minikube tunnel up down check-docker install-curl install-gum install-brew up down dashboard shell ui all-up help
 
-.DEFAULT_GOAL := up
+.DEFAULT_GOAL := help
