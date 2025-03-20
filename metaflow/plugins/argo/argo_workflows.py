@@ -3173,9 +3173,20 @@ class ArgoWorkflows(object):
                                                 # record the default values for
                                                 # the parameters - there doesn't seem
                                                 # to be any way for us to skip
-                                                value=self.parameters[parameter_name][
-                                                    "value"
-                                                ],
+                                                value=(
+                                                    json.dumps(
+                                                        self.parameters[parameter_name][
+                                                            "value"
+                                                        ]
+                                                    )
+                                                    if self.parameters[parameter_name][
+                                                        "type"
+                                                    ]
+                                                    == "JSON"
+                                                    else self.parameters[
+                                                        parameter_name
+                                                    ]["value"]
+                                                ),
                                             )
                                             .dest(
                                                 # this undocumented (mis?)feature in
