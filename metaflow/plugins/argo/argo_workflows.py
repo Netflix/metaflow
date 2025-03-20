@@ -3166,7 +3166,7 @@ class ArgoWorkflows(object):
                                                             parameter_name
                                                         ]["type"]
                                                         == "JSON"
-                                                        else "| squote"
+                                                        else "| toRawJson"
                                                     ),
                                                 ),
                                                 # Unfortunately the sensor needs to
