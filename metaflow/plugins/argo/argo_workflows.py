@@ -839,7 +839,7 @@ class ArgoWorkflows(object):
                         [
                             Parameter(parameter["name"])
                             .value(
-                                json.dumps(parameter["value"])
+                                "'%s'" % parameter["value"]
                                 if parameter["type"] == "JSON"
                                 else parameter["value"]
                             )
