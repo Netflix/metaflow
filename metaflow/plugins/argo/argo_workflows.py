@@ -524,6 +524,7 @@ class ArgoWorkflows(object):
                 default_value = json.dumps(default_value)
 
             parameters[param.name] = dict(
+                python_var_name=var,
                 name=param.name,
                 value=default_value,
                 type=param_type,
