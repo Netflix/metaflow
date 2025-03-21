@@ -839,7 +839,11 @@ class ArgoWorkflows(object):
                     Arguments().parameters(
                         [
                             Parameter(parameter["name"])
-                            .value(parameter["value"])
+                            .value(
+                                "'%s'" % parameter["value"]
+                                if parameter["type"] == "JSON"
+                                else parameter["value"]
+                            )
                             .description(parameter.get("description"))
                             # TODO: Better handle IncludeFile in Argo Workflows UI.
                             for parameter in self.parameters.values()
@@ -1595,11 +1599,7 @@ class ArgoWorkflows(object):
                         # {{foo.bar['param_name']}}.
                         # https://argoproj.github.io/argo-events/tutorials/02-parameterization/
                         # http://masterminds.github.io/sprig/strings.html
-                        (
-                            "--%s='{{workflow.parameters.%s}}'"
-                            if parameter["type"] == "JSON"
-                            else "--%s={{workflow.parameters.%s}}"
-                        )
+                        "--%s={{workflow.parameters.%s}}"
                         % (parameter["name"], parameter["name"])
                         for parameter in self.parameters.values()
                     ]
@@ -3157,15 +3157,37 @@ class ArgoWorkflows(object):
                                                 # NOTE: We need the conditional logic in order to successfully fall back to the default value
                                                 # when the event payload does not contain a key for a parameter.
                                                 # NOTE: Keys might contain dashes, so use the safer 'get' for fetching the value
-                                                data_template='{{ if (hasKey $.Input.body.payload "%s") }}{{- (get $.Input.body.payload "%s" | toRawJson) -}}{{- else -}}{{ (fail "use-default-instead") }}{{- end -}}'
-                                                % (v, v),
+                                                data_template='{{ if (hasKey $.Input.body.payload "%s") }}{{- (get $.Input.body.payload "%s" %s) -}}{{- else -}}{{ (fail "use-default-instead") }}{{- end -}}'
+                                                % (
+                                                    v,
+                                                    v,
+                                                    (
+                                                        "| toRawJson | squote"
+                                                        if self.parameters[
+                                                            parameter_name
+                                                        ]["type"]
+                                                        == "JSON"
+                                                        else "| toRawJson"
+                                                    ),
+                                                ),
                                                 # Unfortunately the sensor needs to
                                                 # record the default values for
                                                 # the parameters - there doesn't seem
                                                 # to be any way for us to skip
-                                                value=self.parameters[parameter_name][
-                                                    "value"
-                                                ],
+                                                value=(
+                                                    json.dumps(
+                                                        self.parameters[parameter_name][
+                                                            "value"
+                                                        ]
+                                                    )
+                                                    if self.parameters[parameter_name][
+                                                        "type"
+                                                    ]
+                                                    == "JSON"
+                                                    else self.parameters[
+                                                        parameter_name
+                                                    ]["value"]
+                                                ),
                                             )
                                             .dest(
                                                 # this undocumented (mis?)feature in
