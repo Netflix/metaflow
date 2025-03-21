@@ -15,6 +15,7 @@
   import Text from "./text.svelte";
   import Title from "./title.svelte";
   import VegaChart from "./vega-chart.svelte";
+  import PythonCode from "./python-code.svelte";
 
   export let componentData: types.CardComponent;
 
@@ -33,6 +34,7 @@
     text: Text,
     title: Title,
     vegaChart: VegaChart,
+    pythonCode: PythonCode,
   };
 
   let component = typesMap?.[componentData.type];

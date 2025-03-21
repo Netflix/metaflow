@@ -1,6 +1,5 @@
 import sys
 import json
-import tempfile
 from typing import ClassVar, Optional, List
 
 from metaflow.plugins.aws.step_functions.step_functions import StepFunctions
@@ -46,6 +45,7 @@ class StepFunctionsTriggeredRun(TriggeredRun):
         )
 
         command_obj = self.deployer.spm.get(pid)
+        command_obj.sync_wait()
         return command_obj.process.returncode == 0
 
 
@@ -174,6 +174,7 @@ class StepFunctionsDeployedFlow(DeployedFlow):
         )
 
         command_obj = self.deployer.spm.get(pid)
+        command_obj.sync_wait()
         return command_obj.process.returncode == 0
 
     def trigger(self, **kwargs) -> StepFunctionsTriggeredRun:
@@ -217,6 +218,7 @@ class StepFunctionsDeployedFlow(DeployedFlow):
                 attribute_file_fd, command_obj, self.deployer.file_read_timeout
             )
 
+            command_obj.sync_wait()
             if command_obj.process.returncode == 0:
                 return StepFunctionsTriggeredRun(
                     deployer=self.deployer, content=content

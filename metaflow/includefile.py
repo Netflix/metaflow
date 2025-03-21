@@ -20,6 +20,7 @@ from .parameters import (
 )
 
 from .plugins import DATACLIENTS
+from .user_configs.config_parameters import ConfigValue
 from .util import get_username
 
 import functools
@@ -136,6 +137,7 @@ class FilePathClass(click.ParamType):
                 parameter_name=param.name,
                 logger=ctx.obj.echo,
                 ds_type=ctx.obj.datastore_impl.TYPE,
+                configs=None,
             )
 
         if len(value) > 0 and (value.startswith("{") or value.startswith('"{')):
@@ -243,29 +245,63 @@ class IncludeFile(Parameter):
     default : Union[str, Callable[ParameterContext, str]]
         Default path to a local file. A function
         implies that the parameter corresponds to a *deploy-time parameter*.
-    is_text : bool, default True
+    is_text : bool, optional, default None
         Convert the file contents to a string using the provided `encoding`.
-        If False, the artifact is stored in `bytes`.
-    encoding : str, optional, default 'utf-8'
-        Use this encoding to decode the file contexts if `is_text=True`.
-    required : bool, default False
+        If False, the artifact is stored in `bytes`. A value of None is equivalent to
+        True.
+    encoding : str, optional, default None
+        Use this encoding to decode the file contexts if `is_text=True`. A value of None
+        is equivalent to "utf-8".
+    required : bool, optional, default None
         Require that the user specified a value for the parameter.
-        `required=True` implies that the `default` is not used.
+        `required=True` implies that the `default` is not used. A value of None is
+        equivalent to False
     help : str, optional
         Help text to show in `run --help`.
     show_default : bool, default True
-        If True, show the default value in the help text.
+        If True, show the default value in the help text. A value of None is equivalent
+        to True.
     """
 
     def __init__(
         self,
         name: str,
-        required: bool = False,
-        is_text: bool = True,
-        encoding: str = "utf-8",
+        required: Optional[bool] = None,
+        is_text: Optional[bool] = None,
+        encoding: Optional[str] = None,
         help: Optional[str] = None,
         **kwargs: Dict[str, str]
     ):
+        self._includefile_overrides = {}
+        if is_text is not None:
+            self._includefile_overrides["is_text"] = is_text
+        if encoding is not None:
+            self._includefile_overrides["encoding"] = encoding
+        # NOTA: Right now, there is an issue where these can't be overridden by config
+        # in all circumstances. Ignoring for now.
+        super(IncludeFile, self).__init__(
+            name,
+            required=required,
+            help=help,
+            type=FilePathClass(
+                self._includefile_overrides.get("is_text", True),
+                self._includefile_overrides.get("encoding", "utf-8"),
+            ),
+            **kwargs,
+        )
+
+    def init(self, ignore_errors=False):
+        super(IncludeFile, self).init(ignore_errors)
+
+        # This will use the values set explicitly in the args if present, else will
+        # use and remove from kwargs else will use True/utf-8
+        is_text = self._includefile_overrides.get(
+            "is_text", self.kwargs.pop("is_text", True)
+        )
+        encoding = self._includefile_overrides.get(
+            "encoding", self.kwargs.pop("encoding", "utf-8")
+        )
+
         # If a default is specified, it needs to be uploaded when the flow is deployed
         # (for example when doing a `step-functions create`) so we make the default
         # be a DeployTimeField. This means that it will be evaluated in two cases:
@@ -275,7 +311,7 @@ class IncludeFile(Parameter):
         # In the first case, we will need to fully upload the file whereas in the
         # second case, we can just return the string as the FilePath.convert method
         # will take care of evaluating things.
-        v = kwargs.get("default")
+        v = self.kwargs.get("default")
         if v is not None:
             # If the default is a callable, we have two DeployTimeField:
             #  - the callable nature of the default will require us to "call" the default
@@ -288,22 +324,14 @@ class IncludeFile(Parameter):
             # (call the default)
             if callable(v) and not isinstance(v, DeployTimeField):
                 # If default is a callable, make it a DeployTimeField (the inner one)
-                v = DeployTimeField(name, str, "default", v, return_str=True)
-            kwargs["default"] = DeployTimeField(
-                name,
+                v = DeployTimeField(self.name, str, "default", v, return_str=True)
+            self.kwargs["default"] = DeployTimeField(
+                self.name,
                 str,
                 "default",
                 IncludeFile._eval_default(is_text, encoding, v),
                 print_representation=v,
             )
-
-        super(IncludeFile, self).__init__(
-            name,
-            required=required,
-            help=help,
-            type=FilePathClass(is_text, encoding),
-            **kwargs,
-        )
 
     def load_parameter(self, v):
         if v is None:

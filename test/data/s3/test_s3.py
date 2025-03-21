@@ -649,9 +649,15 @@ def test_get_many(inject_failure_rate, s3root, prefixes, expected):
         # to test result ordering, make sure we are requesting
         # keys in a non-lexicographic order. Missing files should
         # be returned in order too
-        # Here we can use urls_in_order, ranges_in_order and objs_in_order because they
-        # always correspond to the full set
-        s3objs = s3.get_many(list(objs_in_order), return_missing=True, return_info=True)
+        urls_in_order = sorted(expected.keys(), reverse=True)
+        ranges_in_order = []
+        for url in urls_in_order:
+            ranges_in_order.extend(v.range for v in expected[url].values())
+        objs_in_order = list(starmap(S3GetObject, iter_objs(urls_in_order, expected)))
+        fetched_urls = []
+        for url in urls_in_order:
+            fetched_urls.extend([url] * len(expected[url]))
+        s3objs = s3.get_many(objs_in_order, return_missing=True, return_info=True)
         assert fetched_urls == [e.url for e in s3objs]
         assert_results(s3objs, expected, ranges_fetched=ranges_in_order)
 

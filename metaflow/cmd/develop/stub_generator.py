@@ -1133,8 +1133,17 @@ class StubGenerator:
             result = result[1:]
         # Add doc to first and last overloads. Jedi uses the last one and pycharm
         # the first one. Go figure.
-        result[0] = (result[0][0], docs["func_doc"])
-        result[-1] = (result[-1][0], docs["func_doc"])
+        result_docstring = docs["func_doc"]
+        if docs["param_doc"]:
+            result_docstring += "\nParameters\n----------\n" + docs["param_doc"]
+        result[0] = (
+            result[0][0],
+            result_docstring,
+        )
+        result[-1] = (
+            result[-1][0],
+            result_docstring,
+        )
         return result
 
     def _generate_function_stub(
@@ -1238,25 +1247,32 @@ class StubGenerator:
                 buff.write(indentation + deco + "\n")
             buff.write(indentation + "def " + name + "(")
             kw_only_param = False
+            has_var_args = False
             for i, (par_name, parameter) in enumerate(my_sign.parameters.items()):
                 annotation = self._exploit_annotation(parameter.annotation)
-
                 default = exploit_default(parameter.default)
 
-                if kw_only_param and parameter.kind != inspect.Parameter.KEYWORD_ONLY:
+                if (
+                    kw_only_param
+                    and not has_var_args
+                    and parameter.kind != inspect.Parameter.KEYWORD_ONLY
+                ):
                     raise RuntimeError(
                         "In function '%s': cannot have a positional parameter after a "
                         "keyword only parameter" % name
                     )
+
                 if (
                     parameter.kind == inspect.Parameter.KEYWORD_ONLY
                     and not kw_only_param
+                    and not has_var_args
                 ):
                     kw_only_param = True
                     buff.write("*, ")
                 if parameter.kind == inspect.Parameter.VAR_KEYWORD:
                     par_name = "**%s" % par_name
                 elif parameter.kind == inspect.Parameter.VAR_POSITIONAL:
+                    has_var_args = True
                     par_name = "*%s" % par_name
 
                 if default:

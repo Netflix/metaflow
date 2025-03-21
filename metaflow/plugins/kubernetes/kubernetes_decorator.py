@@ -19,6 +19,8 @@ from metaflow.metaflow_config import (
     KUBERNETES_GPU_VENDOR,
     KUBERNETES_IMAGE_PULL_POLICY,
     KUBERNETES_MEMORY,
+    KUBERNETES_LABELS,
+    KUBERNETES_ANNOTATIONS,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_PERSISTENT_VOLUME_CLAIMS,
@@ -26,6 +28,8 @@ from metaflow.metaflow_config import (
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SHARED_MEMORY,
     KUBERNETES_TOLERATIONS,
+    KUBERNETES_QOS,
+    KUBERNETES_CONDA_ARCH,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -33,13 +37,16 @@ from metaflow.sidecar import Sidecar
 from metaflow.unbounded_foreach import UBF_CONTROL
 
 from ..aws.aws_utils import get_docker_registry, get_ec2_instance_metadata
-from .kubernetes import KubernetesException, parse_kube_keyvalue_list
+from .kubernetes import KubernetesException
+from .kube_utils import validate_kube_labels, parse_kube_keyvalue_list
 
 try:
     unicode
 except NameError:
     unicode = str
     basestring = str
+
+SUPPORTED_KUBERNETES_QOS_CLASSES = ["Guaranteed", "Burstable"]
 
 
 class KubernetesDecorator(StepDecorator):
@@ -86,6 +93,10 @@ class KubernetesDecorator(StepDecorator):
     tolerations : List[str], default []
         The default is extracted from METAFLOW_KUBERNETES_TOLERATIONS.
         Kubernetes tolerations to use when launching pod in Kubernetes.
+    labels: Dict[str, str], default: METAFLOW_KUBERNETES_LABELS
+        Kubernetes labels to use when launching pod in Kubernetes.
+    annotations: Dict[str, str], default: METAFLOW_KUBERNETES_ANNOTATIONS
+        Kubernetes annotations to use when launching pod in Kubernetes.
     use_tmpfs : bool, default False
         This enables an explicit tmpfs mount for this step.
     tmpfs_tempdir : bool, default True
@@ -109,6 +120,8 @@ class KubernetesDecorator(StepDecorator):
     hostname_resolution_timeout: int, default 10 * 60
         Timeout in seconds for the workers tasks in the gang scheduled cluster to resolve the hostname of control task.
         Only applicable when @parallel is used.
+    qos: str, default: Burstable
+        Quality of Service class to assign to the pod. Supported values are: Guaranteed, Burstable, BestEffort
     """
 
     name = "kubernetes"
@@ -126,6 +139,8 @@ class KubernetesDecorator(StepDecorator):
         "gpu_vendor": None,
         "tolerations": None,  # e.g., [{"key": "arch", "operator": "Equal", "value": "amd"},
         #                              {"key": "foo", "operator": "Equal", "value": "bar"}]
+        "labels": None,  # e.g. {"test-label": "value", "another-label":"value2"}
+        "annotations": None,  # e.g. {"note": "value", "another-note": "value2"}
         "use_tmpfs": None,
         "tmpfs_tempdir": True,
         "tmpfs_size": None,
@@ -136,6 +151,7 @@ class KubernetesDecorator(StepDecorator):
         "compute_pool": None,
         "executable": None,
         "hostname_resolution_timeout": 10 * 60,
+        "qos": KUBERNETES_QOS,
     }
     package_url = None
     package_sha = None
@@ -143,10 +159,10 @@ class KubernetesDecorator(StepDecorator):
 
     # Conda environment support
     supports_conda_environment = True
-    target_platform = "linux-64"
+    target_platform = KUBERNETES_CONDA_ARCH or "linux-64"
 
-    def __init__(self, attributes=None, statically_defined=False):
-        super(KubernetesDecorator, self).__init__(attributes, statically_defined)
+    def init(self):
+        super(KubernetesDecorator, self).init()
 
         if not self.attributes["namespace"]:
             self.attributes["namespace"] = KUBERNETES_NAMESPACE
@@ -211,6 +227,36 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["memory"] = KUBERNETES_MEMORY
         if self.attributes["disk"] == self.defaults["disk"] and KUBERNETES_DISK:
             self.attributes["disk"] = KUBERNETES_DISK
+        # Label source precedence (decreasing):
+        # - System labels (set outside of decorator)
+        # - Decorator labels: @kubernetes(labels={})
+        # - Environment variable labels: METAFLOW_KUBERNETES_LABELS=
+        deco_labels = {}
+        if self.attributes["labels"] is not None:
+            deco_labels = self.attributes["labels"]
+
+        env_labels = {}
+        if KUBERNETES_LABELS:
+            env_labels = parse_kube_keyvalue_list(KUBERNETES_LABELS.split(","), False)
+
+        self.attributes["labels"] = {**env_labels, **deco_labels}
+
+        # Annotations
+        # annotation precedence (decreasing):
+        # - System annotations (set outside of decorator)
+        # - Decorator annotations: @kubernetes(annotations={})
+        # - Environment annotations: METAFLOW_KUBERNETES_ANNOTATIONS=
+        deco_annotations = {}
+        if self.attributes["annotations"] is not None:
+            deco_annotations = self.attributes["annotations"]
+
+        env_annotations = {}
+        if KUBERNETES_ANNOTATIONS:
+            env_annotations = parse_kube_keyvalue_list(
+                KUBERNETES_ANNOTATIONS.split(","), False
+            )
+
+        self.attributes["annotations"] = {**env_annotations, **deco_annotations}
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
@@ -258,6 +304,17 @@ class KubernetesDecorator(StepDecorator):
         self.environment = environment
         self.step = step
         self.flow_datastore = flow_datastore
+
+        if (
+            self.attributes["qos"] is not None
+            # case insensitive matching.
+            and self.attributes["qos"].lower()
+            not in [c.lower() for c in SUPPORTED_KUBERNETES_QOS_CLASSES]
+        ):
+            raise MetaflowException(
+                "*%s* is not a valid Kubernetes QoS class. Choose one of the following: %s"
+                % (self.attributes["qos"], ", ".join(SUPPORTED_KUBERNETES_QOS_CLASSES))
+            )
 
         if any([deco.name == "batch" for deco in decos]):
             raise MetaflowException(
@@ -354,6 +411,9 @@ class KubernetesDecorator(StepDecorator):
                     )
                 )
 
+        validate_kube_labels(self.attributes["labels"])
+        # TODO: add validation to annotations as well?
+
     def package_init(self, flow, step_name, environment):
         try:
             # Kubernetes is a soft dependency.
@@ -409,7 +469,12 @@ class KubernetesDecorator(StepDecorator):
                         "=".join([key, str(val)]) if val else key
                         for key, val in v.items()
                     ]
-                elif k in ["tolerations", "persistent_volume_claims"]:
+                elif k in [
+                    "tolerations",
+                    "persistent_volume_claims",
+                    "labels",
+                    "annotations",
+                ]:
                     cli_args.command_options[k] = json.dumps(v)
                 else:
                     cli_args.command_options[k] = v
@@ -483,6 +548,13 @@ class KubernetesDecorator(StepDecorator):
             self._save_logs_sidecar = Sidecar("save_logs_periodically")
             self._save_logs_sidecar.start()
 
+            # Start spot termination monitor sidecar.
+            current._update_env(
+                {"spot_termination_notice": "/tmp/spot_termination_notice"}
+            )
+            self._spot_monitor_sidecar = Sidecar("spot_termination_monitor")
+            self._spot_monitor_sidecar.start()
+
         num_parallel = None
         if hasattr(flow, "_parallel_ubf_iter"):
             num_parallel = flow._parallel_ubf_iter.num_parallel
@@ -529,10 +601,10 @@ class KubernetesDecorator(StepDecorator):
             # local file system after the user code has finished execution.
             # This happens via datastore as a communication bridge.
 
-            # TODO:  There is no guarantee that task_prestep executes before
-            #        task_finished is invoked. That will result in AttributeError:
-            #        'KubernetesDecorator' object has no attribute 'metadata' error.
-            if self.metadata.TYPE == "local":
+            # TODO:  There is no guarantee that task_pre_step executes before
+            #        task_finished is invoked.
+            # For now we guard against the missing metadata object in this case.
+            if hasattr(self, "metadata") and self.metadata.TYPE == "local":
                 # Note that the datastore is *always* Amazon S3 (see
                 # runtime_task_created function).
                 sync_local_metadata_to_datastore(
@@ -541,6 +613,7 @@ class KubernetesDecorator(StepDecorator):
 
         try:
             self._save_logs_sidecar.terminate()
+            self._spot_monitor_sidecar.terminate()
         except:
             # Best effort kill
             pass

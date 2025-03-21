@@ -11,6 +11,7 @@
   import Markdown from "./markdown.svelte";
   import Text from "./text.svelte";
   import ProgressBar from "./progress-bar.svelte";
+  import PythonCode from "./python-code.svelte";
 
   export let componentData: types.TableDataCell;
   let component: ComponentType;
@@ -25,6 +26,7 @@
     progressBar: ProgressBar,
     text: Text,
     vegaChart: VegaChart,
+    pythonCode: PythonCode,
   };
 
   const type = (componentData as types.CardComponent)?.type;

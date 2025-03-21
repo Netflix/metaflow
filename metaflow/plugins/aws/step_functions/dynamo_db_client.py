@@ -1,7 +1,4 @@
-import os
 import time
-
-import requests
 
 from metaflow.metaflow_config import SFN_DYNAMO_DB_TABLE
 

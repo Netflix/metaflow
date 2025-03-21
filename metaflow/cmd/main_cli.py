@@ -12,7 +12,7 @@ import metaflow.tracing as tracing
 
 
 @click.group()
-@tracing.cli_entrypoint("cli/main")
+@tracing.cli("cli/main")
 def main():
     pass
 
@@ -67,6 +67,7 @@ CMDS_DESC = [
     ("configure", ".configure_cmd.cli"),
     ("tutorials", ".tutorials_cmd.cli"),
     ("develop", ".develop.cli"),
+    ("code", ".code.cli"),
 ]
 
 process_cmds(globals())

@@ -264,6 +264,7 @@ class Server(object):
     def serve(self, path=None, port=None):
         # Open up a connection
         if path is not None:
+            # Keep the print line to facilitate debugging
             # print("SERVER: Starting at %s" % path)
             sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             __try_op__("bind", sock.bind, BIND_RETRY, path)
@@ -503,6 +504,12 @@ class Server(object):
         class_type = self._known_classes.get(class_name)
         if class_type is None:
             raise ValueError("Unknown class %s" % class_name)
+        # Check if __init__ is overridden
+        override_mapping = self._overrides.get(class_type)
+        if override_mapping:
+            override_func = override_mapping.get("__init__")
+            if override_func:
+                return override_func(None, class_type, *args, **kwargs)
         return class_type(*args, **kwargs)
 
     def _handle_subclasscheck(self, target, class_name, otherclass_name, reverse=False):

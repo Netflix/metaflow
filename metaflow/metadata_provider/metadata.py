@@ -5,6 +5,7 @@ import time
 from collections import namedtuple
 from itertools import chain
 
+from typing import List
 from metaflow.exception import MetaflowInternalError, MetaflowTaggingError
 from metaflow.tagging_util import validate_tag
 from metaflow.util import get_username, resolve_identity_as_tuple, is_stringish
@@ -671,6 +672,38 @@ class MetadataProvider(object):
             )
         if metadata:
             self.register_metadata(run_id, step_name, task_id, metadata)
+
+    @classmethod
+    def filter_tasks_by_metadata(
+        cls,
+        flow_name: str,
+        run_id: str,
+        step_name: str,
+        field_name: str,
+        pattern: str,
+    ) -> List[str]:
+        """
+        Filter tasks by metadata field and pattern, returning task pathspecs that match criteria.
+
+        Parameters
+        ----------
+        flow_name : str
+            Flow name, that the run belongs to.
+        run_id: str
+            Run id, together with flow_id, that identifies the specific Run whose tasks to query
+        step_name: str
+            Step name to query tasks from
+        field_name: str
+            Metadata field name to query
+        pattern: str
+            Pattern to match in metadata field value
+
+        Returns
+        -------
+        List[str]
+            List of task pathspecs that satisfy the query
+        """
+        raise NotImplementedError()
 
     @staticmethod
     def _apply_filter(elts, filters):

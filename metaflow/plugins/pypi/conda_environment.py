@@ -5,21 +5,17 @@ import functools
 import io
 import json
 import os
-import sys
 import tarfile
-import time
-from concurrent.futures import ThreadPoolExecutor
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import wraps
 from hashlib import sha256
 from io import BufferedIOBase, BytesIO
-from itertools import chain
 from urllib.parse import unquote, urlparse
-
-import requests
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import get_pinned_conda_libs
 from metaflow.metaflow_environment import MetaflowEnvironment
-from metaflow.metaflow_profile import profile
 
 from . import MAGIC_FILE, _datastore_packageroot
 from .utils import conda_platform
@@ -50,7 +46,6 @@ class CondaEnvironment(MetaflowEnvironment):
 
     def validate_environment(self, logger, datastore_type):
         self.datastore_type = datastore_type
-        self.logger = logger
 
         # Avoiding circular imports.
         from metaflow.plugins import DATASTORES
@@ -62,8 +57,21 @@ class CondaEnvironment(MetaflowEnvironment):
         from .micromamba import Micromamba
         from .pip import Pip
 
-        micromamba = Micromamba()
-        self.solvers = {"conda": micromamba, "pypi": Pip(micromamba)}
+        print_lock = threading.Lock()
+
+        def make_thread_safe(func):
+            @wraps(func)
+            def wrapper(*args, **kwargs):
+                with print_lock:
+                    return func(*args, **kwargs)
+
+            return wrapper
+
+        self.logger = make_thread_safe(logger)
+
+        # TODO: Wire up logging
+        micromamba = Micromamba(self.logger)
+        self.solvers = {"conda": micromamba, "pypi": Pip(micromamba, self.logger)}
 
     def init_environment(self, echo, only_steps=None):
         # The implementation optimizes for latency to ensure as many operations can
@@ -150,6 +158,9 @@ class CondaEnvironment(MetaflowEnvironment):
                 (
                     package["path"],
                     # Lazily fetch package from the interweb if needed.
+                    # TODO: Depending on the len_hint, the package might be downloaded from
+                    #       the interweb prematurely. save_bytes needs to be adjusted to handle
+                    #       this scenario.
                     LazyOpen(
                         package["local_path"],
                         "rb",
@@ -166,22 +177,59 @@ class CondaEnvironment(MetaflowEnvironment):
                 if id_ in dirty:
                     self.write_to_environment_manifest([id_, platform, type_], packages)
 
-        # First resolve environments through Conda, before PyPI.
+        storage = None
+        if self.datastore_type not in ["local"]:
+            # Initialize storage for caching if using a remote datastore
+            storage = self.datastore(_datastore_packageroot(self.datastore, echo))
+
         self.logger("Bootstrapping virtual environment(s) ...")
-        for solver in ["conda", "pypi"]:
-            with ThreadPoolExecutor() as executor:
-                results = list(
-                    executor.map(lambda x: solve(*x, solver), environments(solver))
-                )
-            _ = list(map(lambda x: self.solvers[solver].download(*x), results))
-            with ThreadPoolExecutor() as executor:
-                _ = list(
-                    executor.map(lambda x: self.solvers[solver].create(*x), results)
-                )
-            if self.datastore_type not in ["local"]:
-                # Cache packages only when a remote datastore is in play.
-                storage = self.datastore(_datastore_packageroot(self.datastore, echo))
-                cache(storage, results, solver)
+        # Sequence of operations:
+        #  1. Start all conda solves in parallel
+        #  2. Download conda packages sequentially
+        #  3. Create and cache conda environments in parallel
+        #  4. Start PyPI solves in parallel after each conda environment is created
+        #  5. Download PyPI packages sequentially
+        #  6. Create and cache PyPI environments in parallel
+        with ThreadPoolExecutor() as executor:
+            # Start all conda solves in parallel
+            conda_futures = [
+                executor.submit(lambda x: solve(*x, "conda"), env)
+                for env in environments("conda")
+            ]
+
+            pypi_envs = {env[0]: env for env in environments("pypi")}
+            pypi_futures = []
+
+            # Process conda results sequentially for downloads
+            for future in as_completed(conda_futures):
+                result = future.result()
+                # Sequential conda download
+                self.solvers["conda"].download(*result)
+                # Parallel conda create and cache
+                create_future = executor.submit(self.solvers["conda"].create, *result)
+                if storage:
+                    executor.submit(cache, storage, [result], "conda")
+
+                # Queue PyPI solve to start after conda create
+                if result[0] in pypi_envs:
+                    # solve pypi envs uniquely
+                    pypi_env = pypi_envs.pop(result[0])
+
+                    def pypi_solve(env):
+                        create_future.result()  # Wait for conda create
+                        return solve(*env, "pypi")
+
+                    pypi_futures.append(executor.submit(pypi_solve, pypi_env))
+
+            # Process PyPI results sequentially for downloads
+            for solve_future in pypi_futures:
+                result = solve_future.result()
+                # Sequential PyPI download
+                self.solvers["pypi"].download(*result)
+                # Parallel PyPI create and cache
+                executor.submit(self.solvers["pypi"].create, *result)
+                if storage:
+                    executor.submit(cache, storage, [result], "pypi")
         self.logger("Virtual environment(s) bootstrapped!")
 
     def executable(self, step_name, default=None):
@@ -193,7 +241,7 @@ class CondaEnvironment(MetaflowEnvironment):
         if id_:
             # bootstrap.py is responsible for ensuring the validity of this executable.
             # -s is important! Can otherwise leak packages to other environments.
-            return os.path.join("linux-64", id_, "bin/python -s")
+            return os.path.join("$MF_ARCH", id_, "bin/python -s")
         else:
             # for @conda/@pypi(disabled=True).
             return super().executable(step_name, default)
@@ -266,7 +314,6 @@ class CondaEnvironment(MetaflowEnvironment):
         # 5. All resolved packages (Conda or PyPI) are cached
         # 6. PyPI packages are only installed for local platform
 
-        # Resolve `linux-64` Conda environments if @batch or @kubernetes are in play
         target_platform = conda_platform()
         for decorator in step.decorators:
             # NOTE: Keep the list of supported decorator names for backward compatibility purposes.
@@ -280,7 +327,6 @@ class CondaEnvironment(MetaflowEnvironment):
                 "snowpark",
                 "slurm",
             ]:
-                # TODO: Support arm architectures
                 target_platform = getattr(decorator, "target_platform", "linux-64")
                 break
 
@@ -375,14 +421,18 @@ class CondaEnvironment(MetaflowEnvironment):
         if id_:
             return [
                 "echo 'Bootstrapping virtual environment...'",
+                "flush_mflogs",
                 # We have to prevent the tracing module from loading,
                 # as the bootstrapping process uses the internal S3 client which would fail to import tracing
                 # due to the required dependencies being bundled into the conda environment,
                 # which is yet to be initialized at this point.
-                'DISABLE_TRACING=True python -m metaflow.plugins.pypi.bootstrap "%s" %s "%s" linux-64'
+                'DISABLE_TRACING=True python -m metaflow.plugins.pypi.bootstrap "%s" %s "%s"'
                 % (self.flow.name, id_, self.datastore_type),
                 "echo 'Environment bootstrapped.'",
-                "export PATH=$PATH:$(pwd)/micromamba",
+                "flush_mflogs",
+                # To avoid having to install micromamba in the PATH in micromamba.py, we add it to the PATH here.
+                "export PATH=$PATH:$(pwd)/micromamba/bin",
+                "export MF_ARCH=$(case $(uname)/$(uname -m) in Darwin/arm64)echo osx-arm64;;Darwin/*)echo osx-64;;Linux/aarch64)echo linux-aarch64;;*)echo linux-64;;esac)",
             ]
         else:
             # for @conda/@pypi(disabled=True).
@@ -443,6 +493,7 @@ class LazyOpen(BufferedIOBase):
         self._file = None
         self._buffer = None
         self._position = 0
+        self.requests = None
 
     def _ensure_file(self):
         if not self._file:
@@ -459,8 +510,13 @@ class LazyOpen(BufferedIOBase):
                 raise ValueError("Both filename and url are missing")
 
     def _download_to_buffer(self):
+        if self.requests is None:
+            # TODO: Remove dependency on requests
+            import requests
+
+            self.requests = requests
         # TODO: Stream it in chunks?
-        response = requests.get(self.url, stream=True)
+        response = self.requests.get(self.url, stream=True)
         response.raise_for_status()
         return response.content
 

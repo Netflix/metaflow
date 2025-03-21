@@ -1,4 +1,3 @@
-import copy
 import json
 import math
 import random
@@ -7,7 +6,8 @@ from collections import namedtuple
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_JOBSET_GROUP, KUBERNETES_JOBSET_VERSION
 from metaflow.tracing import inject_tracing_vars
-from metaflow.metaflow_config import KUBERNETES_SECRETS
+
+from .kube_utils import qos_requests_and_limits
 
 
 class KubernetesJobsetException(MetaflowException):
@@ -255,7 +255,7 @@ class RunningJobSet(object):
         def best_effort_kill():
             try:
                 self.kill()
-            except Exception as ex:
+            except Exception:
                 pass
 
         atexit.register(best_effort_kill)
@@ -319,6 +319,8 @@ class RunningJobSet(object):
     def kill(self):
         plural = "jobsets"
         client = self._client.get()
+        if not (self.is_running or self.is_waiting):
+            return
         try:
             # Killing the control pod will trigger the jobset to mark everything as failed.
             # Since jobsets have a successPolicy set to `All` which ensures that everything has
@@ -340,7 +342,7 @@ class RunningJobSet(object):
                 stdout=True,
                 tty=False,
             )
-        except Exception as e:
+        except Exception:
             with client.ApiClient() as api_client:
                 # If we are unable to kill the control pod then
                 # Delete the jobset to kill the subsequent pods.
@@ -554,7 +556,12 @@ class JobSetSpec(object):
             if self._kwargs["shared_memory"]
             else None
         )
-
+        qos_requests, qos_limits = qos_requests_and_limits(
+            self._kwargs["qos"],
+            self._kwargs["cpu"],
+            self._kwargs["memory"],
+            self._kwargs["disk"],
+        )
         return dict(
             name=self.name,
             template=client.api_client.ApiClient().sanitize_for_serialization(
@@ -653,21 +660,18 @@ class JobSetSpec(object):
                                             "_", "-"
                                         ),
                                         resources=client.V1ResourceRequirements(
-                                            requests={
-                                                "cpu": str(self._kwargs["cpu"]),
-                                                "memory": "%sM"
-                                                % str(self._kwargs["memory"]),
-                                                "ephemeral-storage": "%sM"
-                                                % str(self._kwargs["disk"]),
-                                            },
+                                            requests=qos_requests,
                                             limits={
-                                                "%s.com/gpu".lower()
-                                                % self._kwargs["gpu_vendor"]: str(
-                                                    self._kwargs["gpu"]
-                                                )
-                                                for k in [0]
-                                                # Don't set GPU limits if gpu isn't specified.
-                                                if self._kwargs["gpu"] is not None
+                                                **qos_limits,
+                                                **{
+                                                    "%s.com/gpu".lower()
+                                                    % self._kwargs["gpu_vendor"]: str(
+                                                        self._kwargs["gpu"]
+                                                    )
+                                                    for k in [0]
+                                                    # Don't set GPU limits if gpu isn't specified.
+                                                    if self._kwargs["gpu"] is not None
+                                                },
                                             },
                                         ),
                                         volume_mounts=(
@@ -858,6 +862,16 @@ class KubernetesJobSet(object):
         self._annotations = dict(self._annotations, **{name: value})
         return self
 
+    def labels(self, labels):
+        for k, v in labels.items():
+            self.label(k, v)
+        return self
+
+    def annotations(self, annotations):
+        for k, v in annotations.items():
+            self.annotation(k, v)
+        return self
+
     def secret(self, name):
         self.worker.secret(name)
         self.control.secret(name)
@@ -983,15 +997,24 @@ class KubernetesArgoJobSet(object):
         self._labels = dict(self._labels, **{name: value})
         return self
 
+    def labels(self, labels):
+        for k, v in labels.items():
+            self.label(k, v)
+        return self
+
     def annotation(self, name, value):
         self.worker.annotation(name, value)
         self.control.annotation(name, value)
         self._annotations = dict(self._annotations, **{name: value})
         return self
 
+    def annotations(self, annotations):
+        for k, v in annotations.items():
+            self.annotation(k, v)
+        return self
+
     def dump(self):
         client = self._kubernetes_sdk
-        import json
 
         data = json.dumps(
             client.ApiClient().sanitize_for_serialization(

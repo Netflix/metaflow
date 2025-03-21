@@ -7,6 +7,8 @@ from typing import Dict, Iterator, Optional, Tuple
 
 from metaflow import Run
 
+from metaflow.plugins import get_runner_cli
+
 from .utils import (
     temporary_fifo,
     handle_timeout,
@@ -187,7 +189,27 @@ class ExecutingRun(object):
             yield position, line
 
 
-class Runner(object):
+class RunnerMeta(type):
+    def __new__(mcs, name, bases, dct):
+        cls = super().__new__(mcs, name, bases, dct)
+
+        def _injected_method(subcommand_name, runner_subcommand):
+            def f(self, *args, **kwargs):
+                return runner_subcommand(self, *args, **kwargs)
+
+            f.__doc__ = runner_subcommand.__doc__ or ""
+            f.__name__ = subcommand_name
+
+            return f
+
+        for runner_subcommand in get_runner_cli():
+            method_name = runner_subcommand.name.replace("-", "_")
+            setattr(cls, method_name, _injected_method(method_name, runner_subcommand))
+
+        return cls
+
+
+class Runner(metaclass=RunnerMeta):
     """
     Metaflow's Runner API that presents a programmatic interface
     to run flows and perform other operations either synchronously or asynchronously.
@@ -221,7 +243,7 @@ class Runner(object):
         The directory to run the subprocess in; if not specified, the current
         directory is used.
     file_read_timeout : int, default 3600
-        The timeout until which we try to read the runner attribute file.
+        The timeout until which we try to read the runner attribute file (in seconds).
     **kwargs : Any
         Additional arguments that you would pass to `python myflow.py` before
         the `run` command.
@@ -245,8 +267,22 @@ class Runner(object):
         # This ability is made possible by the statement:
         # 'from .metaflow_runner import Runner' in '__init__.py'
 
-        if "metaflow.cli" in sys.modules:
-            importlib.reload(sys.modules["metaflow.cli"])
+        from metaflow.parameters import flow_context
+
+        # Reload the CLI with an "empty" flow -- this will remove any configuration
+        # and parameter options. They are re-added in from_cli (called below).
+        to_reload = [
+            "metaflow.cli",
+            "metaflow.cli_components.run_cmds",
+            "metaflow.cli_components.init_cmd",
+        ]
+        with flow_context(None):
+            [
+                importlib.reload(sys.modules[module])
+                for module in to_reload
+                if module in sys.modules
+            ]
+
         from metaflow.cli import start
         from metaflow.runner.click_api import MetaflowAPI
 
@@ -272,6 +308,9 @@ class Runner(object):
 
     def __get_executing_run(self, attribute_file_fd, command_obj):
         content = handle_timeout(attribute_file_fd, command_obj, self.file_read_timeout)
+
+        command_obj.sync_wait()
+
         content = json.loads(content)
         pathspec = "%s/%s" % (content.get("flow_name"), content.get("run_id"))
 
@@ -329,7 +368,7 @@ class Runner(object):
 
             return self.__get_executing_run(attribute_file_fd, command_obj)
 
-    def resume(self, **kwargs):
+    def resume(self, **kwargs) -> ExecutingRun:
         """
         Blocking resume execution of the run.
         This method will wait until the resumed run has completed execution.
@@ -392,7 +431,7 @@ class Runner(object):
 
             return await self.__async_get_executing_run(attribute_file_fd, command_obj)
 
-    async def async_resume(self, **kwargs):
+    async def async_resume(self, **kwargs) -> ExecutingRun:
         """
         Non-blocking resume execution of the run.
         This method will return as soon as the resume has launched.

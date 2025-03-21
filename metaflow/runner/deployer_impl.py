@@ -37,7 +37,7 @@ class DeployerImpl(object):
         The directory to run the subprocess in; if not specified, the current
         directory is used.
     file_read_timeout : int, default 3600
-        The timeout until which we try to read the deployer attribute file.
+        The timeout until which we try to read the deployer attribute file (in seconds).
     **kwargs : Any
         Additional arguments that you would pass to `python myflow.py` before
         the deployment command.
@@ -61,8 +61,22 @@ class DeployerImpl(object):
                 "of DeployerImpl."
             )
 
-        if "metaflow.cli" in sys.modules:
-            importlib.reload(sys.modules["metaflow.cli"])
+        from metaflow.parameters import flow_context
+
+        # Reload the CLI with an "empty" flow -- this will remove any configuration
+        # and parameter options. They are re-added in from_cli (called below).
+        to_reload = [
+            "metaflow.cli",
+            "metaflow.cli_components.run_cmds",
+            "metaflow.cli_components.init_cmd",
+        ]
+        with flow_context(None):
+            [
+                importlib.reload(sys.modules[module])
+                for module in to_reload
+                if module in sys.modules
+            ]
+
         from metaflow.cli import start
         from metaflow.runner.click_api import MetaflowAPI
 
@@ -144,7 +158,7 @@ class DeployerImpl(object):
             # Additional info is used to pass additional deployer specific information.
             # It is used in non-OSS deployers (extensions).
             self.additional_info = content.get("additional_info", {})
-
+            command_obj.sync_wait()
             if command_obj.process.returncode == 0:
                 return create_class(deployer=self)
 

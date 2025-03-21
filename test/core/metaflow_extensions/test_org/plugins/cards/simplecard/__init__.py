@@ -7,7 +7,7 @@ class TestNonEditableImportCard(MetaflowCard):
 
     ALLOW_USER_COMPONENTS = False
 
-    def __init__(self, options={}, components=[], graph=None):
+    def __init__(self, options={}, components=[], graph=None, flow=None, **kwargs):
         self._options, self._components, self._graph = options, components, graph
 
     def render(self, task):

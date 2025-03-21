@@ -1,34 +1,30 @@
 import os
-import sys
 import platform
-import requests
+import sys
 import time
 
-from metaflow import util
 from metaflow import R, current
-
 from metaflow.decorators import StepDecorator
-from metaflow.plugins.resources_decorator import ResourcesDecorator
-from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.metadata_provider import MetaDatum
 from metaflow.metadata_provider.util import sync_local_metadata_to_datastore
 from metaflow.metaflow_config import (
-    ECS_S3_ACCESS_IAM_ROLE,
-    BATCH_JOB_QUEUE,
     BATCH_CONTAINER_IMAGE,
     BATCH_CONTAINER_REGISTRY,
-    ECS_FARGATE_EXECUTION_ROLE,
+    BATCH_JOB_QUEUE,
     DATASTORE_LOCAL_DIR,
+    ECS_FARGATE_EXECUTION_ROLE,
+    ECS_S3_ACCESS_IAM_ROLE,
 )
+from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
 from metaflow.sidecar import Sidecar
 from metaflow.unbounded_foreach import UBF_CONTROL
 
-from .batch import BatchException
 from ..aws_utils import (
     compute_resource_attributes,
     get_docker_registry,
     get_ec2_instance_metadata,
 )
+from .batch import BatchException
 
 
 class BatchDecorator(StepDecorator):
@@ -138,8 +134,8 @@ class BatchDecorator(StepDecorator):
     supports_conda_environment = True
     target_platform = "linux-64"
 
-    def __init__(self, attributes=None, statically_defined=False):
-        super(BatchDecorator, self).__init__(attributes, statically_defined)
+    def init(self):
+        super(BatchDecorator, self).init()
 
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
@@ -280,6 +276,10 @@ class BatchDecorator(StepDecorator):
             # Metaflow would be running the container agent compatible with
             # version V4.
             # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-metadata-endpoint.html
+
+            # TODO: Remove dependency on requests
+            import requests
+
             try:
                 logs_meta = (
                     requests.get(url=os.environ["ECS_CONTAINER_METADATA_URI_V4"])
@@ -297,6 +297,13 @@ class BatchDecorator(StepDecorator):
 
             self._save_logs_sidecar = Sidecar("save_logs_periodically")
             self._save_logs_sidecar.start()
+
+            # Start spot termination monitor sidecar.
+            current._update_env(
+                {"spot_termination_notice": "/tmp/spot_termination_notice"}
+            )
+            self._spot_monitor_sidecar = Sidecar("spot_termination_monitor")
+            self._spot_monitor_sidecar.start()
 
         num_parallel = int(os.environ.get("AWS_BATCH_JOB_NUM_NODES", 0))
         if num_parallel >= 1 and ubf_context == UBF_CONTROL:
@@ -350,6 +357,7 @@ class BatchDecorator(StepDecorator):
 
         try:
             self._save_logs_sidecar.terminate()
+            self._spot_monitor_sidecar.terminate()
         except:
             # Best effort kill
             pass
@@ -386,7 +394,7 @@ class BatchDecorator(StepDecorator):
                             len(flow._control_mapper_tasks),
                         )
                     )
-            except Exception as e:
+            except Exception:
                 pass
         raise Exception(
             "Batch secondary workers did not finish in %s seconds" % TIMEOUT

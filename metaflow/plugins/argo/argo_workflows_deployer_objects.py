@@ -1,5 +1,6 @@
 import sys
 import json
+import time
 import tempfile
 from typing import ClassVar, Optional
 
@@ -18,6 +19,7 @@ def generate_fake_flow_file_contents(
 ):
     params_code = ""
     for _, param_details in param_info.items():
+        param_python_var_name = param_details["python_var_name"]
         param_name = param_details["name"]
         param_type = param_details["type"]
         param_help = param_details["description"]
@@ -25,21 +27,21 @@ def generate_fake_flow_file_contents(
 
         if param_type == "JSON":
             params_code += (
-                f"    {param_name} = Parameter('{param_name}', "
-                f"type=JSONType, help='{param_help}', required={param_required})\n"
+                f"    {param_python_var_name} = Parameter('{param_name}', "
+                f"type=JSONType, help='''{param_help}''', required={param_required})\n"
             )
         elif param_type == "FilePath":
             is_text = param_details.get("is_text", True)
             encoding = param_details.get("encoding", "utf-8")
             params_code += (
-                f"    {param_name} = IncludeFile('{param_name}', "
-                f"is_text={is_text}, encoding='{encoding}', help='{param_help}', "
+                f"    {param_python_var_name} = IncludeFile('{param_name}', "
+                f"is_text={is_text}, encoding='{encoding}', help='''{param_help}''', "
                 f"required={param_required})\n"
             )
         else:
             params_code += (
-                f"    {param_name} = Parameter('{param_name}', "
-                f"type={param_type}, help='{param_help}', required={param_required})\n"
+                f"    {param_python_var_name} = Parameter('{param_name}', "
+                f"type={param_type}, help='''{param_help}''', required={param_required})\n"
             )
 
     project_decorator = f"@project(name='{project_name}')\n" if project_name else ""
@@ -97,6 +99,7 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
         )
 
         command_obj = self.deployer.spm.get(pid)
+        command_obj.sync_wait()
         return command_obj.process.returncode == 0
 
     def unsuspend(self, **kwargs) -> bool:
@@ -131,6 +134,7 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
         )
 
         command_obj = self.deployer.spm.get(pid)
+        command_obj.sync_wait()
         return command_obj.process.returncode == 0
 
     def terminate(self, **kwargs) -> bool:
@@ -165,7 +169,52 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
         )
 
         command_obj = self.deployer.spm.get(pid)
+        command_obj.sync_wait()
         return command_obj.process.returncode == 0
+
+    def wait_for_completion(
+        self, check_interval: int = 5, timeout: Optional[int] = None
+    ):
+        """
+        Wait for the workflow to complete or timeout.
+
+        Parameters
+        ----------
+        check_interval: int, default: 5
+            Frequency of checking for workflow completion, in seconds.
+        timeout : int, optional, default None
+            Maximum time in seconds to wait for workflow completion.
+            If None, waits indefinitely.
+
+        Raises
+        ------
+        TimeoutError
+            If the workflow does not complete within the specified timeout period.
+        """
+        start_time = time.time()
+        while self.is_running:
+            if timeout is not None and (time.time() - start_time) > timeout:
+                raise TimeoutError(
+                    "Workflow did not complete within specified timeout."
+                )
+            time.sleep(check_interval)
+
+    @property
+    def is_running(self):
+        """
+        Check if the workflow is currently running.
+
+        Returns
+        -------
+        bool
+            True if the workflow status is either 'Pending' or 'Running',
+            False otherwise.
+        """
+        workflow_status = self.status
+        # full list of all states present here:
+        # https://github.com/argoproj/argo-workflows/blob/main/pkg/apis/workflow/v1alpha1/workflow_types.go#L54
+        # we only consider non-terminal states to determine if the workflow has not finished
+        return workflow_status is not None and workflow_status in ["Pending", "Running"]
 
     @property
     def status(self) -> Optional[str]:
@@ -319,6 +368,7 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
         )
 
         command_obj = self.deployer.spm.get(pid)
+        command_obj.sync_wait()
         return command_obj.process.returncode == 0
 
     def trigger(self, **kwargs) -> ArgoWorkflowsTriggeredRun:
@@ -361,7 +411,7 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
             content = handle_timeout(
                 attribute_file_fd, command_obj, self.deployer.file_read_timeout
             )
-
+            command_obj.sync_wait()
             if command_obj.process.returncode == 0:
                 return ArgoWorkflowsTriggeredRun(
                     deployer=self.deployer, content=content
