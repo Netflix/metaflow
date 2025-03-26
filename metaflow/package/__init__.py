@@ -13,7 +13,7 @@ from .tar_backend import TarPackagingBackend
 from .utils import walk
 from ..metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from ..exception import MetaflowException
-from ..meta_files import MFENV_DIR, MetaFile
+from ..meta_files import MFENV_DIR, MetaFile, get_metaflow_root
 from ..user_configs.config_parameters import dump_config_values
 from .. import R
 
@@ -66,7 +66,7 @@ class MetaflowPackage(object):
         self.environment = environment
         self.environment.init_environment(echo)
 
-        self.metaflow_root = os.path.dirname(__file__)
+        self.metaflow_root = get_metaflow_root()
 
         self._flow = flow
         self._backend = backend
@@ -122,7 +122,9 @@ class MetaflowPackage(object):
         for step in self._flow:
             for deco in step.decorators:
                 for path_tuple in deco.add_to_package():
-                    file_path, file_name = path_tuple
+                    if len(path_tuple) == 2:
+                        path_tuple = (path_tuple[0], path_tuple[1], False)
+                    file_path, file_name, _ = path_tuple
                     # Check if the path is not duplicated as
                     # many steps can have the same packages being imported
                     if file_name not in deco_module_paths:
@@ -135,6 +137,8 @@ class MetaflowPackage(object):
 
         # the package folders for environment
         for path_tuple in self.environment.add_to_package():
+            if len(path_tuple) == 2:
+                path_tuple = (path_tuple[0], path_tuple[1], False)
             yield path_tuple
 
     def _user_code_tuples(self):

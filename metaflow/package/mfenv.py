@@ -31,7 +31,7 @@ from .utils import walk
 from ..debug import debug
 from ..extension_support import EXT_EXCLUDE_SUFFIXES, metadata, package_mfext_all
 
-from ..meta_files import MFENV_DIR, MetaFile
+from ..meta_files import MFCONF_DIR, MFENV_DIR, MFENV_MARKER, MetaFile
 from ..util import get_metaflow_root
 
 packages_distributions = None
@@ -161,19 +161,51 @@ class MFEnv:
 
     METAFLOW_SUFFIXES_LIST = [".py", ".html", ".css", ".js"]
 
+    cached_config_dir = None
+
     @classmethod
-    def get_filename(cls, name: Union[MetaFile, str]) -> Optional[str]:
-        # Get the filename of the expanded file -- it will always be expanded next to
-        # metaflow_root
-        real_name = name.value if isinstance(name, MetaFile) else name
-        path_to_file = os.path.join(get_metaflow_root(), real_name)
+    def get_filename(
+        cls, name: Union[MetaFile, str], is_meta: bool = False
+    ) -> Optional[str]:
+        # Get the filename of the expanded file.
+        # Two cases:
+        # 1. The file was encoded prior to MFEnv packaging -- it will be next to
+        #    Metaflow (sibbling)
+        # 2. The file was encoded as part of the MFEnv packaging -- it will be in
+        #    the config directory -- we can find that directory by looking at the
+        #    MFENV_MARKER file (which we can then cache since it won't change for
+        #   the lifetime of the process).
+        if cls.cached_config_dir is None:
+            if os.path.exists(os.path.join(get_metaflow_root(), MFENV_MARKER)):
+                with open(
+                    os.path.join(get_metaflow_root(), MFENV_MARKER),
+                    "r",
+                    encoding="utf-8",
+                ) as f:
+                    cls.cached_config_dir = os.path.join(
+                        "..", f.readline().strip().split(",")[1]
+                    )
+            else:
+                cls.cached_config_dir = ""
+        if isinstance(name, MetaFile):
+            is_meta = True
+            name = name.value
+        if is_meta:
+            real_name = os.path.join(cls.cached_config_dir, name)
+        else:
+            real_name = name
+        path_to_file = os.path.join(
+            get_metaflow_root(), cls.cached_config_dir, real_name
+        )
         if os.path.isfile(path_to_file):
             return path_to_file
         return None
 
     @classmethod
-    def get_content(cls, name: Union[MetaFile, str]) -> Optional[str]:
-        file_to_read = cls.get_filename(name)
+    def get_content(
+        cls, name: Union[MetaFile, str], is_meta: bool = False
+    ) -> Optional[str]:
+        file_to_read = cls.get_filename(name, is_meta)
         if file_to_read:
             with open(file_to_read, "r", encoding="utf-8") as f:
                 return f.read()
@@ -217,6 +249,7 @@ class MFEnv:
         self,
         criteria: Callable[[ModuleType], bool],
         package_path=MFENV_DIR,
+        config_path=MFCONF_DIR,
     ) -> None:
         # package_path is the directory within the archive where the files will be
         # stored (by default MFENV_DIR). This is used in internal Netflix code.
@@ -226,7 +259,9 @@ class MFEnv:
 
         # Determine the version of Metaflow that we are part of
         self._metaflow_root = get_metaflow_root()
+        print(f"ROOT is :{self._metaflow_root}")
         self._package_path = package_path
+        self._config_path = config_path
 
         self._modules = {
             name: _ModuleInfo(
@@ -345,7 +380,7 @@ class MFEnv:
                 if criteria(path):
                     self._files[path] = os.path.join(name, relpath)
 
-    def add_files(self, files: Iterator[Tuple[str, str]]) -> None:
+    def add_files(self, files: Iterator[Tuple[str, str, bool]]) -> None:
         """
         Add a list of files to the MF environment.
 
@@ -355,15 +390,16 @@ class MFEnv:
 
         Parameters
         ----------
-        files : Iterator[Tuple[str, str]]
+        files : Iterator[Tuple[str, str, bool]]
             A list of files to include in the MF environment. The first element of the
             tuple is the path to the file in the filesystem; the second element is the
-            path in the archive.
+            path in the archive releative to either the package path or the config path.
+            The third element indicates if this is a config file (True) or not (False).
         """
-        for file, arcname in files:
+        for file, arcname, is_meta in files:
             debug.package_exec(f"Adding file {file} as {arcname} to the MF environment")
             self._files[os.path.realpath(file)] = os.path.join(
-                self._package_path, arcname
+                self._config_path if is_meta else self._package_path, arcname
             )
 
     def path_in_archive(self, path: str) -> Optional[str]:
@@ -411,12 +447,19 @@ class MFEnv:
             element of the tuple is the content to add; the second element is path in the
             archive.
         """
+        # Generate the marker
+        yield (
+            f"{MFENV_DIR},{MFCONF_DIR}".encode("utf-8"),
+            os.path.join(self._package_path, MFENV_MARKER),
+        )
+        # All other meta files
         for name, content in self._metacontent.items():
-            yield content, os.path.join(self._package_path, name.value)
+            yield content, os.path.join(self._config_path, name.value)
+        # Include distribution information if present
         if self._distmetainfo:
             yield (
                 json.dumps(self._distmetainfo).encode("utf-8"),
-                os.path.join(self._package_path, MetaFile.INCLUDED_DIST_INFO.value),
+                os.path.join(self._config_path, MetaFile.INCLUDED_DIST_INFO.value),
             )
 
     def _module_files(
