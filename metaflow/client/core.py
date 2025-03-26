@@ -32,6 +32,7 @@ from metaflow.exception import (
 from metaflow.includefile import IncludedFile
 from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
 from metaflow.metaflow_environment import MetaflowEnvironment
+from metaflow.meta_files import MFCONF_DIR, MFENV_DIR
 from metaflow.package.mfenv import MFEnv
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
 from metaflow.meta_files import MetaFile
@@ -917,6 +918,9 @@ class MetaflowCode(object):
             # This file is created when using the conda/pypi features available in
             # nflx-metaflow-extensions: https://github.com/Netflix/metaflow-nflx-extensions
             "condav2-1.cnd",
+            # Going forward, we only need to exclude MFENV_DIR and MFCONF_DIR
+            MFENV_DIR,
+            MFCONF_DIR,
         ]
         members = [
             m
