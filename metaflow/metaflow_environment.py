@@ -53,6 +53,13 @@ class MetaflowEnvironment(object):
         """
         A list of tuples (file, arcname) to add to the job package.
         `arcname` is an alternative name for the file in the job package.
+        Note that the file will be package either:
+          - with the rest of user code (sibling of any user included packages and metaflow)
+          - with the rest of the configuration for metaflow (sibling of INFO file).
+
+        By default, it is the former but returning a Tuple with three elements and the
+        third element being True means it will be packaged as a configuration file
+        side of the package. By default, it is included in the user
         """
         return []
 

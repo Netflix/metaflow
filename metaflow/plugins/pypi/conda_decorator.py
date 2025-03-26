@@ -159,7 +159,7 @@ class CondaStepDecorator(StepDecorator):
             os.path.join(self.metaflow_dir.name, "metaflow"),
         )
 
-        info = MFEnv.get_filename(MetaFile.INFO_FILE)
+        info = MFEnv.get_filename(MetaFile.INFO_FILE, is_meta=True)
         # Symlink the INFO file as well to properly propagate down the Metaflow version
         if info:
             os.symlink(
