@@ -124,9 +124,9 @@ def load():
     cur_path = os.path.dirname(__file__)
     sys.path = [p for p in old_paths if p != cur_path]
     # Handle special case where we launch a shell (including with a command)
-    # and we are in the CWD (searched if '' is the first element of sys.path)
-    if cur_path == os.getcwd() and sys.path[0] == '':
-        sys.path = sys.path[1:]
+    # and we are in the CWD (searched if '' is present in sys.path)
+    if cur_path == os.getcwd() and '' in sys.path:
+        sys.path.remove("")
 
     # Remove the module (this file) to reload it properly. Do *NOT* update sys.modules but
     # modify directly since it may be referenced elsewhere

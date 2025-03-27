@@ -283,6 +283,7 @@ def make_flow(
 ):
     # Attach @kubernetes.
     decorators._attach_decorators(obj.flow, [KubernetesDecorator.name])
+    decorators._init(obj.flow)
 
     decorators._init_step_decorators(
         obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
@@ -387,6 +388,11 @@ def _validate_workflow(flow, graph, flow_datastore, metadata, workflow_timeout):
         if any([d.name == "batch" for d in node.decorators]):
             raise NotSupportedException(
                 "Step *%s* is marked for execution on AWS Batch with Airflow which isn't currently supported."
+                % node.name
+            )
+        if any([d.name == "slurm" for d in node.decorators]):
+            raise NotSupportedException(
+                "Step *%s* is marked for execution on Slurm with Airflow which isn't currently supported."
                 % node.name
             )
     SUPPORTED_DATASTORES = ("azure", "s3", "gs")

@@ -7,7 +7,7 @@ import traceback
 from metaflow import util
 from metaflow import R
 from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
-from metaflow.metadata.util import sync_local_metadata_from_datastore
+from metaflow.metadata_provider.util import sync_local_metadata_from_datastore
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.mflog import TASK_LOG_SOURCE
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
@@ -211,7 +211,7 @@ def step(
     log_driver=None,
     log_options=None,
     num_parallel=None,
-    **kwargs
+    **kwargs,
 ):
     def echo(msg, stream="stderr", batch_id=None, **kwargs):
         msg = util.to_unicode(msg)
@@ -273,11 +273,11 @@ def step(
         "metaflow_version"
     ]
 
+    env = {"METAFLOW_FLOW_FILENAME": os.path.basename(sys.argv[0])}
+
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
-        env = env_deco[0].attributes["vars"]
-    else:
-        env = {}
+        env.update(env_deco[0].attributes["vars"])
 
     # Add the environment variables related to the input-paths argument
     if split_vars:

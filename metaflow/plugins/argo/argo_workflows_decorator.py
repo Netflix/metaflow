@@ -1,14 +1,12 @@
 import json
 import os
-import time
 
 
 from metaflow import current
 from metaflow.decorators import StepDecorator
 from metaflow.events import Trigger
-from metaflow.metadata import MetaDatum
-from metaflow.metaflow_config import ARGO_EVENTS_WEBHOOK_URL
-from metaflow.graph import DAGNode, FlowGraph
+from metaflow.metadata_provider import MetaDatum
+from metaflow.graph import FlowGraph
 from metaflow.flowspec import FlowSpec
 from .argo_events import ArgoEvent
 
@@ -42,7 +40,7 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
                 if payload != "null":  # Argo-Workflow's None
                     try:
                         payload = json.loads(payload)
-                    except (TypeError, ValueError) as e:
+                    except (TypeError, ValueError):
                         # There could be arbitrary events that Metaflow doesn't know of
                         payload = {}
                     triggers.append(

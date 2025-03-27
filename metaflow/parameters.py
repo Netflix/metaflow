@@ -3,7 +3,7 @@ import json
 from contextlib import contextmanager
 from threading import local
 
-from typing import Any, Callable, Dict, NamedTuple, Optional, Type, Union
+from typing import Any, Callable, Dict, NamedTuple, Optional, TYPE_CHECKING, Type, Union
 
 from metaflow._vendor import click
 
@@ -13,6 +13,9 @@ from .exception import (
     ParameterFieldTypeMismatch,
     MetaflowException,
 )
+
+if TYPE_CHECKING:
+    from .user_configs.config_parameters import ConfigValue
 
 try:
     # Python2
@@ -32,6 +35,7 @@ ParameterContext = NamedTuple(
         ("parameter_name", str),
         ("logger", Callable[..., None]),
         ("ds_type", str),
+        ("configs", Optional["ConfigValue"]),
     ],
 )
 
@@ -70,6 +74,16 @@ def flow_context(flow_cls):
 
 
 context_proto = None
+
+
+def replace_flow_context(flow_cls):
+    """
+    Replace the current flow context with a new flow class. This is used
+    when we change the current flow class after having run user configuration functions
+    """
+    current_flow.flow_cls_stack = current_flow.flow_cls_stack[1:]
+    current_flow.flow_cls_stack.insert(0, flow_cls)
+    current_flow.flow_cls = current_flow.flow_cls_stack[0]
 
 
 class JSONTypeClass(click.ParamType):
@@ -151,6 +165,7 @@ class DeployTimeField(object):
             return self._check_type(val, deploy_time)
 
     def _check_type(self, val, deploy_time):
+
         # it is easy to introduce a deploy-time function that accidentally
         # returns a value whose type is not compatible with what is defined
         # in Parameter. Let's catch those mistakes early here, instead of
@@ -158,7 +173,7 @@ class DeployTimeField(object):
 
         # note: this doesn't work with long in Python2 or types defined as
         # click types, e.g. click.INT
-        TYPES = {bool: "bool", int: "int", float: "float", list: "list"}
+        TYPES = {bool: "bool", int: "int", float: "float", list: "list", dict: "dict"}
 
         msg = (
             "The value returned by the deploy-time function for "
@@ -166,7 +181,12 @@ class DeployTimeField(object):
             % (self.parameter_name, self.field)
         )
 
-        if self.parameter_type in TYPES:
+        if isinstance(self.parameter_type, list):
+            if not any(isinstance(val, x) for x in self.parameter_type):
+                msg += "Expected one of the following %s." % TYPES[self.parameter_type]
+                raise ParameterFieldTypeMismatch(msg)
+            return str(val) if self.return_str else val
+        elif self.parameter_type in TYPES:
             if type(val) != self.parameter_type:
                 msg += "Expected a %s." % TYPES[self.parameter_type]
                 raise ParameterFieldTypeMismatch(msg)
@@ -204,12 +224,18 @@ class DeployTimeField(object):
 def deploy_time_eval(value):
     if isinstance(value, DeployTimeField):
         return value(deploy_time=True)
+    elif isinstance(value, DelayedEvaluationParameter):
+        return value(return_str=True)
     else:
         return value
 
 
 # this is called by cli.main
-def set_parameter_context(flow_name, echo, datastore):
+def set_parameter_context(flow_name, echo, datastore, configs):
+    from .user_configs.config_parameters import (
+        ConfigValue,
+    )  # Prevent circular dependency
+
     global context_proto
     context_proto = ParameterContext(
         flow_name=flow_name,
@@ -217,6 +243,7 @@ def set_parameter_context(flow_name, echo, datastore):
         parameter_name=None,
         logger=echo,
         ds_type=datastore.TYPE,
+        configs=ConfigValue(dict(configs)),
     )
 
 
@@ -273,7 +300,11 @@ class Parameter(object):
     ----------
     name : str
         User-visible parameter name.
-    default : str or float or int or bool or `JSONType` or a function.
+    default : Union[str, float, int, bool, Dict[str, Any],
+                Callable[
+                    [ParameterContext], Union[str, float, int, bool, Dict[str, Any]]
+                ],
+            ], optional, default None
         Default value for the parameter. Use a special `JSONType` class to
         indicate that the value must be a valid JSON object. A function
         implies that the parameter corresponds to a *deploy-time parameter*.
@@ -282,14 +313,18 @@ class Parameter(object):
         If `default` is not specified, define the parameter type. Specify
         one of `str`, `float`, `int`, `bool`, or `JSONType`. If None, defaults
         to the type of `default` or `str` if none specified.
-    help : str, optional
+    help : str, optional, default None
         Help text to show in `run --help`.
-    required : bool, default False
-        Require that the user specified a value for the parameter.
-        `required=True` implies that the `default` is not used.
-    show_default : bool, default True
-        If True, show the default value in the help text.
+    required : bool, optional, default None
+        Require that the user specifies a value for the parameter. Note that if
+        a default is provide, the required flag is ignored.
+        A value of None is equivalent to False.
+    show_default : bool, optional, default None
+        If True, show the default value in the help text. A value of None is equivalent
+        to True.
     """
+
+    IS_CONFIG_PARAMETER = False
 
     def __init__(
         self,
@@ -301,31 +336,62 @@ class Parameter(object):
                 int,
                 bool,
                 Dict[str, Any],
-                Callable[[], Union[str, float, int, bool, Dict[str, Any]]],
+                Callable[
+                    [ParameterContext], Union[str, float, int, bool, Dict[str, Any]]
+                ],
             ]
         ] = None,
         type: Optional[
             Union[Type[str], Type[float], Type[int], Type[bool], JSONTypeClass]
         ] = None,
         help: Optional[str] = None,
-        required: bool = False,
-        show_default: bool = True,
+        required: Optional[bool] = None,
+        show_default: Optional[bool] = None,
         **kwargs: Dict[str, Any]
     ):
         self.name = name
         self.kwargs = kwargs
-        for k, v in {
+        self._override_kwargs = {
             "default": default,
             "type": type,
             "help": help,
             "required": required,
             "show_default": show_default,
-        }.items():
-            if v is not None:
-                self.kwargs[k] = v
+        }
+
+    def init(self, ignore_errors=False):
+        # Prevent circular import
+        from .user_configs.config_parameters import (
+            resolve_delayed_evaluator,
+            unpack_delayed_evaluator,
+        )
+
+        # Resolve any value from configurations
+        self.kwargs, _ = unpack_delayed_evaluator(
+            self.kwargs, ignore_errors=ignore_errors
+        )
+        # Do it one item at a time so errors are ignored at that level (as opposed to
+        # at the entire kwargs level)
+        self.kwargs = {
+            k: resolve_delayed_evaluator(v, ignore_errors=ignore_errors)
+            for k, v in self.kwargs.items()
+        }
+
+        # This was the behavior before configs: values specified in args would override
+        # stuff in kwargs which is what we implement here as well
+        for key, value in self._override_kwargs.items():
+            if value is not None:
+                self.kwargs[key] = resolve_delayed_evaluator(
+                    value, ignore_errors=ignore_errors
+                )
+        # Set two default values if no-one specified them
+        self.kwargs.setdefault("required", False)
+        self.kwargs.setdefault("show_default", True)
+
+        # Continue processing kwargs free of any configuration values :)
 
         # TODO: check that the type is one of the supported types
-        param_type = self.kwargs["type"] = self._get_type(kwargs)
+        param_type = self.kwargs["type"] = self._get_type(self.kwargs)
 
         reserved_params = [
             "params",
@@ -350,23 +416,27 @@ class Parameter(object):
             raise MetaflowException(
                 "Parameter name '%s' is a reserved "
                 "word. Please use a different "
-                "name for your parameter." % (name)
+                "name for your parameter." % (self.name)
             )
 
         # make sure the user is not trying to pass a function in one of the
         # fields that don't support function-values yet
         for field in ("show_default", "separator", "required"):
-            if callable(kwargs.get(field)):
+            if callable(self.kwargs.get(field)):
                 raise MetaflowException(
                     "Parameter *%s*: Field '%s' cannot "
-                    "have a function as its value" % (name, field)
+                    "have a function as its value" % (self.name, field)
                 )
 
         # default can be defined as a function
         default_field = self.kwargs.get("default")
         if callable(default_field) and not isinstance(default_field, DeployTimeField):
             self.kwargs["default"] = DeployTimeField(
-                name, param_type, "default", self.kwargs["default"], return_str=True
+                self.name,
+                param_type,
+                "default",
+                self.kwargs["default"],
+                return_str=True,
             )
 
         # note that separator doesn't work with DeployTimeFields unless you
@@ -375,7 +445,7 @@ class Parameter(object):
         if self.separator and not self.is_string_type:
             raise MetaflowException(
                 "Parameter *%s*: Separator is only allowed "
-                "for string parameters." % name
+                "for string parameters." % self.name
             )
 
     def __repr__(self):
@@ -431,10 +501,15 @@ def add_custom_parameters(deploy_mode=False):
         flow_cls = getattr(current_flow, "flow_cls", None)
         if flow_cls is None:
             return cmd
-        parameters = [p for _, p in flow_cls._get_parameters()]
+        parameters = [
+            p for _, p in flow_cls._get_parameters() if not p.IS_CONFIG_PARAMETER
+        ]
         for arg in parameters[::-1]:
             kwargs = arg.option_kwargs(deploy_mode)
             cmd.params.insert(0, click.Option(("--" + arg.name,), **kwargs))
         return cmd
 
     return wrapper
+
+
+JSONType = JSONTypeClass()

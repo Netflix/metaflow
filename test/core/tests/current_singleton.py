@@ -22,7 +22,7 @@ class CurrentSingletonTest(MetaflowTest):
         self.flow_names = {current.flow_name}
         self.run_ids = {current.run_id}
         self.origin_run_ids = {current.origin_run_id}
-        self.steps = {current.step_name}
+        self.seen_steps = {current.step_name}
         self.step_name = current.step_name
         self.namespaces = {current.namespace}
         self.usernames = {current.username}
@@ -49,7 +49,7 @@ class CurrentSingletonTest(MetaflowTest):
         self.flow_names = set(chain(*(i.flow_names for i in inputs)))
         self.run_ids = set(chain(*(i.run_ids for i in inputs)))
         self.origin_run_ids = set(chain(*(i.origin_run_ids for i in inputs)))
-        self.steps = set(chain(*(i.steps for i in inputs)))
+        self.seen_steps = set(chain(*(i.seen_steps for i in inputs)))
         self.namespaces = set(chain(*(i.namespaces for i in inputs)))
         self.usernames = set(chain(*(i.usernames for i in inputs)))
         self.task_data = {}
@@ -68,7 +68,7 @@ class CurrentSingletonTest(MetaflowTest):
         self.origin_run_ids.add(current.origin_run_id)
         self.namespaces.add(current.namespace)
         self.usernames.add(current.username)
-        self.steps.add(current.step_name)
+        self.seen_steps.add(current.step_name)
         self.uuid = str(uuid4())
         self.task_data[current.pathspec] = self.uuid
         self.tags.update(current.tags)
@@ -90,7 +90,7 @@ class CurrentSingletonTest(MetaflowTest):
         self.namespaces.add(current.namespace)
         self.usernames.add(current.username)
         self.step_name = current.step_name
-        self.steps.add(current.step_name)
+        self.seen_steps.add(current.step_name)
         self.uuid = str(uuid4())
         self.task_data[current.pathspec] = self.uuid
         self.tags.update(current.tags)

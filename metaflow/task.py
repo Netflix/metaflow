@@ -12,7 +12,7 @@ from metaflow.sidecar import Message, MessageTypes
 from metaflow.datastore.exceptions import DataException
 
 from .metaflow_config import MAX_ATTEMPTS
-from .metadata import MetaDatum
+from .metadata_provider import MetaDatum
 from .mflog import TASK_LOG_SOURCE
 from .datastore import Inputs, TaskDataStoreSet
 from .exception import (
@@ -493,6 +493,25 @@ class MetaflowTask(object):
                     )
                 )
 
+            # Add runtime dag information to the metadata of the task
+            foreach_execution_path = ",".join(
+                [
+                    "{}:{}".format(foreach_frame.step, foreach_frame.index)
+                    for foreach_frame in foreach_stack
+                ]
+            )
+            if foreach_execution_path:
+                metadata.extend(
+                    [
+                        MetaDatum(
+                            field="foreach-execution-path",
+                            value=foreach_execution_path,
+                            type="foreach-execution-path",
+                            tags=metadata_tags,
+                        ),
+                    ]
+                )
+
         self.metadata.register_metadata(
             run_id,
             step_name,
@@ -559,6 +578,7 @@ class MetaflowTask(object):
                 self.flow._success = False
                 self.flow._task_ok = None
                 self.flow._exception = None
+
                 # Note: All internal flow attributes (ie: non-user artifacts)
                 # should either be set prior to running the user code or listed in
                 # FlowSpec._EPHEMERAL to allow for proper merging/importing of
@@ -616,7 +636,6 @@ class MetaflowTask(object):
                                 "graph_info": self.flow._graph_info,
                             }
                         )
-
                 for deco in decorators:
                     deco.task_pre_step(
                         step_name,
@@ -728,7 +747,7 @@ class MetaflowTask(object):
                                 value=attempt_ok,
                                 type="internal_attempt_status",
                                 tags=["attempt_id:{0}".format(retry_count)],
-                            )
+                            ),
                         ],
                     )
 

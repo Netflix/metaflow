@@ -1,14 +1,13 @@
-import copy
 import json
 import math
 import random
 import time
 from collections import namedtuple
-
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_JOBSET_GROUP, KUBERNETES_JOBSET_VERSION
 from metaflow.tracing import inject_tracing_vars
-from metaflow.metaflow_config import KUBERNETES_SECRETS
+
+from .kube_utils import qos_requests_and_limits
 
 
 class KubernetesJobsetException(MetaflowException):
@@ -256,7 +255,7 @@ class RunningJobSet(object):
         def best_effort_kill():
             try:
                 self.kill()
-            except Exception as ex:
+            except Exception:
                 pass
 
         atexit.register(best_effort_kill)
@@ -320,33 +319,51 @@ class RunningJobSet(object):
     def kill(self):
         plural = "jobsets"
         client = self._client.get()
-        # Get the jobset
-        with client.ApiClient() as api_client:
-            api_instance = client.CustomObjectsApi(api_client)
-            try:
-                obj = api_instance.get_namespaced_custom_object(
-                    group=self._group,
-                    version=self._version,
-                    namespace=self._namespace,
-                    plural=plural,
-                    name=self._name,
-                )
+        if not (self.is_running or self.is_waiting):
+            return
+        try:
+            # Killing the control pod will trigger the jobset to mark everything as failed.
+            # Since jobsets have a successPolicy set to `All` which ensures that everything has
+            # to succeed for the jobset to succeed.
+            from kubernetes.stream import stream
 
-                # Suspend the jobset
-                obj["spec"]["suspend"] = True
-
-                api_instance.replace_namespaced_custom_object(
-                    group=self._group,
-                    version=self._version,
-                    namespace=self._namespace,
-                    plural=plural,
-                    name=obj["metadata"]["name"],
-                    body=obj,
-                )
-            except Exception as e:
-                raise KubernetesJobsetException(
-                    "Exception when suspending existing jobset: %s\n" % e
-                )
+            control_pod = self._fetch_pod()
+            stream(
+                client.CoreV1Api().connect_get_namespaced_pod_exec,
+                name=control_pod["metadata"]["name"],
+                namespace=control_pod["metadata"]["namespace"],
+                command=[
+                    "/bin/sh",
+                    "-c",
+                    "/sbin/killall5",
+                ],
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False,
+            )
+        except Exception:
+            with client.ApiClient() as api_client:
+                # If we are unable to kill the control pod then
+                # Delete the jobset to kill the subsequent pods.
+                # There are a few reasons for deleting a jobset to kill it :
+                # 1. Jobset has a `suspend` attribute to suspend it's execution, but this
+                # doesn't play nicely when jobsets are deployed with other components like kueue.
+                # 2. Jobset doesn't play nicely when we mutate status
+                # 3. Deletion is a gaurenteed way of removing any pods.
+                api_instance = client.CustomObjectsApi(api_client)
+                try:
+                    api_instance.delete_namespaced_custom_object(
+                        group=self._group,
+                        version=self._version,
+                        namespace=self._namespace,
+                        plural=plural,
+                        name=self._name,
+                    )
+                except Exception as e:
+                    raise KubernetesJobsetException(
+                        "Exception when deleting existing jobset: %s\n" % e
+                    )
 
     @property
     def id(self):
@@ -539,7 +556,12 @@ class JobSetSpec(object):
             if self._kwargs["shared_memory"]
             else None
         )
-
+        qos_requests, qos_limits = qos_requests_and_limits(
+            self._kwargs["qos"],
+            self._kwargs["cpu"],
+            self._kwargs["memory"],
+            self._kwargs["disk"],
+        )
         return dict(
             name=self.name,
             template=client.api_client.ApiClient().sanitize_for_serialization(
@@ -638,21 +660,18 @@ class JobSetSpec(object):
                                             "_", "-"
                                         ),
                                         resources=client.V1ResourceRequirements(
-                                            requests={
-                                                "cpu": str(self._kwargs["cpu"]),
-                                                "memory": "%sM"
-                                                % str(self._kwargs["memory"]),
-                                                "ephemeral-storage": "%sM"
-                                                % str(self._kwargs["disk"]),
-                                            },
+                                            requests=qos_requests,
                                             limits={
-                                                "%s.com/gpu".lower()
-                                                % self._kwargs["gpu_vendor"]: str(
-                                                    self._kwargs["gpu"]
-                                                )
-                                                for k in [0]
-                                                # Don't set GPU limits if gpu isn't specified.
-                                                if self._kwargs["gpu"] is not None
+                                                **qos_limits,
+                                                **{
+                                                    "%s.com/gpu".lower()
+                                                    % self._kwargs["gpu_vendor"]: str(
+                                                        self._kwargs["gpu"]
+                                                    )
+                                                    for k in [0]
+                                                    # Don't set GPU limits if gpu isn't specified.
+                                                    if self._kwargs["gpu"] is not None
+                                                },
                                             },
                                         ),
                                         volume_mounts=(
@@ -843,6 +862,16 @@ class KubernetesJobSet(object):
         self._annotations = dict(self._annotations, **{name: value})
         return self
 
+    def labels(self, labels):
+        for k, v in labels.items():
+            self.label(k, v)
+        return self
+
+    def annotations(self, annotations):
+        for k, v in annotations.items():
+            self.annotation(k, v)
+        return self
+
     def secret(self, name):
         self.worker.secret(name)
         self.control.secret(name)
@@ -968,15 +997,24 @@ class KubernetesArgoJobSet(object):
         self._labels = dict(self._labels, **{name: value})
         return self
 
+    def labels(self, labels):
+        for k, v in labels.items():
+            self.label(k, v)
+        return self
+
     def annotation(self, name, value):
         self.worker.annotation(name, value)
         self.control.annotation(name, value)
         self._annotations = dict(self._annotations, **{name: value})
         return self
 
+    def annotations(self, annotations):
+        for k, v in annotations.items():
+            self.annotation(k, v)
+        return self
+
     def dump(self):
         client = self._kubernetes_sdk
-        import json
 
         data = json.dumps(
             client.ApiClient().sanitize_for_serialization(

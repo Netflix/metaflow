@@ -30,3 +30,6 @@ main.js.map
 .idea
 
 stubs/version.py
+
+# devtools
+.devtools

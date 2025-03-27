@@ -1,23 +1,20 @@
 import os
 import random
-
-import requests
 import time
 
+import requests
+
+from typing import List
 from metaflow.exception import (
     MetaflowException,
-    MetaflowTaggingError,
     MetaflowInternalError,
+    MetaflowTaggingError,
 )
-from metaflow.metaflow_config import (
-    SERVICE_RETRY_COUNT,
-    SERVICE_HEADERS,
-    SERVICE_URL,
-)
-from metaflow.metadata import MetadataProvider
-from metaflow.metadata.heartbeat import HB_URL_KEY
+from metaflow.metadata_provider import MetadataProvider
+from metaflow.metadata_provider.heartbeat import HB_URL_KEY
+from metaflow.metaflow_config import SERVICE_HEADERS, SERVICE_RETRY_COUNT, SERVICE_URL
 from metaflow.sidecar import Message, MessageTypes, Sidecar
-
+from urllib.parse import urlencode
 from metaflow.util import version_parse
 
 
@@ -39,6 +36,23 @@ class ServiceException(MetaflowException):
 class ServiceMetadataProvider(MetadataProvider):
     TYPE = "service"
 
+    _session = requests.Session()
+    _session.mount(
+        "http://",
+        requests.adapters.HTTPAdapter(
+            pool_connections=20,
+            pool_maxsize=20,
+            max_retries=0,  # Handle retries explicitly
+            pool_block=False,
+        ),
+    )
+    _session.mount(
+        "https://",
+        requests.adapters.HTTPAdapter(
+            pool_connections=20, pool_maxsize=20, max_retries=0, pool_block=False
+        ),
+    )
+
     _supports_attempt_gets = None
     _supports_tag_mutation = None
 
@@ -59,7 +73,9 @@ class ServiceMetadataProvider(MetadataProvider):
     def compute_info(cls, val):
         v = val.rstrip("/")
         try:
-            resp = requests.get(os.path.join(v, "ping"), headers=SERVICE_HEADERS.copy())
+            resp = cls._session.get(
+                os.path.join(v, "ping"), headers=SERVICE_HEADERS.copy()
+            )
             resp.raise_for_status()
         except:  # noqa E722
             raise ValueError("Metaflow service [%s] unreachable." % v)
@@ -304,6 +320,64 @@ class ServiceMetadataProvider(MetadataProvider):
             self._register_system_metadata(run_id, step_name, task["task_id"], attempt)
         return task["task_id"], did_create
 
+    @classmethod
+    def filter_tasks_by_metadata(
+        cls,
+        flow_name: str,
+        run_id: str,
+        step_name: str,
+        field_name: str,
+        pattern: str,
+    ) -> List[str]:
+        """
+        Filter tasks by metadata field and pattern, returning task pathspecs that match criteria.
+
+        Parameters
+        ----------
+        flow_name : str
+            Flow name, that the run belongs to.
+        run_id: str
+            Run id, together with flow_id, that identifies the specific Run whose tasks to query
+        step_name: str
+            Step name to query tasks from
+        field_name: str
+            Metadata field name to query
+        pattern: str
+            Pattern to match in metadata field value
+
+        Returns
+        -------
+        List[str]
+            List of task pathspecs that satisfy the query
+        """
+        query_params = {}
+
+        if pattern == ".*":
+            # we do not need to filter tasks at all if pattern allows 'any'
+            query_params = {}
+        else:
+            if field_name:
+                query_params["metadata_field_name"] = field_name
+            if pattern:
+                query_params["pattern"] = pattern
+
+        url = ServiceMetadataProvider._obj_path(flow_name, run_id, step_name)
+        url = f"{url}/filtered_tasks?{urlencode(query_params)}"
+
+        try:
+            resp, _ = cls._request(None, url, "GET")
+        except Exception as e:
+            if e.http_code == 404:
+                # filter_tasks_by_metadata endpoint does not exist in the version of metadata service
+                # deployed currently. Raise a more informative error message.
+                raise MetaflowInternalError(
+                    "The version of metadata service deployed currently does not support filtering tasks by metadata. "
+                    "Upgrade Metadata service to version 2.5.0 or greater to use this feature."
+                ) from e
+            # Other unknown exception
+            raise e
+        return resp
+
     @staticmethod
     def _obj_path(
         flow_name,
@@ -412,27 +486,27 @@ class ServiceMetadataProvider(MetadataProvider):
                 if method == "GET":
                     if monitor:
                         with monitor.measure("metaflow.service_metadata.get"):
-                            resp = requests.get(url, headers=SERVICE_HEADERS.copy())
+                            resp = cls._session.get(url, headers=SERVICE_HEADERS.copy())
                     else:
-                        resp = requests.get(url, headers=SERVICE_HEADERS.copy())
+                        resp = cls._session.get(url, headers=SERVICE_HEADERS.copy())
                 elif method == "POST":
                     if monitor:
                         with monitor.measure("metaflow.service_metadata.post"):
-                            resp = requests.post(
+                            resp = cls._session.post(
                                 url, headers=SERVICE_HEADERS.copy(), json=data
                             )
                     else:
-                        resp = requests.post(
+                        resp = cls._session.post(
                             url, headers=SERVICE_HEADERS.copy(), json=data
                         )
                 elif method == "PATCH":
                     if monitor:
                         with monitor.measure("metaflow.service_metadata.patch"):
-                            resp = requests.patch(
+                            resp = cls._session.patch(
                                 url, headers=SERVICE_HEADERS.copy(), json=data
                             )
                     else:
-                        resp = requests.patch(
+                        resp = cls._session.patch(
                             url, headers=SERVICE_HEADERS.copy(), json=data
                         )
                 else:
@@ -475,7 +549,6 @@ class ServiceMetadataProvider(MetadataProvider):
                         resp.text,
                     )
             time.sleep(2**i)
-
         if resp:
             raise ServiceException(
                 "Metadata request (%s) failed (code %s): %s"
@@ -499,9 +572,9 @@ class ServiceMetadataProvider(MetadataProvider):
             try:
                 if monitor:
                     with monitor.measure("metaflow.service_metadata.get"):
-                        resp = requests.get(url, headers=SERVICE_HEADERS.copy())
+                        resp = cls._session.get(url, headers=SERVICE_HEADERS.copy())
                 else:
-                    resp = requests.get(url, headers=SERVICE_HEADERS.copy())
+                    resp = cls._session.get(url, headers=SERVICE_HEADERS.copy())
             except:
                 if monitor:
                     with monitor.count("metaflow.service_metadata.failed_request"):

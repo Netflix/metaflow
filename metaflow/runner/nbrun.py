@@ -34,17 +34,17 @@ class NBRunner(object):
     show_output : bool, default True
         Show the 'stdout' and 'stderr' to the console by default,
         Only applicable for synchronous 'run' and 'resume' functions.
-    profile : Optional[str], default None
+    profile : str, optional, default None
         Metaflow profile to use to run this run. If not specified, the default
         profile is used (or the one already set using `METAFLOW_PROFILE`)
-    env : Optional[Dict], default None
+    env : Dict[str, str], optional, default None
         Additional environment variables to set for the Run. This overrides the
         environment set for this process.
-    base_dir : Optional[str], default None
+    base_dir : str, optional, default None
         The directory to run the subprocess in; if not specified, the current
         working directory is used.
     file_read_timeout : int, default 3600
-        The timeout until which we try to read the runner attribute file.
+        The timeout until which we try to read the runner attribute file (in seconds).
     **kwargs : Any
         Additional arguments that you would pass to `python myflow.py` before
         the `run` command.

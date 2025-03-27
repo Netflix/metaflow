@@ -5,6 +5,7 @@ import os
 import tarfile
 from collections import namedtuple
 from datetime import datetime
+from tempfile import TemporaryDirectory
 from io import BytesIO
 from itertools import chain
 from typing import (
@@ -39,7 +40,7 @@ from ..info_file import INFO_FILE
 from .filecache import FileCache
 
 if TYPE_CHECKING:
-    from metaflow.metadata import MetadataProvider
+    from metaflow.metadata_provider import MetadataProvider
 
 try:
     # python2
@@ -143,7 +144,7 @@ def default_metadata() -> str:
     if default:
         current_metadata = default[0]
     else:
-        from metaflow.plugins.metadata import LocalMetadataProvider
+        from metaflow.plugins.metadata_providers import LocalMetadataProvider
 
         current_metadata = LocalMetadataProvider
     return get_metadata()
@@ -379,7 +380,7 @@ class MetaflowObject(object):
             _CLASSES[self._CHILD_CLASS]._NAME,
             query_filter,
             self._attempt,
-            *self.path_components
+            *self.path_components,
         )
         unfiltered_children = unfiltered_children if unfiltered_children else []
         children = filter(
@@ -878,6 +879,73 @@ class MetaflowCode(object):
         """
         return self._tar
 
+    def extract(self) -> TemporaryDirectory:
+        """
+        Extracts the code package to a temporary directory.
+
+        This creates a temporary directory containing all user code
+        files from the code package. The temporary directory is
+        automatically deleted when the returned TemporaryDirectory
+        object is garbage collected or when its cleanup() is called.
+
+        To preserve the contents to a permanent location, use
+        os.replace() which performs a zero-copy move on the same
+        filesystem:
+
+        ```python
+        with task.code.extract() as tmp_dir:
+            # Move contents to permanent location
+            for item in os.listdir(tmp_dir):
+                src = os.path.join(tmp_dir, item)
+                dst = os.path.join('/path/to/permanent/dir', item)
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                os.replace(src, dst)  # Atomic move operation
+        ```
+        Returns
+        -------
+        TemporaryDirectory
+            A temporary directory containing the extracted code files.
+            The directory and its contents are automatically deleted when
+            this object is garbage collected.
+        """
+        exclusions = [
+            "metaflow/",
+            "metaflow_extensions/",
+            "INFO",
+            "CONFIG_PARAMETERS",
+            "conda.manifest",
+            # This file is created when using the conda/pypi features available in
+            # nflx-metaflow-extensions: https://github.com/Netflix/metaflow-nflx-extensions
+            "condav2-1.cnd",
+        ]
+        members = [
+            m
+            for m in self.tarball.getmembers()
+            if not any(
+                (x.endswith("/") and m.name.startswith(x)) or (m.name == x)
+                for x in exclusions
+            )
+        ]
+
+        tmp = TemporaryDirectory()
+        self.tarball.extractall(tmp.name, members)
+        return tmp
+
+    @property
+    def script_name(self) -> str:
+        """
+        Returns the filename of the Python script containing the FlowSpec.
+
+        This is the main Python file that was used to execute the flow. For example,
+        if your flow is defined in 'myflow.py', this property will return 'myflow.py'.
+
+        Returns
+        -------
+        str
+            Name of the Python file containing the FlowSpec
+        """
+        return self._info["script"]
+
     def __str__(self):
         return "<MetaflowCode: %s>" % self._info["script"]
 
@@ -1122,6 +1190,143 @@ class Task(MetaflowObject):
     def _iter_filter(self, x):
         # exclude private data artifacts
         return x.id[0] != "_"
+
+    def _iter_matching_tasks(self, steps, metadata_key, metadata_pattern):
+        """
+        Yield tasks from specified steps matching a foreach path pattern.
+
+        Parameters
+        ----------
+        steps : List[str]
+            List of step names to search for tasks
+        pattern : str
+            Regex pattern to match foreach-indices metadata
+
+        Returns
+        -------
+        Iterator[Task]
+            Tasks matching the foreach path pattern
+        """
+        flow_id, run_id, _, _ = self.path_components
+
+        for step in steps:
+            task_pathspecs = self._metaflow.metadata.filter_tasks_by_metadata(
+                flow_id, run_id, step.id, metadata_key, metadata_pattern
+            )
+            for task_pathspec in task_pathspecs:
+                yield Task(pathspec=task_pathspec, _namespace_check=False)
+
+    @property
+    def parent_tasks(self) -> Iterator["Task"]:
+        """
+        Yields all parent tasks of the current task if one exists.
+
+        Yields
+        ------
+        Task
+            Parent task of the current task
+
+        """
+        flow_id, run_id, _, _ = self.path_components
+
+        steps = list(self.parent.parent_steps)
+        if not steps:
+            return []
+
+        current_path = self.metadata_dict.get("foreach-execution-path", "")
+
+        if len(steps) > 1:
+            # Static join - use exact path matching
+            pattern = current_path or ".*"
+            yield from self._iter_matching_tasks(
+                steps, "foreach-execution-path", pattern
+            )
+            return
+
+        # Handle single step case
+        target_task = Step(
+            f"{flow_id}/{run_id}/{steps[0].id}", _namespace_check=False
+        ).task
+        target_path = target_task.metadata_dict.get("foreach-execution-path")
+
+        if not target_path or not current_path:
+            # (Current task, "A:10") and (Parent task, "")
+            # Pattern: ".*"
+            pattern = ".*"
+        else:
+            current_depth = len(current_path.split(","))
+            target_depth = len(target_path.split(","))
+
+            if current_depth < target_depth:
+                # Foreach join
+                # (Current task, "A:10,B:13") and (Parent task, "A:10,B:13,C:21")
+                # Pattern: "A:10,B:13,.*"
+                pattern = f"{current_path},.*"
+            else:
+                # Foreach split or linear step
+                # Option 1:
+                # (Current task, "A:10,B:13,C:21") and (Parent task, "A:10,B:13")
+                # Option 2:
+                # (Current task, "A:10,B:13") and (Parent task, "A:10,B:13")
+                # Pattern: "A:10,B:13"
+                pattern = ",".join(current_path.split(",")[:target_depth])
+
+        yield from self._iter_matching_tasks(steps, "foreach-execution-path", pattern)
+
+    @property
+    def child_tasks(self) -> Iterator["Task"]:
+        """
+        Yield all child tasks of the current task if one exists.
+
+        Yields
+        ------
+        Task
+            Child task of the current task
+        """
+        flow_id, run_id, _, _ = self.path_components
+        steps = list(self.parent.child_steps)
+        if not steps:
+            return []
+
+        current_path = self.metadata_dict.get("foreach-execution-path", "")
+
+        if len(steps) > 1:
+            # Static split - use exact path matching
+            pattern = current_path or ".*"
+            yield from self._iter_matching_tasks(
+                steps, "foreach-execution-path", pattern
+            )
+            return
+
+        # Handle single step case
+        target_task = Step(
+            f"{flow_id}/{run_id}/{steps[0].id}", _namespace_check=False
+        ).task
+        target_path = target_task.metadata_dict.get("foreach-execution-path")
+
+        if not target_path or not current_path:
+            # (Current task, "A:10") and (Child task, "")
+            # Pattern: ".*"
+            pattern = ".*"
+        else:
+            current_depth = len(current_path.split(","))
+            target_depth = len(target_path.split(","))
+
+            if current_depth < target_depth:
+                # Foreach split
+                # (Current task, "A:10,B:13") and (Child task, "A:10,B:13,C:21")
+                # Pattern: "A:10,B:13,.*"
+                pattern = f"{current_path},.*"
+            else:
+                # Foreach join or linear step
+                # Option 1:
+                # (Current task, "A:10,B:13,C:21") and (Child task, "A:10,B:13")
+                # Option 2:
+                # (Current task, "A:10,B:13") and (Child task, "A:10,B:13")
+                # Pattern: "A:10,B:13"
+                pattern = ",".join(current_path.split(",")[:target_depth])
+
+        yield from self._iter_matching_tasks(steps, "foreach-execution-path", pattern)
 
     @property
     def metadata(self) -> List[Metadata]:
@@ -1836,6 +2041,41 @@ class Step(MetaflowObject):
         # All tasks have the same environment info so just use the first one
         for t in self:
             return t.environment_info
+
+    @property
+    def parent_steps(self) -> Iterator["Step"]:
+        """
+        Yields parent steps for the current step.
+
+        Yields
+        ------
+        Step
+            Parent step
+        """
+        graph_info = self.task["_graph_info"].data
+
+        if self.id != "start":
+            flow, run, _ = self.path_components
+            for node_name, attributes in graph_info["steps"].items():
+                if self.id in attributes["next"]:
+                    yield Step(f"{flow}/{run}/{node_name}", _namespace_check=False)
+
+    @property
+    def child_steps(self) -> Iterator["Step"]:
+        """
+        Yields child steps for the current step.
+
+        Yields
+        ------
+        Step
+            Child step
+        """
+        graph_info = self.task["_graph_info"].data
+
+        if self.id != "end":
+            flow, run, _ = self.path_components
+            for next_step in graph_info["steps"][self.id]["next"]:
+                yield Step(f"{flow}/{run}/{next_step}", _namespace_check=False)
 
 
 class Run(MetaflowObject):

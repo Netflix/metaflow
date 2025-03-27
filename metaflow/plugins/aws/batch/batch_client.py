@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
-from collections import defaultdict, deque
+from collections import defaultdict
 import copy
 import random
-import select
-import sys
 import time
 import hashlib
 

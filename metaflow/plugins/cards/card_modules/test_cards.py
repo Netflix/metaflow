@@ -38,7 +38,7 @@ class TestEditableCard(MetaflowCard):
 
     ALLOW_USER_COMPONENTS = True
 
-    def __init__(self, options={}, components=[], graph=None):
+    def __init__(self, components=[], **kwargs):
         self._components = components
 
     def render(self, task):
@@ -52,7 +52,7 @@ class TestEditableCard2(MetaflowCard):
 
     ALLOW_USER_COMPONENTS = True
 
-    def __init__(self, options={}, components=[], graph=None):
+    def __init__(self, components=[], **kwargs):
         self._components = components
 
     def render(self, task):
@@ -64,7 +64,7 @@ class TestNonEditableCard(MetaflowCard):
 
     seperator = "$&#!!@*"
 
-    def __init__(self, options={}, components=[], graph=None):
+    def __init__(self, components=[], **kwargs):
         self._components = components
 
     def render(self, task):
@@ -193,7 +193,7 @@ class TestRefreshComponentCard(MetaflowCard):
 
     type = "test_component_refresh_card"
 
-    def __init__(self, options={}, components=[], graph=None):
+    def __init__(self, components=[], **kwargs):
         self._components = components
 
     def render(self, task) -> str:

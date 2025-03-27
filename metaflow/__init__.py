@@ -101,9 +101,10 @@ from .metaflow_current import current
 # Flow spec
 from .flowspec import FlowSpec
 
-from .parameters import Parameter, JSONTypeClass
+from .parameters import Parameter, JSONTypeClass, JSONType
 
-JSONType = JSONTypeClass()
+from .user_configs.config_parameters import Config, ConfigValue, config_expr
+from .user_configs.config_decorators import CustomFlowDecorator, CustomStepDecorator
 
 # data layer
 # For historical reasons, we make metaflow.plugins.datatools accessible as
@@ -117,6 +118,12 @@ from .includefile import IncludeFile
 
 # Decorators
 from .decorators import step, _import_plugin_decorators
+
+
+# Parsers (for configs) for now
+from .plugins import _import_tl_plugins
+
+_import_tl_plugins(globals())
 
 # this auto-generates decorator functions from Decorator objects
 # in the top-level metaflow namespace
@@ -149,6 +156,7 @@ if sys.version_info >= (3, 7):
     from .runner.metaflow_runner import Runner
     from .runner.nbrun import NBRunner
     from .runner.deployer import Deployer
+    from .runner.deployer import DeployedFlow
     from .runner.nbdeploy import NBDeployer
 
 __ext_tl_modules__ = []

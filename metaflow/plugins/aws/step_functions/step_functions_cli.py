@@ -4,7 +4,6 @@ import re
 from hashlib import sha1
 
 from metaflow import JSONType, current, decorators, parameters
-from metaflow.client.core import get_metadata
 from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import (
@@ -154,6 +153,13 @@ def create(
     use_distributed_map=False,
     deployer_attribute_file=None,
 ):
+    for node in obj.graph:
+        if any([d.name == "slurm" for d in node.decorators]):
+            raise MetaflowException(
+                "Step *%s* is marked for execution on Slurm with AWS Step Functions which isn't currently supported."
+                % node.name
+            )
+
     validate_tags(tags)
 
     if deployer_attribute_file:
@@ -319,6 +325,7 @@ def make_flow(
 
     # Attach AWS Batch decorator to the flow
     decorators._attach_decorators(obj.flow, [BatchDecorator.name])
+    decorators._init(obj.flow)
     decorators._init_step_decorators(
         obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
     )

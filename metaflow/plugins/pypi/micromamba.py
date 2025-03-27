@@ -1,12 +1,16 @@
+import functools
 import json
 import os
+import re
 import subprocess
 import tempfile
+import time
 
 from metaflow.exception import MetaflowException
 from metaflow.util import which
 
-from .utils import conda_platform
+from .utils import MICROMAMBA_MIRROR_URL, MICROMAMBA_URL, conda_platform
+from threading import Lock
 
 
 class MicromambaException(MetaflowException):
@@ -19,8 +23,13 @@ class MicromambaException(MetaflowException):
         super(MicromambaException, self).__init__(msg)
 
 
+GLIBC_VERSION = os.environ.get("CONDA_OVERRIDE_GLIBC", "2.38")
+
+_double_equal_match = re.compile("==(?=[<=>!~])")
+
+
 class Micromamba(object):
-    def __init__(self):
+    def __init__(self, logger=None):
         # micromamba is a tiny version of the mamba package manager and comes with
         # metaflow specific performance enhancements.
 
@@ -29,26 +38,50 @@ class Micromamba(object):
             _home = os.environ.get("METAFLOW_TOKEN_HOME")
         else:
             _home = os.environ.get("METAFLOW_HOME", "~/.metaflowconfig")
-        _path_to_hidden_micromamba = os.path.join(
+        self._path_to_hidden_micromamba = os.path.join(
             os.path.expanduser(_home),
             "micromamba",
         )
-        self.bin = (
+
+        if logger:
+            self.logger = logger
+        else:
+            self.logger = lambda *args, **kwargs: None  # No-op logger if not provided
+
+        self._bin = (
             which(os.environ.get("METAFLOW_PATH_TO_MICROMAMBA") or "micromamba")
             or which("./micromamba")  # to support remote execution
             or which("./bin/micromamba")
-            or which(os.path.join(_path_to_hidden_micromamba, "bin/micromamba"))
+            or which(os.path.join(self._path_to_hidden_micromamba, "bin/micromamba"))
         )
-        if self.bin is None:
+
+        # We keep a mutex as environments are resolved in parallel,
+        # which causes a race condition in case micromamba needs to be installed first.
+        self.install_mutex = Lock()
+
+    @property
+    def bin(self) -> str:
+        "Defer installing Micromamba until when the binary path is actually requested"
+        if self._bin is not None:
+            return self._bin
+        with self.install_mutex:
+            # another check as micromamba might have been installed when the mutex is released.
+            if self._bin is not None:
+                return self._bin
+
             # Install Micromamba on the fly.
             # TODO: Make this optional at some point.
-            _install_micromamba(_path_to_hidden_micromamba)
-            self.bin = which(os.path.join(_path_to_hidden_micromamba, "bin/micromamba"))
+            _install_micromamba(self._path_to_hidden_micromamba)
+            self._bin = which(
+                os.path.join(self._path_to_hidden_micromamba, "bin/micromamba")
+            )
 
-        if self.bin is None:
-            msg = "No installation for *Micromamba* found.\n"
-            msg += "Visit https://mamba.readthedocs.io/en/latest/micromamba-installation.html for installation instructions."
-            raise MetaflowException(msg)
+            if self._bin is None:
+                msg = "No installation for *Micromamba* found.\n"
+                msg += "Visit https://mamba.readthedocs.io/en/latest/micromamba-installation.html for installation instructions."
+                raise MetaflowException(msg)
+
+        return self._bin
 
     def solve(self, id_, packages, python, platform):
         # Performance enhancements
@@ -70,6 +103,9 @@ class Micromamba(object):
                 "MAMBA_ADD_PIP_AS_PYTHON_DEPENDENCY": "true",
                 "CONDA_SUBDIR": platform,
                 # "CONDA_UNSATISFIABLE_HINTS_CHECK_DEPTH": "0" # https://github.com/conda/conda/issues/9862
+                # Add a default glibc version for linux-64 environments (ignored for other platforms)
+                # TODO: Make the version configurable
+                "CONDA_OVERRIDE_GLIBC": GLIBC_VERSION,
             }
             cmd = [
                 "create",
@@ -78,6 +114,7 @@ class Micromamba(object):
                 "--dry-run",
                 "--no-extra-safety-checks",
                 "--repodata-ttl=86400",
+                "--safety-checks=disabled",
                 "--retry-clean-cache",
                 "--prefix=%s/prefix" % tmp_dir,
             ]
@@ -86,15 +123,17 @@ class Micromamba(object):
                 cmd.append("--channel=%s" % channel)
 
             for package, version in packages.items():
-                cmd.append("%s==%s" % (package, version))
+                version_string = "%s==%s" % (package, version)
+                cmd.append(_double_equal_match.sub("", version_string))
             if python:
                 cmd.append("python==%s" % python)
             # TODO: Ensure a human readable message is returned when the environment
             #       can't be resolved for any and all reasons.
-            return [
+            solved_packages = [
                 {k: v for k, v in item.items() if k in ["url"]}
                 for item in self._call(cmd, env)["actions"]["LINK"]
             ]
+            return solved_packages
 
     def download(self, id_, packages, python, platform):
         # Unfortunately all the packages need to be catalogued in package cache
@@ -103,8 +142,6 @@ class Micromamba(object):
         # Micromamba is painfully slow in determining if many packages are infact
         # already cached. As a perf heuristic, we check if the environment already
         # exists to short circuit package downloads.
-        if self.path_to_environment(id_, platform):
-            return
 
         prefix = "{env_dirs}/{keyword}/{platform}/{id}".format(
             env_dirs=self.info()["envs_dirs"][0],
@@ -113,13 +150,18 @@ class Micromamba(object):
             id=id_,
         )
 
-        # Another forced perf heuristic to skip cross-platform downloads.
+        # cheap check
         if os.path.exists(f"{prefix}/fake.done"):
+            return
+
+        # somewhat expensive check
+        if self.path_to_environment(id_, platform):
             return
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             env = {
                 "CONDA_SUBDIR": platform,
+                "CONDA_OVERRIDE_GLIBC": GLIBC_VERSION,
             }
             cmd = [
                 "create",
@@ -159,6 +201,7 @@ class Micromamba(object):
             # use hardlinks when possible, otherwise copy files
             # disabled for now since it adds to environment creation latencies
             "CONDA_ALLOW_SOFTLINKS": "0",
+            "CONDA_OVERRIDE_GLIBC": GLIBC_VERSION,
         }
         cmd = [
             "create",
@@ -174,6 +217,7 @@ class Micromamba(object):
             cmd.append("{url}".format(**package))
         self._call(cmd, env)
 
+    @functools.lru_cache(maxsize=None)
     def info(self):
         return self._call(["config", "list", "-a"])
 
@@ -198,18 +242,24 @@ class Micromamba(object):
         }
         directories = self.info()["pkgs_dirs"]
         # search all package caches for packages
-        metadata = {
-            url: os.path.join(d, file)
+
+        file_to_path = {}
+        for d in directories:
+            if os.path.isdir(d):
+                try:
+                    with os.scandir(d) as entries:
+                        for entry in entries:
+                            if entry.is_file():
+                                # Prefer the first occurrence if the file exists in multiple directories
+                                file_to_path.setdefault(entry.name, entry.path)
+                except OSError:
+                    continue
+        ret = {
+            # set package tarball local paths to None if package tarballs are missing
+            url: file_to_path.get(file)
             for url, file in packages_to_filenames.items()
-            for d in directories
-            if os.path.isdir(d)
-            and file in os.listdir(d)
-            and os.path.isfile(os.path.join(d, file))
         }
-        # set package tarball local paths to None if package tarballs are missing
-        for url in packages_to_filenames:
-            metadata.setdefault(url, None)
-        return metadata
+        return ret
 
     def interpreter(self, id_):
         return os.path.join(self.path_to_environment(id_), "bin/python")
@@ -296,7 +346,7 @@ class Micromamba(object):
                         stderr="\n".join(err),
                     )
                 )
-            except (TypeError, ValueError) as ve:
+            except (TypeError, ValueError):
                 pass
             raise MicromambaException(
                 msg.format(
@@ -312,23 +362,37 @@ def _install_micromamba(installation_location):
     # Unfortunately no 32bit binaries are available for micromamba, which ideally
     # shouldn't be much of a problem in today's world.
     platform = conda_platform()
-    try:
-        subprocess.Popen(f"mkdir -p {installation_location}", shell=True).wait()
-        # https://mamba.readthedocs.io/en/latest/micromamba-installation.html#manual-installation
-        # requires bzip2
-        result = subprocess.Popen(
-            f"curl -Ls https://micro.mamba.pm/api/micromamba/{platform}/1.5.7 | tar -xvj -C {installation_location} bin/micromamba",
-            shell=True,
-            stderr=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-        )
-        _, err = result.communicate()
-        if result.returncode != 0:
-            raise MicromambaException(
-                f"Micromamba installation '{result.args}' failed:\n{err.decode()}"
-            )
+    url = MICROMAMBA_URL.format(platform=platform, version="1.5.7")
+    mirror_url = MICROMAMBA_MIRROR_URL.format(platform=platform, version="1.5.7")
+    os.makedirs(installation_location, exist_ok=True)
 
-    except subprocess.CalledProcessError as e:
-        raise MicromambaException(
-            "Micromamba installation failed:\n{}".format(e.stderr.decode())
-        )
+    def _download_and_extract(url):
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # https://mamba.readthedocs.io/en/latest/micromamba-installation.html#manual-installation
+                # requires bzip2
+                result = subprocess.Popen(
+                    f"curl -Ls {url} | tar -xvj -C {installation_location} bin/micromamba",
+                    shell=True,
+                    stderr=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                )
+                _, err = result.communicate()
+                if result.returncode != 0:
+                    raise MicromambaException(
+                        f"Micromamba installation '{result.args}' failed:\n{err.decode()}"
+                    )
+            except subprocess.CalledProcessError as e:
+                if attempt == max_retries - 1:
+                    raise MicromambaException(
+                        "Micromamba installation failed:\n{}".format(e.stderr.decode())
+                    )
+                time.sleep(2**attempt)
+
+    try:
+        # prioritize downloading from mirror
+        _download_and_extract(mirror_url)
+    except Exception:
+        # download from official source as a fallback
+        _download_and_extract(url)
