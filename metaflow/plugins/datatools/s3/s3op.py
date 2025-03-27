@@ -57,6 +57,9 @@ DOWNLOAD_MAX_CHUNK = 2 * 1024 * 1024 * 1024 - 1
 
 DEFAULT_S3_CLIENT_PARAMS = {"config": Config(retries=S3_CLIENT_RETRY_CONFIG)}
 RANGE_MATCH = re.compile(r"bytes (?P<start>[0-9]+)-(?P<end>[0-9]+)/(?P<total>[0-9]+)")
+
+# from botocore ClientError MSG_TEMPLATE:
+# https://github.com/boto/botocore/blob/68ca78f3097906c9231840a49931ef4382c41eea/botocore/exceptions.py#L521
 BOTOCORE_MSG_TEMPLATE_MATCH = re.compile(
     r"An error occurred \((\w+)\) when calling the (\w+) operation.*: (.+)"
 )
@@ -230,47 +233,48 @@ def worker(result_file_name, queue, mode, s3config):
                 elif mode == "download":
                     tmp = NamedTemporaryFile(dir=".", mode="wb", delete=False)
                     try:
-                        if url.range:
-                            resp = s3.get_object(
-                                Bucket=url.bucket, Key=url.path, Range=url.range
-                            )
-                            range_result = resp["ContentRange"]
-                            range_result_match = RANGE_MATCH.match(range_result)
-                            if range_result_match is None:
-                                raise RuntimeError(
-                                    "Wrong format for ContentRange: %s"
-                                    % str(range_result)
+                        try:
+                            if url.range:
+                                resp = s3.get_object(
+                                    Bucket=url.bucket, Key=url.path, Range=url.range
                                 )
-                            range_result = {
-                                x: int(range_result_match.group(x))
-                                for x in ["total", "start", "end"]
-                            }
-                        else:
-                            resp = s3.get_object(Bucket=url.bucket, Key=url.path)
-                            range_result = None
-                        sz = resp["ContentLength"]
-                        if range_result is None:
-                            range_result = {"total": sz, "start": 0, "end": sz - 1}
-                        if not url.range and sz > DOWNLOAD_FILE_THRESHOLD:
-                            # In this case, it is more efficient to use download_file as it
-                            # will download multiple parts in parallel (it does it after
-                            # multipart_threshold)
-                            s3.download_file(url.bucket, url.path, tmp.name)
-                        else:
-                            read_in_chunks(tmp, resp["Body"], sz, DOWNLOAD_MAX_CHUNK)
-                        tmp.close()
-                        os.rename(tmp.name, url.local)
-                    except client_error as err:
-                        tmp.close()
-                        os.unlink(tmp.name)
-                        handle_client_error(err, idx, result_file)
-                        continue
-                    except RetriesExceededError as e:
-                        tmp.close()
-                        os.unlink(tmp.name)
-                        err = convert_to_client_error(e)
-                        handle_client_error(err, idx, result_file)
-                        continue
+                                range_result = resp["ContentRange"]
+                                range_result_match = RANGE_MATCH.match(range_result)
+                                if range_result_match is None:
+                                    raise RuntimeError(
+                                        "Wrong format for ContentRange: %s"
+                                        % str(range_result)
+                                    )
+                                range_result = {
+                                    x: int(range_result_match.group(x))
+                                    for x in ["total", "start", "end"]
+                                }
+                            else:
+                                resp = s3.get_object(Bucket=url.bucket, Key=url.path)
+                                range_result = None
+                            sz = resp["ContentLength"]
+                            if range_result is None:
+                                range_result = {"total": sz, "start": 0, "end": sz - 1}
+                            if not url.range and sz > DOWNLOAD_FILE_THRESHOLD:
+                                # In this case, it is more efficient to use download_file as it
+                                # will download multiple parts in parallel (it does it after
+                                # multipart_threshold)
+                                s3.download_file(url.bucket, url.path, tmp.name)
+                            else:
+                                read_in_chunks(tmp, resp["Body"], sz, DOWNLOAD_MAX_CHUNK)
+                            tmp.close()
+                            os.rename(tmp.name, url.local)
+                        except client_error as err:
+                            tmp.close()
+                            os.unlink(tmp.name)
+                            handle_client_error(err, idx, result_file)
+                            continue
+                        except RetriesExceededError as e:
+                            tmp.close()
+                            os.unlink(tmp.name)
+                            err = convert_to_client_error(e)
+                            handle_client_error(err, idx, result_file)
+                            continue
                     except (SSLError, Exception) as e:
                         tmp.close()
                         os.unlink(tmp.name)
@@ -325,19 +329,22 @@ def worker(result_file_name, queue, mode, s3config):
                             if url.encryption is not None:
                                 extra["ServerSideEncryption"] = url.encryption
                         try:
-                            s3.upload_file(
-                                url.local, url.bucket, url.path, ExtraArgs=extra
-                            )
-                            # We indicate that the file was uploaded
-                            result_file.write("%d %d\n" % (idx, 0))
-                        except client_error as err:
-                            # shouldn't get here, but just in case
-                            handle_client_error(err, idx, result_file)
-                            continue
-                        except S3UploadFailedError as e:
-                            err = convert_to_client_error(e)
-                            handle_client_error(err, idx, result_file)
-                            continue
+                            try:
+                                s3.upload_file(
+                                    url.local, url.bucket, url.path, ExtraArgs=extra
+                                )
+                                # We indicate that the file was uploaded
+                                result_file.write("%d %d\n" % (idx, 0))
+                            except client_error as err:
+                                # Shouldn't get here, but just in case.
+                                # Internally, botocore catches ClientError and returns a S3UploadFailedError.
+                                # See https://github.com/boto/boto3/blob/develop/boto3/s3/transfer.py#L377
+                                handle_client_error(err, idx, result_file)
+                                continue
+                            except S3UploadFailedError as e:
+                                err = convert_to_client_error(e)
+                                handle_client_error(err, idx, result_file)
+                                continue
                         except (SSLError, Exception) as e:
                             # assume anything else is transient
                             result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
