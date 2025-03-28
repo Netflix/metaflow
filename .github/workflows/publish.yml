@@ -19,7 +19,7 @@ jobs:
     - name: Install Python 3.x dependencies
       run: |
         python3 -m pip install --upgrade pip
-        pip3 install setuptools wheel twine
+        pip3 install --upgrade setuptools wheel twine pkginfo
     - name: Install metaflow
       run: pip install .
     - name: Generate Stubs
