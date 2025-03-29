@@ -11,7 +11,6 @@ WHITELIST = {
     "README.txt",
     "__init__.py",
     "vendor_any.txt",
-    "vendor_v3_5.txt",
     "vendor_v3_6.txt",
     "vendor_v3_7.txt",
     "pip.LICENSE",

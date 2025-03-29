@@ -411,7 +411,7 @@ class CondaEnvironment(MetaflowEnvironment):
         files = []
         manifest = self.get_environment_manifest_path()
         if os.path.exists(manifest):
-            files.append((manifest, os.path.basename(manifest)))
+            files.append((manifest, os.path.basename(manifest), True))
         return files
 
     def bootstrap_commands(self, step_name, datastore_type):
