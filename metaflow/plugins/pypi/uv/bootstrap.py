@@ -40,6 +40,7 @@ if __name__ == "__main__":
 
     def install_uv_project_packages():
         print("Syncing UV project")
+        # We need to install Metaflow required libraries into the uv venv as they might be missing.
         cmd = f"""set -e;
             uv sync;
             uv pip install boto3 requests --strict
