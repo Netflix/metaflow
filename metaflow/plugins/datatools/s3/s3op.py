@@ -261,7 +261,9 @@ def worker(result_file_name, queue, mode, s3config):
                                 # multipart_threshold)
                                 s3.download_file(url.bucket, url.path, tmp.name)
                             else:
-                                read_in_chunks(tmp, resp["Body"], sz, DOWNLOAD_MAX_CHUNK)
+                                read_in_chunks(
+                                    tmp, resp["Body"], sz, DOWNLOAD_MAX_CHUNK
+                                )
                             tmp.close()
                             os.rename(tmp.name, url.local)
                         except client_error as err:
