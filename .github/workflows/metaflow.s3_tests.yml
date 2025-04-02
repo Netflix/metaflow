@@ -14,7 +14,9 @@ permissions: read-all
 
 jobs:
   test_data:
-    if: (github.event.action == 'labeled' && (github.event.label.name == 'approved' || github.event.label.name == 'ok-to-test')) || (github.event.action != 'labeled' && (contains(github.event.pull_request.labels.*.name, 'ok-to-test') || contains(github.event.pull_request.labels.*.name, 'approved')))
+    # NOTE: temporarily disable s3 tests since they will fail due to 403
+    # https://netflix.slack.com/archives/C023Y9JH36W/p1740806169172489?thread_ts=1740180557.110859&cid=C023Y9JH36W
+    if: false && ((github.event.action == 'labeled' && (github.event.label.name == 'approved' || github.event.label.name == 'ok-to-test')) || (github.event.action != 'labeled' && (contains(github.event.pull_request.labels.*.name, 'ok-to-test') || contains(github.event.pull_request.labels.*.name, 'approved'))))
     name: metaflow.s3 / Python ${{ matrix.ver }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:

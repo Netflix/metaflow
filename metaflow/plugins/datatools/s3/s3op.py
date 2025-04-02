@@ -15,7 +15,10 @@ from tempfile import NamedTemporaryFile
 from multiprocessing import Process, Queue
 from itertools import starmap, chain, islice
 
+from boto3.exceptions import RetriesExceededError, S3UploadFailedError
 from boto3.s3.transfer import TransferConfig
+from botocore.config import Config
+from botocore.exceptions import ClientError, SSLError
 
 try:
     # python2
@@ -46,12 +49,20 @@ from metaflow.plugins.datatools.s3.s3util import (
 import metaflow.tracing as tracing
 from metaflow.metaflow_config import (
     S3_WORKER_COUNT,
+    S3_CLIENT_RETRY_CONFIG,
 )
 
 DOWNLOAD_FILE_THRESHOLD = 2 * TransferConfig().multipart_threshold
 DOWNLOAD_MAX_CHUNK = 2 * 1024 * 1024 * 1024 - 1
 
+DEFAULT_S3_CLIENT_PARAMS = {"config": Config(retries=S3_CLIENT_RETRY_CONFIG)}
 RANGE_MATCH = re.compile(r"bytes (?P<start>[0-9]+)-(?P<end>[0-9]+)/(?P<total>[0-9]+)")
+
+# from botocore ClientError MSG_TEMPLATE:
+# https://github.com/boto/botocore/blob/68ca78f3097906c9231840a49931ef4382c41eea/botocore/exceptions.py#L521
+BOTOCORE_MSG_TEMPLATE_MATCH = re.compile(
+    r"An error occurred \((\w+)\) when calling the (\w+) operation.*: (.+)"
+)
 
 S3Config = namedtuple("S3Config", "role session_vars client_params")
 
@@ -147,6 +158,7 @@ def normalize_client_error(err):
             "LimitExceededException",
             "RequestThrottled",
             "EC2ThrottledException",
+            "InternalError",
         ):
             return 503
     return error_code
@@ -221,54 +233,57 @@ def worker(result_file_name, queue, mode, s3config):
                 elif mode == "download":
                     tmp = NamedTemporaryFile(dir=".", mode="wb", delete=False)
                     try:
-                        if url.range:
-                            resp = s3.get_object(
-                                Bucket=url.bucket, Key=url.path, Range=url.range
-                            )
-                            range_result = resp["ContentRange"]
-                            range_result_match = RANGE_MATCH.match(range_result)
-                            if range_result_match is None:
-                                raise RuntimeError(
-                                    "Wrong format for ContentRange: %s"
-                                    % str(range_result)
+                        try:
+                            if url.range:
+                                resp = s3.get_object(
+                                    Bucket=url.bucket, Key=url.path, Range=url.range
                                 )
-                            range_result = {
-                                x: int(range_result_match.group(x))
-                                for x in ["total", "start", "end"]
-                            }
-                        else:
-                            resp = s3.get_object(Bucket=url.bucket, Key=url.path)
-                            range_result = None
-                        sz = resp["ContentLength"]
-                        if range_result is None:
-                            range_result = {"total": sz, "start": 0, "end": sz - 1}
-                        if not url.range and sz > DOWNLOAD_FILE_THRESHOLD:
-                            # In this case, it is more efficient to use download_file as it
-                            # will download multiple parts in parallel (it does it after
-                            # multipart_threshold)
-                            s3.download_file(url.bucket, url.path, tmp.name)
-                        else:
-                            read_in_chunks(tmp, resp["Body"], sz, DOWNLOAD_MAX_CHUNK)
-                        tmp.close()
-                        os.rename(tmp.name, url.local)
-                    except client_error as err:
+                                range_result = resp["ContentRange"]
+                                range_result_match = RANGE_MATCH.match(range_result)
+                                if range_result_match is None:
+                                    raise RuntimeError(
+                                        "Wrong format for ContentRange: %s"
+                                        % str(range_result)
+                                    )
+                                range_result = {
+                                    x: int(range_result_match.group(x))
+                                    for x in ["total", "start", "end"]
+                                }
+                            else:
+                                resp = s3.get_object(Bucket=url.bucket, Key=url.path)
+                                range_result = None
+                            sz = resp["ContentLength"]
+                            if range_result is None:
+                                range_result = {"total": sz, "start": 0, "end": sz - 1}
+                            if not url.range and sz > DOWNLOAD_FILE_THRESHOLD:
+                                # In this case, it is more efficient to use download_file as it
+                                # will download multiple parts in parallel (it does it after
+                                # multipart_threshold)
+                                s3.download_file(url.bucket, url.path, tmp.name)
+                            else:
+                                read_in_chunks(
+                                    tmp, resp["Body"], sz, DOWNLOAD_MAX_CHUNK
+                                )
+                            tmp.close()
+                            os.rename(tmp.name, url.local)
+                        except client_error as err:
+                            tmp.close()
+                            os.unlink(tmp.name)
+                            handle_client_error(err, idx, result_file)
+                            continue
+                        except RetriesExceededError as e:
+                            tmp.close()
+                            os.unlink(tmp.name)
+                            err = convert_to_client_error(e)
+                            handle_client_error(err, idx, result_file)
+                            continue
+                    except (SSLError, Exception) as e:
                         tmp.close()
                         os.unlink(tmp.name)
-                        error_code = normalize_client_error(err)
-                        if error_code == 404:
-                            result_file.write("%d %d\n" % (idx, -ERROR_URL_NOT_FOUND))
-                            continue
-                        elif error_code == 403:
-                            result_file.write(
-                                "%d %d\n" % (idx, -ERROR_URL_ACCESS_DENIED)
-                            )
-                            continue
-                        elif error_code == 503:
-                            result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
-                            continue
-                        else:
-                            raise
-                        # TODO specific error message for out of disk space
+                        # assume anything else is transient
+                        result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
+                        result_file.flush()
+                        continue
                     # If we need the metadata, get it and write it out
                     if pre_op_info:
                         with open("%s_meta" % url.local, mode="w") as f:
@@ -316,26 +331,65 @@ def worker(result_file_name, queue, mode, s3config):
                             if url.encryption is not None:
                                 extra["ServerSideEncryption"] = url.encryption
                         try:
-                            s3.upload_file(
-                                url.local, url.bucket, url.path, ExtraArgs=extra
-                            )
-                            # We indicate that the file was uploaded
-                            result_file.write("%d %d\n" % (idx, 0))
-                        except client_error as err:
-                            error_code = normalize_client_error(err)
-                            if error_code == 403:
-                                result_file.write(
-                                    "%d %d\n" % (idx, -ERROR_URL_ACCESS_DENIED)
+                            try:
+                                s3.upload_file(
+                                    url.local, url.bucket, url.path, ExtraArgs=extra
                                 )
+                                # We indicate that the file was uploaded
+                                result_file.write("%d %d\n" % (idx, 0))
+                            except client_error as err:
+                                # Shouldn't get here, but just in case.
+                                # Internally, botocore catches ClientError and returns a S3UploadFailedError.
+                                # See https://github.com/boto/boto3/blob/develop/boto3/s3/transfer.py#L377
+                                handle_client_error(err, idx, result_file)
                                 continue
-                            elif error_code == 503:
-                                result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
+                            except S3UploadFailedError as e:
+                                err = convert_to_client_error(e)
+                                handle_client_error(err, idx, result_file)
                                 continue
-                            else:
-                                raise
+                        except (SSLError, Exception) as e:
+                            # assume anything else is transient
+                            result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
+                            result_file.flush()
+                            continue
         except:
             traceback.print_exc()
+            result_file.flush()
             sys.exit(ERROR_WORKER_EXCEPTION)
+
+
+def convert_to_client_error(e):
+    match = BOTOCORE_MSG_TEMPLATE_MATCH.search(str(e))
+    if not match:
+        raise e
+    error_code = match.group(1)
+    operation_name = match.group(2)
+    error_message = match.group(3)
+    response = {
+        "Error": {
+            "Code": error_code,
+            "Message": error_message,
+        }
+    }
+    return ClientError(response, operation_name)
+
+
+def handle_client_error(err, idx, result_file):
+    error_code = normalize_client_error(err)
+    if error_code == 404:
+        result_file.write("%d %d\n" % (idx, -ERROR_URL_NOT_FOUND))
+        result_file.flush()
+    elif error_code == 403:
+        result_file.write("%d %d\n" % (idx, -ERROR_URL_ACCESS_DENIED))
+        result_file.flush()
+    elif error_code == 503:
+        result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
+        result_file.flush()
+    else:
+        # optimistically assume it is a transient error
+        result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
+        result_file.flush()
+    # TODO specific error message for out of disk space
 
 
 def start_workers(mode, urls, num_workers, inject_failure, s3config):
@@ -381,6 +435,22 @@ def start_workers(mode, urls, num_workers, inject_failure, s3config):
                 if proc.exitcode is not None:
                     if proc.exitcode != 0:
                         msg = "Worker process failed (exit code %d)" % proc.exitcode
+
+                        # IMPORTANT: if this process has put items on a queue, then it will not terminate
+                        # until all buffered items have been flushed to the pipe, causing a deadlock.
+                        # `cancel_join_thread()` allows it to exit without flushing the queue.
+                        # Without this line, the parent process would hang indefinitely when a subprocess
+                        # did not exit cleanly in the case of unhandled exceptions.
+                        #
+                        # The error situation is:
+                        # 1. this process puts stuff in queue
+                        # 2. subprocess dies so doesn't consume its end-of-queue marker (the None)
+                        # 3. other subprocesses consume all useful bits AND their end-of-queue marker
+                        # 4. one marker is left and not consumed
+                        # 5. this process cannot shut down until the queue is empty.
+                        # 6. it will never be empty because all subprocesses (workers) have died.
+                        queue.cancel_join_thread()
+
                         exit(msg, proc.exitcode)
                     # Read the output file if all went well
                     with open(out_path, "r") as out_file:
@@ -745,7 +815,7 @@ def lst(
     s3config = S3Config(
         s3role,
         json.loads(s3sessionvars) if s3sessionvars else None,
-        json.loads(s3clientparams) if s3clientparams else None,
+        json.loads(s3clientparams) if s3clientparams else DEFAULT_S3_CLIENT_PARAMS,
     )
 
     urllist = []
@@ -878,7 +948,7 @@ def put(
     s3config = S3Config(
         s3role,
         json.loads(s3sessionvars) if s3sessionvars else None,
-        json.loads(s3clientparams) if s3clientparams else None,
+        json.loads(s3clientparams) if s3clientparams else DEFAULT_S3_CLIENT_PARAMS,
     )
 
     urls = list(starmap(_make_url, _files()))
@@ -1025,7 +1095,7 @@ def get(
     s3config = S3Config(
         s3role,
         json.loads(s3sessionvars) if s3sessionvars else None,
-        json.loads(s3clientparams) if s3clientparams else None,
+        json.loads(s3clientparams) if s3clientparams else DEFAULT_S3_CLIENT_PARAMS,
     )
 
     # Construct a list of URL (prefix) objects
@@ -1172,7 +1242,7 @@ def info(
     s3config = S3Config(
         s3role,
         json.loads(s3sessionvars) if s3sessionvars else None,
-        json.loads(s3clientparams) if s3clientparams else None,
+        json.loads(s3clientparams) if s3clientparams else DEFAULT_S3_CLIENT_PARAMS,
     )
 
     # Construct a list of URL (prefix) objects
