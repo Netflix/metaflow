@@ -37,8 +37,12 @@ def save_logs():
     flow_datastore = FlowDataStore(
         flow_name, None, storage_impl=storage_impl, ds_root=ds_root
     )
+    # Use inferred attempt - to save task_stdout.log and task_stderr.log
+    latest_done_attempt = flow_datastore.get_latest_done_attempt(
+        run_id=run_id, step_name=step_name, task_id=task_id
+    )
     task_datastore = flow_datastore.get_task_datastore(
-        run_id, step_name, task_id, int(attempt), mode="w"
+        run_id, step_name, task_id, latest_done_attempt, mode="w"
     )
 
     try:
