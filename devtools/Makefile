@@ -260,6 +260,7 @@ shell: setup-tilt
 			env METAFLOW_HOME="$(DEVTOOLS_DIR)" \
 				METAFLOW_PROFILE=local \
 				AWS_CONFIG_FILE="$(DEVTOOLS_DIR)/aws_config" \
+				AWS_SHARED_CREDENTIALS_FILE= \
 				"$$user_shell" -i; \
 		else \
 			env METAFLOW_HOME="$(DEVTOOLS_DIR)" \
@@ -301,6 +302,7 @@ create-dev-shell: setup-tilt
 		echo "    env METAFLOW_HOME=\"$(DEVTOOLS_DIR)\" \\" >> $$SHELL_PATH && \
 		echo "        METAFLOW_PROFILE=local \\" >> $$SHELL_PATH && \
 		echo "        AWS_CONFIG_FILE=\"$(DEVTOOLS_DIR)/aws_config\" \\" >> $$SHELL_PATH && \
+		echo "        AWS_SHARED_CREDENTIALS_FILE= \\" >> $$SHELL_PATH && \
 		echo "        \"\$$user_shell\" -i" >> $$SHELL_PATH && \
 		echo "else" >> $$SHELL_PATH && \
 		echo "    env METAFLOW_HOME=\"$(DEVTOOLS_DIR)\" \\" >> $$SHELL_PATH && \
