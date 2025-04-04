@@ -26,6 +26,46 @@ class ArgoHelper:
         """
         self._client = ArgoClient(namespace=kubernetes_namespace)
 
+    def stop_workflow(self, workflow_name: str) -> None:
+        """
+        Permanently stops workflow with status 'Failed'.
+        Currently running steps do NOT finish running.
+        Exit handlers are allowed to run. This includes the `notify-email-exit-handler`, which sends an email to the
+            address specified by notifyErrorEmail in the AIPEnvironment. The address provided is often OpsGenie, where
+            an email can raise an OpsGenie alert.
+
+        Args:
+            workflow_name: Name of the workflow to stop.
+        """
+
+        logger.info(f"Stopping workflow: {workflow_name=}")
+        body = {"spec": {"shutdown": "Stop"}}
+        self._client.patch_argo_object(
+            name=workflow_name,
+            plural="workflows",
+            body=body,
+        )
+
+    def terminate_workflow(self, workflow_name: str) -> None:
+        """
+        Permanently stops workflow with status 'Failed'.
+        Currently running steps do NOT finish running.
+        Exit handlers are NOT allowed to run. This includes the `notify-email-exit-handler`, which means no email will
+            be sent, even though the workflow 'Failed'. If your alerting setup depends on exit handler emails
+            (ex OpsGenie), you will not get alerted by a terminated workflow.
+
+        Args:
+            workflow_name: Name of the workflow to terminate.
+        """
+
+        logger.info(f"Terminating workflow: {workflow_name=}")
+        body = {"spec": {"shutdown": "Terminate"}}
+        self._client.patch_argo_object(
+            name=workflow_name,
+            plural="workflows",
+            body=body,
+        )
+
     def trigger_exact(
         self,
         template_name: Optional[str] = None,
