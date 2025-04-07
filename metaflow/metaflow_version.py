@@ -27,11 +27,11 @@ if name == "nt":
         """find the path to the git executable on Windows"""
         # first see if git is in the path
         try:
-            check_output(["where", "/Q", "git"])
+            subprocess.check_output(["where", "/Q", "git"])
             # if this command succeeded, git is in the path
             return "git"
         # catch the exception thrown if git was not found
-        except CalledProcessError:
+        except subprocess.CalledProcessError:
             pass
         # There are several locations where git.exe may be hiding
         possible_locations = []
