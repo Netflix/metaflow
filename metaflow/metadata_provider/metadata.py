@@ -633,7 +633,7 @@ class MetadataProvider(object):
     def _get_git_info_as_dict(self):
         git_info = {}
         env = self._environment.get_environment_info()
-        for key in ["script", "repo_url", "branch_name", "commit_sha"]:
+        for key in ["script", "repo_url", "branch_name", "commit_sha", "is_dirty"]:
             if key in env and env[key]:
                 git_info[key] = env[key]
         return git_info
