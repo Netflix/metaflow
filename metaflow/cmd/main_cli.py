@@ -94,7 +94,7 @@ def start(ctx):
         echo("(%s)\n" % version, fg="magenta", bold=False)
 
     if ctx.invoked_subcommand is None:
-        echo("More data science, less engineering\n", fg="magenta")
+        echo("More AI, less engineering\n", fg="magenta")
 
         lnk_sz = max(len(lnk) for lnk in CONTACT_INFO.values()) + 1
         for what, lnk in CONTACT_INFO.items():
