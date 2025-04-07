@@ -71,7 +71,7 @@ def write_file(file_path, content):
             f.write(str(content))
 
 
-def config_merge_cb(ctx, param, value):
+def config_callback(ctx, param, value):
     # Callback to:
     #  - read  the Click auto_envvar variable from both the
     #    environment AND the configuration
@@ -127,7 +127,7 @@ def common_run_options(func):
         help="Add a decorator to all steps. You can specify this "
         "option multiple times to attach multiple decorators "
         "in steps.",
-        callback=config_merge_cb,
+        callback=config_callback,
     )
     @click.option(
         "--run-id-file",
