@@ -123,6 +123,21 @@ def _is_in_git_repo():
         return False
 
 
+def _is_repo_dirty():
+    """Check if the git repository has uncommitted changes"""
+    try:
+        result = subprocess.run(
+            [GIT_COMMAND, "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        # If output is not empty, there are uncommitted changes
+        return result.returncode == 0 and bool(result.stdout.strip())
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
 def get_git_info():
     """Get git repository information for the current project
 
@@ -131,6 +146,7 @@ def get_git_info():
             repo_url: Repository URL (converted to HTTPS if from SSH)
             branch_name: Current branch name
             commit_sha: Current commit SHA
+            is_dirty: Boolean indicating if there are uncommitted changes
     """
     global _git_info_cache
 
@@ -143,6 +159,7 @@ def get_git_info():
             "repo_url": _get_repo_url(),
             "branch_name": _get_branch_name(),
             "commit_sha": _get_commit_sha(),
+            "is_dirty": _is_repo_dirty(),
         }
 
     return _git_info_cache
