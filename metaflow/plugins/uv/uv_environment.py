@@ -5,7 +5,7 @@ from metaflow.metaflow_environment import MetaflowEnvironment
 
 
 class UVException(MetaflowException):
-    headline = "UV Error"
+    headline = "uv error"
 
 
 class UVEnvironment(MetaflowEnvironment):
