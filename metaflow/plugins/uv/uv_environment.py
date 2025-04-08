@@ -27,12 +27,6 @@ class UVEnvironment(MetaflowEnvironment):
     def interpreter(self, step_name):
         return "uv run python"
 
-    def pylint_config(self):
-        config = super().pylint_config()
-        # Disable (import-error) in pylint
-        config.append("--disable=F0401")
-        return config
-
     def add_to_package(self):
         def _find(filename):
             current_dir = os.getcwd()
