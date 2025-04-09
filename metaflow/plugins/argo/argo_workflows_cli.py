@@ -6,7 +6,7 @@ import sys
 from hashlib import sha1
 from time import sleep
 
-from metaflow import JSONType, Run, current, decorators, parameters
+from metaflow import JSONType, JSONTypeClass, Run, current, decorators, parameters
 from metaflow._vendor import click
 from metaflow.exception import (
     MetaflowException,
@@ -188,6 +188,12 @@ def argo_workflows(obj, name=None):
     help="Incident.io Alert source config ID. Example '01GW2G3V0S59R238FAHPDS1R66'",
 )
 @click.option(
+    "--incident-io-metadata",
+    default=None,
+    type=JSONTypeClass(),
+    help="Incident.io Alert Custom Metadata fields.",
+)
+@click.option(
     "--enable-heartbeat-daemon/--no-enable-heartbeat-daemon",
     default=False,
     show_default=True,
@@ -226,6 +232,7 @@ def create(
     notify_pager_duty_integration_key=None,
     notify_incident_io_api_key=None,
     incident_io_alert_source_config_id=None,
+    incident_io_metadata=None,
     enable_heartbeat_daemon=True,
     deployer_attribute_file=None,
     enable_error_msg_capture=False,
@@ -283,6 +290,7 @@ def create(
         notify_pager_duty_integration_key,
         notify_incident_io_api_key,
         incident_io_alert_source_config_id,
+        incident_io_metadata,
         enable_heartbeat_daemon,
         enable_error_msg_capture,
     )
@@ -459,6 +467,7 @@ def make_flow(
     notify_pager_duty_integration_key,
     notify_incident_io_api_key,
     incident_io_alert_source_config_id,
+    incident_io_metadata,
     enable_heartbeat_daemon,
     enable_error_msg_capture,
 ):
@@ -538,6 +547,7 @@ def make_flow(
         notify_pager_duty_integration_key=notify_pager_duty_integration_key,
         notify_incident_io_api_key=notify_incident_io_api_key,
         incident_io_alert_source_config_id=incident_io_alert_source_config_id,
+        incident_io_metadata=incident_io_metadata,
         enable_heartbeat_daemon=enable_heartbeat_daemon,
         enable_error_msg_capture=enable_error_msg_capture,
     )
