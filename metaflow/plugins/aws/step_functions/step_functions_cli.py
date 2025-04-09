@@ -99,8 +99,8 @@ def step_functions(obj, name=None):
     "times to attach multiple tags.",
 )
 @click.option(
-    "--aws-batch-tags",
-    "aws_batch_tags",
+    "--aws-batch-tag",
+    "aws_batch_tag",
     multiple=True,
     default=None,
     help="AWS tags.")
@@ -150,7 +150,7 @@ def step_functions(obj, name=None):
 def create(
     obj,
     tags=None,
-    aws_batch_tags=None,
+    aws_batch_tag=None,
     user_namespace=None,
     only_json=False,
     authorize=None,
@@ -204,7 +204,7 @@ def create(
         token,
         obj.state_machine_name,
         tags,
-        aws_batch_tags,
+        aws_batch_tag,
         user_namespace,
         max_workers,
         workflow_timeout,
