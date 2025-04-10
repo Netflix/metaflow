@@ -6,7 +6,7 @@ import sys
 from hashlib import sha1
 from time import sleep
 
-from metaflow import JSONType, JSONTypeClass, Run, current, decorators, parameters
+from metaflow import JSONType, Run, current, decorators, parameters
 from metaflow._vendor import click
 from metaflow.exception import (
     MetaflowException,
@@ -190,8 +190,9 @@ def argo_workflows(obj, name=None):
 @click.option(
     "--incident-io-metadata",
     default=None,
-    type=JSONTypeClass(),
-    help="Incident.io Alert Custom Metadata fields.",
+    type=str,
+    multiple=True,
+    help="Incident.io Alert Custom Metadata field in the form of Key=Value",
 )
 @click.option(
     "--enable-heartbeat-daemon/--no-enable-heartbeat-daemon",
@@ -274,6 +275,18 @@ def create(
         obj.is_project,
     )
 
+    # parse key value pairs into a dict for incident.io metadata if given
+    parsed_metadata = None
+    if incident_io_metadata is not None:
+        parsed_metadata = {}
+        for kv in incident_io_metadata:
+            key, value = kv.split("=", 1)
+            if key in parsed_metadata:
+                raise MetaflowException(
+                    "Incident.io Metadata *%s* provided multiple times" % key
+                )
+            parsed_metadata[key] = value
+
     flow = make_flow(
         obj,
         token,
@@ -290,7 +303,7 @@ def create(
         notify_pager_duty_integration_key,
         notify_incident_io_api_key,
         incident_io_alert_source_config_id,
-        incident_io_metadata,
+        parsed_metadata,
         enable_heartbeat_daemon,
         enable_error_msg_capture,
     )
