@@ -7,6 +7,7 @@ import sys
 from collections import defaultdict
 from hashlib import sha1
 from math import inf
+from typing import List
 
 from metaflow import JSONType, current
 from metaflow.decorators import flow_decorators
@@ -110,7 +111,7 @@ class ArgoWorkflows(object):
         notify_pager_duty_integration_key=None,
         notify_incident_io_api_key=None,
         incident_io_alert_source_config_id=None,
-        incident_io_metadata=None,
+        incident_io_metadata: List[str] = None,
         enable_heartbeat_daemon=True,
         enable_error_msg_capture=False,
     ):
@@ -162,7 +163,9 @@ class ArgoWorkflows(object):
         self.notify_pager_duty_integration_key = notify_pager_duty_integration_key
         self.notify_incident_io_api_key = notify_incident_io_api_key
         self.incident_io_alert_source_config_id = incident_io_alert_source_config_id
-        self.incident_io_metadata = incident_io_metadata
+        self.incident_io_metadata = self.parse_incident_io_metadata(
+            incident_io_metadata
+        )
         self.enable_heartbeat_daemon = enable_heartbeat_daemon
         self.enable_error_msg_capture = enable_error_msg_capture
         self.parameters = self._process_parameters()
@@ -288,6 +291,21 @@ class ArgoWorkflows(object):
         client.unsuspend_workflow(name)
 
         return True
+
+    @staticmethod
+    def parse_incident_io_metadata(metadata: List[str] = None):
+        "parse key value pairs into a dict for incident.io metadata if given"
+        parsed_metadata = None
+        if metadata is not None:
+            parsed_metadata = {}
+            for kv in metadata:
+                key, value = kv.split("=", 1)
+                if key in parsed_metadata:
+                    raise MetaflowException(
+                        "Incident.io Metadata *%s* provided multiple times" % key
+                    )
+                parsed_metadata[key] = value
+        return parsed_metadata
 
     @classmethod
     def trigger(cls, name, parameters=None):

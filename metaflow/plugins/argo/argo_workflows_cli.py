@@ -275,18 +275,6 @@ def create(
         obj.is_project,
     )
 
-    # parse key value pairs into a dict for incident.io metadata if given
-    parsed_metadata = None
-    if incident_io_metadata is not None:
-        parsed_metadata = {}
-        for kv in incident_io_metadata:
-            key, value = kv.split("=", 1)
-            if key in parsed_metadata:
-                raise MetaflowException(
-                    "Incident.io Metadata *%s* provided multiple times" % key
-                )
-            parsed_metadata[key] = value
-
     flow = make_flow(
         obj,
         token,
@@ -303,7 +291,7 @@ def create(
         notify_pager_duty_integration_key,
         notify_incident_io_api_key,
         incident_io_alert_source_config_id,
-        parsed_metadata,
+        incident_io_metadata,
         enable_heartbeat_daemon,
         enable_error_msg_capture,
     )
