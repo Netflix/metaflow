@@ -32,11 +32,13 @@ from metaflow.exception import (
 from metaflow.includefile import IncludedFile
 from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
 from metaflow.metaflow_environment import MetaflowEnvironment
+from metaflow.meta_files import MFCONF_DIR, MFENV_DIR
+from metaflow.package.mfenv import MFEnv
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
+from metaflow.meta_files import MetaFile
 from metaflow.unbounded_foreach import CONTROL_TASK_TAG
 from metaflow.util import cached_property, is_stringish, resolve_identity, to_unicode
 
-from ..info_file import INFO_FILE
 from .filecache import FileCache
 
 if TYPE_CHECKING:
@@ -824,9 +826,8 @@ class MetaflowCode(object):
         )
         code_obj = BytesIO(blobdata)
         self._tar = tarfile.open(fileobj=code_obj, mode="r:gz")
-        # The JSON module in Python3 deals with Unicode. Tar gives bytes.
-        info_str = (
-            self._tar.extractfile(os.path.basename(INFO_FILE)).read().decode("utf-8")
+        info_str = MFEnv.get_archive_content(self._tar, MetaFile.INFO_FILE).decode(
+            encoding="utf-8"
         )
         self._info = json.loads(info_str)
         self._flowspec = self._tar.extractfile(self._info["script"]).read()
@@ -917,6 +918,9 @@ class MetaflowCode(object):
             # This file is created when using the conda/pypi features available in
             # nflx-metaflow-extensions: https://github.com/Netflix/metaflow-nflx-extensions
             "condav2-1.cnd",
+            # Going forward, we only need to exclude MFENV_DIR and MFCONF_DIR
+            MFENV_DIR,
+            MFCONF_DIR,
         ]
         members = [
             m
