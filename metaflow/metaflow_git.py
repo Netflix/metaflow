@@ -8,7 +8,7 @@ and commit SHA for Metaflow code provenance tracking.
 import os
 import subprocess
 from os import path, name, environ
-from typing import TypedDict, Union
+from typing import Dict, Union
 
 # Cache for git information to avoid repeated subprocess calls
 _git_info_cache = None
@@ -143,19 +143,7 @@ def _has_uncommitted_changes(path: Union[str, os.PathLike]):
         return None
 
 
-GitInfo = TypedDict(
-    "GitInfo",
-    {
-        "repo_url": str,
-        "branch_name": str,
-        "commit_sha": str,
-        "has_uncommitted_changes": bool,
-    },
-    total=False,
-)
-
-
-def get_repository_info(path: Union[str, os.PathLike]) -> GitInfo:
+def get_repository_info(path: Union[str, os.PathLike]) -> Dict[str, Union[str, bool]]:
     """Get git repository information for a path
 
     Returns:
