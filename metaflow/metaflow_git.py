@@ -8,6 +8,7 @@ and commit SHA for Metaflow code provenance tracking.
 import os
 import subprocess
 from os import path, name, environ
+from typing import TypedDict, Union
 
 # Cache for git information to avoid repeated subprocess calls
 _git_info_cache = None
@@ -56,7 +57,7 @@ if name == "nt":
     GIT_COMMAND = find_git_on_windows()
 
 
-def _get_repo_url(path):
+def _get_repo_url(path: Union[str, os.PathLike]):
     """Get the repository URL from git config"""
     try:
         result = subprocess.run(
@@ -81,7 +82,7 @@ def _get_repo_url(path):
         return None
 
 
-def _get_branch_name(path):
+def _get_branch_name(path: Union[str, os.PathLike]):
     """Get the current git branch name"""
     try:
         result = subprocess.run(
@@ -96,7 +97,7 @@ def _get_branch_name(path):
         return None
 
 
-def _get_commit_sha(path):
+def _get_commit_sha(path: Union[str, os.PathLike]):
     """Get the current git commit SHA"""
     try:
         result = subprocess.run(
@@ -111,7 +112,7 @@ def _get_commit_sha(path):
         return None
 
 
-def _is_in_git_repo(path):
+def _is_in_git_repo(path: Union[str, os.PathLike]):
     """Check if we're currently in a git repository"""
     try:
         result = subprocess.run(
@@ -126,7 +127,7 @@ def _is_in_git_repo(path):
         return False
 
 
-def _has_uncommitted_changes(path):
+def _has_uncommitted_changes(path: Union[str, os.PathLike]):
     """Check if the git repository has uncommitted changes"""
     try:
         result = subprocess.run(
@@ -142,7 +143,19 @@ def _has_uncommitted_changes(path):
         return None
 
 
-def get_git_info(path):
+GitInfo = TypedDict(
+    "GitInfo",
+    {
+        "repo_url": str,
+        "branch_name": str,
+        "commit_sha": str,
+        "has_uncommitted_changes": bool,
+    },
+    total=False,
+)
+
+
+def get_git_info(path: Union[str, os.PathLike]) -> GitInfo:
     """Get git repository information for a path
 
     Returns:
