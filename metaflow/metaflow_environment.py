@@ -199,7 +199,7 @@ class MetaflowEnvironment(object):
             "metaflow_version": metaflow_version.get_version(),
             "script": os.path.basename(os.path.abspath(sys.argv[0])),
             # Add git info
-            **metaflow_git.get_git_info(
+            **metaflow_git.get_repository_info(
                 path=os.path.dirname(os.path.abspath(sys.argv[0]))
             ),
         }
