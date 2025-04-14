@@ -6,7 +6,6 @@ and commit SHA for Metaflow code provenance tracking.
 """
 
 import os
-import sys
 import subprocess
 from os import path, name, environ
 
@@ -57,11 +56,12 @@ if name == "nt":
     GIT_COMMAND = find_git_on_windows()
 
 
-def _get_repo_url():
+def _get_repo_url(path):
     """Get the repository URL from git config"""
     try:
         result = subprocess.run(
             [GIT_COMMAND, "config", "--get", "remote.origin.url"],
+            cwd=path,
             capture_output=True,
             text=True,
             check=False,
@@ -81,11 +81,12 @@ def _get_repo_url():
         return None
 
 
-def _get_branch_name():
+def _get_branch_name(path):
     """Get the current git branch name"""
     try:
         result = subprocess.run(
             [GIT_COMMAND, "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=path,
             capture_output=True,
             text=True,
             check=False,
@@ -95,11 +96,12 @@ def _get_branch_name():
         return None
 
 
-def _get_commit_sha():
+def _get_commit_sha(path):
     """Get the current git commit SHA"""
     try:
         result = subprocess.run(
             [GIT_COMMAND, "rev-parse", "HEAD"],
+            cwd=path,
             capture_output=True,
             text=True,
             check=False,
@@ -109,11 +111,12 @@ def _get_commit_sha():
         return None
 
 
-def _is_in_git_repo():
+def _is_in_git_repo(path):
     """Check if we're currently in a git repository"""
     try:
         result = subprocess.run(
             [GIT_COMMAND, "rev-parse", "--is-inside-work-tree"],
+            cwd=path,
             capture_output=True,
             text=True,
             check=False,
@@ -123,11 +126,12 @@ def _is_in_git_repo():
         return False
 
 
-def _has_uncommitted_changes():
+def _has_uncommitted_changes(path):
     """Check if the git repository has uncommitted changes"""
     try:
         result = subprocess.run(
             [GIT_COMMAND, "status", "--porcelain"],
+            cwd=path,
             capture_output=True,
             text=True,
             check=False,
@@ -138,8 +142,8 @@ def _has_uncommitted_changes():
         return None
 
 
-def get_git_info():
-    """Get git repository information for the current project
+def get_git_info(path):
+    """Get git repository information for a path
 
     Returns:
         dict: Dictionary containing:
@@ -154,12 +158,12 @@ def get_git_info():
         return _git_info_cache
 
     _git_info_cache = {}
-    if _is_in_git_repo():
+    if _is_in_git_repo(path):
         _git_info_cache = {
-            "repo_url": _get_repo_url(),
-            "branch_name": _get_branch_name(),
-            "commit_sha": _get_commit_sha(),
-            "has_uncommitted_changes": _has_uncommitted_changes(),
+            "repo_url": _get_repo_url(path),
+            "branch_name": _get_branch_name(path),
+            "commit_sha": _get_commit_sha(path),
+            "has_uncommitted_changes": _has_uncommitted_changes(path),
         }
 
     return _git_info_cache
