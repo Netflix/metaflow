@@ -13,7 +13,7 @@ from typing import TypedDict, Union
 # Cache for git information to avoid repeated subprocess calls
 _git_info_cache = None
 
-__all__ = ("get_git_info",)
+__all__ = ("get_repository_info",)
 
 GIT_COMMAND = "git"
 
@@ -155,7 +155,7 @@ GitInfo = TypedDict(
 )
 
 
-def get_git_info(path: Union[str, os.PathLike]) -> GitInfo:
+def get_repository_info(path: Union[str, os.PathLike]) -> GitInfo:
     """Get git repository information for a path
 
     Returns:
