@@ -2,6 +2,8 @@ from metaflow.decorators import StepDecorator
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import MAX_ATTEMPTS
 
+SUPPORTED_RETRY_EVENTS = ["all", "spot-termination"]
+
 
 class RetryDecorator(StepDecorator):
     """
@@ -22,10 +24,13 @@ class RetryDecorator(StepDecorator):
         Number of times to retry this task.
     minutes_between_retries : int, default 2
         Number of minutes between retries.
+    only_on : List[str], default None
+        List of failure events to retry on. Accepted values are
+        'all', 'spot-termination'
     """
 
     name = "retry"
-    defaults = {"times": "3", "minutes_between_retries": "2"}
+    defaults = {"times": "3", "minutes_between_retries": "2", "only_on": None}
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         # The total number of attempts must not exceed MAX_ATTEMPTS.
@@ -35,6 +40,21 @@ class RetryDecorator(StepDecorator):
                 "The maximum number of retries is "
                 "@retry(times=%d)." % (MAX_ATTEMPTS - 2)
             )
+
+        if self.attributes["only_on"] is not None:
+            if not isinstance(self.attributes["only_on"], list):
+                raise MetaflowException("'only_on=' must be a list of values")
+
+            unsupported_events = [
+                event
+                for event in self.attributes["only_on"]
+                if event not in SUPPORTED_RETRY_EVENTS
+            ]
+            if unsupported_events:
+                raise MetaflowException(
+                    "The event(s) %s are not supported for only_on="
+                    % ", ".join("*%s*" % event for event in unsupported_events)
+                )
 
     def step_task_retry_count(self):
         return int(self.attributes["times"]), 0
