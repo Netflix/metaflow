@@ -7,27 +7,29 @@ and commit SHA for Metaflow code provenance tracking.
 
 import os
 import subprocess
-from os import path, name, environ
-from typing import Dict, Union
+from typing import Dict, List, Optional, Union
 
 # Cache for git information to avoid repeated subprocess calls
 _git_info_cache = None
 
 __all__ = ("get_repository_info",)
 
-GIT_COMMAND = "git"
+
+def _call_git(args: List[str], path=Union[str, os.PathLike]):
+    result = subprocess.run(
+        ["git", *args],
+        cwd=path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result
 
 
-def _get_repo_url(path: Union[str, os.PathLike]):
+def _get_repo_url(path: Union[str, os.PathLike]) -> Optional[str]:
     """Get the repository URL from git config"""
     try:
-        result = subprocess.run(
-            [GIT_COMMAND, "config", "--get", "remote.origin.url"],
-            cwd=path,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        result = _call_git(["config", "--get", "remote.origin.url"], path)
         if result.returncode == 0:
             url = result.stdout.strip()
             # Convert SSH URLs to HTTPS for clickable links
@@ -43,61 +45,37 @@ def _get_repo_url(path: Union[str, os.PathLike]):
         return None
 
 
-def _get_branch_name(path: Union[str, os.PathLike]):
+def _get_branch_name(path: Union[str, os.PathLike]) -> Optional[str]:
     """Get the current git branch name"""
     try:
-        result = subprocess.run(
-            [GIT_COMMAND, "rev-parse", "--abbrev-ref", "HEAD"],
-            cwd=path,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        result = _call_git(["rev-parse", "--abbrev-ref", "HEAD"], path)
         return result.stdout.strip() if result.returncode == 0 else None
     except (OSError, subprocess.SubprocessError):
         return None
 
 
-def _get_commit_sha(path: Union[str, os.PathLike]):
+def _get_commit_sha(path: Union[str, os.PathLike]) -> Optional[str]:
     """Get the current git commit SHA"""
     try:
-        result = subprocess.run(
-            [GIT_COMMAND, "rev-parse", "HEAD"],
-            cwd=path,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        result = _call_git(["rev-parse", "HEAD"], path)
         return result.stdout.strip() if result.returncode == 0 else None
     except (OSError, subprocess.SubprocessError):
         return None
 
 
-def _is_in_git_repo(path: Union[str, os.PathLike]):
+def _is_in_git_repo(path: Union[str, os.PathLike]) -> bool:
     """Check if we're currently in a git repository"""
     try:
-        result = subprocess.run(
-            [GIT_COMMAND, "rev-parse", "--is-inside-work-tree"],
-            cwd=path,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        result = _call_git(["rev-parse", "--is-inside-work-tree"], path)
         return result.returncode == 0 and result.stdout.strip() == "true"
     except (OSError, subprocess.SubprocessError):
         return False
 
 
-def _has_uncommitted_changes(path: Union[str, os.PathLike]):
+def _has_uncommitted_changes(path: Union[str, os.PathLike]) -> Optional[bool]:
     """Check if the git repository has uncommitted changes"""
     try:
-        result = subprocess.run(
-            [GIT_COMMAND, "status", "--porcelain"],
-            cwd=path,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
+        result = _call_git(["status", "--porcelain"], path)
         # If output is not empty, there are uncommitted changes
         return result.returncode == 0 and bool(result.stdout.strip())
     except (OSError, subprocess.SubprocessError):
