@@ -15,7 +15,9 @@ _git_info_cache = None
 __all__ = ("get_repository_info",)
 
 
-def _call_git(args: List[str], path=Union[str, os.PathLike]):
+def _call_git(
+    args: List[str], path=Union[str, os.PathLike]
+) -> subprocess.CompletedProcess[str]:
     result = subprocess.run(
         ["git", *args],
         cwd=path,
