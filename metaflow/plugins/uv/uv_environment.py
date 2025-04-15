@@ -49,6 +49,12 @@ class UVEnvironment(MetaflowEnvironment):
         ]
         return files
 
+    def pylint_config(self):
+        config = super().pylint_config()
+        # Disable (import-error) in pylint
+        config.append("--disable=F0401")
+        return config
+
     def bootstrap_commands(self, step_name, datastore_type):
         return [
             "echo 'Bootstrapping uv project...'",
