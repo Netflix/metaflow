@@ -7,7 +7,7 @@ and commit SHA for Metaflow code provenance tracking.
 
 import os
 import subprocess
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 # Cache for git information to avoid repeated subprocess calls
 _git_info_cache = None
@@ -17,71 +17,79 @@ __all__ = ("get_repository_info",)
 
 def _call_git(
     args: List[str], path=Union[str, os.PathLike]
-) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(
-        ["git", *args],
-        cwd=path,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    return result
+) -> Tuple[Optional[str], Optional[int], bool]:
+    """
+    Call git with provided args.
+
+    Returns
+    -------
+        tuple : Tuple containing
+            (stdout, exitcode, failure) of the call
+    """
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=path,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        return result.stdout.strip(), result.returncode, False
+    except (OSError, subprocess.SubprocessError):
+        return None, None, True
 
 
 def _get_repo_url(path: Union[str, os.PathLike]) -> Optional[str]:
     """Get the repository URL from git config"""
-    try:
-        result = _call_git(["config", "--get", "remote.origin.url"], path)
-        if result.returncode == 0:
-            url = result.stdout.strip()
-            # Convert SSH URLs to HTTPS for clickable links
-            if url.startswith("git@"):
-                parts = url.split(":", 1)
-                if len(parts) == 2:
-                    domain = parts[0].replace("git@", "")
-                    repo_path = parts[1]
-                    url = f"https://{domain}/{repo_path}"
-            return url
+    stdout, returncode, failed = _call_git(
+        ["config", "--get", "remote.origin.url"], path
+    )
+    if failed:
         return None
-    except (OSError, subprocess.SubprocessError):
-        return None
+    if returncode == 0:
+        url = stdout
+        # Convert SSH URLs to HTTPS for clickable links
+        if url.startswith("git@"):
+            parts = url.split(":", 1)
+            if len(parts) == 2:
+                domain = parts[0].replace("git@", "")
+                repo_path = parts[1]
+                url = f"https://{domain}/{repo_path}"
+        return url
+    return None
 
 
 def _get_branch_name(path: Union[str, os.PathLike]) -> Optional[str]:
     """Get the current git branch name"""
-    try:
-        result = _call_git(["rev-parse", "--abbrev-ref", "HEAD"], path)
-        return result.stdout.strip() if result.returncode == 0 else None
-    except (OSError, subprocess.SubprocessError):
+    stdout, returncode, failed = _call_git(["rev-parse", "--abbrev-ref", "HEAD"], path)
+    if failed:
         return None
+    return stdout if returncode == 0 else None
 
 
 def _get_commit_sha(path: Union[str, os.PathLike]) -> Optional[str]:
     """Get the current git commit SHA"""
-    try:
-        result = _call_git(["rev-parse", "HEAD"], path)
-        return result.stdout.strip() if result.returncode == 0 else None
-    except (OSError, subprocess.SubprocessError):
+    stdout, returncode, failed = _call_git(["rev-parse", "HEAD"], path)
+    if failed:
         return None
+    return stdout if returncode == 0 else None
 
 
 def _is_in_git_repo(path: Union[str, os.PathLike]) -> bool:
     """Check if we're currently in a git repository"""
-    try:
-        result = _call_git(["rev-parse", "--is-inside-work-tree"], path)
-        return result.returncode == 0 and result.stdout.strip() == "true"
-    except (OSError, subprocess.SubprocessError):
+    stdout, returncode, failed = _call_git(["rev-parse", "--is-inside-work-tree"], path)
+    if failed:
         return False
+    return returncode == 0 and stdout == "true"
 
 
 def _has_uncommitted_changes(path: Union[str, os.PathLike]) -> Optional[bool]:
     """Check if the git repository has uncommitted changes"""
-    try:
-        result = _call_git(["status", "--porcelain"], path)
-        # If output is not empty, there are uncommitted changes
-        return result.returncode == 0 and bool(result.stdout.strip())
-    except (OSError, subprocess.SubprocessError):
+    stdout, returncode, failed = _call_git(["status", "--porcelain"], path)
+    if failed:
         return None
+    # If output is not empty, there are uncommitted changes
+    return returncode == 0 and bool(stdout)
 
 
 def get_repository_info(path: Union[str, os.PathLike]) -> Dict[str, Union[str, bool]]:
