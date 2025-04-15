@@ -17,45 +17,6 @@ __all__ = ("get_repository_info",)
 
 GIT_COMMAND = "git"
 
-if name == "nt":
-    # Use the same git command finding logic as in metaflow_version.py
-    def find_git_on_windows():
-        """find the path to the git executable on Windows"""
-        # first see if git is in the path
-        try:
-            subprocess.check_output(["where", "/Q", "git"])
-            # if this command succeeded, git is in the path
-            return "git"
-        # catch the exception thrown if git was not found
-        except subprocess.CalledProcessError:
-            pass
-        # There are several locations where git.exe may be hiding
-        possible_locations = []
-        # look in program files for msysgit
-        if "PROGRAMFILES(X86)" in environ:
-            possible_locations.append(
-                "%s/Git/cmd/git.exe" % environ["PROGRAMFILES(X86)"]
-            )
-        if "PROGRAMFILES" in environ:
-            possible_locations.append("%s/Git/cmd/git.exe" % environ["PROGRAMFILES"])
-        # look for the GitHub version of git
-        if "LOCALAPPDATA" in environ:
-            github_dir = "%s/GitHub" % environ["LOCALAPPDATA"]
-            if path.isdir(github_dir):
-                for subdir in os.listdir(github_dir):
-                    if not subdir.startswith("PortableGit"):
-                        continue
-                    possible_locations.append(
-                        "%s/%s/bin/git.exe" % (github_dir, subdir)
-                    )
-        for possible_location in possible_locations:
-            if path.isfile(possible_location):
-                return possible_location
-        # git was not found
-        return "git"
-
-    GIT_COMMAND = find_git_on_windows()
-
 
 def _get_repo_url(path: Union[str, os.PathLike]):
     """Get the repository URL from git config"""
