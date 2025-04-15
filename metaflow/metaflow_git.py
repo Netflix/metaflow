@@ -34,7 +34,7 @@ def _get_repo_url(path: Union[str, os.PathLike]) -> Optional[str]:
             url = result.stdout.strip()
             # Convert SSH URLs to HTTPS for clickable links
             if url.startswith("git@"):
-                parts = url.split(":")
+                parts = url.split(":", 1)
                 if len(parts) == 2:
                     domain = parts[0].replace("git@", "")
                     repo_path = parts[1]
