@@ -75,7 +75,6 @@ FLOW_DECORATORS_DESC = [
 ENVIRONMENTS_DESC = [
     ("conda", ".pypi.conda_environment.CondaEnvironment"),
     ("pypi", ".pypi.pypi_environment.PyPIEnvironment"),
-    ("uv", ".uv.uv_environment.UVEnvironment"),
 ]
 
 # Add metadata providers here
