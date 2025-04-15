@@ -24,9 +24,6 @@ class UVEnvironment(MetaflowEnvironment):
     def executable(self, step_name, default=None):
         return "uv run python"
 
-    def interpreter(self, step_name):
-        return "uv run python"
-
     def add_to_package(self):
         def _find(filename):
             current_dir = os.getcwd()
@@ -67,5 +64,5 @@ class UVEnvironment(MetaflowEnvironment):
             % datastore_type,
             "echo 'uv project bootstrapped.'",
             "flush_mflogs",
-            "export PATH=$PATH:/uv_install",
+            "export PATH=$PATH:$(pwd)/uv_install",
         ]

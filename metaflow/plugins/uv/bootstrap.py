@@ -1,8 +1,14 @@
 import os
 import subprocess
 import sys
+import time
 
 from metaflow.util import which
+from urllib.request import Request, urlopen
+from urllib.error import URLError
+
+# TODO: support version/platform/architecture selection.
+UV_URL = "https://github.com/astral-sh/uv/releases/download/0.6.11/uv-x86_64-unknown-linux-gnu.tar.gz"
 
 if __name__ == "__main__":
 
@@ -22,22 +28,47 @@ if __name__ == "__main__":
             sys.exit(1)
 
     def install_uv():
+        import tarfile
+
+        uv_install_path = os.path.join(os.getcwd(), "uv_install")
         if which("uv"):
             return
 
         print("Installing uv...")
-        uv_version = "0.1.8"
-        cmd = f"""set -e;
-            curl -LsSf https://astral.sh/uv/install.sh | env UV_UNMANAGED_INSTALL="/uv_install" UV_VERSION="{uv_version}" sh
-            """
-        run_cmd(cmd)
 
-        uv_path = "/uv_install"
-        if os.path.isdir(uv_path):
-            os.environ["PATH"] += os.pathsep + uv_path
-        else:
-            print("uv failed to install.")
-            print(os.listdir("/uv_install"))
+        # Prepare directory once
+        os.makedirs(uv_install_path, exist_ok=True)
+
+        # Download and decompress in one go
+        headers = {
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "User-Agent": "python-urllib",
+        }
+
+        def _tar_filter(member: tarfile.TarInfo, path):
+            if os.path.basename(member.name) != "uv":
+                return None  # skip
+            member.path = os.path.basename(member.path)
+            return member
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                req = Request(UV_URL, headers=headers)
+                with urlopen(req) as response:
+                    with tarfile.open(fileobj=response, mode="r:gz") as tar:
+                        tar.extractall(uv_install_path, filter=_tar_filter)
+                break
+            except (URLError, IOError) as e:
+                if attempt == max_retries - 1:
+                    raise Exception(
+                        f"Failed to download UV after {max_retries} attempts: {e}"
+                    )
+                time.sleep(2**attempt)
+
+        # Update PATH only once at the end
+        os.environ["PATH"] += os.pathsep + uv_install_path
 
     def get_dependencies(datastore_type):
         datastore_packages = {
@@ -67,7 +98,8 @@ if __name__ == "__main__":
         print("Syncing uv project...")
         dependencies = " ".join(get_dependencies(datastore_type))
         cmd = f"""set -e;
-            ls -la;
+            ls -la uv_install;
+            echo $PATH;
             uv sync --frozen --no-install-package metaflow;
             uv pip install {dependencies} --strict
             """
