@@ -685,15 +685,16 @@ class MetadataProvider(object):
                 )
             )
         # And add git metadata
-        metadata.extend(
-            MetaDatum(
-                field=str(k),
-                value=str(v),
-                type="git-info",
-                tags=["attempt_id:{0}".format(attempt)],
+        git_info = self._get_git_info_as_dict()
+        if git_info:
+            metadata.append(
+                MetaDatum(
+                    field="git-info",
+                    value=json.dumps(git_info),
+                    type="git-info",
+                    tags=["attempt_id:{0}".format(attempt)],
+                )
             )
-            for k, v in self._get_git_info_as_dict().items()
-        )
         if metadata:
             self.register_metadata(run_id, step_name, task_id, metadata)
 
