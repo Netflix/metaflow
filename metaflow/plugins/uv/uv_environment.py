@@ -25,6 +25,8 @@ class UVEnvironment(MetaflowEnvironment):
         return "uv run python"
 
     def add_to_package(self):
+        # NOTE: We treat uv.lock and pyproject.toml as regular project assets and ship these along user code as part of the code package
+        # These are the minimal required files to reproduce the UV environment on the remote platform.
         def _find(filename):
             current_dir = os.getcwd()
             while True:
