@@ -82,8 +82,6 @@ if __name__ == "__main__":
         print("Syncing uv project...")
         dependencies = " ".join(get_dependencies(datastore_type))
         cmd = f"""set -e;
-            ls -la uv_install;
-            echo $PATH;
             uv sync --frozen --no-install-package metaflow;
             uv pip install {dependencies} --strict
             """
