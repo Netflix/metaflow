@@ -634,7 +634,6 @@ class MetadataProvider(object):
         git_info = {}
         env = self._environment.get_environment_info()
         for key in [
-            "script",
             "repo_url",
             "branch_name",
             "commit_sha",
@@ -642,6 +641,10 @@ class MetadataProvider(object):
         ]:
             if key in env and env[key]:
                 git_info[key] = env[key]
+        # include script name only if we have git info
+        if git_info:
+            git_info["script"] = env["script"]
+
         return git_info
 
     def _get_system_tags(self):
