@@ -4,6 +4,7 @@ import sys
 import time
 
 from metaflow.util import which
+from metaflow.metaflow_config import get_pinned_conda_libs
 from urllib.request import Request, urlopen
 from urllib.error import URLError
 
@@ -71,28 +72,11 @@ if __name__ == "__main__":
         os.environ["PATH"] += os.pathsep + uv_install_path
 
     def get_dependencies(datastore_type):
-        datastore_packages = {
-            "s3": ["boto3"],
-            "azure": [
-                "azure-identity",
-                "azure-storage-blob",
-                "azure-keyvault-secrets",
-                "simple-azure-blob-downloader",
-            ],
-            "gs": [
-                "google-cloud-storage",
-                "google-auth",
-                "simple-gcp-object-downloader",
-                "google-cloud-secret-manager",
-            ],
-        }
+        # return required dependencies for Metaflow that must be added to the UV environment.
+        pinned = get_pinned_conda_libs(None, datastore_type)
 
-        if datastore_type not in datastore_packages:
-            raise NotImplementedError(
-                "Unknown datastore type: {}".format(datastore_type)
-            )
-
-        return datastore_packages[datastore_type] + ["requests"]
+        # return only dependency names instead of pinned versions
+        return pinned.keys()
 
     def sync_uv_project(datastore_type):
         print("Syncing uv project...")
