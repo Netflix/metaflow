@@ -43,8 +43,8 @@ class UVEnvironment(MetaflowEnvironment):
         pyproject_path = _find("pyproject.toml")
         uv_lock_path = _find("uv.lock")
         files = [
-            (uv_lock_path, os.path.basename(uv_lock_path)),
-            (pyproject_path, os.path.basename(pyproject_path)),
+            (uv_lock_path, "uv.lock"),
+            (pyproject_path, "pyproject.toml"),
         ]
         return files
 
