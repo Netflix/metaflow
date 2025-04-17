@@ -641,9 +641,6 @@ class MetadataProvider(object):
         ]:
             if key in env and env[key]:
                 git_info[key] = env[key]
-        # include script name only if we have git info
-        if git_info:
-            git_info["script"] = env["script"]
 
         return git_info
 
@@ -687,6 +684,16 @@ class MetadataProvider(object):
                     tags=["attempt_id:{0}".format(attempt)],
                 )
             )
+        # Add script name as metadata
+        script_name = self._environment.get_environment_info()["script"]
+        metadata.append(
+            MetaDatum(
+                field="script-name",
+                value=script_name,
+                type="script-name",
+                tags=["attempt_id:{0}".format(attempt)],
+            )
+        )
         # And add git metadata
         git_info = self._get_git_info_as_dict()
         if git_info:
