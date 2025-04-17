@@ -36,16 +36,15 @@ def _call_git(
         )
         return result.stdout.strip(), result.returncode, False
     except (OSError, subprocess.SubprocessError):
+        # Covers subprocess timeouts and other errors which would not lead to an exit code
         return None, None, True
 
 
 def _get_repo_url(path: Union[str, os.PathLike]) -> Optional[str]:
     """Get the repository URL from git config"""
-    stdout, returncode, failed = _call_git(
+    stdout, returncode, _failed = _call_git(
         ["config", "--get", "remote.origin.url"], path
     )
-    if failed:
-        return None
     if returncode == 0:
         url = stdout
         # Convert SSH URLs to HTTPS for clickable links
@@ -61,25 +60,21 @@ def _get_repo_url(path: Union[str, os.PathLike]) -> Optional[str]:
 
 def _get_branch_name(path: Union[str, os.PathLike]) -> Optional[str]:
     """Get the current git branch name"""
-    stdout, returncode, failed = _call_git(["rev-parse", "--abbrev-ref", "HEAD"], path)
-    if failed:
-        return None
+    stdout, returncode, _failed = _call_git(["rev-parse", "--abbrev-ref", "HEAD"], path)
     return stdout if returncode == 0 else None
 
 
 def _get_commit_sha(path: Union[str, os.PathLike]) -> Optional[str]:
     """Get the current git commit SHA"""
-    stdout, returncode, failed = _call_git(["rev-parse", "HEAD"], path)
-    if failed:
-        return None
+    stdout, returncode, _failed = _call_git(["rev-parse", "HEAD"], path)
     return stdout if returncode == 0 else None
 
 
 def _is_in_git_repo(path: Union[str, os.PathLike]) -> bool:
     """Check if we're currently in a git repository"""
-    stdout, returncode, failed = _call_git(["rev-parse", "--is-inside-work-tree"], path)
-    if failed:
-        return False
+    stdout, returncode, _failed = _call_git(
+        ["rev-parse", "--is-inside-work-tree"], path
+    )
     return returncode == 0 and stdout == "true"
 
 
