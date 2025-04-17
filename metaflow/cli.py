@@ -17,6 +17,7 @@ from .flowspec import _FlowState
 from .graph import FlowGraph
 from .metaflow_config import (
     DEFAULT_DATASTORE,
+    DEFAULT_DECOSPECS,
     DEFAULT_ENVIRONMENT,
     DEFAULT_EVENT_LOGGER,
     DEFAULT_METADATA,
@@ -509,9 +510,16 @@ def start(
     ):
         # run/resume are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.
+
         all_decospecs = ctx.obj.tl_decospecs + list(
             ctx.obj.environment.decospecs() or []
         )
+
+        # We add the default decospecs for everything except init and step since in those
+        # cases, the decospecs will already have been handled by either a run/resume
+        # or a scheduler setting them up in their own way.
+        if ctx.saved_args[0] not in ("step", "init"):
+            all_decospecs += DEFAULT_DECOSPECS.split()
         if all_decospecs:
             decorators._attach_decorators(ctx.obj.flow, all_decospecs)
             decorators._init(ctx.obj.flow)
