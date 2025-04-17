@@ -8,6 +8,8 @@ from . import metaflow_git
 from metaflow.exception import MetaflowException
 from metaflow.extension_support import dump_module_info
 from metaflow.mflog import BASH_MFLOG, BASH_FLUSH_LOGS
+
+from .meta_files import MFENV_DIR
 from . import R
 
 
@@ -51,6 +53,13 @@ class MetaflowEnvironment(object):
         """
         A list of tuples (file, arcname) to add to the job package.
         `arcname` is an alternative name for the file in the job package.
+        Note that the file will be package either:
+          - with the rest of user code (sibling of any user included packages and metaflow)
+          - with the rest of the configuration for metaflow (sibling of INFO file).
+
+        By default, it is the former but returning a Tuple with three elements and the
+        third element being True means it will be packaged as a configuration file
+        side of the package. By default, it is included in the user
         """
         return []
 
@@ -177,6 +186,7 @@ class MetaflowEnvironment(object):
             "after 6 tries. Exiting...' && exit 1; "
             "fi" % code_package_url,
             "TAR_OPTIONS='--warning=no-timestamp' tar xf job.tar",
+            "export PYTHONPATH=`pwd`/%s:$PYTHONPATH" % MFENV_DIR,
             "mflog 'Task is starting.'",
             "flush_mflogs",
         ]
