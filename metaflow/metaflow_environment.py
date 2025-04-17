@@ -4,6 +4,7 @@ import sys
 
 from .util import get_username
 from . import metaflow_version
+from . import metaflow_git
 from metaflow.exception import MetaflowException
 from metaflow.extension_support import dump_module_info
 from metaflow.mflog import BASH_MFLOG, BASH_FLUSH_LOGS
@@ -197,6 +198,10 @@ class MetaflowEnvironment(object):
             "python_version_code": "%d.%d.%d" % sys.version_info[:3],
             "metaflow_version": metaflow_version.get_version(),
             "script": os.path.basename(os.path.abspath(sys.argv[0])),
+            # Add git info
+            **metaflow_git.get_repository_info(
+                path=os.path.dirname(os.path.abspath(sys.argv[0]))
+            ),
         }
         if R.use_r():
             env["metaflow_r_version"] = R.metaflow_r_version()
@@ -206,7 +211,7 @@ class MetaflowEnvironment(object):
             # Information about extension modules (to load them in the proper order)
             ext_key, ext_val = dump_module_info()
             env[ext_key] = ext_val
-        return env
+        return {k: v for k, v in env.items() if v is not None and v != ""}
 
     def executable(self, step_name, default=None):
         if default is not None:

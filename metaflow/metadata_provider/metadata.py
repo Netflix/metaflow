@@ -630,6 +630,20 @@ class MetadataProvider(object):
             sys_info["r_version"] = env["r_version_code"]
         return sys_info
 
+    def _get_git_info_as_dict(self):
+        git_info = {}
+        env = self._environment.get_environment_info()
+        for key in [
+            "repo_url",
+            "branch_name",
+            "commit_sha",
+            "has_uncommitted_changes",
+        ]:
+            if key in env and env[key]:
+                git_info[key] = env[key]
+
+        return git_info
+
     def _get_system_tags(self):
         """Convert system info dictionary into a list of system tags"""
         return [
@@ -667,6 +681,27 @@ class MetadataProvider(object):
                         {"ds_type": code_ds, "sha": code_sha, "location": code_url}
                     ),
                     type="code-package",
+                    tags=["attempt_id:{0}".format(attempt)],
+                )
+            )
+        # Add script name as metadata
+        script_name = self._environment.get_environment_info()["script"]
+        metadata.append(
+            MetaDatum(
+                field="script-name",
+                value=script_name,
+                type="script-name",
+                tags=["attempt_id:{0}".format(attempt)],
+            )
+        )
+        # And add git metadata
+        git_info = self._get_git_info_as_dict()
+        if git_info:
+            metadata.append(
+                MetaDatum(
+                    field="git-info",
+                    value=json.dumps(git_info),
+                    type="git-info",
                     tags=["attempt_id:{0}".format(attempt)],
                 )
             )
