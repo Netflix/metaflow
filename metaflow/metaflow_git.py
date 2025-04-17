@@ -85,11 +85,12 @@ def _is_in_git_repo(path: Union[str, os.PathLike]) -> bool:
 
 def _has_uncommitted_changes(path: Union[str, os.PathLike]) -> Optional[bool]:
     """Check if the git repository has uncommitted changes"""
-    stdout, returncode, failed = _call_git(["status", "--porcelain"], path)
+    _stdout, returncode, failed = _call_git(
+        ["diff-index", "--quiet", "HEAD", "--"], path
+    )
     if failed:
         return None
-    # If output is not empty, there are uncommitted changes
-    return returncode == 0 and bool(stdout)
+    return returncode != 0
 
 
 def get_repository_info(path: Union[str, os.PathLike]) -> Dict[str, Union[str, bool]]:
