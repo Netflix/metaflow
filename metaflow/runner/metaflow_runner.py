@@ -229,7 +229,7 @@ class Runner(metaclass=RunnerMeta):
     Parameters
     ----------
     flow_file : str
-        Path to the flow file to run
+        Path to the flow file to run, relative to current directory.
     show_output : bool, default True
         Show the 'stdout' and 'stderr' to the console by default,
         Only applicable for synchronous 'run' and 'resume' functions.

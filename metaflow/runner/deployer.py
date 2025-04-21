@@ -53,7 +53,7 @@ class Deployer(metaclass=DeployerMeta):
     Parameters
     ----------
     flow_file : str
-        Path to the flow file to deploy.
+        Path to the flow file to deploy, relative to current directory.
     show_output : bool, default True
         Show the 'stdout' and 'stderr' to the console by default.
     profile : Optional[str], default None
