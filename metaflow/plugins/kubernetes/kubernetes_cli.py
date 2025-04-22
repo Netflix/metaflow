@@ -222,6 +222,28 @@ def step(
             retry_deco[0].attributes.get("minutes_between_retries", 2)
         )
     if retry_count:
+        retry_conditions = retry_deco[0].attributes["only_on"]
+        if retry_conditions:
+            print("retrying only on: %s" % retry_conditions)
+            # check if last failure reason matches the retry condition
+            # init the datastore for the previous known attempt so we can read metadata
+            previous_attempt_ds = ctx.obj.flow_datastore.get_task_datastore(
+                mode="r",
+                run_id=kwargs["run_id"],
+                step_name=step_name,
+                task_id=kwargs["task_id"],
+                attempt=int(retry_count) - 1,
+            )
+            spot_termination = previous_attempt_ds.has_metadata(
+                "spot-termination-received-at"
+            )
+            print("has spot termination: %s" % spot_termination)
+            if "spot-termination" in retry_conditions and not spot_termination:
+                ctx.obj.echo_always(
+                    "Task failed due to an error that will not be retried."
+                )
+                sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
+
         ctx.obj.echo_always(
             "Sleeping %d minutes before the next retry" % minutes_between_retries
         )
