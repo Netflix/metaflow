@@ -1978,6 +1978,11 @@ class ArgoWorkflows(object):
                 resources["disk"],
             )
 
+            extended_resources = resources.get("extended_resources", {})
+
+            qos_requests = {**qos_requests, **extended_resources}
+            qos_limits = {**qos_limits, **extended_resources}
+
             # Create a ContainerTemplate for this node. Ideally, we would have
             # liked to inline this ContainerTemplate and avoid scanning the workflow
             # twice, but due to issues with variable substitution, we will have to
@@ -2034,6 +2039,7 @@ class ArgoWorkflows(object):
                     shared_memory=shared_memory,
                     port=port,
                     qos=resources["qos"],
+                    extended_resources=extended_resources,
                 )
 
                 for k, v in env.items():
