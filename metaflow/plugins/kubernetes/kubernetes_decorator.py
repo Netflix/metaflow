@@ -122,6 +122,14 @@ class KubernetesDecorator(StepDecorator):
         Only applicable when @parallel is used.
     qos: str, default: Burstable
         Quality of Service class to assign to the pod. Supported values are: Guaranteed, Burstable, BestEffort
+
+    security_context: Dict[str, Any], optional, default None
+        Container security context. Applies to the task container. Allows the following keys:
+        - privileged: bool, optional, default None
+        - allow_privilege_escalation: bool, optional, default None
+        - run_as_user: int, optional, default None
+        - run_as_group: int, optional, default None
+        - run_as_non_root: bool, optional, default None
     """
 
     name = "kubernetes"
@@ -152,6 +160,7 @@ class KubernetesDecorator(StepDecorator):
         "executable": None,
         "hostname_resolution_timeout": 10 * 60,
         "qos": KUBERNETES_QOS,
+        "security_context": None,
     }
     package_url = None
     package_sha = None
@@ -474,6 +483,7 @@ class KubernetesDecorator(StepDecorator):
                     "persistent_volume_claims",
                     "labels",
                     "annotations",
+                    "security_context",
                 ]:
                     cli_args.command_options[k] = json.dumps(v)
                 else:
