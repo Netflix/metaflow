@@ -1978,6 +1978,15 @@ class ArgoWorkflows(object):
                 resources["disk"],
             )
 
+            security_context = resources.get("security_context", None)
+            _security_context = {}
+            if security_context is not None:
+                _security_context = {
+                    "security_context": kubernetes_sdk.V1SecurityContext(
+                        **security_context
+                    )
+                }
+
             # Create a ContainerTemplate for this node. Ideally, we would have
             # liked to inline this ContainerTemplate and avoid scanning the workflow
             # twice, but due to issues with variable substitution, we will have to
@@ -2034,6 +2043,7 @@ class ArgoWorkflows(object):
                     shared_memory=shared_memory,
                     port=port,
                     qos=resources["qos"],
+                    security_context=security_context,
                 )
 
                 for k, v in env.items():
@@ -2310,6 +2320,7 @@ class ArgoWorkflows(object):
                                     is not None
                                     else []
                                 ),
+                                **_security_context,
                             ).to_dict()
                         )
                     )

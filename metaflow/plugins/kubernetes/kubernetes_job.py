@@ -80,6 +80,13 @@ class KubernetesJob(object):
             self._kwargs["disk"],
         )
 
+        security_context = self._kwargs.get("security_context", {})
+        _security_context = {}
+        if len(security_context) > 0:
+            _security_context = {
+                "security_context": client.V1SecurityContext(**security_context)
+            }
+
         return client.V1JobSpec(
             # Retries are handled by Metaflow when it is responsible for
             # executing the flow. The responsibility is moved to Kubernetes
@@ -203,6 +210,7 @@ class KubernetesJob(object):
                                 if self._kwargs["persistent_volume_claims"] is not None
                                 else []
                             ),
+                            **_security_context,
                         )
                     ],
                     node_selector=self._kwargs.get("node_selector"),

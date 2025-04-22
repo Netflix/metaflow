@@ -145,6 +145,12 @@ def kubernetes():
     type=JSONTypeClass(),
     multiple=False,
 )
+@click.option(
+    "--security-context",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=False,
+)
 @click.pass_context
 def step(
     ctx,
@@ -176,6 +182,7 @@ def step(
     qos=None,
     labels=None,
     annotations=None,
+    security_context=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", job_id=None, **kwargs):
@@ -319,6 +326,7 @@ def step(
                 qos=qos,
                 labels=labels,
                 annotations=annotations,
+                security_context=security_context,
             )
     except Exception:
         traceback.print_exc(chain=False)
