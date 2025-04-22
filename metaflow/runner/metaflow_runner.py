@@ -229,7 +229,7 @@ class Runner(metaclass=RunnerMeta):
     Parameters
     ----------
     flow_file : str
-        Path to the flow file to run
+        Path to the flow file to run, relative to current directory.
     show_output : bool, default True
         Show the 'stdout' and 'stderr' to the console by default,
         Only applicable for synchronous 'run' and 'resume' functions.
@@ -286,7 +286,12 @@ class Runner(metaclass=RunnerMeta):
         from metaflow.cli import start
         from metaflow.runner.click_api import MetaflowAPI
 
-        self.flow_file = flow_file
+        # Convert flow_file to absolute path if it's relative
+        if not os.path.isabs(flow_file):
+            self.flow_file = os.path.abspath(flow_file)
+        else:
+            self.flow_file = flow_file
+
         self.show_output = show_output
 
         self.env_vars = os.environ.copy()

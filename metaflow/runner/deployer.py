@@ -1,3 +1,4 @@
+import os
 import json
 import time
 
@@ -52,7 +53,7 @@ class Deployer(metaclass=DeployerMeta):
     Parameters
     ----------
     flow_file : str
-        Path to the flow file to deploy.
+        Path to the flow file to deploy, relative to current directory.
     show_output : bool, default True
         Show the 'stdout' and 'stderr' to the console by default.
     profile : Optional[str], default None
@@ -80,7 +81,12 @@ class Deployer(metaclass=DeployerMeta):
         file_read_timeout: int = 3600,
         **kwargs,
     ):
-        self.flow_file = flow_file
+        # Convert flow_file to absolute path if it's relative
+        if not os.path.isabs(flow_file):
+            self.flow_file = os.path.abspath(flow_file)
+        else:
+            self.flow_file = flow_file
+
         self.show_output = show_output
         self.profile = profile
         self.env = env
