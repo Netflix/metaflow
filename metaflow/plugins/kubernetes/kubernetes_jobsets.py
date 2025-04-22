@@ -564,7 +564,7 @@ class JobSetSpec(object):
         )
         security_context = self._kwargs.get("security_context", {})
         _security_context = {}
-        if len(security_context):
+        if security_context is not None and len(security_context) > 0:
             _security_context = {
                 "security_context": client.V1SecurityContext(**security_context)
             }

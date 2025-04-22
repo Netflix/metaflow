@@ -1980,7 +1980,7 @@ class ArgoWorkflows(object):
 
             security_context = resources.get("security_context", None)
             _security_context = {}
-            if security_context is not None:
+            if security_context is not None and len(security_context) > 0:
                 _security_context = {
                     "security_context": kubernetes_sdk.V1SecurityContext(
                         **security_context
