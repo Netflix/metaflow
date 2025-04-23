@@ -51,15 +51,26 @@ class MetaflowEnvironment(object):
 
     def add_to_package(self):
         """
-        A list of tuples (file, arcname) to add to the job package.
-        `arcname` is an alternative name for the file in the job package.
-        Note that the file will be package either:
-          - with the rest of user code (sibling of any user included packages and metaflow)
-          - with the rest of the configuration for metaflow (sibling of INFO file).
-
-        By default, it is the former but returning a Tuple with three elements and the
-        third element being True means it will be packaged as a configuration file
-        side of the package. By default, it is included in the user
+        Called to add custom files needed for this environment. This hook will be
+        called in the `MetaflowPackage` class where metaflow compiles the code package
+        tarball. This hook can return one of two things:
+          - a generator yielding a tuple of `(file_path, arcname)` to add files to
+            the code package. `file_path` is the path to the file on the local filesystem
+            and `arcname` is the path relative to the packaged code.
+          - a generator yielding a tuple of `(content, arcname, type)` where:
+            - type is a AddToPackageType
+            - for CODE_FILE:
+              - content: path to the file to include
+              - arcname: path relative to the code directory in the package
+            - for CODE_MODULE:
+              - content: name of the module
+              - arcame: None (ignored)
+            - for CONFIG_FILE:
+              - content: path to the file to include
+              - arcname: path relative to the config directory in the package
+            - for CONFIG_CONTENT:
+              - content: bytes to include
+              - arcname: path relative to the config directory in the package
         """
         return []
 

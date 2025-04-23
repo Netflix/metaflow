@@ -2,7 +2,7 @@ import json
 import os
 
 from enum import Enum
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Union
 
 from .util import get_metaflow_root
 
@@ -19,7 +19,9 @@ MFENV_DIR = (
     ".mfenv"  # Directory containing "system" code (metaflow and user dependencies)
 )
 MFCONF_DIR = ".mfconf"  # Directory containing Metaflow's configuration files
-MFENV_MARKER = ".mfenv_install"
+MFENV_MARKER = (
+    ".mfenv_install"  # Special file containing metadata about how Metaflow is packaged
+)
 
 
 class MetaFile(Enum):
@@ -28,47 +30,85 @@ class MetaFile(Enum):
     INCLUDED_DIST_INFO = "INCLUDED_DIST_INFO"
 
 
-def is_mfenv_packaging() -> Optional[Tuple[str, str]]:
-    """
-    Returns a tuple indicating the root, within the archive, of the code portion of
-    the package (Metaflow and user libraries) and the configuration files.
-    This is added for forward compatibility support in case the values of MFENV_DIR and
-    MFCONF_DIR change and also to enable users/developers to change them.
-    If this execution of Metaflow is not within a package with MFEnv, returns None
+def meta_file_name(name: Union[MetaFile, str]) -> str:
+    if isinstance(name, MetaFile):
+        return name.value
+    return name
 
 
-    Returns
-    -------
-    Optional[Tuple[str, str]]
-        See description above
-    """
+def generic_get_filename(
+    name: Union[MetaFile, str], is_meta: Optional[bool] = None
+) -> Optional[str]:
+    # We are not in a MFEnv package (so this is an old style package). Everything
+    # is at metaflow root. There is no distinction between code and config.
+    real_name = meta_file_name(name)
+
+    path_to_file = os.path.join(get_metaflow_root(), real_name)
+    if os.path.isfile(path_to_file):
+        return path_to_file
+    return None
+
+
+def v1_get_filename(
+    name: Union[MetaFile, str],
+    meta_info: Dict[str, Any],
+    is_meta: Optional[bool] = None,
+) -> Optional[str]:
+    if is_meta is None:
+        is_meta = isinstance(name, MetaFile)
+    if is_meta:
+        conf_dir = meta_info.get("conf_dir")
+        if conf_dir is None:
+            raise ValueError(
+                "Invalid package -- package info does not contain conf_dir key"
+            )
+        return os.path.join(conf_dir, meta_file_name(name))
+    # Not meta -- so code
+    code_dir = meta_info.get("code_dir")
+    if code_dir is None:
+        raise ValueError(
+            "Invalid package -- package info does not contain code_dir key"
+        )
+    return os.path.join(code_dir, meta_file_name(name))
+
+
+get_filname_map = {1: v1_get_filename}
+
+
+def get_filename(
+    name: Union[MetaFile, str], is_meta: Optional[bool] = None
+) -> Optional[str]:
     if os.path.exists(os.path.join(get_metaflow_root(), MFENV_MARKER)):
         with open(
             os.path.join(get_metaflow_root(), MFENV_MARKER), "r", encoding="utf-8"
         ) as f:
-            return tuple(f.readline().strip().split(","))
-    return None
+            meta_info = json.load(f)
+        version = meta_info.get("version")
+        if version not in get_filname_map:
+            raise ValueError(
+                "Unsupported packaging version '%s'. Please update Metaflow" % version
+            )
+        return get_filname_map[version](name, meta_info, is_meta)
+    return generic_get_filename(name, is_meta)
 
 
 def read_info_file():
-
+    # The info file is a bit special because it needs to be read to determine what
+    # extensions to load. We need to therefore not load anything yet. This explains
+    # the slightly wheird code structure where there is a bit of the file loading logic
+    # here that is then used in MFEnv (it logically belongs in MFEnv but that file can't
+    # be loaded just yet).
     global _info_file_content
     global _info_file_present
+
     if _info_file_present is None:
-        r = is_mfenv_packaging()
-        if r:
-            file_path = os.path.join(
-                get_metaflow_root(), "..", r[1], MetaFile.INFO_FILE.value
-            )
-        else:
-            file_path = os.path.join(get_metaflow_root(), MetaFile.INFO_FILE.value)
-        if os.path.exists(file_path):
-            with open(file_path, "r", encoding="utf-8") as f:
+        info_filename = get_filename(MetaFile.INFO_FILE)
+        if info_filename is not None:
+            with open(info_filename, "r", encoding="utf-8") as f:
                 _info_file_content = json.load(f)
-            _info_file_present = True
+                _info_file_present = True
         else:
             _info_file_present = False
-
     if _info_file_present:
         return _info_file_content
     return None
@@ -77,21 +117,16 @@ def read_info_file():
 def read_included_dist_info():
     global _included_dist_info
     global _included_dist_present
+
+    from metaflow.package.mfenv import MFEnv
+
     if _included_dist_present is None:
-        r = is_mfenv_packaging()
-        if not r:
-            _included_dist_present = False
-            return None
-        file_path = os.path.join(
-            get_metaflow_root(), "..", r[1], MetaFile.INCLUDED_DIST_INFO.value
-        )
-        if os.path.exists(file_path):
-            with open(file_path, "r", encoding="utf-8") as f:
-                _included_dist_info = json.load(f)
+        c = MFEnv.get_content(MetaFile.INCLUDED_DIST_INFO)
+        if c is not None:
+            _included_dist_info = json.loads(c.decode("utf-8"))
             _included_dist_present = True
         else:
             _included_dist_present = False
-
     if _included_dist_present:
         return _included_dist_info
     return None

@@ -23,13 +23,14 @@ from .extension_support import extension_info
 
 from .graph import FlowGraph
 from .unbounded_foreach import UnboundedForeachInput
-from .user_configs.config_decorators import (
-    ConfigValue,
-    CustomFlowDecorator,
-    CustomStepDecorator,
-    MutableFlow,
-    MutableStep,
-)
+from .user_configs.config_parameters import ConfigValue
+
+from .user_decorators.mutable_flow import MutableFlow
+from .user_decorators.mutable_step import MutableStep
+from .user_decorators.user_flow_decorator import FlowMutator
+from .user_decorators.user_step_decorator import StepMutator
+
+
 from .util import to_pod
 from .metaflow_config import INCLUDE_FOREACH_STACK, MAXIMUM_FOREACH_VALUE_CHARS
 
@@ -268,15 +269,16 @@ class FlowSpec(metaclass=FlowSpecMeta):
         # we will run those first and *then* we run all the flow level decorators
         for step in cls._steps:
             for deco in step.config_decorators:
-                if isinstance(deco, CustomStepDecorator):
+                if isinstance(deco, StepMutator):
                     debug.userconf_exec(
                         "Evaluating step level decorator %s for %s"
                         % (deco.__class__.__name__, step.name)
                     )
-                    deco.evaluate(MutableStep(cls, step))
+                    deco.mutate(MutableStep(cls, step))
                 else:
+                    print("Found %s" % str(deco))
                     raise MetaflowInternalError(
-                        "A non CustomFlowDecorator found in step custom decorators"
+                        "A non StepMutator found in step custom decorators"
                     )
             if step.config_decorators:
                 # We remove all mention of the custom step decorator
@@ -284,26 +286,26 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
         mutable_flow = MutableFlow(cls)
         for deco in cls._flow_state.get(_FlowState.CONFIG_DECORATORS, []):
-            if isinstance(deco, CustomFlowDecorator):
+            if isinstance(deco, FlowMutator):
                 # Sanity check to make sure we are applying the decorator to the right
                 # class
                 if not deco._flow_cls == cls and not issubclass(cls, deco._flow_cls):
                     raise MetaflowInternalError(
-                        "CustomFlowDecorator registered on the wrong flow -- "
+                        "FlowMutator registered on the wrong flow -- "
                         "expected %s but got %s"
                         % (deco._flow_cls.__name__, cls.__name__)
                     )
                 debug.userconf_exec(
                     "Evaluating flow level decorator %s" % deco.__class__.__name__
                 )
-                deco.evaluate(mutable_flow)
+                deco.mutate(mutable_flow)
                 # We reset cached_parameters on the very off chance that the user added
                 # more configurations based on the configuration
                 if _FlowState.CACHED_PARAMETERS in cls._flow_state:
                     del cls._flow_state[_FlowState.CACHED_PARAMETERS]
             else:
                 raise MetaflowInternalError(
-                    "A non CustomFlowDecorator found in flow custom decorators"
+                    "A non FlowMutator found in flow custom decorators"
                 )
 
         # Process parameters to allow them to also use config values easily

@@ -1,19 +1,18 @@
 import os
 import sys
-import tarfile
 import time
 import json
 
-from abc import ABC, abstractmethod
+from hashlib import sha1
 from io import BytesIO
 
 
-from .mfenv import MFEnv
+from .mfenv import AddToPackageType, MFEnv, MFEnvV1
 from .tar_backend import TarPackagingBackend
 from .utils import walk
 from ..metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from ..exception import MetaflowException
-from ..meta_files import MFENV_DIR, MetaFile, get_metaflow_root
+from ..meta_files import MFENV_DIR, MetaFile, get_metaflow_root, meta_file_name
 from ..user_configs.config_parameters import dump_config_values
 from .. import R
 
@@ -81,72 +80,112 @@ class MetaflowPackage(object):
         else:
             self.name = "generic code"
 
-        self._code_env = code_env or MFEnv(
+        self._code_env = code_env or MFEnvV1(
             lambda x: hasattr(x, "METAFLOW_PACKAGE"),
             package_path=package_code_env_path,
         )
 
         # Add metacontent
         self._code_env.add_meta_content(
-            MetaFile.INFO_FILE,
             json.dumps(
                 self.environment.get_environment_info(include_ext_info=True)
             ).encode("utf-8"),
+            MetaFile.INFO_FILE,
         )
 
         if self._flow:
             self._code_env.add_meta_content(
-                MetaFile.CONFIG_FILE,
                 json.dumps(dump_config_values(self._flow)).encode("utf-8"),
+                MetaFile.CONFIG_FILE,
             )
 
-            # Add user files (from decorators) -- we add these to the code environment
-            self._code_env.add_files(self._addl_files())
+            # Add user files (from decorators and environment)
+            self._add_addl_files()
 
         self.blob = self._make()
 
     def path_tuples(self):
-        # Package the environment
-        for path, arcname in self._code_env.files():
+        # Files included in the environment
+        for path, arcname in self._code_env.content_names():
             yield path, arcname
-        for _, arcname in self._code_env.metacontents():
-            yield f"<generated>{arcname}", arcname
 
-        # Package the user code
+        # Files included in the user code
         for path, arcname in self._user_code_tuples():
             yield path, arcname
 
-    def _addl_files(self):
+    def _add_addl_files(self):
         # Look at all decorators that provide additional files
         deco_module_paths = {}
+        addl_modules = set()
+
+        def _check_tuple(path_tuple):
+            if len(path_tuple) == 2:
+                path_tuple = (
+                    path_tuple[0],
+                    path_tuple[1],
+                    AddToPackageType.CODE_FILE,
+                )
+            file_path, file_name, file_type = path_tuple
+            if file_type == AddToPackageType.CODE_MODULE:
+                if file_path in addl_modules:
+                    return None  # Module was already added -- we don't add twice
+                addl_modules.add(file_path)
+            elif file_type == AddToPackageType.CONFIG_CONTENT:
+                # file_path is a content here (bytes)
+                file_name = meta_file_name(file_name)
+                if file_name not in deco_module_paths:
+                    deco_module_paths[file_name] = sha1(file_path).hexdigest()
+                elif deco_module_paths[file_name] != sha1(file_path).hexdigest():
+                    raise NonUniqueFileNameToFilePathMappingException(
+                        file_name,
+                        [
+                            deco_module_paths[file_name],
+                            sha1(file_path).hexdigest(),
+                        ],
+                    )
+            else:
+                # These are files
+                # Check if the path is not duplicated as
+                # many steps can have the same packages being imported
+                if file_name not in deco_module_paths:
+                    deco_module_paths[file_name] = file_path
+                elif deco_module_paths[file_name] != file_path:
+                    raise NonUniqueFileNameToFilePathMappingException(
+                        file_name, [deco_module_paths[file_name], file_path]
+                    )
+            return path_tuple
+
+        def _add_tuple(path_tuple):
+            file_path, file_name, file_type = path_tuple
+            if file_type == AddToPackageType.CODE_MODULE:
+                self._code_env.add_module(file_path)
+            elif file_type == AddToPackageType.CONFIG_CONTENT:
+                # file_path is a content here (bytes)
+                self._code_env.add_meta_content(file_path, file_name)
+            elif file_type == AddToPackageType.CONFIG_FILE:
+                self._code_env.add_meta_file(file_path, file_name)
+            else:
+                self._code_env.add_code_file(file_path, file_name)
+
         for step in self._flow:
             for deco in step.decorators:
                 for path_tuple in deco.add_to_package():
-                    if len(path_tuple) == 2:
-                        path_tuple = (path_tuple[0], path_tuple[1], False)
-                    file_path, file_name, _ = path_tuple
-                    # Check if the path is not duplicated as
-                    # many steps can have the same packages being imported
-                    if file_name not in deco_module_paths:
-                        deco_module_paths[file_name] = file_path
-                        yield path_tuple
-                    elif deco_module_paths[file_name] != file_path:
-                        raise NonUniqueFileNameToFilePathMappingException(
-                            file_name, [deco_module_paths[file_name], file_path]
-                        )
+                    path_tuple = _check_tuple(path_tuple)
+                    if path_tuple is None:
+                        continue
+                    _add_tuple(path_tuple)
 
         # the package folders for environment
         for path_tuple in self.environment.add_to_package():
-            if len(path_tuple) == 2:
-                path_tuple = (path_tuple[0], path_tuple[1], False)
-            yield path_tuple
+            path_tuple = _check_tuple(path_tuple)
+            if path_tuple is None:
+                continue
+            _add_tuple(path_tuple)
 
     def _user_code_tuples(self):
         if R.use_r():
             # the R working directory
-            for path_tuple in MFEnv.walk(
-                "%s/" % R.working_dir(), suffixes=self.suffixes
-            ):
+            for path_tuple in walk("%s/" % R.working_dir(), suffixes=self.suffixes):
                 yield path_tuple
             # the R package
             for path_tuple in R.package_paths():
@@ -176,10 +215,13 @@ class MetaflowPackage(object):
         backend = self._backend()
         with backend.create() as archive:
             # Package the environment
-            for path, arcname in self._code_env.files():
+            for path, arcname in self._code_env.content(AddToPackageType.FILES_ONLY):
                 archive.add_file(path, arcname=arcname)
-            for content, arcname in self._code_env.metacontents():
-                archive.add_data(BytesIO(content), arcname)
+
+            for content, arcname in self._code_env.content(
+                AddToPackageType.CONFIG_CONTENT
+            ):
+                archive.add_data(BytesIO(content), arcname=arcname)
 
             # Package the user code
             for path, arcname in self._user_code_tuples():
