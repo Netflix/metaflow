@@ -11,7 +11,11 @@ from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
 import metaflow.tracing as tracing
 from metaflow import JSONTypeClass, util
 from metaflow._vendor import click
-from metaflow.exception import METAFLOW_EXIT_DISALLOW_RETRY, MetaflowException
+from metaflow.exception import (
+    METAFLOW_EXIT_DISALLOW_RETRY,
+    METAFLOW_EXIT_ALLOW_RETRY,
+    MetaflowException,
+)
 from metaflow.metadata_provider.util import sync_local_metadata_from_datastore
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.mflog import TASK_LOG_SOURCE
@@ -21,6 +25,7 @@ from .kubernetes import (
     Kubernetes,
     KubernetesException,
     KubernetesKilledException,
+    KubernetesSpotInstanceTerminated,
 )
 
 
@@ -221,29 +226,8 @@ def step(
         minutes_between_retries = int(
             retry_deco[0].attributes.get("minutes_between_retries", 2)
         )
+    retry_conditions = retry_deco[0].attributes["only_on"] if retry_deco else None
     if retry_count:
-        retry_conditions = retry_deco[0].attributes["only_on"]
-        if retry_conditions:
-            print("retrying only on: %s" % retry_conditions)
-            # check if last failure reason matches the retry condition
-            # init the datastore for the previous known attempt so we can read metadata
-            previous_attempt_ds = ctx.obj.flow_datastore.get_task_datastore(
-                mode="r",
-                run_id=kwargs["run_id"],
-                step_name=step_name,
-                task_id=kwargs["task_id"],
-                attempt=int(retry_count) - 1,
-            )
-            spot_termination = previous_attempt_ds.has_metadata(
-                "spot-termination-received-at"
-            )
-            print("has spot termination: %s" % spot_termination)
-            if "spot-termination" in retry_conditions and not spot_termination:
-                ctx.obj.echo_always(
-                    "Task failed due to an error that will not be retried."
-                )
-                sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
-
         ctx.obj.echo_always(
             "Sleeping %d minutes before the next retry" % minutes_between_retries
         )
@@ -352,6 +336,12 @@ def step(
         # don't retry killed tasks
         traceback.print_exc()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
+    except KubernetesSpotInstanceTerminated:
+        traceback.print_exc()
+        if retry_conditions is not None and "spot-termination" in retry_conditions:
+            sys.exit(METAFLOW_EXIT_ALLOW_RETRY)
+        else:
+            sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     finally:
         _sync_metadata()
 

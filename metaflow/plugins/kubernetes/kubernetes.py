@@ -72,6 +72,10 @@ class KubernetesKilledException(MetaflowException):
     headline = "Kubernetes Batch job killed"
 
 
+class KubernetesSpotInstanceTerminated(MetaflowException):
+    headline = "Kubernetes node spot instance has been terminated"
+
+
 class Kubernetes(object):
     def __init__(
         self,
@@ -764,6 +768,9 @@ class Kubernetes(object):
                     )
                 if int(exit_code) == 134:
                     raise KubernetesException("%s (exit code %s)" % (msg, exit_code))
+                if int(exit_code) == 154:
+                    # NOTE. K8S exit codes are mod 256
+                    raise KubernetesSpotInstanceTerminated()
                 else:
                     msg = "%s (exit code %s)" % (msg, exit_code)
             raise KubernetesException(
