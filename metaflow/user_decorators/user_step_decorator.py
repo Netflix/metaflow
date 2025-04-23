@@ -59,20 +59,15 @@ class _StepDecorator:
         # def my_step(self):
         #     pass
         #
-        # In that case, if we don't have __get__, the object is a _StepDecorator
-        # and not a step. Other parts of the code rely on steps having is_step. There are
-        # other ways to solve this but this allowed for minimal changes going forward.
+        # This is *not* called for something like:
+        # @MyStepDecorator()
+        # @step
+        # def my_step(self):
+        #     pass
+        # because in that case, we will have called __call__ below and that already
+        # returns a function and that __get__ function will be called.
 
-        # Note, there are two cases:
-        #  - we want to get the function of the class (not through an instance)
-        #  - we are accessing it through an instance in which case we need to return
-        #    a *bound* method.
-        f = self()
-        if instance:
-            # We are accessing the step decorator through an instance of the class so
-            # we will bind it to make it a method
-            return f.__get__(instance, owner)
-        return f
+        return self().__get__(instance, owner)
 
     def __call__(
         self,
