@@ -20,6 +20,7 @@ class SpotTerminationMonitorSidecar(object):
         self._process = None
         self._token = None
         self._token_expiry = 0
+        self.termination_time = None
 
         if self._is_aws_spot_instance():
             self._process = Process(target=self._monitor_loop)
@@ -64,17 +65,40 @@ class SpotTerminationMonitorSidecar(object):
         except (requests.exceptions.RequestException, requests.exceptions.Timeout):
             return False
 
+    def _try_sending_termination_signal(self):
+        # wait for 20 seconds before the promised termination time of the spot instance before sending a SIGALRM
+        if (datetime.now() + self.POLL_INTERVAL - 20) < self.termination_time:
+            return False
+        else:
+            os.kill(int(os.getenv("MF_MAIN_PID")), signal.SIGALRM)
+            return True
+
+    def _monitor_spot_termination(self):
+        if self.termination_time is not None:
+            return self.termination_time
+
+        try:
+            response = self._make_ec2_request(url=self.METADATA_URL, timeout=1)
+            if response.status_code == 200:
+                self.termination_time = response.text
+                self._emit_termination_metadata(self.termination_time)
+                # TODO: Verify. This doesn't actually work, as getppid() does not return the main Metaflow task process id due to sidecar nesting.
+                os.kill(os.getppid(), signal.SIGTERM)
+        except (requests.exceptions.RequestException, requests.exceptions.Timeout):
+            pass
+
+        return self.termination_time
+
     def _monitor_loop(self):
         while self.is_alive:
-            try:
-                response = self._make_ec2_request(url=self.METADATA_URL, timeout=1)
-                if response.status_code == 200:
-                    termination_time = response.text
-                    self._emit_termination_metadata(termination_time)
-                    os.kill(os.getppid(), signal.SIGTERM)
-                    break
-            except (requests.exceptions.RequestException, requests.exceptions.Timeout):
-                pass
+            terminates_at = self._monitor_spot_termination()
+
+            sent_signal = False
+            if terminates_at is not None:
+                sent_signal = self._try_sending_termination_signal()
+
+            if sent_signal:
+                break
             time.sleep(self.POLL_INTERVAL)
 
     def _emit_termination_metadata(self, termination_time):
