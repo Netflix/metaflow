@@ -6,13 +6,13 @@ import sys
 import tarfile
 
 from collections import defaultdict
+from enum import IntEnum
 from pathlib import Path
 from typing import (
     Any,
     Callable,
     Dict,
     Generator,
-    Iterator,
     List,
     Mapping,
     NamedTuple,
@@ -29,9 +29,18 @@ from .tar_backend import TarPackagingBackend
 from .utils import walk
 
 from ..debug import debug
+from ..exception import MetaflowException
 from ..extension_support import EXT_EXCLUDE_SUFFIXES, metadata, package_mfext_all
 
-from ..meta_files import MFCONF_DIR, MFENV_DIR, MFENV_MARKER, MetaFile
+from ..meta_files import (
+    MFCONF_DIR,
+    MFENV_DIR,
+    MFENV_MARKER,
+    MetaFile,
+    generic_get_filename,
+    v1_get_filename,
+    meta_file_name,
+)
 from ..util import get_metaflow_root
 
 packages_distributions = None
@@ -86,6 +95,18 @@ if TYPE_CHECKING:
 _cached_distributions = None
 
 name_normalizer = re.compile(r"[-_.]+")
+
+
+class AddToPackageType(IntEnum):
+    CODE_ONLY = 0x100
+    CONFIG_ONLY = 0x200
+    FILES_ONLY = 0x400
+    ALL = 0xFFF
+    CODE_FILE = 0x501
+    CODE_MODULE = 0x502
+    CODE_METAFLOW = 0x504
+    CONFIG_FILE = 0x601
+    CONFIG_CONTENT = 0x202
 
 
 def modules_to_distributions() -> Dict[str, List[metadata.Distribution]]:
@@ -158,56 +179,74 @@ class PackagedDistributionFinder(metadata.DistributionFinder):
 
 
 class MFEnv:
+    _cached_mfenv_info = {}
 
-    METAFLOW_SUFFIXES_LIST = [".py", ".html", ".css", ".js"]
-
-    cached_config_dir = None
+    _mappings = {}
 
     @classmethod
     def get_filename(
-        cls, name: Union[MetaFile, str], is_meta: bool = False
+        cls, name: Union[MetaFile, str], is_meta: Optional[bool] = None
     ) -> Optional[str]:
+        """
+        Get the filename of a file in the expanded package. The filename will point to
+        a path on the local filesystem.
+
+        Parameters
+        ----------
+        name : Union[MetaFile, str]
+            Filename to look for. If it is a MetaFile, it is assumed to be relative
+            to the configuration directory. If it is a string, it is assumed to be
+            relative to the code directory.
+        is_meta : bool, optional, default None
+            If None, the default behavior above is assumed. If True, the file will be
+            searched for in the configuration directory and if False, it will be
+            searched for in the code directory.
+
+        Returns
+        -------
+        Optional[str]
+            The file path of the file if it is exists -- None if there is no such file.
+        """
         # Get the filename of the expanded file.
         # Two cases:
         # 1. The file was encoded prior to MFEnv packaging -- it will be next to
-        #    Metaflow (sibbling)
-        # 2. The file was encoded as part of the MFEnv packaging -- it will be in
-        #    the config directory -- we can find that directory by looking at the
-        #    MFENV_MARKER file (which we can then cache since it won't change for
-        #   the lifetime of the process).
-        if cls.cached_config_dir is None:
-            if os.path.exists(os.path.join(get_metaflow_root(), MFENV_MARKER)):
-                with open(
-                    os.path.join(get_metaflow_root(), MFENV_MARKER),
-                    "r",
-                    encoding="utf-8",
-                ) as f:
-                    cls.cached_config_dir = os.path.join(
-                        "..", f.readline().strip().split(",")[1]
-                    )
-            else:
-                cls.cached_config_dir = ""
-        if isinstance(name, MetaFile):
-            is_meta = True
-            name = name.value
-        if is_meta:
-            real_name = os.path.join(cls.cached_config_dir, name)
-        else:
-            real_name = name
-        path_to_file = os.path.join(
-            get_metaflow_root(), cls.cached_config_dir, real_name
-        )
-        if os.path.isfile(path_to_file):
-            return path_to_file
-        return None
+        #    Metaflow (sibling)
+        # 2. The file was encoded as part of the MFEnv packaging, we redirect
+        # it to the proper version of MFEnv to do the extraction
+        mfenv_info = cls._extract_mfenv_info()
+        handling_cls = cls._get_mfenv_class(mfenv_info)
+        if handling_cls:
+            return handling_cls._get_filename(name, mfenv_info, is_meta)
+
+        return generic_get_filename(name, is_meta)
 
     @classmethod
     def get_content(
-        cls, name: Union[MetaFile, str], is_meta: bool = False
-    ) -> Optional[str]:
+        cls, name: Union[MetaFile, str], is_meta: Optional[bool] = None
+    ) -> Optional[bytes]:
+        """
+        Get the content of a file in the expanded package. The content is returned as
+        bytes
+
+        Parameters
+        ----------
+        name : Union[MetaFile, str]
+            Filename to look for. If it is a MetaFile, it is assumed to be relative
+            to the configuration directory. If it is a string, it is assumed to be
+            relative to the code directory.
+        is_meta : bool, optional, default None
+            If None, the default behavior above is assumed. If True, the file will be
+            searched for in the configuration directory and if False, it will be
+            searched for in the code directory.
+
+        Returns
+        -------
+        Optional[bytes]
+            The binary content of the file -- None if there is no such file.
+        """
         file_to_read = cls.get_filename(name, is_meta)
         if file_to_read:
-            with open(file_to_read, "r", encoding="utf-8") as f:
+            with open(file_to_read, "rb") as f:
                 return f.read()
         return None
 
@@ -216,18 +255,41 @@ class MFEnv:
         cls,
         archive: Any,
         name: Union[MetaFile, str],
-        package_path=MFENV_DIR,
+        is_meta: Optional[bool] = None,
         packaging_backend=TarPackagingBackend,
     ) -> Optional[str]:
+        """
+        Get the filename of a file in the archive. The filename will point to
+        a path in the archive.
+
+        Parameters
+        ----------
+        name : Union[MetaFile, str]
+            Filename to look for. If it is a MetaFile, it is assumed to be relative
+            to the configuration directory. If it is a string, it is assumed to be
+            relative to the code directory.
+        is_meta : bool, optional, default None
+            If None, the default behavior above is assumed. If True, the file will be
+            searched for in the configuration directory and if False, it will be
+            searched for in the code directory.
+
+        Returns
+        -------
+        Optional[str]
+            The file path of the file if it is exists -- None if there is no such file.
+        """
+        mfenv_info = cls._extract_archive_mfenv_info(archive, packaging_backend)
+        handling_cls = cls._get_mfenv_class(mfenv_info)
+        if handling_cls:
+            return handling_cls._get_archive_filename(
+                archive, name, mfenv_info, is_meta, packaging_backend
+            )
         # Backward compatible way of accessing all special files. Prior to MFEnv, they
-        # were stored at the TL of the archive.
-        real_name = name.value if isinstance(name, MetaFile) else name
-        if packaging_backend.cls_has_member(archive, package_path):
-            file_path = os.path.join(package_path, real_name)
-        else:
-            file_path = real_name
-        if packaging_backend.cls_has_member(archive, file_path):
-            return file_path
+        # were stored at the TL of the archive. There is no distinction between code and
+        # config.
+        real_name = meta_file_name(name)
+        if packaging_backend.cls_has_member(archive, real_name):
+            return real_name
         return None
 
     @classmethod
@@ -235,15 +297,135 @@ class MFEnv:
         cls,
         archive: tarfile.TarFile,
         name: Union[MetaFile, str],
-        package_path=MFENV_DIR,
+        is_meta: Optional[bool] = None,
         packaging_backend=TarPackagingBackend,
     ) -> Optional[bytes]:
-        real_name = name.value if isinstance(name, MetaFile) else name
-        if packaging_backend.cls_has_member(archive, package_path):
-            file_path = os.path.join(package_path, real_name)
+        """
+        Get the content of a file in archive. The content is returned as
+        bytes
+
+        Parameters
+        ----------
+        name : Union[MetaFile, str]
+            Filename to look for. If it is a MetaFile, it is assumed to be relative
+            to the configuration directory. If it is a string, it is assumed to be
+            relative to the code directory.
+        is_meta : bool, optional, default None
+            If None, the default behavior above is assumed. If True, the file will be
+            searched for in the configuration directory and if False, it will be
+            searched for in the code directory.
+
+        Returns
+        -------
+        Optional[bytes]
+            The binary content of the file -- None if there is no such file.
+        """
+        file_to_extract = cls.get_archive_filename(
+            archive, name, is_meta, packaging_backend
+        )
+        if file_to_extract:
+            return packaging_backend.cls_extract_member(archive, file_to_extract)
+        return None
+
+    def __init_subclass__(cls, version_id, **kwargs) -> None:
+        super().__init_subclass__(**kwargs)
+        if version_id in MFEnv._mappings:
+            raise ValueError(
+                "Version ID %s already exists in MFEnv mappings "
+                "-- this is a bug in Metaflow." % str(version_id)
+            )
+        MFEnv._mappings[version_id] = cls
+
+    @classmethod
+    def _get_mfenv_class(cls, info: Optional[Dict[str, Any]]):
+        if info is None:
+            return None
+        if "version" not in info:
+            raise MetaflowException(
+                "Invalid package -- missing version in info: %s" % info
+            )
+        version = info["version"]
+        if version not in cls._mappings:
+            raise MetaflowException(
+                "Invalid package -- unknown version %s in info: %s" % (version, info)
+            )
+
+        return cls._mappings[version]
+
+    @classmethod
+    def _extract_archive_mfenv_info(
+        cls, archive: Any, packaging_backend=TarPackagingBackend
+    ):
+        if id(archive) in cls._cached_mfenv_info:
+            return cls._cached_mfenv_info[id(archive)]
+
+        mfenv_info = None
+        # Here we need to extract the information from the archive
+        if packaging_backend.cls_has_member(archive, MFENV_MARKER):
+            # The MFENV_MARKER file is present in the archive
+            # We can extract the information from it
+            mfenv_info = packaging_backend.cls_extract_member(archive, MFENV_MARKER)
+            if mfenv_info:
+                mfenv_info = json.loads(mfenv_info)
+        cls._cached_mfenv_info[id(archive)] = mfenv_info
+        return mfenv_info
+
+    @classmethod
+    def _extract_mfenv_info(cls):
+        if "_local" in cls._cached_mfenv_info:
+            return cls._cached_mfenv_info["_local"]
+
+        mfenv_info = None
+        if os.path.exists(os.path.join(get_metaflow_root(), MFENV_MARKER)):
+            with open(
+                os.path.join(get_metaflow_root(), MFENV_MARKER), "r", encoding="utf-8"
+            ) as f:
+                mfenv_info = json.load(f)
+        cls._cached_mfenv_info["_local"] = mfenv_info
+        return mfenv_info
+
+
+class MFEnvV1(MFEnv, version_id=1):
+
+    METAFLOW_SUFFIXES_LIST = [".py", ".html", ".css", ".js"]
+
+    @classmethod
+    def _get_filename(
+        cls,
+        name: Union[MetaFile, str],
+        meta_info: Dict[str, Any],
+        is_meta: Optional[bool] = None,
+    ) -> Optional[str]:
+        return v1_get_filename(name, meta_info, is_meta)
+
+    @classmethod
+    def _get_archive_filename(
+        cls,
+        archive: Any,
+        name: Union[MetaFile, str],
+        meta_info: Dict[str, Any],
+        is_meta: Optional[bool] = None,
+        packaging_backend=TarPackagingBackend,
+    ) -> Optional[str]:
+        if is_meta is None:
+            is_meta = isinstance(name, MetaFile)
+        if is_meta:
+            conf_dir = meta_info.get("conf_dir")
+            if conf_dir is None:
+                raise MetaflowException(
+                    "Invalid package -- package info does not contain conf_dir key"
+                )
+            path_to_search = os.path.join(conf_dir, meta_file_name(name))
         else:
-            file_path = real_name
-        return packaging_backend.cls_extract_member(archive, file_path)
+            code_dir = meta_info.get("code_dir")
+            if code_dir is None:
+                raise MetaflowException(
+                    "Invalid package -- package info does not contain code_dir key"
+                )
+            path_to_search = os.path.join(code_dir, meta_file_name(name))
+        if packaging_backend.cls_has_member(archive, path_to_search):
+            return path_to_search
+        return None
 
     def __init__(
         self,
@@ -255,11 +437,12 @@ class MFEnv:
         # stored (by default MFENV_DIR). This is used in internal Netflix code.
 
         # Look at top-level modules that are present when MFEnv is initialized
+        print("All modules: %s" % str(sys.modules.keys()))
         modules = filter(lambda x: "." not in x[0], sys.modules.items())
 
         # Determine the version of Metaflow that we are part of
         self._metaflow_root = get_metaflow_root()
-        print(f"ROOT is :{self._metaflow_root}")
+
         self._package_path = package_path
         self._config_path = config_path
 
@@ -284,37 +467,67 @@ class MFEnv:
         # Maps an absolute path on the filesystem to the path of the file in the
         # archive.
         self._files = {}  # type: Dict[str, str]
+        self._files_from_modules = {}  # type: Dict[str, str]
 
-        self._metacontent = {}  # type: Dict[MetaFile, bytes]
+        self._metacontent = {}  # type: Dict[Union[MetaFile, str], bytes]
+        self._metafiles = {}  # type: Dict[Union[MetaFile, str], str]
 
         debug.package_exec(f"Used system modules found: {str(self._modules)}")
 
         # Populate with files from the third party modules
         for k, v in self._modules.items():
-            self._files.update(self._module_files(k, v.root_paths))
+            self._files_from_modules.update(self._module_files(k, v.root_paths))
 
-        # We include Metaflow as well
-        self._files.update(self._metaflow_distribution_files())
-
-        # Include extensions as well
-        self._files.update(self._metaflow_extension_files())
-
-    def add_meta_content(self, name: MetaFile, content: bytes) -> None:
+    def add_meta_content(self, content: bytes, name: Union[MetaFile, str]) -> None:
         """
-        Add a metafile to the MF environment.
-
-        This file will be included in the resulting code package in tar_dir
-        (defaults to`MFENV_DIR`).
+        Adds metadata to code package. This content will be included under `config_path`
+        which defaults to `MFCONF_DIR`.
 
         Parameters
         ----------
-        name : MetaFile
-            The metafile to add to the MF environment
         content : bytes
-            The content of the metafile
+            The content of the metadata file.
+        name : Union[MetaFile, str]
+            A known metadata file to add or the name of another metadata file.
         """
-        debug.package_exec(f"Adding special content {name.value} to the MF environment")
+        debug.package_exec(
+            f"Adding meta content {meta_file_name(name)} to the MF environment"
+        )
+        if name in self._metacontent:
+            # TODO: We could check a hash but this seems like a really corner case.
+            raise MetaflowException(
+                f"Metadata {meta_file_name(name)} already present in the code package"
+            )
         self._metacontent[name] = content
+
+    def add_meta_file(self, file_path: str, file_name: Union[MetaFile, str]) -> None:
+        """
+        Adds metadata to code package. This file will be included under `config_path`
+        which defaults to `MFCONF_DIR`.
+
+        Parameters
+        ----------
+        file_path : str
+            Path to the file to add in the filesystem
+        file_name : Union[MetaFile, str]
+            Name of the file to add (ie: name in the archive). This is always relative
+            to self._config_path
+        """
+        arcname = meta_file_name(file_name)
+        file_path = os.path.realpath(file_path)
+        debug.package_exec(
+            f"Adding meta file {file_path} as {file_name} to the MF environment"
+        )
+        if file_path in self._metafiles and self._metafiles[file_path] != os.path.join(
+            self._config_path, arcname.lstrip("/")
+        ):
+            raise MetaflowException(
+                "File %s is already present in the MF environment with a different name: %s"
+                % (file_path, self._metafiles[file_path])
+            )
+        self._metafiles[file_path] = os.path.join(
+            self._config_path, arcname.lstrip("/")
+        )
 
     def add_module(self, module: ModuleType) -> None:
         """
@@ -341,9 +554,11 @@ class MFEnv:
             ),
             module,
         )
-        self._files.update(self._module_files(name, self._modules[name].root_paths))
+        self._files_from_modules.update(
+            self._module_files(name, self._modules[name].root_paths)
+        )
 
-    def add_directory(
+    def add_code_directory(
         self,
         directory: str,
         criteria: Callable[[str], bool],
@@ -368,6 +583,7 @@ class MFEnv:
             A function that takes a file path and returns a boolean indicating whether or
             not the file should be included in the code package
         """
+        directory = os.path.realpath(directory)
         name = os.path.basename(directory)
         debug.package_exec(f"Adding directory {directory} to the MF environment")
         for root, _, files in os.walk(directory):
@@ -376,40 +592,43 @@ class MFEnv:
                     continue
                 path = os.path.join(root, file)
                 relpath = os.path.relpath(path, directory)
-                path = os.path.realpath(path)
                 if criteria(path):
-                    self._files[path] = os.path.join(name, relpath)
+                    self._files[path] = os.path.join(self._package_path, name, relpath)
 
-    def add_files(self, files: Iterator[Tuple[str, str, bool]]) -> None:
+    def add_code_file(self, file_path: str, file_name: str) -> None:
         """
-        Add a list of files to the MF environment.
+        Add a file to the MF environment.
 
-        These files will be included in the resulting code package in the package_path
-        (defaults to`MFENV_DIR`).
+        These files will be included in the resulting code directory (defaults to
+        `MFENV_DIR`).
 
 
         Parameters
         ----------
-        files : Iterator[Tuple[str, str, bool]]
-            A list of files to include in the MF environment. The first element of the
-            tuple is the path to the file in the filesystem; the second element is the
-            path in the archive releative to either the package path or the config path.
-            The third element indicates if this is a config file (True) or not (False).
+        file_path: str
+            The path to the file to include in the MF environment
+        file_name: str
+            The name of the file to include in the MF environment. This is the name
+            that will be used in the archive.
         """
-        for file, arcname, is_meta in files:
-            debug.package_exec(f"Adding file {file} as {arcname} to the MF environment")
-            self._files[os.path.realpath(file)] = os.path.join(
-                self._config_path if is_meta else self._package_path, arcname
-            )
+        file_path = os.path.realpath(file_path)
+        debug.package_exec(
+            f"Adding file {file_path} as {file_name} to the MF environment"
+        )
 
-    def path_in_archive(self, path: str) -> Optional[str]:
+        if file_path in self._files and self._files[file_path] != os.path.join(
+            self._config_path, file_name.lstrip("/")
+        ):
+            raise MetaflowException(
+                "File %s is already present in the MF environment with a different name: %s"
+                % (file_path, self._files[file_path])
+            )
+        self._files[file_path] = os.path.join(self._package_path, file_name.lstrip("/"))
+
+    def path_in_code(self, path: str) -> Optional[str]:
         """
         Return the path of the file in the code package if it is included through
-        add_directory or add_files.
-
-        Note that we will use realpath to determine if two paths are equal.
-        This includes all files included as part of third party libraries as well as
-        anything that was added as part of `add_files` and `add_directory`.
+        add_directory or add_code_file.
 
         Parameters
         ----------
@@ -423,9 +642,13 @@ class MFEnv:
         """
         return self._files.get(os.path.realpath(path))
 
-    def files(self) -> Generator[Tuple[str, str], None, None]:
+    def content_names(
+        self,
+        content_type: AddToPackageType = AddToPackageType.ALL,
+    ) -> Generator[Tuple[str, str], None, None]:
         """
-        Return a generator of all files included in the MF environment.
+        Return a generator of all files that will be included (restricted to the type
+        requested)
 
         Returns
         -------
@@ -434,45 +657,120 @@ class MFEnv:
             the tuple is the path to the file in the filesystem; the second element is the
             path in the archive.
         """
-        return self._files.items()
+        yield from self._content(content_type=content_type, generate_value=False)
 
-    def metacontents(self) -> Generator[Tuple[bytes, str], None, None]:
+    def content(
+        self,
+        content_type: AddToPackageType = AddToPackageType.ALL,
+    ) -> Generator[Tuple[Union[str, bytes], str], None, None]:
         """
-        Return a generator of all metafiles included in the MF environment.
+        Return a generator of all files that will be included (restricted to the type
+        requested)
 
         Returns
         -------
-        Generator[Tuple[bytes, str], None, None]
+        Generator[Tuple[str, str], None, None]
+            A generator of all files included in the MF environment. The first element of
+            the tuple is the path to the file in the filesystem (or bytes);
+            the second element is the path in the archive.
+        """
+        yield from self._content(content_type=content_type, generate_value=True)
+
+    def _content(
+        self,
+        content_type: AddToPackageType = AddToPackageType.ALL,
+        generate_value: bool = False,
+    ) -> Generator[Tuple[str, str], None, None]:
+        """
+        Return a generator of all files that will be included (restricted to the type
+        requested)
+
+        Returns
+        -------
+        Generator[Tuple[str, str], None, None]
+            A generator of all files included in the MF environment. The first element of
+            the tuple is the path to the file in the filesystem; the second element is the
+            path in the archive.
+        """
+        content_type = content_type.value
+        if AddToPackageType.CODE_FILE & content_type:
+            yield from self._files.items()
+        if AddToPackageType.CODE_MODULE & content_type:
+            yield from self._files_from_modules.items()
+        if AddToPackageType.CODE_METAFLOW & content_type:
+            debug.package_exec("Packaging metaflow code...")
+            yield from self._metaflow_distribution_files()
+            yield from self._metaflow_extension_files()
+        if AddToPackageType.CONFIG_FILE & content_type:
+            yield from self._metafiles.items()
+        if AddToPackageType.CONFIG_CONTENT & content_type:
+            if generate_value:
+                yield from self._meta_non_file_content(generate_value=generate_value)
+            else:
+                for _, name in self._meta_non_file_content(False):
+                    yield "generated-%s" % name, name
+
+    def _meta_non_file_content(
+        self, generate_value: bool = False
+    ) -> Generator[Tuple[Optional[bytes], str], None, None]:
+        """
+        Return a generator of all non file meta data. This will only generate the
+        meta data if generate_value is True
+
+        Parameters
+        ----------
+        generate_value : bool, default False
+            If True, the generator will generate the meta data. If False, it will not
+            generate but just return the name of the file in the archive
+
+        Returns
+        -------
+        Generator[Tuple[Optional[bytes], str], None, None]
             A generator of all metafiles included in the MF environment. The first
             element of the tuple is the content to add; the second element is path in the
             archive.
         """
         # Generate the marker
-        yield (
-            f"{MFENV_DIR},{MFCONF_DIR}".encode("utf-8"),
-            os.path.join(self._package_path, MFENV_MARKER),
-        )
+        if generate_value:
+            yield (
+                json.dumps(
+                    {
+                        "version": 1,
+                        "code_dir": self._package_path,
+                        "conf_dir": self._config_path,
+                    }
+                ).encode("utf-8"),
+                os.path.join(self._package_path, MFENV_MARKER),
+            )
+        else:
+            yield None, os.path.join(self._package_path, MFENV_MARKER)
+
         # All other meta files
-        for name, content in self._metacontent.items():
-            yield content, os.path.join(self._config_path, name.value)
+        for name in self._metacontent:
+            yield None, os.path.join(self._config_path, name.value)
         # Include distribution information if present
         if self._distmetainfo:
-            yield (
-                json.dumps(self._distmetainfo).encode("utf-8"),
-                os.path.join(self._config_path, MetaFile.INCLUDED_DIST_INFO.value),
-            )
+            if generate_value:
+                yield (
+                    json.dumps(self._distmetainfo).encode("utf-8"),
+                    os.path.join(self._config_path, MetaFile.INCLUDED_DIST_INFO.value),
+                )
+            else:
+                yield None, os.path.join(
+                    self._config_path, MetaFile.INCLUDED_DIST_INFO.value
+                )
 
     def _module_files(
         self, name: str, paths: Set[str]
     ) -> Generator[Tuple[str, str], None, None]:
         debug.package_exec(
-            f"    Looking for distributions for module {name} in {paths}"
+            "    Looking for distributions for module %s in %s" % (name, paths)
         )
         paths = set(paths)  # Do not modify external paths
         has_init = False
         distributions = modules_to_distributions().get(name)
-        prefix = f"{name}/"
-        init_file = f"{prefix}__init__.py"
+        prefix = "%s/" % name
+        init_file = "%s__init__.py" % prefix
 
         seen_distributions = set()
         if distributions:
@@ -484,16 +782,17 @@ class MFEnv:
                 # don't need to process twice.
                 seen_distributions.add(dist_name)
                 debug.package_exec(
-                    f"    Including distribution {dist_name} for module {name}"
+                    "    Including distribution '%s' for module '%s'"
+                    % (dist_name, name)
                 )
                 dist_root = str(dist.locate_file(name))
                 if dist_root not in paths:
                     # This is an error because it means that this distribution is
                     # not contributing to the module.
                     raise RuntimeError(
-                        f"Distribution '{dist.metadata['Name']}' is not "
-                        f"contributing to module '{name}' as expected (got '{dist_root}' "
-                        f"when expected one of {paths})"
+                        "Distribution '%s' is not contributing to module '%s' as "
+                        "expected (got '%s' when expected one of %s)"
+                        % (dist.metadata["Name"], name, dist_root, paths)
                     )
                 paths.discard(dist_root)
                 if dist_name not in self._distmetainfo:
@@ -519,7 +818,8 @@ class MFEnv:
         # Now if there are more paths left in paths, it means there is a non-distribution
         # component to this package which we also include.
         debug.package_exec(
-            f"    Looking for non-distribution files for module {name} in {paths}"
+            "    Looking for non-distribution files for module '%s' in %s"
+            % (name, paths)
         )
         for path in paths:
             if not Path(path).is_dir():
@@ -546,9 +846,7 @@ class MFEnv:
             ), os.path.join(self._package_path, name, "__init__.py")
 
     def _metaflow_distribution_files(self) -> Generator[Tuple[str, str], None, None]:
-        debug.package_exec(
-            f"    Including Metaflow from {self._metaflow_root} to the MF Environment"
-        )
+        debug.package_exec("    Including Metaflow from '%s'" % self._metaflow_root)
         for path_tuple in walk(
             os.path.join(self._metaflow_root, "metaflow"),
             exclude_hidden=False,
@@ -564,4 +862,7 @@ class MFEnv:
         # package and prevent other extensions from being loaded that may be
         # present in the rest of the system
         for path_tuple in package_mfext_all():
+            debug.package_exec(
+                "    Including Metaflow extension file '%s'" % path_tuple[0]
+            )
             yield path_tuple[0], os.path.join(self._package_path, path_tuple[1])

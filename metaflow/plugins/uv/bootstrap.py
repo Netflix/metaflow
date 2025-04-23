@@ -79,6 +79,7 @@ if __name__ == "__main__":
         return pinned.keys()
 
     def sync_uv_project(datastore_type):
+        # TODO: NEED TO POINT UV TO FILES IN THE CONFIG DIR
         print("Syncing uv project...")
         dependencies = " ".join(get_dependencies(datastore_type))
         cmd = f"""set -e;
