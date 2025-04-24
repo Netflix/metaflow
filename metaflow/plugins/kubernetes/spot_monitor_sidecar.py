@@ -20,7 +20,10 @@ class SpotTerminationMonitorSidecar(object):
         self._process = None
         self._token = None
         self._token_expiry = 0
+
         self.termination_time = None
+        # Due to nesting, os.getppid is not reliable for fetching the main task pid
+        self.main_pid = int(os.getenv("MF_MAIN_PID", os.getppid()))
 
         if self._is_aws_spot_instance():
             self._process = Process(target=self._monitor_loop)
@@ -70,7 +73,7 @@ class SpotTerminationMonitorSidecar(object):
         if (datetime.now() + self.POLL_INTERVAL - 20) < self.termination_time:
             return False
         else:
-            os.kill(int(os.getenv("MF_MAIN_PID")), signal.SIGALRM)
+            os.kill(self.main_pid, signal.SIGALRM)
             return True
 
     def _monitor_spot_termination(self):
@@ -82,8 +85,7 @@ class SpotTerminationMonitorSidecar(object):
             if response.status_code == 200:
                 self.termination_time = response.text
                 self._emit_termination_metadata(self.termination_time)
-                # TODO: Verify. This doesn't actually work, as getppid() does not return the main Metaflow task process id due to sidecar nesting.
-                os.kill(os.getppid(), signal.SIGTERM)
+                os.kill(self.main_pid, signal.SIGTERM)
         except (requests.exceptions.RequestException, requests.exceptions.Timeout):
             pass
 
