@@ -77,7 +77,10 @@ class RetryDecorator(StepDecorator):
     ):
         # Bind signal handlers for user-code scope
         self._old_alarm_signal_handler = signal.getsignal(signal.SIGALRM)
-        if "spot-termination" in self.attributes["only_on"]:
+        if (
+            self.attributes["only_on"] is not None
+            and "spot-termination" in self.attributes["only_on"]
+        ):
             has_custom_signal_handler = (
                 signal.getsignal(signal.SIGALRM) != signal.SIG_DFL
             )
