@@ -5,7 +5,7 @@ import signal
 import requests
 import subprocess
 from multiprocessing import Process
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from metaflow.sidecar import MessageTypes
 
 
@@ -69,8 +69,10 @@ class SpotTerminationMonitorSidecar(object):
             return False
 
     def _try_sending_termination_signal(self):
-        # wait for 20 seconds before the promised termination time of the spot instance before sending a SIGALRM
-        if (datetime.now() + self.POLL_INTERVAL - 20) < self.termination_time:
+        # wait for 100 seconds before the promised termination time of the spot instance before sending a SIGALRM
+        if (
+            datetime.now(timezone.utc) + timedelta(0, self.POLL_INTERVAL + 100)
+        ) < datetime.strptime(self.termination_time, "%Y-%m-%dT%H:%M:%SZ"):
             return False
         else:
             os.kill(self.main_pid, signal.SIGALRM)
