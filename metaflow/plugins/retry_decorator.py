@@ -9,7 +9,7 @@ from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import MAX_ATTEMPTS
 from metaflow import current
 
-SUPPORTED_RETRY_EVENTS = ["step", "spot-termination"]
+SUPPORTED_RETRY_EVENTS = ["step", "instance-preemption"]
 
 PLATFORM_EVICTED_EXITCODE = 234
 
@@ -35,7 +35,7 @@ class RetryDecorator(StepDecorator):
         Number of minutes between retries.
     only_on : List[str], default None
         List of failure events to retry on. Accepted values are
-        'step', 'spot-termination'
+        'step', 'instance-preemption'
     """
 
     name = "retry"

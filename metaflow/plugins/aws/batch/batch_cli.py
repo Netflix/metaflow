@@ -368,7 +368,7 @@ def step(
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     except BatchSpotInstanceTerminated:
         traceback.print_exc()
-        if retry_conditions is not None and "spot-termination" in retry_conditions:
+        if retry_conditions is not None and "instance-preemption" in retry_conditions:
             sys.exit(METAFLOW_EXIT_ALLOW_RETRY)
         else:
             sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
