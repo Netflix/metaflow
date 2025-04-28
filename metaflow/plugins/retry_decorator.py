@@ -1,3 +1,4 @@
+from enum import Enum
 import os
 import signal
 import sys
@@ -9,7 +10,11 @@ from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import MAX_ATTEMPTS
 from metaflow import current
 
-SUPPORTED_RETRY_EVENTS = ["step", "instance-preemption"]
+
+class RetryEvents(Enum):
+    STEP = "step"
+    PREEMPT = "instance-preemption"
+
 
 PLATFORM_EVICTED_EXITCODE = 234
 
@@ -34,7 +39,8 @@ class RetryDecorator(StepDecorator):
     minutes_between_retries : int, default 2
         Number of minutes between retries.
     only_on : List[str], default None
-        List of failure events to retry on. Accepted values are
+        List of failure events to retry on. Not specifying values will retry on all known events.
+        Accepted values are
         'step', 'instance-preemption'
     """
 
@@ -54,10 +60,15 @@ class RetryDecorator(StepDecorator):
             if not isinstance(self.attributes["only_on"], list):
                 raise MetaflowException("'only_on=' must be a list of values")
 
+            def _known_event(event: str):
+                try:
+                    RetryEvents(event)
+                    return True
+                except ValueError:
+                    return False
+
             unsupported_events = [
-                event
-                for event in self.attributes["only_on"]
-                if event not in SUPPORTED_RETRY_EVENTS
+                event for event in self.attributes["only_on"] if not _known_event(event)
             ]
             if unsupported_events:
                 raise MetaflowException(

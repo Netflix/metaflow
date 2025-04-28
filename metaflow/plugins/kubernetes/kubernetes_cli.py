@@ -27,6 +27,7 @@ from .kubernetes import (
     KubernetesKilledException,
     KubernetesSpotInstanceTerminated,
 )
+from metaflow.plugins.retry_decorator import RetryEvents
 
 
 @click.group()
@@ -226,7 +227,7 @@ def step(
         minutes_between_retries = int(
             retry_deco[0].attributes.get("minutes_between_retries", 2)
         )
-    retry_conditions = retry_deco[0].attributes["only_on"] if retry_deco else None
+    retry_conditions = retry_deco[0].attributes["only_on"] if retry_deco else []
     if retry_count:
         ctx.obj.echo_always(
             "Sleeping %d minutes before the next retry" % minutes_between_retries
@@ -338,12 +339,12 @@ def step(
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     except KubernetesSpotInstanceTerminated:
         traceback.print_exc()
-        if retry_conditions is not None and "instance-preemption" in retry_conditions:
+        if not retry_conditions or RetryEvents.PREEMPT.value in retry_conditions:
             sys.exit(METAFLOW_EXIT_ALLOW_RETRY)
         else:
             sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     except KubernetesException:
-        if not retry_conditions or "step" in retry_conditions:
+        if not retry_conditions or RetryEvents.STEP.value in retry_conditions:
             raise
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
 
