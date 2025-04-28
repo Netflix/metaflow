@@ -1,6 +1,8 @@
 import os
 import signal
 import sys
+import threading
+from time import sleep
 
 from metaflow.decorators import StepDecorator
 from metaflow.exception import MetaflowException
@@ -75,31 +77,26 @@ class RetryDecorator(StepDecorator):
         ubf_context,
         inputs,
     ):
-        # Bind signal handlers for user-code scope
-        self._old_alarm_signal_handler = signal.getsignal(signal.SIGALRM)
-        if (
-            self.attributes["only_on"] is not None
-            and "spot-termination" in self.attributes["only_on"]
-        ):
-            has_custom_signal_handler = (
-                signal.getsignal(signal.SIGALRM) != signal.SIG_DFL
-            )
+        pid = os.getpid()
 
-            def _spot_handler(*args, **kwargs):
-                # call the custom signal handler first just in case it is of importance
-                if has_custom_signal_handler:
-                    self._old_alarm_signal_handler(*args, **kwargs)
-                # custom exit code in case of Spot termination
-                if os.path.isfile(current.spot_termination_notice):
-                    sys.exit(154)
+        def _termination_timer():
+            sleep(30)
+            os.kill(pid, signal.SIGALRM)
 
-            signal.signal(signal.SIGALRM, _spot_handler)
+        def _spot_term_signal_handler(*args, **kwargs):
+            if os.path.isfile(current.spot_termination_notice):
+                print(
+                    "Spot instance termination detected. Starting a timer to end the Metaflow task."
+                )
+                timer_thread = threading.Thread(target=_termination_timer, daemon=True)
+                timer_thread.start()
 
-    def task_post_step(
-        self, step_name, flow, graph, retry_count, max_user_code_retries
-    ):
-        # Unbind the signal handlers as we are exiting user-code scope
-        signal.signal(signal.SIGALRM, self._old_alarm_signal_handler)
+        def _curtain_call(*args, **kwargs):
+            # custom exit code in case of Spot termination
+            sys.exit(154)
+
+        signal.signal(signal.SIGUSR1, _spot_term_signal_handler)
+        signal.signal(signal.SIGALRM, _curtain_call)
 
     def step_task_retry_count(self):
         return int(self.attributes["times"]), 0
