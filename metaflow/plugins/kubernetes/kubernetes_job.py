@@ -179,6 +179,15 @@ class KubernetesJob(object):
                                         # Don't set GPU limits if gpu isn't specified.
                                         if self._kwargs["gpu"] is not None
                                     },
+                                    **{
+                                        "%s.com/tpu".lower()
+                                        % self._kwargs["tpu_vendor"]: str(
+                                            self._kwargs["tpu"]
+                                        )
+                                        for k in [0]
+                                        # Don't set GPU limits if gpu isn't specified.
+                                        if self._kwargs["tpu"] is not None
+                                    },
                                 },
                             ),
                             volume_mounts=(
