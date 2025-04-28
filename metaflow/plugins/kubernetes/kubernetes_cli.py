@@ -342,6 +342,11 @@ def step(
             sys.exit(METAFLOW_EXIT_ALLOW_RETRY)
         else:
             sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
+    except KubernetesException:
+        if not retry_conditions or "step" in retry_conditions:
+            raise
+        sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
+
     finally:
         _sync_metadata()
 

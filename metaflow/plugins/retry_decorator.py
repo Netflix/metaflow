@@ -9,7 +9,9 @@ from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import MAX_ATTEMPTS
 from metaflow import current
 
-SUPPORTED_RETRY_EVENTS = ["all", "spot-termination"]
+SUPPORTED_RETRY_EVENTS = ["step", "spot-termination"]
+
+PLATFORM_EVICTED_EXITCODE = 234
 
 
 class RetryDecorator(StepDecorator):
@@ -33,7 +35,7 @@ class RetryDecorator(StepDecorator):
         Number of minutes between retries.
     only_on : List[str], default None
         List of failure events to retry on. Accepted values are
-        'all', 'spot-termination'
+        'step', 'spot-termination'
     """
 
     name = "retry"
@@ -93,7 +95,7 @@ class RetryDecorator(StepDecorator):
 
         def _curtain_call(*args, **kwargs):
             # custom exit code in case of Spot termination
-            sys.exit(154)
+            sys.exit(PLATFORM_EVICTED_EXITCODE)
 
         signal.signal(signal.SIGUSR1, _spot_term_signal_handler)
         signal.signal(signal.SIGALRM, _curtain_call)
