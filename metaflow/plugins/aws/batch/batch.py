@@ -52,6 +52,10 @@ class BatchKilledException(MetaflowException):
     headline = "AWS Batch task killed"
 
 
+class BatchSpotInstanceTerminated(MetaflowException):
+    headline = "Spot Instance has been terminated"
+
+
 class Batch(object):
     def __init__(self, metadata, environment):
         self.metadata = metadata
@@ -482,6 +486,11 @@ class Batch(object):
         # to Amazon S3.
 
         if self.job.is_crashed:
+
+            # Custom exception for spot instance terminations
+            if self.job.status_code == 234:
+                raise BatchSpotInstanceTerminated()
+
             msg = next(
                 msg
                 for msg in [
