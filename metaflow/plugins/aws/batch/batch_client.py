@@ -4,6 +4,7 @@ import copy
 import random
 import time
 import hashlib
+from typing import Dict, List, Optional
 
 try:
     unicode
@@ -630,8 +631,12 @@ class BatchJob(object):
         self.payload["parameters"][key] = str(value)
         return self
 
-    def attempts(self, attempts):
+    def attempts(self, attempts, evaluate_on_exit: Optional[List[Dict]] = None):
         self.payload["retryStrategy"]["attempts"] = attempts
+        if evaluate_on_exit is not None:
+            # required for specifying custom retry strategies
+            # ref: https://docs.aws.amazon.com/batch/latest/APIReference/API_EvaluateOnExit.html
+            self.payload["retryStrategy"]["evaluateOnExit"] = evaluate_on_exit
         return self
 
 
