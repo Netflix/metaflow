@@ -1,3 +1,4 @@
+import errno
 import json
 import os
 import re
@@ -135,6 +136,10 @@ class MetaflowS3AccessDenied(MetaflowException):
 
 class MetaflowS3InvalidRange(MetaflowException):
     headline = "S3 invalid range"
+
+
+class MetaflowS3InsufficientDiskSpace(MetaflowException):
+    headline = "Insufficient disk space"
 
 
 class S3Object(object):
@@ -1377,8 +1382,10 @@ class S3(object):
                 elif error_code == "NoSuchBucket":
                     raise MetaflowS3URLException("Specified S3 bucket doesn't exist.")
                 error = str(err)
+            except OSError as e:
+                if e.errno == errno.ENOSPC:
+                    raise MetaflowS3InsufficientDiskSpace(str(e))
             except Exception as ex:
-                # TODO specific error message for out of disk space
                 error = str(ex)
             if tmp:
                 os.unlink(tmp.name)

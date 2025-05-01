@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import errno
 import json
 import time
 import math
@@ -108,6 +109,7 @@ ERROR_VERIFY_FAILED = 9
 ERROR_LOCAL_FILE_NOT_FOUND = 10
 ERROR_INVALID_RANGE = 11
 ERROR_TRANSIENT = 12
+ERROR_OUT_OF_DISK_SPACE = 13
 
 
 def format_result_line(idx, prefix, url="", local=""):
@@ -276,6 +278,17 @@ def worker(result_file_name, queue, mode, s3config):
                             os.unlink(tmp.name)
                             err = convert_to_client_error(e)
                             handle_client_error(err, idx, result_file)
+                            continue
+                        except OSError as e:
+                            tmp.close()
+                            os.unlink(tmp.name)
+                            if e.errno == errno.ENOSPC:
+                                result_file.write(
+                                    "%d %d\n" % (idx, -ERROR_OUT_OF_DISK_SPACE)
+                                )
+                            else:
+                                result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
+                            result_file.flush()
                             continue
                     except (SSLError, Exception) as e:
                         tmp.close()
@@ -643,6 +656,8 @@ def exit(exit_code, url):
         msg = "Local file not found: %s" % url
     elif exit_code == ERROR_TRANSIENT:
         msg = "Transient error for url: %s" % url
+    elif exit_code == ERROR_OUT_OF_DISK_SPACE:
+        msg = "Out of disk space when downloading URL: %s" % url
     else:
         msg = "Unknown error"
     print("s3op failed:\n%s" % msg, file=sys.stderr)
@@ -1173,6 +1188,8 @@ def get(
             )
             if verify:
                 verify_info.append((url, sz))
+        elif sz == -ERROR_OUT_OF_DISK_SPACE:
+            exit(ERROR_OUT_OF_DISK_SPACE, url)
         elif sz == -ERROR_URL_ACCESS_DENIED:
             denied_url = url
             break
