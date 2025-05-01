@@ -459,7 +459,7 @@ class UploaderV2:
     @classmethod
     def encode_url(cls, url_type, url, **kwargs):
         return_value = {
-            "note": "Internal representation of IncludeFile(%s)" % url,
+            "note": "Internal representation of IncludeFile",
             "type": cls.file_type,
             "sub-type": url_type,
             "url": url,
@@ -472,7 +472,7 @@ class UploaderV2:
         r = UploaderV1.store(flow_name, path, is_text, encoding, handler, echo)
 
         # In V2, we store size for faster access
-        r["note"] = "Internal representation of IncludeFile(%s)" % path
+        r["note"] = "Internal representation of IncludeFile"
         r["type"] = cls.file_type
         r["sub-type"] = "uploaded"
         r["size"] = os.stat(path).st_size
