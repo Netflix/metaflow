@@ -1384,7 +1384,7 @@ class S3(object):
                 error = str(err)
             except OSError as e:
                 if e.errno == errno.ENOSPC:
-                    raise MetaflowS3InsufficientDiskSpace(e)
+                    raise MetaflowS3InsufficientDiskSpace(str(e))
             except Exception as ex:
                 error = str(ex)
             if tmp:
