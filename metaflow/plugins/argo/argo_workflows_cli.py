@@ -40,6 +40,7 @@ unsupported_decorators = {
     "snowpark": "Step *%s* is marked for execution on Snowpark with Argo Workflows which isn't currently supported.",
     "slurm": "Step *%s* is marked for execution on Slurm with Argo Workflows which isn't currently supported.",
     "nvidia": "Step *%s* is marked for execution on Nvidia with Argo Workflows which isn't currently supported.",
+    "nvct": "Step *%s* is marked for execution on Nvct with Argo Workflows which isn't currently supported.",
 }
 
 

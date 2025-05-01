@@ -326,6 +326,7 @@ class CondaEnvironment(MetaflowEnvironment):
                 "nvidia",
                 "snowpark",
                 "slurm",
+                "nvct",
             ]:
                 target_platform = getattr(decorator, "target_platform", "linux-64")
                 break
