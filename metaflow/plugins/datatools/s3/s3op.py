@@ -283,7 +283,9 @@ def worker(result_file_name, queue, mode, s3config):
                             tmp.close()
                             os.unlink(tmp.name)
                             if e.errno == errno.ENOSPC:
-                                result_file.write("%d %d\n" % (idx, -ERROR_OUT_OF_DISK_SPACE))
+                                result_file.write(
+                                    "%d %d\n" % (idx, -ERROR_OUT_OF_DISK_SPACE)
+                                )
                             else:
                                 result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
                             result_file.flush()
