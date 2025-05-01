@@ -459,7 +459,7 @@ class UploaderV2:
     @classmethod
     def encode_url(cls, url_type, url, **kwargs):
         return_value = {
-            "note": "Internal representation of IncludeFile(%s)" % url,
+            "note": "Internal representation of IncludeFile",
             "type": cls.file_type,
             "sub-type": url_type,
             "url": url,
