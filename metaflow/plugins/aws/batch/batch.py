@@ -43,6 +43,8 @@ STDERR_FILE = "mflog_stderr"
 STDOUT_PATH = os.path.join(LOGS_DIR, STDOUT_FILE)
 STDERR_PATH = os.path.join(LOGS_DIR, STDERR_FILE)
 
+SPOT_INTERRUPT_EXITCODE = 234
+
 
 class BatchException(MetaflowException):
     headline = "AWS Batch error"
@@ -488,7 +490,7 @@ class Batch(object):
         if self.job.is_crashed:
 
             # Custom exception for spot instance terminations
-            if self.job.status_code == 234:
+            if self.job.status_code == SPOT_INTERRUPT_EXITCODE:
                 raise BatchSpotInstanceTerminated()
 
             msg = next(

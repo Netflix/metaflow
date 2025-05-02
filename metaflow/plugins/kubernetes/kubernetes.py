@@ -63,6 +63,8 @@ METAFLOW_PARALLEL_STEP_CLI_OPTIONS_TEMPLATE = (
     "{METAFLOW_PARALLEL_STEP_CLI_OPTIONS_TEMPLATE}"
 )
 
+SPOT_INTERRUPT_EXITCODE = 234
+
 
 class KubernetesException(MetaflowException):
     headline = "Kubernetes error"
@@ -768,7 +770,7 @@ class Kubernetes(object):
                     )
                 if int(exit_code) == 134:
                     raise KubernetesException("%s (exit code %s)" % (msg, exit_code))
-                if int(exit_code) == 234:
+                if int(exit_code) == SPOT_INTERRUPT_EXITCODE:
                     # NOTE. K8S exit codes are mod 256
                     raise KubernetesSpotInstanceTerminated()
                 else:

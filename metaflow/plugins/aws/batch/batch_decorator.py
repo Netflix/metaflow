@@ -1,6 +1,8 @@
 import os
 import platform
+import signal
 import sys
+import threading
 import time
 
 from metaflow import R, current
@@ -24,7 +26,7 @@ from ..aws_utils import (
     get_docker_registry,
     get_ec2_instance_metadata,
 )
-from .batch import BatchException
+from .batch import SPOT_INTERRUPT_EXITCODE, BatchException
 
 
 class BatchDecorator(StepDecorator):
@@ -298,6 +300,29 @@ class BatchDecorator(StepDecorator):
             self._save_logs_sidecar = Sidecar("save_logs_periodically")
             self._save_logs_sidecar.start()
 
+            # Set up signal handling for spot termination
+            main_pid = os.getpid()
+
+            def _termination_timer():
+                time.sleep(30)
+                os.kill(main_pid, signal.SIGALRM)
+
+            def _spot_term_signal_handler(*args, **kwargs):
+                if os.path.isfile(current.spot_termination_notice):
+                    print(
+                        "Spot instance termination detected. Starting a timer to end the Metaflow task."
+                    )
+                    timer_thread = threading.Thread(
+                        target=_termination_timer, daemon=True
+                    )
+                    timer_thread.start()
+
+            def _curtain_call(*args, **kwargs):
+                # custom exit code in case of Spot termination
+                sys.exit(SPOT_INTERRUPT_EXITCODE)
+
+            signal.signal(signal.SIGUSR1, _spot_term_signal_handler)
+            signal.signal(signal.SIGALRM, _curtain_call)
             # Start spot termination monitor sidecar.
             # TODO: A nicer way to pass the main process id to a Sidecar, in order to allow sidecars to send signals back to the main process.
             os.environ["MF_MAIN_PID"] = str(os.getpid())

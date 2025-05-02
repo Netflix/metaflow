@@ -1,22 +1,13 @@
 from enum import Enum
-import os
-import signal
-import sys
-import threading
-from time import sleep
 
 from metaflow.decorators import StepDecorator
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import MAX_ATTEMPTS
-from metaflow import current
 
 
 class RetryEvents(Enum):
     STEP = "step"
     PREEMPT = "instance-preemption"
-
-
-PLATFORM_EVICTED_EXITCODE = 234
 
 
 class RetryDecorator(StepDecorator):
@@ -75,41 +66,6 @@ class RetryDecorator(StepDecorator):
                     "The event(s) %s are not supported for only_on="
                     % ", ".join("*%s*" % event for event in unsupported_events)
                 )
-
-    def task_pre_step(
-        self,
-        step_name,
-        task_datastore,
-        metadata,
-        run_id,
-        task_id,
-        flow,
-        graph,
-        retry_count,
-        max_user_code_retries,
-        ubf_context,
-        inputs,
-    ):
-        pid = os.getpid()
-
-        def _termination_timer():
-            sleep(30)
-            os.kill(pid, signal.SIGALRM)
-
-        def _spot_term_signal_handler(*args, **kwargs):
-            if os.path.isfile(current.spot_termination_notice):
-                print(
-                    "Spot instance termination detected. Starting a timer to end the Metaflow task."
-                )
-                timer_thread = threading.Thread(target=_termination_timer, daemon=True)
-                timer_thread.start()
-
-        def _curtain_call(*args, **kwargs):
-            # custom exit code in case of Spot termination
-            sys.exit(PLATFORM_EVICTED_EXITCODE)
-
-        signal.signal(signal.SIGUSR1, _spot_term_signal_handler)
-        signal.signal(signal.SIGALRM, _curtain_call)
 
     def step_task_retry_count(self):
         return int(self.attributes["times"]), 0

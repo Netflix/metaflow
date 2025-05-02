@@ -1,7 +1,9 @@
 import json
 import os
 import platform
+import signal
 import sys
+import threading
 import time
 
 from metaflow import current
@@ -37,7 +39,7 @@ from metaflow.sidecar import Sidecar
 from metaflow.unbounded_foreach import UBF_CONTROL
 
 from ..aws.aws_utils import get_docker_registry, get_ec2_instance_metadata
-from .kubernetes import KubernetesException
+from .kubernetes import KubernetesException, SPOT_INTERRUPT_EXITCODE
 from .kube_utils import validate_kube_labels, parse_kube_keyvalue_list
 
 try:
@@ -548,6 +550,29 @@ class KubernetesDecorator(StepDecorator):
             self._save_logs_sidecar = Sidecar("save_logs_periodically")
             self._save_logs_sidecar.start()
 
+            # Set up signal handling for spot termination
+            main_pid = os.getpid()
+
+            def _termination_timer():
+                time.sleep(30)
+                os.kill(main_pid, signal.SIGALRM)
+
+            def _spot_term_signal_handler(*args, **kwargs):
+                if os.path.isfile(current.spot_termination_notice):
+                    print(
+                        "Spot instance termination detected. Starting a timer to end the Metaflow task."
+                    )
+                    timer_thread = threading.Thread(
+                        target=_termination_timer, daemon=True
+                    )
+                    timer_thread.start()
+
+            def _curtain_call(*args, **kwargs):
+                # custom exit code in case of Spot termination
+                sys.exit(SPOT_INTERRUPT_EXITCODE)
+
+            signal.signal(signal.SIGUSR1, _spot_term_signal_handler)
+            signal.signal(signal.SIGALRM, _curtain_call)
             # Start spot termination monitor sidecar.
             # TODO: A nicer way to pass the main process id to a Sidecar, in order to allow sidecars to send signals back to the main process.
             os.environ["MF_MAIN_PID"] = str(os.getpid())

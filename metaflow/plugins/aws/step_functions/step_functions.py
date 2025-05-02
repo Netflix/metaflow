@@ -18,11 +18,11 @@ from metaflow.metaflow_config import (
     SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH,
 )
 from metaflow.parameters import deploy_time_eval
-from metaflow.plugins.retry_decorator import PLATFORM_EVICTED_EXITCODE, RetryEvents
+from metaflow.plugins.retry_decorator import RetryEvents
 from metaflow.user_configs.config_options import ConfigInput
 from metaflow.util import dict_to_cli_options, to_pascalcase
 
-from ..batch.batch import Batch
+from ..batch.batch import Batch, SPOT_INTERRUPT_EXITCODE
 from .event_bridge_client import EventBridgeClient
 from .step_functions_client import StepFunctionsClient
 
@@ -842,7 +842,7 @@ class StepFunctions(object):
             RetryEvents.STEP: {"action": "RETRY", "onExitCode": "1"},
             RetryEvents.PREEMPT: {
                 "action": "RETRY",
-                "onExitCode": str(PLATFORM_EVICTED_EXITCODE),
+                "onExitCode": str(SPOT_INTERRUPT_EXITCODE),
             },
         }
         retry_expr = None

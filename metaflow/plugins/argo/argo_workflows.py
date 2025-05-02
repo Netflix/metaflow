@@ -54,7 +54,8 @@ from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.kubernetes.kube_utils import qos_requests_and_limits
 
 from metaflow.plugins.kubernetes.kubernetes_jobsets import KubernetesArgoJobSet
-from metaflow.plugins.retry_decorator import PLATFORM_EVICTED_EXITCODE, RetryEvents
+from metaflow.plugins.kubernetes.kubernetes import SPOT_INTERRUPT_EXITCODE
+from metaflow.plugins.retry_decorator import RetryEvents
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow.user_configs.config_options import ConfigInput
 from metaflow.util import (
@@ -1553,7 +1554,7 @@ class ArgoWorkflows(object):
             event_to_expr = {
                 RetryEvents.STEP: "asInt(lastRetry.exitCode) == 1",
                 RetryEvents.PREEMPT: "asInt(lastRetry.exitCode) == %s"
-                % PLATFORM_EVICTED_EXITCODE,
+                % SPOT_INTERRUPT_EXITCODE,
             }
             retry_expr = None
             if retry_conditions:
