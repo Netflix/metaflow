@@ -74,7 +74,7 @@ class SpotTerminationMonitorSidecar(object):
                 if response.status_code == 200:
                     termination_time = response.text
                     self._emit_termination_metadata(termination_time)
-                    os.kill(self.main_pid, signal.SIGTERM)
+                    os.kill(self.main_pid, signal.SIGUSR1)
                     break
             except (requests.exceptions.RequestException, requests.exceptions.Timeout):
                 pass
