@@ -2732,7 +2732,7 @@ class ArgoWorkflows(object):
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": ":metaflow: Environment details"
+                    "text": "Environment details"
                 },
                 "fields": [
                     {
@@ -2750,7 +2750,7 @@ class ArgoWorkflows(object):
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": ":metaflow: Environment details"
+                    "text": "Environment details"
                 }
             }
 
