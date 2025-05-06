@@ -119,7 +119,9 @@ class _GSRootClient(object):
                 blob.metadata = {"metaflow-user-attributes": json.dumps(metadata)}
             from google.cloud.storage.retry import DEFAULT_RETRY
 
-            blob.upload_from_filename(tmpfile, retry=DEFAULT_RETRY)
+            blob.upload_from_filename(
+                tmpfile, retry=DEFAULT_RETRY, timeout=(14400, 60)
+            )  # generous timeout for massive uploads. Use the same values as for Azure (connection_timeout, read_timeout)
         except Exception as e:
             process_gs_exception(e)
 
