@@ -172,6 +172,7 @@ class CondaEnvironment(MetaflowEnvironment):
             storage.save_bytes(
                 list_of_path_and_filehandle,
                 len_hint=len(list_of_path_and_filehandle),
+                # overwrite=True
             )
             for id_, packages, _, platform in results:
                 if id_ in dirty:
