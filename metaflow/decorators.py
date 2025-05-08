@@ -12,12 +12,12 @@ from .exception import (
 )
 
 from .parameters import current_flow
-from .user_configs.config_decorators import CustomStepDecorator
 from .user_configs.config_parameters import (
     UNPACK_KEY,
     resolve_delayed_evaluator,
     unpack_delayed_evaluator,
 )
+from .user_decorators.user_step_decorator import StepMutator
 
 from metaflow._vendor import click
 
@@ -315,15 +315,26 @@ class StepDecorator(Decorator):
 
     def add_to_package(self):
         """
-        Called to add custom packages needed for a decorator. This hook will be
+        Called to add custom files needed for a decorator. This hook will be
         called in the `MetaflowPackage` class where metaflow compiles the code package
-        tarball. This hook is invoked in the `MetaflowPackage`'s `path_tuples`
-        function. The `path_tuples` function is a generator that yields a tuple of
-        `(file_path, arcname)`.`file_path` is the path of the file in the local file system;
-        the `arcname` is the path of the file in the constructed tarball or the path of the file
-        after decompressing the tarball.
-
-        Returns a list of tuples where each tuple represents (file_path, arcname)
+        tarball. This hook can return one of two things:
+          - a generator yielding a tuple of `(file_path, arcname)` to add files to
+            the code package. `file_path` is the path to the file on the local filesystem
+            and `arcname` is the path relative to the packaged code.
+          - a generator yielding a tuple of `(content, arcname, type)` where:
+            - type is a AddToPackageType
+            - for CODE_FILE:
+              - content: path to the file to include
+              - arcname: path relative to the code directory in the package
+            - for CODE_MODULE:
+              - content: name of the module
+              - arcame: None (ignored)
+            - for CONFIG_FILE:
+              - content: path to the file to include
+              - arcname: path relative to the config directory in the package
+            - for CONFIG_CONTENT:
+              - content: bytes to include
+              - arcname: path relative to the config directory in the package
         """
         return []
 
@@ -472,7 +483,7 @@ def _base_step_decorator(decotype, *args, **kwargs):
         # No keyword arguments specified for the decorator, e.g. @foobar.
         # The first argument is the function to be decorated.
         func = args[0]
-        if isinstance(func, CustomStepDecorator):
+        if isinstance(func, StepMutator):
             func = func._my_step
         if not hasattr(func, "is_step"):
             raise BadStepDecoratorException(decotype.name, func)
@@ -685,6 +696,7 @@ def step(
     f.is_step = True
     f.decorators = []
     f.config_decorators = []
+    f.wrappers = []
     try:
         # python 3
         f.name = f.__name__
