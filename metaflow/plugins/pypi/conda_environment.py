@@ -13,6 +13,7 @@ from hashlib import sha256
 from io import BufferedIOBase, BytesIO
 from urllib.parse import unquote, urlparse
 
+from metaflow.debug import debug
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import get_pinned_conda_libs
 from metaflow.metaflow_environment import MetaflowEnvironment
@@ -117,6 +118,11 @@ class CondaEnvironment(MetaflowEnvironment):
             )
 
         def cache(storage, results, type_):
+            debug.conda_exec(
+                "Caching packages for %s environments %s"
+                % (type_, [result[0] for result in results])
+            )
+
             def _path(url, local_path):
                 # Special handling for VCS packages
                 if url.startswith("git+"):
@@ -169,6 +175,14 @@ class CondaEnvironment(MetaflowEnvironment):
                 )
                 for url, package in local_packages.items()
             ]
+            debug.conda_exec(
+                "Caching %s new packages to the datastore for %s environment %s"
+                % (
+                    len(list_of_path_and_filehandle),
+                    type_,
+                    [result[0] for result in results],
+                )
+            )
             storage.save_bytes(
                 list_of_path_and_filehandle,
                 len_hint=len(list_of_path_and_filehandle),
@@ -177,6 +191,8 @@ class CondaEnvironment(MetaflowEnvironment):
             for id_, packages, _, platform in results:
                 if id_ in dirty:
                     self.write_to_environment_manifest([id_, platform, type_], packages)
+
+            debug.conda_exec("Finished caching packages.")
 
         storage = None
         if self.datastore_type not in ["local"]:
@@ -193,6 +209,7 @@ class CondaEnvironment(MetaflowEnvironment):
         #  6. Create and cache PyPI environments in parallel
         with ThreadPoolExecutor() as executor:
             # Start all conda solves in parallel
+            debug.conda_exec("Solving packages for Conda environments..")
             conda_solve_futures = [
                 executor.submit(lambda x: solve(*x, "conda"), env)
                 for env in environments("conda")
@@ -208,6 +225,9 @@ class CondaEnvironment(MetaflowEnvironment):
             for future in as_completed(conda_solve_futures):
                 result = future.result()
                 # Sequential conda download
+                debug.conda_exec(
+                    "Downloading packages for Conda environment %s" % result[0]
+                )
                 self.solvers["conda"].download(*result)
                 # Parallel conda create and cache
                 conda_create_future = executor.submit(
@@ -220,6 +240,9 @@ class CondaEnvironment(MetaflowEnvironment):
 
                 # Queue PyPI solve to start after conda create
                 if result[0] in pypi_envs:
+                    debug.conda_exec(
+                        "Solving packages for PyPI environment %s" % result[0]
+                    )
                     # solve pypi envs uniquely
                     pypi_env = pypi_envs.pop(result[0])
 
@@ -236,6 +259,9 @@ class CondaEnvironment(MetaflowEnvironment):
             for solve_future in as_completed(pypi_solve_futures):
                 result = solve_future.result()
                 # Sequential PyPI download
+                debug.conda_exec(
+                    "Downloading packages for PyPI environment %s" % result[0]
+                )
                 self.solvers["pypi"].download(*result)
                 # Parallel PyPI create and cache
                 pypi_create_futures.append(
@@ -247,14 +273,17 @@ class CondaEnvironment(MetaflowEnvironment):
                     )
 
             # Raise exceptions for conda create
+            debug.conda_exec("Checking results for Conda create..")
             for future in as_completed(conda_create_futures):
                 future.result()
 
             # Raise exceptions for pypi create
+            debug.conda_exec("Checking results for PyPI create..")
             for future in as_completed(pypi_create_futures):
                 future.result()
 
             # Raise exceptions for caching
+            debug.conda_exec("Checking results for caching..")
             for future in as_completed(cache_futures):
                 # check for result in order to raise any exceptions.
                 future.result()
