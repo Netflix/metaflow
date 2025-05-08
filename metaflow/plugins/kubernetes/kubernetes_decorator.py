@@ -17,6 +17,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_DISK,
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_GPU_VENDOR,
+    KUBERNETES_GPU_TYPE,
     KUBERNETES_IMAGE_PULL_POLICY,
     KUBERNETES_MEMORY,
     KUBERNETES_LABELS,
@@ -90,6 +91,8 @@ class KubernetesDecorator(StepDecorator):
         the scheduled node should not have GPUs.
     gpu_vendor : str, default KUBERNETES_GPU_VENDOR
         The vendor of the GPUs to be used for this step.
+    gpu_type : str , optional, default KUBERNETES_GPU_TYPE
+        The type of the GPUs to be used for this step.
     tolerations : List[str], default []
         The default is extracted from METAFLOW_KUBERNETES_TOLERATIONS.
         Kubernetes tolerations to use when launching pod in Kubernetes.
@@ -145,6 +148,7 @@ class KubernetesDecorator(StepDecorator):
         "namespace": None,
         "gpu": None,  # value of 0 implies that the scheduled node should not have GPUs
         "gpu_vendor": None,
+        "gpu_type": None,
         "tolerations": None,  # e.g., [{"key": "arch", "operator": "Equal", "value": "amd"},
         #                              {"key": "foo", "operator": "Equal", "value": "bar"}]
         "labels": None,  # e.g. {"test-label": "value", "another-label":"value2"}
@@ -181,6 +185,8 @@ class KubernetesDecorator(StepDecorator):
             self.attributes["gpu_vendor"] = KUBERNETES_GPU_VENDOR
         if not self.attributes["node_selector"] and KUBERNETES_NODE_SELECTOR:
             self.attributes["node_selector"] = KUBERNETES_NODE_SELECTOR
+        if not self.attributes["gpu_type"]:
+            self.attributes["gpu_type"] = KUBERNETES_GPU_TYPE
         if not self.attributes["tolerations"] and KUBERNETES_TOLERATIONS:
             self.attributes["tolerations"] = json.loads(KUBERNETES_TOLERATIONS)
         if (
