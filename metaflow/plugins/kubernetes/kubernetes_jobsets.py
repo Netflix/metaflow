@@ -718,8 +718,11 @@ class JobSetSpec(object):
                                     )
                                 ],
                                 node_selector=self._kwargs.get("node_selector"),
-                                # TODO (savin): Support image_pull_secrets
-                                # image_pull_secrets=?,
+                                image_pull_secrets=[
+                                    client.V1LocalObjectReference(secret)
+                                    for secret in self._kwargs.get("image_pull_secrets")
+                                    or []
+                                ],
                                 # TODO (savin): Support preemption policies
                                 # preemption_policy=?,
                                 #

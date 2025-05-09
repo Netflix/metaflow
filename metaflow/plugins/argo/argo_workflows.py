@@ -2007,6 +2007,7 @@ class ArgoWorkflows(object):
                     namespace=resources["namespace"],
                     image=resources["image"],
                     image_pull_policy=resources["image_pull_policy"],
+                    image_pull_secrets=resources["image_pull_secrets"],
                     service_account=resources["service_account"],
                     secrets=(
                         [
@@ -2193,6 +2194,8 @@ class ArgoWorkflows(object):
                     .node_selectors(resources.get("node_selector"))
                     # Set tolerations
                     .tolerations(resources.get("tolerations"))
+                    # Set image pull secrets
+                    .image_pull_secrets(resources.get("image_pull_secrets"))
                     # Set container
                     .container(
                         # TODO: Unify the logic with kubernetes.py
@@ -3742,6 +3745,10 @@ class Template(object):
 
     def tolerations(self, tolerations):
         self.payload["tolerations"] = tolerations
+        return self
+
+    def image_pull_secrets(self, image_pull_secrets):
+        self.payload["image_pull_secrets"] = image_pull_secrets
         return self
 
     def to_json(self):
