@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import time
 
+from metaflow.debug import debug
 from metaflow.exception import MetaflowException
 from metaflow.util import which
 
@@ -71,6 +72,7 @@ class Micromamba(object):
 
             # Install Micromamba on the fly.
             # TODO: Make this optional at some point.
+            debug.conda_exec("No Micromamba binary found. Installing micromamba")
             _install_micromamba(self._path_to_hidden_micromamba)
             self._bin = which(
                 os.path.join(self._path_to_hidden_micromamba, "bin/micromamba")
@@ -98,6 +100,7 @@ class Micromamba(object):
         #    environment
         # 4. Multiple solves can progress at the same time while relying on the same
         #    index
+        debug.conda_exec("Solving packages for conda environment %s" % id_)
         with tempfile.TemporaryDirectory() as tmp_dir:
             env = {
                 "MAMBA_ADD_PIP_AS_PYTHON_DEPENDENCY": "true",
@@ -158,6 +161,7 @@ class Micromamba(object):
         if self.path_to_environment(id_, platform):
             return
 
+        debug.conda_exec("Downloading packages for conda environment %s" % id_)
         with tempfile.TemporaryDirectory() as tmp_dir:
             env = {
                 "CONDA_SUBDIR": platform,
@@ -190,6 +194,7 @@ class Micromamba(object):
         if platform != self.platform() or self.path_to_environment(id_, platform):
             return
 
+        debug.conda_exec("Creating local Conda environment %s" % id_)
         prefix = "{env_dirs}/{keyword}/{platform}/{id}".format(
             env_dirs=self.info()["envs_dirs"][0],
             platform=platform,

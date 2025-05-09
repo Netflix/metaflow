@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from itertools import chain, product
 from urllib.parse import unquote
 
+from metaflow.debug import debug
 from metaflow.exception import MetaflowException
 
 from .micromamba import Micromamba
@@ -66,6 +67,7 @@ class Pip(object):
             msg += "for id {id}".format(id=id_)
             raise PipException(msg)
 
+        debug.conda_exec("Solving packages for PyPI environment %s" % id_)
         with tempfile.TemporaryDirectory() as tmp_dir:
             report = "{tmp_dir}/report.json".format(tmp_dir=tmp_dir)
             implementations, platforms, abis = zip(
@@ -152,6 +154,7 @@ class Pip(object):
         custom_index_url, extra_index_urls = self.indices(prefix)
 
         # build wheels if needed
+        debug.conda_exec("Building wheels for PyPI environment %s if necessary" % id_)
         with ThreadPoolExecutor() as executor:
 
             def _build(key, package):
@@ -212,6 +215,7 @@ class Pip(object):
             ]
         )
 
+        debug.conda_exec("Downloading packages for PyPI environment %s" % id_)
         cmd = [
             "download",
             "--no-deps",
@@ -251,6 +255,7 @@ class Pip(object):
         # Pip can't install packages if the underlying virtual environment doesn't
         # share the same platform
         if self.micromamba.platform() == platform:
+            debug.conda_exec("Installing packages for local PyPI environment %s" % id_)
             cmd = [
                 "install",
                 "--no-compile",
