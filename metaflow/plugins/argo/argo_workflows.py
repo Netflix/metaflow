@@ -2248,10 +2248,8 @@ class ArgoWorkflows(object):
                                     limits={
                                         **qos_limits,
                                         **{
-                                            "%s.com/gpu".lower()
-                                            % resources["gpu_vendor"]: str(
-                                                resources["gpu"]
-                                            )
+                                            ("%s.com/%s".lower()
+                                            % (resources["gpu_vendor"], resources["gpu_type"])): str(resources["gpu"])
                                             for k in [0]
                                             if resources["gpu"] is not None
                                         },
