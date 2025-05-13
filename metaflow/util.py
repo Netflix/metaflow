@@ -9,7 +9,8 @@ import re
 from functools import wraps
 from io import BytesIO
 from itertools import takewhile
-from typing import Generator, List, Optional, Tuple
+import re
+
 
 try:
     # python2
