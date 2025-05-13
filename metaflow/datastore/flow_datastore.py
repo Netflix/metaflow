@@ -5,6 +5,8 @@ from .. import metaflow_config
 
 from .content_addressed_store import ContentAddressedStore
 from .task_datastore import TaskDataStore
+from .spin_datastore import SpinTaskDatastore
+from ..metaflow_profile import from_start
 
 
 class FlowDataStore(object):
@@ -63,9 +65,15 @@ class FlowDataStore(object):
             self._storage_impl.path_join(self.flow_name, "data"), self._storage_impl
         )
 
+        # Private
+        self._metadata_cache = None
+
     @property
     def datastore_root(self):
         return self._storage_impl.datastore_root
+
+    def set_metadata_cache(self, cache):
+        self._metadata_cache = cache
 
     def get_task_datastores(
         self,
@@ -76,6 +84,9 @@ class FlowDataStore(object):
         attempt=None,
         include_prior=False,
         mode="r",
+        join_type=None,
+        orig_flow_datastore=None,
+        spin_artifacts=None,
     ):
         """
         Return a list of TaskDataStore for a subset of the tasks.
@@ -95,7 +106,7 @@ class FlowDataStore(object):
             Steps to get the tasks from. If run_id is specified, this
             must also be specified, by default None
         pathspecs : List[str], optional
-            Full task specs (run_id/step_name/task_id). Can be used instead of
+            Full task specs (run_id/step_name/task_id[/attempt]). Can be used instead of
             specifying run_id and steps, by default None
         allow_not_done : bool, optional
             If True, returns the latest attempt of a task even if that attempt
@@ -106,6 +117,16 @@ class FlowDataStore(object):
             If True, returns all attempts up to and including attempt.
         mode : str, default "r"
             Mode to initialize the returned TaskDataStores in.
+        join_type : str, optional
+            If specified, the join type for the task. This is used to determine
+            the user specified artifacts for the task in case of a spin task.
+        orig_flow_datastore : MetadataProvider, optional
+            The metadata provider in case of a spin task. If provided, the
+            returned TaskDataStore will be a SpinTaskDatastore instead of a
+            TaskDataStore.
+        spin_artifacts : Dict[str, Any], optional
+            Artifacts provided by user that can override the artifacts fetched via the
+            spin pathspec.
 
         Returns
         -------
@@ -145,7 +166,13 @@ class FlowDataStore(object):
         if attempt is not None and attempt <= metaflow_config.MAX_ATTEMPTS - 1:
             attempt_range = range(attempt + 1) if include_prior else [attempt]
         for task_url in task_urls:
-            for attempt in attempt_range:
+            task_splits = task_url.split("/")
+            # Usually it is flow, run, step, task (so 4 components) -- if we have a
+            # fifth one, there is a specific attempt number listed as well.
+            task_attempt_range = attempt_range
+            if len(task_splits) == 5:
+                task_attempt_range = [int(task_splits[4])]
+            for attempt in task_attempt_range:
                 for suffix in [
                     TaskDataStore.METADATA_DATA_SUFFIX,
                     TaskDataStore.METADATA_ATTEMPT_SUFFIX,
@@ -198,7 +225,18 @@ class FlowDataStore(object):
                 else (latest_started_attempts & done_attempts)
             )
         latest_to_fetch = [
-            (v[0], v[1], v[2], v[3], data_objs.get(v), mode, allow_not_done)
+            (
+                v[0],
+                v[1],
+                v[2],
+                v[3],
+                data_objs.get(v),
+                mode,
+                allow_not_done,
+                join_type,
+                orig_flow_datastore,
+                spin_artifacts,
+            )
             for v in latest_to_fetch
         ]
         return list(itertools.starmap(self.get_task_datastore, latest_to_fetch))
@@ -212,8 +250,64 @@ class FlowDataStore(object):
         data_metadata=None,
         mode="r",
         allow_not_done=False,
+        join_type=None,
+        orig_flow_datastore=None,
+        spin_artifacts=None,
+        persist=True,
     ):
-        return TaskDataStore(
+        if orig_flow_datastore is not None:
+            # In spin step subprocess, use SpinTaskDatastore for accessing artifacts
+            if join_type is not None:
+                # If join_type is specified, we need to use the artifacts corresponding
+                # to that particular join index, specified by the parent task pathspec.
+                spin_artifacts = spin_artifacts.get(
+                    f"{run_id}/{step_name}/{task_id}", {}
+                )
+            from_start(
+                "FlowDataStore: get_task_datastore for spin task for type %s %s metadata"
+                % (self.TYPE, "without" if data_metadata is None else "with")
+            )
+            # Get the task datastore for the spun task.
+            orig_datastore = orig_flow_datastore.get_task_datastore(
+                run_id,
+                step_name,
+                task_id,
+                attempt=attempt,
+                data_metadata=data_metadata,
+                mode=mode,
+                allow_not_done=allow_not_done,
+                join_type=join_type,
+                persist=persist,
+            )
+
+            return SpinTaskDatastore(
+                self.flow_name,
+                run_id,
+                step_name,
+                task_id,
+                orig_datastore,
+                spin_artifacts,
+            )
+
+        cache_hit = False
+        if (
+            self._metadata_cache is not None
+            and data_metadata is None
+            and attempt is not None
+            and allow_not_done is False
+        ):
+            # If we have a metadata cache, we can try to load the metadata
+            # from the cache if it is not provided.
+            data_metadata = self._metadata_cache.load_metadata(
+                run_id, step_name, task_id, attempt
+            )
+            cache_hit = data_metadata is not None
+
+        from_start(
+            "FlowDataStore: get_task_datastore for regular task for type %s %s metadata"
+            % (self.TYPE, "without" if data_metadata is None else "with")
+        )
+        task_datastore = TaskDataStore(
             self,
             run_id,
             step_name,
@@ -222,7 +316,22 @@ class FlowDataStore(object):
             data_metadata=data_metadata,
             mode=mode,
             allow_not_done=allow_not_done,
+            persist=persist,
         )
+
+        # Only persist in cache if it is non-changing (so done only) and we have
+        # a non-None attempt
+        if (
+            not cache_hit
+            and self._metadata_cache is not None
+            and allow_not_done is False
+            and attempt is not None
+        ):
+            self._metadata_cache.store_metadata(
+                run_id, step_name, task_id, attempt, task_datastore.ds_metadata
+            )
+
+        return task_datastore
 
     def save_data(self, data_iter, len_hint=0):
         """Saves data to the underlying content-addressed store
@@ -265,3 +374,11 @@ class FlowDataStore(object):
         """
         for key, blob in self.ca_store.load_blobs(keys, force_raw=force_raw):
             yield key, blob
+
+
+class MetadataCache(object):
+    def load_metadata(self, run_id, step_name, task_id, attempt):
+        pass
+
+    def store_metadata(self, run_id, step_name, task_id, attempt, metadata_dict):
+        pass
