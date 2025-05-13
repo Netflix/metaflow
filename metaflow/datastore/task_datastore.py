@@ -165,6 +165,7 @@ class TaskDataStore(object):
                     data_obj = self.load_metadata([self.METADATA_DATA_SUFFIX])
                     data_obj = data_obj[self.METADATA_DATA_SUFFIX]
                 elif self._attempt is None or not allow_not_done:
+                    print("HERE in self._mode == 'r'")
                     raise DataException(
                         "No completed attempts of the task was found for task '%s'"
                         % self._path
