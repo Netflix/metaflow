@@ -6,7 +6,7 @@ from ..cli_args import cli_args
 from ..exception import CommandException
 from ..task import MetaflowTask
 from ..unbounded_foreach import UBF_CONTROL, UBF_TASK
-from ..util import decompress_list
+from ..util import decompress_list, read_artifacts_module
 import metaflow.tracing as tracing
 
 
@@ -176,3 +176,142 @@ def step(
         )
 
     echo("Success", fg="green", bold=True, indent=True)
+
+
+@click.command(help="Internal command to spin a single task.", hidden=True)
+@click.argument("step-name")
+@click.option(
+    "--run-id",
+    default=None,
+    required=True,
+    help="Run ID for the step that's about to be spun",
+)
+@click.option(
+    "--task-id",
+    default=None,
+    required=True,
+    help="Task ID for the step that's about to be spun",
+)
+@click.option(
+    "--spin-pathspec",
+    default=None,
+    show_default=True,
+    help="Task Pathspec to be used in the spun step.",
+)
+@click.option(
+    "--input-paths",
+    help="A comma-separated list of pathspecs specifying inputs for this step.",
+)
+@click.option(
+    "--split-index",
+    type=int,
+    default=None,
+    show_default=True,
+    help="Index of this foreach split.",
+)
+@click.option(
+    "--retry-count",
+    default=0,
+    help="How many times we have attempted to run this task.",
+)
+@click.option(
+    "--max-user-code-retries",
+    default=0,
+    help="How many times we should attempt running the user code.",
+)
+@click.option(
+    "--namespace",
+    "namespace",
+    default=None,
+    help="Change namespace from the default (your username) to the specified tag.",
+)
+@click.option(
+    "--skip-decorators/--no-skip-decorators",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Skip decorators attached to the step.",
+)
+@click.option(
+    "--artifacts-module",
+    default=None,
+    show_default=True,
+    help="Path to a module that contains artifacts to be used in the spun step. The artifacts should "
+    "be defined as a dictionary called ARTIFACTS with keys as the artifact names and values as the "
+    "artifact values. The artifact values will overwrite the default values of the artifacts used in "
+    "the spun step.",
+)
+@click.pass_context
+def spin_step(
+    ctx,
+    step_name,
+    run_id=None,
+    task_id=None,
+    spin_pathspec=None,
+    input_paths=None,
+    split_index=None,
+    retry_count=None,
+    max_user_code_retries=None,
+    namespace=None,
+    skip_decorators=False,
+    artifacts_module=None,
+):
+    import time
+
+    start = time.time()
+    import sys
+
+    if ctx.obj.is_quiet:
+        print("Echo dev null")
+        echo = echo_dev_null
+    else:
+        print("Echo always")
+        echo = echo_always
+
+    input_paths = decompress_list(input_paths) if input_paths else []
+    echo(
+        f"Spinning a task, *{step_name}* with previous task pathspec: {spin_pathspec}",
+        fg="magenta",
+        bold=False,
+    )
+    # if namespace is not None:
+    #     namespace(namespace or None)
+
+    spin_artifacts = read_artifacts_module(artifacts_module) if artifacts_module else {}
+    spin_artifacts = spin_artifacts.get("ARTIFACTS", {})
+
+    print(f"spin_artifacts: {spin_artifacts}")
+    print(f"spin_pathspec: {spin_pathspec}")
+    print(f"input_paths: {input_paths}")
+
+    # task = MetaflowTask(
+    #     ctx.obj.flow,
+    #     ctx.obj.effective_flow_datastore,  # local datastore
+    #     ctx.obj.effective_metadata,  # local metadata provider
+    #     ctx.obj.environment,  # local environment
+    #     ctx.obj.echo,
+    #     ctx.obj.event_logger,  # null logger
+    #     ctx.obj.monitor,  # null monitor
+    #     None,  # no unbounded foreach context
+    # )
+    # echo(
+    #     "I am here",
+    #     fg="magenta",
+    #     bold=False,
+    # )
+
+    # task.run_step(
+    #     step_name,
+    #     run_id,
+    #     task_id,
+    #     None,
+    #     input_paths,
+    #     split_index,
+    #     retry_count,
+    #     max_user_code_retries,
+    #     spin_pathspec,
+    #     skip_decorators,
+    #     spin_artifacts,
+    # )
+
+    echo(f"Time taken for the whole thing: {time.time() - start}")
