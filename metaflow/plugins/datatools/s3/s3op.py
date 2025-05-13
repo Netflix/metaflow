@@ -18,7 +18,6 @@ from itertools import starmap, chain, islice
 
 from boto3.exceptions import RetriesExceededError, S3UploadFailedError
 from boto3.s3.transfer import TransferConfig
-from botocore.config import Config
 from botocore.exceptions import ClientError, SSLError
 
 try:
@@ -50,7 +49,6 @@ from metaflow.plugins.datatools.s3.s3util import (
 import metaflow.tracing as tracing
 from metaflow.metaflow_config import (
     S3_WORKER_COUNT,
-    S3_CLIENT_RETRY_CONFIG,
 )
 
 DOWNLOAD_FILE_THRESHOLD = 2 * TransferConfig().multipart_threshold
