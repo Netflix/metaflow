@@ -92,9 +92,7 @@ def type_var_to_str(t: TypeVar) -> str:
 
 
 def new_type_to_str(t: typing.NewType) -> str:
-    name = typing.cast(str, t.__name__)
-    supertype = typing.cast(type, t.__supertype__)
-    return 'typing.NewType("%s", %s)' % (name, supertype)
+    return 'typing.NewType("%s", %s)' % (t.__name__, t.__supertype__.__name__)
 
 
 def descend_object(object: str, options: Iterable[str]):
@@ -180,7 +178,7 @@ def parse_add_to_docs(
     prop = None
     return_type = None
     property_indent = None
-    doc: List[str] = []
+    doc = []
     add_to_docs = dict()  # type: Dict[str, Union[str, Tuple[inspect.Signature, str]]]
 
     def _add():
@@ -331,7 +329,7 @@ class StubGenerator:
 
         self._reset()
 
-    def _reset(self) -> None:
+    def _reset(self):
         # "Globals" that are used throughout processing. This is not the cleanest
         # but simplifies code quite a bit.
 
@@ -352,7 +350,7 @@ class StubGenerator:
         # the "globals()"
         self._current_parent_module = None  # type: Optional[ModuleType]
 
-    def _get_module_name_alias(self, module_name: str) -> str:
+    def _get_module_name_alias(self, module_name):
         if any(
             module_name.startswith(x) for x in self._safe_modules
         ) and not module_name.startswith(self._root_module):
@@ -896,7 +894,7 @@ class StubGenerator:
             # as examples so we sort it out.
             resulting_dict = (
                 dict()
-            )  # type: Dict[str, Tuple[inspect.Signature, str, List[str]]]
+            )  # type Dict[str, List[inspect.Signature, str, List[str]]]
             for deco_name, addl_current in self._addl_current.items():
                 for name, (sign, doc) in addl_current.items():
                     r = resulting_dict.setdefault(name, [sign, doc, []])
@@ -1159,31 +1157,39 @@ class StubGenerator:
     ) -> str:
         debug.stubgen_exec("Generating function stub for %s" % name)
 
-        def exploit_default(default_value: Any) -> str:
+        def exploit_default(default_value: Any) -> Optional[str]:
             if default_value == inspect.Parameter.empty:
-                return ""
+                return None
             if type(default_value).__module__ == "builtins":
                 if isinstance(default_value, list):
-                    elements = [exploit_default(v) for v in default_value]
-                    if any(e == "..." for e in elements):
-                        return "..."
-                    else:
-                        return "[" + ", ".join(elements) + "]"
+                    return (
+                        "["
+                        + ", ".join(
+                            [cast(str, exploit_default(v)) for v in default_value]
+                        )
+                        + "]"
+                    )
                 elif isinstance(default_value, tuple):
-                    elements = [exploit_default(v) for v in default_value]
-                    if any(e == "..." for e in elements):
-                        return "..."
-                    else:
-                        return "(" + ", ".join(elements) + ")"
+                    return (
+                        "("
+                        + ", ".join(
+                            [cast(str, exploit_default(v)) for v in default_value]
+                        )
+                        + ")"
+                    )
                 elif isinstance(default_value, dict):
-                    items = [
-                        exploit_default(k) + ": " + exploit_default(v)
-                        for k, v in default_value.items()
-                    ]
-                    if any("..." in item for item in items):
-                        return "..."
-                    else:
-                        return "{" + ", ".join(items) + "}"
+                    return (
+                        "{"
+                        + ", ".join(
+                            [
+                                cast(str, exploit_default(k))
+                                + ": "
+                                + cast(str, exploit_default(v))
+                                for k, v in default_value.items()
+                            ]
+                        )
+                        + "}"
+                    )
                 elif isinstance(default_value, str):
                     return repr(default_value)  # Use repr() for proper escaping
                 elif isinstance(default_value, (int, float, bool)):
