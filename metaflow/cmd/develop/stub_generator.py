@@ -1163,25 +1163,25 @@ class StubGenerator:
             if type(default_value).__module__ == "builtins":
                 if isinstance(default_value, list):
                     elements = [exploit_default(v) for v in default_value]
-                    if any(e == '...' for e in elements):
-                        return '...'
+                    if any(e == "..." for e in elements):
+                        return "..."
                     else:
-                        return '[' + ', '.join(elements) + ']'
+                        return "[" + ", ".join(elements) + "]"
                 elif isinstance(default_value, tuple):
                     elements = [exploit_default(v) for v in default_value]
-                    if any(e == '...' for e in elements):
-                        return '...'
+                    if any(e == "..." for e in elements):
+                        return "..."
                     else:
-                        return '(' + ', '.join(elements) + ')'
+                        return "(" + ", ".join(elements) + ")"
                 elif isinstance(default_value, dict):
                     items = [
-                        exploit_default(k) + ': ' + exploit_default(v)
+                        exploit_default(k) + ": " + exploit_default(v)
                         for k, v in default_value.items()
                     ]
-                    if any('...' in item for item in items):
-                        return '...'
+                    if any("..." in item for item in items):
+                        return "..."
                     else:
-                        return '{' + ', '.join(items) + '}'
+                        return "{" + ", ".join(items) + "}"
                 elif isinstance(default_value, str):
                     return repr(default_value)  # Use repr() for proper escaping
                 elif isinstance(default_value, (int, float, bool)):
@@ -1189,7 +1189,7 @@ class StubGenerator:
                 elif default_value is None:
                     return "None"
                 else:
-                    return '...'  # For other built-in types not explicitly handled
+                    return "..."  # For other built-in types not explicitly handled
             elif inspect.isclass(default_value) or inspect.isfunction(default_value):
                 if default_value.__module__ == "builtins":
                     return default_value.__name__
@@ -1197,7 +1197,7 @@ class StubGenerator:
                     self._typing_imports.add(default_value.__module__)
                     return ".".join([default_value.__module__, default_value.__name__])
             else:
-                return '...'  # For complex objects like class instances
+                return "..."  # For complex objects like class instances
 
         buff = StringIO()
         if sign is None and func is None:
