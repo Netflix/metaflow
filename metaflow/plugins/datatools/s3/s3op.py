@@ -18,7 +18,6 @@ from itertools import starmap, chain, islice
 
 from boto3.exceptions import RetriesExceededError, S3UploadFailedError
 from boto3.s3.transfer import TransferConfig
-from botocore.config import Config
 from botocore.exceptions import ClientError, SSLError
 
 try:
@@ -50,13 +49,11 @@ from metaflow.plugins.datatools.s3.s3util import (
 import metaflow.tracing as tracing
 from metaflow.metaflow_config import (
     S3_WORKER_COUNT,
-    S3_CLIENT_RETRY_CONFIG,
 )
 
 DOWNLOAD_FILE_THRESHOLD = 2 * TransferConfig().multipart_threshold
 DOWNLOAD_MAX_CHUNK = 2 * 1024 * 1024 * 1024 - 1
 
-DEFAULT_S3_CLIENT_PARAMS = {"config": Config(retries=S3_CLIENT_RETRY_CONFIG)}
 RANGE_MATCH = re.compile(r"bytes (?P<start>[0-9]+)-(?P<end>[0-9]+)/(?P<total>[0-9]+)")
 
 # from botocore ClientError MSG_TEMPLATE:
@@ -132,7 +129,7 @@ def normalize_client_error(err):
     try:
         return int(error_code)
     except ValueError:
-        if error_code in ("AccessDenied", "AllAccessDisabled"):
+        if error_code in ("AccessDenied", "AllAccessDisabled", "InvalidAccessKeyId"):
             return 403
         if error_code == "NoSuchKey":
             return 404
@@ -830,7 +827,7 @@ def lst(
     s3config = S3Config(
         s3role,
         json.loads(s3sessionvars) if s3sessionvars else None,
-        json.loads(s3clientparams) if s3clientparams else DEFAULT_S3_CLIENT_PARAMS,
+        json.loads(s3clientparams) if s3clientparams else None,
     )
 
     urllist = []
@@ -963,7 +960,7 @@ def put(
     s3config = S3Config(
         s3role,
         json.loads(s3sessionvars) if s3sessionvars else None,
-        json.loads(s3clientparams) if s3clientparams else DEFAULT_S3_CLIENT_PARAMS,
+        json.loads(s3clientparams) if s3clientparams else None,
     )
 
     urls = list(starmap(_make_url, _files()))
@@ -1110,7 +1107,7 @@ def get(
     s3config = S3Config(
         s3role,
         json.loads(s3sessionvars) if s3sessionvars else None,
-        json.loads(s3clientparams) if s3clientparams else DEFAULT_S3_CLIENT_PARAMS,
+        json.loads(s3clientparams) if s3clientparams else None,
     )
 
     # Construct a list of URL (prefix) objects
@@ -1259,7 +1256,7 @@ def info(
     s3config = S3Config(
         s3role,
         json.loads(s3sessionvars) if s3sessionvars else None,
-        json.loads(s3clientparams) if s3clientparams else DEFAULT_S3_CLIENT_PARAMS,
+        json.loads(s3clientparams) if s3clientparams else None,
     )
 
     # Construct a list of URL (prefix) objects
