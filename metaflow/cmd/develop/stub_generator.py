@@ -1192,10 +1192,13 @@ class StubGenerator:
                     )
                 elif isinstance(default_value, str):
                     return "'" + default_value + "'"
+                elif isinstance(default_value, (int, float, bool)):
+                    return str(default_value)
+                elif default_value is None:
+                    return "None"
                 else:
                     return self._get_element_name_with_module(default_value)
-
-            elif str(default_value).startswith("<"):
+            elif inspect.isclass(default_value) or inspect.isfunction(default_value):
                 if default_value.__module__ == "builtins":
                     return default_value.__name__
                 else:
