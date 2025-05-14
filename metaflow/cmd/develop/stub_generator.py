@@ -92,7 +92,9 @@ def type_var_to_str(t: TypeVar) -> str:
 
 
 def new_type_to_str(t: typing.NewType) -> str:
-    return 'typing.NewType("%s", %s)' % (t.__name__, t.__supertype__.__name__)
+    name = typing.cast(str, t.__name__)
+    supertype = typing.cast(type, t.__supertype__)
+    return 'typing.NewType("%s", %s)' % (name, supertype)
 
 
 def descend_object(object: str, options: Iterable[str]):
@@ -178,7 +180,7 @@ def parse_add_to_docs(
     prop = None
     return_type = None
     property_indent = None
-    doc = []
+    doc: List[str] = []
     add_to_docs = dict()  # type: Dict[str, Union[str, Tuple[inspect.Signature, str]]]
 
     def _add():
@@ -329,7 +331,7 @@ class StubGenerator:
 
         self._reset()
 
-    def _reset(self):
+    def _reset(self) -> None:
         # "Globals" that are used throughout processing. This is not the cleanest
         # but simplifies code quite a bit.
 
@@ -350,7 +352,7 @@ class StubGenerator:
         # the "globals()"
         self._current_parent_module = None  # type: Optional[ModuleType]
 
-    def _get_module_name_alias(self, module_name):
+    def _get_module_name_alias(self, module_name: str) -> str:
         if any(
             module_name.startswith(x) for x in self._safe_modules
         ) and not module_name.startswith(self._root_module):
@@ -894,7 +896,7 @@ class StubGenerator:
             # as examples so we sort it out.
             resulting_dict = (
                 dict()
-            )  # type Dict[str, List[inspect.Signature, str, List[str]]]
+            )  # type: Dict[str, Tuple[inspect.Signature, str, List[str]]]
             for deco_name, addl_current in self._addl_current.items():
                 for name, (sign, doc) in addl_current.items():
                     r = resulting_dict.setdefault(name, [sign, doc, []])
@@ -1157,9 +1159,9 @@ class StubGenerator:
     ) -> str:
         debug.stubgen_exec("Generating function stub for %s" % name)
 
-        def exploit_default(default_value: Any) -> Optional[str]:
+        def exploit_default(default_value: Any) -> str:
             if default_value == inspect.Parameter.empty:
-                return None
+                return ""
             if type(default_value).__module__ == "builtins":
                 if isinstance(default_value, list):
                     elements = [exploit_default(v) for v in default_value]
