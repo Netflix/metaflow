@@ -1162,42 +1162,34 @@ class StubGenerator:
                 return None
             if type(default_value).__module__ == "builtins":
                 if isinstance(default_value, list):
-                    return (
-                        "["
-                        + ", ".join(
-                            [cast(str, exploit_default(v)) for v in default_value]
-                        )
-                        + "]"
-                    )
+                    elements = [exploit_default(v) for v in default_value]
+                    if any(e == '...' for e in elements):
+                        return '...'
+                    else:
+                        return '[' + ', '.join(elements) + ']'
                 elif isinstance(default_value, tuple):
-                    return (
-                        "("
-                        + ", ".join(
-                            [cast(str, exploit_default(v)) for v in default_value]
-                        )
-                        + ")"
-                    )
+                    elements = [exploit_default(v) for v in default_value]
+                    if any(e == '...' for e in elements):
+                        return '...'
+                    else:
+                        return '(' + ', '.join(elements) + ')'
                 elif isinstance(default_value, dict):
-                    return (
-                        "{"
-                        + ", ".join(
-                            [
-                                cast(str, exploit_default(k))
-                                + ": "
-                                + cast(str, exploit_default(v))
-                                for k, v in default_value.items()
-                            ]
-                        )
-                        + "}"
-                    )
+                    items = [
+                        exploit_default(k) + ': ' + exploit_default(v)
+                        for k, v in default_value.items()
+                    ]
+                    if any('...' in item for item in items):
+                        return '...'
+                    else:
+                        return '{' + ', '.join(items) + '}'
                 elif isinstance(default_value, str):
-                    return "'" + default_value + "'"
+                    return repr(default_value)  # Use repr() for proper escaping
                 elif isinstance(default_value, (int, float, bool)):
                     return str(default_value)
                 elif default_value is None:
                     return "None"
                 else:
-                    return self._get_element_name_with_module(default_value)
+                    return '...'  # For other built-in types not explicitly handled
             elif inspect.isclass(default_value) or inspect.isfunction(default_value):
                 if default_value.__module__ == "builtins":
                     return default_value.__name__
@@ -1205,11 +1197,7 @@ class StubGenerator:
                     self._typing_imports.add(default_value.__module__)
                     return ".".join([default_value.__module__, default_value.__name__])
             else:
-                return (
-                    str(default_value)
-                    if not isinstance(default_value, str)
-                    else '"' + default_value + '"'
-                )
+                return '...'  # For complex objects like class instances
 
         buff = StringIO()
         if sign is None and func is None:
