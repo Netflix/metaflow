@@ -1191,22 +1191,21 @@ class StubGenerator:
                         + "}"
                     )
                 elif isinstance(default_value, str):
-                    return "'" + default_value + "'"
+                    return repr(default_value)  # Use repr() for proper escaping
+                elif isinstance(default_value, (int, float, bool)):
+                    return str(default_value)
+                elif default_value is None:
+                    return "None"
                 else:
-                    return self._get_element_name_with_module(default_value)
-
-            elif str(default_value).startswith("<"):
+                    return "..."  # For other built-in types not explicitly handled
+            elif inspect.isclass(default_value) or inspect.isfunction(default_value):
                 if default_value.__module__ == "builtins":
                     return default_value.__name__
                 else:
                     self._typing_imports.add(default_value.__module__)
                     return ".".join([default_value.__module__, default_value.__name__])
             else:
-                return (
-                    str(default_value)
-                    if not isinstance(default_value, str)
-                    else '"' + default_value + '"'
-                )
+                return "..."  # For complex objects like class instances
 
         buff = StringIO()
         if sign is None and func is None:
