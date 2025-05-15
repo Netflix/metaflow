@@ -1,10 +1,22 @@
-import collections.abc
 import inspect
 import json
+import collections.abc
+import copy
 import os
 import re
 
-from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    TYPE_CHECKING,
+    Union,
+)
 
 
 from ..exception import MetaflowException
@@ -55,7 +67,7 @@ def dump_config_values(flow: "FlowSpec"):
     return {}
 
 
-class ConfigValue(collections.abc.Mapping):
+class ConfigValue(collections.abc.Mapping, dict):
     """
     ConfigValue is a thin wrapper around an arbitrarily nested dictionary-like
     configuration object. It allows you to access elements of this nested structure
@@ -70,8 +82,67 @@ class ConfigValue(collections.abc.Mapping):
     # Thin wrapper to allow configuration values to be accessed using a "." notation
     # as well as a [] notation.
 
-    def __init__(self, data: Dict[str, Any]):
-        self._data = data
+    # We inherit from dict to allow the isinstanceof check to work easily and also
+    # to provide a simple json dumps functionality.
+
+    def __init__(self, data: Union["ConfigValue", Dict[str, Any]]):
+        self._data = {k: self._construct(v) for k, v in data.items()}
+
+        # Enable json dumps
+        dict.__init__(self, self._data)
+
+    @classmethod
+    def fromkeys(cls, iterable: Iterable, value: Any = None) -> "ConfigValue":
+        """
+        Creates a new ConfigValue object from the given iterable and value.
+
+        Parameters
+        ----------
+        iterable : Iterable
+            Iterable to create the ConfigValue from.
+        value : Any, optional
+            Value to set for each key in the iterable.
+
+        Returns
+        -------
+        ConfigValue
+            A new ConfigValue object.
+        """
+        return cls(dict.fromkeys(iterable, value))
+
+    def to_dict(self) -> Dict[Any, Any]:
+        """
+        Returns a dictionary representation of this configuration object.
+
+        Returns
+        -------
+        Dict[Any, Any]
+            Dictionary equivalent of this configuration object.
+        """
+        return self._to_dict(self._data)
+
+    def copy(self) -> "ConfigValue":
+        return self.__copy__()
+
+    def clear(self) -> None:
+        # Prevent configuration modification
+        raise TypeError("ConfigValue is immutable")
+
+    def update(self, *args, **kwargs) -> None:
+        # Prevent configuration modification
+        raise TypeError("ConfigValue is immutable")
+
+    def setdefault(self, key: Any, default: Any = None) -> Any:
+        # Prevent configuration modification
+        raise TypeError("ConfigValue is immutable")
+
+    def pop(self, key: Any, default: Any = None) -> Any:
+        # Prevent configuration modification
+        raise TypeError("ConfigValue is immutable")
+
+    def popitem(self) -> Tuple[Any, Any]:
+        # Prevent configuration modification
+        raise TypeError("ConfigValue is immutable")
 
     def __getattr__(self, key: str) -> Any:
         """
@@ -116,33 +187,95 @@ class ConfigValue(collections.abc.Mapping):
         Any
             Element of the configuration
         """
-        value = self._data[key]
-        if isinstance(value, dict):
-            value = ConfigValue(value)
-        return value
+        return self._data[key]
 
-    def __len__(self):
+    def __setitem__(self, key: Any, value: Any) -> None:
+        # Prevent configuration modification
+        raise TypeError("ConfigValue is immutable")
+
+    def __delattr__(self, key) -> None:
+        # Prevent configuration modification
+        raise TypeError("ConfigValue is immutable")
+
+    def __delitem__(self, key: Any) -> None:
+        # Prevent configuration modification
+        raise TypeError("ConfigValue is immutable")
+
+    def __len__(self) -> int:
         return len(self._data)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator:
         return iter(self._data)
 
-    def __repr__(self):
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, ConfigValue):
+            return self._data == other._data
+        if isinstance(other, dict):
+            return self._data == other
+        return False
+
+    def __ne__(self, other: Any) -> bool:
+        return not self.__eq__(other)
+
+    def __copy__(self) -> "ConfigValue":
+        cls = self.__class__
+        result = cls.__new__(cls)
+        result.__dict__.update({k: copy.copy(v) for k, v in self.__dict__.items()})
+        return result
+
+    def __repr__(self) -> str:
         return repr(self._data)
 
-    def __str__(self):
-        return json.dumps(self._data)
+    def __str__(self) -> str:
+        return str(self._data)
 
-    def to_dict(self) -> Dict[Any, Any]:
+    def __dir__(self) -> Iterable[str]:
+        return dir(type(self)) + [k for k in self._data.keys() if ID_PATTERN.match(k)]
+
+    def __contains__(self, key: Any) -> bool:
+        try:
+            self[key]
+        except KeyError:
+            return False
+        return True
+
+    def keys(self):
         """
-        Returns a dictionary representation of this configuration object.
+        Returns the keys of this configuration object.
 
         Returns
         -------
-        Dict[Any, Any]
-            Dictionary equivalent of this configuration object.
+        Any
+            Keys of this configuration object.
         """
-        return dict(self._data)
+        return self._data.keys()
+
+    @classmethod
+    def _construct(cls, obj: Any) -> Any:
+        # Internal method to construct a ConfigValue so that all mappings internally
+        # are also converted to ConfigValue
+        if isinstance(obj, ConfigValue):
+            v = obj
+        elif isinstance(obj, collections.abc.Mapping):
+            v = ConfigValue({k: cls._construct(v) for k, v in obj.items()})
+        elif isinstance(obj, collections.abc.Collection):
+            # Order matters, a mapping is a collection so we want to check that first
+            v = type(obj)(cls._construct(x) for x in obj)
+        else:
+            v = obj
+        return v
+
+    @classmethod
+    def _to_dict(cls, obj: Any) -> Any:
+        # Internal method to convert all nested mappings to dicts
+        if isinstance(obj, collections.abc.Mapping):
+            v = {k: cls._to_dict(v) for k, v in obj.items()}
+        elif isinstance(obj, collections.abc.Collection):
+            # Order matters, a mapping is a collection so we want to check that first
+            v = type(obj)(cls._to_dict(x) for x in obj)
+        else:
+            v = obj
+        return v
 
 
 class DelayEvaluator(collections.abc.Mapping):
