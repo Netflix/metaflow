@@ -1,4 +1,3 @@
-import collections.abc
 import inspect
 import json
 import collections.abc
@@ -259,8 +258,9 @@ class ConfigValue(collections.abc.Mapping, dict):
             v = obj
         elif isinstance(obj, collections.abc.Mapping):
             v = ConfigValue({k: cls._construct(v) for k, v in obj.items()})
-        elif isinstance(obj, (list, tuple, set)):
-            v = type(obj)([cls._construct(x) for x in obj])
+        elif isinstance(obj, collections.abc.Collection):
+            # Order matters, a mapping is a collection so we want to check that first
+            v = type(obj)(cls._construct(x) for x in obj)
         else:
             v = obj
         return v
@@ -270,8 +270,9 @@ class ConfigValue(collections.abc.Mapping, dict):
         # Internal method to convert all nested mappings to dicts
         if isinstance(obj, collections.abc.Mapping):
             v = {k: cls._to_dict(v) for k, v in obj.items()}
-        elif isinstance(obj, (list, tuple, set)):
-            v = type(obj)([cls._to_dict(x) for x in obj])
+        elif isinstance(obj, collections.abc.Collection):
+            # Order matters, a mapping is a collection so we want to check that first
+            v = type(obj)(cls._to_dict(x) for x in obj)
         else:
             v = obj
         return v
