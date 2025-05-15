@@ -373,7 +373,7 @@ class Parameter(object):
         # Do it one item at a time so errors are ignored at that level (as opposed to
         # at the entire kwargs level)
         self.kwargs = {
-            k: resolve_delayed_evaluator(v, ignore_errors=ignore_errors)
+            k: resolve_delayed_evaluator(v, ignore_errors=ignore_errors, to_dict=True)
             for k, v in self.kwargs.items()
         }
 
@@ -382,7 +382,7 @@ class Parameter(object):
         for key, value in self._override_kwargs.items():
             if value is not None:
                 self.kwargs[key] = resolve_delayed_evaluator(
-                    value, ignore_errors=ignore_errors
+                    value, ignore_errors=ignore_errors, to_dict=True
                 )
         # Set two default values if no-one specified them
         self.kwargs.setdefault("required", False)
