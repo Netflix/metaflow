@@ -1,3 +1,4 @@
+import collections.abc
 import inspect
 import json
 import collections.abc
@@ -377,7 +378,7 @@ class DelayEvaluator(collections.abc.Mapping):
         # Evaluate the expression setting the config values as local variables
         try:
             return eval(
-                to_eval_expr,
+                self._config_expr,
                 self._globals or globals(),
                 {
                     k: ConfigValue(v)
@@ -387,7 +388,7 @@ class DelayEvaluator(collections.abc.Mapping):
         except NameError as e:
             raise MetaflowException(
                 "Config expression '%s' could not be evaluated: %s"
-                % (to_eval_expr, str(e))
+                % (self._config_expr, str(e))
             ) from e
 
 
