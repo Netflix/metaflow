@@ -1,4 +1,5 @@
 import collections.abc
+import inspect
 import json
 import os
 import re
@@ -157,8 +158,9 @@ class DelayEvaluator(collections.abc.Mapping):
         of _unpacked_delayed_*
     """
 
-    def __init__(self, ex: str):
+    def __init__(self, ex: str, saved_globals: Optional[Dict[str, Any]] = None):
         self._config_expr = ex
+        self._globals = saved_globals
         if ID_PATTERN.match(self._config_expr):
             # This is a variable only so allow things like config_expr("config").var
             self._is_var_only = True
@@ -217,22 +219,17 @@ class DelayEvaluator(collections.abc.Mapping):
         try:
             return eval(
                 self._config_expr,
-                globals(),
+                self._globals or globals(),
                 {
                     k: ConfigValue(v)
                     for k, v in flow_cls._flow_state.get(_FlowState.CONFIGS, {}).items()
                 },
             )
         except NameError as e:
-            potential_config_name = self._config_expr.split(".")[0]
-            if potential_config_name not in flow_cls._flow_state.get(
-                _FlowState.CONFIGS, {}
-            ):
-                raise MetaflowException(
-                    "Config '%s' not found in the flow (maybe not required and not "
-                    "provided?)" % potential_config_name
-                ) from e
-            raise
+            raise MetaflowException(
+                "Config expression '%s' could not be evaluated: %s"
+                % (self._config_expr, str(e))
+            ) from e
 
 
 def config_expr(expr: str) -> DelayEvaluator:
@@ -262,7 +259,10 @@ def config_expr(expr: str) -> DelayEvaluator:
     expr : str
         Expression using the config values.
     """
-    return DelayEvaluator(expr)
+    # Get globals where the expression is defined so that the user can use
+    # something like `config_expr("my_func()")` in the expression.
+    parent_globals = inspect.currentframe().f_back.f_globals
+    return DelayEvaluator(expr, saved_globals=parent_globals)
 
 
 class Config(Parameter, collections.abc.Mapping):
@@ -385,23 +385,30 @@ class Config(Parameter, collections.abc.Mapping):
         return DelayEvaluator(self.name.lower())[key]
 
 
-def resolve_delayed_evaluator(v: Any, ignore_errors: bool = False) -> Any:
+def resolve_delayed_evaluator(
+    v: Any, ignore_errors: bool = False, to_dict: bool = False
+) -> Any:
     # NOTE: We don't ignore errors in downstream calls because we want to have either
     # all or nothing for the top-level call by the user.
     try:
         if isinstance(v, DelayEvaluator):
-            return v()
+            to_return = v()
+            if to_dict and isinstance(to_return, ConfigValue):
+                to_return = to_return.to_dict()
+            return to_return
         if isinstance(v, dict):
             return {
-                resolve_delayed_evaluator(k): resolve_delayed_evaluator(v)
+                resolve_delayed_evaluator(
+                    k, to_dict=to_dict
+                ): resolve_delayed_evaluator(v, to_dict=to_dict)
                 for k, v in v.items()
             }
         if isinstance(v, list):
-            return [resolve_delayed_evaluator(x) for x in v]
+            return [resolve_delayed_evaluator(x, to_dict=to_dict) for x in v]
         if isinstance(v, tuple):
-            return tuple(resolve_delayed_evaluator(x) for x in v)
+            return tuple(resolve_delayed_evaluator(x, to_dict=to_dict) for x in v)
         if isinstance(v, set):
-            return {resolve_delayed_evaluator(x) for x in v}
+            return {resolve_delayed_evaluator(x, to_dict=to_dict) for x in v}
         return v
     except Exception as e:
         if ignore_errors:
@@ -426,7 +433,7 @@ def unpack_delayed_evaluator(
         else:
             # k.startswith(UNPACK_KEY)
             try:
-                new_vals = resolve_delayed_evaluator(v)
+                new_vals = resolve_delayed_evaluator(v, to_dict=True)
                 new_keys.extend(new_vals.keys())
                 result.update(new_vals)
             except Exception as e:
