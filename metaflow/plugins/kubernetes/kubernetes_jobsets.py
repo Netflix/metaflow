@@ -670,10 +670,9 @@ class JobSetSpec(object):
                                             limits={
                                                 **qos_limits,
                                                 **{
-                                                    "%s.com/gpu".lower()
-                                                    % self._kwargs["gpu_vendor"]: str(
-                                                        self._kwargs["gpu"]
-                                                    )
+                                                    ("%s.com/%s".lower()
+                                                    % (self._kwargs["gpu_vendor"], self._kwargs["gpu_type"])): str(
+                                                    self._kwargs["gpu"])
                                                     for k in [0]
                                                     # Don't set GPU limits if gpu isn't specified.
                                                     if self._kwargs["gpu"] is not None
