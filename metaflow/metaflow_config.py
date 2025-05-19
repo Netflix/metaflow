@@ -452,15 +452,7 @@ ESCAPE_HATCH_WARNING = from_conf("ESCAPE_HATCH_WARNING", True)
 ###
 # Debug configuration
 ###
-DEBUG_OPTIONS = [
-    "subcommand",
-    "sidecar",
-    "s3client",
-    "tracing",
-    "stubgen",
-    "userconf",
-    "conda",
-]
+DEBUG_OPTIONS = ["subcommand", "sidecar", "s3client", "tracing", "stubgen", "userconf"]
 
 for typ in DEBUG_OPTIONS:
     vars()["DEBUG_%s" % typ.upper()] = from_conf("DEBUG_%s" % typ.upper(), False)
@@ -546,10 +538,12 @@ def get_pinned_conda_libs(python_version, datastore_type):
         pins["azure-identity"] = ">=1.10.0"
         pins["azure-storage-blob"] = ">=12.12.0"
         pins["azure-keyvault-secrets"] = ">=4.7.0"
+        pins["simple-azure-blob-downloader"] = ">=0.1.0"
     elif datastore_type == "gs":
         pins["google-cloud-storage"] = ">=2.5.0"
         pins["google-auth"] = ">=2.11.0"
         pins["google-cloud-secret-manager"] = ">=2.10.0"
+        pins["simple-gcp-object-downloader"] = ">=0.1.0"
     elif datastore_type == "local":
         pass
     else:
