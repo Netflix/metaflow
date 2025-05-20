@@ -20,15 +20,13 @@ def _check_stubs_supported():
     if _metadata_package is not None:
         return _metadata_package
     else:
-        if _py_ver >= (3, 4):
+        if _py_ver >= (3, 6):
             if _py_ver >= (3, 8):
                 from importlib import metadata
             elif _py_ver >= (3, 7):
                 from metaflow._vendor.v3_7 import importlib_metadata as metadata
-            elif _py_ver >= (3, 6):
-                from metaflow._vendor.v3_6 import importlib_metadata as metadata
             else:
-                from metaflow._vendor.v3_5 import importlib_metadata as metadata
+                from metaflow._vendor.v3_6 import importlib_metadata as metadata
             _metadata_package = metadata
         return _metadata_package
 
