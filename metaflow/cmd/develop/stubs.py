@@ -46,7 +46,7 @@ def stubs(ctx: Any):
     if _check_stubs_supported() is None:
         raise click.UsageError(
             "Building and installing stubs are not supported on Python %d.%d "
-            "(3.4 minimum required)" % _py_ver,
+            "(3.6 minimum required)" % _py_ver,
             ctx=ctx,
         )
 
