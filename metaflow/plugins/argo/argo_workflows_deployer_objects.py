@@ -277,7 +277,7 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
 
         flow_name = metadata_annotations.get("metaflow/flow_name", "")
         username = metadata_annotations.get("metaflow/owner", "")
-        parameters = json.loads(metadata_annotations.get("metaflow/parameters", {}))
+        parameters = json.loads(metadata_annotations.get("metaflow/parameters", '{}'))
 
         # these two only exist if @project decorator is used..
         branch_name = metadata_annotations.get("metaflow/branch_name", None)
