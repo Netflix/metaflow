@@ -418,7 +418,7 @@ def to_pascalcase(obj):
     if isinstance(obj, dict):
         res = obj.__class__()
         for k in obj:
-            res[re.sub("([a-zA-Z])", lambda x: x.groups()[0].upper(), k, 1)] = (
+            res[re.sub("([a-zA-Z])", lambda x: x.groups()[0].upper(), k, count=1)] = (
                 to_pascalcase(obj[k])
             )
     elif isinstance(obj, (list, set, tuple)):
