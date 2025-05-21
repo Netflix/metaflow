@@ -22,7 +22,7 @@ class UVEnvironment(MetaflowEnvironment):
         self.logger("Bootstrapping uv...")
 
     def executable(self, step_name, default=None):
-        return "uv run python"
+        return "uv run --no-sync python"
 
     def add_to_package(self):
         # NOTE: We treat uv.lock and pyproject.toml as regular project assets and ship these along user code as part of the code package
