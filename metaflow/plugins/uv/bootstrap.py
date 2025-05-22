@@ -87,7 +87,7 @@ if __name__ == "__main__":
                 skip_pkgs.extend([ext_name for ext_name in info["ext_info"][0].keys()])
             except Exception:
                 print(
-                    "Failed to read extension info from the INFO file. Some packages might be installed during runtime as a result."
+                    "Failed to read INFO. Metaflow-related packages might get installed during runtime."
                 )
 
         return skip_pkgs
