@@ -4,6 +4,7 @@ import sys
 import time
 
 from metaflow.util import which
+from metaflow.info_file import read_info_file
 from metaflow.metaflow_config import get_pinned_conda_libs
 from urllib.request import Request, urlopen
 from urllib.error import URLError
@@ -78,11 +79,27 @@ if __name__ == "__main__":
         # return only dependency names instead of pinned versions
         return pinned.keys()
 
+    def skip_metaflow_dependencies():
+        skip_pkgs = ["metaflow"]
+        info = read_info_file()
+        if info is not None:
+            try:
+                skip_pkgs.extend([ext_name for ext_name in info["ext_info"][0].keys()])
+            except Exception:
+                print(
+                    "Failed to read extension info from the INFO file. Some packages might be installed during runtime as a result."
+                )
+
+        return skip_pkgs
+
     def sync_uv_project(datastore_type):
         print("Syncing uv project...")
         dependencies = " ".join(get_dependencies(datastore_type))
+        skip_pkgs = " ".join(
+            [f"--no-install-package {dep}" for dep in skip_metaflow_dependencies()]
+        )
         cmd = f"""set -e;
-            uv sync --frozen --no-install-package metaflow;
+            uv sync --frozen {skip_pkgs};
             uv pip install {dependencies} --strict
             """
         run_cmd(cmd)
