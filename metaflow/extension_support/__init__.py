@@ -103,9 +103,6 @@ def load_module(module_name):
 
 def get_modules(extension_point):
     modules_to_load = []
-    if not _mfext_supported:
-        _ext_debug("Not supported for your Python version -- 3.6+ is needed")
-        return []
     if extension_point not in _extension_points:
         raise RuntimeError(
             "Metaflow extension point '%s' not supported" % extension_point
@@ -146,9 +143,6 @@ def dump_module_info(all_packages=None, pkgs_per_extension_point=None):
 
 
 def get_extensions_in_dir(d):
-    if not _mfext_supported:
-        _ext_debug("Not supported for your Python version -- 3.6+ is needed")
-        return None, None
     return _get_extension_packages(ignore_info_file=True, restrict_to_directories=[d])
 
 
@@ -312,7 +306,6 @@ def multiload_all(modules, extension_point, dst_globals):
 
 
 _py_ver = sys.version_info[:2]
-_mfext_supported = False
 _aliased_modules = []
 
 if _py_ver >= (3, 6):
@@ -324,7 +317,6 @@ if _py_ver >= (3, 6):
         from metaflow._vendor.v3_7 import importlib_metadata as metadata
     else:
         from metaflow._vendor.v3_6 import importlib_metadata as metadata
-    _mfext_supported = True
 
 # Extension points are the directories that can be present in a EXT_PKG to
 # contribute to that extension point. For example, if you have
@@ -353,10 +345,6 @@ def _ext_debug(*args, **kwargs):
 
 
 def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None):
-    if not _mfext_supported:
-        _ext_debug("Not supported for your Python version -- 3.6+ is needed")
-        return {}, {}
-
     # If we have an INFO file with the appropriate information (if running from a saved
     # code package for example), we use that directly
     # Pre-compute on _extension_points
