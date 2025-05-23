@@ -14,7 +14,7 @@ from urllib.request import urlopen
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, CONDA_USE_FAST_INIT
 from metaflow.plugins import DATASTORES
 from metaflow.plugins.pypi.utils import MICROMAMBA_MIRROR_URL, MICROMAMBA_URL
-from metaflow.util import which
+from metaflow.util import which, get_metaflow_root
 from urllib.request import Request
 import warnings
 
@@ -366,7 +366,7 @@ if __name__ == "__main__":
         # Move MAGIC_FILE inside local datastore.
         os.makedirs(manifest_dir, exist_ok=True)
         shutil.move(
-            os.path.join(os.getcwd(), MAGIC_FILE),
+            os.path.join(get_metaflow_root(), MAGIC_FILE),
             os.path.join(manifest_dir, MAGIC_FILE),
         )
         with open(os.path.join(manifest_dir, MAGIC_FILE)) as f:
