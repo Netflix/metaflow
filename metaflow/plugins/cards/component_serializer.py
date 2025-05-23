@@ -57,15 +57,8 @@ class ComponentStore:
         The `_component_map` attribute is supposed to be a dictionary so that we can access the components by their ids.
         But we also want to maintain order in which components are inserted since all of these components are going to be visible on a UI.
         Since python3.6 dictionaries are ordered by default so we can use the default python `dict`.
-        For python3.5 and below we need to use an OrderedDict since `dict`'s are not ordered by default.
         """
-        python_version = int(platform.python_version_tuple()[0]) * 10 + int(
-            platform.python_version_tuple()[1]
-        )
-        if python_version < 36:
-            self._component_map = OrderedDict()
-        else:
-            self._component_map = {}
+        self._component_map = {}
 
     def __init__(self, logger, card_type=None, components=None, user_set_id=None):
         self._logger = logger

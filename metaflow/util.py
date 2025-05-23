@@ -467,7 +467,4 @@ def to_pod(value):
     return str(value)
 
 
-if sys.version_info[:2] > (3, 5):
-    from metaflow._vendor.packaging.version import parse as version_parse
-else:
-    from distutils.version import LooseVersion as version_parse
+from metaflow._vendor.packaging.version import parse as version_parse
