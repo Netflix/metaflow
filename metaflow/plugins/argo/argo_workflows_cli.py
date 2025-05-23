@@ -344,20 +344,20 @@ def create(
 
 
 def check_python_version(obj):
-    # argo-workflows integration for Metaflow isn't supported for Py versions below 3.5.
+    # argo-workflows integration for Metaflow isn't supported for Py versions below 3.6.
     # This constraint can very well be lifted if desired.
-    if sys.version_info < (3, 5):
+    if sys.version_info < (3, 6):
         obj.echo("")
         obj.echo(
             "Metaflow doesn't support Argo Workflows for Python %s right now."
             % platform.python_version()
         )
         obj.echo(
-            "Please upgrade your Python interpreter to version 3.5 (or higher) or "
+            "Please upgrade your Python interpreter to version 3.6 (or higher) or "
             "reach out to us at slack.outerbounds.co for more help."
         )
         raise UnsupportedPythonVersion(
-            "Try again with a more recent version of Python (>=3.5)."
+            "Try again with a more recent version of Python (>=3.6)."
         )
 
 

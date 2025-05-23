@@ -128,9 +128,6 @@ _import_tl_plugins(globals())
 # this auto-generates decorator functions from Decorator objects
 # in the top-level metaflow namespace
 _import_plugin_decorators(globals())
-# Setting card import for only python 3.4
-if sys.version_info[0] >= 3 and sys.version_info[1] >= 4:
-    from . import cards
 
 # Client
 from .client import (

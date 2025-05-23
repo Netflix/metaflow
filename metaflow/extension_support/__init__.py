@@ -104,7 +104,7 @@ def load_module(module_name):
 def get_modules(extension_point):
     modules_to_load = []
     if not _mfext_supported:
-        _ext_debug("Not supported for your Python version -- 3.4+ is needed")
+        _ext_debug("Not supported for your Python version -- 3.6+ is needed")
         return []
     if extension_point not in _extension_points:
         raise RuntimeError(
@@ -147,7 +147,7 @@ def dump_module_info(all_packages=None, pkgs_per_extension_point=None):
 
 def get_extensions_in_dir(d):
     if not _mfext_supported:
-        _ext_debug("Not supported for your Python version -- 3.4+ is needed")
+        _ext_debug("Not supported for your Python version -- 3.6+ is needed")
         return None, None
     return _get_extension_packages(ignore_info_file=True, restrict_to_directories=[d])
 
@@ -315,17 +315,15 @@ _py_ver = sys.version_info[:2]
 _mfext_supported = False
 _aliased_modules = []
 
-if _py_ver >= (3, 4):
+if _py_ver >= (3, 6):
     import importlib.util
 
     if _py_ver >= (3, 8):
         from importlib import metadata
     elif _py_ver >= (3, 7):
         from metaflow._vendor.v3_7 import importlib_metadata as metadata
-    elif _py_ver >= (3, 6):
-        from metaflow._vendor.v3_6 import importlib_metadata as metadata
     else:
-        from metaflow._vendor.v3_5 import importlib_metadata as metadata
+        from metaflow._vendor.v3_6 import importlib_metadata as metadata
     _mfext_supported = True
 
 # Extension points are the directories that can be present in a EXT_PKG to
@@ -356,7 +354,7 @@ def _ext_debug(*args, **kwargs):
 
 def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None):
     if not _mfext_supported:
-        _ext_debug("Not supported for your Python version -- 3.4+ is needed")
+        _ext_debug("Not supported for your Python version -- 3.6+ is needed")
         return {}, {}
 
     # If we have an INFO file with the appropriate information (if running from a saved
@@ -381,12 +379,11 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
     try:
         extensions_module = importlib.import_module(EXT_PKG)
     except ImportError as e:
-        if _py_ver >= (3, 6):
-            # e.name is set to the name of the package that fails to load
-            # so don't error ONLY IF the error is importing this module (but do
-            # error if there is a transitive import error)
-            if not (isinstance(e, ModuleNotFoundError) and e.name == EXT_PKG):
-                raise
+        # e.name is set to the name of the package that fails to load
+        # so don't error ONLY IF the error is importing this module (but do
+        # error if there is a transitive import error)
+        if not (isinstance(e, ModuleNotFoundError) and e.name == EXT_PKG):
+            raise
         return {}, {}
 
     if restrict_to_directories:
@@ -894,20 +891,19 @@ def _attempt_load_module(module_name):
     try:
         extension_module = importlib.import_module(module_name)
     except ImportError as e:
-        if _py_ver >= (3, 6):
-            # e.name is set to the name of the package that fails to load
-            # so don't error ONLY IF the error is importing this module (but do
-            # error if there is a transitive import error)
-            errored_names = [EXT_PKG]
-            parts = module_name.split(".")
-            for p in parts[1:]:
-                errored_names.append("%s.%s" % (errored_names[-1], p))
-            if not (isinstance(e, ModuleNotFoundError) and e.name in errored_names):
-                print(
-                    "The following exception occurred while trying to load '%s' ('%s')"
-                    % (EXT_PKG, module_name)
-                )
-                raise
+        # e.name is set to the name of the package that fails to load
+        # so don't error ONLY IF the error is importing this module (but do
+        # error if there is a transitive import error)
+        errored_names = [EXT_PKG]
+        parts = module_name.split(".")
+        for p in parts[1:]:
+            errored_names.append("%s.%s" % (errored_names[-1], p))
+        if not (isinstance(e, ModuleNotFoundError) and e.name in errored_names):
+            print(
+                "The following exception occurred while trying to load '%s' ('%s')"
+                % (EXT_PKG, module_name)
+            )
+            raise
         _ext_debug("        Unknown error when loading '%s': %s" % (module_name, e))
         return None
     else:

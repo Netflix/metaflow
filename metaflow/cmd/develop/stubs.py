@@ -20,15 +20,13 @@ def _check_stubs_supported():
     if _metadata_package is not None:
         return _metadata_package
     else:
-        if _py_ver >= (3, 4):
+        if _py_ver >= (3, 6):
             if _py_ver >= (3, 8):
                 from importlib import metadata
             elif _py_ver >= (3, 7):
                 from metaflow._vendor.v3_7 import importlib_metadata as metadata
-            elif _py_ver >= (3, 6):
-                from metaflow._vendor.v3_6 import importlib_metadata as metadata
             else:
-                from metaflow._vendor.v3_5 import importlib_metadata as metadata
+                from metaflow._vendor.v3_6 import importlib_metadata as metadata
             _metadata_package = metadata
         return _metadata_package
 
@@ -48,7 +46,7 @@ def stubs(ctx: Any):
     if _check_stubs_supported() is None:
         raise click.UsageError(
             "Building and installing stubs are not supported on Python %d.%d "
-            "(3.4 minimum required)" % _py_ver,
+            "(3.6 minimum required)" % _py_ver,
             ctx=ctx,
         )
 
@@ -187,7 +185,7 @@ setup(
     packages=find_namespace_packages(),
     package_data={{"metaflow-stubs": ["generated_for.txt", "py.typed", "**/*.pyi"]}},
     install_requires=["metaflow=={mf_version}"],
-    python_requires=">=3.5.2",
+    python_requires=">=3.6.1",
 )
                 """
             )
