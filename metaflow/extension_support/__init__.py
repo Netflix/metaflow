@@ -308,15 +308,14 @@ def multiload_all(modules, extension_point, dst_globals):
 _py_ver = sys.version_info[:2]
 _aliased_modules = []
 
-if _py_ver >= (3, 6):
-    import importlib.util
+import importlib.util
 
-    if _py_ver >= (3, 8):
-        from importlib import metadata
-    elif _py_ver >= (3, 7):
-        from metaflow._vendor.v3_7 import importlib_metadata as metadata
-    else:
-        from metaflow._vendor.v3_6 import importlib_metadata as metadata
+if _py_ver >= (3, 8):
+    from importlib import metadata
+elif _py_ver >= (3, 7):
+    from metaflow._vendor.v3_7 import importlib_metadata as metadata
+else:
+    from metaflow._vendor.v3_6 import importlib_metadata as metadata
 
 # Extension points are the directories that can be present in a EXT_PKG to
 # contribute to that extension point. For example, if you have
