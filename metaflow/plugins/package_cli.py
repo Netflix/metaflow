@@ -41,8 +41,8 @@ def info(obj):
 @click.option(
     "--archive/--no-archive",
     default=False,
-    help="If True, lists the file paths as present in the tarball. "
-    "If False, lists the files on the filesystem.",
+    help="If True, lists the file paths as present in the code package archive; "
+    "otherwise, lists the files on your filesystem included in the code package",
     show_default=True,
 )
 @click.pass_obj
