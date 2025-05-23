@@ -459,7 +459,7 @@ DEBUG_OPTIONS = [
     "tracing",
     "stubgen",
     "userconf",
-    "conda",
+    "package",
 ]
 
 for typ in DEBUG_OPTIONS:

@@ -6,6 +6,7 @@ import os
 import time
 import traceback
 
+
 from types import MethodType, FunctionType
 
 from metaflow.sidecar import Message, MessageTypes
@@ -58,10 +59,55 @@ class MetaflowTask(object):
         self.ubf_context = ubf_context
 
     def _exec_step_function(self, step_function, input_obj=None):
-        if input_obj is None:
-            step_function()
-        else:
-            step_function(input_obj)
+        wrappers_stack = []
+        wrapped_func = None
+        do_skip = False
+        raised_exception = None
+        # If we have wrappers w1, w2 and w3, we need to execute
+        #  - w3_pre
+        #  - w2_pre
+        #  - w1_pre
+        #  - step_function
+        #  - w1_post
+        #  - w2_post
+        #  - w3_post
+        # in that order. We do this by maintaining a stack of generators.
+        # Note that if any of the pre functions returns a function, we execute that
+        # instead of the rest of the inside part. This is useful if you want to create
+        # no-op function for example.
+        for w in reversed(step_function.wrappers):
+            wrapped_func = w.pre_step(step_function.name, self.flow)
+            if w.skip_step:
+                # We have nothing to run
+                do_skip = True
+                break
+            if wrapped_func:
+                break  # We have nothing left to do since we now execute the
+                # wrapped function
+            # Else, we continue down the list of wrappers
+            wrappers_stack.append(w)
+        try:
+            if not do_skip:
+                if input_obj is None:
+                    if wrapped_func:
+                        wrapped_func()
+                    else:
+                        step_function()
+                else:
+                    if wrapped_func:
+                        wrapped_func(input_obj)
+                    else:
+                        step_function(input_obj)
+        except Exception as ex:
+            raised_exception = ex
+        # We back out of the stack of generators
+        for w in reversed(wrappers_stack):
+            raised_exception = w.post_step(
+                step_function.name, self.flow, raised_exception
+            )
+        if raised_exception:
+            # We have an exception that we need to propagate
+            raise raised_exception
 
     def _init_parameters(self, parameter_ds, passdown=True):
         cls = self.flow.__class__
