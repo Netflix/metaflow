@@ -719,7 +719,7 @@ class BaseCommand(object):
         prog_name=None,
         complete_var=None,
         standalone_mode=True,
-        **extra
+        **extra,
     ):
         """This is the way to invoke a script with all the bells and
         whistles as a command line application.  This will always terminate
@@ -1101,7 +1101,7 @@ class MultiCommand(Command):
         subcommand_metavar=None,
         chain=False,
         result_callback=None,
-        **attrs
+        **attrs,
     ):
         Command.__init__(self, name, **attrs)
         if no_args_is_help is None:
@@ -1463,6 +1463,7 @@ class Parameter(object):
         parameter. The old callback format will still work, but it will
         raise a warning to give you a chance to migrate the code easier.
     """
+
     param_type_name = "parameter"
 
     def __init__(
@@ -1708,7 +1709,7 @@ class Option(Parameter):
         hidden=False,
         show_choices=True,
         show_envvar=False,
-        **attrs
+        **attrs,
     ):
         default_is_missing = attrs.get("default", _missing) is _missing
         Parameter.__init__(self, param_decls, type=type, **attrs)

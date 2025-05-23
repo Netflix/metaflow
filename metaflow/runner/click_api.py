@@ -467,9 +467,14 @@ class MetaflowAPI(object):
                     config_file = defaults.get("config")
 
                 if config_file:
-                    config_file = map(
-                        lambda x: (x[0], ConvertPath.convert_value(x[1], is_default)),
-                        config_file,
+                    config_file = dict(
+                        map(
+                            lambda x: (
+                                x[0],
+                                ConvertPath.convert_value(x[1], is_default),
+                            ),
+                            config_file,
+                        )
                     )
 
                 is_default = False
@@ -479,12 +484,14 @@ class MetaflowAPI(object):
                     config_value = defaults.get("config_value")
 
                 if config_value:
-                    config_value = map(
-                        lambda x: (
-                            x[0],
-                            ConvertDictOrStr.convert_value(x[1], is_default),
-                        ),
-                        config_value,
+                    config_value = dict(
+                        map(
+                            lambda x: (
+                                x[0],
+                                ConvertDictOrStr.convert_value(x[1], is_default),
+                            ),
+                            config_value,
+                        )
                     )
 
                 if (config_file is None) ^ (config_value is None):
