@@ -237,7 +237,7 @@ class CommandManager(object):
         self.command = command
 
         self.env = env if env is not None else os.environ.copy()
-        self.cwd = cwd if cwd is not None else os.getcwd()
+        self.cwd = cwd or os.getcwd()
 
         self.process = None
         self.stdout_thread = None

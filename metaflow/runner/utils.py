@@ -322,3 +322,11 @@ def get_lower_level_group(
         raise ValueError(f"Sub-command '{sub_command}' not found in API '{api.name}'")
 
     return sub_command_obj(**sub_command_kwargs)
+
+
+@contextmanager
+def with_dir(new_dir):
+    current_dir = os.getcwd()
+    os.chdir(new_dir)
+    yield new_dir
+    os.chdir(current_dir)
