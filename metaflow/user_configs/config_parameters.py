@@ -299,6 +299,21 @@ class DelayEvaluator(collections.abc.Mapping):
         else:
             self._is_var_only = False
             self._access = None
+        self._cached_expr = None
+
+    def __copy__(self):
+        c = DelayEvaluator(self._config_expr)
+        c._access = self._access.copy() if self._access is not None else None
+        # Globals are not copied -- always kept as a reference
+        return c
+
+    def __deepcopy__(self, memo):
+        c = DelayEvaluator(self._config_expr)
+        c._access = (
+            copy.deepcopy(self._access, memo) if self._access is not None else None
+        )
+        # Globals are not copied -- always kept as a reference
+        return c
 
     def __iter__(self):
         yield "%s%d" % (UNPACK_KEY, id(self))
@@ -308,8 +323,15 @@ class DelayEvaluator(collections.abc.Mapping):
             return self
         if self._access is None:
             raise KeyError(key)
-        self._access.append(key)
-        return self
+
+        # Make a copy so that we can support something like
+        # foo = delay_evaluator["blah"]
+        # bar = delay_evaluator["baz"]
+        # and don't end up with a access list that contains both "blah" and "baz"
+        c = self.__copy__()
+        c._access.append(key)
+        c._cached_expr = None
+        return c
 
     def __len__(self):
         return 1
@@ -317,8 +339,10 @@ class DelayEvaluator(collections.abc.Mapping):
     def __getattr__(self, name):
         if self._access is None:
             raise AttributeError(name)
-        self._access.append(name)
-        return self
+        c = self.__copy__()
+        c._access.append(name)
+        c._cached_expr = None
+        return c
 
     def __call__(self, ctx=None, deploy_time=False):
         from ..flowspec import _FlowState  # Prevent circular import
@@ -332,7 +356,9 @@ class DelayEvaluator(collections.abc.Mapping):
                 "Config object can only be used directly in the FlowSpec defining them "
                 "(or their flow decorators)."
             )
-        if self._access is not None:
+        if self._cached_expr is not None:
+            to_eval_expr = self._cached_expr
+        elif self._access is not None:
             # Build the final expression by adding all the fields in access as . fields
             access_list = [self._config_expr]
             for a in self._access:
@@ -345,11 +371,13 @@ class DelayEvaluator(collections.abc.Mapping):
                     raise MetaflowException(
                         "Field '%s' of type '%s' is not supported" % (str(a), type(a))
                     )
-            self._config_expr = ".".join(access_list)
+            to_eval_expr = self._cached_expr = ".".join(access_list)
+        else:
+            to_eval_expr = self._cached_expr = self._config_expr
         # Evaluate the expression setting the config values as local variables
         try:
             return eval(
-                self._config_expr,
+                to_eval_expr,
                 self._globals or globals(),
                 {
                     k: ConfigValue(v)
@@ -359,7 +387,7 @@ class DelayEvaluator(collections.abc.Mapping):
         except NameError as e:
             raise MetaflowException(
                 "Config expression '%s' could not be evaluated: %s"
-                % (self._config_expr, str(e))
+                % (to_eval_expr, str(e))
             ) from e
 
 
