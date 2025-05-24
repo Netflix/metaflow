@@ -377,7 +377,7 @@ class DelayEvaluator(collections.abc.Mapping):
         # Evaluate the expression setting the config values as local variables
         try:
             return eval(
-                self._config_expr,
+                to_eval_expr,
                 self._globals or globals(),
                 {
                     k: ConfigValue(v)
@@ -387,7 +387,7 @@ class DelayEvaluator(collections.abc.Mapping):
         except NameError as e:
             raise MetaflowException(
                 "Config expression '%s' could not be evaluated: %s"
-                % (self._config_expr, str(e))
+                % (to_eval_expr, str(e))
             ) from e
 
 
