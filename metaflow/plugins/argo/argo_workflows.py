@@ -1586,6 +1586,7 @@ class ArgoWorkflows(object):
                     decorator.make_decorator_spec()
                     for decorator in node.decorators
                     if not decorator.statically_defined
+                    and decorator.inserted_by is None
                 ]
             }
             # FlowDecorators can define their own top-level options. They are

@@ -3,8 +3,8 @@ import os
 
 from metaflow import (
     Config,
-    CustomFlowDecorator,
-    CustomStepDecorator,
+    FlowMutator,
+    StepMutator,
     FlowSpec,
     Parameter,
     config_expr,
@@ -13,6 +13,8 @@ from metaflow import (
     project,
     step,
 )
+
+from metaflow.decorators import extract_step_decorator_from_decospec
 
 default_config = {
     "parameters": [
@@ -97,8 +99,8 @@ def audit(run, parameters, configs, stdout_path):
     return None
 
 
-class ModifyFlow(CustomFlowDecorator):
-    def evaluate(self, mutable_flow):
+class ModifyFlow(FlowMutator):
+    def mutate(self, mutable_flow):
         steps = ["start", "end"]
         count = 0
         for name, s in mutable_flow.steps:
@@ -122,27 +124,29 @@ class ModifyFlow(CustomFlowDecorator):
             assert name == parameters[count]["name"], "Unexpected parameter name"
             count += 1
 
-        # Do some actual modification, we are going to update an environment decorator.
-        # Note that in this flow, we have an environment decorator which is then
         to_add = mutable_flow.config["flow_add_environment"]["vars"]
         for name, s in mutable_flow.steps:
             if name == "start":
-                decos = [deco for deco in s.decorators]
-                assert len(decos) == 1, "Unexpected number of decorators"
-                assert decos[0].name == "environment", "Unexpected decorator"
+                decos = [deco for deco in s.decorator_specs]
+                assert len(decos) == 3, "Unexpected number of decorators"
+                assert decos[0].startswith("environment:"), "Unexpected decorator"
+                env_deco = extract_step_decorator_from_decospec(decos[0], {})
+                attrs = env_deco.attributes
                 for k, v in to_add.items():
-                    decos[0].attributes["vars"][k] = v
+                    attrs["vars"][k] = v
+                s.remove_decorator(decos[0])
+                s.add_decorator(environment, **attrs)
             else:
                 s.add_decorator(
                     environment, **mutable_flow.config["flow_add_environment"].to_dict()
                 )
 
 
-class ModifyFlowWithArgs(CustomFlowDecorator):
+class ModifyFlowWithArgs(FlowMutator):
     def init(self, *args, **kwargs):
         self._field_to_check = args[0]
 
-    def evaluate(self, mutable_flow):
+    def pre_mutate(self, mutable_flow):
         parameters = mutable_flow.config.get(self._field_to_check, [])
         for param in parameters:
             mutable_flow.add_parameter(
@@ -151,35 +155,36 @@ class ModifyFlowWithArgs(CustomFlowDecorator):
                     param["name"],
                     type=str,
                     default=param["default"],
-                    external_artifact=trigger_name_func,
                 ),
                 overwrite=True,
             )
 
 
-class ModifyStep(CustomStepDecorator):
-    def evaluate(self, mutable_step):
-        mutable_step.remove_decorator("environment")
+class ModifyStep(StepMutator):
+    def mutate(self, mutable_step):
+        for deco in mutable_step.decorator_specs:
+            if deco.startswith("environment:"):
+                mutable_step.remove_decorator(deco)
 
-        for deco in mutable_step.decorators:
-            assert deco.name != "environment", "Unexpected decorator"
+        for deco in mutable_step.decorator_specs:
+            assert not deco.startswith("environment:"), "Unexpected decorator"
 
         mutable_step.add_decorator(
             environment, **mutable_step.flow.config["step_add_environment"].to_dict()
         )
 
 
-class ModifyStep2(CustomStepDecorator):
-    def evaluate(self, mutable_step):
+class ModifyStep2(StepMutator):
+    def mutate(self, mutable_step):
         to_add = mutable_step.flow.config["step_add_environment_2"]["vars"]
-        for deco in mutable_step.decorators:
-            if deco.name == "environment":
+        for deco in mutable_step.decorator_specs:
+            if deco.startswith("environment:"):
+                env_deco = extract_step_decorator_from_decospec(deco, {})
+                attrs = env_deco.attributes
                 for k, v in to_add.items():
-                    deco.attributes["vars"][k] = v
-
-
-def trigger_name_func(ctx):
-    return [current.project_flow_name + "Trigger"]
+                    attrs["vars"][k] = v
+                mutable_step.remove_decorator(deco)
+                mutable_step.add_decorator(environment, **attrs)
 
 
 @ModifyFlow
@@ -190,8 +195,6 @@ class ConfigMutableFlow(FlowSpec):
     trigger_param = Parameter(
         "trigger_param",
         default="",
-        external_trigger=True,
-        external_artifact=trigger_name_func,
     )
     config = Config("config", default_value=default_config)
 
@@ -203,11 +206,12 @@ class ConfigMutableFlow(FlowSpec):
             os.environ.get("SHOULD_NOT_EXIST") is None
         ), "Unexpected environment variable"
 
-        assert (
-            os.environ.get("FLOW_LEVEL")
-            == self.config.flow_add_environment["vars"]["FLOW_LEVEL"]
-        ), "Flow level environment variable not set"
-        self.flow_level = os.environ.get("FLOW_LEVEL")
+        if not step_decorators:
+            assert (
+                os.environ.get("FLOW_LEVEL")
+                == self.config.flow_add_environment["vars"]["FLOW_LEVEL"]
+            ), "Flow level environment variable not set"
+            self.flow_level = os.environ.get("FLOW_LEVEL")
 
         if step_decorators:
             assert (

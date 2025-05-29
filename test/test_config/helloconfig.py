@@ -8,8 +8,9 @@ from metaflow import (
     step,
     project,
     config_expr,
-    CustomFlowDecorator,
-    CustomStepDecorator,
+    FlowMutator,
+    StepDecorator,
+    step_decorator,
     titus,
 )
 
@@ -38,15 +39,15 @@ default_config = {
 silly_config = "baz:awesome"
 
 
-class TitusOrNot(CustomFlowDecorator):
-    def evaluate(self, mutable_flow):
+class TitusOrNot(FlowMutator):
+    def mutate(self, mutable_flow):
         for name, s in mutable_flow.steps:
             if name in mutable_flow.config.run_on_titus:
                 s.add_decorator(titus, cpu=mutable_flow.config.cpu_count)
 
 
-class AddEnvToStart(CustomFlowDecorator):
-    def evaluate(self, mutable_flow):
+class AddEnvToStart(FlowMutator):
+    def mutate(self, mutable_flow):
         s = mutable_flow.start
         s.add_decorator(environment, vars={"hello": mutable_flow.config.env_to_start})
 
