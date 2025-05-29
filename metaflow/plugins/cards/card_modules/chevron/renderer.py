@@ -61,7 +61,7 @@ def _get_key(key, scopes, warn, keep, def_ldel, def_rdel):
     # Loop through the scopes
     for scope in scopes:
         try:
-            # For every dot seperated key
+            # For every dot separated key
             for child in key.split("."):
                 # Move into the scope
                 try:
