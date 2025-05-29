@@ -10,9 +10,9 @@ from metaflow.decorators import FlowDecorator, StepDecorator
 from metaflow.extension_support import EXT_PKG
 from metaflow.metadata_provider import MetaDatum
 from metaflow.metaflow_environment import InvalidEnvironmentException
+from metaflow.package.mfenv import MFEnv
+from metaflow.meta_files import MetaFile
 from metaflow.util import get_metaflow_root
-
-from ...info_file import INFO_FILE
 
 
 class CondaStepDecorator(StepDecorator):
@@ -159,11 +159,11 @@ class CondaStepDecorator(StepDecorator):
             os.path.join(self.metaflow_dir.name, "metaflow"),
         )
 
-        info = os.path.join(get_metaflow_root(), os.path.basename(INFO_FILE))
+        info = MFEnv.get_filename(MetaFile.INFO_FILE)
         # Symlink the INFO file as well to properly propagate down the Metaflow version
-        if os.path.isfile(info):
+        if info:
             os.symlink(
-                info, os.path.join(self.metaflow_dir.name, os.path.basename(INFO_FILE))
+                info, os.path.join(self.metaflow_dir.name, os.path.basename(info))
             )
         else:
             # If there is no info file, we will actually create one in this new
@@ -173,7 +173,10 @@ class CondaStepDecorator(StepDecorator):
             # EXT_PKG extensions are PYTHONPATH extensions. Instead of re-resolving,
             # we use the resolved information that is written out to the INFO file.
             with open(
-                os.path.join(self.metaflow_dir.name, os.path.basename(INFO_FILE)),
+                os.path.join(
+                    self.metaflow_dir.name,
+                    os.path.basename(MetaFile.INFO_FILE.value),
+                ),
                 mode="wt",
                 encoding="utf-8",
             ) as f:

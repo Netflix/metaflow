@@ -8,6 +8,8 @@ from . import metaflow_git
 from metaflow.exception import MetaflowException
 from metaflow.extension_support import dump_module_info
 from metaflow.mflog import BASH_MFLOG, BASH_FLUSH_LOGS
+
+from .meta_files import MFENV_DIR
 from . import R
 
 
@@ -49,8 +51,26 @@ class MetaflowEnvironment(object):
 
     def add_to_package(self):
         """
-        A list of tuples (file, arcname) to add to the job package.
-        `arcname` is an alternative name for the file in the job package.
+        Called to add custom files needed for this environment. This hook will be
+        called in the `MetaflowPackage` class where metaflow compiles the code package
+        tarball. This hook can return one of two things:
+          - a generator yielding a tuple of `(file_path, arcname)` to add files to
+            the code package. `file_path` is the path to the file on the local filesystem
+            and `arcname` is the path relative to the packaged code.
+          - a generator yielding a tuple of `(content, arcname, type)` where:
+            - type is a AddToPackageType
+            - for CODE_FILE:
+              - content: path to the file to include
+              - arcname: path relative to the code directory in the package
+            - for CODE_MODULE:
+              - content: name of the module
+              - arcame: None (ignored)
+            - for CONFIG_FILE:
+              - content: path to the file to include
+              - arcname: path relative to the config directory in the package
+            - for CONFIG_CONTENT:
+              - content: bytes to include
+              - arcname: path relative to the config directory in the package
         """
         return []
 
@@ -177,6 +197,7 @@ class MetaflowEnvironment(object):
             "after 6 tries. Exiting...' && exit 1; "
             "fi" % code_package_url,
             "TAR_OPTIONS='--warning=no-timestamp' tar xf job.tar",
+            "export PYTHONPATH=`pwd`/%s:$PYTHONPATH" % MFENV_DIR,
             "mflog 'Task is starting.'",
             "flush_mflogs",
         ]
