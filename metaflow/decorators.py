@@ -14,7 +14,6 @@ from .exception import (
 from .parameters import current_flow
 from .user_configs.config_decorators import CustomStepDecorator
 from .user_configs.config_parameters import (
-    ConfigValue,
     UNPACK_KEY,
     resolve_delayed_evaluator,
     unpack_delayed_evaluator,
