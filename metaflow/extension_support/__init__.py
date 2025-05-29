@@ -12,7 +12,7 @@ from importlib.abc import MetaPathFinder, Loader
 from itertools import chain
 from pathlib import Path
 
-from metaflow.info_file import read_info_file
+from metaflow.meta_files import read_info_file
 
 
 #
@@ -313,7 +313,7 @@ import importlib.util
 if _py_ver >= (3, 8):
     from importlib import metadata
 elif _py_ver >= (3, 7):
-    from metaflow._vendor.v3_7 import importlib_metadata as metadata
+    from metaflow._vendor import importlib_metadata as metadata
 else:
     from metaflow._vendor.v3_6 import importlib_metadata as metadata
 

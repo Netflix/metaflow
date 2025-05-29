@@ -16,7 +16,7 @@ _py_ver = sys.version_info[:2]
 if _py_ver >= (3, 8):
     from importlib import metadata
 elif _py_ver >= (3, 7):
-    from metaflow._vendor.v3_7 import importlib_metadata as metadata
+    from metaflow._vendor import importlib_metadata as metadata
 else:
     from metaflow._vendor.v3_6 import importlib_metadata as metadata
 
