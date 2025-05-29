@@ -95,6 +95,7 @@ class NativeRuntime(object):
         max_num_splits=MAX_NUM_SPLITS,
         max_log_size=MAX_LOG_SIZE,
         resume_identifier=None,
+        skip_decorator_hooks=False,
     ):
         if run_id is None:
             self._run_id = metadata.new_run_id()
@@ -128,6 +129,7 @@ class NativeRuntime(object):
         self._ran_or_scheduled_task_index = set()
         self._reentrant = reentrant
         self._run_url = None
+        self._skip_decorator_hooks = skip_decorator_hooks
 
         # If steps_to_rerun is specified, we will not clone them in resume mode.
         self._steps_to_rerun = steps_to_rerun or {}
@@ -179,9 +181,10 @@ class NativeRuntime(object):
         # finished.
         self._control_num_splits = {}  # control_task -> num_splits mapping
 
-        for step in flow:
-            for deco in step.decorators:
-                deco.runtime_init(flow, graph, package, self._run_id)
+        if not self._skip_decorator_hooks:
+            for step in flow:
+                for deco in step.decorators:
+                    deco.runtime_init(flow, graph, package, self._run_id)
 
     def _new_task(self, step, input_paths=None, **kwargs):
         if input_paths is None:
@@ -192,7 +195,7 @@ class NativeRuntime(object):
         if step in self._steps_to_rerun:
             may_clone = False
 
-        if step == "_parameters":
+        if step == "_parameters" or self._skip_decorator_hooks:
             decos = []
         else:
             decos = getattr(self._flow, step).decorators
@@ -566,9 +569,10 @@ class NativeRuntime(object):
                 raise
             finally:
                 # on finish clean tasks
-                for step in self._flow:
-                    for deco in step.decorators:
-                        deco.runtime_finished(exception)
+                if not self._skip_decorator_hooks:
+                    for step in self._flow:
+                        for deco in step.decorators:
+                            deco.runtime_finished(exception)
                 self._run_exit_hooks()
 
         # assert that end was executed and it was successful

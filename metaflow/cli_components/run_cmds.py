@@ -61,7 +61,11 @@ def before_run(obj, tags, decospecs):
     # We explicitly avoid doing this in `start` since it is invoked for every
     # step in the run.
     obj.package = MetaflowPackage(
-        obj.flow, obj.environment, obj.echo, obj.package_suffixes
+        obj.flow,
+        obj.environment,
+        obj.echo,
+        suffixes=obj.package_suffixes,
+        flow_datastore=obj.flow_datastore,
     )
 
 

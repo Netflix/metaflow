@@ -32,11 +32,13 @@ from metaflow.exception import (
 from metaflow.includefile import IncludedFile
 from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
 from metaflow.metaflow_environment import MetaflowEnvironment
+from metaflow.package import MetaflowPackage
+from metaflow.packaging_sys import ContentType
+from metaflow.packaging_sys.tar_backend import TarPackagingBackend
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
 from metaflow.unbounded_foreach import CONTROL_TASK_TAG
 from metaflow.util import cached_property, is_stringish, resolve_identity, to_unicode
 
-from ..info_file import INFO_FILE
 from .filecache import FileCache
 
 if TYPE_CHECKING:
@@ -816,20 +818,27 @@ class MetaflowCode(object):
         self._path = info["location"]
         self._ds_type = info["ds_type"]
         self._sha = info["sha"]
+        self._code_metadata = info.get("metadata")
+        if self._code_metadata is None:
+            # Default string
+            self._code_metadata = (
+                '{"version": 0, "backend": "tgz", "mfcontent_version": 0}'
+            )
+        self._backend = MetaflowPackage.get_backend(self._code_metadata)
 
         if filecache is None:
             filecache = FileCache()
         _, blobdata = filecache.get_data(
             self._ds_type, self._flow_name, self._path, self._sha
         )
-        code_obj = BytesIO(blobdata)
-        self._tar = tarfile.open(fileobj=code_obj, mode="r:gz")
-        # The JSON module in Python3 deals with Unicode. Tar gives bytes.
-        info_str = (
-            self._tar.extractfile(os.path.basename(INFO_FILE)).read().decode("utf-8")
-        )
-        self._info = json.loads(info_str)
-        self._flowspec = self._tar.extractfile(self._info["script"]).read()
+        self._code_obj = BytesIO(blobdata)
+        self._info = MetaflowPackage.cls_get_info(self._code_metadata, self._code_obj)
+        if self._info:
+            self._flowspec = MetaflowPackage.cls_get_content(
+                self._code_metadata, self._code_obj, self._info["script"]
+            )
+        else:
+            raise MetaflowInternalError("Code package metadata is invalid.")
 
     @property
     def path(self) -> str:
@@ -877,7 +886,9 @@ class MetaflowCode(object):
         TarFile
             TarFile for everything in this code package
         """
-        return self._tar
+        if self._backend == TarPackagingBackend:
+            return self._backend.cls_open(self._code_obj)
+        raise RuntimeError("Archive is not a tarball")
 
     def extract(self) -> TemporaryDirectory:
         """
@@ -908,27 +919,10 @@ class MetaflowCode(object):
             The directory and its contents are automatically deleted when
             this object is garbage collected.
         """
-        exclusions = [
-            "metaflow/",
-            "metaflow_extensions/",
-            "INFO",
-            "CONFIG_PARAMETERS",
-            "conda.manifest",
-            # This file is created when using the conda/pypi features available in
-            # nflx-metaflow-extensions: https://github.com/Netflix/metaflow-nflx-extensions
-            "condav2-1.cnd",
-        ]
-        members = [
-            m
-            for m in self.tarball.getmembers()
-            if not any(
-                (x.endswith("/") and m.name.startswith(x)) or (m.name == x)
-                for x in exclusions
-            )
-        ]
-
         tmp = TemporaryDirectory()
-        self.tarball.extractall(tmp.name, members)
+        MetaflowPackage.cls_extract_into(
+            self._code_metadata, self._code_obj, tmp.name, ContentType.USER_CONTENT
+        )
         return tmp
 
     @property
