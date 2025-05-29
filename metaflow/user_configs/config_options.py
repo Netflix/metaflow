@@ -7,9 +7,11 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 from metaflow._vendor import click
 from metaflow.debug import debug
 
-from .config_parameters import CONFIG_FILE, ConfigValue
+from .config_parameters import ConfigValue
 from ..exception import MetaflowException, MetaflowInternalError
+from ..package.mfenv import MFEnv
 from ..parameters import DeployTimeField, ParameterContext, current_flow
+from ..meta_files import MetaFile
 from ..util import get_username
 
 
@@ -24,7 +26,7 @@ _CONVERTED_DEFAULT_NO_FILE = _CONVERTED_DEFAULT + _NO_FILE
 
 def _load_config_values(info_file: Optional[str] = None) -> Optional[Dict[Any, Any]]:
     if info_file is None:
-        info_file = os.path.basename(CONFIG_FILE)
+        info_file = MFEnv.get_filename(MetaFile.CONFIG_FILE)
     try:
         with open(info_file, encoding="utf-8") as contents:
             return json.load(contents).get("user_configs", {})
@@ -433,7 +435,7 @@ class LocalFileInput(click.Path):
     # Small wrapper around click.Path to set the value from which to read configuration
     # values. This is set immediately upon processing the --local-config-file
     # option and will therefore then be available when processing any of the other
-    # --config options (which will call ConfigInput.process_configs
+    # --config options (which will call ConfigInput.process_configs)
     name = "LocalFileInput"
 
     def convert(self, value, param, ctx):

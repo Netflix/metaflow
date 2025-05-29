@@ -22,11 +22,6 @@ from .user_configs.config_parameters import (
 
 from metaflow._vendor import click
 
-try:
-    unicode
-except NameError:
-    unicode = str
-    basestring = str
 
 # Contains the decorators on which _init was called. We want to ensure it is called
 # only once on each decorator and, as the _init() function below can be called in
@@ -190,7 +185,7 @@ class Decorator(object):
             # escaping but for more complex types (typically dictionaries or lists),
             # we dump using JSON.
             for k, v in attrs.items():
-                if isinstance(v, (int, float, unicode, basestring)):
+                if isinstance(v, (int, float, str)):
                     attr_list.append("%s=%s" % (k, str(v)))
                 else:
                     attr_list.append("%s=%s" % (k, json.dumps(v).replace('"', '\\"')))
@@ -316,15 +311,26 @@ class StepDecorator(Decorator):
 
     def add_to_package(self):
         """
-        Called to add custom packages needed for a decorator. This hook will be
+        Called to add custom files needed for a decorator. This hook will be
         called in the `MetaflowPackage` class where metaflow compiles the code package
-        tarball. This hook is invoked in the `MetaflowPackage`'s `path_tuples`
-        function. The `path_tuples` function is a generator that yields a tuple of
-        `(file_path, arcname)`.`file_path` is the path of the file in the local file system;
-        the `arcname` is the path of the file in the constructed tarball or the path of the file
-        after decompressing the tarball.
-
-        Returns a list of tuples where each tuple represents (file_path, arcname)
+        tarball. This hook can return one of two things:
+          - a generator yielding a tuple of `(file_path, arcname)` to add files to
+            the code package. `file_path` is the path to the file on the local filesystem
+            and `arcname` is the path relative to the packaged code.
+          - a generator yielding a tuple of `(content, arcname, type)` where:
+            - type is a AddToPackageType
+            - for CODE_FILE:
+              - content: path to the file to include
+              - arcname: path relative to the code directory in the package
+            - for CODE_MODULE:
+              - content: name of the module
+              - arcame: None (ignored)
+            - for CONFIG_FILE:
+              - content: path to the file to include
+              - arcname: path relative to the config directory in the package
+            - for CONFIG_CONTENT:
+              - content: bytes to include
+              - arcname: path relative to the config directory in the package
         """
         return []
 
@@ -686,12 +692,8 @@ def step(
     f.is_step = True
     f.decorators = []
     f.config_decorators = []
-    try:
-        # python 3
-        f.name = f.__name__
-    except:
-        # python 2
-        f.name = f.__func__.func_name
+    f.wrappers = []
+    f.name = f.__name__
     return f
 
 

@@ -2,6 +2,7 @@ import os
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_environment import MetaflowEnvironment
+from metaflow.package.mfenv import AddToPackageType
 
 
 class UVException(MetaflowException):
@@ -43,8 +44,8 @@ class UVEnvironment(MetaflowEnvironment):
         pyproject_path = _find("pyproject.toml")
         uv_lock_path = _find("uv.lock")
         files = [
-            (uv_lock_path, "uv.lock"),
-            (pyproject_path, "pyproject.toml"),
+            (uv_lock_path, "uv.lock", AddToPackageType.CONFIG_FILE),
+            (pyproject_path, "pyproject.toml", AddToPackageType.CONFIG_FILE),
         ]
         return files
 

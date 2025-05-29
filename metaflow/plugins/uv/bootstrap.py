@@ -93,6 +93,7 @@ if __name__ == "__main__":
         return skip_pkgs
 
     def sync_uv_project(datastore_type):
+        # TODO: NEED TO POINT UV TO FILES IN THE CONFIG DIR
         print("Syncing uv project...")
         dependencies = " ".join(get_dependencies(datastore_type))
         skip_pkgs = " ".join(
