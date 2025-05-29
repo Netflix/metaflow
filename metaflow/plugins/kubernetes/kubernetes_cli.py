@@ -41,6 +41,7 @@ def kubernetes():
 )
 @tracing.cli("kubernetes/step")
 @click.argument("step-name")
+@click.argument("code-package-metadata")
 @click.argument("code-package-sha")
 @click.argument("code-package-url")
 @click.option(
@@ -161,6 +162,7 @@ def kubernetes():
 def step(
     ctx,
     step_name,
+    code_package_metadata,
     code_package_sha,
     code_package_url,
     executable=None,
@@ -304,6 +306,7 @@ def step(
                 task_id=task_id,
                 attempt=str(retry_count),
                 user=util.get_username(),
+                code_package_metadata=code_package_metadata,
                 code_package_sha=code_package_sha,
                 code_package_url=code_package_url,
                 code_package_ds=ctx.obj.flow_datastore.TYPE,
