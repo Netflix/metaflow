@@ -34,7 +34,7 @@ class TestPathSpecCard(MetaflowCard):
 class TestEditableCard(MetaflowCard):
     type = "test_editable_card"
 
-    seperator = "$&#!!@*"
+    separator = "$&#!!@*"
 
     ALLOW_USER_COMPONENTS = True
 
@@ -42,13 +42,13 @@ class TestEditableCard(MetaflowCard):
         self._components = components
 
     def render(self, task):
-        return self.seperator.join([str(comp) for comp in self._components])
+        return self.separator.join([str(comp) for comp in self._components])
 
 
 class TestEditableCard2(MetaflowCard):
     type = "test_editable_card_2"
 
-    seperator = "$&#!!@*"
+    separator = "$&#!!@*"
 
     ALLOW_USER_COMPONENTS = True
 
@@ -56,19 +56,19 @@ class TestEditableCard2(MetaflowCard):
         self._components = components
 
     def render(self, task):
-        return self.seperator.join([str(comp) for comp in self._components])
+        return self.separator.join([str(comp) for comp in self._components])
 
 
 class TestNonEditableCard(MetaflowCard):
     type = "test_non_editable_card"
 
-    seperator = "$&#!!@*"
+    separator = "$&#!!@*"
 
     def __init__(self, components=[], **kwargs):
         self._components = components
 
     def render(self, task):
-        return self.seperator.join([str(comp) for comp in self._components])
+        return self.separator.join([str(comp) for comp in self._components])
 
 
 class TestMockCard(MetaflowCard):
