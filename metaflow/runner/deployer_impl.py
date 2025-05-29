@@ -142,6 +142,7 @@ class DeployerImpl(object):
     ) -> "metaflow.runner.deployer.DeployedFlow":
         with temporary_fifo() as (attribute_file_path, attribute_file_fd):
             # every subclass needs to have `self.deployer_kwargs`
+            # TODO: Get rid of CLICK_API_PROCESS_CONFIG in the near future
             if CLICK_API_PROCESS_CONFIG:
                 # We need to run this in the cwd because configs depend on files
                 # that may be located in paths relative to the directory the user
