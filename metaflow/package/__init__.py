@@ -221,6 +221,8 @@ class MetaflowPackage(object):
             for content, arcname in self._code_env.content(
                 AddToPackageType.CONFIG_CONTENT
             ):
+                if isinstance(content, str):
+                    content = content.encode()
                 archive.add_data(BytesIO(content), arcname=arcname)
 
             # Package the user code
