@@ -2,6 +2,8 @@ import inspect
 import ast
 import re
 
+from itertools import chain
+
 
 from .util import to_pod
 
@@ -45,13 +47,17 @@ def deindent_docstring(doc):
 
 
 class DAGNode(object):
-    def __init__(self, func_ast, decos, doc, source_file, lineno):
+    def __init__(
+        self, func_ast, decos, wrappers, config_decorators, doc, source_file, lineno
+    ):
         self.name = func_ast.name
         self.source_file = source_file
         # lineno is the start line of decorators in source_file
         # func_ast.lineno is lines from decorators start to def of function
         self.func_lineno = lineno + func_ast.lineno - 1
         self.decorators = decos
+        self.wrappers = wrappers
+        self.config_decorators = config_decorators
         self.doc = deindent_docstring(doc)
         self.parallel_step = any(getattr(deco, "IS_PARALLEL", False) for deco in decos)
 
@@ -181,7 +187,13 @@ class FlowGraph(object):
                 source_code = deindent_docstring("".join(source_lines))
                 function_ast = ast.parse(source_code).body[0]
                 node = DAGNode(
-                    function_ast, func.decorators, func.__doc__, source_file, lineno
+                    function_ast,
+                    func.decorators,
+                    func.wrappers,
+                    func.config_decorators,
+                    func.__doc__,
+                    source_file,
+                    lineno,
                 )
                 nodes[element] = node
         return nodes
@@ -293,9 +305,19 @@ class FlowGraph(object):
                         "name": deco.name,
                         "attributes": to_pod(deco.attributes),
                         "statically_defined": deco.statically_defined,
+                        "inserted_by": deco.inserted_by,
                     }
                     for deco in node.decorators
                     if not deco.name.startswith("_")
+                ]
+                + [
+                    {
+                        "name": deco.decorator_name,
+                        "attributes": {"_args": deco._args, **deco._kwargs},
+                        "statically_defined": deco.statically_defined,
+                        "inserted_by": deco.inserted_by,
+                    }
+                    for deco in chain(node.wrappers, node.config_decorators)
                 ],
                 "next": node.out_funcs,
             }

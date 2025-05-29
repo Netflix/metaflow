@@ -7,7 +7,7 @@ import reprlib
 from enum import Enum
 from itertools import islice
 from types import FunctionType, MethodType
-from typing import TYPE_CHECKING, Any, Callable, Generator, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple
 
 from . import cmd_with_io, parameters
 from .debug import debug
@@ -23,13 +23,14 @@ from .extension_support import extension_info
 
 from .graph import FlowGraph
 from .unbounded_foreach import UnboundedForeachInput
-from .user_configs.config_decorators import (
-    ConfigValue,
-    CustomFlowDecorator,
-    CustomStepDecorator,
-    MutableFlow,
-    MutableStep,
-)
+from .user_configs.config_parameters import ConfigValue
+
+from .user_decorators.mutable_flow import MutableFlow
+from .user_decorators.mutable_step import MutableStep
+from .user_decorators.user_flow_decorator import FlowMutator
+from .user_decorators.user_step_decorator import StepMutator
+
+
 from .util import to_pod
 from .metaflow_config import INCLUDE_FOREACH_STACK, MAXIMUM_FOREACH_VALUE_CHARS
 
@@ -79,6 +80,10 @@ class _FlowState(Enum):
     CONFIGS = 1
     CONFIG_DECORATORS = 2
     CACHED_PARAMETERS = 3
+    SET_CONFIG_PARAMETERS = (
+        4  # These are Parameters that now have a ConfigValue (converted)
+    )
+    # but we need to remember them.
 
 
 class FlowSpecMeta(type):
@@ -112,6 +117,20 @@ class FlowSpecMeta(type):
         # the configs have been processed, we do not process them again.
         cls._configs_processed = False
 
+        # We store references to the globals where each flowspec is defined so that
+        # users can do --with foo and it works if foo is defined when the flowspec
+        # is defined. This is a list to deal with something like:
+        # class BaseFlowSpec(FlowSpec):
+        #     pass
+        #
+        # class MyFlowspec(BaseFlowSpec):
+        #     pass
+        #
+        # In this case, we want to store references to the globals of both BaseFlowSpec
+        # and MyFlowspec so that --with foo works whether foo is defined in BaseFlowSpec
+        # or MyFlowspec.
+        cls._global_dicts = [inspect.currentframe().f_back.f_back.f_globals]
+
         # We inherit stuff from our parent classes as well -- we need to be careful
         # in terms of the order; we will follow the MRO with the following rules:
         #  - decorators (cls._flow_decorators) will cause an error if they do not
@@ -136,6 +155,10 @@ class FlowSpecMeta(type):
                     cls._flow_state.setdefault(_FlowState.CONFIG_DECORATORS, []).extend(
                         base_configs
                     )
+
+                # Take care of global dicts
+                cls._global_dicts.extend(base._global_dicts)
+
         cls._init_graph()
 
     def _init_graph(cls):
@@ -166,6 +189,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
         "_graph",
         "_flow_decorators",
         "_flow_state",
+        "_global_dicts",
         "_steps",
         "index",
         "input",
@@ -232,8 +256,8 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
     @classmethod
     def _process_config_decorators(cls, config_options, process_configs=True):
-
         if cls._configs_processed:
+            debug.userconf_exec("Mutating step/flow decorators already processed")
             return None
         cls._configs_processed = True
 
@@ -244,18 +268,20 @@ class FlowSpec(metaclass=FlowSpecMeta):
         ):
             # Process parameters to allow them to also use config values easily
             for var, param in cls._get_parameters():
-                if param.IS_CONFIG_PARAMETER:
+                if isinstance(param, ConfigValue) or param.IS_CONFIG_PARAMETER:
                     continue
                 param.init(not process_configs)
             return None
 
         debug.userconf_exec("Processing mutating step/flow decorators")
         # We need to convert all the user configurations from DelayedEvaluationParameters
-        # to actual values so they can be used as is in the config decorators.
+        # to actual values so they can be used as is in the mutators.
 
-        # We then reset them to be proper configs so they can be re-evaluated in
-        # _set_constants
-        to_reset_configs = []
+        # We, however, need to make sure _get_parameters still works properly so
+        # we store what was a config and has been set to a specific value.
+        # This is safe to do for now because all other uses of _get_parameters typically
+        # do not rely on the variable itself but just the parameter.
+        to_save_configs = []
         cls._check_parameters(config_parameters=True)
         for var, param in cls._get_parameters():
             if not param.IS_CONFIG_PARAMETER:
@@ -267,71 +293,75 @@ class FlowSpec(metaclass=FlowSpecMeta):
             # We store the value as well so that in _set_constants, we don't try
             # to recompute (no guarantee that it is stable)
             param._store_value(val)
-            to_reset_configs.append((var, param))
+            to_save_configs.append((var, param))
             debug.userconf_exec("Setting config %s to %s" % (var, str(val)))
             setattr(cls, var, val)
 
-        # Reset cached parameters since we have replaced configs already with ConfigValue
-        # so they are not parameters anymore to be re-evaluated when we do _get_parameters
-        if _FlowState.CACHED_PARAMETERS in cls._flow_state:
-            del cls._flow_state[_FlowState.CACHED_PARAMETERS]
+        cls._flow_state[_FlowState.SET_CONFIG_PARAMETERS] = to_save_configs
+        # Run all the decorators. We first run the flow-level decorators
+        # and then the step level ones to maintain a consistent order with how
+        # other decorators are run.
 
-        # Run all the decorators. Step decorators are directly in the step and
-        # we will run those first and *then* we run all the flow level decorators
-        for step in cls._steps:
-            for deco in step.config_decorators:
-                if isinstance(deco, CustomStepDecorator):
-                    debug.userconf_exec(
-                        "Evaluating step level decorator %s for %s"
-                        % (deco.__class__.__name__, step.name)
-                    )
-                    deco.evaluate(MutableStep(cls, step))
-                else:
-                    raise MetaflowInternalError(
-                        "A non CustomFlowDecorator found in step custom decorators"
-                    )
-            if step.config_decorators:
-                # We remove all mention of the custom step decorator
-                setattr(cls, step.name, step)
-
-        mutable_flow = MutableFlow(cls)
         for deco in cls._flow_state.get(_FlowState.CONFIG_DECORATORS, []):
-            if isinstance(deco, CustomFlowDecorator):
+            if isinstance(deco, FlowMutator):
+                inserted_by_value = "%s from %s" % (deco, deco.inserted_by or "user")
+                mutable_flow = MutableFlow(
+                    cls,
+                    pre_mutate=True,
+                    statically_defined=deco.statically_defined,
+                    inserted_by=inserted_by_value,
+                )
                 # Sanity check to make sure we are applying the decorator to the right
                 # class
                 if not deco._flow_cls == cls and not issubclass(cls, deco._flow_cls):
                     raise MetaflowInternalError(
-                        "CustomFlowDecorator registered on the wrong flow -- "
+                        "FlowMutator registered on the wrong flow -- "
                         "expected %s but got %s"
                         % (deco._flow_cls.__name__, cls.__name__)
                     )
                 debug.userconf_exec(
                     "Evaluating flow level decorator %s" % deco.__class__.__name__
                 )
-                deco.evaluate(mutable_flow)
+                deco.pre_mutate(mutable_flow)
                 # We reset cached_parameters on the very off chance that the user added
                 # more configurations based on the configuration
                 if _FlowState.CACHED_PARAMETERS in cls._flow_state:
                     del cls._flow_state[_FlowState.CACHED_PARAMETERS]
             else:
                 raise MetaflowInternalError(
-                    "A non CustomFlowDecorator found in flow custom decorators"
+                    "A non FlowMutator found in flow custom decorators"
                 )
+
+        for step in cls._steps:
+            for deco in step.config_decorators:
+                if isinstance(deco, StepMutator):
+                    inserted_by_value = "%s from %s" % (
+                        deco,
+                        deco.inserted_by or "user",
+                    )
+                    debug.userconf_exec(
+                        "Evaluating step level decorator %s for %s"
+                        % (deco.__class__.__name__, step.name)
+                    )
+                    deco.pre_mutate(
+                        MutableStep(
+                            cls,
+                            step,
+                            pre_mutate=True,
+                            statically_defined=deco.statically_defined,
+                            inserted_by=inserted_by_value,
+                        )
+                    )
+                else:
+                    raise MetaflowInternalError(
+                        "A non StepMutator found in step custom decorators"
+                    )
 
         # Process parameters to allow them to also use config values easily
         for var, param in cls._get_parameters():
             if param.IS_CONFIG_PARAMETER:
                 continue
             param.init()
-        # Reset all configs that were already present in the class.
-        # TODO: This means that users can't override configs directly. Not sure if this
-        # is a pattern we want to support
-        for var, param in to_reset_configs:
-            setattr(cls, var, param)
-
-        # Reset cached parameters again since we added back the config parameters
-        if _FlowState.CACHED_PARAMETERS in cls._flow_state:
-            del cls._flow_state[_FlowState.CACHED_PARAMETERS]
 
         # Set the current flow class we are in (the one we just created)
         parameters.replace_flow_context(cls)
@@ -402,9 +432,19 @@ class FlowSpec(metaclass=FlowSpecMeta):
                     "name": deco.name,
                     "attributes": to_pod(deco.attributes),
                     "statically_defined": deco.statically_defined,
+                    "inserted_by": deco.inserted_by if deco.inserted_by else "user",
                 }
                 for deco in flow_decorators(self)
                 if not deco.name.startswith("_")
+            ]
+            + [
+                {
+                    "name": deco.__class__.__name__,
+                    "attributes": {},
+                    "statically_defined": deco.statically_defined,
+                    "inserted_by": deco.inserted_by,
+                }
+                for deco in self._flow_state.get(_FlowState.CONFIG_DECORATORS, [])
             ],
             "extensions": extension_info(),
         }
@@ -414,10 +454,14 @@ class FlowSpec(metaclass=FlowSpecMeta):
     def _get_parameters(cls):
         cached = cls._flow_state.get(_FlowState.CACHED_PARAMETERS)
         if cached is not None:
+            for set_config in cls._flow_state.get(_FlowState.SET_CONFIG_PARAMETERS, []):
+                yield set_config[0], set_config[1]
             for var in cached:
                 yield var, getattr(cls, var)
             return
         build_list = []
+        for set_config in cls._flow_state.get(_FlowState.SET_CONFIG_PARAMETERS, []):
+            yield set_config[0], set_config[1]
         for var in dir(cls):
             if var[0] == "_" or var in cls._NON_PARAMETERS:
                 continue
