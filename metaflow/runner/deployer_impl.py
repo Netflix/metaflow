@@ -5,8 +5,10 @@ import sys
 
 from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING, Type
 
+from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
+
 from .subprocess_manager import SubprocessManager
-from .utils import get_lower_level_group, handle_timeout, temporary_fifo
+from .utils import get_lower_level_group, handle_timeout, temporary_fifo, with_dir
 
 if TYPE_CHECKING:
     import metaflow.runner.deployer
@@ -88,7 +90,7 @@ class DeployerImpl(object):
         self.show_output = show_output
         self.profile = profile
         self.env = env
-        self.cwd = cwd
+        self.cwd = cwd or os.getcwd()
         self.file_read_timeout = file_read_timeout
 
         self.env_vars = os.environ.copy()
@@ -140,9 +142,19 @@ class DeployerImpl(object):
     ) -> "metaflow.runner.deployer.DeployedFlow":
         with temporary_fifo() as (attribute_file_path, attribute_file_fd):
             # every subclass needs to have `self.deployer_kwargs`
-            command = get_lower_level_group(
-                self.api, self.top_level_kwargs, self.TYPE, self.deployer_kwargs
-            ).create(deployer_attribute_file=attribute_file_path, **kwargs)
+            # TODO: Get rid of CLICK_API_PROCESS_CONFIG in the near future
+            if CLICK_API_PROCESS_CONFIG:
+                # We need to run this in the cwd because configs depend on files
+                # that may be located in paths relative to the directory the user
+                # wants to run in
+                with with_dir(self.cwd):
+                    command = get_lower_level_group(
+                        self.api, self.top_level_kwargs, self.TYPE, self.deployer_kwargs
+                    ).create(deployer_attribute_file=attribute_file_path, **kwargs)
+            else:
+                command = get_lower_level_group(
+                    self.api, self.top_level_kwargs, self.TYPE, self.deployer_kwargs
+                ).create(deployer_attribute_file=attribute_file_path, **kwargs)
 
             pid = self.spm.run_command(
                 [sys.executable, *command],

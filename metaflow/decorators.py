@@ -152,7 +152,7 @@ class Decorator(object):
         # Note that by design, later values override previous ones.
         self.attributes, new_user_attributes = unpack_delayed_evaluator(self.attributes)
         self._user_defined_attributes.update(new_user_attributes)
-        self.attributes = resolve_delayed_evaluator(self.attributes)
+        self.attributes = resolve_delayed_evaluator(self.attributes, to_dict=True)
 
         self._ran_init = True
 
@@ -638,7 +638,7 @@ StepFlag = NewType("StepFlag", bool)
 
 @overload
 def step(
-    f: Callable[[FlowSpecDerived], None]
+    f: Callable[[FlowSpecDerived], None],
 ) -> Callable[[FlowSpecDerived, StepFlag], None]: ...
 
 
@@ -649,7 +649,7 @@ def step(
 
 
 def step(
-    f: Union[Callable[[FlowSpecDerived], None], Callable[[FlowSpecDerived, Any], None]]
+    f: Union[Callable[[FlowSpecDerived], None], Callable[[FlowSpecDerived, Any], None]],
 ):
     """
     Marks a method in a FlowSpec as a Metaflow Step. Note that this
