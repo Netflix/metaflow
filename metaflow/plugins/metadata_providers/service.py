@@ -79,12 +79,11 @@ class ServiceMetadataProvider(MetadataProvider):
                 )
                 resp.raise_for_status()
             except:  # noqa E722
-                time.sleep(2**(i-1))
+                time.sleep(2 ** (i - 1))
             else:
                 return v
 
         raise ValueError("Metaflow service [%s] unreachable." % v)
-
 
     @classmethod
     def default_info(cls):
