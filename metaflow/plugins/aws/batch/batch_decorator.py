@@ -126,6 +126,7 @@ class BatchDecorator(StepDecorator):
         "gpu": "0",
         "memory": "4096",
     }
+    package_metadata = None
     package_url = None
     package_sha = None
     run_time_limit = None
@@ -189,7 +190,6 @@ class BatchDecorator(StepDecorator):
         self.logger = logger
         self.environment = environment
         self.step = step
-        self.flow_datastore = flow_datastore
 
         self.attributes.update(
             compute_resource_attributes(decos, self, self.resource_defaults)
@@ -218,7 +218,7 @@ class BatchDecorator(StepDecorator):
         self, task_datastore, task_id, split_index, input_paths, is_cloned, ubf_context
     ):
         if not is_cloned:
-            self._save_package_once(self.flow_datastore, self.package)
+            self._save_package_once(self.package)
 
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context
@@ -228,6 +228,7 @@ class BatchDecorator(StepDecorator):
             # to execute on AWS Batch anymore. We can execute possible fallback
             # code locally.
             cli_args.commands = ["batch", "step"]
+            cli_args.command_args.append(self.package_metadata)
             cli_args.command_args.append(self.package_sha)
             cli_args.command_args.append(self.package_url)
             cli_args.command_options.update(self.attributes)
@@ -401,11 +402,12 @@ class BatchDecorator(StepDecorator):
         )
 
     @classmethod
-    def _save_package_once(cls, flow_datastore, package):
+    def _save_package_once(cls, package):
         if cls.package_url is None:
-            cls.package_url, cls.package_sha = flow_datastore.save_data(
-                [package.blob], len_hint=1
-            )[0]
+            # Blocks until the package is uploaded
+            cls.package_url = package.package_url()
+            cls.package_sha = package.package_sha()
+            cls.package_metadata = package.package_metadata
 
 
 def _setup_multinode_environment():

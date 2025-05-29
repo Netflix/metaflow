@@ -518,16 +518,21 @@ def make_flow(
     # Save the code package in the flow datastore so that both user code and
     # metaflow package can be retrieved during workflow execution.
     obj.package = MetaflowPackage(
-        obj.flow, obj.environment, obj.echo, obj.package_suffixes
+        obj.flow,
+        obj.environment,
+        obj.echo,
+        suffixes=obj.package_suffixes,
+        flow_datastore=obj.flow_datastore,
     )
-    package_url, package_sha = obj.flow_datastore.save_data(
-        [obj.package.blob], len_hint=1
-    )[0]
+    # This blocks until the package is created
+    package_url = obj.package.package_url()
+    package_sha = obj.package.package_sha()
 
     return ArgoWorkflows(
         name,
         obj.graph,
         obj.flow,
+        obj.package.package_metadata,
         package_sha,
         package_url,
         token,
