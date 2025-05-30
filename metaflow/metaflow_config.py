@@ -460,6 +460,7 @@ DEBUG_OPTIONS = [
     "stubgen",
     "userconf",
     "conda",
+    "package",
 ]
 
 for typ in DEBUG_OPTIONS:
