@@ -35,6 +35,12 @@ class Boto3ClientProvider(object):
                 "Could not import module 'boto3'. Install boto3 first."
             )
 
+        # Convert dictionary config to Config object if needed
+        if "config" in client_params and not isinstance(
+            client_params["config"], Config
+        ):
+            client_params["config"] = Config(**client_params["config"])
+
         if module == "s3" and (
             "config" not in client_params or client_params["config"].retries is None
         ):
