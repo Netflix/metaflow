@@ -11,18 +11,10 @@ from metaflow.metaflow_config import DEFAULT_FROM_DEPLOYMENT_IMPL
 def generate_fake_flow_file_contents(
     flow_name: str, param_info: dict, project_name: Optional[str] = None
 ):
-    """
-    Generate the contents of a fake Metaflow flow file.
-    Args:
-        flow_name (str): The name of the flow.
-        param_info (dict): A dictionary containing parameter information.
-        project_name (Optional[str]): The name of the project (default is None).
-    Returns:
-        str: The generated contents of the flow file as a string.
-    """
-
     params_code = ""
     for _, param_details in param_info.items():
+        breakpoint()
+        param_python_var_name = param_details["python_var_name"]
         param_name = param_details["name"]
         param_type = param_details["type"]
         param_help = param_details["description"]
@@ -30,24 +22,25 @@ def generate_fake_flow_file_contents(
 
         if param_type == "JSON":
             params_code += (
-                f"    {param_name} = Parameter('{param_name}', "
-                f"type=JSONType, help='{param_help}', required={param_required})\n"
+                f"    {param_python_var_name} = Parameter('{param_name}', "
+                f"type=JSONType, help='''{param_help}''', required={param_required})\n"
             )
         elif param_type == "FilePath":
             is_text = param_details.get("is_text", True)
             encoding = param_details.get("encoding", "utf-8")
             params_code += (
-                f"    {param_name} = IncludeFile('{param_name}', "
-                f"is_text={is_text}, encoding='{encoding}', help='{param_help}', "
+                f"    {param_python_var_name} = IncludeFile('{param_name}', "
+                f"is_text={is_text}, encoding='{encoding}', help='''{param_help}''', "
                 f"required={param_required})\n"
             )
         else:
             params_code += (
-                f"    {param_name} = Parameter('{param_name}', "
-                f"type={param_type}, help='{param_help}', required={param_required})\n"
+                f"    {param_python_var_name} = Parameter('{param_name}', "
+                f"type={param_type}, help='''{param_help}''', required={param_required})\n"
             )
 
     project_decorator = f"@project(name='{project_name}')\n" if project_name else ""
+
     contents = f"""\
 from metaflow import FlowSpec, Parameter, IncludeFile, JSONType, step, project
 {project_decorator}class {flow_name}(FlowSpec):
