@@ -65,6 +65,7 @@ from metaflow.util import (
 )
 
 from .argo_client import ArgoClient
+from .exit_hooks import HttpExitHook
 from metaflow.util import resolve_identity
 
 
@@ -2356,13 +2357,14 @@ class ArgoWorkflows(object):
             # Note: We use the Http template because changing this to an actual no-op container had the side-effect of
             # leaving LifecycleHooks in a pending state even when they have finished execution.
             templates.append(
-                Template("exit-hook-hack").http(
-                    Http("GET")
-                    .url(
+                HttpExitHook(
+                    name="exit-hook-hack",
+                    method="GET",
+                    url=(
                         self.notify_slack_webhook_url
                         or "https://events.pagerduty.com/v2/enqueue"
-                    )
-                    .success_condition("true == true")
+                    ),
+                    success_condition="true == true",
                 )
             )
         if self.enable_error_msg_capture:
@@ -2515,30 +2517,29 @@ class ArgoWorkflows(object):
         # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgx-send-an-alert-event
         if self.notify_pager_duty_integration_key is None:
             return None
-        return Template("notify-pager-duty-on-error").http(
-            Http("POST")
-            .url("https://events.pagerduty.com/v2/enqueue")
-            .header("Content-Type", "application/json")
-            .body(
-                json.dumps(
-                    {
-                        "event_action": "trigger",
-                        "routing_key": self.notify_pager_duty_integration_key,
-                        # "dedup_key": self.flow.name,  # TODO: Do we need deduplication?
-                        "payload": {
-                            "source": "{{workflow.name}}",
-                            "severity": "info",
-                            "summary": "Metaflow run %s/argo-{{workflow.name}} failed!"
-                            % self.flow.name,
-                            "custom_details": {
-                                "Flow": self.flow.name,
-                                "Run ID": "argo-{{workflow.name}}",
-                            },
+        return HttpExitHook(
+            name="notify-pager-duty-on-error",
+            method="POST",
+            url="https://events.pagerduty.com/v2/enqueue",
+            headers={"Content-Type": "application/json"},
+            body=json.dumps(
+                {
+                    "event_action": "trigger",
+                    "routing_key": self.notify_pager_duty_integration_key,
+                    # "dedup_key": self.flow.name,  # TODO: Do we need deduplication?
+                    "payload": {
+                        "source": "{{workflow.name}}",
+                        "severity": "info",
+                        "summary": "Metaflow run %s/argo-{{workflow.name}} failed!"
+                        % self.flow.name,
+                        "custom_details": {
+                            "Flow": self.flow.name,
+                            "Run ID": "argo-{{workflow.name}}",
                         },
-                        "links": self._pager_duty_notification_links(),
-                    }
-                )
-            )
+                    },
+                    "links": self._pager_duty_notification_links(),
+                }
+            ),
         )
 
     def _incident_io_alert_template(self):
@@ -2549,50 +2550,51 @@ class ArgoWorkflows(object):
                 "Creating alerts for errors requires a alert source config ID."
             )
         ui_links = self._incident_io_ui_urls_for_run()
-        return Template("notify-incident-io-on-error").http(
-            Http("POST")
-            .url(
+        return HttpExitHook(
+            name="notify-incident-io-on-error",
+            method="POST",
+            url=(
                 "https://api.incident.io/v2/alert_events/http/%s"
                 % self.incident_io_alert_source_config_id
-            )
-            .header("Content-Type", "application/json")
-            .header("Authorization", "Bearer %s" % self.notify_incident_io_api_key)
-            .body(
-                json.dumps(
-                    {
-                        "idempotency_key": "argo-{{workflow.name}}",  # use run id to deduplicate alerts.
-                        "status": "firing",
-                        "title": "Flow %s has failed." % self.flow.name,
-                        "description": "Metaflow run {run_pathspec} failed!{urls}".format(
-                            run_pathspec="%s/argo-{{workflow.name}}" % self.flow.name,
-                            urls=(
-                                "\n\nSee details for the run at:\n\n"
-                                + "\n\n".join(ui_links)
-                                if ui_links
-                                else ""
-                            ),
+            ),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": "Bearer %s" % self.notify_incident_io_api_key,
+            },
+            body=json.dumps(
+                {
+                    "idempotency_key": "argo-{{workflow.name}}",  # use run id to deduplicate alerts.
+                    "status": "firing",
+                    "title": "Flow %s has failed." % self.flow.name,
+                    "description": "Metaflow run {run_pathspec} failed!{urls}".format(
+                        run_pathspec="%s/argo-{{workflow.name}}" % self.flow.name,
+                        urls=(
+                            "\n\nSee details for the run at:\n\n"
+                            + "\n\n".join(ui_links)
+                            if ui_links
+                            else ""
                         ),
-                        "source_url": (
-                            "%s/%s/%s"
-                            % (
-                                UI_URL.rstrip("/"),
-                                self.flow.name,
-                                "argo-{{workflow.name}}",
-                            )
-                            if UI_URL
-                            else None
-                        ),
-                        "metadata": {
-                            **(self.incident_io_metadata or {}),
-                            **{
-                                "run_status": "failed",
-                                "flow_name": self.flow.name,
-                                "run_id": "argo-{{workflow.name}}",
-                            },
+                    ),
+                    "source_url": (
+                        "%s/%s/%s"
+                        % (
+                            UI_URL.rstrip("/"),
+                            self.flow.name,
+                            "argo-{{workflow.name}}",
+                        )
+                        if UI_URL
+                        else None
+                    ),
+                    "metadata": {
+                        **(self.incident_io_metadata or {}),
+                        **{
+                            "run_status": "failed",
+                            "flow_name": self.flow.name,
+                            "run_id": "argo-{{workflow.name}}",
                         },
-                    }
-                )
-            )
+                    },
+                }
+            ),
         )
 
     def _incident_io_change_template(self):
@@ -2603,50 +2605,51 @@ class ArgoWorkflows(object):
                 "Creating alerts for successes requires an alert source config ID."
             )
         ui_links = self._incident_io_ui_urls_for_run()
-        return Template("notify-incident-io-on-success").http(
-            Http("POST")
-            .url(
+        return HttpExitHook(
+            name="notify-incident-io-on-success",
+            method="POST",
+            url=(
                 "https://api.incident.io/v2/alert_events/http/%s"
                 % self.incident_io_alert_source_config_id
-            )
-            .header("Content-Type", "application/json")
-            .header("Authorization", "Bearer %s" % self.notify_incident_io_api_key)
-            .body(
-                json.dumps(
-                    {
-                        "idempotency_key": "argo-{{workflow.name}}",  # use run id to deduplicate alerts.
-                        "status": "firing",
-                        "title": "Flow %s has succeeded." % self.flow.name,
-                        "description": "Metaflow run {run_pathspec} succeeded!{urls}".format(
-                            run_pathspec="%s/argo-{{workflow.name}}" % self.flow.name,
-                            urls=(
-                                "\n\nSee details for the run at:\n\n"
-                                + "\n\n".join(ui_links)
-                                if ui_links
-                                else ""
-                            ),
+            ),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": "Bearer %s" % self.notify_incident_io_api_key,
+            },
+            body=json.dumps(
+                {
+                    "idempotency_key": "argo-{{workflow.name}}",  # use run id to deduplicate alerts.
+                    "status": "firing",
+                    "title": "Flow %s has succeeded." % self.flow.name,
+                    "description": "Metaflow run {run_pathspec} succeeded!{urls}".format(
+                        run_pathspec="%s/argo-{{workflow.name}}" % self.flow.name,
+                        urls=(
+                            "\n\nSee details for the run at:\n\n"
+                            + "\n\n".join(ui_links)
+                            if ui_links
+                            else ""
                         ),
-                        "source_url": (
-                            "%s/%s/%s"
-                            % (
-                                UI_URL.rstrip("/"),
-                                self.flow.name,
-                                "argo-{{workflow.name}}",
-                            )
-                            if UI_URL
-                            else None
-                        ),
-                        "metadata": {
-                            **(self.incident_io_metadata or {}),
-                            **{
-                                "run_status": "succeeded",
-                                "flow_name": self.flow.name,
-                                "run_id": "argo-{{workflow.name}}",
-                            },
+                    ),
+                    "source_url": (
+                        "%s/%s/%s"
+                        % (
+                            UI_URL.rstrip("/"),
+                            self.flow.name,
+                            "argo-{{workflow.name}}",
+                        )
+                        if UI_URL
+                        else None
+                    ),
+                    "metadata": {
+                        **(self.incident_io_metadata or {}),
+                        **{
+                            "run_status": "succeeded",
+                            "flow_name": self.flow.name,
+                            "run_id": "argo-{{workflow.name}}",
                         },
-                    }
-                )
-            )
+                    },
+                }
+            ),
         )
 
     def _incident_io_ui_urls_for_run(self):
@@ -2671,27 +2674,26 @@ class ArgoWorkflows(object):
         # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgy-send-a-change-event
         if self.notify_pager_duty_integration_key is None:
             return None
-        return Template("notify-pager-duty-on-success").http(
-            Http("POST")
-            .url("https://events.pagerduty.com/v2/change/enqueue")
-            .header("Content-Type", "application/json")
-            .body(
-                json.dumps(
-                    {
-                        "routing_key": self.notify_pager_duty_integration_key,
-                        "payload": {
-                            "summary": "Metaflow run %s/argo-{{workflow.name}} Succeeded"
-                            % self.flow.name,
-                            "source": "{{workflow.name}}",
-                            "custom_details": {
-                                "Flow": self.flow.name,
-                                "Run ID": "argo-{{workflow.name}}",
-                            },
+        return HttpExitHook(
+            name="notify-pager-duty-on-success",
+            method="POST",
+            url="https://events.pagerduty.com/v2/change/enqueue",
+            headers={"Content-Type": "application/json"},
+            body=json.dumps(
+                {
+                    "routing_key": self.notify_pager_duty_integration_key,
+                    "payload": {
+                        "summary": "Metaflow run %s/argo-{{workflow.name}} Succeeded"
+                        % self.flow.name,
+                        "source": "{{workflow.name}}",
+                        "custom_details": {
+                            "Flow": self.flow.name,
+                            "Run ID": "argo-{{workflow.name}}",
                         },
-                        "links": self._pager_duty_notification_links(),
-                    }
-                )
-            )
+                    },
+                    "links": self._pager_duty_notification_links(),
+                }
+            ),
         )
 
     def _pager_duty_notification_links(self):
@@ -2795,8 +2797,11 @@ class ArgoWorkflows(object):
             blocks = self._get_slack_blocks(message)
             payload = {"text": message, "blocks": blocks}
 
-        return Template("notify-slack-on-error").http(
-            Http("POST").url(self.notify_slack_webhook_url).body(json.dumps(payload))
+        return HttpExitHook(
+            name="notify-slack-on-error",
+            method="POST",
+            url=self.notify_slack_webhook_url,
+            body=json.dumps(payload),
         )
 
     def _slack_success_template(self):
@@ -2811,8 +2816,11 @@ class ArgoWorkflows(object):
             blocks = self._get_slack_blocks(message)
             payload = {"text": message, "blocks": blocks}
 
-        return Template("notify-slack-on-success").http(
-            Http("POST").url(self.notify_slack_webhook_url).body(json.dumps(payload))
+        return HttpExitHook(
+            name="notify-slack-on-success",
+            method="POST",
+            url=self.notify_slack_webhook_url,
+            body=json.dumps(payload),
         )
 
     def _heartbeat_daemon_template(self):
@@ -4172,38 +4180,6 @@ class TriggerParameter(object):
 
     def dest(self, dest):
         self.payload["dest"] = dest
-        return self
-
-    def to_json(self):
-        return self.payload
-
-    def __str__(self):
-        return json.dumps(self.payload, indent=4)
-
-
-class Http(object):
-    # https://argoproj.github.io/argo-workflows/fields/#http
-
-    def __init__(self, method):
-        tree = lambda: defaultdict(tree)
-        self.payload = tree()
-        self.payload["method"] = method
-        self.payload["headers"] = []
-
-    def header(self, header, value):
-        self.payload["headers"].append({"name": header, "value": value})
-        return self
-
-    def body(self, body):
-        self.payload["body"] = str(body)
-        return self
-
-    def url(self, url):
-        self.payload["url"] = url
-        return self
-
-    def success_condition(self, success_condition):
-        self.payload["successCondition"] = success_condition
         return self
 
     def to_json(self):
