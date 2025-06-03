@@ -1,12 +1,37 @@
 from collections import defaultdict
 import json
+from typing import List
 
 
-class Template(object):
+class _LifecycleHook(object):
+    # https://argoproj.github.io/argo-workflows/fields/#lifecyclehook
+
+    def __init__(self, name):
+        tree = lambda: defaultdict(tree)
+        self.name = name
+        self.payload = tree()
+
+    def expression(self, expression):
+        self.payload["expression"] = str(expression)
+        return self
+
+    def template(self, template):
+        self.payload["template"] = template
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
+
+
+class _Template(object):
     # https://argoproj.github.io/argo-workflows/fields/#template
 
     def __init__(self, name):
         tree = lambda: defaultdict(tree)
+        self.name = name
         self.payload = tree()
         self.payload["name"] = name
 
@@ -31,7 +56,17 @@ class Template(object):
         return json.dumps(self.payload, indent=4)
 
 
-class Http(object):
+class Hook(object):
+    """
+    Abstraction for Argo Workflows exit hooks.
+    A hook consists of a Template, and one or more LifecycleHooks that trigger the template
+    """
+
+    template: "_Template"
+    lifecycle_hooks: List["_LifecycleHook"]
+
+
+class _Http(object):
     # https://argoproj.github.io/argo-workflows/fields/#http
 
     def __init__(self, method):
@@ -64,13 +99,20 @@ class Http(object):
 
 
 # HTTP hook
-class HttpExitHook(Template):
+class HttpExitHook(Hook):
     def __init__(
-        self, name, url, method="GET", headers=None, body=None, success_condition=None
+        self,
+        name,
+        url,
+        method="GET",
+        headers=None,
+        body=None,
+        success_condition=None,
+        on_success=False,
+        on_error=False,
     ):
-        super().__init__(name)
-
-        http = Http(method).url(url)
+        self.template = _Template(name)
+        http = _Http(method).url(url)
         if headers is not None:
             for header, value in headers.items():
                 http.header(header, value)
@@ -81,4 +123,32 @@ class HttpExitHook(Template):
         if success_condition is not None:
             http.success_condition(success_condition)
 
-        self.payload["http"] = http.to_json()
+        self.template.http(http)
+
+        self.lifecycle_hooks = []
+
+        if on_success and on_error:
+            raise Exception("Set only one of the on_success/on_error at a time.")
+
+        if on_success:
+            self.lifecycle_hooks.append(
+                _LifecycleHook(name)
+                .expression("workflow.status == 'Succeeded'")
+                .template(self.template.name)
+            )
+
+        if on_error:
+            self.lifecycle_hooks.append(
+                _LifecycleHook(name)
+                .expression("workflow.status == 'Error'")
+                .template(self.template.name)
+            )
+            self.lifecycle_hooks.append(
+                _LifecycleHook(f"{name}-failure")
+                .expression("workflow.status == 'Failure'")
+                .template(self.template.name)
+            )
+
+        if not on_success and not on_error:
+            # add an expressionless lifecycle hook
+            self.lifecycle_hooks.append(_LifecycleHook(name).template(name))

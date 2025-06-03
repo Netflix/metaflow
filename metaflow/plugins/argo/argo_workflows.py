@@ -2335,28 +2335,28 @@ class ArgoWorkflows(object):
         return templates
 
     # Return exit hook templates for workflow execution notifications.
-    def _exit_hook_templates(self):
-        templates = []
+    def _lifecycle_hooks(self):
+        hooks = []
         if self.notify_on_error:
-            templates.append(self._slack_error_template())
-            templates.append(self._pager_duty_alert_template())
-            templates.append(self._incident_io_alert_template())
+            hooks.append(self._slack_error_template())
+            hooks.append(self._pager_duty_alert_template())
+            hooks.append(self._incident_io_alert_template())
         if self.notify_on_success:
-            templates.append(self._slack_success_template())
-            templates.append(self._pager_duty_change_template())
-            templates.append(self._incident_io_change_template())
+            hooks.append(self._slack_success_template())
+            hooks.append(self._pager_duty_change_template())
+            hooks.append(self._incident_io_change_template())
 
         # Clean up None values from templates.
-        templates = list(filter(None, templates))
+        hooks = list(filter(None, hooks))
 
-        if self.notify_on_error or self.notify_on_success:
+        if hooks:
             # Warning: terrible hack to workaround a bug in Argo Workflow where the
             #          templates listed above do not execute unless there is an
             #          explicit exit hook. as and when this bug is patched, we should
             #          remove this effectively no-op template.
             # Note: We use the Http template because changing this to an actual no-op container had the side-effect of
             # leaving LifecycleHooks in a pending state even when they have finished execution.
-            templates.append(
+            hooks.append(
                 HttpExitHook(
                     name="exit-hook-hack",
                     method="GET",
@@ -2367,8 +2367,13 @@ class ArgoWorkflows(object):
                     success_condition="true == true",
                 )
             )
+        return hooks
+
+    def _exit_hook_templates(self):
+        templates = []
         if self.enable_error_msg_capture:
             templates.extend(self._error_msg_capture_hook_templates())
+
         return templates
 
     def _error_msg_capture_hook_templates(self):
@@ -2540,6 +2545,7 @@ class ArgoWorkflows(object):
                     "links": self._pager_duty_notification_links(),
                 }
             ),
+            on_error=True,
         )
 
     def _incident_io_alert_template(self):
@@ -2595,6 +2601,7 @@ class ArgoWorkflows(object):
                     },
                 }
             ),
+            on_error=True,
         )
 
     def _incident_io_change_template(self):
@@ -2650,6 +2657,7 @@ class ArgoWorkflows(object):
                     },
                 }
             ),
+            on_success=True,
         )
 
     def _incident_io_ui_urls_for_run(self):
@@ -2694,6 +2702,7 @@ class ArgoWorkflows(object):
                     "links": self._pager_duty_notification_links(),
                 }
             ),
+            on_success=True,
         )
 
     def _pager_duty_notification_links(self):
@@ -2802,6 +2811,7 @@ class ArgoWorkflows(object):
             method="POST",
             url=self.notify_slack_webhook_url,
             body=json.dumps(payload),
+            on_error=True,
         )
 
     def _slack_success_template(self):
@@ -2821,6 +2831,7 @@ class ArgoWorkflows(object):
             method="POST",
             url=self.notify_slack_webhook_url,
             body=json.dumps(payload),
+            on_success=True,
         )
 
     def _heartbeat_daemon_template(self):
@@ -4180,28 +4191,6 @@ class TriggerParameter(object):
 
     def dest(self, dest):
         self.payload["dest"] = dest
-        return self
-
-    def to_json(self):
-        return self.payload
-
-    def __str__(self):
-        return json.dumps(self.payload, indent=4)
-
-
-class LifecycleHook(object):
-    # https://argoproj.github.io/argo-workflows/fields/#lifecyclehook
-
-    def __init__(self):
-        tree = lambda: defaultdict(tree)
-        self.payload = tree()
-
-    def expression(self, expression):
-        self.payload["expression"] = str(expression)
-        return self
-
-    def template(self, template):
-        self.payload["template"] = template
         return self
 
     def to_json(self):
