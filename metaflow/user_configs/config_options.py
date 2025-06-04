@@ -221,13 +221,13 @@ class ConfigInput:
         if param_name == "config_value":
             self._value_values = {
                 k.lower(): v
-                for k, v in param_value
+                for k, v in param_value.items()
                 if v is not None and not v.startswith(_CONVERTED_DEFAULT)
             }
         else:
             self._path_values = {
                 k.lower(): v
-                for k, v in param_value
+                for k, v in param_value.items()
                 if v is not None and not v.startswith(_CONVERTED_DEFAULT)
             }
         if do_return:
@@ -329,11 +329,11 @@ class ConfigInput:
                 to_return[name] = None
                 flow_cls._flow_state[_FlowState.CONFIGS][name] = None
                 continue
-            if val.startswith(_CONVERTED_DEFAULT_NO_FILE):
-                no_default_file.append(name)
-                continue
             if val.startswith(_CONVERTED_NO_FILE):
                 no_file.append(name)
+                continue
+            if val.startswith(_CONVERTED_DEFAULT_NO_FILE):
+                no_default_file.append(name)
                 continue
 
             val = val[len(_CONVERT_PREFIX) :]  # Remove the _CONVERT_PREFIX
@@ -398,7 +398,7 @@ class ConfigInput:
         return self.process_configs(
             ctx.obj.flow.name,
             param.name,
-            value,
+            dict(value),
             ctx.params["quiet"],
             ctx.params["datastore"],
             click_obj=ctx.obj,
