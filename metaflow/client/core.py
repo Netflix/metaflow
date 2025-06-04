@@ -32,10 +32,8 @@ from metaflow.exception import (
 from metaflow.includefile import IncludedFile
 from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
 from metaflow.metaflow_environment import MetaflowEnvironment
-from metaflow.meta_files import MFCONF_DIR, MFENV_DIR
-from metaflow.package.mfenv import MFEnv
+from metaflow.packaging_sys import MFContent
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
-from metaflow.meta_files import MetaFile
 from metaflow.unbounded_foreach import CONTROL_TASK_TAG
 from metaflow.util import cached_property, is_stringish, resolve_identity, to_unicode
 
@@ -826,10 +824,7 @@ class MetaflowCode(object):
         )
         code_obj = BytesIO(blobdata)
         self._tar = tarfile.open(fileobj=code_obj, mode="r:gz")
-        info_str = MFEnv.get_archive_content(self._tar, MetaFile.INFO_FILE).decode(
-            encoding="utf-8"
-        )
-        self._info = json.loads(info_str)
+        self._info = MFContent.get_archive_info(self._tar)
         self._flowspec = self._tar.extractfile(self._info["script"]).read()
 
     @property
@@ -918,10 +913,8 @@ class MetaflowCode(object):
             # This file is created when using the conda/pypi features available in
             # nflx-metaflow-extensions: https://github.com/Netflix/metaflow-nflx-extensions
             "condav2-1.cnd",
-            # Going forward, we only need to exclude MFENV_DIR and MFCONF_DIR
-            MFENV_DIR,
-            MFCONF_DIR,
         ]
+        # TODO: REC -- fix to use MetaflowPackage class method
         members = [
             m
             for m in self.tarball.getmembers()

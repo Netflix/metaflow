@@ -15,7 +15,6 @@ from .debug import debug
 from .exception import CommandException, MetaflowException
 from .flowspec import _FlowState
 from .graph import FlowGraph
-from .meta_files import read_included_dist_info
 from .metaflow_config import (
     DEFAULT_DATASTORE,
     DEFAULT_DECOSPECS,
@@ -28,7 +27,7 @@ from .metaflow_config import (
 from .metaflow_current import current
 from metaflow.system import _system_monitor, _system_logger
 from .metaflow_environment import MetaflowEnvironment
-from .package.mfenv import PackagedDistributionFinder
+from .packaging_sys import MFContent
 from .plugins import (
     DATASTORES,
     ENVIRONMENTS,
@@ -329,9 +328,9 @@ def start(
     echo(" for *%s*" % resolve_identity(), fg="magenta")
 
     # Check if we need to setup the distribution finder (if running )
-    dist_info = read_included_dist_info()
+    dist_info = MFContent.get_distribution_finder()
     if dist_info:
-        sys.meta_path.append(PackagedDistributionFinder(dist_info))
+        sys.meta_path.append(dist_info)
 
     # Setup the context
     cli_args._set_top_kwargs(ctx.params)

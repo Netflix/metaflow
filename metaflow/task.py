@@ -605,6 +605,7 @@ class MetaflowTask(object):
         output.save_metadata(
             {
                 "task_begin": {
+                    "code_package_version": os.environ.get("METAFLOW_CODE_VERSION"),
                     "code_package_sha": os.environ.get("METAFLOW_CODE_SHA"),
                     "code_package_ds": os.environ.get("METAFLOW_CODE_DS"),
                     "code_package_url": os.environ.get("METAFLOW_CODE_URL"),

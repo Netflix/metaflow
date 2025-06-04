@@ -528,6 +528,7 @@ def make_flow(
         name,
         obj.graph,
         obj.flow,
+        obj.package,
         package_sha,
         package_url,
         token,

@@ -162,6 +162,7 @@ class KubernetesDecorator(StepDecorator):
         "qos": KUBERNETES_QOS,
         "security_context": None,
     }
+    package_version = None
     package_url = None
     package_sha = None
     run_time_limit = None
@@ -461,6 +462,7 @@ class KubernetesDecorator(StepDecorator):
             # to execute on Kubernetes anymore. We can execute possible fallback
             # code locally.
             cli_args.commands = ["kubernetes", "step"]
+            cli_args.command_args.append(self.package_version)
             cli_args.command_args.append(self.package_sha)
             cli_args.command_args.append(self.package_url)
 
@@ -634,6 +636,7 @@ class KubernetesDecorator(StepDecorator):
             cls.package_url, cls.package_sha = flow_datastore.save_data(
                 [package.blob], len_hint=1
             )[0]
+            cls.package_version = package.package_version
 
 
 # TODO: Unify this method with the multi-node setup in @batch

@@ -10,7 +10,7 @@ from metaflow.decorators import FlowDecorator, StepDecorator
 from metaflow.extension_support import EXT_PKG
 from metaflow.metadata_provider import MetaDatum
 from metaflow.metaflow_environment import InvalidEnvironmentException
-from metaflow.package.mfenv import MFEnv
+from metaflow.package.mfenv import MFContent
 from metaflow.meta_files import MetaFile
 from metaflow.util import get_metaflow_root
 
@@ -159,7 +159,7 @@ class CondaStepDecorator(StepDecorator):
             os.path.join(self.metaflow_dir.name, "metaflow"),
         )
 
-        info = MFEnv.get_filename(MetaFile.INFO_FILE)
+        info = MFContent.get_filename(MetaFile.INFO_FILE)
         # Symlink the INFO file as well to properly propagate down the Metaflow version
         if info:
             os.symlink(

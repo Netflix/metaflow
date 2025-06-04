@@ -100,6 +100,7 @@ def kill(ctx, run_id, user, my_runs):
     "Metaflow."
 )
 @click.argument("step-name")
+@click.argument("code-package-version")
 @click.argument("code-package-sha")
 @click.argument("code-package-url")
 @click.option("--executable", help="Executable requirement for AWS Batch.")
@@ -185,6 +186,7 @@ def kill(ctx, run_id, user, my_runs):
 def step(
     ctx,
     step_name,
+    code_package_version,
     code_package_sha,
     code_package_url,
     executable=None,
@@ -317,6 +319,7 @@ def step(
                 step_name,
                 step_cli,
                 task_spec,
+                code_package_version,
                 code_package_sha,
                 code_package_url,
                 ctx.obj.flow_datastore.TYPE,

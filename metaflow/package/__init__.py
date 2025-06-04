@@ -1,20 +1,25 @@
 import os
 import sys
 import time
-import json
 
 from hashlib import sha1
 from io import BytesIO
+from types import ModuleType
+from typing import List, Optional, TYPE_CHECKING, Type, cast
 
-
-from .mfenv import AddToPackageType, MFEnv, MFEnvV1
-from .tar_backend import TarPackagingBackend
-from .utils import walk
+from ..packaging_sys import MFContent
+from ..packaging_sys.tar_backend import TarPackagingBackend
+from ..packaging_sys.v1 import MFContentV1
+from ..packaging_sys.utils import walk
 from ..metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from ..exception import MetaflowException
-from ..meta_files import MFENV_DIR, MetaFile, get_metaflow_root, meta_file_name
 from ..user_configs.config_parameters import dump_config_values
+from ..util import get_metaflow_root
 from .. import R
+
+if TYPE_CHECKING:
+    import metaflow.packaging_sys
+    import metaflow.packaging_sys.backend
 
 DEFAULT_SUFFIXES_LIST = DEFAULT_PACKAGE_SUFFIXES.split(",")
 
@@ -33,21 +38,31 @@ class NonUniqueFileNameToFilePathMappingException(MetaflowException):
 
 
 class MetaflowPackage(object):
+
+    CODE_CONTENT = 0x1  # File being added is code
+    MODULE_CONTENT = 0x2  # File being added is a python module
+    OTHER_CONTENT = 0x4  # File being added is a non-python file
+
     def __init__(
         self,
         flow,
         environment,
         echo,
-        suffixes=DEFAULT_SUFFIXES_LIST,
-        code_env=None,
-        user_dir=None,
+        suffixes: List[str] = DEFAULT_SUFFIXES_LIST,
+        mfcontent: Optional["metaflow.packaging_sys.MFContent"] = None,
         exclude_tl_dirs=None,
-        package_code_env_path=MFENV_DIR,
-        package_user_path=None,
-        backend=TarPackagingBackend,
+        backend: Type[
+            "metaflow.packaging_sys.backend.PackagingBackend"
+        ] = TarPackagingBackend,
     ):
         self.suffixes = list(set().union(suffixes, DEFAULT_SUFFIXES_LIST))
 
+        if mfcontent is None:
+            self._mfcontent = MFContentV1(
+                criteria=lambda x: hasattr(x, "METAFLOW_PACKAGE"),
+            )
+        else:
+            self._mfcontent = mfcontent
         # We exclude the environment when packaging as this will be packaged separately.
         # This comes into play primarily if packaging from a node already running packaged
         # code.
@@ -55,12 +70,11 @@ class MetaflowPackage(object):
         # in sub-directories)
         # "_escape_trampolines" is a special directory where trampoline escape hatch
         # files are stored (used by Netflix Extension's Conda implementation).
-        self.exclude_tl_dirs = [MFENV_DIR, "_escape_trampolines"] + (
-            exclude_tl_dirs or []
+        self.exclude_tl_dirs = (
+            self._mfcontent.get_excluded_tl_entries()
+            + ["_escape_trampolines"]
+            + (exclude_tl_dirs or [])
         )
-
-        self.package_user_path = package_user_path
-        self.user_dir = user_dir
 
         self.environment = environment
         self.environment.init_environment(echo)
@@ -80,33 +94,36 @@ class MetaflowPackage(object):
         else:
             self.name = "generic code"
 
-        self._code_env = code_env or MFEnvV1(
-            lambda x: hasattr(x, "METAFLOW_PACKAGE"),
-            package_path=package_code_env_path,
-        )
-
         # Add metacontent
-        self._code_env.add_meta_content(
-            json.dumps(
-                self.environment.get_environment_info(include_ext_info=True)
-            ).encode("utf-8"),
-            MetaFile.INFO_FILE,
+        self._mfcontent.add_info(
+            self.environment.get_environment_info(include_ext_info=True)
         )
 
         if self._flow:
-            self._code_env.add_meta_content(
-                json.dumps(dump_config_values(self._flow)).encode("utf-8"),
-                MetaFile.CONFIG_FILE,
-            )
+            self._mfcontent.add_config(dump_config_values(self._flow))
 
             # Add user files (from decorators and environment)
             self._add_addl_files()
 
-        self.blob = self._make()
+        self._blob = None
+
+    @property
+    def blob(self):
+        if self._blob is None:
+            self._blob = self._make()
+        return self._blob
+
+    @property
+    def package_version(self):
+        return self._mfcontent.get_package_version()
+
+    @classmethod
+    def get_post_extract_commands(cls, version_id):
+        return MFContent.get_post_extract_commands(version_id)
 
     def path_tuples(self):
         # Files included in the environment
-        for path, arcname in self._code_env.content_names():
+        for path, arcname in self._mfcontent.content_names():
             yield path, arcname
 
         # Files included in the user code
@@ -123,27 +140,15 @@ class MetaflowPackage(object):
                 path_tuple = (
                     path_tuple[0],
                     path_tuple[1],
-                    AddToPackageType.CODE_FILE,
+                    self.CODE_CONTENT,
                 )
             file_path, file_name, file_type = path_tuple
-            if file_type == AddToPackageType.CODE_MODULE:
+            if file_type == self.MODULE_CONTENT:
                 if file_path in addl_modules:
                     return None  # Module was already added -- we don't add twice
                 addl_modules.add(file_path)
-            elif file_type == AddToPackageType.CONFIG_CONTENT:
-                # file_path is a content here (bytes)
-                file_name = meta_file_name(file_name)
-                if file_name not in deco_module_paths:
-                    deco_module_paths[file_name] = sha1(file_path).hexdigest()
-                elif deco_module_paths[file_name] != sha1(file_path).hexdigest():
-                    raise NonUniqueFileNameToFilePathMappingException(
-                        file_name,
-                        [
-                            deco_module_paths[file_name],
-                            sha1(file_path).hexdigest(),
-                        ],
-                    )
-            else:
+            elif file_type in (self.OTHER_CONTENT, self.CODE_CONTENT):
+                path_tuple = (os.path.realpath(path_tuple[0]), path_tuple[1], file_type)
                 # These are files
                 # Check if the path is not duplicated as
                 # many steps can have the same packages being imported
@@ -153,19 +158,19 @@ class MetaflowPackage(object):
                     raise NonUniqueFileNameToFilePathMappingException(
                         file_name, [deco_module_paths[file_name], file_path]
                     )
+            else:
+                raise ValueError(f"Unknown file type: {file_type}")
             return path_tuple
 
         def _add_tuple(path_tuple):
             file_path, file_name, file_type = path_tuple
-            if file_type == AddToPackageType.CODE_MODULE:
-                self._code_env.add_module(file_path)
-            elif file_type == AddToPackageType.CONFIG_CONTENT:
-                # file_path is a content here (bytes)
-                self._code_env.add_meta_content(file_path, file_name)
-            elif file_type == AddToPackageType.CONFIG_FILE:
-                self._code_env.add_meta_file(file_path, file_name)
-            else:
-                self._code_env.add_code_file(file_path, file_name)
+            if file_type == self.MODULE_CONTENT:
+                # file_path is actually a module
+                self._mfcontent.add_module(cast(ModuleType, file_path))
+            elif file_type == self.CODE_CONTENT:
+                self._mfcontent.add_code_file(file_path, file_name)
+            elif file_type == self.OTHER_CONTENT:
+                self._mfcontent.add_other_file(file_path, file_name)
 
         for step in self._flow:
             for deco in step.decorators:
@@ -192,36 +197,24 @@ class MetaflowPackage(object):
                 yield path_tuple
         else:
             # the user's working directory
-            if self.user_dir:
-                flowdir = os.path.abspath(self.user_dir)
-            else:
-                flowdir = os.path.dirname(os.path.abspath(sys.argv[0])) + "/"
+            flowdir = os.path.dirname(os.path.abspath(sys.argv[0])) + "/"
 
             for path_tuple in walk(
                 flowdir, suffixes=self.suffixes, exclude_tl_dirs=self.exclude_tl_dirs
             ):
                 # TODO: This is where we will check if the file is already included
-                # in the mfenv portion using path_in_archive. If it is, we just need to
-                # include a symlink.
-                if self.package_user_path:
-                    yield (
-                        path_tuple[0],
-                        os.path.join(self.package_user_path, path_tuple[1]),
-                    )
-                else:
-                    yield path_tuple
+                # in the mfcontent portion
+                yield path_tuple
 
     def _make(self):
         backend = self._backend()
         with backend.create() as archive:
             # Package the environment
-            for path, arcname in self._code_env.content(AddToPackageType.FILES_ONLY):
-                archive.add_file(path, arcname=arcname)
-
-            for content, arcname in self._code_env.content(
-                AddToPackageType.CONFIG_CONTENT
-            ):
-                archive.add_data(BytesIO(content), arcname=arcname)
+            for path_or_bytes, arcname in self._mfcontent.content():
+                if isinstance(path_or_bytes, str):
+                    archive.add_file(path_or_bytes, arcname=arcname)
+                else:
+                    archive.add_data(BytesIO(path_or_bytes), arcname=arcname)
 
             # Package the user code
             for path, arcname in self._user_code_tuples():

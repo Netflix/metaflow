@@ -8,8 +8,8 @@ from . import metaflow_git
 from metaflow.exception import MetaflowException
 from metaflow.extension_support import dump_module_info
 from metaflow.mflog import BASH_MFLOG, BASH_FLUSH_LOGS
+from metaflow.package import MetaflowPackage
 
-from .meta_files import MFENV_DIR
 from . import R
 
 
@@ -177,30 +177,36 @@ class MetaflowEnvironment(object):
         # skip pip installs if we know that packages might already be available
         return "if [ -z $METAFLOW_SKIP_INSTALL_DEPENDENCIES ]; then {}; fi".format(cmd)
 
-    def get_package_commands(self, code_package_url, datastore_type):
-        cmds = [
-            BASH_MFLOG,
-            BASH_FLUSH_LOGS,
-            "mflog 'Setting up task environment.'",
-            self._get_install_dependencies_cmd(datastore_type),
-            "mkdir metaflow",
-            "cd metaflow",
-            "mkdir .metaflow",  # mute local datastore creation log
-            "i=0; while [ $i -le 5 ]; do "
-            "mflog 'Downloading code package...'; "
-            + self._get_download_code_package_cmd(code_package_url, datastore_type)
-            + " && mflog 'Code package downloaded.' && break; "
-            "sleep 10; i=$((i+1)); "
-            "done",
-            "if [ $i -gt 5 ]; then "
-            "mflog 'Failed to download code package from %s "
-            "after 6 tries. Exiting...' && exit 1; "
-            "fi" % code_package_url,
-            "TAR_OPTIONS='--warning=no-timestamp' tar xf job.tar",
-            "export PYTHONPATH=`pwd`/%s:$PYTHONPATH" % MFENV_DIR,
-            "mflog 'Task is starting.'",
-            "flush_mflogs",
-        ]
+    def get_package_commands(
+        self, code_package_version, code_package_url, datastore_type
+    ):
+        cmds = (
+            [
+                BASH_MFLOG,
+                BASH_FLUSH_LOGS,
+                "mflog 'Setting up task environment.'",
+                self._get_install_dependencies_cmd(datastore_type),
+                "mkdir metaflow",
+                "cd metaflow",
+                "mkdir .metaflow",  # mute local datastore creation log
+                "i=0; while [ $i -le 5 ]; do "
+                "mflog 'Downloading code package...'; "
+                + self._get_download_code_package_cmd(code_package_url, datastore_type)
+                + " && mflog 'Code package downloaded.' && break; "
+                "sleep 10; i=$((i+1)); "
+                "done",
+                "if [ $i -gt 5 ]; then "
+                "mflog 'Failed to download code package from %s "
+                "after 6 tries. Exiting...' && exit 1; "
+                "fi" % code_package_url,
+                "TAR_OPTIONS='--warning=no-timestamp' tar xf job.tar",
+            ]
+            + MetaflowPackage.get_post_extract_commands(code_package_version)
+            + [
+                "mflog 'Task is starting.'",
+                "flush_mflogs",
+            ]
+        )
         return cmds
 
     def get_environment_info(self, include_ext_info=False):

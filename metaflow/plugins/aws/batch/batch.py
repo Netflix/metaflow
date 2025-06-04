@@ -59,14 +59,24 @@ class Batch(object):
         self._client = BatchClient()
         atexit.register(lambda: self.job.kill() if hasattr(self, "job") else None)
 
-    def _command(self, environment, code_package_url, step_name, step_cmds, task_spec):
+    def _command(
+        self,
+        environment,
+        code_package_version,
+        code_package_url,
+        step_name,
+        step_cmds,
+        task_spec,
+    ):
         mflog_expr = export_mflog_env_vars(
             datastore_type="s3",
             stdout_path=STDOUT_PATH,
             stderr_path=STDERR_PATH,
             **task_spec
         )
-        init_cmds = environment.get_package_commands(code_package_url, "s3")
+        init_cmds = environment.get_package_commands(
+            code_package_version, code_package_url, "s3"
+        )
         init_expr = " && ".join(init_cmds)
         step_expr = bash_capture_logs(
             " && ".join(environment.bootstrap_commands(step_name, "s3") + step_cmds)
@@ -167,6 +177,7 @@ class Batch(object):
         step_name,
         step_cli,
         task_spec,
+        code_package_version,
         code_package_sha,
         code_package_url,
         code_package_ds,
@@ -210,7 +221,12 @@ class Batch(object):
             .job_queue(queue)
             .command(
                 self._command(
-                    self.environment, code_package_url, step_name, [step_cli], task_spec
+                    self.environment,
+                    code_package_version,
+                    code_package_url,
+                    step_name,
+                    [step_cli],
+                    task_spec,
                 )
             )
             .image(image)
@@ -249,6 +265,7 @@ class Batch(object):
             )
             .task_id(attrs.get("metaflow.task_id"))
             .environment_variable("AWS_DEFAULT_REGION", self._client.region())
+            .environment_variable("METAFLOW_CODE_VERSION", code_package_version)
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
             .environment_variable("METAFLOW_CODE_DS", code_package_ds)
@@ -334,6 +351,7 @@ class Batch(object):
         step_name,
         step_cli,
         task_spec,
+        code_package_version,
         code_package_sha,
         code_package_url,
         code_package_ds,
@@ -374,6 +392,7 @@ class Batch(object):
             step_name,
             step_cli,
             task_spec,
+            code_package_version,
             code_package_sha,
             code_package_url,
             code_package_ds,
