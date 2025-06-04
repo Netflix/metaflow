@@ -31,4 +31,4 @@ def rebuild(obj, steps):
 
     print(obj.flow)
     print(obj.environment)
-    obj.environment.init_environment(echo, steps)
+    obj.environment.init_environment(echo, only_steps=steps, force_rebuild=True)

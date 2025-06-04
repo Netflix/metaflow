@@ -32,6 +32,7 @@ class CondaEnvironmentException(MetaflowException):
 class CondaEnvironment(MetaflowEnvironment):
     TYPE = "conda"
     _filecache = None
+    _force_rebuild = False
 
     def __init__(self, flow):
         self.flow = flow
@@ -74,7 +75,8 @@ class CondaEnvironment(MetaflowEnvironment):
         micromamba = Micromamba(self.logger)
         self.solvers = {"conda": micromamba, "pypi": Pip(micromamba, self.logger)}
 
-    def init_environment(self, echo, only_steps=None):
+    def init_environment(self, echo, only_steps=None, force_rebuild=False):
+        self._force_rebuild = force_rebuild
         # The implementation optimizes for latency to ensure as many operations can
         # be turned into cheap no-ops as feasible. Otherwise, we focus on maintaining
         # a balance between latency and maintainability of code without re-implementing
@@ -107,7 +109,10 @@ class CondaEnvironment(MetaflowEnvironment):
             return (
                 id_,
                 (
-                    self.read_from_environment_manifest([id_, platform, type_])
+                    (
+                        not self._force_rebuild
+                        and self.read_from_environment_manifest([id_, platform, type_])
+                    )
                     or self.write_to_environment_manifest(
                         [id_, platform, type_],
                         self.solvers[type_].solve(id_, **environment),
@@ -153,7 +158,7 @@ class CondaEnvironment(MetaflowEnvironment):
             _meta = copy.deepcopy(local_packages)
             for id_, packages, _, _ in results:
                 for package in packages:
-                    if package.get("path"):
+                    if package.get("path") and not self._force_rebuild:
                         # Cache only those packages that manifest is unaware of
                         local_packages.pop(package["url"], None)
                     else:
@@ -186,7 +191,7 @@ class CondaEnvironment(MetaflowEnvironment):
             storage.save_bytes(
                 list_of_path_and_filehandle,
                 len_hint=len(list_of_path_and_filehandle),
-                # overwrite=True,
+                overwrite=self._force_rebuild,
             )
             for id_, packages, _, platform in results:
                 if id_ in dirty:
