@@ -1,5 +1,5 @@
 from metaflow._vendor import click
-from metaflow.cli import LOGGER_TIMESTAMP
+from metaflow.exception import MetaflowException
 
 
 @click.group()
@@ -7,7 +7,7 @@ def cli():
     pass
 
 
-@cli.group(help="Commands related to logs")
+@cli.group(help="Commands related to managing the conda/pypi environments")
 @click.pass_context
 def environment(ctx):
     # the logger is configured in cli.py
@@ -25,7 +25,18 @@ def environment(ctx):
 )
 @click.pass_obj
 def rebuild(obj, steps):
-    # possibly limiting steps to rebuild
-    steps = list(steps)
+    # possibly limiting steps to rebuild. make sure its a list and not a tuple
+    step_names = list(steps)
 
-    obj.environment.init_environment(echo, only_steps=steps, force_rebuild=True)
+    steps = [step for step in obj.flow if (step.name in step_names) or not step_names]
+
+    # Delete existing environments
+    for step in steps:
+        obj.environment.delete_environment(step)
+
+    if not hasattr(obj.environment, "disable_cache"):
+        raise MetaflowException("The environment does not support disabling the cache.")
+
+    # Disable the cache before initializing
+    obj.environment.disable_cache()
+    obj.environment.init_environment(echo, only_steps=step_names)
