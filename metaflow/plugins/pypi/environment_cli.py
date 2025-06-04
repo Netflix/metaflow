@@ -25,10 +25,7 @@ def environment(ctx):
 )
 @click.pass_obj
 def rebuild(obj, steps):
-
+    # possibly limiting steps to rebuild
     steps = list(steps)
-    print(steps, type(steps))
 
-    print(obj.flow)
-    print(obj.environment)
     obj.environment.init_environment(echo, only_steps=steps, force_rebuild=True)
