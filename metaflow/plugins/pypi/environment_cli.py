@@ -15,28 +15,36 @@ def environment(ctx):
     echo = ctx.obj.echo
 
 
-@environment.command(help="Rebuild the environment")
+@environment.command(help="Resolve the environment(s)")
 @click.option(
     "--step",
     "steps",
     multiple=True,
     default=[],
-    help="Steps to rebuild the environment",
+    help="Steps to resolve the environment for",
+)
+@click.option(
+    "--force/--no-force",
+    default=False,
+    is_flag=True,
+    help="Force re-resolving the environment(s)",
 )
 @click.pass_obj
-def rebuild(obj, steps):
-    # possibly limiting steps to rebuild. make sure its a list and not a tuple
+def resolve(obj, steps, force=False):
+    # possibly limiting steps to resolve. make sure its a list and not a tuple
     step_names = list(steps)
 
     steps = [step for step in obj.flow if (step.name in step_names) or not step_names]
 
-    # Delete existing environments
-    for step in steps:
-        obj.environment.delete_environment(step)
+    # Delete existing environments if we are rebuilding.
+    if force:
+        for step in steps:
+            obj.environment.delete_environment(step)
 
     if not hasattr(obj.environment, "disable_cache"):
         raise MetaflowException("The environment does not support disabling the cache.")
 
-    # Disable the cache before initializing
-    obj.environment.disable_cache()
+    # Disable the cache before initializing if we are rebuilding.
+    if force:
+        obj.environment.disable_cache()
     obj.environment.init_environment(echo, only_steps=step_names)
