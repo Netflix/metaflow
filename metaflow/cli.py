@@ -1,5 +1,6 @@
 import functools
 import inspect
+import os
 import sys
 import traceback
 from datetime import datetime
@@ -242,6 +243,14 @@ def version(obj):
     type=click.Choice(["local"] + [m.TYPE for m in ENVIRONMENTS]),
     help="Execution environment type",
 )
+@click.option(
+    "--force-rebuild-environment/--no-force-rebuild-environment",
+    is_flag=True,
+    default=False,
+    hidden=True,
+    type=bool,
+    help="Force rebuild the environment",
+)
 # See comment for --quiet
 @click.option(
     "--datastore",
@@ -300,6 +309,7 @@ def start(
     quiet=False,
     metadata=None,
     environment=None,
+    force_rebuild_environment=False,
     datastore=None,
     datastore_root=None,
     decospecs=None,
@@ -432,6 +442,9 @@ def start(
 
     ctx.obj.graph = ctx.obj.flow._graph
 
+    # carry the force rebuild as an internal env var for generic environments to use
+    if force_rebuild_environment:
+        os.environ["_MFENV_FORCE_REBUILD"] = "1"
     ctx.obj.environment = [
         e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == environment
     ][0](ctx.obj.flow)
