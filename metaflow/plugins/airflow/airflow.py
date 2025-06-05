@@ -440,8 +440,8 @@ class Airflow(object):
             limits={
                 **qos_limits,
                 **{
-                    "%s.com/gpu".lower()
-                    % k8s_deco.attributes["gpu_vendor"]: str(k8s_deco.attributes["gpu"])
+                    ("%s.com/%s".lower()
+                    % (k8s_deco.attributes["gpu_vendor"], k8s_deco.attributes["gpu_type"])): str(k8s_deco.attributes["gpu"])
                     for k in [0]
                     # Don't set GPU limits if gpu isn't specified.
                     if k8s_deco.attributes["gpu"] is not None
