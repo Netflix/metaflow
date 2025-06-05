@@ -51,8 +51,11 @@ def before_run(obj, tags, decospecs):
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     # obj.environment.init_environment(obj.logger)
 
+    # decorators._init_step_decorators(
+    #     obj.flow, obj.graph, obj.environment, obj.effective_flow_datastore, obj.logger
+    # )
     decorators._init_step_decorators(
-        obj.flow, obj.graph, obj.environment, obj.effective_flow_datastore, obj.logger
+        obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
     )
 
     obj.metadata.add_sticky_tags(tags=tags)
@@ -448,14 +451,19 @@ def spin(
     obj.echo(
         f"Spinning up step *{step_name}* locally using previous task pathspec *{spin_pathspec}*"
     )
+    # Set spin_pathspec of flow_datastore
+    obj.flow_datastore.is_spin = True
+    # obj.flow_datastore.spin_pathspec = spin_pathspec
     obj.flow._set_constants(obj.graph, kwargs, obj.config_options)
     step_func = getattr(obj.flow, step_name)
 
     spin_runtime = SpinRuntime(
         obj.flow,
         obj.graph,
-        obj.effective_flow_datastore,
-        obj.effective_metadata,
+        obj.flow_datastore,
+        obj.metadata,
+        # obj.effective_flow_datastore,
+        # obj.effective_metadata,
         obj.environment,
         obj.package,
         obj.logger,
