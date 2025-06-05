@@ -269,7 +269,7 @@ def spin_step(
         echo = echo_always
 
     input_paths = decompress_list(input_paths) if input_paths else []
-    echo(
+    echo_always(
         f"Spinning a task, *{step_name}* with previous task pathspec: {spin_pathspec}",
         fg="magenta",
         bold=False,
@@ -277,41 +277,50 @@ def spin_step(
     # if namespace is not None:
     #     namespace(namespace or None)
 
-    spin_artifacts = read_artifacts_module(artifacts_module) if artifacts_module else {}
-    spin_artifacts = spin_artifacts.get("ARTIFACTS", {})
+    # spin_artifacts = read_artifacts_module(artifacts_module) if artifacts_module else {}
+    # spin_artifacts = spin_artifacts.get("ARTIFACTS", {})
 
-    print(f"spin_artifacts: {spin_artifacts}")
+    # Set spin_pathspec of flow_datastore
+    ctx.obj.flow_datastore.is_spin = True
+
+    print(f"ctx.obj.flow_datastore: {ctx.obj.flow_datastore}")
+    print(f"ctx.obj.flow_datastore.is_spin: {ctx.obj.flow_datastore.is_spin}")
+    print(f"ctx.obj.metadata: {ctx.obj.metadata}")
+    print(f"type(ctx.obj.metadata): {type(ctx.obj.metadata)}")
+    # print(f"spin_artifacts: {spin_artifacts}")
     print(f"spin_pathspec: {spin_pathspec}")
     print(f"input_paths: {input_paths}")
+    print(f"ctx.obj.flow: {ctx.obj.flow}")
 
-    # task = MetaflowTask(
-    #     ctx.obj.flow,
-    #     ctx.obj.effective_flow_datastore,  # local datastore
-    #     ctx.obj.effective_metadata,  # local metadata provider
-    #     ctx.obj.environment,  # local environment
-    #     ctx.obj.echo,
-    #     ctx.obj.event_logger,  # null logger
-    #     ctx.obj.monitor,  # null monitor
-    #     None,  # no unbounded foreach context
-    # )
-    # echo(
-    #     "I am here",
+    task = MetaflowTask(
+        ctx.obj.flow,
+        ctx.obj.flow_datastore,
+        ctx.obj.metadata,
+        ctx.obj.environment,
+        ctx.obj.echo,
+        ctx.obj.event_logger,
+        ctx.obj.monitor,
+        None,  # no unbounded foreach context
+    )
+    # echo_always(
+    #     "I am here Shashank",
     #     fg="magenta",
     #     bold=False,
     # )
+    print(f"task: {task}")
+    #
+    task.run_step(
+        step_name,
+        run_id,
+        task_id,
+        None,
+        input_paths,
+        split_index,
+        retry_count,
+        max_user_code_retries,
+        # spin_pathspec,
+        # skip_decorators,
+        # spin_artifacts,
+    )
 
-    # task.run_step(
-    #     step_name,
-    #     run_id,
-    #     task_id,
-    #     None,
-    #     input_paths,
-    #     split_index,
-    #     retry_count,
-    #     max_user_code_retries,
-    #     spin_pathspec,
-    #     skip_decorators,
-    #     spin_artifacts,
-    # )
-
-    echo(f"Time taken for the whole thing: {time.time() - start}")
+    echo_always(f"Time taken for the whole thing: {time.time() - start}")

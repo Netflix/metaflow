@@ -1599,6 +1599,7 @@ class Task(object):
             self._results_ds = self._flow_datastore.get_task_datastore(
                 self.run_id, self.step, self.task_id
             )
+            print("I am in results property")
             return self._results_ds
 
     @property
@@ -1889,6 +1890,7 @@ class Worker(object):
         # print('running', args)
         cmdline = args.get_args()
         debug.subcommand_exec(cmdline)
+        print(f"Command: {cmdline}")
         return subprocess.Popen(
             cmdline,
             env=env,
@@ -1970,6 +1972,7 @@ class Worker(object):
         # this shouldn't block, since terminate() is called only
         # after the poller has decided that the worker is dead
         returncode = self._proc.wait()
+        print(f"I am in terminate where returncode is {returncode}")
 
         # consume all remaining loglines
         # we set the file descriptor to be non-blocking, since
@@ -1992,6 +1995,7 @@ class Worker(object):
         # perform any log collection.
         if not self.task.is_cloned:
             print("I am in terminate where task is not cloned")
+            print("I am saving metadata and logs")
             self.task.save_metadata(
                 "runtime",
                 {
@@ -2000,7 +2004,9 @@ class Worker(object):
                     "success": returncode == 0,
                 },
             )
+            print(f"Saving metadata for task is done")
             if returncode:
+                print("I am in if returncode")
                 if not self.killed:
                     if returncode == -11:
                         self.emit_log(
@@ -2011,7 +2017,11 @@ class Worker(object):
                     else:
                         self.emit_log(b"Task failed.", self._stderr, system_msg=True)
             else:
+                print("I am in else of terminate")
+                print(f"flow: {self.task.flow}")
+                # print(f"dadada: {self.task.flow._foreach_num_splits}")
                 num = self.task.results["_foreach_num_splits"]
+                print(f"I am in {num} splits")
                 if num:
                     self.task.log(
                         "Foreach yields %d child steps." % num,
@@ -2021,6 +2031,7 @@ class Worker(object):
                 self.task.log(
                     "Task finished successfully.", system_msg=True, pid=self._proc.pid
                 )
+            print("I am just before task.save_logs")
             self.task.save_logs(
                 {
                     "stdout": self._stdout.get_buffer(),

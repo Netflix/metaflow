@@ -483,29 +483,46 @@ def start(
         # - null event logger,
         # - null monitor
         ctx.obj.is_spin = True
-        ctx.obj.spin_metadata = [m for m in METADATA_PROVIDERS if m.TYPE == "spin"][0](
-            ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
-        )
         ctx.obj.event_logger = LOGGING_SIDECARS["nullSidecarLogger"](
             flow=ctx.obj.flow, env=ctx.obj.environment
         )
         ctx.obj.monitor = MONITOR_SIDECARS["nullSidecarMonitor"](
             flow=ctx.obj.flow, env=ctx.obj.environment
         )
-        ctx.obj.spin_datastore_impl = [d for d in DATASTORES if d.TYPE == "local"][0]
+        ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == "spin"][0](
+            ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
+        )
+        ctx.obj.datastore_impl = [d for d in DATASTORES if d.TYPE == "local"][0]
         if datastore_root is None:
-            datastore_root = ctx.obj.spin_datastore_impl.get_datastore_root_from_config(
+            datastore_root = ctx.obj.datastore_impl.get_datastore_root_from_config(
                 ctx.obj.echo
             )
-        ctx.obj.spin_datastore_impl.datastore_root = datastore_root
-        ctx.obj.spin_flow_datastore = FlowDataStore(
+        ctx.obj.datastore_impl.datastore_root = datastore_root
+        ctx.obj.flow_datastore = FlowDataStore(
             ctx.obj.flow.name,
             ctx.obj.environment,  # Same environment as run/resume
-            ctx.obj.spin_metadata,  # spin metadata provider (no-op)
+            ctx.obj.metadata,  # spin metadata provider (no-op)
             ctx.obj.event_logger,  # null event logger
             ctx.obj.monitor,  # null monitor
-            storage_impl=ctx.obj.spin_datastore_impl,
+            storage_impl=ctx.obj.datastore_impl,
         )
+        # ctx.obj.spin_metadata = [m for m in METADATA_PROVIDERS if m.TYPE == "spin"][0](
+        #     ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
+        # )
+        # ctx.obj.spin_datastore_impl = [d for d in DATASTORES if d.TYPE == "local"][0]
+        # if datastore_root is None:
+        #     datastore_root = ctx.obj.spin_datastore_impl.get_datastore_root_from_config(
+        #         ctx.obj.echo
+        #     )
+        # ctx.obj.spin_datastore_impl.datastore_root = datastore_root
+        # ctx.obj.spin_flow_datastore = FlowDataStore(
+        #     ctx.obj.flow.name,
+        #     ctx.obj.environment,  # Same environment as run/resume
+        #     ctx.obj.spin_metadata,  # spin metadata provider (no-op)
+        #     ctx.obj.event_logger,  # null event logger
+        #     ctx.obj.monitor,  # null monitor
+        #     storage_impl=ctx.obj.spin_datastore_impl,
+        # )
 
     # Start event logger and monitor
     ctx.obj.event_logger.start()
@@ -514,12 +531,12 @@ def start(
     ctx.obj.monitor.start()
     _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
 
-    ctx.obj.effective_flow_datastore = (
-        ctx.obj.spin_flow_datastore if ctx.obj.is_spin else ctx.obj.flow_datastore
-    )
-    ctx.obj.effective_metadata = (
-        ctx.obj.spin_metadata if ctx.obj.is_spin else ctx.obj.metadata
-    )
+    # ctx.obj.effective_flow_datastore = (
+    #     ctx.obj.spin_flow_datastore if ctx.obj.is_spin else ctx.obj.flow_datastore
+    # )
+    # ctx.obj.effective_metadata = (
+    #     ctx.obj.spin_metadata if ctx.obj.is_spin else ctx.obj.metadata
+    # )
 
     decorators._init(ctx.obj.flow)
 
@@ -529,8 +546,10 @@ def start(
         ctx.obj.flow,
         ctx.obj.graph,
         ctx.obj.environment,
-        ctx.obj.effective_flow_datastore,
-        ctx.obj.effective_metadata,
+        # ctx.obj.effective_flow_datastore,
+        # ctx.obj.effective_metadata,
+        ctx.obj.flow_datastore,
+        ctx.obj.metadata,
         ctx.obj.logger,
         echo,
         deco_options,
@@ -552,7 +571,8 @@ def start(
     parameters.set_parameter_context(
         ctx.obj.flow.name,
         ctx.obj.echo,
-        ctx.obj.effective_flow_datastore,
+        # ctx.obj.effective_flow_datastore,
+        ctx.obj.flow_datastore,
         {
             k: ConfigValue(v) if v is not None else None
             for k, v in ctx.obj.flow.__class__._flow_state.get(

@@ -5,6 +5,7 @@ from .. import metaflow_config
 
 from .content_addressed_store import ContentAddressedStore
 from .task_datastore import TaskDataStore
+from .spin_datastore import SpinDataStore
 
 
 class FlowDataStore(object):
@@ -58,6 +59,8 @@ class FlowDataStore(object):
         self.metadata = metadata
         self.logger = event_logger
         self.monitor = monitor
+        # Set to None unless its a spin step
+        self.is_spin = False
 
         self.ca_store = ContentAddressedStore(
             self._storage_impl.path_join(self.flow_name, "data"), self._storage_impl
@@ -213,6 +216,20 @@ class FlowDataStore(object):
         mode="r",
         allow_not_done=False,
     ):
+        # print(f"Is spin: {self.is_spin}")
+        if self.is_spin:
+            print(
+                f"Using SpinDataStore for {self.flow_name} {run_id} {step_name} {task_id}"
+            )
+            # This is a spin step, so we need to use the spin datastore
+            tp = SpinDataStore(
+                flow_name=self.flow_name,
+                run_id=run_id,
+                step_name=step_name,
+                task_id=task_id,
+            )
+            print(f"SpinDataStore created: {tp}")
+            return tp
         return TaskDataStore(
             self,
             run_id,
