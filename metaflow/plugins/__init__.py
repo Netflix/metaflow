@@ -18,6 +18,7 @@ CLIS_DESC = [
     ("tag", ".tag_cli.cli"),
     ("spot-metadata", ".kubernetes.spot_metadata_cli.cli"),
     ("logs", ".logs_cli.cli"),
+    ("environment", ".pypi.environment_cli.cli"),
 ]
 
 # Add additional commands to the runner here
