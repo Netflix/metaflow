@@ -107,7 +107,6 @@ class HttpExitHook(Hook):
         method="GET",
         headers=None,
         body=None,
-        success_condition=None,
         on_success=False,
         on_error=False,
     ):
@@ -119,9 +118,6 @@ class HttpExitHook(Hook):
 
         if body is not None:
             http.body(json.dumps(body))
-
-        if success_condition is not None:
-            http.success_condition(success_condition)
 
         self.template.http(http)
 
@@ -152,3 +148,35 @@ class HttpExitHook(Hook):
         if not on_success and not on_error:
             # add an expressionless lifecycle hook
             self.lifecycle_hooks.append(_LifecycleHook(name).template(name))
+
+
+class ExitHookHack(Hook):
+    # Warning: terrible hack to workaround a bug in Argo Workflow where the
+    #          templates listed above do not execute unless there is an
+    #          explicit exit hook. as and when this bug is patched, we should
+    #          remove this effectively no-op template.
+    # Note: We use the Http template because changing this to an actual no-op container had the side-effect of
+    # leaving LifecycleHooks in a pending state even when they have finished execution.
+    def __init__(
+        self,
+        url,
+        headers=None,
+        body=None,
+    ):
+        self.template = _Template("exit-hook-hack")
+        http = _Http("GET").url(url)
+        if headers is not None:
+            for header, value in headers.items():
+                http.header(header, value)
+
+        if body is not None:
+            http.body(json.dumps(body))
+
+        http.success_condition("true == true")
+
+        self.template.http(http)
+
+        self.lifecycle_hooks = []
+
+        # add an expressionless lifecycle hook
+        self.lifecycle_hooks.append(_LifecycleHook("exit").template("exit-hook-hack"))

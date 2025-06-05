@@ -65,7 +65,7 @@ from metaflow.util import (
 )
 
 from .argo_client import ArgoClient
-from .exit_hooks import HttpExitHook
+from .exit_hooks import ExitHookHack, HttpExitHook
 from metaflow.util import resolve_identity
 
 
@@ -796,6 +796,7 @@ class ArgoWorkflows(object):
 
         dag_annotation = {"metaflow/dag": json.dumps(graph_info)}
 
+        lifecycle_hooks = self._lifecycle_hooks()
         return (
             WorkflowTemplate()
             .metadata(
@@ -907,94 +908,17 @@ class ArgoWorkflows(object):
                 # Set exit hook handlers if notifications are enabled
                 .hooks(
                     {
-                        **(
-                            {
-                                # workflow status maps to Completed
-                                "notify-slack-on-success": LifecycleHook()
-                                .expression("workflow.status == 'Succeeded'")
-                                .template("notify-slack-on-success"),
-                            }
-                            if self.notify_on_success and self.notify_slack_webhook_url
-                            else {}
-                        ),
-                        **(
-                            {
-                                # workflow status maps to Completed
-                                "notify-pager-duty-on-success": LifecycleHook()
-                                .expression("workflow.status == 'Succeeded'")
-                                .template("notify-pager-duty-on-success"),
-                            }
-                            if self.notify_on_success
-                            and self.notify_pager_duty_integration_key
-                            else {}
-                        ),
-                        **(
-                            {
-                                # workflow status maps to Completed
-                                "notify-incident-io-on-success": LifecycleHook()
-                                .expression("workflow.status == 'Succeeded'")
-                                .template("notify-incident-io-on-success"),
-                            }
-                            if self.notify_on_success
-                            and self.notify_incident_io_api_key
-                            else {}
-                        ),
-                        **(
-                            {
-                                # workflow status maps to Failed or Error
-                                "notify-slack-on-failure": LifecycleHook()
-                                .expression("workflow.status == 'Failed'")
-                                .template("notify-slack-on-error"),
-                                "notify-slack-on-error": LifecycleHook()
-                                .expression("workflow.status == 'Error'")
-                                .template("notify-slack-on-error"),
-                            }
-                            if self.notify_on_error and self.notify_slack_webhook_url
-                            else {}
-                        ),
-                        **(
-                            {
-                                # workflow status maps to Failed or Error
-                                "notify-pager-duty-on-failure": LifecycleHook()
-                                .expression("workflow.status == 'Failed'")
-                                .template("notify-pager-duty-on-error"),
-                                "notify-pager-duty-on-error": LifecycleHook()
-                                .expression("workflow.status == 'Error'")
-                                .template("notify-pager-duty-on-error"),
-                            }
-                            if self.notify_on_error
-                            and self.notify_pager_duty_integration_key
-                            else {}
-                        ),
-                        **(
-                            {
-                                # workflow status maps to Failed or Error
-                                "notify-incident-io-on-failure": LifecycleHook()
-                                .expression("workflow.status == 'Failed'")
-                                .template("notify-incident-io-on-error"),
-                                "notify-incident-io-on-error": LifecycleHook()
-                                .expression("workflow.status == 'Error'")
-                                .template("notify-incident-io-on-error"),
-                            }
-                            if self.notify_on_error and self.notify_incident_io_api_key
-                            else {}
-                        ),
-                        # Warning: terrible hack to workaround a bug in Argo Workflow
-                        #          where the hooks listed above do not execute unless
-                        #          there is an explicit exit hook. as and when this
-                        #          bug is patched, we should remove this effectively
-                        #          no-op hook.
-                        **(
-                            {"exit": LifecycleHook().template("exit-hook-hack")}
-                            if self.notify_on_error or self.notify_on_success
-                            else {}
-                        ),
+                        lifecycle.name: lifecycle
+                        for hook in lifecycle_hooks
+                        for lifecycle in hook.lifecycle_hooks
                     }
                 )
                 # Top-level DAG template(s)
                 .templates(self._dag_templates())
                 # Container templates
                 .templates(self._container_templates())
+                # Lifecycle hook template(s)
+                .templates([hook.template for hook in lifecycle_hooks])
                 # Exit hook template(s)
                 .templates(self._exit_hook_templates())
                 # Sidecar templates (Daemon Containers)
@@ -2334,7 +2258,7 @@ class ArgoWorkflows(object):
             templates.append(self._heartbeat_daemon_template())
         return templates
 
-    # Return exit hook templates for workflow execution notifications.
+    # Return lifecycle hooks for workflow execution notifications.
     def _lifecycle_hooks(self):
         hooks = []
         if self.notify_on_error:
@@ -2350,21 +2274,12 @@ class ArgoWorkflows(object):
         hooks = list(filter(None, hooks))
 
         if hooks:
-            # Warning: terrible hack to workaround a bug in Argo Workflow where the
-            #          templates listed above do not execute unless there is an
-            #          explicit exit hook. as and when this bug is patched, we should
-            #          remove this effectively no-op template.
-            # Note: We use the Http template because changing this to an actual no-op container had the side-effect of
-            # leaving LifecycleHooks in a pending state even when they have finished execution.
             hooks.append(
-                HttpExitHook(
-                    name="exit-hook-hack",
-                    method="GET",
+                ExitHookHack(
                     url=(
                         self.notify_slack_webhook_url
                         or "https://events.pagerduty.com/v2/enqueue"
-                    ),
-                    success_condition="true == true",
+                    )
                 )
             )
         return hooks
