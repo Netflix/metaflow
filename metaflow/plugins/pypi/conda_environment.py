@@ -36,7 +36,9 @@ class CondaEnvironment(MetaflowEnvironment):
 
     def __init__(self, flow):
         self.flow = flow
-        self._force_rebuild = os.environ.get("_MFENV_FORCE_REBUILD", False)
+        self._force_rebuild = os.environ.get(
+            "_METAFLOW_ENVIRONMENT_FORCE_REBUILD", False
+        )
 
     def set_local_root(self, local_root):
         # TODO: Make life simple by passing echo to the constructor and getting rid of

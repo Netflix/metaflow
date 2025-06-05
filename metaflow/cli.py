@@ -244,12 +244,12 @@ def version(obj):
     help="Execution environment type",
 )
 @click.option(
-    "--force-rebuild-environment/--no-force-rebuild-environment",
+    "--force-rebuild-environments/--no-force-rebuild-environments",
     is_flag=True,
     default=False,
     hidden=True,
     type=bool,
-    help="Force rebuild the environment",
+    help="Explicitly rebuild the execution environments",
 )
 # See comment for --quiet
 @click.option(
@@ -309,7 +309,7 @@ def start(
     quiet=False,
     metadata=None,
     environment=None,
-    force_rebuild_environment=False,
+    force_rebuild_environments=False,
     datastore=None,
     datastore_root=None,
     decospecs=None,
@@ -443,8 +443,8 @@ def start(
     ctx.obj.graph = ctx.obj.flow._graph
 
     # carry the force rebuild as an internal env var for generic environments to use
-    if force_rebuild_environment:
-        os.environ["_MFENV_FORCE_REBUILD"] = "1"
+    if force_rebuild_environments:
+        os.environ["_METAFLOW_ENVIRONMENT_FORCE_REBUILD"] = "1"
     ctx.obj.environment = [
         e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == environment
     ][0](ctx.obj.flow)
