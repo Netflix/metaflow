@@ -18,7 +18,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-22.04]
+        os: [ubuntu-22.04]
         ver: ['3.8', '3.9', '3.10', '3.11', '3.12']
     
     steps:
@@ -33,7 +33,7 @@ jobs:
     - name: Install Python ${{ matrix.ver }} dependencies
       run: |
         python3 -m pip install --upgrade pip
-        python3 -m pip install . tox numpy pytest click boto3 requests pylint pytest-benchmark
+        python3 -m pip install . kubernetes tox numpy pytest click boto3 requests pylint pytest-benchmark
     - name: Start MinIO development environment
       run: |
           echo "Starting environment in the background..."
