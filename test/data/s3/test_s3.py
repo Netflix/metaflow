@@ -340,7 +340,7 @@ def test_put_many_benchmark(
 def test_init_options(inject_failure_rate, s3root, pathspecs, expected):
     [pathspec] = pathspecs
     flow_name, run_id = pathspec.split("/")
-    plen = len(s3root)
+    plen = len(s3root) + 1
 
     # option 1) s3root as prefix
     with S3(s3root=s3root) as s3:
@@ -780,7 +780,7 @@ def test_get_recursive(inject_failure_rate, s3root, prefixes, expected):
         )
 
         # prefixes must be returned in the order of prefixes requested
-        plen = len(s3root)
+        plen = len(s3root) + 1
         grouped = list(groupby(s3objs, lambda e: e.prefix[plen:]))
 
         assert nonempty_prefixes == [prefix for prefix, _ in grouped]
