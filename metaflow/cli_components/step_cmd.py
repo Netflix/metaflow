@@ -193,6 +193,12 @@ def step(
     help="Task ID for the step that's about to be spun",
 )
 @click.option(
+    "--spin-metadata",
+    default=None,
+    show_default=True,
+    help="Spin metadata provider to be used for fetching artifacts/data for the input datastore",
+)
+@click.option(
     "--spin-pathspec",
     default=None,
     show_default=True,
@@ -221,16 +227,21 @@ def step(
 )
 @click.option(
     "--namespace",
-    "namespace",
+    "opt_namespace",
     default=None,
     help="Change namespace from the default (your username) to the specified tag.",
 )
 @click.option(
-    "--skip-decorators/--no-skip-decorators",
-    is_flag=True,
-    default=False,
+    "--whitelist-decorators",
+    help="A comma-separated list of whitelisted decorators to use for the spin step",
+)
+@click.option(
+    "--persist/--no-persist",
+    "persist",
+    default=True,
     show_default=True,
-    help="Skip decorators attached to the step.",
+    help="Whether to persist the artifacts in the spun step. If set to false, the artifacts will not"
+    " be persisted and will not be available in the spun step's datastore.",
 )
 @click.option(
     "--artifacts-module",
@@ -247,14 +258,16 @@ def spin_step(
     step_name,
     run_id=None,
     task_id=None,
+    spin_metadata=None,
     spin_pathspec=None,
     input_paths=None,
     split_index=None,
     retry_count=None,
     max_user_code_retries=None,
-    namespace=None,
-    skip_decorators=False,
+    opt_namespace=None,
+    whitelist_decorators=None,
     artifacts_module=None,
+    persist=True,
 ):
     import time
 
@@ -262,53 +275,37 @@ def spin_step(
     import sys
 
     if ctx.obj.is_quiet:
-        print("Echo dev null")
         echo = echo_dev_null
     else:
-        print("Echo always")
         echo = echo_always
 
+    if opt_namespace is not None:
+        namespace(opt_namespace or None)
+
     input_paths = decompress_list(input_paths) if input_paths else []
-    echo_always(
-        f"Spinning a task, *{step_name}* with previous task pathspec: {spin_pathspec}",
-        fg="magenta",
-        bold=False,
+    # echo_always(
+    #     f"Spinning a task, *{step_name}* with previous task pathspec: {spin_pathspec}",
+    #     fg="magenta",
+    #     bold=True,
+    # )
+
+    whitelist_decorators = (
+        decompress_list(whitelist_decorators) if whitelist_decorators else []
     )
-    # if namespace is not None:
-    #     namespace(namespace or None)
-
-    # spin_artifacts = read_artifacts_module(artifacts_module) if artifacts_module else {}
-    # spin_artifacts = spin_artifacts.get("ARTIFACTS", {})
-
-    # Set spin_pathspec of flow_datastore
-    ctx.obj.flow_datastore.is_spin = True
-
-    print(f"ctx.obj.flow_datastore: {ctx.obj.flow_datastore}")
-    print(f"ctx.obj.flow_datastore.is_spin: {ctx.obj.flow_datastore.is_spin}")
-    print(f"ctx.obj.metadata: {ctx.obj.metadata}")
-    print(f"type(ctx.obj.metadata): {type(ctx.obj.metadata)}")
-    # print(f"spin_artifacts: {spin_artifacts}")
-    print(f"spin_pathspec: {spin_pathspec}")
-    print(f"input_paths: {input_paths}")
-    print(f"ctx.obj.flow: {ctx.obj.flow}")
+    spin_artifacts = read_artifacts_module(artifacts_module) if artifacts_module else {}
 
     task = MetaflowTask(
         ctx.obj.flow,
         ctx.obj.flow_datastore,
         ctx.obj.metadata,
         ctx.obj.environment,
-        ctx.obj.echo,
+        echo,
         ctx.obj.event_logger,
         ctx.obj.monitor,
         None,  # no unbounded foreach context
+        spin_metadata=spin_metadata,
+        spin_artifacts=spin_artifacts,
     )
-    # echo_always(
-    #     "I am here Shashank",
-    #     fg="magenta",
-    #     bold=False,
-    # )
-    print(f"task: {task}")
-    #
     task.run_step(
         step_name,
         run_id,
@@ -318,9 +315,8 @@ def spin_step(
         split_index,
         retry_count,
         max_user_code_retries,
-        # spin_pathspec,
-        # skip_decorators,
-        # spin_artifacts,
+        whitelist_decorators,
+        persist,
     )
 
     echo_always(f"Time taken for the whole thing: {time.time() - start}")

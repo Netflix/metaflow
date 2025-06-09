@@ -1,187 +1,109 @@
-# A *read-only* datastore that fetches artifacts through Metaflow’s
-# Client API.  All mutating helpers are implemented as cheap no-ops so
-# that existing runtime paths which expect them won’t break.
-from types import MethodType, FunctionType
-from ..parameters import Parameter
-from .task_datastore import (
-    require_mode,
-)
+from typing import Dict, Any
+from .task_datastore import require_mode
 
 
-class SpinDataStore(object):
-    """
-    Minimal, read-only replacement for TaskDataStore.
+class SpinTaskDatastore(object):
+    def __init__(
+        self,
+        flow_name: str,
+        run_id: str,
+        step_name: str,
+        task_id: str,
+        spin_metadata: str,
+        spin_artifacts: Dict[str, Any],
+    ):
+        """
+        SpinTaskDatastore is a datastore for a task that is used to retrieve
+        artifacts and attributes for a spin step. It uses the task pathspec
+        from a previous execution of the step to access the artifacts and attributes.
 
-    Artefacts are lazily materialised through the Metaflow Client
-    (`metaflow.Task(...).data`).  All write/side-effecting methods are
-    stubbed out.
-    """
-
-    def __init__(self, flow_name, run_id, step_name, task_id, mode="r"):
-        assert mode in ("r",)  # write modes unsupported
-        self._mode = mode
-        self._flow_name = flow_name
-        self._run_id = run_id
-        self._step_name = step_name
-        self._task_id = task_id
-        self._is_done_set = True  # always read-only
+        Parameters:
+        -----------
+        flow_name : str
+            Name of the flow
+        run_id : str
+            Run ID of the flow
+        step_name : str
+            Name of the step
+        task_id : str
+            Task ID of the step
+        spin_metadata : str
+            Metadata for the spin task, typically a URI to the metadata service.
+        spin_artifacts : Dict[str, Any]
+            User provided artifacts that are to be used in the spin task. This is a dictionary
+            where keys are artifact names and values are the actual data or metadata.
+        """
+        self.flow_name = flow_name
+        self.run_id = run_id
+        self.step_name = step_name
+        self.task_id = task_id
+        self.spin_metadata = spin_metadata
+        self.spin_artifacts = spin_artifacts
         self._task = None
 
-    # Public API
-    @property
-    def pathspec(self):
-        return f"{self._run_id}/{self._step_name}/{self._task_id}"
+        # Update _objects and _info in order to persist artifacts
+        # See `persist` method in `TaskDatastore` for more details
+        self._objects = {}
+        self._info = {}
 
-    @property
-    def run_id(self):
-        return self._run_id
-
-    @property
-    def step_name(self):
-        return self._step_name
-
-    @property
-    def task_id(self):
-        return self._task_id
+        for artifact in self.task.artifacts:
+            self._objects[artifact.id] = artifact.sha
+            # Fulfills the contract for _info: name -> metadata
+            self._info[artifact.id] = {
+                "size": artifact.size,
+                "encoding": artifact._object["content_type"],
+            }
 
     @property
     def task(self):
         if self._task is None:
-            # Metaflow client task handle
-            # from metaflow.client.core import get_metadata
+            # Initialize the metaflow
             from metaflow import Task
 
-            # tp = get_metadata()
-            # print(f"tp: {tp}")
-            # print("LALALALA")
+            # print(f"Setting task with metadata: {self.spin_metadata} and pathspec: {self.run_id}/{self.step_name}/{self.task_id}")
             self._task = Task(
-                f"{self._flow_name}/{self._run_id}/{self._step_name}/{self._task_id}",
+                f"{self.flow_name}/{self.run_id}/{self.step_name}/{self.task_id}",
                 _namespace_check=False,
-                _current_metadata="mli@https://mliservice.dynprod.netflix.net:7002/api/v0",
+                # We need to get this form the task pathspec somehow
+                _current_metadata=self.spin_metadata,
             )
-            # print(f"_metaflow: {self._task._metaflow}")
         return self._task
 
-    # artifact access and iteration helpers
     @require_mode(None)
     def __getitem__(self, name):
-        print(f"I am in SpinDataStore __getitem__ for {name}")
         try:
-            # Attempt to access the artifact directly from the task
-            # Used for `_foreach_stack`, `_graph_info`, etc.
-            print(f"Task: {self.task}")
-            print(f"Task ID: {self.task.id}")
-            print(f"_graph_info: {self.task['_graph_info']}")
-            res = self.task.__getitem__(name)
-        except Exception as e:
-            print(f"Exception accessing {name} directly from task: {e}")
-            print(
-                f"Failed to access {name} directly from task, falling back to artifacts."
-            )
-            # If the direct access fails, fall back to the artifacts
+            # Check if it's an artifact in the spin_artifacts
+            return self.spin_artifacts[name]
+        except Exception:
             try:
-                res = getattr(self.task.artifacts, name).data
-            except AttributeError:
-                raise AttributeError(
-                    f"Attribute '{name}' not found in the previous execution of the task for "
-                    f"`{self.step_name}`."
-                )
-        return res
-
-    @require_mode("r")
-    def __contains__(self, name):
-        return hasattr(self.task.artifacts, name)
-
-    @require_mode("r")
-    def __iter__(self):
-        for name in self.task.artifacts:
-            yield name, getattr(self.task.artifacts, name).data
-
-    @require_mode("r")
-    def keys_for_artifacts(self, names):
-        return [None for _ in names]
+                # Check if it's an attribute of the task
+                # _foreach_stack, _foreach_index, ...
+                return self.task.__getitem__(name).data
+            except Exception:
+                # If not an attribute, check if it's an artifact
+                try:
+                    return getattr(self.task.artifacts, name).data
+                except AttributeError:
+                    raise AttributeError(
+                        f"Attribute '{name}' not found in the previous execution of the task for "
+                        f"`{self.step_name}`."
+                    )
 
     @require_mode(None)
-    def load_artifacts(self, names):
-        for n in names:
-            yield n, getattr(self.task.artifacts, n).data
+    def is_none(self, name):
+        val = self.__getitem__(name)
+        return val is None
 
-    # metadata & logging helpers
-    def load_metadata(self, names, add_attempt=True):
-        return {n: None for n in names}
+    @require_mode(None)
+    def __contains__(self, name):
+        try:
+            _ = self.__getitem__(name)
+            return True
+        except AttributeError:
+            return False
 
-    def has_metadata(self, name, add_attempt=True):
-        return False
-
-    def get_log_location(self, *a, **k):
-        return None
-
-    def load_logs(self, *a, **k):
-        return []
-
-    def load_log_legacy(self, *a, **k):
-        return b""
-
-    def get_log_size(self, *a, **k):
-        return 0
-
-    def get_legacy_log_size(self, *a, **k):
-        return 0
-
-    # write-side no-ops
-    def init_task(self, *a, **k):
-        pass
-
-    def save_artifacts(self, *a, **k):
-        pass
-
-    def save_metadata(self, *a, **k):
-        pass
-
-    def _dangerous_save_metadata_post_done(self, *a, **k):
-        pass
-
-    def save_logs(self, *a, **k):
-        pass
-
-    def scrub_logs(self, *a, **k):
-        pass
-
-    def clone(self, *a, **k):
-        pass
-
-    def passdown_partial(self, *a, **k):
-        pass
-
-    def persist(self, flow, *a, **k):
-        # Should we just do __setitem__ or __setattr__ here?
-
-        print(f"flow: {flow}")
-        valid_artifacts = []
-        for var in dir(flow):
-            if var.startswith("__") or var in flow._EPHEMERAL:
-                continue
-            # Skip over properties of the class (Parameters or class variables)
-            if hasattr(flow.__class__, var) and isinstance(
-                getattr(flow.__class__, var), property
-            ):
-                continue
-
-            val = getattr(flow, var)
-            if not (
-                isinstance(val, MethodType)
-                or isinstance(val, FunctionType)
-                or isinstance(val, Parameter)
-            ):
-                valid_artifacts.append((var, val))
-
-        print(f"valid_artifacts: {valid_artifacts}")
-        # Use __setattr__ to set the attributes on the SpinDataStore instance
-        for name, value in valid_artifacts:
-            # print(f"Setting {name} to {value}")
-            setattr(self, name, value)
-        # print("Calling persist on SpinDataStore, which is a no-op.")
-        pass
-
-    def done(self, *a, **k):
-        pass
+    @require_mode(None)
+    def items(self):
+        if self._objects:
+            return self._objects.items()
+        return {}

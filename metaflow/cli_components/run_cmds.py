@@ -14,7 +14,7 @@ from ..runtime import NativeRuntime, SpinRuntime
 from ..system import _system_logger
 
 from ..tagging_util import validate_tags
-from ..util import get_latest_run_id, write_latest_run_id, get_latest_task_pathspec
+from ..util import get_latest_run_id, write_latest_run_id
 
 
 def before_run(obj, tags, decospecs):
@@ -397,7 +397,13 @@ def run(
 
 
 @click.command(help="Spins up a task for a given step from a previous run locally.")
-@click.argument("spin-pathspec")
+@click.argument("step-name")
+@click.option(
+    "--spin-pathspec",
+    default=None,
+    type=str,
+    help="Use specified task pathspec from a previous run to spin up the step.",
+)
 @click.option(
     "--skip-decorators/--no-skip-decorators",
     is_flag=True,
@@ -415,6 +421,14 @@ def run(
     "the spun step.",
 )
 @click.option(
+    "--persist/--no-persist",
+    "persist",
+    default=True,
+    show_default=True,
+    help="Whether to persist the artifacts in the spun step. If set to false, the artifacts will not"
+    " be persisted and will not be available in the spun step's datastore.",
+)
+@click.option(
     "--max-log-size",
     default=10,
     show_default=True,
@@ -426,7 +440,9 @@ def run(
 @click.pass_obj
 def spin(
     obj,
+    step_name,
     spin_pathspec=None,
+    persist=True,
     artifacts_module=None,
     skip_decorators=False,
     max_log_size=None,
@@ -435,25 +451,7 @@ def spin(
     **kwargs
 ):
     before_run(obj, [], [])
-    # Verify whether the user has provided step-name or spin-pathspec
-    if "/" in spin_pathspec:
-        # spin_pathspec is in the form of a task pathspec
-        if len(spin_pathspec.split("/")) != 4:
-            raise CommandException(
-                "Invalid spin-pathspec format. Expected format: {flow_name}/{run_id}/{step_name}/{task_id}"
-            )
-        _, _, step_name, _ = spin_pathspec.split("/")
-    else:
-        # spin_pathspec is in the form of a step name
-        step_name = spin_pathspec
-        spin_pathspec = get_latest_task_pathspec(obj.flow.name, step_name)
-
-    obj.echo(
-        f"Spinning up step *{step_name}* locally using previous task pathspec *{spin_pathspec}*"
-    )
-    # Set spin_pathspec of flow_datastore
-    obj.flow_datastore.is_spin = True
-    # obj.flow_datastore.spin_pathspec = spin_pathspec
+    obj.echo(f"Spinning up step *{step_name}* locally for flow *{obj.flow.name}*")
     obj.flow._set_constants(obj.graph, kwargs, obj.config_options)
     step_func = getattr(obj.flow, step_name)
 
@@ -462,8 +460,6 @@ def spin(
         obj.graph,
         obj.flow_datastore,
         obj.metadata,
-        # obj.effective_flow_datastore,
-        # obj.effective_metadata,
         obj.environment,
         obj.package,
         obj.logger,
@@ -471,14 +467,21 @@ def spin(
         obj.event_logger,
         obj.monitor,
         step_func,
+        step_name,
         spin_pathspec,
         skip_decorators,
         artifacts_module,
+        persist,
         max_log_size * 1024 * 1024,
     )
 
     write_latest_run_id(obj, spin_runtime.run_id)
     write_file(run_id_file, spin_runtime.run_id)
+
+    # datastore_root is os.path.join(DATASTORE_SYSROOT_SPIN, DATASTORE_LOCAL_DIR)
+    # We only neeed the root for the metadata, i.e. the portion before DATASTORE_LOCAL_DIR
+    datastore_root = spin_runtime._flow_datastore._storage_impl.datastore_root
+    spin_metadata_root = datastore_root.rsplit("/", 1)[0]
     spin_runtime.execute()
 
     if runner_attribute_file:
@@ -489,7 +492,8 @@ def spin(
                     "step_name": step_name,
                     "run_id": spin_runtime.run_id,
                     "flow_name": obj.flow.name,
-                    "metadata": f"{obj.spin_metadata.__class__.TYPE}@{obj.spin_metadata.__class__.INFO}",
+                    # Store metadata in a format that can be used by the Runner API
+                    "metadata": f"{obj.metadata.__class__.TYPE}@{spin_metadata_root}",
                 },
                 f,
             )

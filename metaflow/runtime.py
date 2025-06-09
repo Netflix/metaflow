@@ -36,7 +36,7 @@ from .debug import debug
 from .decorators import flow_decorators
 from .flowspec import _FlowState
 from .mflog import mflog, RUNTIME_LOG_SOURCE
-from .util import to_unicode, compress_list, unicode_type
+from .util import to_unicode, compress_list, unicode_type, get_latest_task_pathspec
 from .clone_util import clone_task_helper
 from .unbounded_foreach import (
     CONTROL_TASK_TAG,
@@ -87,9 +87,11 @@ class SpinRuntime(object):
         event_logger,
         monitor,
         step_func,
+        step_name,
         spin_pathspec,
         skip_decorators=False,
         artifacts_module=None,
+        persist=True,
         max_log_size=MAX_LOG_SIZE,
     ):
         from metaflow import Task
@@ -106,8 +108,25 @@ class SpinRuntime(object):
         self._monitor = monitor
 
         self._step_func = step_func
+
+        # Verify whether the use has provided step-name or spin-pathspec
+        if not spin_pathspec:
+            task = get_latest_task_pathspec(flow.name, step_name)
+        else:
+            # The user already provided a spin-pathspec, verify if its valid
+            try:
+                task = Task(spin_pathspec, _namespace_check=False)
+            except Exception:
+                raise MetaflowException(
+                    f"Invalid spin-pathspec: {spin_pathspec} for step: {step_name}"
+                )
+
+        spin_pathspec = task.pathspec
+        spin_metadata = task._metaflow.metadata.metadata_str()
+        self._spin_metadata = spin_metadata
         self._spin_pathspec = spin_pathspec
-        self._spin_task = Task(self._spin_pathspec, _namespace_check=False)
+        self._persist = persist
+        self._spin_task = task
         self._input_paths = None
         self._split_index = None
         self._whitelist_decorators = None
@@ -120,17 +139,17 @@ class SpinRuntime(object):
         # Create a new run_id for the spin task
         self.run_id = self._metadata.new_run_id()
         for deco in self.whitelist_decorators:
-            # print("-" * 100)
             deco.runtime_init(flow, graph, package, self.run_id)
 
     @property
     def split_index(self):
-        if self._split_index:
-            return self._split_index
+        """
+        Returns the split index, caching the result after the first access.
+        """
+        if self._split_index is None:
+            self._split_index = getattr(self._spin_task, "index", None)
 
-        if hasattr(self._spin_task, "index"):
-            self._split_index = self._spin_task.index
-            return self._split_index
+        return self._split_index
 
     @property
     def input_paths(self):
@@ -202,9 +221,7 @@ class SpinRuntime(object):
             else:
                 self._config_file_name = None
 
-            # print("I am before _new_task")
             self.task = self._new_task(self._step_func.name, self.input_paths)
-            # print(f"I am after _new_task")
             try:
                 self._launch_and_monitor_task()
             except Exception as ex:
@@ -216,17 +233,16 @@ class SpinRuntime(object):
                     deco.runtime_finished(exception)
 
     def _launch_and_monitor_task(self):
-        # print("I am in _launch_and_monitor_task")
         worker = Worker(
             self.task,
             self._max_log_size,
             self._config_file_name,
+            spin_metadata=self._spin_metadata,
             spin_pathspec=self._spin_pathspec,
-            skip_decorators=self._skip_decorators,
+            whitelist_decorators=self.whitelist_decorators,
             artifacts_module=self._artifacts_module,
+            persist=self._persist,
         )
-
-        # print("Worker created")
 
         poll = procpoll.make_poll()
         fds = worker.fds()
@@ -1599,7 +1615,6 @@ class Task(object):
             self._results_ds = self._flow_datastore.get_task_datastore(
                 self.run_id, self.step, self.task_id
             )
-            print("I am in results property")
             return self._results_ds
 
     @property
@@ -1691,12 +1706,20 @@ class CLIArgs(object):
     """
 
     def __init__(
-        self, task, spin_pathspec=None, skip_decorators=False, artifacts_module=None
+        self,
+        task,
+        spin_metadata=None,
+        spin_pathspec=None,
+        whitelist_decorators=None,
+        artifacts_module=None,
+        persist=True,
     ):
         self.task = task
+        self.spin_metadata = spin_metadata
         self.spin_pathspec = spin_pathspec
-        self.skip_decorators = skip_decorators
+        self.whitelist_decorators = whitelist_decorators
         self.artifacts_module = artifacts_module
+        self.persist = persist
         self.entrypoint = list(task.entrypoint)
         self.top_level_options = {
             "quiet": True,
@@ -1754,6 +1777,8 @@ class CLIArgs(object):
         self.commands = ["spin-step"]
         self.command_args = [self.task.step]
 
+        whitelist_decos = [deco.name for deco in self.whitelist_decorators]
+
         self.command_options = {
             "run-id": self.task.run_id,
             "task-id": self.task.task_id,
@@ -1762,10 +1787,13 @@ class CLIArgs(object):
             "retry-count": self.task.retries,
             "max-user-code-retries": self.task.user_code_retries,
             "namespace": get_namespace() or "",
+            "spin-metadata": self.spin_metadata,
             "spin-pathspec": self.spin_pathspec,
-            "skip-decorators": self.skip_decorators,
+            "whitelist-decorators": compress_list(whitelist_decos),
             "artifacts-module": self.artifacts_module,
         }
+        if self.persist:
+            self.command_options["persist"] = True
         self.env = {}
 
     def get_args(self):
@@ -1811,15 +1839,19 @@ class Worker(object):
         task,
         max_logs_size,
         config_file_name,
+        spin_metadata=None,
         spin_pathspec=None,
-        skip_decorators=False,
+        whitelist_decorators=None,
         artifacts_module=None,
+        persist=True,
     ):
         self.task = task
         self._config_file_name = config_file_name
-        self.spin_pathspec = spin_pathspec
-        self.skip_decorators = skip_decorators
-        self.artifacts_module = artifacts_module
+        self._spin_metadata = spin_metadata
+        self._spin_pathspec = spin_pathspec
+        self._whitelist_decorators = whitelist_decorators
+        self._artifacts_module = artifacts_module
+        self._persist = persist
         self._proc = self._launch()
 
         if task.retries > task.user_code_retries:
@@ -1853,9 +1885,11 @@ class Worker(object):
     def _launch(self):
         args = CLIArgs(
             self.task,
-            spin_pathspec=self.spin_pathspec,
-            skip_decorators=self.skip_decorators,
-            artifacts_module=self.artifacts_module,
+            spin_metadata=self._spin_metadata,
+            spin_pathspec=self._spin_pathspec,
+            whitelist_decorators=self._whitelist_decorators,
+            artifacts_module=self._artifacts_module,
+            persist=self._persist,
         )
         env = dict(os.environ)
 
@@ -1890,7 +1924,7 @@ class Worker(object):
         # print('running', args)
         cmdline = args.get_args()
         debug.subcommand_exec(cmdline)
-        print(f"Command: {cmdline}")
+        # print(f"Command: {cmdline}")
         return subprocess.Popen(
             cmdline,
             env=env,
@@ -1972,7 +2006,6 @@ class Worker(object):
         # this shouldn't block, since terminate() is called only
         # after the poller has decided that the worker is dead
         returncode = self._proc.wait()
-        print(f"I am in terminate where returncode is {returncode}")
 
         # consume all remaining loglines
         # we set the file descriptor to be non-blocking, since
@@ -1994,8 +2027,6 @@ class Worker(object):
         # Return early if the task is cloned since we don't want to
         # perform any log collection.
         if not self.task.is_cloned:
-            print("I am in terminate where task is not cloned")
-            print("I am saving metadata and logs")
             self.task.save_metadata(
                 "runtime",
                 {
@@ -2004,9 +2035,7 @@ class Worker(object):
                     "success": returncode == 0,
                 },
             )
-            print(f"Saving metadata for task is done")
             if returncode:
-                print("I am in if returncode")
                 if not self.killed:
                     if returncode == -11:
                         self.emit_log(
@@ -2017,21 +2046,17 @@ class Worker(object):
                     else:
                         self.emit_log(b"Task failed.", self._stderr, system_msg=True)
             else:
-                print("I am in else of terminate")
-                print(f"flow: {self.task.flow}")
-                # print(f"dadada: {self.task.flow._foreach_num_splits}")
-                num = self.task.results["_foreach_num_splits"]
-                print(f"I am in {num} splits")
-                if num:
-                    self.task.log(
-                        "Foreach yields %d child steps." % num,
-                        system_msg=True,
-                        pid=self._proc.pid,
-                    )
+                if not self._spin_pathspec:
+                    num = self.task.results["_foreach_num_splits"]
+                    if num:
+                        self.task.log(
+                            "Foreach yields %d child steps." % num,
+                            system_msg=True,
+                            pid=self._proc.pid,
+                        )
                 self.task.log(
                     "Task finished successfully.", system_msg=True, pid=self._proc.pid
                 )
-            print("I am just before task.save_logs")
             self.task.save_logs(
                 {
                     "stdout": self._stdout.get_buffer(),

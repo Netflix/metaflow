@@ -64,6 +64,7 @@ USER = from_conf("USER")
 # Datastore configuration
 ###
 DATASTORE_SYSROOT_LOCAL = from_conf("DATASTORE_SYSROOT_LOCAL")
+DATASTORE_SYSROOT_SPIN = from_conf("DATASTORE_SYSROOT_SPIN", "/tmp/metaflow")
 # S3 bucket and prefix to store artifacts for 's3' datastore.
 DATASTORE_SYSROOT_S3 = from_conf("DATASTORE_SYSROOT_S3")
 # Azure Blob Storage container and blob prefix

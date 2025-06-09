@@ -98,6 +98,7 @@ class TaskDataStore(object):
         data_metadata=None,
         mode="r",
         allow_not_done=False,
+        persist=True,
     ):
 
         self._storage_impl = flow_datastore._storage_impl
@@ -114,6 +115,7 @@ class TaskDataStore(object):
         self._attempt = attempt
         self._metadata = flow_datastore.metadata
         self._parent = flow_datastore
+        self._persist = persist
 
         # The GZIP encodings are for backward compatibility
         self._encodings = {"pickle-v2", "gzip+pickle-v2"}
@@ -682,6 +684,8 @@ class TaskDataStore(object):
         flow : FlowSpec
             Flow to persist
         """
+        if not self._persist:
+            return
 
         if flow._datastore:
             self._objects.update(flow._datastore._objects)
