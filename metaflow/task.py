@@ -47,6 +47,8 @@ class MetaflowTask(object):
         event_logger,
         monitor,
         ubf_context,
+        spin_metadata=None,
+        spin_artifacts=None,
     ):
         self.flow = flow
         self.flow_datastore = flow_datastore
@@ -56,6 +58,8 @@ class MetaflowTask(object):
         self.event_logger = event_logger
         self.monitor = monitor
         self.ubf_context = ubf_context
+        self.spin_metadata = spin_metadata
+        self.spin_artifacts = spin_artifacts
 
     def _exec_step_function(self, step_function, input_obj=None):
         if input_obj is None:
@@ -80,15 +84,6 @@ class MetaflowTask(object):
                     name,
                     property(fget=lambda _, val=value: val, fset=_set_cls_var),
                 )
-
-        print("In _init_parameters")
-        print(f"parameter_ds: {parameter_ds}")
-        print(f"type(parameter_ds): {type(parameter_ds)}")
-        print(f"parameter_ds.pathspec: {parameter_ds.pathspec}")
-        try:
-            print(f"parameter_ds['_graph_info']: {parameter_ds['_graph_info']}")
-        except Exception:
-            print("I am in exception of parameter_ds['_graph_info']")
 
         # overwrite Parameters in the flow object
         all_vars = []
@@ -124,17 +119,13 @@ class MetaflowTask(object):
             all_vars.append(var)
 
         # We also passdown _graph_info through the entire graph
-        print("Calling set_as_parameter")
         set_as_parameter(
             "_graph_info",
             lambda _, parameter_ds=parameter_ds: parameter_ds["_graph_info"],
         )
         all_vars.append("_graph_info")
         if passdown:
-            print("Calling passdown_partial")
             self.flow._datastore.passdown_partial(parameter_ds, all_vars)
-            print("Done with passdown_partial")
-        print(f"param_only_vars: {param_only_vars}")
         return param_only_vars
 
     def _init_data(self, run_id, join_type, input_paths):
@@ -142,7 +133,7 @@ class MetaflowTask(object):
         # (via TaskDataStoreSet) only with more than 4 datastores, because
         # the baseline overhead of using the set is ~1.5s and each datastore
         # init takes ~200-300ms when run sequentially.
-        print(f"I am in in _init_data")
+        # print(f"I am in in _init_data")
         if len(input_paths) > 4:
             prefetch_data_artifacts = None
             if join_type and join_type == "foreach":
@@ -160,6 +151,9 @@ class MetaflowTask(object):
                 run_id,
                 pathspecs=input_paths,
                 prefetch_data_artifacts=prefetch_data_artifacts,
+                join_type=join_type,
+                spin_metadata=self.spin_metadata,
+                spin_artifacts=self.spin_artifacts,
             )
             ds_list = [ds for ds in datastore_set]
             if len(ds_list) != len(input_paths):
@@ -172,13 +166,16 @@ class MetaflowTask(object):
             ds_list = []
             for input_path in input_paths:
                 run_id, step_name, task_id = input_path.split("/")
-                print(
-                    f"In _init_data: run_id: {run_id}, step_name: {step_name}, task_id: {task_id}"
-                )
                 ds_list.append(
-                    self.flow_datastore.get_task_datastore(run_id, step_name, task_id)
+                    self.flow_datastore.get_task_datastore(
+                        run_id,
+                        step_name,
+                        task_id,
+                        join_type=join_type,
+                        spin_metadata=self.spin_metadata,
+                        spin_artifacts=self.spin_artifacts,
+                    )
                 )
-                print(f"ds_list: {ds_list}")
         if not ds_list:
             # this guards against errors in input paths
             raise MetaflowDataMissing(
@@ -399,6 +396,8 @@ class MetaflowTask(object):
         split_index,
         retry_count,
         max_user_code_retries,
+        whitelist_decorators=None,
+        persist=True,
     ):
         if run_id and task_id:
             self.metadata.register_run_id(run_id)
@@ -415,7 +414,6 @@ class MetaflowTask(object):
             raise MetaflowInternalError(
                 "Too many task attempts (%d)! MAX_ATTEMPTS exceeded." % retry_count
             )
-        print(f"Just before metadata_tags")
         metadata_tags = ["attempt_id:{0}".format(retry_count)]
 
         metadata = [
@@ -455,9 +453,13 @@ class MetaflowTask(object):
                 )
             )
 
-        print("Done until trace_id")
         step_func = getattr(self.flow, step_name)
         decorators = step_func.decorators
+        if self.spin_metadata:
+            # We filter only the whitelisted decorators
+            decorators = [
+                deco for deco in decorators if deco.name in whitelist_decorators
+            ]
 
         node = self.flow._graph[step_name]
         join_type = None
@@ -466,32 +468,24 @@ class MetaflowTask(object):
 
         # 1. initialize output datastore
         output = self.flow_datastore.get_task_datastore(
-            run_id, step_name, task_id, attempt=retry_count, mode="w"
+            run_id, step_name, task_id, attempt=retry_count, mode="w", persist=persist
         )
-        print(f"Done until output datastore")
 
         output.init_task()
-        print("Done until output.init_task")
-        print(f"input_paths after output.init_task: {input_paths}")
 
         if input_paths:
             # 2. initialize input datastores
-            print(f"input_paths: {input_paths}")
             inputs = self._init_data(run_id, join_type, input_paths)
-            print(f"inputs: {inputs}")
 
             # 3. initialize foreach state
             self._init_foreach(step_name, join_type, inputs, split_index)
-            print(f"Done until _init_foreach")
 
             # Add foreach stack to metadata of the task
-
             foreach_stack = (
                 self.flow._foreach_stack
                 if hasattr(self.flow, "_foreach_stack") and self.flow._foreach_stack
                 else []
             )
-            print(f"foreach_stack: {foreach_stack}")
 
             foreach_stack_formatted = []
             current_foreach_path_length = 0
@@ -558,7 +552,6 @@ class MetaflowTask(object):
             is_running=True,
             tags=self.metadata.sticky_tags,
         )
-        print(f"Done until current._set_env")
 
         # 5. run task
         output.save_metadata(
@@ -576,7 +569,6 @@ class MetaflowTask(object):
         # We also pass this context as part of the task payload to support implementations that
         # can't access the context directly
 
-        print(f"Setting task_payload")
         task_payload = {
             "run_id": run_id,
             "step_name": step_name,
@@ -610,8 +602,6 @@ class MetaflowTask(object):
                 # should either be set prior to running the user code or listed in
                 # FlowSpec._EPHEMERAL to allow for proper merging/importing of
                 # user artifacts in the user's step code.
-
-                print(f"Just before if join_type")
                 if join_type:
                     # Join step:
 
@@ -640,7 +630,6 @@ class MetaflowTask(object):
                         }
                     )
                 else:
-                    print(f"In linear step")
                     # Linear step:
                     # We are running with a single input context.
                     # The context is embedded in the flow.
@@ -653,7 +642,6 @@ class MetaflowTask(object):
                             "inputs." % step_name
                         )
                     self.flow._set_datastore(inputs[0])
-                    print(f"Just before if input_paths with input_paths: {input_paths}")
                     if input_paths:
                         # initialize parameters (if they exist)
                         # We take Parameter values from the first input,
@@ -667,9 +655,6 @@ class MetaflowTask(object):
                                 "graph_info": self.flow._graph_info,
                             }
                         )
-                        print(f"Just done with current._update_env")
-                    print("HEHEHEHEHEHEH")
-                    # print(f"Set flow datastore to inputs[0]: {inputs[0]}")
                 for deco in decorators:
                     deco.task_pre_step(
                         step_name,
@@ -761,7 +746,6 @@ class MetaflowTask(object):
                 try:
                     # persisting might fail due to unpicklable artifacts.
                     output.persist(self.flow)
-                    print("Done with output.persist")
                 except Exception as ex:
                     self.flow._task_ok = False
                     raise ex

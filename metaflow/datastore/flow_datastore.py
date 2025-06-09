@@ -5,7 +5,7 @@ from .. import metaflow_config
 
 from .content_addressed_store import ContentAddressedStore
 from .task_datastore import TaskDataStore
-from .spin_datastore import SpinDataStore
+from .spin_datastore import SpinTaskDatastore
 
 
 class FlowDataStore(object):
@@ -59,8 +59,6 @@ class FlowDataStore(object):
         self.metadata = metadata
         self.logger = event_logger
         self.monitor = monitor
-        # Set to None unless its a spin step
-        self.is_spin = False
 
         self.ca_store = ContentAddressedStore(
             self._storage_impl.path_join(self.flow_name, "data"), self._storage_impl
@@ -79,6 +77,9 @@ class FlowDataStore(object):
         attempt=None,
         include_prior=False,
         mode="r",
+        join_type=None,
+        spin_metadata=None,
+        spin_artifacts=None,
     ):
         """
         Return a list of TaskDataStore for a subset of the tasks.
@@ -109,6 +110,16 @@ class FlowDataStore(object):
             If True, returns all attempts up to and including attempt.
         mode : str, default "r"
             Mode to initialize the returned TaskDataStores in.
+        join_type : str, optional
+            If specified, the join type for the task. This is used to determine
+            the user specified artifacts for the task in case of a spin task.
+        spin_metadata : str, optional
+            The metadata provider in case of a spin task. If provided, the
+            returned TaskDataStore will be a SpinTaskDatastore instead of a
+            TaskDataStore.
+        spin_artifacts : Dict[str, Any], optional
+            Artifacts provided by user that can override the artifacts fetched via the
+            spin pathspec.
 
         Returns
         -------
@@ -201,7 +212,18 @@ class FlowDataStore(object):
                 else (latest_started_attempts & done_attempts)
             )
         latest_to_fetch = [
-            (v[0], v[1], v[2], v[3], data_objs.get(v), mode, allow_not_done)
+            (
+                v[0],
+                v[1],
+                v[2],
+                v[3],
+                data_objs.get(v),
+                mode,
+                allow_not_done,
+                join_type,
+                spin_metadata,
+                spin_artifacts,
+            )
             for v in latest_to_fetch
         ]
         return list(itertools.starmap(self.get_task_datastore, latest_to_fetch))
@@ -215,21 +237,32 @@ class FlowDataStore(object):
         data_metadata=None,
         mode="r",
         allow_not_done=False,
+        join_type=None,
+        spin_metadata=None,
+        spin_artifacts=None,
+        persist=True,
     ):
-        # print(f"Is spin: {self.is_spin}")
-        if self.is_spin:
-            print(
-                f"Using SpinDataStore for {self.flow_name} {run_id} {step_name} {task_id}"
+        if spin_metadata is not None:
+            # In spin step subprocess, use SpinTaskDatastore for accessing artifacts
+            if join_type is not None:
+                # If join_type is specified, we need to use the artifacts corresponding
+                # to that particular join index, specified by the parent task pathspec.
+                print(f"Spin Artifacts: {spin_artifacts}")
+                print(f"pathspec: {run_id}/{step_name}/{task_id}")
+                print(
+                    f"Spin Artifacts tp: {spin_artifacts.get(f'{run_id}/{step_name}/{task_id}')}"
+                )
+                spin_artifacts = spin_artifacts.get(
+                    f"{run_id}/{step_name}/{task_id}", {}
+                )
+            return SpinTaskDatastore(
+                self.flow_name,
+                run_id,
+                step_name,
+                task_id,
+                spin_metadata,
+                spin_artifacts,
             )
-            # This is a spin step, so we need to use the spin datastore
-            tp = SpinDataStore(
-                flow_name=self.flow_name,
-                run_id=run_id,
-                step_name=step_name,
-                task_id=task_id,
-            )
-            print(f"SpinDataStore created: {tp}")
-            return tp
         return TaskDataStore(
             self,
             run_id,
@@ -239,6 +272,7 @@ class FlowDataStore(object):
             data_metadata=data_metadata,
             mode=mode,
             allow_not_done=allow_not_done,
+            persist=persist,
         )
 
     def save_data(self, data_iter, len_hint=0):

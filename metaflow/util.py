@@ -7,6 +7,7 @@ import base64
 from functools import wraps
 from io import BytesIO
 from itertools import takewhile
+from typing import Dict, Any
 import re
 
 from metaflow.exception import MetaflowUnknownUser, MetaflowInternalError
@@ -177,7 +178,7 @@ def resolve_identity():
     return "%s:%s" % (identity_type, identity_value)
 
 
-def get_latest_task_pathspec(flow_name: str, step_name: str) -> str:
+def get_latest_task_pathspec(flow_name: str, step_name: str) -> (str, str):
     """
     Returns a task pathspec from the latest run of the flow for the queried step.
     If the queried step has several tasks, the task pathspec of the first task is returned.
@@ -191,8 +192,8 @@ def get_latest_task_pathspec(flow_name: str, step_name: str) -> str:
 
     Returns
     -------
-    str
-        The task pathspec of the first task of the queried step.
+    Task
+        A Metaflow Task instance containing the latest task for the queried step.
 
     Raises
     ------
@@ -209,7 +210,7 @@ def get_latest_task_pathspec(flow_name: str, step_name: str) -> str:
 
     try:
         task = Step(f"{flow_name}/{run.id}/{step_name}", _namespace_check=False).task
-        return task.pathspec
+        return task
     except Exception:
         raise MetaflowNotFound(
             f"No step *{step_name}* found in run *{run.id}* for flow *{flow_name}*"
@@ -508,7 +509,25 @@ def to_pod(value):
 
 from metaflow._vendor.packaging.version import parse as version_parse
 
-def read_artifacts_module(file_path):
+def read_artifacts_module(file_path: str) -> Dict[str, Any]:
+    """
+    Read a Python module from the given file path and return its ARTIFACTS variable.
+
+    Parameters
+    ----------
+    file_path : str
+        The path to the Python file containing the ARTIFACTS variable.
+
+    Returns
+    -------
+    Dict[str, Any]
+        A dictionary containing the ARTIFACTS variable from the module.
+
+    Raises
+    -------
+    MetaflowInternalError
+        If the file cannot be read or does not contain the ARTIFACTS variable.
+    """
     import importlib.util
 
     try:
@@ -520,6 +539,6 @@ def read_artifacts_module(file_path):
             raise MetaflowInternalError(
                 f"Module {file_path} does not contain ARTIFACTS variable"
             )
-        return variables
+        return variables.get("ARTIFACTS")
     except Exception as e:
         raise MetaflowInternalError(f"Error reading file {file_path}") from e
