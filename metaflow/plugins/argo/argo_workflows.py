@@ -905,7 +905,7 @@ class ArgoWorkflows(object):
                     if self.enable_error_msg_capture
                     else None
                 )
-                # Set exit hook handlers if notifications are enabled
+                # Set lifecycle hooks if notifications are enabled
                 .hooks(
                     {
                         lifecycle.name: lifecycle
