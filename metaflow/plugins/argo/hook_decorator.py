@@ -7,7 +7,7 @@ from metaflow.plugins.argo.exit_hooks import ScriptHook
 
 class RunOnFinishDecorator(FlowDecorator):
     name = "run_on_finish"
-    multiple = True
+    allow_multiple = True
 
     defaults = {
         "functions": [],
