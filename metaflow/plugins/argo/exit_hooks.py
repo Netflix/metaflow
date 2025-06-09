@@ -71,7 +71,7 @@ class _ScriptSpec(JsonSerializable):
         self.payload["image"] = image
         return self
 
-    def command(self, command: list[str]):
+    def command(self, command: List[str]):
         self.payload["command"] = command
         return self
 
