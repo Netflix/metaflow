@@ -1,6 +1,6 @@
 from collections import defaultdict
 import json
-from typing import List
+from typing import Callable, List
 
 
 class JsonSerializable(object):
@@ -76,7 +76,8 @@ class _ScriptSpec(JsonSerializable):
         return self
 
     def source(self, source: str):
-        self.payload["source"] = source
+        # encode the source as a oneliner due to json limitations
+        self.payload["source"] = json.dumps(source)
         return self
 
 
@@ -200,14 +201,14 @@ class ScriptHook(Hook):
     def __init__(
         self,
         name: str,
-        script: str,
+        source: str,
         image: str = None,
         language: str = "python",
         on_success=False,
         on_error=False,
     ):
         self.template = _Template(name)
-        script = _ScriptSpec().command([language]).script(script)
+        script = _ScriptSpec().command([language]).source(source)
         if image is not None:
             script.image(image)
 
