@@ -445,21 +445,42 @@ class TestStubGenerator:
         """Test that generator state is properly isolated between calls"""
         # Test that imports and typing_imports are properly managed
         initial_typing_imports = len(self.generator._typing_imports)
-
+        
         mock_module = Mock()
         mock_module.__name__ = "test.isolated.module"
-
+        
         with patch("inspect.getmodule", return_value=mock_module):
             self.generator._get_element_name_with_module(TestClass)
-
+            
             # Should have added to typing imports
             assert len(self.generator._typing_imports) > initial_typing_imports
             assert "test.isolated.module" in self.generator._typing_imports
 
+    def test_get_element_name_nonetype_handling(self):
+        """Test that NoneType is properly converted to None in type annotations"""
+        # Test direct NoneType
+        result = self.generator._get_element_name_with_module(type(None))
+        assert result == "None"
+        
+        # Test NoneType in generic type (like Callable[..., None])
+        callable_type = typing.Callable[[TestClass], type(None)]
+        
+        mock_module = Mock()
+        mock_module.__name__ = "test.module"
+        
+        with patch("inspect.getmodule", return_value=mock_module):
+            result = self.generator._get_element_name_with_module(callable_type)
+            
+            # Should not contain NoneType, should contain None
+            assert "NoneType" not in result
+            assert "None" in result
+            assert "typing.Callable" in result
+            assert "test.module.TestClass" in result
 
-# Integration test to verify the original issue is fixed
-def test_original_issue_regression():
-    """Regression test for the original issue with class objects in type annotations"""
+
+# Integration test to verify class objects in generic types are properly handled
+def test_class_objects_in_generic_types_no_leakage():
+    """Regression test ensuring class objects don't leak as '<class '...'>' in type annotations"""
     generator = StubGenerator("/tmp/test_stubs", include_generated_for=False)
     generator._reset()
     generator._current_module_name = "test_module"

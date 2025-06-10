@@ -501,6 +501,24 @@ class StubGenerator:
                     # the current file
                     self._typing_imports.add(splits[0])
 
+        def _format_qualified_class_name(cls: type) -> str:
+            """Helper to format a class with its qualified module name"""
+            # Special case for NoneType - return None
+            if cls.__name__ == "NoneType":
+                return "None"
+
+            module = inspect.getmodule(cls)
+            if (
+                module
+                and module.__name__ != "builtins"
+                and module.__name__ != "__main__"
+            ):
+                module_name = self._get_module_name_alias(module.__name__)
+                _add_to_typing_check(module_name, is_module=True)
+                return f"{module_name}.{cls.__name__}"
+            else:
+                return cls.__name__
+
         if isinstance(element, str):
             # Special case for self referential things (particularly in a class)
             if element == self._current_name:
@@ -560,17 +578,7 @@ class StubGenerator:
             for arg in getattr(element, "__args__", []):
                 # Special handling for class objects in type arguments
                 if isinstance(arg, type):
-                    module = inspect.getmodule(arg)
-                    if (
-                        module
-                        and module.__name__ != "builtins"
-                        and module.__name__ != "__main__"
-                    ):
-                        module_name = self._get_module_name_alias(module.__name__)
-                        _add_to_typing_check(module_name, is_module=True)
-                        args_str.append(f"{module_name}.{arg.__name__}")
-                    else:
-                        args_str.append(arg.__name__)
+                    args_str.append(_format_qualified_class_name(arg))
                 else:
                     args_str.append(self._get_element_name_with_module(arg))
 
@@ -590,17 +598,7 @@ class StubGenerator:
                 # Handle the case where we have a generic type without a _name
                 origin = element.__origin__
                 if isinstance(origin, type):
-                    module = inspect.getmodule(origin)
-                    if (
-                        module
-                        and module.__name__ != "builtins"
-                        and module.__name__ != "__main__"
-                    ):
-                        module_name = self._get_module_name_alias(module.__name__)
-                        _add_to_typing_check(module_name, is_module=True)
-                        origin_str = f"{module_name}.{origin.__name__}"
-                    else:
-                        origin_str = origin.__name__
+                    origin_str = _format_qualified_class_name(origin)
                 else:
                     origin_str = str(origin)
                 return "%s[%s]" % (origin_str, ", ".join(args_str))
