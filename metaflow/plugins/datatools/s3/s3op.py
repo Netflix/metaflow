@@ -131,7 +131,7 @@ def normalize_client_error(err):
     except ValueError:
         if error_code in ("AccessDenied", "AllAccessDisabled", "InvalidAccessKeyId"):
             return 403
-        if error_code == "NoSuchKey":
+        if error_code in ("NoSuchKey", "NoSuchBucket"):
             return 404
         if error_code == "InvalidRange":
             return 416

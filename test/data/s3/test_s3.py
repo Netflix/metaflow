@@ -487,9 +487,19 @@ def test_info_many(inject_failure_rate, s3root, prefixes, expected):
 def test_get_exceptions(inject_failure_rate, s3root, prefixes, expected):
     # get_many() goes via s3op, get() is a method - test both the code paths
     with S3(inject_failure_rate=inject_failure_rate) as s3:
-        with pytest.raises(MetaflowS3AccessDenied):
+        with pytest.raises(
+            (
+                MetaflowS3AccessDenied,
+                MetaflowS3NotFound,
+            )
+        ):
             s3.get_many(["s3://foobar/foo"])
-        with pytest.raises(MetaflowS3AccessDenied):
+        with pytest.raises(
+            (
+                MetaflowS3AccessDenied,
+                MetaflowS3NotFound,
+            )
+        ):
             s3.get("s3://foobar/foo")
     with S3(s3root=s3root) as s3:
         with pytest.raises(MetaflowS3NotFound):
