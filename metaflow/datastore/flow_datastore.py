@@ -247,11 +247,6 @@ class FlowDataStore(object):
             if join_type is not None:
                 # If join_type is specified, we need to use the artifacts corresponding
                 # to that particular join index, specified by the parent task pathspec.
-                print(f"Spin Artifacts: {spin_artifacts}")
-                print(f"pathspec: {run_id}/{step_name}/{task_id}")
-                print(
-                    f"Spin Artifacts tp: {spin_artifacts.get(f'{run_id}/{step_name}/{task_id}')}"
-                )
                 spin_artifacts = spin_artifacts.get(
                     f"{run_id}/{step_name}/{task_id}", {}
                 )

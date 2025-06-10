@@ -6,7 +6,7 @@ from metaflow import Runner, Run
 def complex_dag_run():
     # with Runner('complex_dag_flow.py').run() as running:
     #     yield running.run
-    return Run("ComplexDAGFlow/2", _namespace_check=False)
+    return Run("ComplexDAGFlow/3", _namespace_check=False)
 
 
 @pytest.fixture
@@ -30,19 +30,33 @@ def _assert_artifacts(task, spin_task):
         ), f"Expected {artifact.data} but got {spin_task_artifacts[artifact.id]} for artifact {artifact.id}"
 
 
-def _run_step(file_name, run, step_name):
+def _run_step(file_name, run, step_name, is_conda=False):
     task = run[step_name].task
-    with Runner(file_name).spin(step_name, spin_pathspec=task.pathspec) as spin:
-        print("-" * 50)
-        print(f"Running test for step: {step_name} with task pathspec: {task.pathspec}")
-        _assert_artifacts(task, spin.task)
+    if not is_conda:
+        with Runner(file_name).spin(step_name, spin_pathspec=task.pathspec) as spin:
+            print("-" * 50)
+            print(
+                f"Running test for step: {step_name} with task pathspec: {task.pathspec}"
+            )
+            _assert_artifacts(task, spin.task)
+    else:
+        with Runner(file_name, environment="conda").spin(
+            step_name,
+            spin_pathspec=task.pathspec,
+        ) as spin:
+            print("-" * 50)
+            print(
+                f"Running test for step: {step_name} with task pathspec: {task.pathspec}"
+            )
+            print(f"Spin task artifacts: {spin.task.artifacts}")
+            _assert_artifacts(task, spin.task)
 
 
-def test_runtime_flow(complex_dag_run):
-    print(f"Running test for runtime flow: {complex_dag_run}")
+def test_complex_dag_flow(complex_dag_run):
+    print(f"Running test for ComplexDAGFlow flow: {complex_dag_run}")
     for step in complex_dag_run.steps():
         print("-" * 100)
-        _run_step("runtime_dag_flow.py", complex_dag_run, step.id)
+        _run_step("complex_dag_flow.py", complex_dag_run, step.id, is_conda=True)
 
 
 def test_merge_artifacts_flow(merge_artifacts_run):
@@ -80,5 +94,55 @@ def test_artifacts_module_join_step(complex_dag_run):
         print("-" * 50)
         print(f"Running test for step: step_a with task pathspec: {task.pathspec}")
         spin_task = spin.task
-        print(f"my_output: {spin_task['my_output']}")
         assert spin_task["my_output"].data == [-1]
+
+
+def test_skip_decorators(complex_dag_run):
+    print(f"Running test for skip decorator in ComplexDAGFlow: {complex_dag_run}")
+    step_name = "step_m"
+    task = complex_dag_run[step_name].task
+    # Check if sklearn is available in the outer environment
+    # If not, this test will fail as it requires sklearn to be installed and skip_decorator
+    # is set to True
+    is_sklearn = True
+    try:
+        import sklearn
+    except ImportError:
+        is_sklearn = False
+    if is_sklearn:
+        # We verify that the sklearn version is the same as the one in the outside environment
+        with Runner("complex_dag_flow.py", environment="conda").spin(
+            step_name,
+            spin_pathspec=task.pathspec,
+            skip_decorators=True,
+        ) as spin:
+            print("-" * 50)
+            print(
+                f"Running test for step: {step_name} with task pathspec: {task.pathspec}"
+            )
+            spin_task = spin.task
+            import sklearn
+
+            expected_version = sklearn.__version__
+            assert (
+                spin_task["sklearn_version"].data == expected_version
+            ), f"Expected sklearn version {expected_version} but got {spin_task['sklearn_version']}"
+    else:
+        # We assert that an exception is raised when trying to run the step with skip_decorators=True
+        with pytest.raises(Exception) as exc_info:
+            with Runner("complex_dag_flow.py", environment="conda").spin(
+                step_name,
+                spin_pathspec=task.pathspec,
+                skip_decorators=True,
+            ):
+                pass
+
+
+# with Runner('complex_dag_flow.py', environment="conda").spin("step_g") as spin:
+#     print("-" * 50)
+#     print(f"Running test for step: step_g with task pathspec: {spin.task.pathspec}")
+#     spin_task = spin.task
+#     print(spin_task)
+#     print(spin_task.artifacts)
+#     for artifact in spin_task.artifacts:
+#         print(f"Artifact {artifact.id}: {artifact.data}")

@@ -50,6 +50,8 @@ class SpinTaskDatastore(object):
             self._objects[artifact.id] = artifact.sha
             # Fulfills the contract for _info: name -> metadata
             self._info[artifact.id] = {
+                # Do not save the type of the data
+                # "type": str(type(artifact.data)),
                 "size": artifact.size,
                 "encoding": artifact._object["content_type"],
             }
