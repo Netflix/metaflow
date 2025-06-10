@@ -488,9 +488,6 @@ class StubGenerator:
                 self._imports.add(name)
 
         def _add_to_typing_check(name, is_module=False):
-            # if name != self._current_module_name:
-            #    self._typing_imports.add(name)
-            #
             if name == "None":
                 return
             if is_module:
@@ -557,19 +554,25 @@ class StubGenerator:
                 return element.__name__
         elif isinstance(element, type(Ellipsis)):
             return "..."
-        # elif (
-        #    isinstance(element, typing._GenericAlias)
-        #    and hasattr(element, "_name")
-        #    and element._name in ("List", "Tuple", "Dict", "Set")
-        # ):
-        #    # 3.7 has these as _GenericAlias but they don't behave like the ones in 3.10
-        #    _add_to_import("typing")
-        #    return str(element)
         elif isinstance(element, typing._GenericAlias):
             # We need to check things recursively in __args__ if it exists
             args_str = []
             for arg in getattr(element, "__args__", []):
-                args_str.append(self._get_element_name_with_module(arg))
+                # Special handling for class objects in type arguments
+                if isinstance(arg, type):
+                    module = inspect.getmodule(arg)
+                    if (
+                        module
+                        and module.__name__ != "builtins"
+                        and module.__name__ != "__main__"
+                    ):
+                        module_name = self._get_module_name_alias(module.__name__)
+                        _add_to_typing_check(module_name, is_module=True)
+                        args_str.append(f"{module_name}.{arg.__name__}")
+                    else:
+                        args_str.append(arg.__name__)
+                else:
+                    args_str.append(self._get_element_name_with_module(arg))
 
             _add_to_import("typing")
             if element._name:
@@ -584,12 +587,25 @@ class StubGenerator:
                         args_str = [call_args, args_str[-1]]
                 return "typing.%s[%s]" % (element._name, ", ".join(args_str))
             else:
-                return "%s[%s]" % (element.__origin__, ", ".join(args_str))
+                # Handle the case where we have a generic type without a _name
+                origin = element.__origin__
+                if isinstance(origin, type):
+                    module = inspect.getmodule(origin)
+                    if (
+                        module
+                        and module.__name__ != "builtins"
+                        and module.__name__ != "__main__"
+                    ):
+                        module_name = self._get_module_name_alias(module.__name__)
+                        _add_to_typing_check(module_name, is_module=True)
+                        origin_str = f"{module_name}.{origin.__name__}"
+                    else:
+                        origin_str = origin.__name__
+                else:
+                    origin_str = str(origin)
+                return "%s[%s]" % (origin_str, ", ".join(args_str))
         elif isinstance(element, ForwardRef):
             f_arg = self._get_module_name_alias(element.__forward_arg__)
-            # if f_arg in ("Run", "Task"):  # HACK -- forward references in current.py
-            #    _add_to_import("metaflow")
-            #    f_arg = "metaflow.%s" % f_arg
             _add_to_typing_check(f_arg)
             return '"%s"' % f_arg
         elif inspect.getmodule(element) == inspect.getmodule(typing):
