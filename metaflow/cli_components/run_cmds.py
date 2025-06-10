@@ -51,9 +51,6 @@ def before_run(obj, tags, decospecs):
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
     # obj.environment.init_environment(obj.logger)
 
-    # decorators._init_step_decorators(
-    #     obj.flow, obj.graph, obj.environment, obj.effective_flow_datastore, obj.logger
-    # )
     decorators._init_step_decorators(
         obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
     )

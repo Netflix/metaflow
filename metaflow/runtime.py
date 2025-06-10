@@ -260,9 +260,7 @@ class SpinRuntime(object):
                     poll.remove(event.fd)
                     active_fds.remove(event.fd)
 
-        # print("I am after while loop")
         returncode = worker.terminate()
-        # print(f"Return code: {returncode}")
 
         if returncode != 0:
             raise TaskFailed(self.task, f"Task failed with return code {returncode}")
