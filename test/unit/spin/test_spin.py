@@ -136,13 +136,3 @@ def test_skip_decorators(complex_dag_run):
                 skip_decorators=True,
             ):
                 pass
-
-
-# with Runner('complex_dag_flow.py', environment="conda").spin("step_g") as spin:
-#     print("-" * 50)
-#     print(f"Running test for step: step_g with task pathspec: {spin.task.pathspec}")
-#     spin_task = spin.task
-#     print(spin_task)
-#     print(spin_task.artifacts)
-#     for artifact in spin_task.artifacts:
-#         print(f"Artifact {artifact.id}: {artifact.data}")
