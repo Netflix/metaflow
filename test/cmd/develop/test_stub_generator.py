@@ -445,13 +445,13 @@ class TestStubGenerator:
         """Test that generator state is properly isolated between calls"""
         # Test that imports and typing_imports are properly managed
         initial_typing_imports = len(self.generator._typing_imports)
-        
+
         mock_module = Mock()
         mock_module.__name__ = "test.isolated.module"
-        
+
         with patch("inspect.getmodule", return_value=mock_module):
             self.generator._get_element_name_with_module(TestClass)
-            
+
             # Should have added to typing imports
             assert len(self.generator._typing_imports) > initial_typing_imports
             assert "test.isolated.module" in self.generator._typing_imports
@@ -461,16 +461,16 @@ class TestStubGenerator:
         # Test direct NoneType
         result = self.generator._get_element_name_with_module(type(None))
         assert result == "None"
-        
+
         # Test NoneType in generic type (like Callable[..., None])
         callable_type = typing.Callable[[TestClass], type(None)]
-        
+
         mock_module = Mock()
         mock_module.__name__ = "test.module"
-        
+
         with patch("inspect.getmodule", return_value=mock_module):
             result = self.generator._get_element_name_with_module(callable_type)
-            
+
             # Should not contain NoneType, should contain None
             assert "NoneType" not in result
             assert "None" in result
