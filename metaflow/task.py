@@ -133,7 +133,6 @@ class MetaflowTask(object):
         # (via TaskDataStoreSet) only with more than 4 datastores, because
         # the baseline overhead of using the set is ~1.5s and each datastore
         # init takes ~200-300ms when run sequentially.
-        # print(f"I am in in _init_data")
         if len(input_paths) > 4:
             prefetch_data_artifacts = None
             if join_type and join_type == "foreach":
@@ -456,7 +455,7 @@ class MetaflowTask(object):
         step_func = getattr(self.flow, step_name)
         decorators = step_func.decorators
         if self.spin_metadata:
-            # We filter only the whitelisted decorators
+            # We filter only the whitelisted decorators in case of spin step.
             decorators = [
                 deco for deco in decorators if deco.name in whitelist_decorators
             ]
@@ -642,11 +641,31 @@ class MetaflowTask(object):
                             "inputs." % step_name
                         )
                     self.flow._set_datastore(inputs[0])
+                    # Iterate over all artifacts in the parent pathspec and add them
+                    # to the current flow's datastore. We need to do this explictly
+                    # since we want to persist even those attributes that are not
+                    # used / redefined in the spin step.
+                    if self.spin_metadata and persist:
+                        st_time = time.time()
+                        for artifact_name in self.flow._datastore._objects.keys():
+                            # This is highly inefficient since we are loading data
+                            # that we don't need, but there is no better way to
+                            # support this now
+                            artifact_data = self.spin_artifacts.get(
+                                artifact_name, self.flow._datastore[artifact_name]
+                            )
+                            setattr(
+                                self.flow,
+                                artifact_name,
+                                artifact_data,
+                            )
+                        print(
+                            f"Time taken to load all artifacts: {time.time() - st_time:.2f} seconds"
+                        )
                     if input_paths:
                         # initialize parameters (if they exist)
                         # We take Parameter values from the first input,
                         # which is always safe since parameters are read-only
-                        # print(f"self.flow._graph_info: {self.flow._graph_info}")
                         current._update_env(
                             {
                                 "parameter_names": self._init_parameters(
@@ -685,10 +704,14 @@ class MetaflowTask(object):
                         self.ubf_context,
                     )
 
+                st_time = time.time()
                 if join_type:
                     self._exec_step_function(step_func, input_obj)
                 else:
                     self._exec_step_function(step_func)
+                print(
+                    f"Time taken to run the step function: {time.time() - st_time:.2f} seconds"
+                )
 
                 for deco in decorators:
                     deco.task_post_step(
@@ -745,7 +768,11 @@ class MetaflowTask(object):
                     )
                 try:
                     # persisting might fail due to unpicklable artifacts.
+                    st_time = time.time()
                     output.persist(self.flow)
+                    print(
+                        f"Time taken to persist the output: {time.time() - st_time:.2f} seconds"
+                    )
                 except Exception as ex:
                     self.flow._task_ok = False
                     raise ex

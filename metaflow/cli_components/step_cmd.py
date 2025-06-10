@@ -283,11 +283,6 @@ def spin_step(
         namespace(opt_namespace or None)
 
     input_paths = decompress_list(input_paths) if input_paths else []
-    # echo_always(
-    #     f"Spinning a task, *{step_name}* with previous task pathspec: {spin_pathspec}",
-    #     fg="magenta",
-    #     bold=True,
-    # )
 
     whitelist_decorators = (
         decompress_list(whitelist_decorators) if whitelist_decorators else []
