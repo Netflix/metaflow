@@ -525,7 +525,7 @@ class S3(object):
         run: Optional[Union[FlowSpec, "metaflow.Run"]] = None,
         s3root: Optional[str] = None,
         encryption: Optional[str] = S3_SERVER_SIDE_ENCRYPTION,
-        **kwargs
+        **kwargs,
     ):
         if run:
             # 1. use a (current) run ID with optional customizations
