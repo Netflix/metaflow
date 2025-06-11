@@ -64,6 +64,81 @@ BOTOCORE_MSG_TEMPLATE_MATCH = re.compile(
 
 S3Config = namedtuple("S3Config", "role session_vars client_params")
 
+# Permission or access-related errors → 403 Forbidden
+PERMISSION_ERRORS = {
+    "AccessDenied",
+    "AccessDeniedException",
+    "AccountProblem",
+    "AllAccessDisabled",
+    "AuthFailure",
+    "ExpiredToken",
+    "InvalidAccessKeyId",
+    "InvalidSecurity",
+    "SignatureDoesNotMatch",
+    "UnauthorizedOperation",
+    "UnrecognizedClientException",
+}
+
+# Not found errors → 404 Not Found
+NOT_FOUND_ERRORS = {
+    "NoSuchBucket",
+    "NoSuchKey",
+    "NotFound",
+}
+
+# Range/invalid byte-range errors → 416
+RANGE_ERRORS = {
+    "InvalidRange",
+}
+
+# Server-side throttling, timeout, or transient errors → 503
+# https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html
+TRANSIENT_ERRORS = {
+    "BandwidthLimitExceeded",
+    "ConnectionError",
+    "EC2ThrottledException",
+    "HTTPClientError",
+    "InternalError",
+    "InternalFailure",
+    "LimitExceededException",
+    "PriorRequestNotComplete",
+    "ProvisionedThroughputExceededException",
+    "RequestLimitExceeded",
+    "RequestThrottled",
+    "RequestThrottledException",
+    "RequestTimeout",
+    "RequestTimeoutException",
+    "ServerError",
+    "ServiceUnavailable",
+    "SlowDown",
+    "ThrottledException",
+    "Throttling",
+    "ThrottlingException",
+    "TooManyRequestsException",
+    "TransactionInProgressException",
+    "Unavailable",
+}
+
+# Fatal/unrecoverable → 400
+FATAL_ERRORS = {
+    "BucketAlreadyExists",
+    "BucketAlreadyOwnedByYou",
+    "DryRunOperation",
+    "InvalidClientTokenId",
+    "InvalidParameterCombination",
+    "InvalidParameterValue",
+    "InvalidQueryParameter",
+    "MalformedPolicyDocument",
+    "MalformedQueryString",
+    "MethodNotAllowed",
+    "MissingParameter",
+    "OperationAborted",
+    "OptInRequired",
+    "UnsupportedOperation",
+    "UnsupportedProtocol",
+    "ValidationException",
+}
+
 
 class S3Url(object):
     def __init__(
@@ -132,90 +207,15 @@ def normalize_client_error(err):
     except ValueError:
         pass
 
-    # Permission or access-related errors → 403 Forbidden
-    permission_errors = {
-        "AccessDenied",
-        "AccessDeniedException",
-        "AccountProblem",
-        "AllAccessDisabled",
-        "AuthFailure",
-        "ExpiredToken",
-        "InvalidAccessKeyId",
-        "InvalidSecurity",
-        "SignatureDoesNotMatch",
-        "UnauthorizedOperation",
-        "UnrecognizedClientException",
-    }
-
-    # Not found errors → 404 Not Found
-    not_found_errors = {
-        "NoSuchBucket",
-        "NoSuchKey",
-        "NotFound",
-    }
-
-    # Range/invalid byte-range errors → 416
-    range_errors = {
-        "InvalidRange",
-    }
-
-    # Server-side throttling, timeout, or transient errors → 503
-    # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html
-    transient_errors = {
-        "BandwidthLimitExceeded",
-        "ConnectionError",
-        "EC2ThrottledException",
-        "HTTPClientError",
-        "InternalError",
-        "InternalFailure",
-        "LimitExceededException",
-        "PriorRequestNotComplete",
-        "ProvisionedThroughputExceededException",
-        "RequestLimitExceeded",
-        "RequestThrottled",
-        "RequestThrottledException",
-        "RequestTimeout",
-        "RequestTimeoutException",
-        "ServerError",
-        "ServiceUnavailable",
-        "SlowDown",
-        "ThrottledException",
-        "Throttling",
-        "ThrottlingException",
-        "TooManyRequestsException",
-        "TransactionInProgressException",
-        "Unavailable",
-    }
-
-    # Fatal/unrecoverable → 400
-    fatal_errors = {
-        "BucketAlreadyExists",
-        "BucketAlreadyOwnedByYou",
-        "DryRunOperation",
-        "InvalidClientTokenId",
-        "InvalidParameterCombination",
-        "InvalidParameterValue",
-        "InvalidQueryParameter",
-        "MalformedPolicyDocument",
-        "MalformedQueryString",
-        "MethodNotAllowed",
-        "MissingParameter",
-        "OperationAborted",
-        "OptInRequired",
-        "UnsupportedOperation",
-        "UnsupportedProtocol",
-        "ValidationException",
-    }
-
-    if error_code in permission_errors:
+    if error_code in PERMISSION_ERRORS:
         return 403
-    elif error_code in not_found_errors:
+    elif error_code in NOT_FOUND_ERRORS:
         return 404
-    elif error_code in range_errors:
+    elif error_code in RANGE_ERRORS:
         return 416
-    elif error_code in fatal_errors:
+    elif error_code in FATAL_ERRORS:
         return 400
-    elif error_code in transient_errors:
+    elif error_code in TRANSIENT_ERRORS:
         return 503
 
     # Default: return original string code if unmapped
