@@ -149,6 +149,7 @@ def normalize_client_error(err):
 
     # Not found errors → 404 Not Found
     not_found_errors = {
+        "NoSuchBucket",
         "NoSuchKey",
         "NotFound",
     }
