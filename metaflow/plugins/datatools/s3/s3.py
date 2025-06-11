@@ -853,6 +853,8 @@ class S3(object):
                                 raise MetaflowS3NotFound()
                         elif info["error"] == s3op.ERROR_URL_ACCESS_DENIED:
                             raise MetaflowS3AccessDenied()
+                        elif info["error"] == s3op.ERROR_INVALID_REQUEST:
+                            raise MetaflowS3Exception("Invalid request for %s" % s3url)
                         else:
                             raise MetaflowS3Exception("Got error: %d" % info["error"])
                     else:
@@ -1379,6 +1381,8 @@ class S3(object):
                     raise MetaflowS3AccessDenied(url)
                 elif error_code == 416:
                     raise MetaflowS3InvalidRange(err)
+                elif error_code == 400:
+                    raise MetaflowS3Exception(f"Invalid request for {url}: {str(err)}")
                 elif error_code == "NoSuchBucket":
                     raise MetaflowS3URLException("Specified S3 bucket doesn't exist.")
                 error = str(err)
