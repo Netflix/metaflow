@@ -64,6 +64,10 @@ BOTOCORE_MSG_TEMPLATE_MATCH = re.compile(
 
 S3Config = namedtuple("S3Config", "role session_vars client_params")
 
+# Error code mappings for AWS S3 and general AWS services
+# - S3 Error Responses: https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
+# - Boto3 Retries: https://boto3.amazonaws.com/v1/documentation/api/latest/guide/retries.html
+
 # Permission or access-related errors → 403 Forbidden
 PERMISSION_ERRORS = {
     "AccessDenied",
@@ -73,7 +77,9 @@ PERMISSION_ERRORS = {
     "AuthFailure",
     "ExpiredToken",
     "InvalidAccessKeyId",
+    "InvalidPayer",
     "InvalidSecurity",
+    "InvalidToken",
     "SignatureDoesNotMatch",
     "UnauthorizedOperation",
     "UnrecognizedClientException",
@@ -82,7 +88,11 @@ PERMISSION_ERRORS = {
 # Not found errors → 404 Not Found
 NOT_FOUND_ERRORS = {
     "NoSuchBucket",
+    "NoSuchBucketPolicy",
     "NoSuchKey",
+    "NoSuchLifecycleConfiguration",
+    "NoSuchVersion",
+    "NoSuchWebsiteConfiguration",
     "NotFound",
 }
 
@@ -111,6 +121,7 @@ TRANSIENT_ERRORS = {
     "ServerError",
     "ServiceUnavailable",
     "SlowDown",
+    "TemporaryRedirect",
     "ThrottledException",
     "Throttling",
     "ThrottlingException",
@@ -121,19 +132,45 @@ TRANSIENT_ERRORS = {
 
 # Fatal/unrecoverable → 400
 FATAL_ERRORS = {
+    "AccessControlListNotSupported",
+    "AmbiguousGrantByEmailAddress",
+    "BadDigest",
     "BucketAlreadyExists",
     "BucketAlreadyOwnedByYou",
     "DryRunOperation",
+    "EntityTooLarge",
+    "EntityTooSmall",
+    "IncompleteBody",
+    "InvalidArgument",
+    "InvalidBucketName",
     "InvalidClientTokenId",
+    "InvalidDigest",
+    "InvalidObjectState",
     "InvalidParameterCombination",
     "InvalidParameterValue",
+    "InvalidPart",
+    "InvalidPartOrder",
     "InvalidQueryParameter",
+    "InvalidRequest",
+    "InvalidStorageClass",
+    "InvalidTargetBucketForLogging",
     "MalformedPolicyDocument",
     "MalformedQueryString",
+    "MalformedXML",
     "MethodNotAllowed",
+    "MissingContentLength",
     "MissingParameter",
+    "MissingRequestBodyError",
+    "NoSuchUpload",
+    "NotImplemented",
     "OperationAborted",
     "OptInRequired",
+    "PreconditionFailed",
+    "Redirect",
+    "RestoreAlreadyInProgress",
+    "TooManyBuckets",
+    "UnexpectedContent",
+    "UnresolvableGrantByEmailAddress",
     "UnsupportedOperation",
     "UnsupportedProtocol",
     "ValidationException",
