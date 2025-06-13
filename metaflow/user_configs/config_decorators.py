@@ -200,7 +200,7 @@ class MutableFlow:
         for name, value in self._flow_cls._flow_state.get(
             _FlowState.CONFIGS, {}
         ).items():
-            yield name, ConfigValue(value)
+            yield name, ConfigValue(value) if value is not None else None
 
     @property
     def parameters(self) -> Generator[Tuple[str, Any], None, None]:

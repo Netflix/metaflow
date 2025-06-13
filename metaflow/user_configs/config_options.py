@@ -352,7 +352,9 @@ class ConfigInput:
                         return None
                     raise exc from e
                 flow_cls._flow_state[_FlowState.CONFIGS][name] = read_value
-                to_return[name] = ConfigValue(read_value)
+                to_return[name] = (
+                    ConfigValue(read_value) if read_value is not None else None
+                )
             else:
                 if self._parsers[name]:
                     read_value = self._call_parser(self._parsers[name], val)
@@ -367,7 +369,9 @@ class ConfigInput:
                         continue
                     # TODO: Support YAML
                 flow_cls._flow_state[_FlowState.CONFIGS][name] = read_value
-                to_return[name] = ConfigValue(read_value)
+                to_return[name] = (
+                    ConfigValue(read_value) if read_value is not None else None
+                )
 
         reqs = missing_configs.intersection(self._req_configs)
         for missing in reqs:

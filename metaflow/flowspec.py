@@ -87,6 +87,9 @@ class FlowSpecMeta(type):
         if name == "FlowSpec":
             return
 
+        cls._init_attrs()
+
+    def _init_attrs(cls):
         from .decorators import (
             DuplicateFlowDecoratorException,
         )  # Prevent circular import
@@ -102,6 +105,12 @@ class FlowSpecMeta(type):
 
         # Keys are _FlowState enum values
         cls._flow_state = {}
+
+        # Keep track if configs have been processed -- this is particularly applicable
+        # for the Runner/Deployer where calling multiple APIs on the same flow could
+        # cause the configs to be processed multiple times. For a given flow, once
+        # the configs have been processed, we do not process them again.
+        cls._configs_processed = False
 
         # We inherit stuff from our parent classes as well -- we need to be careful
         # in terms of the order; we will follow the MRO with the following rules:
@@ -127,10 +136,9 @@ class FlowSpecMeta(type):
                     cls._flow_state.setdefault(_FlowState.CONFIG_DECORATORS, []).extend(
                         base_configs
                     )
+        cls._init_graph()
 
-        cls._init_attrs()
-
-    def _init_attrs(cls):
+    def _init_graph(cls):
         # Graph and steps are specific to the class -- store here so we can access
         # in class method _process_config_decorators
         cls._graph = FlowGraph(cls)
@@ -224,6 +232,10 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
     @classmethod
     def _process_config_decorators(cls, config_options, process_configs=True):
+
+        if cls._configs_processed:
+            return None
+        cls._configs_processed = True
 
         # Fast path for no user configurations
         if not process_configs or (
@@ -325,7 +337,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
         parameters.replace_flow_context(cls)
 
         # Re-calculate class level attributes after modifying the class
-        cls._init_attrs()
+        cls._init_graph()
         return cls
 
     def _set_constants(self, graph, kwargs, config_options):
