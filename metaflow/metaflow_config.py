@@ -370,6 +370,8 @@ KUBERNETES_CONTAINER_IMAGE = from_conf(
 )
 # Image pull policy for container images
 KUBERNETES_IMAGE_PULL_POLICY = from_conf("KUBERNETES_IMAGE_PULL_POLICY", None)
+# Image pull secrets for container images
+KUBERNETES_IMAGE_PULL_SECRETS = from_conf("KUBERNETES_IMAGE_PULL_SECRETS", "")
 # Default container registry for K8S
 KUBERNETES_CONTAINER_REGISTRY = from_conf(
     "KUBERNETES_CONTAINER_REGISTRY", DEFAULT_CONTAINER_REGISTRY
