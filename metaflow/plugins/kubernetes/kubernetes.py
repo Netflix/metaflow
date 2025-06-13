@@ -22,6 +22,7 @@ from metaflow.metaflow_config import (
     CARD_AZUREROOT,
     CARD_GSROOT,
     CARD_S3ROOT,
+    CARD_WRITE_TO_METADATA,
     DATASTORE_SYSROOT_AZURE,
     DATASTORE_SYSROOT_GS,
     DATASTORE_SYSROOT_S3,
@@ -279,6 +280,9 @@ class Kubernetes(object):
             .environment_variable("METAFLOW_CARD_AZUREROOT", CARD_AZUREROOT)
             .environment_variable("METAFLOW_DATASTORE_SYSROOT_GS", DATASTORE_SYSROOT_GS)
             .environment_variable("METAFLOW_CARD_GSROOT", CARD_GSROOT)
+            .environment_variable(
+                "METAFLOW_CARD_WRITE_TO_METADATA", CARD_WRITE_TO_METADATA
+            )
             # support Metaflow sandboxes
             .environment_variable(
                 "METAFLOW_INIT_SCRIPT", KUBERNETES_SANDBOX_INIT_SCRIPT
@@ -582,6 +586,9 @@ class Kubernetes(object):
                 "METAFLOW_DATASTORE_SYSROOT_AZURE", DATASTORE_SYSROOT_AZURE
             )
             .environment_variable("METAFLOW_CARD_AZUREROOT", CARD_AZUREROOT)
+            .environment_variable(
+                "METAFLOW_CARD_WRITE_TO_METADATA", CARD_WRITE_TO_METADATA
+            )
             .environment_variable("METAFLOW_DATASTORE_SYSROOT_GS", DATASTORE_SYSROOT_GS)
             .environment_variable("METAFLOW_CARD_GSROOT", CARD_GSROOT)
             # support Metaflow sandboxes
