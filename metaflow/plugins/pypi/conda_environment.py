@@ -5,6 +5,7 @@ import functools
 import io
 import json
 import os
+import shutil
 import tarfile
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -32,6 +33,7 @@ class CondaEnvironmentException(MetaflowException):
 class CondaEnvironment(MetaflowEnvironment):
     TYPE = "conda"
     _filecache = None
+    _disable_cache = False
 
     def __init__(self, flow):
         self.flow = flow
@@ -107,7 +109,10 @@ class CondaEnvironment(MetaflowEnvironment):
             return (
                 id_,
                 (
-                    self.read_from_environment_manifest([id_, platform, type_])
+                    (
+                        not self._disable_cache
+                        and self.read_from_environment_manifest([id_, platform, type_])
+                    )
                     or self.write_to_environment_manifest(
                         [id_, platform, type_],
                         self.solvers[type_].solve(id_, **environment),
@@ -153,7 +158,7 @@ class CondaEnvironment(MetaflowEnvironment):
             _meta = copy.deepcopy(local_packages)
             for id_, packages, _, _ in results:
                 for package in packages:
-                    if package.get("path"):
+                    if package.get("path") and not self._disable_cache:
                         # Cache only those packages that manifest is unaware of
                         local_packages.pop(package["url"], None)
                     else:
@@ -186,7 +191,7 @@ class CondaEnvironment(MetaflowEnvironment):
             storage.save_bytes(
                 list_of_path_and_filehandle,
                 len_hint=len(list_of_path_and_filehandle),
-                # overwrite=True,
+                overwrite=self._disable_cache,
             )
             for id_, packages, _, platform in results:
                 if id_ in dirty:
@@ -290,6 +295,9 @@ class CondaEnvironment(MetaflowEnvironment):
 
         self.logger("Virtual environment(s) bootstrapped!")
 
+    def disable_cache(self):
+        self._disable_cache = True
+
     def executable(self, step_name, default=None):
         step = next((step for step in self.flow if step.name == step_name), None)
         if step is None:
@@ -318,6 +326,21 @@ class CondaEnvironment(MetaflowEnvironment):
                 disabled = decorator.attributes["disabled"]
                 return str(disabled).lower() == "true"
         return False
+
+    def delete_environment(self, step):
+        env = self.get_environment(step)
+        paths = []
+        for solver in self.solvers.keys():
+            if solver not in env:
+                continue
+            for platform in env[solver].get("platforms", [None]):
+                paths.append(
+                    self.solvers[solver].path_to_environment(env["id_"], platform)
+                )
+
+        # delete collected paths
+        for path in paths:
+            shutil.rmtree(path, ignore_errors=True)
 
     @functools.lru_cache(maxsize=None)
     def get_environment(self, step):
