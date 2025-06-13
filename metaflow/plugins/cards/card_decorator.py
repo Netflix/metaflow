@@ -2,9 +2,12 @@ import json
 import os
 import re
 import tempfile
+from typing import Tuple, Dict
 
 from metaflow.decorators import StepDecorator
+from metaflow.metadata_provider import MetaDatum
 from metaflow.metaflow_current import current
+from metaflow.metaflow_config import CARD_WRITE_TO_METADATA
 from metaflow.user_configs.config_options import ConfigInput
 from metaflow.user_configs.config_parameters import dump_config_values
 from metaflow.util import to_unicode
@@ -20,6 +23,25 @@ def warning_message(message, logger=None, ts=False):
     msg = "[@card WARNING] %s" % message
     if logger:
         logger(msg, timestamp=ts, bad=True)
+
+
+class MetadataStateManager(object):
+    def __init__(self, info_func):
+        self._info_func = info_func
+        self._metadata_registered = {}
+
+    def register_metadata(self, card_uuid) -> Tuple[bool, Dict]:
+        if not CARD_WRITE_TO_METADATA:
+            return False, {}
+        info = self._info_func()
+        if (
+            info is None
+            or info.get(card_uuid) is None
+            or self._metadata_registered.get(card_uuid)
+        ):
+            return False, {}
+        self._metadata_registered[card_uuid] = True
+        return True, info.get(card_uuid)
 
 
 class CardDecorator(StepDecorator):
@@ -55,11 +77,14 @@ class CardDecorator(StepDecorator):
             The or one of the cards attached to this step.
     """
 
+    _GLOBAL_CARD_INFO = {}
+
     name = "card"
     defaults = {
         "type": "default",
         "options": {},
         "scope": "task",
+        "rank": None,  # Can be one of "high", "medium", "low". Can help derive ordering on the UI.
         "timeout": 45,
         "id": None,
         "save_errors": True,
@@ -91,6 +116,7 @@ class CardDecorator(StepDecorator):
         self._is_editable = False
         self._card_uuid = None
         self._user_set_card_id = None
+        self._metadata_registered = False
 
     @classmethod
     def _set_card_creator(cls, card_creator):
@@ -130,6 +156,16 @@ class CardDecorator(StepDecorator):
                 config_value = dump_config_values(flow)
                 json.dump(config_value, config_file)
                 cls._config_file_name = config_file.name
+
+    @classmethod
+    def _register_card_info(cls, **kwargs):
+        if not kwargs.get("card_uuid"):
+            raise ValueError("card_uuid is required")
+        cls._GLOBAL_CARD_INFO[kwargs["card_uuid"]] = kwargs
+
+    @classmethod
+    def all_cards_info(cls):
+        return cls._GLOBAL_CARD_INFO.copy()
 
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
@@ -191,6 +227,11 @@ class CardDecorator(StepDecorator):
         # we need to ensure that a single config file is being referenced for all card create commands.
         # This config file will be removed when the last card decorator has finished creating its card.
         self._set_config_file_name(flow)
+        # The MetadataStateManager is used to track the state of the metadata registration.
+        # It is there to ensure that we only register metadata for the card once. This is so that we
+        # avoid any un-necessary metadata writes because the create command can be called multiple times during the
+        # card creation process.
+        self._metadata_state_manager = MetadataStateManager(self.all_cards_info)
 
         card_type = self.attributes["type"]
         card_class = get_card_class(card_type)
@@ -225,7 +266,12 @@ class CardDecorator(StepDecorator):
         # we need to ensure that `current.card` has `CardComponentCollector` instantiated only once.
         if not self._is_event_registered("pre-step"):
             self._register_event("pre-step")
-            self._set_card_creator(CardCreator(self._create_top_level_args(flow)))
+            self._set_card_creator(
+                CardCreator(
+                    self._create_top_level_args(flow),
+                    self._metadata_state_manager.register_metadata,
+                )
+            )
 
             current._update_env(
                 {"card": CardComponentCollector(self._logger, self.card_creator)}
@@ -247,6 +293,18 @@ class CardDecorator(StepDecorator):
             refresh_interval=self.attributes["refresh_interval"],
         )
         self._card_uuid = card_metadata["uuid"]
+
+        self._register_card_info(
+            card_uuid=self._card_uuid,
+            rank=self.attributes["rank"],
+            type=self.attributes["type"],
+            options=self.card_options,
+            is_editable=self._is_editable,
+            is_runtime_card=self._is_runtime_card,
+            refresh_interval=self.attributes["refresh_interval"],
+            customize=customize,
+            id=self._user_set_card_id,
+        )
 
         # This means that we are calling `task_pre_step` on the last card decorator.
         # We can now `finalize` method in the CardComponentCollector object.
