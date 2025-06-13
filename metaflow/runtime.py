@@ -786,6 +786,11 @@ class NativeRuntime(object):
                 ]
                 join_type = "foreach"
                 index = self._translate_index(task, next_step, "join")
+            elif matching_split.type == "split-or":
+                # next step is a conditional split join
+                required_tasks = [task.path]
+                join_type = "split-or"
+                index = self._translate_index(task, next_step, "linear")
             else:
                 # next step is a split
                 # required tasks are all branches joined by the next step
@@ -862,6 +867,18 @@ class NativeRuntime(object):
                     index,
                 )
 
+    def _queue_task_conditional(self, task, next_steps):
+        if len(next_steps) != 1:
+            msg = (
+                "Step *{step}* is conditional but runtime got {actual} transitions. "
+                "Expected exactly 1 chosen step."
+            )
+            raise Exception(msg.format(step=task.step, actual=len(next_steps)))
+
+        chosen_step = next_steps[0]
+        index = self._translate_index(task, chosen_step, "linear")
+        self._queue_push(chosen_step, {"input_paths": [task.path]}, index)
+
     def _queue_tasks(self, finished_tasks):
         # finished tasks include only successful tasks
         for task in finished_tasks:
@@ -880,7 +897,28 @@ class NativeRuntime(object):
                 next_steps = []
                 foreach = None
             expected = self._graph[task.step].out_funcs
-            if next_steps != expected:
+            if self._graph[task.step].type == "split-or":
+                if len(next_steps) != 1:
+                    msg = (
+                        "Conditional step *{step}* should transition to exactly "
+                        "one step at runtime, but got: {actual}"
+                    )
+                    raise MetaflowInternalError(
+                        msg.format(step=task.step, actual=", ".join(next_steps))
+                    )
+                if next_steps[0] not in expected:
+                    msg = (
+                        "Conditional step *{step}* transitioned to unexpected "
+                        "step *{actual}*. Expected one of: {expected}"
+                    )
+                    raise MetaflowInternalError(
+                        msg.format(
+                            step=task.step,
+                            actual=next_steps[0],
+                            expected=", ".join(expected),
+                        )
+                    )
+            elif next_steps != expected:
                 msg = (
                     "Based on static analysis of the code, step *{step}* "
                     "was expected to transition to step(s) *{expected}*. "
@@ -904,6 +942,9 @@ class NativeRuntime(object):
             elif foreach:
                 # Next step is a foreach child
                 self._queue_task_foreach(task, next_steps)
+            elif self._graph[task.step].type == "split-or":
+                # Next step is conditional - queue the chosen step
+                self._queue_task_conditional(task, next_steps)
             else:
                 # Next steps are normal linear steps
                 for step in next_steps:

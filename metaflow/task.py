@@ -272,6 +272,22 @@ class MetaflowTask(object):
         elif "_foreach_stack" in inputs[0]:
             self.flow._foreach_stack = inputs[0]["_foreach_stack"]
 
+    def _validate_conditional_transition(self, step_name):
+        node = self.flow._graph[step_name]
+        if node.type == "split-or" and node.condition:
+            if not hasattr(self.flow, node.condition):
+                raise MetaflowInternalError(
+                    f"Condition variable '{node.condition}' not found in step '{step_name}'"
+                )
+            condition_value = getattr(self.flow, node.condition)
+            if not isinstance(condition_value, bool):
+                raise MetaflowInternalError(
+                    f"Condition variable '{node.condition}' must be boolean, got {type(condition_value).__name__}"
+                )
+
+            chosen_step = node.out_funcs[0] if condition_value else node.out_funcs[1]
+            self.flow._transition = ([chosen_step], None)
+
     def _clone_flow(self, datastore):
         x = self.flow.__class__(use_cli=False)
         x._set_datastore(datastore)
@@ -595,22 +611,41 @@ class MetaflowTask(object):
                             "inputs but only %d inputs "
                             "were found" % (step_name, len(node.in_funcs), len(inputs))
                         )
-
-                    # Multiple input contexts are passed in as an argument
-                    # to the step function.
-                    input_obj = Inputs(self._clone_flow(inp) for inp in inputs)
-                    self.flow._set_datastore(output)
-                    # initialize parameters (if they exist)
-                    # We take Parameter values from the first input,
-                    # which is always safe since parameters are read-only
-                    current._update_env(
-                        {
-                            "parameter_names": self._init_parameters(
-                                inputs[0], passdown=True
-                            ),
-                            "graph_info": self.flow._graph_info,
-                        }
-                    )
+                    if join_type == "split-or":
+                        if len(inputs) > 1:
+                            raise MetaflowInternalError(
+                                f"Step *{step_name}* is a conditional join but gets multiple inputs"
+                            )
+                        self.flow._set_datastore(inputs[0])
+                        # Initialize parameters for conditional joins
+                        if input_paths:
+                            current._update_env(
+                                {
+                                    "parameter_names": self._init_parameters(
+                                        inputs[0], passdown=False
+                                    ),
+                                    "graph_info": self.flow._graph_info,
+                                }
+                            )
+                        # Execute step function directly (no input_obj for conditional joins)
+                        self._exec_step_function(step_func)
+                    else:
+                        # Multiple input contexts are passed in as an argument
+                        # to the step function.
+                        input_obj = Inputs(self._clone_flow(inp) for inp in inputs)
+                        self.flow._set_datastore(output)
+                        # initialize parameters (if they exist)
+                        # We take Parameter values from the first input,
+                        # which is always safe since parameters are read-only
+                        current._update_env(
+                            {
+                                "parameter_names": self._init_parameters(
+                                    inputs[0], passdown=True
+                                ),
+                                "graph_info": self.flow._graph_info,
+                            }
+                        )
+                        self._exec_step_function(step_func, input_obj)
                 else:
                     # Linear step:
                     # We are running with a single input context.
@@ -666,9 +701,16 @@ class MetaflowTask(object):
                         self.ubf_context,
                     )
 
+                # Execute the step function after decorators have processed it
                 if join_type:
-                    self._exec_step_function(step_func, input_obj)
+                    if join_type == "split-or":
+                        # Conditional join - already executed above
+                        pass
+                    else:
+                        # Multi-input join - already executed above
+                        pass
                 else:
+                    # Linear step - execute now
                     self._exec_step_function(step_func)
 
                 for deco in decorators:
@@ -680,6 +722,7 @@ class MetaflowTask(object):
                         max_user_code_retries,
                     )
 
+                self._validate_conditional_transition(step_name)
                 self.flow._task_ok = True
                 self.flow._success = True
 
