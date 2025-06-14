@@ -16,7 +16,6 @@ from metaflow.metaflow_config import (
     CARD_SUFFIX,
     CARD_AZUREROOT,
     CARD_GSROOT,
-    SKIP_CARD_DUALWRITE,
 )
 import metaflow.metaflow_config as metaflow_config
 
