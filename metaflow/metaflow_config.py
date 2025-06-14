@@ -214,8 +214,6 @@ CARD_GSROOT = from_conf(
 )
 CARD_NO_WARNING = from_conf("CARD_NO_WARNING", False)
 
-SKIP_CARD_DUALWRITE = from_conf("SKIP_CARD_DUALWRITE", False)
-
 RUNTIME_CARD_RENDER_INTERVAL = from_conf("RUNTIME_CARD_RENDER_INTERVAL", 60)
 
 # Azure storage account URL
