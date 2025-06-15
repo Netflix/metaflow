@@ -19,6 +19,7 @@ from metaflow.metaflow_config import (
     SERVICE_HEADERS,
     BATCH_EMIT_TAGS,
     CARD_S3ROOT,
+    CARD_WRITE_TO_METADATA,
     S3_ENDPOINT_URL,
     DEFAULT_SECRETS_BACKEND_TYPE,
     AWS_SECRETS_MANAGER_DEFAULT_REGION,
@@ -262,6 +263,9 @@ class Batch(object):
             .environment_variable("METAFLOW_DEFAULT_DATASTORE", "s3")
             .environment_variable("METAFLOW_DEFAULT_METADATA", DEFAULT_METADATA)
             .environment_variable("METAFLOW_CARD_S3ROOT", CARD_S3ROOT)
+            .environment_variable(
+                "METAFLOW_CARD_WRITE_TO_METADATA", CARD_WRITE_TO_METADATA
+            )
             .environment_variable("METAFLOW_OTEL_ENDPOINT", OTEL_ENDPOINT)
             .environment_variable("METAFLOW_RUNTIME_ENVIRONMENT", "aws-batch")
         )
