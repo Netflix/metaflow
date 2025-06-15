@@ -232,7 +232,12 @@ def check_split_join_balance(graph):
             new_stack = split_stack
         elif node.type in ("split", "foreach"):
             new_stack = split_stack + [("split", node.out_funcs)]
+        elif node.type == "split-or":
+            for n in node.out_funcs:
+                traverse(graph[n], split_stack)
+            return
         elif node.type == "end":
+            new_stack = split_stack
             if split_stack:
                 _, split_roots = split_stack.pop()
                 roots = ", ".join(split_roots)
@@ -240,6 +245,7 @@ def check_split_join_balance(graph):
                     msg0.format(roots=roots), node.func_lineno, node.source_file
                 )
         elif node.type == "join":
+            new_stack = split_stack
             if split_stack:
                 _, split_roots = split_stack[-1]
                 new_stack = split_stack[:-1]
@@ -266,6 +272,8 @@ def check_split_join_balance(graph):
 
             if not all_equal(map(parents, node.in_funcs)):
                 raise LintWarn(msg3.format(node), node.func_lineno, node.source_file)
+        else:
+            new_stack = split_stack
 
         for n in node.out_funcs:
             traverse(graph[n], new_stack)
@@ -288,6 +296,36 @@ def check_empty_foreaches(graph):
                 raise LintWarn(
                     msg.format(node, join=joins[0]), node.func_lineno, node.source_file
                 )
+
+
+@linter.ensure_static_graph
+@linter.check
+def check_conditional_splits(graph):
+    """Check conditional split constraints"""
+    msg0 = (
+        "Step *{0.name}* is a conditional split but defines {num} transitions. "
+        "Conditional splits must define exactly 2 transitions."
+    )
+    msg1 = (
+        "Step *{0.name}* is a conditional split but the two branches don't "
+        "converge. Both branches should either go to the same step or both "
+        "should eventually reach the 'end' step."
+    )
+
+    for node in graph:
+        if node.type == "split-or":
+            # Check exactly 2 outputs
+            if len(node.out_funcs) != 2:
+                raise LintWarn(
+                    msg0.format(node, num=len(node.out_funcs)),
+                    node.func_lineno,
+                    node.source_file,
+                )
+
+            # For now, allow any conditional structure
+            # More sophisticated convergence checking could be added later
+            # if needed, but it's complex due to the runtime nature of conditionals
+            pass
 
 
 @linter.ensure_static_graph
