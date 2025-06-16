@@ -2270,9 +2270,9 @@ class ArgoWorkflows(object):
             hooks.append(self._pager_duty_change_template())
             hooks.append(self._incident_io_change_template())
 
-        run_on_finish_decos = self.flow._flow_decorators.get("run_on_finish", [])
+        exit_hook_decos = self.flow._flow_decorators.get("exit_hook", [])
 
-        for deco in run_on_finish_decos:
+        for deco in exit_hook_decos:
             hooks.extend(deco.hooks)
 
         # Clean up None values from templates.

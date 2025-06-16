@@ -10,11 +10,9 @@ class ExitHookDecorator(FlowDecorator):
     allow_multiple = True
 
     defaults = {
-        "functions": [],
         "image": None,
-        "language": "python",
-        "on_success": None,
-        "on_error": None,
+        "on_success": [],
+        "on_error": [],
     }
 
     def flow_init(
@@ -24,23 +22,27 @@ class ExitHookDecorator(FlowDecorator):
         on_error = self.attributes["on_error"]
 
         if not on_success and not on_error:
-            raise MetaflowException("Choose one of the options on_success/on_error")
-
-        prefix = ""
-        if on_success:
-            prefix = "success"
-        elif on_error:
-            prefix = "error"
+            raise MetaflowException(
+                "Choose at least one of the options on_success/on_error"
+            )
 
         self.hooks = []
-        for fn in self.attributes["functions"]:
+        for success_fn in self.attributes["on_success"]:
             self.hooks.append(
                 ScriptHook(
-                    name=f"{prefix}-{fn.__name__}",
-                    language=self.attributes["language"],
-                    source=inspect.getsource(fn),
+                    name=f"success-{success_fn.__name__}",
+                    source=inspect.getsource(success_fn),
                     image=self.attributes["image"],
-                    on_success=self.attributes["on_success"],
-                    on_error=self.attributes["on_error"],
+                    on_success=True,
+                )
+            )
+
+        for error_fn in self.attributes["on_error"]:
+            self.hooks.append(
+                ScriptHook(
+                    name=f"error-{error_fn.__name__}",
+                    source=inspect.getsource(error_fn),
+                    image=self.attributes["image"],
+                    on_error=True,
                 )
             )
