@@ -69,7 +69,7 @@ FLOW_DECORATORS_DESC = [
     ("trigger_on_finish", ".events_decorator.TriggerOnFinishDecorator"),
     ("pypi_base", ".pypi.pypi_decorator.PyPIFlowDecorator"),
     ("conda_base", ".pypi.conda_decorator.CondaFlowDecorator"),
-    ("run_on_finish", ".argo.hook_decorator.RunOnFinishDecorator"),
+    ("exit_hook", ".argo.exit_hook_decorator.ExitHookDecorator"),
 ]
 
 # Add environments here

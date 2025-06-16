@@ -5,8 +5,8 @@ from metaflow.exception import MetaflowException
 from metaflow.plugins.argo.exit_hooks import ScriptHook
 
 
-class RunOnFinishDecorator(FlowDecorator):
-    name = "run_on_finish"
+class ExitHookDecorator(FlowDecorator):
+    name = "exit_hook"
     allow_multiple = True
 
     defaults = {
