@@ -65,7 +65,7 @@ from metaflow.util import (
 )
 
 from .argo_client import ArgoClient
-from .exit_hooks import ExitHookHack, HttpExitHook
+from .exit_hooks import ExitHookHack, HttpExitHook, ContainerHook
 from metaflow.util import resolve_identity
 
 
@@ -2273,7 +2273,7 @@ class ArgoWorkflows(object):
         exit_hook_decos = self.flow._flow_decorators.get("exit_hook", [])
 
         for deco in exit_hook_decos:
-            hooks.extend(deco.hooks)
+            hooks.extend(self._lifecycle_hook_from_deco(deco))
 
         # Clean up None values from templates.
         hooks = list(filter(None, hooks))
@@ -2287,6 +2287,154 @@ class ArgoWorkflows(object):
                     )
                 )
             )
+        return hooks
+
+    def _lifecycle_hook_from_deco(self, deco):
+        from kubernetes import client as kubernetes_sdk
+
+        start_step = [step for step in self.graph if step.name == "start"][0]
+        # We want to grab the base image used by the start step, as this is known to be pullable from within the cluster,
+        # and it might contain the required libraries, allowing us to start up faster.
+        resources = dict(
+            [deco for deco in start_step.decorators if deco.name == "kubernetes"][
+                0
+            ].attributes
+        )
+
+        run_id_template = "argo-{{workflow.name}}"
+        metaflow_version = self.environment.get_environment_info()
+        script_import = metaflow_version["script"].rstrip(".py")
+        metaflow_version["flow_name"] = self.graph.name
+        metaflow_version["production_token"] = self.production_token
+        env = {
+            # These values are needed by Metaflow to set it's internal
+            # state appropriately.
+            "METAFLOW_CODE_URL": self.code_package_url,
+            "METAFLOW_CODE_SHA": self.code_package_sha,
+            "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
+            "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
+            "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
+            "METAFLOW_USER": "argo-workflows",
+            "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
+            "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
+            "METAFLOW_OWNER": self.username,
+        }
+        # support Metaflow sandboxes
+        env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
+        env["METAFLOW_ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT"] = (
+            ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT
+        )
+
+        env["METAFLOW_WORKFLOW_NAME"] = "{{workflow.name}}"
+        env["METAFLOW_WORKFLOW_NAMESPACE"] = "{{workflow.namespace}}"
+        env["METAFLOW_ARGO_WORKFLOW_FAILURES"] = "{{workflow.failures}}"
+        env = {
+            k: v
+            for k, v in env.items()
+            if v is not None
+            and k not in set(ARGO_WORKFLOWS_ENV_VARS_TO_SKIP.split(","))
+        }
+
+        def _cmd(fn_name):
+            mflog_expr = export_mflog_env_vars(
+                datastore_type=self.flow_datastore.TYPE,
+                stdout_path="$PWD/.logs/mflog_stdout",
+                stderr_path="$PWD/.logs/mflog_stderr",
+                flow_name=self.flow.name,
+                run_id=run_id_template,
+                step_name=f"_hook_{fn_name}",
+                task_id="1",
+                retry_count="0",
+            )
+            cmds = " && ".join(
+                [
+                    # For supporting sandboxes, ensure that a custom script is executed
+                    # before anything else is executed. The script is passed in as an
+                    # env var.
+                    '${METAFLOW_INIT_SCRIPT:+eval \\"${METAFLOW_INIT_SCRIPT}\\"}',
+                    "mkdir -p $PWD/.logs",
+                    mflog_expr,
+                ]
+                + self.environment.get_package_commands(
+                    self.code_package_url, self.flow_datastore.TYPE
+                )[:-1]
+                # Replace the line 'Task in starting'
+                + [f"mflog 'Lifecycle hook {fn_name} is starting.'"]
+                + [
+                    f"python -c 'import {script_import} as tempflow; tempflow.{fn_name}();'"
+                ]
+            )
+
+            # TODO: Also capture the first failed task id
+            cmds = shlex.split('bash -c "%s"' % cmds)
+            return cmds
+
+        def _container(cmds):
+            return to_camelcase(
+                kubernetes_sdk.V1Container(
+                    name="main",
+                    command=cmds,
+                    image=deco.attributes["image"] or resources["image"],
+                    env=[
+                        kubernetes_sdk.V1EnvVar(name=k, value=str(v))
+                        for k, v in env.items()
+                    ],
+                    env_from=[
+                        kubernetes_sdk.V1EnvFromSource(
+                            secret_ref=kubernetes_sdk.V1SecretEnvSource(
+                                name=str(k),
+                                # optional=True
+                            )
+                        )
+                        for k in list(
+                            []
+                            if not resources.get("secrets")
+                            else (
+                                [resources.get("secrets")]
+                                if isinstance(resources.get("secrets"), str)
+                                else resources.get("secrets")
+                            )
+                        )
+                        + KUBERNETES_SECRETS.split(",")
+                        + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
+                        if k
+                    ],
+                    resources=kubernetes_sdk.V1ResourceRequirements(
+                        # NOTE: base resources for this are kept to a minimum to save on running costs.
+                        # This has an adverse effect on startup time for the daemon, which can be completely
+                        # alleviated by using a base image that has the required dependencies pre-installed
+                        requests={
+                            "cpu": "200m",
+                            "memory": "100Mi",
+                        },
+                        limits={
+                            "cpu": "200m",
+                            "memory": "500Mi",
+                        },
+                    ),
+                ).to_dict()
+            )
+
+        # create lifecycle hooks from deco
+        hooks = []
+        for success_fn_name in deco.success_hooks:
+            hook = ContainerHook(
+                name=f"success-{success_fn_name.replace('_', '-')}", on_success=True
+            )
+            hook.template.service_account_name(resources["service_account"]).container(
+                _container(cmds=_cmd(success_fn_name))
+            )
+            hooks.append(hook)
+
+        for error_fn_name in deco.error_hooks:
+            hook = ContainerHook(
+                name=f"error-{error_fn_name.replace('_', '-')}", on_error=True
+            )
+            hook.template.service_account_name(resources["service_account"]).container(
+                _container(cmds=_cmd(error_fn_name))
+            )
+            hooks.append(hook)
+
         return hooks
 
     def _exit_hook_templates(self):

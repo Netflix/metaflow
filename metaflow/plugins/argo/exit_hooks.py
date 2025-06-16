@@ -45,6 +45,10 @@ class _Template(JsonSerializable):
         self.payload["script"] = script.to_json()
         return self
 
+    def container(self, container):
+        self.payload["container"] = container
+        return self
+
     def service_account_name(self, service_account_name):
         self.payload["serviceAccountName"] = service_account_name
         return self
@@ -214,6 +218,43 @@ class ScriptHook(Hook):
 
         self.template.script(script)
 
+        self.lifecycle_hooks = []
+
+        if on_success and on_error:
+            raise Exception("Set only one of the on_success/on_error at a time.")
+
+        if on_success:
+            self.lifecycle_hooks.append(
+                _LifecycleHook(name)
+                .expression("workflow.status == 'Succeeded'")
+                .template(self.template.name)
+            )
+
+        if on_error:
+            self.lifecycle_hooks.append(
+                _LifecycleHook(name)
+                .expression("workflow.status == 'Error'")
+                .template(self.template.name)
+            )
+            self.lifecycle_hooks.append(
+                _LifecycleHook(f"{name}-failure")
+                .expression("workflow.status == 'Failure'")
+                .template(self.template.name)
+            )
+
+        if not on_success and not on_error:
+            # add an expressionless lifecycle hook
+            self.lifecycle_hooks.append(_LifecycleHook(name).template(name))
+
+
+class ContainerHook(Hook):
+    def __init__(
+        self,
+        name: str,
+        on_success=False,
+        on_error=False,
+    ):
+        self.template = _Template(name)
         self.lifecycle_hooks = []
 
         if on_success and on_error:
