@@ -1,6 +1,6 @@
 from collections import defaultdict
 import json
-from typing import Callable, List
+from typing import Dict, List
 
 
 class JsonSerializable(object):
@@ -62,27 +62,6 @@ class Hook(object):
 
     template: "_Template"
     lifecycle_hooks: List["_LifecycleHook"]
-
-
-class _ScriptSpec(JsonSerializable):
-    # https://argo-workflows.readthedocs.io/en/latest/walk-through/scripts-and-results/
-
-    def __init__(self):
-        tree = lambda: defaultdict(tree)
-        self.payload = tree()
-
-    def image(self, image):
-        self.payload["image"] = image
-        return self
-
-    def command(self, command: List[str]):
-        self.payload["command"] = command
-        return self
-
-    def source(self, source: str):
-        # encode the source as a oneliner due to json limitations
-        self.payload["source"] = json.dumps(source)
-        return self
 
 
 class _HttpSpec(JsonSerializable):
@@ -201,60 +180,22 @@ class ExitHookHack(Hook):
         self.lifecycle_hooks.append(_LifecycleHook("exit").template("exit-hook-hack"))
 
 
-class ScriptHook(Hook):
-    def __init__(
-        self,
-        name: str,
-        source: str,
-        image: str = None,
-        language: str = "python",
-        on_success=False,
-        on_error=False,
-    ):
-        self.template = _Template(name)
-        script = _ScriptSpec().command([language]).source(source)
-        if image is not None:
-            script.image(image)
-
-        self.template.script(script)
-
-        self.lifecycle_hooks = []
-
-        if on_success and on_error:
-            raise Exception("Set only one of the on_success/on_error at a time.")
-
-        if on_success:
-            self.lifecycle_hooks.append(
-                _LifecycleHook(name)
-                .expression("workflow.status == 'Succeeded'")
-                .template(self.template.name)
-            )
-
-        if on_error:
-            self.lifecycle_hooks.append(
-                _LifecycleHook(name)
-                .expression("workflow.status == 'Error'")
-                .template(self.template.name)
-            )
-            self.lifecycle_hooks.append(
-                _LifecycleHook(f"{name}-failure")
-                .expression("workflow.status == 'Failure'")
-                .template(self.template.name)
-            )
-
-        if not on_success and not on_error:
-            # add an expressionless lifecycle hook
-            self.lifecycle_hooks.append(_LifecycleHook(name).template(name))
-
-
 class ContainerHook(Hook):
     def __init__(
         self,
         name: str,
-        on_success=False,
-        on_error=False,
+        container: Dict,
+        service_account_name: str = None,
+        on_success: bool = False,
+        on_error: bool = False,
     ):
         self.template = _Template(name)
+
+        if service_account_name is not None:
+            self.template.service_account_name(service_account_name)
+
+        self.template.container(container)
+
         self.lifecycle_hooks = []
 
         if on_success and on_error:

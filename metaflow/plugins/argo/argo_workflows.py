@@ -2365,7 +2365,6 @@ class ArgoWorkflows(object):
                 ]
             )
 
-            # TODO: Also capture the first failed task id
             cmds = shlex.split('bash -c "%s"' % cmds)
             return cmds
 
@@ -2401,8 +2400,6 @@ class ArgoWorkflows(object):
                     ],
                     resources=kubernetes_sdk.V1ResourceRequirements(
                         # NOTE: base resources for this are kept to a minimum to save on running costs.
-                        # This has an adverse effect on startup time for the daemon, which can be completely
-                        # alleviated by using a base image that has the required dependencies pre-installed
                         requests={
                             "cpu": "200m",
                             "memory": "100Mi",
@@ -2419,19 +2416,19 @@ class ArgoWorkflows(object):
         hooks = []
         for success_fn_name in deco.success_hooks:
             hook = ContainerHook(
-                name=f"success-{success_fn_name.replace('_', '-')}", on_success=True
-            )
-            hook.template.service_account_name(resources["service_account"]).container(
-                _container(cmds=_cmd(success_fn_name))
+                name=f"success-{success_fn_name.replace('_', '-')}",
+                container=_container(cmds=_cmd(success_fn_name)),
+                service_account_name=resources["service_account"],
+                on_success=True,
             )
             hooks.append(hook)
 
         for error_fn_name in deco.error_hooks:
             hook = ContainerHook(
-                name=f"error-{error_fn_name.replace('_', '-')}", on_error=True
-            )
-            hook.template.service_account_name(resources["service_account"]).container(
-                _container(cmds=_cmd(error_fn_name))
+                name=f"error-{error_fn_name.replace('_', '-')}",
+                service_account_name=resources["service_account"],
+                container=_container(cmds=_cmd(error_fn_name)),
+                on_error=True,
             )
             hooks.append(hook)
 

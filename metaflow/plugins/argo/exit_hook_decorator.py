@@ -1,10 +1,5 @@
-import platform
 from metaflow.decorators import FlowDecorator
-import inspect
-
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import KUBERNETES_CONTAINER_IMAGE
-from metaflow.plugins.argo.exit_hooks import ScriptHook
 
 
 class ExitHookDecorator(FlowDecorator):
