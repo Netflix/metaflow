@@ -394,7 +394,7 @@ class MetadataProvider(object):
 
         Return
         ------
-            object or list :
+            object or iterator :
                 Depending on the call, the type of object return varies
         """
         type_order = ObjectOrder.type_to_order(obj_type)
