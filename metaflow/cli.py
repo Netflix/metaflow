@@ -445,7 +445,7 @@ def start(
     ctx.obj.environment = [
         e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == environment
     ][0](ctx.obj.flow)
-    # set force rebuild flag for environment
+    # set force rebuild flag for environments that support it.
     ctx.obj.environment._force_rebuild = force_rebuild_environments
     ctx.obj.environment.validate_environment(ctx.obj.logger, datastore)
 
