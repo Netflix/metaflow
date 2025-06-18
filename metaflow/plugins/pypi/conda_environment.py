@@ -5,7 +5,6 @@ import functools
 import io
 import json
 import os
-import shutil
 import tarfile
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -73,13 +72,10 @@ class CondaEnvironment(MetaflowEnvironment):
         self.logger = make_thread_safe(logger)
 
         # TODO: Wire up logging
-        micromamba = Micromamba(self.logger)
+        micromamba = Micromamba(self.logger, self._force_rebuild)
         self.solvers = {"conda": micromamba, "pypi": Pip(micromamba, self.logger)}
 
     def init_environment(self, echo, only_steps=None):
-        if self._force_rebuild:
-
-            self.cleanup_existing_environments(only_steps)
         # The implementation optimizes for latency to ensure as many operations can
         # be turned into cheap no-ops as feasible. Otherwise, we focus on maintaining
         # a balance between latency and maintainability of code without re-implementing
@@ -326,29 +322,6 @@ class CondaEnvironment(MetaflowEnvironment):
                 disabled = decorator.attributes["disabled"]
                 return str(disabled).lower() == "true"
         return False
-
-    def cleanup_existing_environments(self, step_names):
-        steps = [
-            step for step in self.flow if (not step_names or step.name in step_names)
-        ]
-
-        for step in steps:
-            self.delete_environment(step)
-
-    def delete_environment(self, step):
-        env = self.get_environment(step)
-        paths = []
-        for solver in self.solvers.keys():
-            if solver not in env:
-                continue
-            for platform in env[solver].get("platforms", [None]):
-                paths.append(
-                    self.solvers[solver].path_to_environment(env["id_"], platform)
-                )
-
-        # delete collected paths
-        for path in paths:
-            shutil.rmtree(path, ignore_errors=True)
 
     @functools.lru_cache(maxsize=None)
     def get_environment(self, step):
