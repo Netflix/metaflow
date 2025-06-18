@@ -442,12 +442,11 @@ def start(
 
     ctx.obj.graph = ctx.obj.flow._graph
 
-    # carry the force rebuild as an internal env var for generic environments to use
-    if force_rebuild_environments:
-        os.environ["_METAFLOW_ENVIRONMENT_FORCE_REBUILD"] = "1"
     ctx.obj.environment = [
         e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == environment
     ][0](ctx.obj.flow)
+    # set force rebuild flag for environment
+    ctx.obj.environment._force_rebuild = force_rebuild_environments
     ctx.obj.environment.validate_environment(ctx.obj.logger, datastore)
 
     ctx.obj.event_logger = LOGGING_SIDECARS[event_logger](

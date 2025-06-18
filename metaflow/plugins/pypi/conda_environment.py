@@ -33,12 +33,10 @@ class CondaEnvironmentException(MetaflowException):
 class CondaEnvironment(MetaflowEnvironment):
     TYPE = "conda"
     _filecache = None
+    _force_rebuild = False
 
     def __init__(self, flow):
         self.flow = flow
-        self._force_rebuild = os.environ.get(
-            "_METAFLOW_ENVIRONMENT_FORCE_REBUILD", False
-        )
 
     def set_local_root(self, local_root):
         # TODO: Make life simple by passing echo to the constructor and getting rid of
