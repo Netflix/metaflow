@@ -213,3 +213,19 @@ class TestRefreshComponentCard(MetaflowCard):
         if task.finished:
             return "final"
         return "runtime-%s" % _component_values_to_hash(data["components"])
+
+
+class TestImageCard(MetaflowCard):
+    """Card that renders a tiny PNG using ``TaskToDict.parse_image``."""
+
+    type = "test_image_card"
+
+    def render(self, task):
+        from .convert_to_native_type import TaskToDict
+        import base64
+
+        png_bytes = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABRDE8UwAAAABJRU5ErkJggg=="
+        )
+        img_src = TaskToDict().parse_image(png_bytes)
+        return f"<html><img src='{img_src}' /></html>"
