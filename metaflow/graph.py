@@ -62,6 +62,7 @@ class DAGNode(object):
         self.has_tail_next = False
         self.invalid_tail_next = False
         self.num_args = 0
+        self.condition = None
         self.foreach_param = None
         self.num_parallel = 0
         self.parallel_foreach = False
@@ -110,6 +111,15 @@ class DAGNode(object):
                     if len(self.out_funcs) == 1:
                         self.foreach_param = keywords["foreach"]
                         self.invalid_tail_next = False
+                elif "condition" in keywords:
+                    # TYPE: split-or (conditional)
+                    self.type = "split-or"
+                    if len(self.out_funcs) == 2:
+                        self.condition = keywords["condition"]
+                        if not self.condition.isidentifier():
+                            self.invalid_tail_next = True
+                        else:
+                            self.invalid_tail_next = False
                 elif "num_parallel" in keywords:
                     self.type = "foreach"
                     self.parallel_foreach = True
@@ -145,6 +155,7 @@ class DAGNode(object):
     has_tail_next={0.has_tail_next} (line {0.tail_next_lineno})
     invalid_tail_next={0.invalid_tail_next}
     foreach_param={0.foreach_param}
+    condition={0.condition}
     parallel_step={0.parallel_step}
     parallel_foreach={0.parallel_foreach}
     -> {out}""".format(
@@ -207,6 +218,8 @@ class FlowGraph(object):
             if node.type in ("split", "foreach"):
                 node.split_parents = split_parents
                 split_parents = split_parents + [node.name]
+            elif node.type == "split-or":
+                node.split_parents = split_parents
             elif node.type == "join":
                 # ignore joins without splits
                 if split_parents:
@@ -247,15 +260,41 @@ class FlowGraph(object):
     def output_dot(self):
         def edge_specs():
             for node in self.nodes.values():
-                for edge in node.out_funcs:
-                    yield "%s -> %s;" % (node.name, edge)
+                if node.type == "split-or":
+                    # Label edges for conditional branches
+                    for i, edge in enumerate(node.out_funcs):
+                        label = "True" if i == 0 else "False"
+                        color = "green" if i == 0 else "red"
+                        yield (
+                            '{0} -> {1} [label="{2}" color="{3}" fontcolor="{3}"];'.format(
+                                node.name, edge, label, color
+                            )
+                        )
+                else:
+                    for edge in node.out_funcs:
+                        yield "%s -> %s;" % (node.name, edge)
 
         def node_specs():
             for node in self.nodes.values():
-                nodetype = "join" if node.num_args > 1 else node.type
-                yield '"{0.name}"' '[ label = <<b>{0.name}</b> | <font point-size="10">{type}</font>> ' '  fontname = "Helvetica" ' '  shape = "record" ];'.format(
-                    node, type=nodetype
-                )
+                if node.type == "split-or":
+                    # Diamond shape for conditional nodes
+                    condition_label = (
+                        f"condition: {node.condition}"
+                        if node.condition
+                        else "conditional"
+                    )
+                    yield (
+                        '"{0.name}" '
+                        '[ label = <<b>{0.name}</b><br/><font point-size="9">{condition}</font>> '
+                        '  fontname = "Helvetica" '
+                        '  shape = "diamond" '
+                        '  style = "filled" fillcolor = "lightblue" ];'
+                    ).format(node, condition=condition_label)
+                else:
+                    nodetype = "join" if node.num_args > 1 else node.type
+                    yield '"{0.name}"' '[ label = <<b>{0.name}</b> | <font point-size="10">{type}</font>> ' '  fontname = "Helvetica" ' '  shape = "record" ];'.format(
+                        node, type=nodetype
+                    )
 
         return (
             "digraph {0.name} {{\n"
@@ -279,6 +318,8 @@ class FlowGraph(object):
                 if node.parallel_foreach:
                     return "split-parallel"
                 return "split-foreach"
+            elif node.type == "split-or":
+                return "split-conditional"
             return "unknown"  # Should never happen
 
         def node_to_dict(name, node):
@@ -303,36 +344,16 @@ class FlowGraph(object):
                 d["foreach_artifact"] = node.foreach_param
             elif d["type"] == "split-parallel":
                 d["num_parallel"] = node.num_parallel
+            elif d["type"] == "split-conditional":
+                d["condition"] = node.condition
             if node.matching_join:
                 d["matching_join"] = node.matching_join
             return d
 
-        def populate_block(start_name, end_name):
-            cur_name = start_name
-            resulting_list = []
-            while cur_name != end_name:
-                cur_node = self.nodes[cur_name]
-                node_dict = node_to_dict(cur_name, cur_node)
+        for node_name in self.sorted_nodes:
+            if node_name in self.nodes:
+                steps_info[node_name] = node_to_dict(node_name, self.nodes[node_name])
 
-                steps_info[cur_name] = node_dict
-                resulting_list.append(cur_name)
-
-                if cur_node.type not in ("start", "linear", "join"):
-                    # We need to look at the different branches for this
-                    resulting_list.append(
-                        [
-                            populate_block(s, cur_node.matching_join)
-                            for s in cur_node.out_funcs
-                        ]
-                    )
-                    cur_name = cur_node.matching_join
-                else:
-                    cur_name = cur_node.out_funcs[0]
-            return resulting_list
-
-        graph_structure = populate_block("start", "end")
-
-        steps_info["end"] = node_to_dict("end", self.nodes["end"])
-        graph_structure.append("end")
+        graph_structure = list(self.sorted_nodes)
 
         return steps_info, graph_structure

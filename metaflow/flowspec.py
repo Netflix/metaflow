@@ -780,6 +780,16 @@ class FlowSpec(metaclass=FlowSpecMeta):
           evaluates to an iterator. A task will be launched for each value in the iterator and
           each task will execute the code specified by the step `foreach_step`.
 
+        - Conditional branch:
+          ```
+          self.next(self.if_true, self.if_false, condition='boolean_variable')
+          ```
+          In this situation, both `if_true` and `if_false` are methods in the current class
+          decorated with the `@step` decorator and `boolean_variable` is a variable name
+          in the current class that evaluates to True or False. The `if_true` step will be
+          executed if the condition variable evaluates to True and the `if_false` step will
+          be executed otherwise.
+
         Parameters
         ----------
         dsts : Callable[..., None]
@@ -794,6 +804,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
         step = self._current_step
 
         foreach = kwargs.pop("foreach", None)
+        condition = kwargs.pop("condition", None)
         num_parallel = kwargs.pop("num_parallel", None)
         if kwargs:
             kw = next(iter(kwargs))
@@ -830,6 +841,58 @@ class FlowSpec(metaclass=FlowSpecMeta):
                 )
                 raise InvalidNextException(msg)
             funcs.append(name)
+
+        # check: conditional branch is valid
+        if condition:
+            if not isinstance(condition, basestring):
+                msg = (
+                    "Step *{step}* has an invalid self.next() transition. "
+                    "The argument to 'condition' must be a string.".format(step=step)
+                )
+                raise InvalidNextException(msg)
+
+            if len(dsts) != 2:
+                msg = (
+                    "Step *{step}* has an invalid self.next() transition. "
+                    "Conditional branches require exactly 2 steps. "
+                    "Got {num} steps with condition='{cond}'.".format(
+                        step=step, num=len(dsts), cond=condition
+                    )
+                )
+                raise InvalidNextException(msg)
+
+            if foreach is not None or num_parallel is not None:
+                msg = (
+                    "Step *{step}* has an invalid self.next() transition. "
+                    "Conditional branches cannot be combined with foreach or num_parallel.".format(
+                        step=step
+                    )
+                )
+                raise InvalidNextException(msg)
+
+            # Validate that condition variable exists and is boolean
+            try:
+                condition_value = getattr(self, condition)
+            except AttributeError:
+                msg = (
+                    "Condition variable *self.{var}* in step *{step}* "
+                    "does not exist. Make sure you set self.{var} in this step.".format(
+                        step=step, var=condition
+                    )
+                )
+                raise InvalidNextException(msg)
+
+            if not isinstance(condition_value, bool):
+                msg = (
+                    "Condition variable *self.{var}* in step *{step}* "
+                    "must be boolean, got {typ}: {val}.".format(
+                        step=step,
+                        var=condition,
+                        typ=type(condition_value).__name__,
+                        val=condition_value,
+                    )
+                )
+                raise InvalidNextException(msg)
 
         if num_parallel is not None and num_parallel >= 1:
             if len(dsts) > 1:
@@ -901,7 +964,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
             self._foreach_var = foreach
 
         # check: non-keyword transitions are valid
-        if foreach is None:
+        if foreach is None and condition is None:
             if len(dsts) < 1:
                 msg = (
                     "Step *{step}* has an invalid self.next() transition. "
