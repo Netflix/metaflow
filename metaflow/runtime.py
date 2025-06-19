@@ -16,6 +16,7 @@ import time
 import subprocess
 from datetime import datetime
 from io import BytesIO
+from itertools import chain
 from functools import partial
 from concurrent import futures
 
@@ -1515,6 +1516,7 @@ class CLIArgs(object):
     def __init__(self, task):
         self.task = task
         self.entrypoint = list(task.entrypoint)
+        step_obj = getattr(self.task.flow, self.task.step)
         self.top_level_options = {
             "quiet": True,
             "metadata": self.task.metadata_type,
@@ -1526,8 +1528,12 @@ class CLIArgs(object):
             "datastore-root": self.task.datastore_sysroot,
             "with": [
                 deco.make_decorator_spec()
-                for deco in self.task.decos
-                if not deco.statically_defined
+                for deco in chain(
+                    self.task.decos,
+                    step_obj.wrappers,
+                    step_obj.config_decorators,
+                )
+                if not deco.statically_defined and deco.inserted_by is None
             ],
         }
 

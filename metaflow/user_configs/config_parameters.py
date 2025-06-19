@@ -49,10 +49,6 @@ if TYPE_CHECKING:
 
 #     return tracefunc_closure
 
-CONFIG_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "CONFIG_PARAMETERS"
-)
-
 ID_PATTERN = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 UNPACK_KEY = "_unpacked_delayed_"

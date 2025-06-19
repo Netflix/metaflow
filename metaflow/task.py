@@ -6,6 +6,7 @@ import os
 import time
 import traceback
 
+
 from types import MethodType, FunctionType
 
 from metaflow.sidecar import Message, MessageTypes
@@ -24,6 +25,7 @@ from .unbounded_foreach import UBF_CONTROL
 from .util import all_equal, get_username, resolve_identity, unicode_type
 from .clone_util import clone_task_helper
 from .metaflow_current import current
+from metaflow.user_configs.config_parameters import ConfigValue
 from metaflow.system import _system_logger, _system_monitor
 from metaflow.tracing import get_trace_id
 from metaflow.tuple_util import ForeachFrame
@@ -58,10 +60,76 @@ class MetaflowTask(object):
         self.ubf_context = ubf_context
 
     def _exec_step_function(self, step_function, input_obj=None):
-        if input_obj is None:
-            step_function()
-        else:
-            step_function(input_obj)
+        wrappers_stack = []
+        wrapped_func = None
+        do_skip = False
+        raised_exception = None
+        # If we have wrappers w1, w2 and w3, we need to execute
+        #  - w3_pre
+        #  - w2_pre
+        #  - w1_pre
+        #  - step_function
+        #  - w1_post
+        #  - w2_post
+        #  - w3_post
+        # in that order. We do this by maintaining a stack of generators.
+        # Note that if any of the pre functions returns a function, we execute that
+        # instead of the rest of the inside part. This is useful if you want to create
+        # no-op function for example.
+        for w in reversed(step_function.wrappers):
+            wrapped_func = w.pre_step(step_function.name, self.flow, input_obj)
+            wrappers_stack.append(w)
+            if w.skip_step:
+                # We have nothing to run
+                do_skip = w.skip_step
+                break
+            if wrapped_func:
+                break  # We have nothing left to do since we now execute the
+                # wrapped function
+            # Else, we continue down the list of wrappers
+        try:
+            if not do_skip:
+                if input_obj is None:
+                    if wrapped_func:
+                        wrapped_func()
+                    else:
+                        step_function()
+                else:
+                    if wrapped_func:
+                        wrapped_func(input_obj)
+                    else:
+                        step_function(input_obj)
+            else:
+                # If we are skipping the step, we need to set the transition variables
+                # properly. We call the next function as needed
+                graph_node = self.flow._graph[step_function.name]
+                out_funcs = [getattr(self.flow, f) for f in graph_node.out_funcs]
+                if do_skip == True:
+                    # We need to extract things from the self.next. This is not possible
+                    # in the case where there was a num_parallel.
+                    if graph_node.parallel_foreach:
+                        raise RuntimeError(
+                            "Skipping a parallel foreach step without providing "
+                            "the arguments to the self.next call is not supported. "
+                        )
+                    if graph_node.foreach_param:
+                        self.flow.next(*out_funcs, foreach=graph_node.foreach_param)
+                    else:
+                        self.flow.next(*out_funcs)
+                else:
+                    # Here it is a dictionary so we just call the next method with
+                    # those arguments
+                    self.flow.next(*out_funcs, **do_skip)
+        except Exception as ex:
+            raised_exception = ex
+        # We back out of the stack of generators
+        for w in reversed(wrappers_stack):
+            raised_exception = w.post_step(
+                step_function.name, self.flow, raised_exception
+            )
+        if raised_exception:
+            # We have an exception that we need to propagate
+            raise raised_exception
 
     def _init_parameters(self, parameter_ds, passdown=True):
         cls = self.flow.__class__
