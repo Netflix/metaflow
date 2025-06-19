@@ -7,7 +7,6 @@ from typing import Tuple, Dict
 from metaflow.decorators import StepDecorator
 from metaflow.metadata_provider import MetaDatum
 from metaflow.metaflow_current import current
-from metaflow.metaflow_config import CARD_WRITE_TO_METADATA
 from metaflow.user_configs.config_options import ConfigInput
 from metaflow.user_configs.config_parameters import dump_config_values
 from metaflow.util import to_unicode
@@ -31,9 +30,8 @@ class MetadataStateManager(object):
         self._metadata_registered = {}
 
     def register_metadata(self, card_uuid) -> Tuple[bool, Dict]:
-        if not CARD_WRITE_TO_METADATA:
-            return False, {}
         info = self._info_func()
+        # Check that metadata was not written yet. We only want to write once.
         if (
             info is None
             or info.get(card_uuid) is None
