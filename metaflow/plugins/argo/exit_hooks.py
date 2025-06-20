@@ -128,12 +128,7 @@ class HttpExitHook(Hook):
         if on_error:
             self.lifecycle_hooks.append(
                 _LifecycleHook(name)
-                .expression("workflow.status == 'Error'")
-                .template(self.template.name)
-            )
-            self.lifecycle_hooks.append(
-                _LifecycleHook(f"{name}-failure")
-                .expression("workflow.status == 'Failed'")
+                .expression("workflow.status == 'Error' || workflow.status == 'Failed'")
                 .template(self.template.name)
             )
 
@@ -205,12 +200,7 @@ class ContainerHook(Hook):
         if on_error:
             self.lifecycle_hooks.append(
                 _LifecycleHook(name)
-                .expression("workflow.status == 'Error'")
-                .template(self.template.name)
-            )
-            self.lifecycle_hooks.append(
-                _LifecycleHook(f"{name}-failure")
-                .expression("workflow.status == 'Failed'")
+                .expression("workflow.status == 'Error' || workflow.status == 'Failed'")
                 .template(self.template.name)
             )
 
