@@ -89,12 +89,6 @@ class _HttpSpec(JsonSerializable):
         self.payload["successCondition"] = success_condition
         return self
 
-    def to_json(self):
-        return self.payload
-
-    def __str__(self):
-        return json.dumps(self.payload, indent=4)
-
 
 # HTTP hook
 class HttpExitHook(Hook):
@@ -139,7 +133,7 @@ class HttpExitHook(Hook):
             )
             self.lifecycle_hooks.append(
                 _LifecycleHook(f"{name}-failure")
-                .expression("workflow.status == 'Failure'")
+                .expression("workflow.status == 'Failed'")
                 .template(self.template.name)
             )
 
@@ -216,7 +210,7 @@ class ContainerHook(Hook):
             )
             self.lifecycle_hooks.append(
                 _LifecycleHook(f"{name}-failure")
-                .expression("workflow.status == 'Failure'")
+                .expression("workflow.status == 'Failed'")
                 .template(self.template.name)
             )
 
