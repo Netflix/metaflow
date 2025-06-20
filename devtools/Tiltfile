@@ -224,6 +224,19 @@ if "argo-workflows" in enabled_components:
         ]
     )
 
+    # This fixes issue described in: https://github.com/argoproj/argo-workflows/issues/10340
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'v1',
+        'kind': 'Secret',
+        'metadata': {
+            'name': 'default.service-account-token',
+            'annotations': {
+                'kubernetes.io/service-account.name': 'default'
+            }
+        },
+        'type': 'kubernetes.io/service-account-token'
+    }))
+
     k8s_yaml(encode_yaml({
         'apiVersion': 'rbac.authorization.k8s.io/v1',
         'kind': 'Role',
@@ -231,11 +244,23 @@ if "argo-workflows" in enabled_components:
             'name': 'argo-workflowtaskresults-role',
             'namespace': 'default'
         },
-        'rules': [{
+        'rules': [
+            {
             'apiGroups': ['argoproj.io'],
             'resources': ['workflowtaskresults'],
             'verbs': ['create', 'patch', 'get', 'list']
-        }]
+            },
+            {
+            'apiGroups': ['argoproj.io'],
+            'resources': ['workflowtasksets'],
+            'verbs': ['watch', 'list']
+            },
+            {
+            'apiGroups': ['argoproj.io'],
+            'resources': ['workflowtasksets/status'],
+            'verbs': ['patch']
+            },
+        ]
     }))
 
     k8s_yaml(encode_yaml({
