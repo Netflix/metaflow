@@ -160,6 +160,10 @@ AZURE_CLIENT_PROVIDERS_DESC = [
     ("azure-default", ".azure.azure_credential.AzureDefaultClientProvider")
 ]
 
+ARTIFACT_SERIALIZERS_DESC = [
+    ("pickle", ".datastores.serializers.pickle_serializer.PickleSerializer"),
+]
+
 DEPLOYER_IMPL_PROVIDERS_DESC = [
     ("argo-workflows", ".argo.argo_workflows_deployer.ArgoWorkflowsDeployer"),
     (
@@ -210,6 +214,8 @@ AWS_CLIENT_PROVIDERS = resolve_plugins("aws_client_provider")
 SECRETS_PROVIDERS = resolve_plugins("secrets_provider")
 AZURE_CLIENT_PROVIDERS = resolve_plugins("azure_client_provider")
 GCP_CLIENT_PROVIDERS = resolve_plugins("gcp_client_provider")
+
+ARTIFACT_SERIALIZERS = resolve_plugins("artifact_serializer")
 
 if sys.version_info >= (3, 7):
     DEPLOYER_IMPL_PROVIDERS = resolve_plugins("deployer_impl_provider")
