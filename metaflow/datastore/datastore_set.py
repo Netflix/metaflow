@@ -1,8 +1,5 @@
-import json
+import itertools
 
-from io import BytesIO
-
-from .exceptions import DataException
 from .content_addressed_store import BlobCache
 
 """
@@ -30,7 +27,12 @@ class TaskDataStoreSet(object):
             # produce a set of SHA keys to prefetch based on artifact names
             prefetch = set()
             for ds in self.task_datastores:
-                prefetch.update(ds.keys_for_artifacts(prefetch_data_artifacts))
+                l = [
+                    v
+                    for v in ds.keys_for_artifacts(prefetch_data_artifacts)
+                    if v is not None
+                ]
+                prefetch.update(itertools.chain(*l))
             # ignore missing keys
             prefetch.discard(None)
 
