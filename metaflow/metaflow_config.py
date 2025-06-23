@@ -362,6 +362,8 @@ KUBERNETES_LABELS = from_conf("KUBERNETES_LABELS", "")
 KUBERNETES_ANNOTATIONS = from_conf("KUBERNETES_ANNOTATIONS", "")
 # Default GPU vendor to use by K8S jobs created by Metaflow (supports nvidia, amd)
 KUBERNETES_GPU_VENDOR = from_conf("KUBERNETES_GPU_VENDOR", "nvidia")
+# Default TPU vendor to use by K8S jobs created by Metaflow (supports google)
+KUBERNETES_TPU_VENDOR = from_conf("KUBERNETES_TPU_VENDOR", "google")
 # Default container image for K8S
 KUBERNETES_CONTAINER_IMAGE = from_conf(
     "KUBERNETES_CONTAINER_IMAGE", DEFAULT_CONTAINER_IMAGE

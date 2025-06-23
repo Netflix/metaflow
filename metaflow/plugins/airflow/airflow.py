@@ -446,6 +446,13 @@ class Airflow(object):
                     # Don't set GPU limits if gpu isn't specified.
                     if k8s_deco.attributes["gpu"] is not None
                 },
+                **{
+                    "%s.com/tpu".lower()
+                    % k8s_deco.attributes["tpu_vendor"]: str(k8s_deco.attributes["tpu"])
+                    for k in [0]
+                    # Don't set TPU limits if gpu isn't specified.
+                    if k8s_deco.attributes["tpu"] is not None
+                },
             },
         )
 

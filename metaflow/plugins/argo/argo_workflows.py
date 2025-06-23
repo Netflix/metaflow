@@ -2034,6 +2034,8 @@ class ArgoWorkflows(object):
                     disk=str(resources["disk"]),
                     gpu=resources["gpu"],
                     gpu_vendor=str(resources["gpu_vendor"]),
+                    tpu=resources["tpu"],
+                    tpu_vendor=str(resources["tpu_vendor"]),
                     tolerations=resources["tolerations"],
                     use_tmpfs=use_tmpfs,
                     tmpfs_tempdir=tmpfs_tempdir,
@@ -2257,6 +2259,14 @@ class ArgoWorkflows(object):
                                             )
                                             for k in [0]
                                             if resources["gpu"] is not None
+                                        },
+                                        **{
+                                            "%s.com/tpu".lower()
+                                            % resources["tpu_vendor"]: str(
+                                                resources["tpu"]
+                                            )
+                                            for k in [0]
+                                            if resources["tpu"] is not None
                                         },
                                     },
                                 ),
