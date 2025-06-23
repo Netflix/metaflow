@@ -2359,7 +2359,7 @@ class ArgoWorkflows(object):
                 # Replace the line 'Task in starting'
                 + [f"mflog 'Lifecycle hook {fn_name} is starting.'"]
                 + [
-                    f"python -m metaflow.plugins.argo.exit_hook_script {metaflow_version['script']} {fn_name}"
+                    f"python -m metaflow.plugins.exit_hook.exit_hook_script {metaflow_version['script']} {fn_name} $RUN_PATHSPEC"
                 ]
             )
 

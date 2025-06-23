@@ -4,7 +4,7 @@ import sys
 import os
 
 
-def main(flow_file, fn_name):
+def main(flow_file, fn_name, run_pathspec):
     flow_import = flow_file.rstrip(".py")
 
     tempflow = importlib.import_module(flow_import)
@@ -19,9 +19,6 @@ def main(flow_file, fn_name):
         from metaflow import Run, namespace
 
         namespace(None)
-        run_pathspec = os.getenv("RUN_PATHSPEC")
-        if run_pathspec is None:
-            raise Exception("RUN_PATHSPEC is not set in env.")
         try:
             _run = Run(run_pathspec)
         except Exception as ex:
@@ -35,9 +32,9 @@ def main(flow_file, fn_name):
 
 if __name__ == "__main__":
     try:
-        flow_file, fn_name = sys.argv[1:3]
+        flow_file, fn_name, run_pathspec = sys.argv[1:4]
     except Exception:
-        print("Usage: exit_hook_script.py <flow_file> <function_name>")
+        print("Usage: exit_hook_script.py <flow_file> <function_name> <run_pathspec>")
         sys.exit(1)
 
-    main(flow_file, fn_name)
+    main(flow_file, fn_name, run_pathspec)
