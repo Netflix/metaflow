@@ -632,8 +632,6 @@ class MetaflowTask(object):
                                     "graph_info": self.flow._graph_info,
                                 }
                             )
-                        # Execute step function directly (no input_obj for conditional joins)
-                        self._exec_step_function(step_func)
                     else:
                         # Multiple input contexts are passed in as an argument
                         # to the step function.
@@ -650,7 +648,6 @@ class MetaflowTask(object):
                                 "graph_info": self.flow._graph_info,
                             }
                         )
-                        self._exec_step_function(step_func, input_obj)
                 else:
                     # Linear step:
                     # We are running with a single input context.
@@ -709,11 +706,9 @@ class MetaflowTask(object):
                 # Execute the step function after decorators have processed it
                 if join_type:
                     if join_type == "split-switch":
-                        # Switch join - already executed above
-                        pass
+                        self._exec_step_function(step_func)
                     else:
-                        # Multi-input join - already executed above
-                        pass
+                        self._exec_step_function(step_func, input_obj)
                 else:
                     # Linear step - execute now
                     self._exec_step_function(step_func)
