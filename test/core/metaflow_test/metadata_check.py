@@ -19,9 +19,11 @@ class MetadataCheck(MetaflowCheck):
 
         self.flow = flow
         self.run = Flow(flow.name)[self.run_id]
-        assert_equals(
-            sorted(step.name for step in flow), sorted(step.id for step in self.run)
-        )
+        expected_steps = set(step.name for step in flow)
+        actual_steps = set(step.id for step in self.run)
+        assert actual_steps.issubset(
+            expected_steps
+        ), f"Executed steps {actual_steps} not a subset of flow steps {expected_steps}"
         self._test_namespace()
 
     def _test_namespace(self):

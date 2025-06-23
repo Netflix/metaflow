@@ -1,0 +1,28 @@
+{
+    "name": "simple-switch",
+    "graph": {
+        "start": {
+            "linear": "switch_step",
+            "quals": ["start"]
+        },
+        "switch_step": {
+            "switch": {
+                "high": "high_branch",
+                "low": "low_branch"
+            },
+            "condition": "condition_result",
+            "quals": ["switch-step"]
+        },
+        "high_branch": {
+            "linear": "end",
+            "quals": ["switch-branch-high"]
+        },
+        "low_branch": {
+            "linear": "end", 
+            "quals": ["switch-branch-low"]
+        },
+        "end": {
+            "quals": ["end"]
+        }
+    }
+}
