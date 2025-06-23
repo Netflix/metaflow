@@ -2303,7 +2303,6 @@ class ArgoWorkflows(object):
 
         run_id_template = "argo-{{workflow.name}}"
         metaflow_version = self.environment.get_environment_info()
-        script_import = metaflow_version["script"].rstrip(".py")
         metaflow_version["flow_name"] = self.graph.name
         metaflow_version["production_token"] = self.production_token
         env = {
@@ -2319,6 +2318,9 @@ class ArgoWorkflows(object):
             "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
             "METAFLOW_OWNER": self.username,
         }
+        # pass on the Run pathspec for script
+        env["RUN_PATHSPEC"] = f"{self.graph.name}/{run_id_template}"
+
         # support Metaflow sandboxes
         env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
 
@@ -2357,7 +2359,7 @@ class ArgoWorkflows(object):
                 # Replace the line 'Task in starting'
                 + [f"mflog 'Lifecycle hook {fn_name} is starting.'"]
                 + [
-                    f"python -c 'import {script_import} as tempflow; tempflow.{fn_name}();'"
+                    f"python -m metaflow.plugins.argo.exit_hook_script {metaflow_version['script']} {fn_name}"
                 ]
             )
 
