@@ -756,6 +756,27 @@ class FlowSpec(metaclass=FlowSpecMeta):
         value = item if _is_primitive_type(item) else reprlib.Repr().repr(item)
         return basestring(value)[:MAXIMUM_FOREACH_VALUE_CHARS]
 
+    def _validate_switch_cases(self, switch_cases, step):
+        resolved_cases = {}
+        for case_key, step_method in switch_cases.items():
+            if isinstance(case_key, str) and case_key.startswith("config."):
+                config_key = case_key[len("config") + 1 :]
+                try:
+                    resolved_key = str(getattr(self.config, config_key))
+                except AttributeError:
+                    msg = (
+                        "Step *{step}* references unknown config key '{key}' "
+                        "in switch case.".format(step=step, key=config_key)
+                    )
+                    raise InvalidNextException(msg)
+            else:
+                resolved_key = case_key
+
+            func_name = step_method.__func__.__name__
+            resolved_cases[resolved_key] = func_name
+
+        return resolved_cases
+
     def next(self, *dsts: Callable[..., None], **kwargs) -> None:
         """
         Indicates the next step to execute after this step has completed.
@@ -891,10 +912,10 @@ class FlowSpec(metaclass=FlowSpecMeta):
                     raise InvalidNextException(msg)
                 funcs.append(func_name)
 
+            resolved_switch_cases = self._validate_switch_cases(switch_cases, step)
+
             # Store switch information for runtime evaluation
-            self._switch_cases = {
-                k: v.__func__.__name__ for k, v in switch_cases.items()
-            }
+            self._switch_cases = resolved_switch_cases
             self._switch_condition = condition
             self._transition = (funcs, None)
             return

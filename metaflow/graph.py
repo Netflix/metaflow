@@ -83,11 +83,31 @@ class DAGNode(object):
         switch_cases = {}
         if isinstance(dict_node, ast.Dict):
             for key, value in zip(dict_node.keys, dict_node.values):
-                # Extract the key (case value)
+                case_key = None
+
+                # Handle string literals
                 if isinstance(key, ast.Constant) and isinstance(key.value, str):
                     case_key = key.value
+                elif isinstance(key, ast.Attribute):
+                    if isinstance(key.value, ast.Attribute) and isinstance(
+                        key.value.value, ast.Name
+                    ):
+                        # This handles self.config.some_key
+                        if key.value.value.id == "self" and key.value.attr == "config":
+                            case_key = f"config.{key.attr}"
+                        else:
+                            return None
+                    else:
+                        return None
+
+                # Handle variables or other dynamic expressions - not allowed
+                elif isinstance(key, ast.Name):
+                    return None
                 else:
                     # Can't statically analyze this key
+                    return None
+
+                if case_key is None:
                     return None
 
                 # Extract the step name from the value
@@ -102,7 +122,7 @@ class DAGNode(object):
                 else:
                     return None
 
-        return switch_cases
+        return switch_cases if switch_cases else None
 
     def _parse(self, func_ast, lineno):
         self.num_args = len(func_ast.args.args)
@@ -140,9 +160,7 @@ class DAGNode(object):
                 # Get condition parameter
                 for keyword in tail.value.keywords:
                     if keyword.arg == "condition":
-                        if isinstance(keyword.value, ast.Str):
-                            condition_name = keyword.value.s
-                        elif isinstance(keyword.value, ast.Constant) and isinstance(
+                        if isinstance(keyword.value, ast.Constant) and isinstance(
                             keyword.value.value, str
                         ):
                             condition_name = keyword.value.value

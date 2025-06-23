@@ -134,7 +134,13 @@ def check_valid_transitions(graph):
     msg = (
         "Step *{0.name}* specifies an invalid self.next() transition. "
         "Make sure the self.next() expression matches with one of the "
-        "supported transition types."
+        "supported transition types:\n"
+        "  • Linear: self.next(self.step_name)\n"
+        "  • Fan-out: self.next(self.step1, self.step2, ...)\n"
+        "  • Foreach: self.next(self.step, foreach='variable')\n"
+        "  • Switch: self.next({{\"key\": self.step, ...}}, condition='variable')\n\n"
+        "For switch statements, keys must be string literals or config expressions "
+        "(self.config.key_name), not variables or numbers."
     )
     for node in graph:
         if node.type != "end" and node.has_tail_next and node.invalid_tail_next:
