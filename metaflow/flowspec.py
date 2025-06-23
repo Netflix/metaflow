@@ -859,7 +859,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
             # Validate that condition variable exists
             try:
-                condition_value = getattr(self, condition)
+                getattr(self, condition)
             except AttributeError:
                 msg = (
                     "Condition variable *self.{var}* in step *{step}* "
