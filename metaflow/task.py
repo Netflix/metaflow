@@ -272,21 +272,26 @@ class MetaflowTask(object):
         elif "_foreach_stack" in inputs[0]:
             self.flow._foreach_stack = inputs[0]["_foreach_stack"]
 
-    def _validate_conditional_transition(self, step_name):
+    def _validate_switch_transition(self, step_name):
         node = self.flow._graph[step_name]
-        if node.type == "split-or" and node.condition:
+        if node.type == "split-switch" and node.condition:
             if not hasattr(self.flow, node.condition):
                 raise MetaflowInternalError(
                     f"Condition variable '{node.condition}' not found in step '{step_name}'"
                 )
             condition_value = getattr(self.flow, node.condition)
-            if not isinstance(condition_value, bool):
-                raise MetaflowInternalError(
-                    f"Condition variable '{node.condition}' must be boolean, got {type(condition_value).__name__}"
-                )
 
-            chosen_step = node.out_funcs[0] if condition_value else node.out_funcs[1]
-            self.flow._transition = ([chosen_step], None)
+            # Find the matching step for the condition value
+            if hasattr(self.flow, "_switch_cases"):
+                switch_cases = self.flow._switch_cases
+                if condition_value not in switch_cases:
+                    available_cases = list(switch_cases.keys())
+                    raise RuntimeError(
+                        f"Switch condition variable '{node.condition}' has value '{condition_value}' "
+                        f"which is not in the available cases: {available_cases}"
+                    )
+                chosen_step = switch_cases[condition_value]
+                self.flow._transition = ([chosen_step], None)
 
     def _clone_flow(self, datastore):
         x = self.flow.__class__(use_cli=False)
@@ -611,13 +616,13 @@ class MetaflowTask(object):
                             "inputs but only %d inputs "
                             "were found" % (step_name, len(node.in_funcs), len(inputs))
                         )
-                    if join_type == "split-or":
+                    if join_type == "split-switch":
                         if len(inputs) > 1:
                             raise MetaflowInternalError(
-                                f"Step *{step_name}* is a conditional join but gets multiple inputs"
+                                f"Step *{step_name}* is a switch join but gets multiple inputs"
                             )
                         self.flow._set_datastore(inputs[0])
-                        # Initialize parameters for conditional joins
+                        # Initialize parameters for switch joins
                         if input_paths:
                             current._update_env(
                                 {
@@ -703,8 +708,8 @@ class MetaflowTask(object):
 
                 # Execute the step function after decorators have processed it
                 if join_type:
-                    if join_type == "split-or":
-                        # Conditional join - already executed above
+                    if join_type == "split-switch":
+                        # Switch join - already executed above
                         pass
                     else:
                         # Multi-input join - already executed above
@@ -722,7 +727,7 @@ class MetaflowTask(object):
                         max_user_code_retries,
                     )
 
-                self._validate_conditional_transition(step_name)
+                self._validate_switch_transition(step_name)
                 self.flow._task_ok = True
                 self.flow._success = True
 

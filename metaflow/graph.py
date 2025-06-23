@@ -62,6 +62,7 @@ class DAGNode(object):
         self.has_tail_next = False
         self.invalid_tail_next = False
         self.num_args = 0
+        self.switch_cases = {}
         self.condition = None
         self.foreach_param = None
         self.num_parallel = 0
@@ -77,6 +78,31 @@ class DAGNode(object):
 
     def _expr_str(self, expr):
         return "%s.%s" % (expr.value.id, expr.attr)
+
+    def _parse_switch_dict(self, dict_node):
+        switch_cases = {}
+        if isinstance(dict_node, ast.Dict):
+            for key, value in zip(dict_node.keys, dict_node.values):
+                # Extract the key (case value)
+                if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                    case_key = key.value
+                else:
+                    # Can't statically analyze this key
+                    return None
+
+                # Extract the step name from the value
+                if isinstance(value, ast.Attribute) and isinstance(
+                    value.value, ast.Name
+                ):
+                    if value.value.id == "self":
+                        step_name = value.attr
+                        switch_cases[case_key] = step_name
+                    else:
+                        return None
+                else:
+                    return None
+
+        return switch_cases
 
     def _parse(self, func_ast, lineno):
         self.num_args = len(func_ast.args.args)
@@ -99,7 +125,38 @@ class DAGNode(object):
             self.has_tail_next = True
             self.invalid_tail_next = True
             self.tail_next_lineno = lineno + tail.lineno - 1
-            self.out_funcs = [e.attr for e in tail.value.args]
+
+            # Check if first argument is a dictionary (switch case)
+            if (
+                len(tail.value.args) == 1
+                and isinstance(tail.value.args[0], ast.Dict)
+                and any(k.arg == "condition" for k in tail.value.keywords)
+            ):
+
+                # This is a switch statement
+                switch_cases = self._parse_switch_dict(tail.value.args[0])
+                condition_name = None
+
+                # Get condition parameter
+                for keyword in tail.value.keywords:
+                    if keyword.arg == "condition":
+                        if isinstance(keyword.value, ast.Str):
+                            condition_name = keyword.value.s
+                        elif isinstance(keyword.value, ast.Constant) and isinstance(
+                            keyword.value.value, str
+                        ):
+                            condition_name = keyword.value.value
+                        break
+
+                if switch_cases and condition_name:
+                    self.type = "split-switch"
+                    self.condition = condition_name
+                    self.switch_cases = switch_cases
+                    self.out_funcs = list(switch_cases.values())
+                    self.invalid_tail_next = False
+                    return
+            else:
+                self.out_funcs = [e.attr for e in tail.value.args]
 
             keywords = dict(
                 (k.arg, getattr(k.value, "s", None)) for k in tail.value.keywords
@@ -111,15 +168,6 @@ class DAGNode(object):
                     if len(self.out_funcs) == 1:
                         self.foreach_param = keywords["foreach"]
                         self.invalid_tail_next = False
-                elif "condition" in keywords:
-                    # TYPE: split-or (conditional)
-                    self.type = "split-or"
-                    if len(self.out_funcs) == 2:
-                        self.condition = keywords["condition"]
-                        if not self.condition.isidentifier():
-                            self.invalid_tail_next = True
-                        else:
-                            self.invalid_tail_next = False
                 elif "num_parallel" in keywords:
                     self.type = "foreach"
                     self.parallel_foreach = True
@@ -218,7 +266,7 @@ class FlowGraph(object):
             if node.type in ("split", "foreach"):
                 node.split_parents = split_parents
                 split_parents = split_parents + [node.name]
-            elif node.type == "split-or":
+            elif node.type == "split-switch":
                 node.split_parents = split_parents
             elif node.type == "join":
                 # ignore joins without splits
@@ -260,14 +308,12 @@ class FlowGraph(object):
     def output_dot(self):
         def edge_specs():
             for node in self.nodes.values():
-                if node.type == "split-or":
-                    # Label edges for conditional branches
-                    for i, edge in enumerate(node.out_funcs):
-                        label = "True" if i == 0 else "False"
-                        color = "green" if i == 0 else "red"
+                if node.type == "split-switch":
+                    # Label edges for switch cases
+                    for case_value, step_name in node.switch_cases.items():
                         yield (
-                            '{0} -> {1} [label="{2}" color="{3}" fontcolor="{3}"];'.format(
-                                node.name, edge, label, color
+                            '{0} -> {1} [label="{2}" color="blue" fontcolor="blue"];'.format(
+                                node.name, step_name, case_value
                             )
                         )
                 else:
@@ -276,19 +322,17 @@ class FlowGraph(object):
 
         def node_specs():
             for node in self.nodes.values():
-                if node.type == "split-or":
-                    # Diamond shape for conditional nodes
+                if node.type == "split-switch":
+                    # Hexagon shape for switch nodes
                     condition_label = (
-                        f"condition: {node.condition}"
-                        if node.condition
-                        else "conditional"
+                        f"switch: {node.condition}" if node.condition else "switch"
                     )
                     yield (
                         '"{0.name}" '
                         '[ label = <<b>{0.name}</b><br/><font point-size="9">{condition}</font>> '
                         '  fontname = "Helvetica" '
-                        '  shape = "diamond" '
-                        '  style = "filled" fillcolor = "lightblue" ];'
+                        '  shape = "hexagon" '
+                        '  style = "filled" fillcolor = "lightgreen" ];'
                     ).format(node, condition=condition_label)
                 else:
                     nodetype = "join" if node.num_args > 1 else node.type
@@ -318,8 +362,8 @@ class FlowGraph(object):
                 if node.parallel_foreach:
                     return "split-parallel"
                 return "split-foreach"
-            elif node.type == "split-or":
-                return "split-conditional"
+            elif node.type == "split-switch":
+                return "split-switch"
             return "unknown"  # Should never happen
 
         def node_to_dict(name, node):
@@ -344,16 +388,39 @@ class FlowGraph(object):
                 d["foreach_artifact"] = node.foreach_param
             elif d["type"] == "split-parallel":
                 d["num_parallel"] = node.num_parallel
-            elif d["type"] == "split-conditional":
+            elif d["type"] == "split-switch":
                 d["condition"] = node.condition
+                d["switch_cases"] = node.switch_cases
             if node.matching_join:
                 d["matching_join"] = node.matching_join
             return d
 
-        for node_name in self.sorted_nodes:
-            if node_name in self.nodes:
-                steps_info[node_name] = node_to_dict(node_name, self.nodes[node_name])
+        def populate_block(start_name, end_name):
+            cur_name = start_name
+            resulting_list = []
+            while cur_name != end_name:
+                cur_node = self.nodes[cur_name]
+                node_dict = node_to_dict(cur_name, cur_node)
 
-        graph_structure = list(self.sorted_nodes)
+                steps_info[cur_name] = node_dict
+                resulting_list.append(cur_name)
+
+                if cur_node.type not in ("start", "linear", "join", "split-switch"):
+                    # We need to look at the different branches for this
+                    resulting_list.append(
+                        [
+                            populate_block(s, cur_node.matching_join)
+                            for s in cur_node.out_funcs
+                        ]
+                    )
+                    cur_name = cur_node.matching_join
+                else:
+                    cur_name = cur_node.out_funcs[0]
+            return resulting_list
+
+        graph_structure = populate_block("start", "end")
+
+        steps_info["end"] = node_to_dict("end", self.nodes["end"])
+        graph_structure.append("end")
 
         return steps_info, graph_structure
