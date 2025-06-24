@@ -14,10 +14,6 @@ class BasicSwitchTest(MetaflowTest):
         # Set the condition that determines which branch to take
         self.condition_result = self.switch_value
         self.switch_data = "from_switch"
-        self.next(
-            {"high": self.high_branch, "low": self.low_branch},
-            condition="condition_result",
-        )
 
     @steps(0, ["switch-branch-high", "switch-branch-low"], required=True)
     def step_branch(self):

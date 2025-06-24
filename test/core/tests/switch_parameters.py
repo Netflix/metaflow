@@ -30,11 +30,6 @@ class SwitchParametersTest(MetaflowTest):
             self.condition_result = "high"
 
         self.switch_data = f"threshold_{self.param_threshold}_mode_{self.param_mode}"
-        # Use the switch syntax in self.next()
-        self.next(
-            {"high": self.high_branch, "low": self.low_branch},
-            condition="condition_result",
-        )
 
     @steps(0, ["switch-branch-high", "switch-branch-low"], required=True)
     def step_branch(self):
