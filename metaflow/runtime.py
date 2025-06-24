@@ -569,6 +569,7 @@ class NativeRuntime(object):
                 for step in self._flow:
                     for deco in step.decorators:
                         deco.runtime_finished(exception)
+                self._run_exit_hooks()
 
         # assert that end was executed and it was successful
         if ("end", ()) in self._finished:
@@ -590,6 +591,48 @@ class NativeRuntime(object):
             raise MetaflowInternalError(
                 "The *end* step was not successful by the end of flow."
             )
+
+    def _run_exit_hooks(self):
+        try:
+            exit_hook_decos = self._flow._flow_decorators.get("exit_hook", [])
+            if not exit_hook_decos:
+                return
+            # successful run?
+            if ("end", ()) in self._finished or self._clone_only:
+                successful = True
+            else:
+                successful = False
+
+            pathspec = f"{self._graph.name}/{self._run_id}"
+            flow_file = self._environment.get_environment_info()["script"]
+
+            def _call(fn_name):
+                result = (
+                    subprocess.check_output(
+                        args=[
+                            "python",
+                            "-m",
+                            "metaflow.plugins.exit_hook.exit_hook_script",
+                            flow_file,
+                            fn_name,
+                            pathspec,
+                        ],
+                        env=os.environ,
+                    )
+                    .decode()
+                    .strip()
+                )
+                print(result)
+
+            # Call the exit hook functions
+            for fn_name in [
+                name
+                for deco in exit_hook_decos
+                for name in (deco.success_hooks if successful else deco.error_hooks)
+            ]:
+                _call(fn_name)
+        except Exception as ex:
+            pass  # do not fail due to exit hooks for whatever reason.
 
     def _killall(self):
         # If we are here, all children have received a signal and are shutting down.
