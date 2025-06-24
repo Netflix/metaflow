@@ -30,7 +30,7 @@ from .exception import (
 )
 import traceback
 from collections import namedtuple
-
+from .metadata import _save_metadata
 from .card_resolver import resolve_paths_from_task, resumed_info
 
 id_func = id
@@ -613,6 +613,14 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
     hidden=True,
     help="Delete data-file and component-file after reading. (internal)",
 )
+@click.option(
+    "--save-metadata",
+    default=None,
+    show_default=True,
+    type=JSONTypeClass(),
+    hidden=True,
+    help="JSON string containing metadata to be saved. (internal)",
+)
 @click.pass_context
 def create(
     ctx,
@@ -627,6 +635,7 @@ def create(
     card_uuid=None,
     delete_input_files=None,
     id=None,
+    save_metadata=None,
 ):
     card_id = id
     rendered_info = None  # Variable holding all the information which will be rendered
@@ -824,6 +833,16 @@ def create(
                 % (card_info.type, card_info.hash[:NUM_SHORT_HASH_CHARS]),
                 fg="green",
             )
+            if save_metadata:
+                _save_metadata(
+                    ctx.obj.metadata,
+                    task.parent.parent.id,
+                    task.parent.id,
+                    task.id,
+                    task.current_attempt,
+                    card_uuid,
+                    save_metadata,
+                )
 
 
 @card.command()
