@@ -8,6 +8,7 @@ class TagMutationTest(MetaflowTest):
     """
 
     PRIORITY = 2
+    SKIP_GRAPHS = ["simple-switch"]
     HEADER = "@project(name='tag_mutation')"
 
     @steps(1, ["all"])

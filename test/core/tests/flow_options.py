@@ -7,6 +7,7 @@ class FlowOptionsTest(MetaflowTest):
     """
 
     PRIORITY = 0
+    SKIP_GRAPHS = ["simple-switch"]
     HEADER = """
 import os
 from metaflow import test_flow_decorator

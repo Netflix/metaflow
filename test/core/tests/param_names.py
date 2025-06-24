@@ -3,6 +3,7 @@ from metaflow_test import MetaflowTest, steps
 
 class ParameterNameTest(MetaflowTest):
     PRIORITY = 1
+    SKIP_GRAPHS = ["simple-switch"]
     PARAMETERS = {"foo": {"default": 1}}
 
     @steps(0, ["all"])

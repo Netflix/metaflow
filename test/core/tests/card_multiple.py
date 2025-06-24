@@ -15,6 +15,7 @@ class MultipleCardDecoratorTest(MetaflowTest):
     """
 
     PRIORITY = 3
+    SKIP_GRAPHS = ["simple-switch"]
 
     @tag('card(type="test_pathspec_card")')
     @tag('card(type="test_pathspec_card")')

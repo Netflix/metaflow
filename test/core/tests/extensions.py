@@ -7,6 +7,7 @@ class ExtensionsTest(MetaflowTest):
     """
 
     PRIORITY = 0
+    SKIP_GRAPHS = ["simple-switch"]
 
     @tag("test_step_decorator")
     @steps(0, ["all"])

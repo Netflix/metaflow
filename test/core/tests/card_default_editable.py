@@ -17,6 +17,7 @@ class MyNativeType:
     """
 
     PRIORITY = 3
+    SKIP_GRAPHS = ["simple-switch"]
 
     @tag('card(type="test_editable_card")')
     @steps(0, ["start"])

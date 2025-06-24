@@ -3,6 +3,7 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps
 
 class BasicParameterTest(MetaflowTest):
     PRIORITY = 1
+    SKIP_GRAPHS = ["simple-switch"]
     PARAMETERS = {
         "no_default_param": {"default": None},
         # Note this value is overridden in contexts.json

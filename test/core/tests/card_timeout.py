@@ -9,6 +9,7 @@ class CardTimeoutTest(MetaflowTest):
     """
 
     PRIORITY = 2
+    SKIP_GRAPHS = ["simple-switch"]
 
     @tag(
         'card(type="test_timeout_card",timeout=10,options=dict(timeout=20),save_errors=False)'

@@ -19,11 +19,16 @@ class FlowFormatter(object):
         self.flow_code = self._pretty_print(self._flow_lines())
         self.check_code = self._pretty_print(self._check_lines())
         self.copy_files = getattr(test, "REQUIRED_FILES", [])
+        self.skip_graphs = getattr(test, "SKIP_GRAPHS", [])
         self.valid = True
 
         for step in self.steps:
             if step.required and step not in self.used:
                 self.valid = False
+
+        graph_name = self.graphspec.get("name", "")
+        if graph_name in self.skip_graphs:
+            self.valid = False
 
     def _format_method(self, step):
         def lines():

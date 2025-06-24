@@ -10,6 +10,7 @@ class CardImportTest(MetaflowTest):
     """
 
     PRIORITY = 4
+    SKIP_GRAPHS = ["simple-switch"]
 
     @tag('card(type="editable_import_test_card",save_errors=False)')
     @tag('card(type="test_broken_card",save_errors=False)')

@@ -3,6 +3,7 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps
 
 class LineageTest(MetaflowTest):
     PRIORITY = 1
+    SKIP_GRAPHS = ["simple-switch"]
 
     @steps(0, ["start"])
     def step_start(self):

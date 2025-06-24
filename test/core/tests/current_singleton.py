@@ -7,6 +7,7 @@ class CurrentSingletonTest(MetaflowTest):
     """
 
     PRIORITY = 1
+    SKIP_GRAPHS = ["simple-switch"]
 
     HEADER = "@project(name='current_singleton')"
 

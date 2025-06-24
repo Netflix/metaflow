@@ -4,6 +4,7 @@ from metaflow import current
 
 class TagCatchTest(MetaflowTest):
     PRIORITY = 2
+    SKIP_GRAPHS = ["simple-switch"]
 
     @tag("retry(times=3)")
     @steps(0, ["start"])

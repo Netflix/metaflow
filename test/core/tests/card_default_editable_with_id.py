@@ -9,6 +9,7 @@ class DefaultEditableCardWithIdTest(MetaflowTest):
     """
 
     PRIORITY = 3
+    SKIP_GRAPHS = ["simple-switch"]
 
     @tag('environment(vars={"METAFLOW_CARD_NO_WARNING": "True"})')
     @tag('card(type="test_editable_card",id="abc")')

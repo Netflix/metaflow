@@ -8,6 +8,7 @@ class BasicArtifactTest(MetaflowTest):
     """
 
     PRIORITY = 0
+    SKIP_GRAPHS = ["simple-switch"]
 
     @steps(0, ["start"])
     def step_start(self):

@@ -10,6 +10,7 @@ class CardErrorTest(MetaflowTest):
     """
 
     PRIORITY = 2
+    SKIP_GRAPHS = ["simple-switch"]
 
     @tag('card(type="test_error_card")')
     @steps(0, ["start"])

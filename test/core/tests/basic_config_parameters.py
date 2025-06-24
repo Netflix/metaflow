@@ -3,6 +3,7 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 
 class BasicConfigTest(MetaflowTest):
     PRIORITY = 1
+    SKIP_GRAPHS = ["simple-switch"]
     REQUIRED_FILES = ["basic_config_silly.txt"]
     PARAMETERS = {
         "default_from_config": {

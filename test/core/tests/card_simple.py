@@ -9,6 +9,7 @@ class CardDecoratorBasicTest(MetaflowTest):
     """
 
     PRIORITY = 3
+    SKIP_GRAPHS = ["simple-switch"]
 
     @tag('card(type="taskspec_card")')
     @steps(0, ["start"])

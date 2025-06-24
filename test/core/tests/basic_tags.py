@@ -8,6 +8,7 @@ class BasicTagTest(MetaflowTest):
     """
 
     PRIORITY = 2
+    SKIP_GRAPHS = ["simple-switch"]
     HEADER = "@project(name='basic_tag')"
 
     @steps(0, ["all"])

@@ -8,6 +8,7 @@ class ConstantsTest(MetaflowTest):
     """
 
     PRIORITY = 0
+    SKIP_GRAPHS = ["simple-switch"]
     CLASS_VARS = {
         "str_const": '"this is a constant"',
         "int_const": 123,

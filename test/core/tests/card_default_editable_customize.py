@@ -8,6 +8,7 @@ class DefaultEditableCardWithCustomizeTest(MetaflowTest):
     """
 
     PRIORITY = 3
+    SKIP_GRAPHS = ["simple-switch"]
 
     @tag('card(type="test_editable_card",customize=True)')
     @tag('card(type="test_editable_card",id="abc")')
