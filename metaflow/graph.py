@@ -86,7 +86,9 @@ class DAGNode(object):
                 case_key = None
 
                 # Handle string literals
-                if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                if isinstance(key, ast.Str):
+                    case_key = key.s
+                elif isinstance(key, ast.Constant) and isinstance(key.value, str):
                     case_key = key.value
                 elif isinstance(key, ast.Attribute):
                     if isinstance(key.value, ast.Attribute) and isinstance(
@@ -160,7 +162,9 @@ class DAGNode(object):
                 # Get condition parameter
                 for keyword in tail.value.keywords:
                     if keyword.arg == "condition":
-                        if isinstance(keyword.value, ast.Constant) and isinstance(
+                        if isinstance(keyword.value, ast.Str):
+                            condition_name = keyword.value.s
+                        elif isinstance(keyword.value, ast.Constant) and isinstance(
                             keyword.value.value, str
                         ):
                             condition_name = keyword.value.value
