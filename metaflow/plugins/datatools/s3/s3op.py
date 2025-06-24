@@ -70,186 +70,167 @@ S3Config = namedtuple("S3Config", "role session_vars client_params")
 
 # Permission or access-related errors → 403 Forbidden
 PERMISSION_ERRORS = {
-    "AccessDenied",
-    "AccessDeniedException",
-    "AccountProblem",
-    "AllAccessDisabled",
-    "AuthFailure",
-    "ExpiredToken",
-    "InvalidAccessKeyId",
-    "InvalidPayer",
-    "InvalidSecurity",
-    "InvalidToken",
-    "NotSignedUp",
-    "RequestTimeTooSkewed",
-    "SignatureDoesNotMatch",
-    "UnauthorizedOperation",
-    "UnrecognizedClientException",
+    "AccessDenied",  # Access Denied
+    "AccessDeniedException",  # AWS service error for access denied
+    "AccountProblem",  # There is a problem with your AWS account that prevents the operation from completing successfully
+    "AllAccessDisabled",  # All access to this Amazon S3 resource has been disabled
+    "AuthFailure",  # AWS authentication failure
+    "ExpiredToken",  # The provided token has expired
+    "InvalidAccessKeyId",  # The AWS access key ID you provided does not exist in our records
+    "InvalidPayer",  # All access to this object has been disabled
+    "InvalidSecurity",  # The provided security credentials are not valid
+    "InvalidToken",  # The provided token is malformed or otherwise invalid
+    "NotSignedUp",  # Your account is not signed up for the Amazon S3 service
+    "RequestTimeTooSkewed",  # The difference between the request time and the server's time is too large
+    "SignatureDoesNotMatch",  # The request signature we calculated does not match the signature you provided
+    "UnauthorizedOperation",  # AWS service error for unauthorized operation
+    "UnrecognizedClientException",  # AWS service error for unrecognized client
 }
 
 # Not found errors → 404 Not Found
 NOT_FOUND_ERRORS = {
-    "AccessPointNotFound",
-    "NoSuchAccessGrantsLocationError",
-    "NoSuchAccessGrantError",
-    "NoSuchBucket",
-    "NoSuchBucketPolicy",
-    "NoSuchKey",
-    "NoSuchLifecycleConfiguration",
-    "NoSuchMultiRegionAccessPoint",
-    "NoSuchUpload",
-    "NoSuchVersion",
-    "NoSuchWebsiteConfiguration",
-    "ReplicationConfigurationNotFoundError",
-    "ServerSideEncryptionConfigurationNotFoundError",
-    "NotFound",
+    "NoSuchAccessGrantsLocationError",  # The specified access grants location does not exist
+    "NoSuchAccessGrantError",  # The specified access grant does not exist
+    "NoSuchBucket",  # The specified bucket does not exist
+    "NoSuchBucketPolicy",  # The specified bucket does not have a bucket policy
+    "NoSuchKey",  # The specified key does not exist
+    "NoSuchLifecycleConfiguration",  # The lifecycle configuration does not exist
+    "NoSuchMultiRegionAccessPoint",  # The specified Multi-Region Access Point does not exist
+    "NoSuchUpload",  # The specified multipart upload does not exist
+    "NoSuchVersion",  # Indicates that the version ID specified in the request does not match an existing version
+    "NoSuchWebsiteConfiguration",  # The specified bucket does not have a website configuration
+    "ReplicationConfigurationNotFoundError",  # The replication configuration was not found
+    "ServerSideEncryptionConfigurationNotFoundError",  # The server-side encryption configuration was not found
 }
 
 # Range/invalid byte-range errors → 416
 RANGE_ERRORS = {
-    "InvalidRange",
+    "InvalidRange",  # The requested range cannot be satisfied
 }
 
 # Server-side throttling, timeout, or transient errors → 503
 TRANSIENT_ERRORS = {
-    "BandwidthLimitExceeded",
-    "ConnectionError",
-    "EC2ThrottledException",
-    "InternalError",
-    "InternalFailure",
-    "PriorRequestNotComplete",
-    "ProvisionedThroughputExceededException",
-    "RequestLimitExceeded",
-    "RequestThrottled",
-    "RequestThrottledException",
-    "RequestTimeout",
-    "RequestTimeoutException",
-    "ServerError",
-    "ServiceUnavailable",
-    "SlowDown",
-    "TemporaryRedirect",
-    "ThrottledException",
-    "Throttling",
-    "ThrottlingException",
-    "TooManyRequestsException",
-    "TransactionInProgressException",
-    "Unavailable",
-    "ReplicationInternalError",
-    "ReplicationTooManyRequests",
+    "BandwidthLimitExceeded",  # Request bandwidth limit has been exceeded
+    "InternalError",  # We encountered an internal error. Please try again
+    "PriorRequestNotComplete",  # Your previous request to create the named bucket succeeded and you already own it
+    "RequestTimeout",  # Your socket connection to the server was not read from or written to within the timeout period
+    "ServiceUnavailable",  # Reduce your request rate. Service temporarily unavailable
+    "SlowDown",  # Reduce your request rate
+    "TemporaryRedirect",  # You are being redirected to the bucket while DNS updates
 }
 
 # Fatal/unrecoverable → 400
 FATAL_ERRORS = {
-    "AccessControlListNotSupported",
-    "AccessGrantAlreadyExists",
-    "AccessGrantsInstanceAlreadyExists",
-    "AccessGrantsInstanceNotEmptyError",
-    "AccessGrantsInstanceNotExistsError",
-    "AccessGrantsInstanceResourcePolicyNotExists",
-    "AccessGrantsLocationAlreadyExistsError",
-    "AccessGrantsLocationNotEmptyError",
-    "AccessGrantsLocationsQuotaExceededError",
-    "AccessGrantsQuotaExceededError",
-    "AmbiguousGrantByEmailAddress",
-    "BadDigest",
-    "BadRequest",
-    "BucketAlreadyExists",
-    "BucketAlreadyOwnedByYou",
-    "CrossLocationLoggingProhibited",
-    "DryRunOperation",
-    "EntityTooLarge",
-    "EntityTooSmall",
-    "ExpiredObjectDeleteMarker",
-    "HTTPClientError",
-    "IllegalLocationConstraintException",
-    "IllegalVersioningConfigurationException",
-    "IncompleteBody",
-    "IncorrectNumberOfFilesInPostRequest",
-    "InlineDataTooLarge",
-    "InsufficientData",
-    "InvalidAccessGrant",
-    "InvalidAccessGrantsLocation",
-    "InvalidAddressingHeader",
-    "InvalidArgument",
-    "InvalidBucketName",
-    "InvalidBucketState",
-    "InvalidClientTokenId",
-    "InvalidDigest",
-    "InvalidEncryptionAlgorithmError",
-    "InvalidIamRole",
-    "InvalidIdentityCenterInstance",
-    "InvalidLocationConstraint",
-    "InvalidObjectState",
-    "InvalidParameterCombination",
-    "InvalidParameterValue",
-    "InvalidPart",
-    "InvalidPartOrder",
-    "InvalidPolicyDocument",
-    "InvalidQueryParameter",
-    "InvalidRange",
-    "InvalidRequest",
-    "InvalidResourcePolicy",
-    "InvalidStorageClass",
-    "InvalidTag",
-    "InvalidTags",
-    "InvalidTargetBucketForLogging",
-    "InvalidToken",
-    "InvalidURI",
-    "KeyTooLongError",
-    "LambdaInvalidResponse",
-    "LambdaInvocationFailed",
-    "LambdaNotFound",
-    "LambdaPermissionError",
-    "LambdaResponseNotReceived",
-    "LambdaRuntimeError",
-    "LambdaTimeout",
-    "LimitExceededException",
-    "MalformedACLError",
-    "MalformedPolicyDocument",
-    "MalformedPOSTRequest",
-    "MalformedQueryString",
-    "MalformedXML",
-    "MaxMessageLengthExceeded",
-    "MaxPostPreDataLengthExceededError",
-    "MetadataTooLarge",
-    "MethodNotAllowed",
-    "MissingAttachment",
-    "MissingContentLength",
-    "MissingParameter",
-    "MissingRequestBodyError",
-    "MissingSecurityHeader",
-    "MultiRegionAccessPointAlreadyOwnedByYou",
-    "MultiRegionAccessPointModifiedByAnotherRequest",
-    "MultiRegionAccessPointNotReady",
-    "MultiRegionAccessPointSameBucketRegion",
-    "MultiRegionAccessPointUnsupportedRegion",
-    "NoLoggingStatusForKey",
-    "NotImplemented",
-    "NotSignedUp",
-    "OperationAborted",
-    "OptInRequired",
-    "PermanentRedirect",
-    "PreconditionFailed",
-    "Redirect",
-    "ReplicationParameterValueError",
-    "RequestIsNotMultiPartContent",
-    "RequestTorrentOfBucketError",
-    "RestoreAlreadyInProgress",
-    "StsNotAuthorizedError",
-    "StsPackedPolicyTooLargeError",
-    "StsValidationError",
-    "TokenRefreshRequired",
-    "TooManyBuckets",
-    "TooManyConfigurations",
-    "TooManyElements",
-    "TooManyTags",
-    "UnexpectedContent",
-    "UnresolvableGrantByEmailAddress",
-    "UnsupportedOperation",
-    "UnsupportedProtocol",
-    "UserKeyMustBeSpecified",
-    "ValidationError",
-    "ValidationException",
+    "AccessControlListNotSupported",  # The bucket does not allow ACLs
+    "AccessGrantAlreadyExists",  # The specified access grant already exists
+    "AccessGrantsInstanceAlreadyExists",  # Access Grants Instance already exists
+    "AccessGrantsInstanceNotEmptyError",  # Please clean up locations before deleting the access grants instance
+    "AccessGrantsInstanceNotExistsError",  # Access Grants Instance does not exist
+    "AccessGrantsInstanceResourcePolicyNotExists",  # Access Grants Instance Resource Policy does not exist
+    "AccessGrantsLocationAlreadyExistsError",  # The specified access grants location already exists
+    "AccessGrantsLocationNotEmptyError",  # Please clean up access grants before deleting access grants location
+    "AccessGrantsLocationsQuotaExceededError",  # The access grants location quota has been exceeded
+    "AccessGrantsQuotaExceededError",  # The access grants quota has been exceeded
+    "AmbiguousGrantByEmailAddress",  # The email address that you provided is associated with more than one account
+    "BadDigest",  # The Content-MD5 you specified did not match what we received
+    "BadRequest",  # A bad request was made
+    "BucketAlreadyExists",  # The requested bucket name is not available
+    "BucketAlreadyOwnedByYou",  # The bucket that you tried to create already exists, and you own it
+    "CrossLocationLoggingProhibited",  # Cross-location logging not allowed
+    "DryRunOperation",  # Dry run operation was requested
+    "EntityTooLarge",  # Your proposed upload is larger than the maximum allowed object size
+    "EntityTooSmall",  # Your proposed upload is smaller than the minimum allowed object size
+    "ExpiredObjectDeleteMarker",  # The object delete marker you specified has expired
+    "HTTPClientError",  # HTTP client error occurred
+    "IllegalLocationConstraintException",  # The unspecified location constraint is incompatible for the Region
+    "IllegalVersioningConfigurationException",  # Indicates that the versioning configuration specified in the request is invalid
+    "IncompleteBody",  # You did not provide the number of bytes specified by the Content-Length HTTP header
+    "IncorrectNumberOfFilesInPostRequest",  # POST requires exactly one file upload per request
+    "InlineDataTooLarge",  # Inline data exceeds the maximum allowed size
+    "InsufficientData",  # The amount of data available to read is not known
+    "InvalidAccessGrant",  # The specified Access Grant is invalid
+    "InvalidAccessGrantsLocation",  # The specified Access Grants Location is invalid
+    "InvalidAddressingHeader",  # You must specify the Anonymous role
+    "InvalidArgument",  # Invalid Argument
+    "InvalidBucketName",  # The specified bucket is not valid
+    "InvalidBucketState",  # The request is not valid with the current state of the bucket
+    "InvalidClientTokenId",  # The X.509 certificate or AWS access key ID provided does not exist in our records
+    "InvalidDigest",  # The Content-MD5 you specified is not valid
+    "InvalidEncryptionAlgorithmError",  # The encryption request you specified is not valid
+    "InvalidIamRole",  # The specified IAM Role is invalid
+    "InvalidIdentityCenterInstance",  # The specified identity center instance is invalid
+    "InvalidLocationConstraint",  # The specified location constraint is not valid
+    "InvalidObjectState",  # The operation is not valid for the current state of the object
+    "InvalidParameterCombination",  # Parameters that must not be used together were used together
+    "InvalidParameterValue",  # An invalid or out-of-range value was supplied for the input parameter
+    "InvalidPart",  # One or more of the specified parts could not be found
+    "InvalidPartOrder",  # The list of parts was not in ascending order
+    "InvalidPolicyDocument",  # The content of the form does not meet the conditions specified in the policy document
+    "InvalidQueryParameter",  # The AWS query parameter is malformed or does not adhere to AWS standards
+    "InvalidRange",  # The requested range cannot be satisfied
+    "InvalidRequest",  # Please use AWS4-HMAC-SHA256
+    "InvalidResourcePolicy",  # The specified Resource Policy is invalid
+    "InvalidStorageClass",  # The storage class you specified is not valid
+    "InvalidTag",  # The tag provided was not a valid tag
+    "InvalidTags",  # Tag keys cannot start with AWS reserved prefix for system tags
+    "InvalidTargetBucketForLogging",  # The target bucket for logging does not exist, is not owned by you, or does not have the appropriate grants for the log-delivery group
+    "InvalidToken",  # The provided token is malformed or otherwise invalid
+    "InvalidURI",  # Couldn't parse the specified URI
+    "KeyTooLongError",  # Your key is too long
+    "LambdaInvalidResponse",  # Lambda function returned an invalid response
+    "LambdaInvocationFailed",  # Lambda function invocation failed
+    "LambdaNotFound",  # The AWS Lambda function was not found
+    "LambdaPermissionError",  # The caller is not authorized to invoke the Lambda function
+    "LambdaResponseNotReceived",  # The Lambda function exited without successfully calling WriteGetObjectResponse
+    "LambdaRuntimeError",  # The Lambda function failed during execution
+    "LambdaTimeout",  # The Lambda function did not respond in the allowed time
+    "LimitExceededException",  # A service limit was exceeded
+    "MalformedACLError",  # The XML you provided was not well-formed or did not validate against our published schema
+    "MalformedPolicyDocument",  # Policy document is malformed
+    "MalformedPOSTRequest",  # The body of your POST request is not well-formed multipart/form-data
+    "MalformedQueryString",  # The query string contains a malformed parameter
+    "MalformedXML",  # This happens when the user sends malformed XML
+    "MaxMessageLengthExceeded",  # Your request was too big
+    "MaxPostPreDataLengthExceededError",  # Your POST request fields preceding the upload file were too large
+    "MetadataTooLarge",  # Your metadata headers exceed the maximum allowed metadata size
+    "MethodNotAllowed",  # The specified method is not allowed against this resource
+    "MissingAttachment",  # A SOAP attachment was expected, but none were found
+    "MissingContentLength",  # You must provide the Content-Length HTTP header
+    "MissingParameter",  # A required parameter for the specified action is not supplied
+    "MissingRequestBodyError",  # This happens when the user sends an empty XML document as a request
+    "MissingSecurityHeader",  # Your request was missing a required header
+    "MultiRegionAccessPointAlreadyOwnedByYou",  # You already have a Multi-Region Access Point with the same name
+    "MultiRegionAccessPointModifiedByAnotherRequest",  # The action failed because another request is modifying the specified resource
+    "MultiRegionAccessPointNotReady",  # The specified Multi-Region Access Point is not ready to be updated
+    "MultiRegionAccessPointSameBucketRegion",  # The buckets used to create a Multi-Region Access Point cannot be in the same Region
+    "MultiRegionAccessPointUnsupportedRegion",  # One of the buckets supplied to create the Multi-Region Access Point is in a Region that is not supported
+    "NoLoggingStatusForKey",  # There is no such thing as a logging status subresource for a key
+    "NotImplemented",  # A header you provided implies functionality that is not implemented
+    "NotSignedUp",  # Your account is not signed up for the Amazon S3 service
+    "OperationAborted",  # A conflicting conditional operation is currently in progress against this resource
+    "OptInRequired",  # The AWS access key ID needs a subscription for the service
+    "PermanentRedirect",  # The bucket you are attempting to access must be addressed using the specified endpoint
+    "PreconditionFailed",  # At least one of the preconditions you specified did not hold
+    "Redirect",  # Temporary redirect
+    "ReplicationParameterValueError",  # Invalid parameter value in replication configuration
+    "RequestIsNotMultiPartContent",  # Bucket POST must be of the enclosure-type multipart/form-data
+    "RequestTorrentOfBucketError",  # Requesting the torrent file of a bucket is not permitted
+    "RestoreAlreadyInProgress",  # Object restore is already in progress
+    "StsNotAuthorizedError",  # An error occurred when calling the GetDataAccess operation: User is not authorized to perform sts:AssumeRole
+    "StsPackedPolicyTooLargeError",  # An error occurred when calling the GetDataAccess operation: Serialized token too large for session
+    "StsValidationError",  # STS validation error occurred
+    "TokenRefreshRequired",  # The provided token must be refreshed
+    "TooManyBuckets",  # You have attempted to create more buckets than allowed
+    "TooManyConfigurations",  # You have attempted to create more Storage Lens group configurations than the 50 allowed
+    "TooManyElements",  # The Element exceeds the maximum number of elements allowed within a logical operator
+    "TooManyTags",  # The number of tags exceeds the limit of 50 tags
+    "UnexpectedContent",  # This request does not support content
+    "UnresolvableGrantByEmailAddress",  # The email address you provided does not match any account on record
+    "UnsupportedOperation",  # A specified operation is not supported
+    "UnsupportedProtocol",  # The specified protocol is not supported
+    "UserKeyMustBeSpecified",  # The bucket POST must contain the specified field name
+    "ValidationError",  # Validation errors might be returned and can occur for numerous reasons
+    "ValidationException",  # A validation exception occurred
 }
 
 
