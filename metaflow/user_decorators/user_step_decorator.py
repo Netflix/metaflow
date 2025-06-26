@@ -339,20 +339,7 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         if step:
             if isinstance(step, UserStepDecoratorBase):
                 step = step._my_step
-            # You can use config values in the arguments to a _StepDecorator
-            # so we resolve those as well
-            self._args = [resolve_delayed_evaluator(arg) for arg in self._args]
-            self._kwargs, _ = unpack_delayed_evaluator(self._kwargs)
-            self._kwargs = {
-                k: resolve_delayed_evaluator(v) for k, v in self._kwargs.items()
-            }
-            if self._args or self._kwargs:
-                self.init(*self._args, **self._kwargs)
-                if hasattr(self, "_empty_init"):
-                    raise MetaflowException(
-                        "%s is used with arguments "
-                        "but does not implement init" % self
-                    )
+
             return self._set_my_step(step)
         elif not self._my_step:
             # This means that somehow the initialization did not happen properly
@@ -448,9 +435,18 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
             return self.decorator_name
 
     def init(self, *args, **kwargs):
-        # Allows us to catch issues where the user passes arguments to a decorator
-        # but doesn't tell us how to handle them.
-        self._empty_init = True
+        # You can use config values in the arguments to a _StepDecorator
+        # so we resolve those as well
+        self._args = [resolve_delayed_evaluator(arg) for arg in self._args]
+        self._kwargs, _ = unpack_delayed_evaluator(self._kwargs)
+        self._kwargs = {
+            k: resolve_delayed_evaluator(v) for k, v in self._kwargs.items()
+        }
+        if self._args or self._kwargs:
+            if "init" not in self.__class__.__dict__:
+                raise MetaflowException(
+                    "%s is used with arguments " "but does not implement init" % self
+                )
 
 
 class UserStepDecorator(UserStepDecoratorBase):
@@ -480,7 +476,7 @@ class UserStepDecorator(UserStepDecoratorBase):
             pass
         ```
         """
-        self._empty_init = True
+        super().init(**kwargs)
 
     def pre_step(
         self,
@@ -650,7 +646,7 @@ def user_step_decorator(*args, **kwargs):
                 self._generator = obj
 
             def init(self, **kwargs):
-                pass
+                super().init(**kwargs)
 
             def pre_step(self, step_name, flow, inputs):
                 if arg_count == 4:
@@ -710,10 +706,8 @@ class StepMutator(UserStepDecoratorBase):
             pass
 
         It is an error to use your mutator with arguments but not implement this method.
-
-        When implementing, you should not call super().init().
         """
-        self._empty_init = True
+        super().init(*args, **kwargs)
 
     def pre_mutate(
         self, mutable_step: "metaflow.user_decorators.mutable_step.MutableStep"
