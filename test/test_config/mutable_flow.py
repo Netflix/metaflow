@@ -130,7 +130,7 @@ class ModifyFlow(FlowMutator):
                 decos = [deco for deco in s.decorator_specs]
                 assert len(decos) == 3, "Unexpected number of decorators"
                 assert decos[0].startswith("environment:"), "Unexpected decorator"
-                env_deco = extract_step_decorator_from_decospec(decos[0], {})
+                env_deco, _ = extract_step_decorator_from_decospec(decos[0], {})
                 attrs = env_deco.attributes
                 for k, v in to_add.items():
                     attrs["vars"][k] = v
@@ -179,7 +179,7 @@ class ModifyStep2(StepMutator):
         to_add = mutable_step.flow.config["step_add_environment_2"]["vars"]
         for deco in mutable_step.decorator_specs:
             if deco.startswith("environment:"):
-                env_deco = extract_step_decorator_from_decospec(deco, {})
+                env_deco, _ = extract_step_decorator_from_decospec(deco, {})
                 attrs = env_deco.attributes
                 for k, v in to_add.items():
                     attrs["vars"][k] = v
@@ -191,7 +191,6 @@ class ModifyStep2(StepMutator):
 @ModifyFlowWithArgs("parameters")
 @project(name=config_expr("config.project_name"))
 class ConfigMutableFlow(FlowSpec):
-
     trigger_param = Parameter(
         "trigger_param",
         default="",

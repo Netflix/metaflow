@@ -7,19 +7,35 @@ from metaflow import UserStepDecorator, user_step_decorator, StepMutator
 from metaflow.flowspec import FlowSpec
 
 
+def debug_deco_add(flow, deco_name, **kwargs):
+    if not hasattr(flow, "user_added_step_decorators"):
+        flow.user_added_step_decorators = []
+    if kwargs:
+        flow.user_added_step_decorators.append(f"{deco_name}({kwargs})")
+        print(f"Running decorator {deco_name} with attributes {kwargs}")
+    else:
+        flow.user_added_step_decorators.append(deco_name)
+        print(f"Running decorator {deco_name}")
+
+
 @user_step_decorator
 def retry(step_name, flow, inputs):
-    print("This is a user retry function")
+    debug_deco_add(flow, "retry")
     yield
-    print("Didn't user retry")
+    if hasattr(flow, "user_added_step_decorators"):
+        delattr(flow, "user_added_step_decorators")  # Clean up after ourselves
 
 
 @user_step_decorator
 def time_step(step_name, flow, inputs):
+    debug_deco_add(flow, "time_step")
     start = time.time()
     to_raise = None
     try:
         yield
+        if hasattr(flow, "user_added_step_decorators"):
+            delattr(flow, "user_added_step_decorators")  # Clean up after ourselves
+
     except Exception as e:
         print(f"Error in step {step_name}: {e}")
         to_raise = e
@@ -36,18 +52,27 @@ class AddTimeStep(StepMutator):
         mutable_step.add_decorator(time_step)
 
 
+class AddArgsDecorator(StepMutator):
+    def init(self):
+        super().init()
+
+    def mutate(self, mutable_step):
+        mutable_step.add_decorator(mutable_step.flow.cfg.args_decorator, **self.kwargs)
+
+
 @user_step_decorator
 def with_args(step_name, flow, inputs, attributes):
-    print(f"Step {step_name} starting; decorator had {attributes}")
+    debug_deco_add(flow, "with_args", **attributes)
     yield
-    print(f"Step {step_name} ending")
+    if hasattr(flow, "user_added_step_decorators"):
+        delattr(flow, "user_added_step_decorators")  # Clean up after ourselves
 
 
-class MyComplexDecorator(UserStepDecorator):
-
-    def init(self, **kwargs):
-        self._excluded_step_names = kwargs.get("excluded_step_names", [])
-        self._skip_steps = kwargs.get("skip_steps", [])
+class SkipStep(UserStepDecorator):
+    def init(self):
+        super().init()
+        self._excluded_step_names = self.kwargs.get("excluded_step_names", [])
+        self._skip_steps = self.kwargs.get("skip_steps", [])
 
     def pre_step(
         self, step_name: str, flow: FlowSpec, inputs
@@ -58,7 +83,7 @@ class MyComplexDecorator(UserStepDecorator):
         elif step_name in self._excluded_step_names:
             print(f"Not doing complex stuff for step {step_name}")
         else:
-            print("Doing something complex")
+            print(f"Doing something complex for step {step_name}")
 
     def post_step(
         self, step_name: str, flow: FlowSpec, exception: Optional[Exception] = None

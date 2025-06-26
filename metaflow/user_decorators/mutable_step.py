@@ -126,15 +126,17 @@ class MutableStep:
         )
 
         if isinstance(deco_type, str):
-            if kwargs:
+            step_deco, has_kwargs = extract_step_decorator_from_decospec(deco_type)
+            if kwargs and has_kwargs:
                 raise MetaflowException(
                     "Cannot specify additional arguments when adding a user step "
-                    "decorator using a decospec"
+                    "decorator using a decospec that already has arguments"
                 )
-            step_deco = extract_step_decorator_from_decospec(deco_type)
-            step_deco.statically_defined = self._statically_defined
-            step_deco.inserted_by = self._inserted_by
+
             if isinstance(step_deco, StepDecorator):
+                # Update kwargs:
+                step_deco.attributes.update(kwargs)
+
                 # Check duplicates
                 if (
                     step_deco.name in [deco.name for deco in self._my_step.decorators]
@@ -150,6 +152,9 @@ class MutableStep:
                     "Mutable step adding step decorator '%s' to step '%s' (from str)"
                     % (deco_type, self._my_step.name)
                 )
+
+                step_deco.statically_defined = self._statically_defined
+                step_deco.inserted_by = self._inserted_by
                 self._my_step.decorators.append(step_deco)
             else:
                 # User defined decorator.
@@ -159,6 +164,11 @@ class MutableStep:
                         "`pre_mutate` method and not the `mutate` method"
                         % (step_deco.decorator_name, self._inserted_by)
                     )
+
+                if kwargs:
+                    # We need to recreate the object if there were kwargs
+                    step_deco = step_deco.__class__(**kwargs)
+
                 debug.userconf_exec(
                     "Mutable step adding decorator %s to step %s (from str)"
                     % (deco_type, self._my_step.name)
@@ -181,9 +191,8 @@ class MutableStep:
                 % (deco_type, self._my_step.name)
             )
 
-            # In __call__, the decorator will append itself to the right field to
-            # self._my_step
             d = deco_type(**kwargs)
+            # add_or_raise properly registers the decorator
             d.add_or_raise(self._my_step, self._statically_defined, self._inserted_by)
             return
 
