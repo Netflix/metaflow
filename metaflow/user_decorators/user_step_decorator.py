@@ -1,9 +1,10 @@
 import inspect
 import json
+import sys
 import re
 import types
 
-from typing import Any, Callable, Dict, Optional, TYPE_CHECKING, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING, Union
 
 from metaflow.debug import debug
 from metaflow.exception import MetaflowException
@@ -19,17 +20,219 @@ if TYPE_CHECKING:
     import metaflow.user_decorators.mutable_step
 
 
+class _TrieNode:
+    def __init__(self):
+        self.children = {}  # type: Dict[str, "_TrieNode"]
+        self.total_children = 0
+        self.value = None
+        self.end_value = None
+
+    def traverse(self, value: type):
+        if self.total_children == 0:
+            self.end_value = value
+        else:
+            self.end_value = None
+        self.total_children += 1
+
+    def remove_child(self, child_name: str) -> bool:
+        if child_name in self.children:
+            del self.children[child_name]
+            self.total_children -= 1
+            return True
+        return False
+
+
+class _ClassPath_Trie:
+    def __init__(self):
+        self.root = _TrieNode()
+        self.inited = False
+
+    def init(self, initial_nodes: Optional[List[Tuple[str, type]]] = None):
+        # We need to do this so we can delay import of STEP_DECORATORS
+        self.inited = True
+        for classpath_name, value in initial_nodes or []:
+            self.insert(classpath_name, value)
+
+    def insert(self, classpath_name: str, value: type):
+        node = self.root
+        components = reversed(classpath_name.split("."))
+        for c in components:
+            node = node.children.setdefault(c, _TrieNode())
+            node.traverse(value)
+        node.value = value
+
+    def search(self, classpath_name: str) -> Optional[type]:
+        node = self.root
+        components = reversed(classpath_name.split("."))
+        for c in components:
+            if c not in node.children:
+                return None
+            node = node.children[c]
+        return node.value
+
+    def remove(self, classpath_name: str):
+        components = list(reversed(classpath_name.split(".")))
+
+        def _remove(node: _TrieNode, components, depth):
+            if depth == len(components):
+                if node.value is not None:
+                    node.value = None
+                    return len(node.children) == 0
+                return False
+            c = components[depth]
+            if c not in node.children:
+                return False
+            did_delete_child = _remove(node.children[c], components, depth + 1)
+            if did_delete_child:
+                node.remove_child(c)
+                if node.total_children == 1:
+                    # If we have one total child left, we have at least one
+                    # child and that one has an end_value
+                    for child in node.children.values():
+                        assert (
+                            child.end_value
+                        ), "Node with one child must have an end_value"
+                        node.end_value = child.end_value
+                return node.total_children == 0
+            return False
+
+        _remove(self.root, components, 0)
+
+    def unique_prefix_value(self, classpath_name: str) -> Optional[type]:
+        node = self.root
+        components = reversed(classpath_name.split("."))
+        for c in components:
+            if c not in node.children:
+                return None
+            node = node.children[c]
+        # If we reach here, it means the classpath_name is a prefix.
+        # We check if it has only one path forward (end_value will be non None)
+        # If value is not None, we also consider this to be a unique "prefix"
+        # This happens since this trie is also filled with metaflow default decorators
+        return node.end_value or node.value
+
+    def get_unique_prefixes(self) -> Dict[str, type]:
+        """
+        Get all unique prefixes in the trie.
+
+        Returns
+        -------
+        List[str]
+            A list of unique prefixes.
+        """
+        to_return = {}
+
+        def _collect(node, current_prefix):
+            if node.end_value is not None:
+                to_return[current_prefix] = node.end_value
+                # We stop there and don't look further since we found the unique prefix
+                return
+            if node.value is not None:
+                to_return[current_prefix] = node.value
+                # We continue to look for more unique prefixes
+            for child_name, child_node in node.children.items():
+                _collect(
+                    child_node,
+                    f"{current_prefix}.{child_name}" if current_prefix else child_name,
+                )
+
+        _collect(self.root, "")
+        return {".".join(reversed(k.split("."))): v for k, v in to_return.items()}
+
+
 class UserStepDecoratorMeta(type):
+    _all_registered_decorators = _ClassPath_Trie()
+    _do_not_register = set()
+
+    def __new__(mcs, name, bases, namespace, **_kwargs):
+        cls = super().__new__(mcs, name, bases, namespace)
+        cls.decorator_name = getattr(
+            cls, "_decorator_name", f"{cls.__module__}.{cls.__name__}"
+        )
+        # We inject `METAFLOW_PACKAGE` in the module so that this gets packaged
+        if not cls.__module__.startswith("metaflow.") and not cls.__module__.startswith(
+            "metaflow_extensions."
+        ):
+            setattr(sys.modules[cls.__module__], "METAFLOW_PACKAGE", 1)
+
+        if cls.decorator_name in mcs._do_not_register:
+            return cls
+
+        # We inject a __init_subclass__ method so we can figure out if there
+        # are subclasses. We want to register as decorators only the ones that do
+        # not have a subclass. The logic is that everything is registered and if
+        # a subclass shows up, we will unregister the parent class leaving only those
+        # classes that do not have any subclasses registered.
+        @classmethod
+        def do_unregister(cls_, **_kwargs):
+            for base in cls_.__bases__:
+                if isinstance(base, UserStepDecoratorMeta):
+                    # If the base is a UserStepDecoratorMeta, we unregister it
+                    # so that we don't have any decorators that are not the
+                    # most derived one.
+                    mcs._all_registered_decorators.remove(base.decorator_name)
+                    # Also make sure we don't register again
+                    mcs._do_not_register.add(base.decorator_name)
+
+        cls.__init_subclass__ = do_unregister
+        mcs._all_registered_decorators.insert(cls.decorator_name, cls)
+        return cls
+
     def __str__(cls):
-        return "%s(%s)" % (cls.__name__, cls.decorator_name)
+        return "%s(%s)" % (cls.__name__, getattr(cls, "decorator_name", None))
+
+    @classmethod
+    def all_decorators(mcs) -> Dict[str, "UserStepDecoratorMeta"]:
+        """
+        Get all registered decorators using the minimally unique classpath name
+
+        Returns
+        -------
+        Dict[str, UserStepDecoratorBase]
+            A dictionary mapping decorator names to their classes.
+        """
+        mcs._check_init()
+        return mcs._all_registered_decorators.get_unique_prefixes()
+
+    @classmethod
+    def get_decorator_by_name(
+        mcs, decorator_name: str
+    ) -> Optional["UserStepDecoratorBase"]:
+        """
+        Get a decorator by its name.
+
+        Parameters
+        ----------
+        decorator_name: str
+            The name of the decorator to retrieve.
+
+        Returns
+        -------
+        Optional[UserStepDecoratorBase]
+            The decorator class if found, None otherwise.
+        """
+        mcs._check_init()
+        return mcs._all_registered_decorators.unique_prefix_value(decorator_name)
+
+    @classmethod
+    def _check_init(mcs):
+        # Delay importing STEP_DECORATORS until we actually need it
+        if not mcs._all_registered_decorators.inited:
+            from metaflow.plugins import STEP_DECORATORS
+
+            mcs._all_registered_decorators.init(
+                [
+                    (t.name, t)
+                    for t in STEP_DECORATORS
+                    if not t.name.endswith("_internal")
+                ]
+            )
 
 
 class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
-
     _step_field = None
     _allowed_args = False
     _allowed_kwargs = False
-    decorator_name = None
 
     @classmethod
     def add_or_raise(
@@ -59,8 +262,6 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
             # Else we ignore
 
     def __init__(self, *args, **kwargs):
-        if self.decorator_name is None:
-            self.decorator_name = f"{self.__module__}.{self.__class__.__name__}"
         arg = None
         self._args = []
         self._kwargs = {}
@@ -169,7 +370,6 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         Callable[["metaflow.decorators.FlowSpecDerived"], None],
         Callable[["metaflow.decorators.FlowSpecDerived", Any], None],
     ]:
-
         self._my_step = step
         if self._step_field is None:
             raise RuntimeError(
@@ -257,7 +457,6 @@ class UserStepDecorator(UserStepDecoratorBase):
     _step_field = "wrappers"
     _allowed_args = False
     _allowed_kwargs = True
-    decorator_name: Optional[str] = None
 
     def init(self, **kwargs):
         """
@@ -413,8 +612,9 @@ def user_step_decorator(*args, **kwargs):
     allows more control.
     """
     if args:
-        # If we have args, we either had @step_decorator with no argument or we had
-        # @step_decorator(arg="foo") and transformed it into @step_decorator(step, arg="foo")
+        # If we have args, we either had @user_step_decorator with no argument or we had
+        # @user_step_decorator(arg="foo") and transformed it into
+        # @user_step_decorator(step, arg="foo")
         obj = args[0]
         name = f"{obj.__module__}.{obj.__name__}"
 
@@ -442,7 +642,8 @@ def user_step_decorator(*args, **kwargs):
             _allowed_args = False
             _allowed_kwargs = True
             _step_field = "wrappers"
-            decorator_name = name
+            _decorator_name = name
+            _original_module = obj.__module__
 
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)

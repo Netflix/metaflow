@@ -7,17 +7,20 @@ from test_included_modules.my_decorators import (
 from hellodecos_base import MyBaseFlowSpec
 
 from metaflow import FlowSpec, step
-from metaflow import config_expr
+from metaflow import config_expr, Config
 
 
 class DecoFlow(MyBaseFlowSpec):
+
+    cfg = Config("cfg", default_value={"bar": 43})
+
     @step
     def start(self):
         print("Starting flow")
         self.next(self.middle)
 
     @time_step
-    @with_args(foo=42, bar="baz")
+    @with_args(foo=cfg.bar, bar="baz")
     @step
     def middle(self):
         print("Middle step")

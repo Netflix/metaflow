@@ -14,6 +14,8 @@ from ..extension_support import (
 )
 from ..exception import MetaflowException
 from ..metaflow_version import get_version
+from ..user_decorators.user_flow_decorator import FlowMutatorMeta
+from ..user_decorators.user_step_decorator import UserStepDecoratorMeta
 from ..util import get_metaflow_root
 from . import ContentType, MFCONTENT_MARKER, MetaflowCodeContentV1Base
 from .distribution_support import _ModuleInfo, modules_to_distributions
@@ -161,6 +163,19 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
         str
             A human-readable string representation of the content of this MetaflowCodeContent
         """
+        all_user_step_decorators = {}
+        for k, v in UserStepDecoratorMeta.all_decorators().items():
+            all_user_step_decorators.setdefault(
+                getattr(v, "_original_module", v.__module__), []
+            ).append(k)
+
+        all_user_flow_decorators = {}
+        for k, v in FlowMutatorMeta.all_decorators().items():
+            all_user_flow_decorators.setdefault(
+                getattr(v, "_original_module", v.__module__), []
+            ).append(k)
+        print("All user step decorators:", all_user_step_decorators)
+
         result = []
         if self._metaflow_version:
             result.append(f"\nMetaflow version: {self._metaflow_version}")
@@ -177,7 +192,26 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
             other_modules = []
             for name, info in self._modules.items():
                 if info.metaflow_module:
+                    print("Found Metaflow module:", info.name)
                     mf_modules.append(f"  - {name} @ {', '.join(info.root_paths)}")
+                    module_user_step_decorators = [
+                        ", ".join(v)
+                        for k, v in all_user_step_decorators.items()
+                        if k == info.name or k.startswith(info.name + ".")
+                    ]
+                    module_user_flow_decorators = [
+                        ", ".join(v)
+                        for k, v in all_user_flow_decorators.items()
+                        if k == info.name or k.startswith(info.name + ".")
+                    ]
+                    if module_user_step_decorators:
+                        mf_modules.append(
+                            f"    - Provides step decorators: {', '.join(module_user_step_decorators)}"
+                        )
+                    if module_user_flow_decorators:
+                        mf_modules.append(
+                            f"    - Provides flow mutators: {', '.join(module_user_flow_decorators)}"
+                        )
                 else:
                     other_modules.append(f"  - {name} @ {', '.join(info.root_paths)}")
             if mf_modules:

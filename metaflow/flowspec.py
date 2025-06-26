@@ -117,20 +117,6 @@ class FlowSpecMeta(type):
         # the configs have been processed, we do not process them again.
         cls._configs_processed = False
 
-        # We store references to the globals where each flowspec is defined so that
-        # users can do --with foo and it works if foo is defined when the flowspec
-        # is defined. This is a list to deal with something like:
-        # class BaseFlowSpec(FlowSpec):
-        #     pass
-        #
-        # class MyFlowspec(BaseFlowSpec):
-        #     pass
-        #
-        # In this case, we want to store references to the globals of both BaseFlowSpec
-        # and MyFlowspec so that --with foo works whether foo is defined in BaseFlowSpec
-        # or MyFlowspec.
-        cls._global_dicts = [inspect.currentframe().f_back.f_back.f_globals]
-
         # We inherit stuff from our parent classes as well -- we need to be careful
         # in terms of the order; we will follow the MRO with the following rules:
         #  - decorators (cls._flow_decorators) will cause an error if they do not
@@ -155,9 +141,6 @@ class FlowSpecMeta(type):
                     cls._flow_state.setdefault(_FlowState.CONFIG_DECORATORS, []).extend(
                         base_configs
                     )
-
-                # Take care of global dicts
-                cls._global_dicts.extend(base._global_dicts)
 
         cls._init_graph()
 
@@ -189,7 +172,6 @@ class FlowSpec(metaclass=FlowSpecMeta):
         "_graph",
         "_flow_decorators",
         "_flow_state",
-        "_global_dicts",
         "_steps",
         "index",
         "input",
@@ -304,7 +286,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
         for deco in cls._flow_state.get(_FlowState.CONFIG_DECORATORS, []):
             if isinstance(deco, FlowMutator):
-                inserted_by_value = "%s from %s" % (deco, deco.inserted_by or "user")
+                inserted_by_value = [deco] + (deco.inserted_by or [])
                 mutable_flow = MutableFlow(
                     cls,
                     pre_mutate=True,
@@ -335,10 +317,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
         for step in cls._steps:
             for deco in step.config_decorators:
                 if isinstance(deco, StepMutator):
-                    inserted_by_value = "%s from %s" % (
-                        deco,
-                        deco.inserted_by or "user",
-                    )
+                    inserted_by_value = [deco] + (deco.inserted_by or [])
                     debug.userconf_exec(
                         "Evaluating step level decorator %s for %s"
                         % (deco.__class__.__name__, step.name)
@@ -432,7 +411,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
                     "name": deco.name,
                     "attributes": to_pod(deco.attributes),
                     "statically_defined": deco.statically_defined,
-                    "inserted_by": deco.inserted_by if deco.inserted_by else "user",
+                    "inserted_by": deco.inserted_by,
                 }
                 for deco in flow_decorators(self)
                 if not deco.name.startswith("_")

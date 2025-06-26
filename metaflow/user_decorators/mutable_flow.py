@@ -206,7 +206,7 @@ class MutableFlow:
             raise MetaflowException(
                 "Removing parameter '%s' from %s is only allowed in the `pre_mutate` "
                 "method and not the `mutate` method"
-                % (parameter_name, self._inserted_by)
+                % (parameter_name, " from ".join(self._inserted_by))
             )
         from metaflow.flowspec import _FlowState
 

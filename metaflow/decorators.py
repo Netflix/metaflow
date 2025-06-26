@@ -22,7 +22,11 @@ from .user_configs.config_parameters import (
 from .user_decorators.mutable_flow import MutableFlow
 from .user_decorators.mutable_step import MutableStep
 from .user_decorators.user_flow_decorator import FlowMutator
-from .user_decorators.user_step_decorator import StepMutator, UserStepDecoratorBase
+from .user_decorators.user_step_decorator import (
+    StepMutator,
+    UserStepDecoratorBase,
+    UserStepDecoratorMeta,
+)
 
 from metaflow._vendor import click
 
@@ -63,11 +67,8 @@ class UnknownStepDecoratorException(MetaflowException):
     headline = "Unknown step decorator"
 
     def __init__(self, deconame):
-        from .plugins import STEP_DECORATORS
+        decos = ", ".join(UserStepDecoratorMeta.all_decorators().keys())
 
-        decos = ", ".join(
-            t.name for t in STEP_DECORATORS if not t.name.endswith("_internal")
-        )
         msg = (
             "Unknown step decorator *{deconame}*. The following decorators are "
             "supported: *{decos}*".format(deconame=deconame, decos=decos)
@@ -205,7 +206,7 @@ class Decorator(object):
     def __str__(self):
         mode = "static" if self.statically_defined else "dynamic"
         if self.inserted_by:
-            mode += " (inserted by %s)" % self.inserted_by
+            mode += " (inserted by %s)" % " from ".join(self.inserted_by)
         attrs = " ".join("%s=%s" % x for x in self.attributes.items())
         if attrs:
             attrs = " " + attrs
@@ -545,11 +546,16 @@ def get_all_flow_decos():
     return _all_flow_decos
 
 
-def extract_step_decorator_from_decospec(decospec: str, global_dicts):
+def extract_step_decorator_from_decospec(decospec: str):
     splits = decospec.split(":", 1)
     deconame = splits[0]
     # Check if this is a Metaflow decorator (ie: provided as a StepDecorator)
     deco_cls = get_all_step_decos().get(deconame)
+    if deco_cls is not None:
+        return deco_cls.parse_decorator_spec(splits[1] if len(splits) > 1 else "")
+
+    # Check if it is a user-defined decorator
+    deco_cls = UserStepDecoratorMeta.get_decorator_by_name(deconame)
     if deco_cls is not None:
         return deco_cls.parse_decorator_spec(splits[1] if len(splits) > 1 else "")
 
@@ -573,18 +579,7 @@ def extract_step_decorator_from_decospec(decospec: str, global_dicts):
             raise UnknownStepDecoratorException(deconame)
         return deco_cls.parse_decorator_spec(splits[1] if len(splits) > 1 else "")
 
-    # Last case: we check if the name exists in any of the global dicts and is of
-    # the right type.
-    for global_dict in global_dicts:
-        deco_cls = global_dict.get(deconame)
-        if (
-            deco_cls is not None
-            and isinstance(deco_cls, type)
-            and issubclass(deco_cls, UserStepDecoratorBase)
-        ):
-            return deco_cls.parse_decorator_spec(splits[1] if len(splits) > 1 else "")
-    else:
-        raise UnknownStepDecoratorException(deconame)
+    raise UnknownStepDecoratorException(deconame)
 
 
 def extract_flow_decorator_from_decospec(decospec: str):
@@ -611,17 +606,17 @@ def _attach_decorators(flow, decospecs):
     # so decorator can maintain step-specific state.
 
     for step in flow:
-        _attach_decorators_to_step(step, flow.__class__._global_dicts, decospecs)
+        _attach_decorators_to_step(step, decospecs)
 
 
-def _attach_decorators_to_step(step, global_dicts, decospecs):
+def _attach_decorators_to_step(step, decospecs):
     """
     Attach decorators to a step during runtime. This has the same
     effect as if you defined the decorators statically in the source for
     the step.
     """
     for decospec in decospecs:
-        step_deco = extract_step_decorator_from_decospec(decospec, global_dicts)
+        step_deco = extract_step_decorator_from_decospec(decospec)
         if isinstance(step_deco, StepDecorator):
             # Check multiple
             if (
@@ -642,8 +637,24 @@ def _init(flow, only_non_static=False):
                 continue
             deco.init()
             _inited_decorators.add(deco)
+    for decorator in flow._flow_state.get(_FlowState.CONFIG_DECORATORS, []):
+        if decorator in _inited_decorators:
+            continue
+        decorator.init()
+        _inited_decorators.add(decorator)
+
     for flowstep in flow:
         for deco in flowstep.decorators:
+            if deco in _inited_decorators:
+                continue
+            deco.init()
+            _inited_decorators.add(deco)
+        for deco in flowstep.config_decorators or []:
+            if deco in _inited_decorators:
+                continue
+            deco.init()
+            _inited_decorators.add(deco)
+        for deco in flowstep.wrappers or []:
             if deco in _inited_decorators:
                 continue
             deco.init()
@@ -693,7 +704,6 @@ def _init_flow_decorators(
 
 
 def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
-
     # We call the mutate method for both the flow and step mutators.
     cls = flow.__class__
     # Run all the decorators. We first run the flow-level decorators
@@ -702,7 +712,7 @@ def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
 
     for deco in cls._flow_state.get(_FlowState.CONFIG_DECORATORS, []):
         if isinstance(deco, FlowMutator):
-            inserted_by_value = "%s from %s" % (deco, deco.inserted_by or "user")
+            inserted_by_value = [deco] + (deco.inserted_by or [])
             mutable_flow = MutableFlow(
                 cls,
                 pre_mutate=False,
@@ -731,7 +741,7 @@ def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
 
     for step in cls._steps:
         for deco in step.config_decorators:
-            inserted_by_value = "%s from %s" % (deco, deco.inserted_by or "user")
+            inserted_by_value = [deco] + (deco.inserted_by or [])
 
             if isinstance(deco, StepMutator):
                 debug.userconf_exec(
