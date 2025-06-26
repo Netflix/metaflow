@@ -1,4 +1,5 @@
-from typing import Optional, TYPE_CHECKING
+import sys
+from typing import Dict, Optional, TYPE_CHECKING
 
 from metaflow.exception import MetaflowException
 from metaflow.user_configs.config_parameters import (
@@ -12,8 +13,29 @@ if TYPE_CHECKING:
 
 
 class FlowMutatorMeta(type):
+    _all_registered_decorators = {}
+
+    def __new__(mcs, name, bases, namespace):
+        cls = super().__new__(mcs, name, bases, namespace)
+        cls.decorator_name = getattr(
+            cls, "_decorator_name", f"{cls.__module__}.{cls.__name__}"
+        )
+        # We inject `METAFLOW_PACKAGE` in the module so that this gets packaged
+        if not cls.__module__.startswith("metaflow.") and not cls.__module__.startswith(
+            "metaflow_extensions."
+        ):
+            setattr(sys.modules[cls.__module__], "METAFLOW_PACKAGE", 1)
+
+        if name != "FlowMutator":
+            mcs._all_registered_decorators[name] = cls
+        return cls
+
+    @classmethod
+    def all_decorators(mcs) -> Dict[str, "FlowMutatorMeta"]:
+        return mcs._all_registered_decorators
+
     def __str__(cls):
-        return "FlowMutator(%s)" % cls.__name__
+        return "FlowMutator(%s)" % cls.decorator_name
 
 
 class FlowMutator(metaclass=FlowMutatorMeta):

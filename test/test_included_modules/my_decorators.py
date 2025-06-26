@@ -1,10 +1,17 @@
-METAFLOW_PACKAGE = 1
+# METAFLOW_PACKAGE = 1
 
 import time
 from typing import Any, Callable, Optional
 
 from metaflow import UserStepDecorator, user_step_decorator, StepMutator
 from metaflow.flowspec import FlowSpec
+
+
+@user_step_decorator
+def retry(step_name, flow, inputs):
+    print("This is a user retry function")
+    yield
+    print("Didn't user retry")
 
 
 @user_step_decorator

@@ -131,9 +131,7 @@ class MutableStep:
                     "Cannot specify additional arguments when adding a user step "
                     "decorator using a decospec"
                 )
-            step_deco = extract_step_decorator_from_decospec(
-                deco_type, self._flow_cls._global_dicts
-            )
+            step_deco = extract_step_decorator_from_decospec(deco_type)
             step_deco.statically_defined = self._statically_defined
             step_deco.inserted_by = self._inserted_by
             if isinstance(step_deco, StepDecorator):
