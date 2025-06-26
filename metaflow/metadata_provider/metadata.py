@@ -674,11 +674,17 @@ class MetadataProvider(object):
         if code_sha:
             code_url = os.environ.get("METAFLOW_CODE_URL")
             code_ds = os.environ.get("METAFLOW_CODE_DS")
+            code_metadata = os.environ.get("METAFLOW_CODE_METADATA")
             metadata.append(
                 MetaDatum(
                     field="code-package",
                     value=json.dumps(
-                        {"ds_type": code_ds, "sha": code_sha, "location": code_url}
+                        {
+                            "ds_type": code_ds,
+                            "sha": code_sha,
+                            "location": code_url,
+                            "metadata": code_metadata,
+                        }
                     ),
                     type="code-package",
                     tags=["attempt_id:{0}".format(attempt)],
