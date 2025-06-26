@@ -234,33 +234,6 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
     _allowed_args = False
     _allowed_kwargs = False
 
-    @classmethod
-    def add_or_raise(
-        cls,
-        step: Union[
-            Callable[["metaflow.decorators.FlowSpecDerived"], None],
-            Callable[["metaflow.decorators.FlowSpecDerived", Any], None],
-        ],
-        statically_defined: bool,
-        inserted_by: Optional[str] = None,
-    ) -> bool:
-        if cls.decorator_name not in [
-            deco.decorator_name for deco in getattr(step, cls._step_field)
-        ]:
-            debug.userconf_exec(
-                "Adding decorator %s to step %s from %s"
-                % (cls, step.__name__, inserted_by)
-            )
-            cls(step, _statically_defined=statically_defined, _inserted_by=inserted_by)
-        else:
-            if statically_defined:
-                # Prevent circular dep
-                from metaflow.decorators import DuplicateStepDecoratorException
-
-                raise DuplicateStepDecoratorException(cls, step)
-
-            # Else we ignore
-
     def __init__(self, *args, **kwargs):
         arg = None
         self._args = []
@@ -347,6 +320,32 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
             raise MetaflowException("%s can only be applied to a step function" % self)
         return self._my_step
 
+    def add_or_raise(
+        self,
+        step: Union[
+            Callable[["metaflow.decorators.FlowSpecDerived"], None],
+            Callable[["metaflow.decorators.FlowSpecDerived", Any], None],
+        ],
+        statically_defined: bool,
+        inserted_by: Optional[str] = None,
+    ) -> bool:
+        if self.decorator_name not in [
+            deco.decorator_name for deco in getattr(step, self._step_field)
+        ]:
+            debug.userconf_exec(
+                "Adding decorator %s to step %s from %s"
+                % (self, step.__name__, inserted_by)
+            )
+            self(step, _statically_defined=statically_defined, _inserted_by=inserted_by)
+        else:
+            if statically_defined:
+                # Prevent circular dep
+                from metaflow.decorators import DuplicateStepDecoratorException
+
+                raise DuplicateStepDecoratorException(self.__class__, step)
+
+            # Else we ignore
+
     def _set_my_step(
         self,
         step: Union[
@@ -413,6 +412,7 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         return cls(*args, **kwargs)
 
     def make_decorator_spec(self):
+        self.init()
         attrs = {}
         if self._args:
             attrs.update({i: v for i, v in enumerate(self._args) if v is not None})
@@ -434,7 +434,21 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         else:
             return self.decorator_name
 
-    def init(self, *args, **kwargs):
+    @property
+    def args(self) -> List[Any]:
+        """
+        Returns the arguments passed to the decorator.
+        """
+        return self._args
+
+    @property
+    def kwargs(self) -> Dict[str, Any]:
+        """
+        Returns the keyword arguments passed to the decorator.
+        """
+        return self._kwargs
+
+    def init(self):
         # You can use config values in the arguments to a _StepDecorator
         # so we resolve those as well
         self._args = [resolve_delayed_evaluator(arg) for arg in self._args]
@@ -454,17 +468,19 @@ class UserStepDecorator(UserStepDecoratorBase):
     _allowed_args = False
     _allowed_kwargs = True
 
-    def init(self, **kwargs):
+    def init(self):
         """
         Implement this method if your UserStepDecorator takes arguments. It replaces the
         __init__ method in traditional Python classes.
 
+        Note that you need to use self.args and self.kwargs to access the arguments.
+
         As an example:
         ```
         class MyDecorator(UserStepDecorator):
-            def init(self, arg1, arg2):
-                self.arg1 = arg1
-                self.arg2 = arg2
+            def init(self):
+                self.arg1 = self.kwargs.get("arg1", None)
+                self.arg2 = self.kwargs.get("arg2", None)
                 # Do something with the arguments
         ```
 
@@ -476,7 +492,7 @@ class UserStepDecorator(UserStepDecoratorBase):
             pass
         ```
         """
-        super().init(**kwargs)
+        super().init()
 
     def pre_step(
         self,
@@ -645,13 +661,18 @@ def user_step_decorator(*args, **kwargs):
                 super().__init__(*args, **kwargs)
                 self._generator = obj
 
-            def init(self, **kwargs):
-                super().init(**kwargs)
+            def init(self):
+                super().init()
+                if self.args:
+                    raise MetaflowException(
+                        "%s does not allow arguments, only keyword arguments"
+                        % str(self)
+                    )
 
             def pre_step(self, step_name, flow, inputs):
                 if arg_count == 4:
                     self._generator = self._generator(
-                        step_name, flow, inputs, self._kwargs
+                        step_name, flow, inputs, self.kwargs
                     )
                 else:
                     self._generator = self._generator(step_name, flow, inputs)
@@ -694,9 +715,11 @@ class StepMutator(UserStepDecoratorBase):
     _allowed_args = True
     _allowed_kwargs = True
 
-    def init(self, *args, **kwargs):
+    def init(self):
         """
         Implement this method if you wish for your StepMutator to take in arguments.
+
+        Note that you need to use self.args and self.kwargs to access the arguments.
 
         Your step-mutator can then look like:
 
@@ -707,7 +730,7 @@ class StepMutator(UserStepDecoratorBase):
 
         It is an error to use your mutator with arguments but not implement this method.
         """
-        super().init(*args, **kwargs)
+        super().init()
 
     def pre_mutate(
         self, mutable_step: "metaflow.user_decorators.mutable_step.MutableStep"

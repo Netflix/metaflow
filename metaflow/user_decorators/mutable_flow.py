@@ -281,7 +281,15 @@ class MutableFlow:
                     "Cannot specify additional arguments when adding a flow decorator "
                     "using a decospec"
                 )
-            flow_deco = extract_flow_decorator_from_decospec(deco_type)
+            flow_deco, has_kwargs = extract_flow_decorator_from_decospec(deco_type)
+            if kwargs:
+                if has_kwargs:
+                    raise MetaflowException(
+                        "Cannot specify additional arguments when adding a flow decorator "
+                        "using a decospec that already contains arguments"
+                    )
+                else:
+                    flow_deco.attributes.update(kwargs)
             flow_deco.statically_defined = self._statically_defined
             flow_deco.inserted_by = self._inserted_by
             # Check duplicates

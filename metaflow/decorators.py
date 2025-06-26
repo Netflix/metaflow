@@ -552,12 +552,18 @@ def extract_step_decorator_from_decospec(decospec: str):
     # Check if this is a Metaflow decorator (ie: provided as a StepDecorator)
     deco_cls = get_all_step_decos().get(deconame)
     if deco_cls is not None:
-        return deco_cls.parse_decorator_spec(splits[1] if len(splits) > 1 else "")
+        return (
+            deco_cls.parse_decorator_spec(splits[1] if len(splits) > 1 else ""),
+            len(splits) > 1,
+        )
 
     # Check if it is a user-defined decorator
     deco_cls = UserStepDecoratorMeta.get_decorator_by_name(deconame)
     if deco_cls is not None:
-        return deco_cls.parse_decorator_spec(splits[1] if len(splits) > 1 else "")
+        return (
+            deco_cls.parse_decorator_spec(splits[1] if len(splits) > 1 else ""),
+            len(splits) > 1,
+        )
 
     # Check if this is a decorator we can import
     if "." in deconame:
@@ -577,7 +583,10 @@ def extract_step_decorator_from_decospec(decospec: str):
             or not issubclass(deco_cls, UserStepDecoratorBase)
         ):
             raise UnknownStepDecoratorException(deconame)
-        return deco_cls.parse_decorator_spec(splits[1] if len(splits) > 1 else "")
+        return (
+            deco_cls.parse_decorator_spec(splits[1] if len(splits) > 1 else ""),
+            len(splits) > 1,
+        )
 
     raise UnknownStepDecoratorException(deconame)
 
@@ -587,7 +596,10 @@ def extract_flow_decorator_from_decospec(decospec: str):
     deconame = splits[0]
     deco_cls = get_all_flow_decos().get(deconame)
     if deco_cls is not None:
-        return deco_cls.parse_decorator_spec(splits[1] if len(splits) > 1 else "")
+        return (
+            deco_cls.parse_decorator_spec(splits[1] if len(splits) > 1 else ""),
+            len(splits) > 1,
+        )
     else:
         raise UnknownFlowDecoratorException(deconame)
 
@@ -616,7 +628,7 @@ def _attach_decorators_to_step(step, decospecs):
     the step.
     """
     for decospec in decospecs:
-        step_deco = extract_step_decorator_from_decospec(decospec)
+        step_deco, _ = extract_step_decorator_from_decospec(decospec)
         if isinstance(step_deco, StepDecorator):
             # Check multiple
             if (
