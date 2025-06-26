@@ -286,7 +286,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
         for deco in cls._flow_state.get(_FlowState.CONFIG_DECORATORS, []):
             if isinstance(deco, FlowMutator):
-                inserted_by_value = [deco] + (deco.inserted_by or [])
+                inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
                 mutable_flow = MutableFlow(
                     cls,
                     pre_mutate=True,
@@ -317,7 +317,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
         for step in cls._steps:
             for deco in step.config_decorators:
                 if isinstance(deco, StepMutator):
-                    inserted_by_value = [deco] + (deco.inserted_by or [])
+                    inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
                     debug.userconf_exec(
                         "Evaluating step level decorator %s for %s"
                         % (deco.__class__.__name__, step.name)

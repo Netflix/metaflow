@@ -712,7 +712,7 @@ def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
 
     for deco in cls._flow_state.get(_FlowState.CONFIG_DECORATORS, []):
         if isinstance(deco, FlowMutator):
-            inserted_by_value = [deco] + (deco.inserted_by or [])
+            inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
             mutable_flow = MutableFlow(
                 cls,
                 pre_mutate=False,
@@ -741,7 +741,7 @@ def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
 
     for step in cls._steps:
         for deco in step.config_decorators:
-            inserted_by_value = [deco] + (deco.inserted_by or [])
+            inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
 
             if isinstance(deco, StepMutator):
                 debug.userconf_exec(
