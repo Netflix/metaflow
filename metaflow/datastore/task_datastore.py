@@ -99,7 +99,6 @@ class TaskDataStore(object):
         mode="r",
         allow_not_done=False,
     ):
-
         self._storage_impl = flow_datastore._storage_impl
         self.TYPE = self._storage_impl.TYPE
         self._ca_store = flow_datastore.ca_store
