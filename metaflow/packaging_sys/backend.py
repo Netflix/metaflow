@@ -4,7 +4,6 @@ from typing import Any, IO, List, Optional, Union
 
 
 class PackagingBackend(ABC):
-
     _mappings = {}
 
     def __init_subclass__(cls, **kwargs):
@@ -20,7 +19,6 @@ class PackagingBackend(ABC):
         return cls._mappings[name]
 
     @classmethod
-    @property
     def backend_type(cls) -> str:
         return cls._type
 
