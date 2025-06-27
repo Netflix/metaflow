@@ -449,7 +449,7 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         return self._kwargs
 
     def init(self):
-        # You can use config values in the arguments to a _StepDecorator
+        # You can use config values in the arguments to a UserStepDecoratorBase
         # so we resolve those as well
         self._args = [resolve_delayed_evaluator(arg) for arg in self._args]
         self._kwargs, _ = unpack_delayed_evaluator(self._kwargs)
@@ -459,7 +459,7 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         if self._args or self._kwargs:
             if "init" not in self.__class__.__dict__:
                 raise MetaflowException(
-                    "%s is used with arguments " "but does not implement init" % self
+                    "%s is used with arguments but does not implement init" % self
                 )
 
 
@@ -474,6 +474,7 @@ class UserStepDecorator(UserStepDecoratorBase):
         __init__ method in traditional Python classes.
 
         Note that you need to use self.args and self.kwargs to access the arguments.
+        You should also use super().init() as the first line of your method.
 
         As an example:
         ```
@@ -720,6 +721,7 @@ class StepMutator(UserStepDecoratorBase):
         Implement this method if you wish for your StepMutator to take in arguments.
 
         Note that you need to use self.args and self.kwargs to access the arguments.
+        You should also use super().init() as the first line of your method.
 
         Your step-mutator can then look like:
 

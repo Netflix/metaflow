@@ -69,17 +69,10 @@ class FlowMutator(metaclass=FlowMutatorMeta):
         # and used in _graph_info
         self._args = args
         self._kwargs = kwargs
-        if args and isinstance(args[0], (FlowMutator, FlowSpecMeta)):
+        if args and isinstance(args[0], FlowMutator):
             # This means the decorator is bare like @MyDecorator
             # and the first argument is the FlowSpec or another decorator (they
             # can be stacked)
-
-            # If we have a init function, we call it with no arguments -- this can
-            # happen if the user defines a function with default parameters for example
-            try:
-                self.init()
-            except NotImplementedError:
-                pass
 
             # Now set the flow class we apply to
             if isinstance(args[0], FlowSpecMeta):
@@ -105,36 +98,8 @@ class FlowMutator(metaclass=FlowMutatorMeta):
         self, flow_spec: Optional["metaflow.flowspec.FlowSpecMeta"] = None
     ) -> "metaflow.flowspec.FlowSpecMeta":
         if flow_spec:
-            # This is the case of a decorator @MyDecorator(foo=1, bar=2) and so
-            # we already called __init__ and saved foo and bar in self._args and
-            # self._kwargs and are now calling this on the flow itself.
-
-            # You can use config values in the arguments to a FlowMutator
-            # so we resolve those as well
-            new_args = [resolve_delayed_evaluator(arg) for arg in self._args]
-            new_kwargs, _ = unpack_delayed_evaluator(self._kwargs)
-            new_kwargs = {
-                k: resolve_delayed_evaluator(v) for k, v in self._kwargs.items()
-            }
-            if new_args or new_kwargs:
-                self.init(*new_args, **new_kwargs)
-                if hasattr(self, "_empty_init"):
-                    raise MetaflowException(
-                        "FlowMutator '%s' is used with arguments "
-                        "but does not implement init" % str(self.__class__)
-                    )
-            else:
-                # If there are no actual arguments so @MyDecorator(), we behave like
-                # @MyDecorator with one *crucial* difference: the return value will
-                # be the flow_cls and NOT an object of type MyDecorator. This is
-                # useful to add flow level decorators to children classes of FlowSpec
-                # and effectively give default decorators to all instances of those
-                # children classes.
-                try:
-                    self.init()
-                except NotImplementedError:
-                    pass
-
+            if isinstance(flow_spec, FlowMutator):
+                flow_spec = flow_spec._flow_cls
             return self._set_flow_cls(flow_spec)
         elif not self._flow_cls:
             # This means that somehow the initialization did not happen properly
@@ -163,7 +128,23 @@ class FlowMutator(metaclass=FlowMutatorMeta):
     def __str__(self):
         return str(self.__class__)
 
-    def init(self, *args, **kwargs):
+    @property
+    def args(self):
+        """
+        The arguments passed to the FlowMutator. This is useful if you want to
+        access the arguments passed to the FlowMutator in the `init` method.
+        """
+        return self._args
+
+    @property
+    def kwargs(self):
+        """
+        The keyword arguments passed to the FlowMutator. This is useful if you want to
+        access the keyword arguments passed to the FlowMutator in the `init` method.
+        """
+        return self._kwargs
+
+    def init(self):
         """
         Implement this method if you wish for your FlowMutator to take in arguments.
 
@@ -175,9 +156,21 @@ class FlowMutator(metaclass=FlowMutatorMeta):
 
         It is an error to use your mutator with arguments but not implement this method.
 
-        When implementing, you should not call super().init().
+        Note that you need to use self.args and self.kwargs to access the arguments.
+        You should also use super().init() as the first line of your method.
         """
-        self._empty_init = True
+        # You can use config values in the arguments to a FlowMutator
+        # so we resolve those as well
+        self._args = [resolve_delayed_evaluator(arg) for arg in self._args]
+        self._kwargs, _ = unpack_delayed_evaluator(self._kwargs)
+        self._kwargs = {
+            k: resolve_delayed_evaluator(v) for k, v in self._kwargs.items()
+        }
+        if self._args or self._kwargs:
+            if "init" not in self.__class__.__dict__:
+                raise MetaflowException(
+                    "%s is used with arguments but does not implement init" % self
+                )
 
     def pre_mutate(
         self, mutable_flow: "metaflow.user_decorators.mutable_flow.MutableFlow"
