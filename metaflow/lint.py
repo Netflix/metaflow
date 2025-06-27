@@ -1,6 +1,6 @@
 import re
 from .exception import MetaflowException
-from .util import all_equal
+from .util import all_equal, get_split_branch_for_node
 
 
 class LintWarn(MetaflowException):
@@ -134,7 +134,13 @@ def check_valid_transitions(graph):
     msg = (
         "Step *{0.name}* specifies an invalid self.next() transition. "
         "Make sure the self.next() expression matches with one of the "
-        "supported transition types."
+        "supported transition types:\n"
+        "  • Linear: self.next(self.step_name)\n"
+        "  • Fan-out: self.next(self.step1, self.step2, ...)\n"
+        "  • Foreach: self.next(self.step, foreach='variable')\n"
+        "  • Switch: self.next({{\"key\": self.step, ...}}, condition='variable')\n\n"
+        "For switch statements, keys must be string literals or config expressions "
+        "(self.config.key_name), not variables or numbers."
     )
     for node in graph:
         if node.type != "end" and node.has_tail_next and node.invalid_tail_next:
@@ -232,7 +238,13 @@ def check_split_join_balance(graph):
             new_stack = split_stack
         elif node.type in ("split", "foreach"):
             new_stack = split_stack + [("split", node.out_funcs)]
+        elif node.type == "split-switch":
+            # For a switch, continue traversal down each path with the same stack
+            for n in node.out_funcs:
+                traverse(graph[n], split_stack)
+            return
         elif node.type == "end":
+            new_stack = split_stack
             if split_stack:
                 _, split_roots = split_stack.pop()
                 roots = ", ".join(split_roots)
@@ -240,10 +252,25 @@ def check_split_join_balance(graph):
                     msg0.format(roots=roots), node.func_lineno, node.source_file
                 )
         elif node.type == "join":
+            new_stack = split_stack
             if split_stack:
                 _, split_roots = split_stack[-1]
                 new_stack = split_stack[:-1]
-                if len(node.in_funcs) != len(split_roots):
+
+                # Identify the split this join corresponds to from its parentage.
+                split_node_name = node.split_parents[-1]
+
+                # Resolve each incoming function to its root branch from the split.
+                resolved_branches = set()
+                for in_node_name in node.in_funcs:
+                    branch = get_split_branch_for_node(
+                        graph, in_node_name, split_node_name
+                    )
+                    if branch:
+                        resolved_branches.add(branch)
+
+                # compares the set of resolved branches against the expected branches from the split.
+                if len(resolved_branches) != len(split_roots):
                     paths = ", ".join(node.in_funcs)
                     roots = ", ".join(split_roots)
                     raise LintWarn(
@@ -266,11 +293,51 @@ def check_split_join_balance(graph):
 
             if not all_equal(map(parents, node.in_funcs)):
                 raise LintWarn(msg3.format(node), node.func_lineno, node.source_file)
+        else:
+            new_stack = split_stack
 
         for n in node.out_funcs:
             traverse(graph[n], new_stack)
 
     traverse(graph["start"], [])
+
+
+@linter.ensure_static_graph
+@linter.check
+def check_switch_splits(graph):
+    """Check conditional split constraints"""
+    msg0 = (
+        "Step *{0.name}* is a switch split but defines {num} transitions. "
+        "Switch splits must define at least 2 transitions."
+    )
+    msg1 = "Step *{0.name}* is a switch split but has no condition variable."
+    msg2 = "Step *{0.name}* is a switch split but has no switch cases defined."
+
+    for node in graph:
+        if node.type == "split-switch":
+            # Check at least 2 outputs
+            if len(node.out_funcs) < 2:
+                raise LintWarn(
+                    msg0.format(node, num=len(node.out_funcs)),
+                    node.func_lineno,
+                    node.source_file,
+                )
+
+            # Check condition exists
+            if not node.condition:
+                raise LintWarn(
+                    msg1.format(node),
+                    node.func_lineno,
+                    node.source_file,
+                )
+
+            # Check switch cases exist
+            if not node.switch_cases:
+                raise LintWarn(
+                    msg2.format(node),
+                    node.func_lineno,
+                    node.source_file,
+                )
 
 
 @linter.ensure_static_graph
