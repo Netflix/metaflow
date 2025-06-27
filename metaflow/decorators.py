@@ -649,11 +649,6 @@ def _init(flow, only_non_static=False):
                 continue
             deco.init()
             _inited_decorators.add(deco)
-    for decorator in flow._flow_state.get(_FlowState.CONFIG_DECORATORS, []):
-        if decorator in _inited_decorators:
-            continue
-        decorator.init()
-        _inited_decorators.add(decorator)
 
     for flowstep in flow:
         for deco in flowstep.decorators:
