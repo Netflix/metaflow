@@ -34,4 +34,4 @@ run_runtime_card_tests() {
   cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --num-parallel 8 --contexts python3-all-local-cards-realtime --graphs $CARD_GRAPHS && cd ../../
 }
 
-install_deps && install_extensions && run_tests && run_switch_tests && run_runtime_card_tests
+install_deps && install_extensions && run_switch_tests && run_tests && run_runtime_card_tests
