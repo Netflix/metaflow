@@ -179,7 +179,10 @@ class UserStepDecoratorMeta(type):
         return cls
 
     def __str__(cls):
-        return "%s(%s)" % (cls.__name__, getattr(cls, "decorator_name", None))
+        return "%s(%s)" % (
+            cls.__name__ if cls.__name__ != "WrapClass" else "UserStepDecorator",
+            getattr(cls, "decorator_name", None),
+        )
 
     @classmethod
     def all_decorators(mcs) -> Dict[str, "UserStepDecoratorMeta"]:
