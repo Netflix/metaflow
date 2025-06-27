@@ -239,7 +239,7 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
 
     def __init__(self, *args, **kwargs):
         arg = None
-        self._args = []
+        self._args = args
         self._kwargs = {}
         # If nothing is set, the user statically defined the decorator
         self._special_kwargs = {"_statically_defined": True, "_inserted_by": None}
@@ -251,17 +251,19 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
             else:
                 self._kwargs[k] = v
 
-        if args:
-            if isinstance(args[0], UserStepDecoratorBase):
-                arg = args[0]._my_step
+        if self._args:
+            if isinstance(self._args[0], UserStepDecoratorBase):
+                arg = self._args[0]._my_step
             else:
-                arg = args[0]
+                arg = self._args[0]
+
         if arg and callable(arg) and hasattr(arg, "is_step"):
             # This means the decorator is bare like @MyDecorator
             # and the first argument is the step
             self._set_my_step(arg)
-            return
-        if args and not self._allowed_args:
+            self._args = args[1:]  # The rest of the args are the decorator args
+
+        if self._args and not self._allowed_args:
             raise MetaflowException("%s does not allow arguments" % str(self))
         if self._kwargs:
             if not self._allowed_kwargs:
@@ -273,10 +275,6 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
                     "%s only allows the following keyword arguments: %s"
                     % (self, str(self._allowed_args))
                 )
-
-        # Store the args so we can use them when we also get the step we are applied
-        # to in the __call__ method.
-        self._args = args
 
     def __get__(self, instance, owner):
         # Required so that we "present" as a step when the step decorator is
