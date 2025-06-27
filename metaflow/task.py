@@ -353,6 +353,27 @@ class MetaflowTask(object):
         elif "_foreach_stack" in inputs[0]:
             self.flow._foreach_stack = inputs[0]["_foreach_stack"]
 
+    def _validate_switch_transition(self, step_name):
+        node = self.flow._graph[step_name]
+        if node.type == "split-switch" and node.condition:
+            if not hasattr(self.flow, node.condition):
+                raise MetaflowInternalError(
+                    f"Condition variable '{node.condition}' not found in step '{step_name}'"
+                )
+            condition_value = getattr(self.flow, node.condition)
+
+            # Find the matching step for the condition value
+            if hasattr(self.flow, "_switch_cases"):
+                switch_cases = self.flow._switch_cases
+                if condition_value not in switch_cases:
+                    available_cases = list(switch_cases.keys())
+                    raise RuntimeError(
+                        f"Switch condition variable '{node.condition}' has value '{condition_value}' "
+                        f"which is not in the available cases: {available_cases}"
+                    )
+                chosen_step = switch_cases[condition_value]
+                self.flow._transition = ([chosen_step], None)
+
     def _clone_flow(self, datastore):
         x = self.flow.__class__(use_cli=False)
         x._set_datastore(datastore)
@@ -671,30 +692,50 @@ class MetaflowTask(object):
                 if join_type:
                     # Join step:
 
-                    # Ensure that we have the right number of inputs. The
-                    # foreach case is checked above.
-                    if join_type != "foreach" and len(inputs) != len(node.in_funcs):
-                        raise MetaflowDataMissing(
-                            "Join *%s* expected %d "
-                            "inputs but only %d inputs "
-                            "were found" % (step_name, len(node.in_funcs), len(inputs))
-                        )
+                    # Ensure that we have the right number of inputs.
+                    if join_type != "foreach":
+                        # Find the corresponding split node from the graph.
+                        split_node = self.flow._graph[node.split_parents[-1]]
+                        # The number of expected inputs is the number of branches from that split.
+                        expected_inputs = len(split_node.out_funcs)
 
-                    # Multiple input contexts are passed in as an argument
-                    # to the step function.
-                    input_obj = Inputs(self._clone_flow(inp) for inp in inputs)
-                    self.flow._set_datastore(output)
-                    # initialize parameters (if they exist)
-                    # We take Parameter values from the first input,
-                    # which is always safe since parameters are read-only
-                    current._update_env(
-                        {
-                            "parameter_names": self._init_parameters(
-                                inputs[0], passdown=True
-                            ),
-                            "graph_info": self.flow._graph_info,
-                        }
-                    )
+                        if len(inputs) != expected_inputs:
+                            raise MetaflowDataMissing(
+                                "Join *%s* expected %d inputs but only %d inputs "
+                                "were found" % (step_name, expected_inputs, len(inputs))
+                            )
+                    if join_type == "split-switch":
+                        if len(inputs) > 1:
+                            raise MetaflowInternalError(
+                                f"Step *{step_name}* is a switch join but gets multiple inputs"
+                            )
+                        self.flow._set_datastore(inputs[0])
+                        # Initialize parameters for switch joins
+                        if input_paths:
+                            current._update_env(
+                                {
+                                    "parameter_names": self._init_parameters(
+                                        inputs[0], passdown=False
+                                    ),
+                                    "graph_info": self.flow._graph_info,
+                                }
+                            )
+                    else:
+                        # Multiple input contexts are passed in as an argument
+                        # to the step function.
+                        input_obj = Inputs(self._clone_flow(inp) for inp in inputs)
+                        self.flow._set_datastore(output)
+                        # initialize parameters (if they exist)
+                        # We take Parameter values from the first input,
+                        # which is always safe since parameters are read-only
+                        current._update_env(
+                            {
+                                "parameter_names": self._init_parameters(
+                                    inputs[0], passdown=True
+                                ),
+                                "graph_info": self.flow._graph_info,
+                            }
+                        )
                 else:
                     # Linear step:
                     # We are running with a single input context.
@@ -752,7 +793,10 @@ class MetaflowTask(object):
                     )
 
                 if join_type:
-                    self._exec_step_function(step_func, orig_step_func, input_obj)
+                    if join_type == "split-switch":
+                        self._exec_step_function(step_func, orig_step_func)
+                    else:
+                        self._exec_step_function(step_func, orig_step_func, input_obj)
                 else:
                     self._exec_step_function(step_func, orig_step_func)
 
@@ -765,6 +809,7 @@ class MetaflowTask(object):
                         max_user_code_retries,
                     )
 
+                self._validate_switch_transition(step_name)
                 self.flow._task_ok = True
                 self.flow._success = True
 
