@@ -442,6 +442,10 @@ def start(
         # be raised. For resume, since we ignore those options, we ignore the error.
         raise ctx.obj.delayed_config_exception
 
+    # Init all values in the config decorators and then processs them
+    for decorator in ctx.obj.flow._flow_state.get(_FlowState.CONFIG_DECORATORS, []):
+        decorator.init()
+
     new_cls = ctx.obj.flow._process_config_decorators(config_options)
     if new_cls:
         ctx.obj.flow = new_cls(use_cli=False)

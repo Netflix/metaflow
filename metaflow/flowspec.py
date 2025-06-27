@@ -432,14 +432,18 @@ class FlowSpec(metaclass=FlowSpecMeta):
     @classmethod
     def _get_parameters(cls):
         cached = cls._flow_state.get(_FlowState.CACHED_PARAMETERS)
+        returned = set()
         if cached is not None:
             for set_config in cls._flow_state.get(_FlowState.SET_CONFIG_PARAMETERS, []):
+                returned.add(set_config[0])
                 yield set_config[0], set_config[1]
             for var in cached:
-                yield var, getattr(cls, var)
+                if var not in returned:
+                    yield var, getattr(cls, var)
             return
         build_list = []
         for set_config in cls._flow_state.get(_FlowState.SET_CONFIG_PARAMETERS, []):
+            returned.add(set_config[0])
             yield set_config[0], set_config[1]
         for var in dir(cls):
             if var[0] == "_" or var in cls._NON_PARAMETERS:
@@ -448,7 +452,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
                 val = getattr(cls, var)
             except:
                 continue
-            if isinstance(val, Parameter):
+            if isinstance(val, Parameter) and var not in returned:
                 build_list.append(var)
                 yield var, val
         cls._flow_state[_FlowState.CACHED_PARAMETERS] = build_list
