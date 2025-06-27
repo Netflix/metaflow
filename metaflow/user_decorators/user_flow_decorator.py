@@ -69,7 +69,7 @@ class FlowMutator(metaclass=FlowMutatorMeta):
         # and used in _graph_info
         self._args = args
         self._kwargs = kwargs
-        if args and isinstance(args[0], FlowMutator):
+        if args and isinstance(args[0], (FlowMutator, FlowSpecMeta)):
             # This means the decorator is bare like @MyDecorator
             # and the first argument is the FlowSpec or another decorator (they
             # can be stacked)
@@ -79,6 +79,7 @@ class FlowMutator(metaclass=FlowMutatorMeta):
                 self._set_flow_cls(args[0])
             else:
                 self._set_flow_cls(args[0]._flow_cls)
+            self._args = self._args[1:]  # Remove the first argument
 
     def __mro_entries__(self, bases):
         # This is called in the following case:

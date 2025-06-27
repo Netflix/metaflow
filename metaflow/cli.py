@@ -153,8 +153,13 @@ def check(obj, warnings=False):
 def show(obj):
     echo_always("\n%s" % obj.graph.doc)
     for node_name in obj.graph.sorted_nodes:
+        echo_always("")
         node = obj.graph[node_name]
-        echo_always("\nStep *%s*" % node.name, err=False)
+        for deco in node.decorators:
+            echo_always("@%s" % deco.name, err=False)
+        for deco in node.wrappers:
+            echo_always("@%s" % deco.decorator_name, err=False)
+        echo_always("Step *%s*" % node.name, err=False)
         echo_always(node.doc if node.doc else "?", indent=True, err=False)
         if node.type != "end":
             echo_always(

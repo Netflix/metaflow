@@ -174,7 +174,6 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
             all_user_flow_decorators.setdefault(
                 getattr(v, "_original_module", v.__module__), []
             ).append(k)
-        print("All user step decorators:", all_user_step_decorators)
 
         result = []
         if self._metaflow_version:
@@ -192,7 +191,6 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
             other_modules = []
             for name, info in self._modules.items():
                 if info.metaflow_module:
-                    print("Found Metaflow module:", info.name)
                     mf_modules.append(f"  - {name} @ {', '.join(info.root_paths)}")
                     module_user_step_decorators = [
                         ", ".join(v)
