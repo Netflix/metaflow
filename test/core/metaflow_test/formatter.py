@@ -68,6 +68,8 @@ class FlowFormatter(object):
             quals.add("parallel-step")
         if "linear" in node:
             quals.add("linear")
+        if "switch" in node:
+            quals.add("switch-step")
         for qual in node.get("quals", []):
             quals.add(qual)
         return quals
@@ -151,6 +153,19 @@ class FlowFormatter(object):
             elif "branch" in node:
                 branches = ",".join("self.%s" % x for x in node["branch"])
                 yield 2, "self.next(%s)" % branches
+            elif "switch" in node:
+                # Handle switch nodes - generate the switch dictionary and condition
+                switch_dict = node["switch"]
+                condition = node["condition"]
+                switch_branches = (
+                    "{"
+                    + ", ".join(
+                        '"%s": self.%s' % (key, branch)
+                        for key, branch in switch_dict.items()
+                    )
+                    + "}"
+                )
+                yield 2, "self.next(%s, condition='%s')" % (switch_branches, condition)
             elif "foreach" in node:
                 yield 2, 'self.next(self.%s, foreach="%s")' % (
                     node["foreach"],
