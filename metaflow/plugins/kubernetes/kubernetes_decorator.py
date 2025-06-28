@@ -11,6 +11,8 @@ from metaflow.metadata_provider import MetaDatum
 from metaflow.metadata_provider.util import sync_local_metadata_to_datastore
 from metaflow.metaflow_config import (
     DATASTORE_LOCAL_DIR,
+    KUBERNETES_ANNOTATIONS,
+    KUBERNETES_CONDA_ARCH,
     KUBERNETES_CONTAINER_IMAGE,
     KUBERNETES_CONTAINER_REGISTRY,
     KUBERNETES_CPU,
@@ -19,18 +21,16 @@ from metaflow.metaflow_config import (
     KUBERNETES_GPU_VENDOR,
     KUBERNETES_IMAGE_PULL_POLICY,
     KUBERNETES_IMAGE_PULL_SECRETS,
-    KUBERNETES_MEMORY,
     KUBERNETES_LABELS,
-    KUBERNETES_ANNOTATIONS,
+    KUBERNETES_MEMORY,
     KUBERNETES_NAMESPACE,
     KUBERNETES_NODE_SELECTOR,
     KUBERNETES_PERSISTENT_VOLUME_CLAIMS,
     KUBERNETES_PORT,
+    KUBERNETES_QOS,
     KUBERNETES_SERVICE_ACCOUNT,
     KUBERNETES_SHARED_MEMORY,
     KUBERNETES_TOLERATIONS,
-    KUBERNETES_QOS,
-    KUBERNETES_CONDA_ARCH,
 )
 from metaflow.plugins.resources_decorator import ResourcesDecorator
 from metaflow.plugins.timeout_decorator import get_run_time_limit_for_task
@@ -38,8 +38,8 @@ from metaflow.sidecar import Sidecar
 from metaflow.unbounded_foreach import UBF_CONTROL
 
 from ..aws.aws_utils import get_docker_registry, get_ec2_instance_metadata
+from .kube_utils import parse_kube_keyvalue_list, validate_kube_labels
 from .kubernetes import KubernetesException
-from .kube_utils import validate_kube_labels, parse_kube_keyvalue_list
 
 try:
     unicode
@@ -60,11 +60,11 @@ class KubernetesDecorator(StepDecorator):
         Number of CPUs required for this step. If `@resources` is
         also present, the maximum value from all decorators is used.
     memory : int, default 4096
-        Memory size (in MB) required for this step. If
+        Memory size (in MiB) required for this step. If
         `@resources` is also present, the maximum value from all decorators is
         used.
     disk : int, default 10240
-        Disk size (in MB) required for this step. If
+        Disk size (in MiB) required for this step. If
         `@resources` is also present, the maximum value from all decorators is
         used.
     image : str, optional, default None
