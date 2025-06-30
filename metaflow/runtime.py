@@ -1739,10 +1739,13 @@ class CLIArgs(object):
         persist=True,
     ):
         self.task = task
-        self.orig_flow_datastore = "%s@%s" % (
-            orig_flow_datastore.TYPE,
-            orig_flow_datastore.datastore_root,
-        )
+        if orig_flow_datastore is not None:
+            self.orig_flow_datastore = "%s@%s" % (
+                orig_flow_datastore.TYPE,
+                orig_flow_datastore.datastore_root,
+            )
+        else:
+            self.orig_flow_datastore = None
         self.spin_pathspec = spin_pathspec
         self.whitelist_decorators = whitelist_decorators
         self.artifacts_module = artifacts_module

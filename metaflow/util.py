@@ -509,6 +509,7 @@ def to_pod(value):
 
 from metaflow._vendor.packaging.version import parse as version_parse
 
+
 def read_artifacts_module(file_path: str) -> Dict[str, Any]:
     """
     Read a Python module from the given file path and return its ARTIFACTS variable.
