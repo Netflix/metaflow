@@ -85,9 +85,6 @@ CLIENT_CACHE_MAX_SIZE = from_conf("CLIENT_CACHE_MAX_SIZE", 10000)
 CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT = from_conf(
     "CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT", 50
 )
-CLIENT_CACHE_MAX_TASKDATASTORE_COUNT = from_conf(
-    "CLIENT_CACHE_MAX_TASKDATASTORE_COUNT", CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT * 100
-)
 
 
 ###
@@ -457,6 +454,10 @@ CONDA_USE_FAST_INIT = from_conf("CONDA_USE_FAST_INIT", False)
 # Print out warning if escape hatch is not used for the target packages
 ESCAPE_HATCH_WARNING = from_conf("ESCAPE_HATCH_WARNING", True)
 
+###
+# Profile
+###
+PROFILE_FROM_START = from_conf("PROFILE_FROM_START", False)
 ###
 # Debug configuration
 ###

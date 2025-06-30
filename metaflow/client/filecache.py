@@ -1,5 +1,6 @@
 from __future__ import print_function
 from collections import OrderedDict
+import json
 import os
 import sys
 import time
@@ -10,13 +11,14 @@ from urllib.parse import urlparse
 
 from metaflow.datastore import FlowDataStore
 from metaflow.datastore.content_addressed_store import BlobCache
+from metaflow.datastore.flow_datastore import MetadataCache
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     CLIENT_CACHE_PATH,
     CLIENT_CACHE_MAX_SIZE,
     CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT,
-    CLIENT_CACHE_MAX_TASKDATASTORE_COUNT,
 )
+from metaflow.metaflow_profile import from_start
 
 from metaflow.plugins import DATASTORES
 
@@ -63,8 +65,8 @@ class FileCache(object):
         # when querying for sizes of artifacts. Once we have queried for the size
         # of one artifact in a TaskDatastore, caching this means that any
         # queries on that same TaskDatastore will be quick (since we already
-        # have all the metadata)
-        self._task_metadata_caches = OrderedDict()
+        # have all the metadata). We keep track of this in a file so it persists
+        # across processes.
 
     @property
     def cache_dir(self):
@@ -87,7 +89,7 @@ class FileCache(object):
     ):
         ds_cls = self._get_datastore_storage_impl(ds_type)
         ds_root = ds_cls.path_join(*ds_cls.path_split(location)[:-5])
-        cache_id = self._flow_ds_id(ds_type, ds_root, flow_name)
+        cache_id = self.flow_ds_id(ds_type, ds_root, flow_name)
 
         token = (
             "%s.cached"
@@ -311,13 +313,13 @@ class FileCache(object):
         self._objects = sorted(objects, reverse=False)
 
     @staticmethod
-    def _flow_ds_id(ds_type, ds_root, flow_name):
+    def flow_ds_id(ds_type, ds_root, flow_name):
         p = urlparse(ds_root)
         sanitized_root = (p.netloc + p.path).replace("/", "_")
         return ".".join([ds_type, sanitized_root, flow_name])
 
     @staticmethod
-    def _task_ds_id(ds_type, ds_root, flow_name, run_id, step_name, task_id, attempt):
+    def task_ds_id(ds_type, ds_root, flow_name, run_id, step_name, task_id, attempt):
         p = urlparse(ds_root)
         sanitized_root = (p.netloc + p.path).replace("/", "_")
         return ".".join(
@@ -365,7 +367,7 @@ class FileCache(object):
         return storage_impl[0]
 
     def _get_flow_datastore(self, ds_type, ds_root, flow_name):
-        cache_id = self._flow_ds_id(ds_type, ds_root, flow_name)
+        cache_id = self.flow_ds_id(ds_type, ds_root, flow_name)
         cached_flow_datastore = self._store_caches.get(cache_id)
 
         if cached_flow_datastore:
@@ -380,9 +382,14 @@ class FileCache(object):
                 ds_root=ds_root,
             )
             blob_cache = self._blob_caches.setdefault(
-                cache_id, FileBlobCache(self, cache_id)
+                cache_id,
+                (
+                    FileBlobCache(self, cache_id),
+                    TaskMetadataCache(self, ds_type, ds_root, flow_name),
+                ),
             )
-            cached_flow_datastore.ca_store.set_blob_cache(blob_cache)
+            cached_flow_datastore.ca_store.set_blob_cache(blob_cache[0])
+            cached_flow_datastore.set_metadata_cache(blob_cache[1])
             self._store_caches[cache_id] = cached_flow_datastore
             if len(self._store_caches) > CLIENT_CACHE_MAX_FLOWDATASTORE_COUNT:
                 cache_id_to_remove, _ = self._store_caches.popitem(last=False)
@@ -393,32 +400,49 @@ class FileCache(object):
         self, ds_type, ds_root, flow_name, run_id, step_name, task_id, attempt
     ):
         flow_ds = self._get_flow_datastore(ds_type, ds_root, flow_name)
-        cached_metadata = None
-        if attempt is not None:
-            cache_id = self._task_ds_id(
-                ds_type, ds_root, flow_name, run_id, step_name, task_id, attempt
-            )
-            cached_metadata = self._task_metadata_caches.get(cache_id)
-            if cached_metadata:
-                od_move_to_end(self._task_metadata_caches, cache_id)
-                return flow_ds.get_task_datastore(
-                    run_id,
-                    step_name,
-                    task_id,
-                    attempt=attempt,
-                    data_metadata=cached_metadata,
-                )
-        # If we are here, we either have attempt=None or nothing in the cache
-        task_ds = flow_ds.get_task_datastore(
-            run_id, step_name, task_id, attempt=attempt
+
+        return flow_ds.get_task_datastore(run_id, step_name, task_id, attempt=attempt)
+
+
+class TaskMetadataCache(MetadataCache):
+    def __init__(self, filecache, ds_type, ds_root, flow_name):
+        self._ds_type = ds_type
+        self._ds_root = ds_root
+        self._flow_name = flow_name
+        self._filecache = filecache
+
+    def _path(self, run_id, step_name, task_id, attempt):
+        if attempt is None:
+            return None
+        cache_id = self._filecache.task_ds_id(
+            self._ds_type,
+            self._ds_root,
+            self._flow_name,
+            run_id,
+            step_name,
+            task_id,
+            attempt,
         )
-        cache_id = self._task_ds_id(
-            ds_type, ds_root, flow_name, run_id, step_name, task_id, task_ds.attempt
+        token = (
+            "%s.cached"
+            % sha1(
+                os.path.join(
+                    run_id, step_name, task_id, str(attempt), "metadata"
+                ).encode("utf-8")
+            ).hexdigest()
         )
-        self._task_metadata_caches[cache_id] = task_ds.ds_metadata
-        if len(self._task_metadata_caches) > CLIENT_CACHE_MAX_TASKDATASTORE_COUNT:
-            self._task_metadata_caches.popitem(last=False)
-        return task_ds
+        return os.path.join(self._filecache.cache_dir, cache_id, token[:2], token)
+
+    def load_metadata(self, run_id, step_name, task_id, attempt):
+        d = self._filecache.read_file(self._path(run_id, step_name, task_id, attempt))
+        if d:
+            return json.loads(d)
+
+    def store_metadata(self, run_id, step_name, task_id, attempt, metadata_dict):
+        self._filecache.create_file(
+            self._path(run_id, step_name, task_id, attempt),
+            json.dumps(metadata_dict).encode("utf-8"),
+        )
 
 
 class FileBlobCache(BlobCache):

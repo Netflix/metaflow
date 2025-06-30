@@ -100,7 +100,6 @@ class TaskDataStore(object):
         allow_not_done=False,
         persist=True,
     ):
-
         self._storage_impl = flow_datastore._storage_impl
         self.TYPE = self._storage_impl.TYPE
         self._ca_store = flow_datastore.ca_store
@@ -151,6 +150,8 @@ class TaskDataStore(object):
                     )
                     if self.has_metadata(check_meta, add_attempt=False):
                         max_attempt = i
+                    elif max_attempt is not None:
+                        break
                 if self._attempt is None:
                     self._attempt = max_attempt
                 elif max_attempt is None or self._attempt > max_attempt:

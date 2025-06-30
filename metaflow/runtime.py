@@ -23,15 +23,18 @@ from metaflow.datastore.exceptions import DataException
 from contextlib import contextmanager
 
 from . import get_namespace
+from .client.filecache import FileCache, FileBlobCache, TaskMetadataCache
 from .metadata_provider import MetaDatum
 from .metaflow_config import MAX_ATTEMPTS, UI_URL, SPIN_ALLOWED_DECORATORS
+from .metaflow_profile import from_start
+from .plugins import DATASTORES
 from .exception import (
     MetaflowException,
     MetaflowInternalError,
     METAFLOW_EXIT_DISALLOW_RETRY,
 )
 from . import procpoll
-from .datastore import TaskDataStoreSet
+from .datastore import FlowDataStore, TaskDataStoreSet
 from .debug import debug
 from .decorators import flow_decorators
 from .flowspec import _FlowState
@@ -120,10 +123,34 @@ class SpinRuntime(object):
                 raise MetaflowException(
                     f"Invalid spin-pathspec: {spin_pathspec} for step: {step_name}"
                 )
+        from_start("SpinRuntime: after getting task")
 
+        # Get the original FlowDatastore so we can use it to access artifacts from the
+        # spun task
+        meta_dict = task.metadata_dict
+        ds_type = meta_dict["ds-type"]
+        ds_root = meta_dict["ds-root"]
+        orig_datastore_impl = [d for d in DATASTORES if d.TYPE == ds_type][0]
+        orig_datastore_impl.datastore_root = ds_root
         spin_pathspec = task.pathspec
-        spin_metadata = task._metaflow.metadata.metadata_str()
-        self._spin_metadata = spin_metadata
+        orig_flow_datastore = FlowDataStore(
+            flow.name,
+            environment=None,
+            storage_impl=orig_datastore_impl,
+            ds_root=ds_root,
+        )
+
+        self._filecache = FileCache()
+        orig_flow_datastore.set_metadata_cache(
+            TaskMetadataCache(self._filecache, ds_type, ds_root, flow.name)
+        )
+        orig_flow_datastore.ca_store.set_blob_cache(
+            FileBlobCache(
+                self._filecache, FileCache.flow_ds_id(ds_type, ds_root, flow.name)
+            )
+        )
+
+        self._orig_flow_datastore = orig_flow_datastore
         self._spin_pathspec = spin_pathspec
         self._persist = persist
         self._spin_task = task
@@ -140,6 +167,7 @@ class SpinRuntime(object):
         self.run_id = self._metadata.new_run_id()
         for deco in self.whitelist_decorators:
             deco.runtime_init(flow, graph, package, self.run_id)
+        from_start("SpinRuntime: after init decorators")
 
     @property
     def split_index(self):
@@ -153,11 +181,9 @@ class SpinRuntime(object):
 
     @property
     def input_paths(self):
-        st = time.time()
-
-        def _format_input_paths(task_pathspec):
+        def _format_input_paths(task_pathspec, attempt):
             _, run_id, step_name, task_id = task_pathspec.split("/")
-            return f"{run_id}/{step_name}/{task_id}"
+            return f"{run_id}/{step_name}/{task_id}/{attempt}"
 
         if self._input_paths:
             return self._input_paths
@@ -169,14 +195,14 @@ class SpinRuntime(object):
             task = Step(
                 f"{flow_name}/{run_id}/_parameters", _namespace_check=False
             ).task
-            self._input_paths = [_format_input_paths(task.pathspec)]
-        else:
             self._input_paths = [
-                _format_input_paths(task_pathspec)
-                for task_pathspec in self._spin_task.parent_task_pathspecs
+                _format_input_paths(task.pathspec, task.current_attempt)
             ]
-        et = time.time()
-        print(f"Time taken to get input paths: {et - st}")
+        else:
+            parent_tasks = self._spin_task.parent_tasks
+            self._input_paths = [
+                _format_input_paths(t.pathspec, t.current_attempt) for t in parent_tasks
+            ]
         return self._input_paths
 
     @property
@@ -220,7 +246,7 @@ class SpinRuntime(object):
                 self._config_file_name = config_file.name
             else:
                 self._config_file_name = None
-
+            from_start("SpinRuntime: config values processed")
             self.task = self._new_task(self._step_func.name, self.input_paths)
             try:
                 self._launch_and_monitor_task()
@@ -237,12 +263,13 @@ class SpinRuntime(object):
             self.task,
             self._max_log_size,
             self._config_file_name,
-            spin_metadata=self._spin_metadata,
+            orig_flow_datastore=self._orig_flow_datastore,
             spin_pathspec=self._spin_pathspec,
             whitelist_decorators=self.whitelist_decorators,
             artifacts_module=self._artifacts_module,
             persist=self._persist,
         )
+        from_start("SpinRuntime: created worker")
 
         poll = procpoll.make_poll()
         fds = worker.fds()
@@ -259,9 +286,9 @@ class SpinRuntime(object):
                 if event.is_terminated:
                     poll.remove(event.fd)
                     active_fds.remove(event.fd)
-
+        from_start("SpinRuntime: read loglines")
         returncode = worker.terminate()
-
+        from_start("SpinRuntime: worker terminated")
         if returncode != 0:
             raise TaskFailed(self.task, f"Task failed with return code {returncode}")
         else:
@@ -817,7 +844,6 @@ class NativeRuntime(object):
     # Given the current task information (task_index), the type of transition,
     # and the split index, return the new task index.
     def _translate_index(self, task, next_step, type, split_index=None):
-
         match = re.match(r"^(.+)\[(.*)\]$", task.task_index)
         if match:
             _, foreach_index = match.groups()
@@ -1706,14 +1732,17 @@ class CLIArgs(object):
     def __init__(
         self,
         task,
-        spin_metadata=None,
+        orig_flow_datastore=None,
         spin_pathspec=None,
         whitelist_decorators=None,
         artifacts_module=None,
         persist=True,
     ):
         self.task = task
-        self.spin_metadata = spin_metadata
+        self.orig_flow_datastore = "%s@%s" % (
+            orig_flow_datastore.TYPE,
+            orig_flow_datastore.datastore_root,
+        )
         self.spin_pathspec = spin_pathspec
         self.whitelist_decorators = whitelist_decorators
         self.artifacts_module = artifacts_module
@@ -1785,7 +1814,7 @@ class CLIArgs(object):
             "retry-count": self.task.retries,
             "max-user-code-retries": self.task.user_code_retries,
             "namespace": get_namespace() or "",
-            "spin-metadata": self.spin_metadata,
+            "orig-flow-datastore": self.orig_flow_datastore,
             "spin-pathspec": self.spin_pathspec,
             "whitelist-decorators": compress_list(whitelist_decos),
             "artifacts-module": self.artifacts_module,
@@ -1837,7 +1866,7 @@ class Worker(object):
         task,
         max_logs_size,
         config_file_name,
-        spin_metadata=None,
+        orig_flow_datastore=None,
         spin_pathspec=None,
         whitelist_decorators=None,
         artifacts_module=None,
@@ -1845,7 +1874,7 @@ class Worker(object):
     ):
         self.task = task
         self._config_file_name = config_file_name
-        self._spin_metadata = spin_metadata
+        self._orig_flow_datastore = orig_flow_datastore
         self._spin_pathspec = spin_pathspec
         self._whitelist_decorators = whitelist_decorators
         self._artifacts_module = artifacts_module
@@ -1883,7 +1912,7 @@ class Worker(object):
     def _launch(self):
         args = CLIArgs(
             self.task,
-            spin_metadata=self._spin_metadata,
+            orig_flow_datastore=self._orig_flow_datastore,
             spin_pathspec=self._spin_pathspec,
             whitelist_decorators=self._whitelist_decorators,
             artifacts_module=self._artifacts_module,

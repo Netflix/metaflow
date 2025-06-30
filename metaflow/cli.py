@@ -29,6 +29,7 @@ from .metaflow_config import (
     DATASTORE_LOCAL_DIR,
 )
 from .metaflow_current import current
+from .metaflow_profile import from_start
 from metaflow.system import _system_monitor, _system_logger
 from .metaflow_environment import MetaflowEnvironment
 from .plugins import (
@@ -337,6 +338,7 @@ def start(
     if use_r():
         version = metaflow_r_version()
 
+    from_start("MetaflowCLI: Starting")
     echo("Metaflow %s" % version, fg="magenta", bold=True, nl=False)
     echo(" executing *%s*" % ctx.obj.flow.name, fg="magenta", nl=False)
     echo(" for *%s*" % resolve_identity(), fg="magenta")

@@ -9,6 +9,7 @@ from ..exception import CommandException
 from ..graph import FlowGraph
 from ..metaflow_current import current
 from ..metaflow_config import DEFAULT_DECOSPECS
+from ..metaflow_profile import from_start
 from ..package import MetaflowPackage
 from ..runtime import NativeRuntime, SpinRuntime
 from ..system import _system_logger
@@ -45,7 +46,7 @@ def before_run(obj, tags, decospecs):
         decorators._attach_decorators(obj.flow, all_decospecs)
         decorators._init(obj.flow)
         # Regenerate graph if we attached more decorators
-        obj.flow.__class__._init_graph()
+        obj.flow.__class__._init_attrs()
         obj.graph = obj.flow._graph
 
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
@@ -338,7 +339,7 @@ def run(
     run_id_file=None,
     runner_attribute_file=None,
     user_namespace=None,
-    **kwargs
+    **kwargs,
 ):
     if user_namespace is not None:
         namespace(user_namespace or None)
@@ -393,6 +394,7 @@ def run(
         runtime.execute()
 
 
+@parameters.add_custom_parameters(deploy_mode=True)
 @click.command(help="Spins up a task for a given step from a previous run locally.")
 @click.argument("step-name")
 @click.option(
@@ -412,18 +414,19 @@ def run(
     "--artifacts-module",
     default=None,
     show_default=True,
-    help="Path to a module that contains artifacts to be used in the spun step. The artifacts should "
-    "be defined as a dictionary called ARTIFACTS with keys as the artifact names and values as the "
-    "artifact values. The artifact values will overwrite the default values of the artifacts used in "
-    "the spun step.",
+    help="Path to a module that contains artifacts to be used in the spun step. "
+    "The artifacts should be defined as a dictionary called ARTIFACTS with keys as "
+    "the artifact names and values as the artifact values. The artifact values will "
+    "overwrite the default values of the artifacts used in the spun step.",
 )
 @click.option(
     "--persist/--no-persist",
     "persist",
     default=True,
     show_default=True,
-    help="Whether to persist the artifacts in the spun step. If set to false, the artifacts will not"
-    " be persisted and will not be available in the spun step's datastore.",
+    help="Whether to persist the artifacts in the spun step. If set to False, "
+    "the artifacts will notbe persisted and will not be available in the spun step's "
+    "datastore.",
 )
 @click.option(
     "--max-log-size",
@@ -445,13 +448,18 @@ def spin(
     max_log_size=None,
     run_id_file=None,
     runner_attribute_file=None,
-    **kwargs
+    **kwargs,
 ):
     before_run(obj, [], [])
     obj.echo(f"Spinning up step *{step_name}* locally for flow *{obj.flow.name}*")
     obj.flow._set_constants(obj.graph, kwargs, obj.config_options)
-    step_func = getattr(obj.flow, step_name)
-
+    step_func = getattr(obj.flow, step_name, None)
+    if step_func is None:
+        raise CommandException(
+            f"Step '{step_name}' not found in flow '{obj.flow.name}'. "
+            "Please provide a valid step name."
+        )
+    from_start("Spin: before spin runtime init")
     spin_runtime = SpinRuntime(
         obj.flow,
         obj.graph,
@@ -471,15 +479,15 @@ def spin(
         persist,
         max_log_size * 1024 * 1024,
     )
-
     write_latest_run_id(obj, spin_runtime.run_id)
     write_file(run_id_file, spin_runtime.run_id)
-
     # datastore_root is os.path.join(DATASTORE_SYSROOT_SPIN, DATASTORE_LOCAL_DIR)
-    # We only neeed the root for the metadata, i.e. the portion before DATASTORE_LOCAL_DIR
+    # We only need the root for the metadata, i.e. the portion before DATASTORE_LOCAL_DIR
     datastore_root = spin_runtime._flow_datastore._storage_impl.datastore_root
-    spin_metadata_root = datastore_root.rsplit("/", 1)[0]
+    orig_task_metadata_root = datastore_root.rsplit("/", 1)[0]
+    from_start("Spin: going to execute")
     spin_runtime.execute()
+    from_start("Spin: after spin runtime execute")
 
     if runner_attribute_file:
         with open(runner_attribute_file, "w") as f:
@@ -490,7 +498,7 @@ def spin(
                     "run_id": spin_runtime.run_id,
                     "flow_name": obj.flow.name,
                     # Store metadata in a format that can be used by the Runner API
-                    "metadata": f"{obj.metadata.__class__.TYPE}@{spin_metadata_root}",
+                    "metadata": f"{obj.metadata.__class__.TYPE}@{orig_task_metadata_root}",
                 },
                 f,
             )

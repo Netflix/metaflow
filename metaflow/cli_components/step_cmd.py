@@ -1,9 +1,13 @@
 from metaflow._vendor import click
 
-from .. import decorators, namespace
+from .. import namespace
 from ..cli import echo_always, echo_dev_null
 from ..cli_args import cli_args
+from ..datastore.flow_datastore import FlowDataStore
 from ..exception import CommandException
+from ..client.filecache import FileCache, FileBlobCache, TaskMetadataCache
+from ..metaflow_profile import from_start
+from ..plugins import DATASTORES
 from ..task import MetaflowTask
 from ..unbounded_foreach import UBF_CONTROL, UBF_TASK
 from ..util import decompress_list, read_artifacts_module
@@ -109,7 +113,6 @@ def step(
     ubf_context="none",
     num_parallel=None,
 ):
-
     if ctx.obj.is_quiet:
         echo = echo_dev_null
     else:
@@ -193,10 +196,10 @@ def step(
     help="Task ID for the step that's about to be spun",
 )
 @click.option(
-    "--spin-metadata",
+    "--orig-flow-datastore",
     default=None,
     show_default=True,
-    help="Spin metadata provider to be used for fetching artifacts/data for the input datastore",
+    help="Original datastore for the flow from which a task is being spun",
 )
 @click.option(
     "--spin-pathspec",
@@ -258,7 +261,7 @@ def spin_step(
     step_name,
     run_id=None,
     task_id=None,
-    spin_metadata=None,
+    orig_flow_datastore=None,
     spin_pathspec=None,
     input_paths=None,
     split_index=None,
@@ -270,9 +273,6 @@ def spin_step(
     persist=True,
 ):
     import time
-
-    start = time.time()
-    import sys
 
     if ctx.obj.is_quiet:
         echo = echo_dev_null
@@ -287,7 +287,29 @@ def spin_step(
     whitelist_decorators = (
         decompress_list(whitelist_decorators) if whitelist_decorators else []
     )
+    from_start("SpinStep: initialized decorators")
     spin_artifacts = read_artifacts_module(artifacts_module) if artifacts_module else {}
+    from_start("SpinStep: read artifacts module")
+
+    ds_type, ds_root = orig_flow_datastore.split("@")
+    orig_datastore_impl = [d for d in DATASTORES if d.TYPE == ds_type][0]
+    orig_datastore_impl.datastore_root = ds_root
+    orig_flow_datastore = FlowDataStore(
+        ctx.obj.flow.name,
+        environment=None,
+        storage_impl=orig_datastore_impl,
+        ds_root=ds_root,
+    )
+
+    filecache = FileCache()
+    orig_flow_datastore.set_metadata_cache(
+        TaskMetadataCache(filecache, ds_type, ds_root, ctx.obj.flow.name)
+    )
+    orig_flow_datastore.ca_store.set_blob_cache(
+        FileBlobCache(
+            filecache, FileCache.flow_ds_id(ds_type, ds_root, ctx.obj.flow.name)
+        )
+    )
 
     task = MetaflowTask(
         ctx.obj.flow,
@@ -298,9 +320,10 @@ def spin_step(
         ctx.obj.event_logger,
         ctx.obj.monitor,
         None,  # no unbounded foreach context
-        spin_metadata=spin_metadata,
+        orig_flow_datastore=orig_flow_datastore,
         spin_artifacts=spin_artifacts,
     )
+    from_start("SpinStep: initialized task")
     task.run_step(
         step_name,
         run_id,
@@ -313,5 +336,4 @@ def spin_step(
         whitelist_decorators,
         persist,
     )
-
-    echo_always(f"Time taken for the whole thing: {time.time() - start}")
+    from_start("SpinStep: ran step")

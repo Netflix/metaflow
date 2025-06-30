@@ -1184,9 +1184,6 @@ class Task(MetaflowObject):
     _PARENT_CLASS = "step"
     _CHILD_CLASS = "artifact"
 
-    def __init__(self, *args, **kwargs):
-        super(Task, self).__init__(*args, **kwargs)
-
     def _iter_filter(self, x):
         # exclude private data artifacts
         return x.id[0] != "_"
@@ -1236,7 +1233,7 @@ class Task(MetaflowObject):
         str
             Pathspec of the parent task of the current task
         """
-        flow_id, run_id, step_name, _ = self.path_components
+        _, _, step_name, _ = self.path_components
         metadata_dict = self.metadata_dict
         graph_info = self["_graph_info"].data
 
@@ -1356,7 +1353,8 @@ class Task(MetaflowObject):
         Task
             Parent task of the current task
         """
-        for pathspec in self.parent_task_pathspecs:
+        parent_task_pathspecs = self.parent_task_pathspecs
+        for pathspec in parent_task_pathspecs:
             yield Task(pathspec=pathspec, _namespace_check=False)
 
     @property
