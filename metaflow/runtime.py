@@ -597,40 +597,42 @@ class NativeRuntime(object):
             exit_hook_decos = self._flow._flow_decorators.get("exit_hook", [])
             if not exit_hook_decos:
                 return
-            # successful run?
-            if ("end", ()) in self._finished or self._clone_only:
-                successful = True
-            else:
-                successful = False
 
+            successful = ("end", ()) in self._finished or self._clone_only
             pathspec = f"{self._graph.name}/{self._run_id}"
             flow_file = self._environment.get_environment_info()["script"]
 
             def _call(fn_name):
-                result = (
-                    subprocess.check_output(
-                        args=[
-                            "python",
-                            "-m",
-                            "metaflow.plugins.exit_hook.exit_hook_script",
-                            flow_file,
-                            fn_name,
-                            pathspec,
-                        ],
-                        env=os.environ,
+                try:
+                    result = (
+                        subprocess.check_output(
+                            args=[
+                                "python",
+                                "-m",
+                                "metaflow.plugins.exit_hook.exit_hook_script",
+                                flow_file,
+                                fn_name,
+                                pathspec,
+                            ],
+                            env=os.environ,
+                        )
+                        .decode()
+                        .strip()
                     )
-                    .decode()
-                    .strip()
-                )
-                print(result)
+                    print(result)
+                except subprocess.CalledProcessError as e:
+                    print(f"[exit_hook] Hook '{fn_name}' failed with error: {e}")
+                except Exception as e:
+                    print(f"[exit_hook] Unexpected error in hook '{fn_name}': {e}")
 
-            # Call the exit hook functions
+            # Call all exit hook functions regardless of individual failures
             for fn_name in [
                 name
                 for deco in exit_hook_decos
                 for name in (deco.success_hooks if successful else deco.error_hooks)
             ]:
                 _call(fn_name)
+
         except Exception as ex:
             pass  # do not fail due to exit hooks for whatever reason.
 
