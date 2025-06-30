@@ -25,8 +25,8 @@ class ExitHookDecorator(FlowDecorator):
 
         self.success_hooks = []
         self.error_hooks = []
-        for success_fn in self.attributes["on_success"]:
+        for success_fn in on_success:
             self.success_hooks.append(success_fn.__name__)
 
-        for error_fn in self.attributes["on_error"]:
+        for error_fn in on_error:
             self.error_hooks.append(error_fn.__name__)
