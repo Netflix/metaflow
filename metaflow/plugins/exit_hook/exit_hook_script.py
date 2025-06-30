@@ -16,11 +16,10 @@ def main(flow_file, fn_name, run_pathspec):
 
     # Check if fn expects a run object as an arg.
     if "run" in argspec.args or argspec.varkw is not None:
-        from metaflow import Run, namespace
+        from metaflow import Run
 
-        namespace(None)
         try:
-            _run = Run(run_pathspec)
+            _run = Run(run_pathspec, _namespace_check=False)
         except Exception as ex:
             print(ex)
             _run = None
