@@ -21,18 +21,23 @@ if TYPE_CHECKING:
 
 
 class _TrieNode:
-    def __init__(self):
+    def __init__(
+        self, parent: Optional["_TrieNode"] = None, component: Optional[str] = None
+    ):
+        self.parent = parent
+        self.component = component
         self.children = {}  # type: Dict[str, "_TrieNode"]
         self.total_children = 0
         self.value = None
         self.end_value = None
 
-    def traverse(self, value: type):
+    def traverse(self, value: type) -> Optional["_TrieNode"]:
         if self.total_children == 0:
             self.end_value = value
         else:
             self.end_value = None
         self.total_children += 1
+        return self if self.total_children == 1 else None
 
     def remove_child(self, child_name: str) -> bool:
         if child_name in self.children:
@@ -44,8 +49,9 @@ class _TrieNode:
 
 class _ClassPath_Trie:
     def __init__(self):
-        self.root = _TrieNode()
+        self.root = _TrieNode(None, None)
         self.inited = False
+        self._value_to_node = {}  # type: Dict[type, _TrieNode]
 
     def init(self, initial_nodes: Optional[List[Tuple[str, type]]] = None):
         # We need to do this so we can delay import of STEP_DECORATORS
@@ -56,10 +62,20 @@ class _ClassPath_Trie:
     def insert(self, classpath_name: str, value: type):
         node = self.root
         components = reversed(classpath_name.split("."))
+        shortest_path_node = None
         for c in components:
-            node = node.children.setdefault(c, _TrieNode())
-            node.traverse(value)
+            node = node.children.setdefault(c, _TrieNode(node, c))
+            candidate = node.traverse(value)
+            if shortest_path_node is None:
+                shortest_path_node = candidate
+        node.total_children -= (
+            1  # We do not count the last node as having itself as a child
+        )
         node.value = value
+        if shortest_path_node:
+            self._value_to_node[value] = shortest_path_node
+        else:
+            self._value_to_node[value] = node
 
     def search(self, classpath_name: str) -> Optional[type]:
         node = self.root
@@ -76,6 +92,7 @@ class _ClassPath_Trie:
         def _remove(node: _TrieNode, components, depth):
             if depth == len(components):
                 if node.value is not None:
+                    del self._value_to_node[node.value]
                     node.value = None
                     return len(node.children) == 0
                 return False
@@ -93,6 +110,7 @@ class _ClassPath_Trie:
                             child.end_value
                         ), "Node with one child must have an end_value"
                         node.end_value = child.end_value
+                        self._value_to_node[child.end_value] = node
                 return node.total_children == 0
             return False
 
@@ -110,6 +128,16 @@ class _ClassPath_Trie:
         # If value is not None, we also consider this to be a unique "prefix"
         # This happens since this trie is also filled with metaflow default decorators
         return node.end_value or node.value
+
+    def unique_prefix_for_type(self, value: type) -> Optional[str]:
+        end_node = self._value_to_node.get(value, None)
+        if end_node:
+            components = []
+            node = end_node
+            while node and node.component is not None:
+                components.append(node.component)
+                node = node.parent
+            return ".".join(reversed(components))
 
     def get_unique_prefixes(self) -> Dict[str, type]:
         """
@@ -378,10 +406,11 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         return str(self.__class__)
 
     @classmethod
-    def parse_decorator_spec(cls, deco_spec: str) -> Optional["UserStepDecoratorBase"]:
+    def extract_args_kwargs_from_decorator_spec(
+        cls, deco_spec: str
+    ) -> Tuple[List[Any], Dict[str, Any]]:
         if len(deco_spec) == 0:
-            return cls()
-
+            return [], {}
         args = []
         kwargs = {}
         for a in re.split(r""",(?=[\s\w]+=)""", deco_spec):
@@ -411,10 +440,17 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
             "Parsed decorator spec for %s: %s"
             % (cls.decorator_name, str((args, kwargs)))
         )
+        return args, kwargs
+
+    @classmethod
+    def parse_decorator_spec(cls, deco_spec: str) -> Optional["UserStepDecoratorBase"]:
+        if len(deco_spec) == 0:
+            return cls()
+        args, kwargs = cls.extract_args_kwargs_from_decorator_spec(deco_spec)
         return cls(*args, **kwargs)
 
     def make_decorator_spec(self):
-        self.init()
+        self.external_init()
         attrs = {}
         if self._args:
             attrs.update({i: v for i, v in enumerate(self._args) if v is not None})
@@ -435,6 +471,17 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
             return "%s:%s" % (self.decorator_name, attrstr)
         else:
             return self.decorator_name
+
+    def get_args_kwargs(self) -> Tuple[List[Any], Dict[str, Any]]:
+        """
+        Get the arguments and keyword arguments of the decorator.
+
+        Returns
+        -------
+        Tuple[List[Any], Dict[str, Any]]
+            A tuple containing a list of arguments and a dictionary of keyword arguments.
+        """
+        return list(self._args), dict(self._kwargs)
 
     def init(self, *args, **kwargs):
         pass

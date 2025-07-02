@@ -3,7 +3,7 @@ import json
 import re
 
 from functools import partial
-from typing import Any, Callable, NewType, TypeVar, Union, overload
+from typing import Any, Callable, Dict, List, NewType, Tuple, TypeVar, Union, overload
 
 from .flowspec import FlowSpec, _FlowState
 from .exception import (
@@ -29,12 +29,6 @@ from .user_decorators.user_step_decorator import (
 )
 
 from metaflow._vendor import click
-
-
-# Contains the decorators on which _init was called. We want to ensure it is called
-# only once on each decorator and, as the _init() function below can be called in
-# several places, we need to track which decorator had their init function called
-_inited_decorators = set()
 
 
 class BadStepDecoratorException(MetaflowException):
@@ -145,7 +139,9 @@ class Decorator(object):
         Initializes the decorator. In general, any operation you would do in __init__
         should be done here.
         """
+        pass
 
+    def external_init(self):
         # In some cases (specifically when using remove_decorator), we may need to call
         # init multiple times. Short-circuit re-evaluating.
         if self._ran_init:
@@ -156,12 +152,14 @@ class Decorator(object):
         self._user_defined_attributes.update(new_user_attributes)
         self.attributes = resolve_delayed_evaluator(self.attributes, to_dict=True)
 
+        if "init" in self.__class__.__dict__:
+            self.init()
         self._ran_init = True
 
     @classmethod
-    def parse_decorator_spec(cls, deco_spec):
+    def extract_args_kwargs_from_decorator_spec(cls, deco_spec):
         if len(deco_spec) == 0:
-            return cls()
+            return [], {}
 
         attrs = {}
         # TODO: Do we really want to allow spaces in the names of attributes?!?
@@ -181,11 +179,20 @@ class Decorator(object):
                         val_parsed = val.strip()
 
             attrs[name.strip()] = val_parsed
-        return cls(attributes=attrs)
+
+            return [], attrs
+
+    @classmethod
+    def parse_decorator_spec(cls, deco_spec):
+        if len(deco_spec) == 0:
+            return cls()
+
+        _, kwargs = cls.extract_args_kwargs_from_decorator_spec(deco_spec)
+        return cls(attributes=kwargs)
 
     def make_decorator_spec(self):
         # Make sure all attributes are evaluated
-        self.init()
+        self.external_init()
         attrs = {k: v for k, v in self.attributes.items() if v is not None}
         if attrs:
             attr_list = []
@@ -202,6 +209,17 @@ class Decorator(object):
             return "%s:%s" % (self.name, attrstr)
         else:
             return self.name
+
+    def get_args_kwargs(self) -> Tuple[List[Any], Dict[str, Any]]:
+        """
+        Get the arguments and keyword arguments of the decorator.
+
+        Returns
+        -------
+        Tuple[List[Any], Dict[str, Any]]
+            A tuple containing a list of arguments and a dictionary of keyword arguments.
+        """
+        return [], dict(self.attributes)
 
     def __str__(self):
         mode = "static" if self.statically_defined else "dynamic"
@@ -645,27 +663,15 @@ def _attach_decorators_to_step(step, decospecs):
 def _init(flow, only_non_static=False):
     for decorators in flow._flow_decorators.values():
         for deco in decorators:
-            if deco in _inited_decorators:
-                continue
-            deco.init()
-            _inited_decorators.add(deco)
+            deco.external_init()
 
     for flowstep in flow:
         for deco in flowstep.decorators:
-            if deco in _inited_decorators:
-                continue
-            deco.init()
-            _inited_decorators.add(deco)
+            deco.external_init()
         for deco in flowstep.config_decorators or []:
-            if deco in _inited_decorators:
-                continue
             deco.external_init()
-            _inited_decorators.add(deco)
         for deco in flowstep.wrappers or []:
-            if deco in _inited_decorators:
-                continue
             deco.external_init()
-            _inited_decorators.add(deco)
 
 
 def _init_flow_decorators(

@@ -143,9 +143,8 @@ class ModifyFlow(FlowMutator):
 
 
 class ModifyFlowWithArgs(FlowMutator):
-    def init(self):
-        super().init()
-        self._field_to_check = self.args[0]
+    def init(self, *args, **kwargs):
+        self._field_to_check = args[0]
 
     def pre_mutate(self, mutable_flow):
         parameters = mutable_flow.config.get(self._field_to_check, [])

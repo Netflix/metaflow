@@ -58,8 +58,6 @@ class CondaStepDecorator(StepDecorator):
         )
 
     def init(self):
-        super(CondaStepDecorator, self).init()
-
         # Support legacy 'libraries=' attribute for the decorator.
         self.attributes["packages"] = {
             **self.attributes["libraries"],
@@ -307,8 +305,6 @@ class CondaFlowDecorator(FlowDecorator):
         )
 
     def init(self):
-        super(CondaFlowDecorator, self).init()
-
         # Support legacy 'libraries=' attribute for the decorator.
         self.attributes["packages"] = {
             **self.attributes["libraries"],

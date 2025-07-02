@@ -1,5 +1,15 @@
 from functools import partial
-from typing import Any, Callable, Generator, Optional, TYPE_CHECKING, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generator,
+    List,
+    Optional,
+    TYPE_CHECKING,
+    Tuple,
+    Union,
+)
 
 from metaflow.debug import debug
 from metaflow.exception import MetaflowException
@@ -59,7 +69,9 @@ class MutableStep:
         return self._mutable_container
 
     @property
-    def decorator_specs(self) -> Generator[str, None, None]:
+    def decorator_specs(
+        self,
+    ) -> Generator[Tuple[str, List[Any], Dict[str, Any]], None, None]:
         """
         Iterate over all the decorator specifications of this step. Note that the same
         type of decorator may be present multiple times and no order is guaranteed.
@@ -71,26 +83,28 @@ class MutableStep:
 
         Yields
         ------
-        str
-            A string representing the decorator.
+        str, List[Any], Dict[str, Any]
+            A tuple containing the decorator name, a list of positional arguments, and
+            a dictionary of keyword arguments.
         """
         for deco in self._my_step.decorators:
-            yield deco.make_decorator_spec()
+            yield deco.name, *deco.get_args_kwargs()
 
         for deco in self._my_step.wrappers:
-            yield deco.make_decorator_spec()
+            yield deco.decorator_name, *deco.get_args_kwargs()
 
         for deco in self._my_step.config_decorators:
-            yield deco.make_decorator_spec()
+            yield deco.decorator_name, *deco.get_args_kwargs()
 
     def add_decorator(
-        self, deco_type: Union[partial, UserStepDecoratorBase, str], **kwargs
+        self, deco_type: Union[partial, UserStepDecoratorBase, str], *args, **kwargs
     ) -> None:
         """
         Add a Metaflow step-decorator or a user step-decorator to a step.
 
         You can either add the decorator itself or its decorator specification for it
-        (the same you would get back from decorator_specs).
+        (the same you would get back from decorator_specs). You can also mix and match
+        but you cannot provide arguments both through the string and the args/kwargs.
 
         As an example:
         ```
@@ -104,9 +118,20 @@ class MutableStep:
         my_step.add_decorator('environment:vars={"foo": 42}')
         ```
 
-        Note in the later case, there is no need to import the step decorator.
+        is equivalent to:
+        ```
+        my_step.add_decorator('environment', vars={"foo": 42})
+        ```
 
-        The latter syntax is useful to, for example, allow decorators to be stored as
+        but this is not allowed:
+        ```
+        my_step.add_decorator('environment:vars={"bar" 43}', vars={"foo": 42})
+        ```
+
+        Note in the case where you specify a
+        string for the decorator, there is no need to import the decorator.
+
+        The string syntax is useful to, for example, allow decorators to be stored as
         strings in a configuration file.
 
         You can only add StepMutators in the pre_mutate stage.
@@ -114,9 +139,7 @@ class MutableStep:
         Parameters
         ----------
         deco_type : Union[partial, UserStepDecoratorBase, str]
-            The decorator class to add to this step. If using a string, you cannot specify
-            additional arguments as all argument will be parsed from the decorator
-            specification.
+            The decorator class to add to this step.
         """
         # Prevent circular import
         from metaflow.decorators import (
@@ -126,14 +149,18 @@ class MutableStep:
         )
 
         if isinstance(deco_type, str):
-            step_deco, has_kwargs = extract_step_decorator_from_decospec(deco_type)
-            if kwargs and has_kwargs:
+            step_deco, has_args_kwargs = extract_step_decorator_from_decospec(deco_type)
+            if (args or kwargs) and has_args_kwargs:
                 raise MetaflowException(
                     "Cannot specify additional arguments when adding a user step "
                     "decorator using a decospec that already has arguments"
                 )
 
             if isinstance(step_deco, StepDecorator):
+                if args:
+                    raise MetaflowException(
+                        "Step decorators do not take additional positional arguments"
+                    )
                 # Update kwargs:
                 step_deco.attributes.update(kwargs)
 
@@ -165,9 +192,10 @@ class MutableStep:
                         % (step_deco.decorator_name, self._inserted_by)
                     )
 
-                if kwargs:
-                    # We need to recreate the object if there were kwargs
-                    step_deco = step_deco.__class__(**kwargs)
+                if args or kwargs:
+                    # We need to recreate the object if there were args or kwargs
+                    # since they were not in the string
+                    step_deco = step_deco.__class__(*args, **kwargs)
 
                 debug.userconf_exec(
                     "Mutable step adding decorator %s to step %s (from str)"
