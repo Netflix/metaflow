@@ -129,23 +129,7 @@ class FlowMutator(metaclass=FlowMutatorMeta):
     def __str__(self):
         return str(self.__class__)
 
-    @property
-    def args(self):
-        """
-        The arguments passed to the FlowMutator. This is useful if you want to
-        access the arguments passed to the FlowMutator in the `init` method.
-        """
-        return self._args
-
-    @property
-    def kwargs(self):
-        """
-        The keyword arguments passed to the FlowMutator. This is useful if you want to
-        access the keyword arguments passed to the FlowMutator in the `init` method.
-        """
-        return self._kwargs
-
-    def init(self):
+    def init(self, *args, **kwargs):
         """
         Implement this method if you wish for your FlowMutator to take in arguments.
 
@@ -157,9 +141,10 @@ class FlowMutator(metaclass=FlowMutatorMeta):
 
         It is an error to use your mutator with arguments but not implement this method.
 
-        Note that you need to use self.args and self.kwargs to access the arguments.
-        You should also use super().init() as the first line of your method.
         """
+        pass
+
+    def external_init(self):
         # You can use config values in the arguments to a FlowMutator
         # so we resolve those as well
         self._args = [resolve_delayed_evaluator(arg) for arg in self._args]
@@ -172,6 +157,7 @@ class FlowMutator(metaclass=FlowMutatorMeta):
                 raise MetaflowException(
                     "%s is used with arguments but does not implement init" % self
                 )
+            self.init(*self._args, **self._kwargs)
 
     def pre_mutate(
         self, mutable_flow: "metaflow.user_decorators.mutable_flow.MutableFlow"

@@ -659,12 +659,12 @@ def _init(flow, only_non_static=False):
         for deco in flowstep.config_decorators or []:
             if deco in _inited_decorators:
                 continue
-            deco.init()
+            deco.external_init()
             _inited_decorators.add(deco)
         for deco in flowstep.wrappers or []:
             if deco in _inited_decorators:
                 continue
-            deco.init()
+            deco.external_init()
             _inited_decorators.add(deco)
 
 

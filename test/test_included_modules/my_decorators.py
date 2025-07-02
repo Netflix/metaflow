@@ -53,11 +53,13 @@ class AddTimeStep(StepMutator):
 
 
 class AddArgsDecorator(StepMutator):
-    def init(self):
-        super().init()
+    def init(self, *args, **kwargs):
+        self.my_kwargs = kwargs
 
     def mutate(self, mutable_step):
-        mutable_step.add_decorator(mutable_step.flow.cfg.args_decorator, **self.kwargs)
+        mutable_step.add_decorator(
+            mutable_step.flow.cfg.args_decorator, **self.my_kwargs
+        )
 
 
 @user_step_decorator
@@ -69,10 +71,9 @@ def with_args(step_name, flow, inputs, attributes):
 
 
 class SkipStep(UserStepDecorator):
-    def init(self):
-        super().init()
-        self._excluded_step_names = self.kwargs.get("excluded_step_names", [])
-        self._skip_steps = self.kwargs.get("skip_steps", [])
+    def init(self, *args, **kwargs):
+        self._excluded_step_names = kwargs.get("excluded_step_names", [])
+        self._skip_steps = kwargs.get("skip_steps", [])
 
     def pre_step(
         self, step_name: str, flow: FlowSpec, inputs

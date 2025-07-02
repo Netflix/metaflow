@@ -1,4 +1,4 @@
-from test_included_modules.my_decorators import (
+from my_decorators import (
     time_step,
     with_args,
     AddArgsDecorator,

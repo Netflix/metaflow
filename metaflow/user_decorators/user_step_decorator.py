@@ -436,21 +436,10 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         else:
             return self.decorator_name
 
-    @property
-    def args(self) -> List[Any]:
-        """
-        Returns the arguments passed to the decorator.
-        """
-        return self._args
+    def init(self, *args, **kwargs):
+        pass
 
-    @property
-    def kwargs(self) -> Dict[str, Any]:
-        """
-        Returns the keyword arguments passed to the decorator.
-        """
-        return self._kwargs
-
-    def init(self):
+    def external_init(self):
         # You can use config values in the arguments to a UserStepDecoratorBase
         # so we resolve those as well
         self._args = [resolve_delayed_evaluator(arg) for arg in self._args]
@@ -464,26 +453,26 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
                     "%s is used with arguments but does not implement init" % self
                 )
 
+            self.init(*self._args, **self._kwargs)
+
 
 class UserStepDecorator(UserStepDecoratorBase):
     _step_field = "wrappers"
     _allowed_args = False
     _allowed_kwargs = True
 
-    def init(self):
+    def init(self, *args, **kwargs):
         """
         Implement this method if your UserStepDecorator takes arguments. It replaces the
         __init__ method in traditional Python classes.
 
-        Note that you need to use self.args and self.kwargs to access the arguments.
-        You should also use super().init() as the first line of your method.
 
         As an example:
         ```
         class MyDecorator(UserStepDecorator):
-            def init(self):
-                self.arg1 = self.kwargs.get("arg1", None)
-                self.arg2 = self.kwargs.get("arg2", None)
+            def init(self, *args, **kwargs):
+                self.arg1 = kwargs.get("arg1", None)
+                self.arg2 = kwargs.get("arg2", None)
                 # Do something with the arguments
         ```
 
@@ -664,18 +653,18 @@ def user_step_decorator(*args, **kwargs):
                 super().__init__(*args, **kwargs)
                 self._generator = obj
 
-            def init(self):
-                super().init()
-                if self.args:
+            def init(self, *args, **kwargs):
+                if args:
                     raise MetaflowException(
                         "%s does not allow arguments, only keyword arguments"
                         % str(self)
                     )
+                self._kwargs = kwargs
 
             def pre_step(self, step_name, flow, inputs):
                 if arg_count == 4:
                     self._generator = self._generator(
-                        step_name, flow, inputs, self.kwargs
+                        step_name, flow, inputs, self._kwargs
                     )
                 else:
                     self._generator = self._generator(step_name, flow, inputs)
@@ -718,12 +707,9 @@ class StepMutator(UserStepDecoratorBase):
     _allowed_args = True
     _allowed_kwargs = True
 
-    def init(self):
+    def init(self, *args, **kwargs):
         """
         Implement this method if you wish for your StepMutator to take in arguments.
-
-        Note that you need to use self.args and self.kwargs to access the arguments.
-        You should also use super().init() as the first line of your method.
 
         Your step-mutator can then look like:
 
