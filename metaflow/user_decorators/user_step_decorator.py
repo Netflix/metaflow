@@ -150,10 +150,11 @@ class UserStepDecoratorMeta(type):
             cls, "_decorator_name", f"{cls.__module__}.{cls.__name__}"
         )
         # We inject `METAFLOW_PACKAGE` in the module so that this gets packaged
-        if not cls.__module__.startswith("metaflow.") and not cls.__module__.startswith(
-            "metaflow_extensions."
-        ):
-            setattr(sys.modules[cls.__module__], "METAFLOW_PACKAGE", 1)
+        effective_module = getattr(cls, "_original_module", cls.__module__)
+        if not effective_module.startswith(
+            "metaflow."
+        ) and not effective_module.startswith("metaflow_extensions."):
+            setattr(sys.modules[effective_module], "METAFLOW_PACKAGE", 1)
 
         if cls.decorator_name in mcs._do_not_register:
             return cls
