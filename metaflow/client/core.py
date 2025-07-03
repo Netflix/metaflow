@@ -34,7 +34,6 @@ from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.package import MetaflowPackage
 from metaflow.packaging_sys import ContentType
-from metaflow.packaging_sys.tar_backend import TarPackagingBackend
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
 from metaflow.unbounded_foreach import CONTROL_TASK_TAG
 from metaflow.util import cached_property, is_stringish, resolve_identity, to_unicode
@@ -818,12 +817,11 @@ class MetaflowCode(object):
         self._path = info["location"]
         self._ds_type = info["ds_type"]
         self._sha = info["sha"]
-        self._code_metadata = info.get("metadata")
-        if self._code_metadata is None:
-            # Default string
-            self._code_metadata = (
-                '{"version": 0, "backend": "tgz", "mfcontent_version": 0}'
-            )
+        self._code_metadata = info.get(
+            "metadata",
+            '{"version": 0, "archive_format": "tgz", "mfcontent_version": 0}',
+        )
+
         self._backend = MetaflowPackage.get_backend(self._code_metadata)
 
         if filecache is None:
@@ -886,7 +884,7 @@ class MetaflowCode(object):
         TarFile
             TarFile for everything in this code package
         """
-        if self._backend == TarPackagingBackend:
+        if self._backend.type == "tgz":
             return self._backend.cls_open(self._code_obj)
         raise RuntimeError("Archive is not a tarball")
 

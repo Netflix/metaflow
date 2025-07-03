@@ -42,7 +42,7 @@ class ContentType(IntEnum):
     ALL_CONTENT = USER_CONTENT | CODE_CONTENT | MODULE_CONTENT | OTHER_CONTENT
 
 
-class MFContent:
+class MetaflowCodeContent:
     """
     Base class for all Metaflow code packages (non user code).
 
@@ -50,7 +50,7 @@ class MFContent:
       - a special INFO file (containing a bunch of metadata about the Metaflow environment)
       - a special CONFIG file (containing user configurations for the flow)
 
-    Declare all other MFContent subclasses (versions) here to handle just the functions
+    Declare all other MetaflowCodeContent subclasses (versions) here to handle just the functions
     that are not implemented here. In a *separate* file, declare any other
     function for that specific version.
 
@@ -238,7 +238,7 @@ class MFContent:
         Parameters
         ----------
         version_id: int
-            The version of MFContent for this package.
+            The version of MetaflowCodeContent for this package.
         dest_dir: str, default "."
             The directory where the content has been extracted to.
 
@@ -329,12 +329,12 @@ class MFContent:
 
     def __init_subclass__(cls, version_id, **kwargs) -> None:
         super().__init_subclass__(**kwargs)
-        if version_id in MFContent._mappings:
+        if version_id in MetaflowCodeContent._mappings:
             raise ValueError(
-                "Version ID %s already exists in MFContent mappings "
+                "Version ID %s already exists in MetaflowCodeContent mappings "
                 "-- this is a bug in Metaflow." % str(version_id)
             )
-        MFContent._mappings[version_id] = cls
+        MetaflowCodeContent._mappings[version_id] = cls
         cls._version_id = version_id
 
     # Implement these methods in sub-classes of the base sub-classes. These methods
@@ -357,7 +357,7 @@ class MFContent:
         self, content_types: Optional[int] = None
     ) -> Generator[Tuple[str, str], None, None]:
         """
-        Detailed list of the content of this MFContent. This will list all files
+        Detailed list of the content of this MetaflowCodeContent. This will list all files
         (or non files -- for the INFO or CONFIG data for example) present in the archive.
 
         Parameters
@@ -394,13 +394,13 @@ class MFContent:
     def show(self) -> str:
         """
         Returns a more human-readable string representation of the content of this
-        MFContent. This will not, for example, list all files but summarize what
+        MetaflowCodeContent. This will not, for example, list all files but summarize what
         is included at a more high level.
 
         Returns
         -------
         str
-            A human-readable string representation of the content of this MFContent
+            A human-readable string representation of the content of this MetaflowCodeContent
         """
         raise NotImplementedError("show not implemented")
 
@@ -464,9 +464,11 @@ class MFContent:
         raise NotImplementedError("add_other_file not implemented")
 
     @classmethod
-    def _get_mfcontent_class(cls, info: Optional[Dict[str, Any]]) -> Type["MFContent"]:
+    def _get_mfcontent_class(
+        cls, info: Optional[Dict[str, Any]]
+    ) -> Type["MetaflowCodeContent"]:
         if info is None:
-            return MFContentV0
+            return MetaflowCodeContentV0
         if "version" not in info:
             raise ValueError("Invalid package -- missing version in info: %s" % info)
         version = info["version"]
@@ -515,13 +517,13 @@ class MFContent:
 
     def get_package_version(self) -> int:
         """
-        Get the version of MFContent for this package.
+        Get the version of MetaflowCodeContent for this package.
         """
         # _version_id is set in __init_subclass__ when the subclass is created
         return self._version_id
 
 
-class MFContentV0(MFContent, version_id=0):
+class MetaflowCodeContentV0(MetaflowCodeContent, version_id=0):
     @classmethod
     def get_info_impl(
         cls, mfcontent_info: Optional[Dict[str, Any]]
@@ -659,8 +661,7 @@ class MFContentV0(MFContent, version_id=0):
     # with V1.
 
 
-class MFContentV1Base(MFContent, version_id=1):
-
+class MetaflowCodeContentV1Base(MetaflowCodeContent, version_id=1):
     _code_dir = ".mf_code"
     _other_dir = ".mf_meta"
     _info_file = "INFO"
@@ -668,8 +669,8 @@ class MFContentV1Base(MFContent, version_id=1):
     _dist_info_file = "DIST_INFO"
 
     def __init_subclass__(cls, **kwargs) -> None:
-        # Important to add this here to prevent the subclass of MFContentV1Base from
-        # also calling __init_subclass__ in MFContent (which would create a problem)
+        # Important to add this here to prevent the subclass of MetaflowCodeContentV1Base from
+        # also calling __init_subclass__ in MetaflowCodeContent (which would create a problem)
         return None
 
     def __init__(self, code_dir: str, other_dir: str) -> None:

@@ -4,14 +4,14 @@ from typing import Any, IO, List, Optional, Union
 
 
 class PackagingBackend(ABC):
-
     _mappings = {}
+    type = "none"
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if cls._type in cls._mappings:
-            raise ValueError(f"PackagingBackend {cls._type} already exists")
-        cls._mappings[cls._type] = cls
+        if cls.type in cls._mappings:
+            raise ValueError(f"PackagingBackend {cls.type} already exists")
+        cls._mappings[cls.type] = cls
 
     @classmethod
     def get_backend(cls, name: str) -> "PackagingBackend":
@@ -22,7 +22,7 @@ class PackagingBackend(ABC):
     @classmethod
     @property
     def backend_type(cls) -> str:
-        return cls._type
+        return cls.type
 
     @classmethod
     @abstractmethod
