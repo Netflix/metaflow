@@ -37,7 +37,6 @@ class _TrieNode:
         else:
             self.end_value = None
         self.total_children += 1
-        return self if self.total_children == 1 else None
 
     def remove_child(self, child_name: str) -> bool:
         if child_name in self.children:
@@ -62,20 +61,14 @@ class _ClassPath_Trie:
     def insert(self, classpath_name: str, value: type):
         node = self.root
         components = reversed(classpath_name.split("."))
-        shortest_path_node = None
         for c in components:
             node = node.children.setdefault(c, _TrieNode(node, c))
-            candidate = node.traverse(value)
-            if shortest_path_node is None:
-                shortest_path_node = candidate
+            node.traverse(value)
         node.total_children -= (
             1  # We do not count the last node as having itself as a child
         )
         node.value = value
-        if shortest_path_node:
-            self._value_to_node[value] = shortest_path_node
-        else:
-            self._value_to_node[value] = node
+        self._value_to_node[value] = node
 
     def search(self, classpath_name: str) -> Optional[type]:
         node = self.root
@@ -110,7 +103,6 @@ class _ClassPath_Trie:
                             child.end_value
                         ), "Node with one child must have an end_value"
                         node.end_value = child.end_value
-                        self._value_to_node[child.end_value] = node
                 return node.total_children == 0
             return False
 
@@ -130,14 +122,17 @@ class _ClassPath_Trie:
         return node.end_value or node.value
 
     def unique_prefix_for_type(self, value: type) -> Optional[str]:
-        end_node = self._value_to_node.get(value, None)
-        if end_node:
-            components = []
-            node = end_node
-            while node and node.component is not None:
+        node = self._value_to_node.get(value, None)
+        if node is None:
+            return None
+        components = []
+        while node:
+            if node.end_value == value:
+                components = []
+            if node.component is not None:
                 components.append(node.component)
-                node = node.parent
-            return ".".join(reversed(components))
+            node = node.parent
+        return ".".join(components)
 
     def get_unique_prefixes(self) -> Dict[str, type]:
         """
@@ -229,7 +224,7 @@ class UserStepDecoratorMeta(type):
     @classmethod
     def get_decorator_by_name(
         mcs, decorator_name: str
-    ) -> Optional["UserStepDecoratorBase"]:
+    ) -> Optional[Union["UserStepDecoratorBase", "metaflow.decorators.Decorator"]]:
         """
         Get a decorator by its name.
 
@@ -245,6 +240,24 @@ class UserStepDecoratorMeta(type):
         """
         mcs._check_init()
         return mcs._all_registered_decorators.unique_prefix_value(decorator_name)
+
+    @classmethod
+    def get_decorator_name(mcs, decorator_type: type) -> Optional[str]:
+        """
+        Get the minimally unique classpath name for a decorator type.
+
+        Parameters
+        ----------
+        decorator_type: type
+            The type of the decorator to retrieve the name for.
+
+        Returns
+        -------
+        Optional[str]
+            The minimally unique classpath name if found, None otherwise.
+        """
+        mcs._check_init()
+        return mcs._all_registered_decorators.unique_prefix_for_type(decorator_type)
 
     @classmethod
     def _check_init(mcs):
@@ -357,24 +370,48 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
             Callable[["metaflow.decorators.FlowSpecDerived", Any], None],
         ],
         statically_defined: bool,
+        duplicates: int,
         inserted_by: Optional[str] = None,
-    ) -> bool:
-        if self.decorator_name not in [
-            deco.decorator_name for deco in getattr(step, self._step_field)
-        ]:
+    ):
+        from metaflow.user_decorators.mutable_step import MutableStep
+
+        existing_deco = [
+            d
+            for d in getattr(step, self._step_field)
+            if d.decorator_name == self.decorator_name
+        ]
+
+        if not existing_deco:
+            self(step, _statically_defined=statically_defined, _inserted_by=inserted_by)
+        elif duplicates == MutableStep.IGNORE:
+            # If we are ignoring duplicates, we just return
             debug.userconf_exec(
-                "Adding decorator %s to step %s from %s"
+                "Ignoring duplicate decorator %s on step %s from %s"
                 % (self, step.__name__, inserted_by)
             )
+            return
+        elif duplicates == MutableStep.OVERRIDE:
+            # If we are overriding, we remove the existing decorator and add this one
+            debug.userconf_exec(
+                "Overriding decorator %s on step %s from %s"
+                % (self, step.__name__, inserted_by)
+            )
+            setattr(
+                step,
+                self._step_field,
+                [
+                    d
+                    for d in getattr(step, self._step_field)
+                    if d.decorator_name != self.decorator_name
+                ],
+            )
             self(step, _statically_defined=statically_defined, _inserted_by=inserted_by)
-        else:
+        elif duplicates == MutableStep.ERROR:
             if statically_defined:
                 # Prevent circular dep
                 from metaflow.decorators import DuplicateStepDecoratorException
 
                 raise DuplicateStepDecoratorException(self.__class__, step)
-
-            # Else we ignore
 
     def _set_my_step(
         self,

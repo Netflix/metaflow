@@ -657,7 +657,7 @@ def _attach_decorators_to_step(step, decospecs):
             # Else it is ignored -- this is a non-static decorator
 
         else:
-            step_deco.add_or_raise(step, False, None)
+            step_deco.add_or_raise(step, False, 1, None)
 
 
 def _init(flow, only_non_static=False):
