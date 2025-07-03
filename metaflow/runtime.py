@@ -115,6 +115,7 @@ class SpinRuntime(object):
         # Verify whether the use has provided step-name or spin-pathspec
         if not spin_pathspec:
             task = get_latest_task_pathspec(flow.name, step_name)
+            logger("For faster spin, use --spin-pathspec %s" % task.pathspec)
         else:
             # The user already provided a spin-pathspec, verify if its valid
             try:

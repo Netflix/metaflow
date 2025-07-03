@@ -256,6 +256,33 @@ class TaskDataStore(object):
 
     @only_if_not_done
     @require_mode("w")
+    def transfer_artifacts(self, other_datastore, names=None):
+        """
+        Copies the blobs from other_datastore to this datastore if the datastore roots
+        are different.
+
+        This is used specifically for spin so we can bring in artifacts from the original
+        datastore.
+
+        Parameters
+        ----------
+        other_datastore : TaskDataStore
+            Other datastore from which to copy artifacts from
+        names : List[string], optional, default None
+            If provided, only transfer the artifacts with these names. If None,
+            transfer all artifacts from the other datastore.
+        """
+        if (
+            other_datastore.TYPE == self.TYPE
+            and other_datastore._storage_impl.datastore_root
+            == self._storage_impl.datastore_root
+        ):
+            # Nothing to transfer -- artifacts are already saved properly
+            return
+        # Otherwise, we need to transfer over artifacts
+
+    @only_if_not_done
+    @require_mode("w")
     def save_artifacts(self, artifacts_iter, len_hint=0):
         """
         Saves Metaflow Artifacts (Python objects) to the datastore and stores

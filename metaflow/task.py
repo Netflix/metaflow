@@ -416,7 +416,6 @@ class MetaflowTask(object):
             raise MetaflowInternalError(
                 "task.run_step needs a valid run_id and task_id"
             )
-        print("MetaflowTask: run/task id registered")
         if retry_count >= MAX_ATTEMPTS:
             # any results with an attempt ID >= MAX_ATTEMPTS will be ignored
             # by datastore, so running a task with such a retry_could would

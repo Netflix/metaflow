@@ -38,7 +38,7 @@ class ContentAddressedStore(object):
     def set_blob_cache(self, blob_cache):
         self._blob_cache = blob_cache
 
-    def save_blobs(self, blob_iter, raw=False, len_hint=0):
+    def save_blobs(self, blob_iter, raw=False, len_hint=0, _is_transfer=False):
         """
         Saves blobs of data to the datastore
 
@@ -65,6 +65,9 @@ class ContentAddressedStore(object):
             Whether to save the bytes directly or process them, by default False
         len_hint : Hint of the number of blobs that will be produced by the
             iterator, by default 0
+        _is_transfer : bool, default False
+            If True, this indicates we are saving blobs directly from the output of another
+            content addressed store's
 
         Returns
         -------
@@ -76,6 +79,18 @@ class ContentAddressedStore(object):
 
         def packing_iter():
             for blob in blob_iter:
+                if _is_transfer:
+                    key, blob_data, meta = blob
+                    path = self._storage_impl.path_join(self._prefix, key[:2], key)
+                    is_raw = meta and meta.get("cas_raw", False)
+                    results.append(
+                        self.save_blobs_result(
+                            uri=self._storage_impl.full_uri(path) if is_raw else None,
+                            key=key,
+                        )
+                    )
+                    yield path, (BytesIO(blob_data), meta)
+                    continue
                 sha = sha1(blob).hexdigest()
                 path = self._storage_impl.path_join(self._prefix, sha[:2], sha)
                 results.append(
@@ -100,7 +115,7 @@ class ContentAddressedStore(object):
         self._storage_impl.save_bytes(packing_iter(), overwrite=True, len_hint=len_hint)
         return results
 
-    def load_blobs(self, keys, force_raw=False):
+    def load_blobs(self, keys, force_raw=False, _is_transfer=False):
         """
         Mirror function of save_blobs
 
@@ -111,15 +126,20 @@ class ContentAddressedStore(object):
         ----------
         keys : List of string
             Key describing the object to load
-        force_raw : bool, optional
+        force_raw : bool, default False
             Support for backward compatibility with previous datastores. If
             True, this will force the key to be loaded as is (raw). By default,
             False
+        _is_transfer : bool, default False
+            If True, this indicates we are loading blobs to transfer them directly
+            to another datastore. We will, in this case, also transfer the metdata
+            and do minimal processing. This is for internal use only.
 
         Returns
         -------
         Returns an iterator of (string, bytes) tuples; the iterator may return keys
-        in a different order than were passed in.
+        in a different order than were passed in. If _is_transfer is True, the tuple
+        has three elements with the third one being the metadata.
         """
         load_paths = []
         for key in keys:
