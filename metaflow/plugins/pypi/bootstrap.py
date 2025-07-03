@@ -12,9 +12,10 @@ import platform
 from urllib.error import URLError
 from urllib.request import urlopen
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, CONDA_USE_FAST_INIT
+from metaflow.packaging_sys import MetaflowCodeContent, ContentType
 from metaflow.plugins import DATASTORES
 from metaflow.plugins.pypi.utils import MICROMAMBA_MIRROR_URL, MICROMAMBA_URL
-from metaflow.util import which, get_metaflow_root
+from metaflow.util import which
 from urllib.request import Request
 import warnings
 
@@ -365,8 +366,13 @@ if __name__ == "__main__":
 
         # Move MAGIC_FILE inside local datastore.
         os.makedirs(manifest_dir, exist_ok=True)
+        path_to_manifest = MetaflowCodeContent.get_filename(
+            MAGIC_FILE, ContentType.OTHER_CONTENT
+        )
+        if path_to_manifest is None:
+            raise RuntimeError(f"Cannot find {MAGIC_FILE} in the package")
         shutil.move(
-            os.path.join(get_metaflow_root(), MAGIC_FILE),
+            path_to_manifest,
             os.path.join(manifest_dir, MAGIC_FILE),
         )
         with open(os.path.join(manifest_dir, MAGIC_FILE)) as f:

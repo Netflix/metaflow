@@ -168,6 +168,7 @@ class KubernetesDecorator(StepDecorator):
         "qos": KUBERNETES_QOS,
         "security_context": None,
     }
+    package_metadata = None
     package_url = None
     package_sha = None
     run_time_limit = None
@@ -322,7 +323,6 @@ class KubernetesDecorator(StepDecorator):
         self.logger = logger
         self.environment = environment
         self.step = step
-        self.flow_datastore = flow_datastore
 
         if (
             self.attributes["qos"] is not None
@@ -461,7 +461,7 @@ class KubernetesDecorator(StepDecorator):
         # access to the code package. We store the package in the datastore
         # which the pod is able to download as part of it's entrypoint.
         if not is_cloned:
-            self._save_package_once(self.flow_datastore, self.package)
+            self._save_package_once(self.package)
 
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context
@@ -471,6 +471,7 @@ class KubernetesDecorator(StepDecorator):
             # to execute on Kubernetes anymore. We can execute possible fallback
             # code locally.
             cli_args.commands = ["kubernetes", "step"]
+            cli_args.command_args.append(self.package_metadata)
             cli_args.command_args.append(self.package_sha)
             cli_args.command_args.append(self.package_url)
 
@@ -640,11 +641,12 @@ class KubernetesDecorator(StepDecorator):
             pass
 
     @classmethod
-    def _save_package_once(cls, flow_datastore, package):
+    def _save_package_once(cls, package):
         if cls.package_url is None:
-            cls.package_url, cls.package_sha = flow_datastore.save_data(
-                [package.blob], len_hint=1
-            )[0]
+            # Blocks until the package is uploaded
+            cls.package_url = package.package_url()
+            cls.package_sha = package.package_sha()
+            cls.package_metadata = package.package_metadata
 
 
 # TODO: Unify this method with the multi-node setup in @batch
