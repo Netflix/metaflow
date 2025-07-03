@@ -48,22 +48,23 @@ class CondaStepDecorator(StepDecorator):
     # CONDA_CHANNELS in their environment. For pinning specific packages to specific
     # conda channels, users can specify channel::package as the package name.
 
-    def __init__(self, attributes=None, statically_defined=False):
+    def __init__(self, attributes=None, statically_defined=False, inserted_by=None):
         self._attributes_with_user_values = (
             set(attributes.keys()) if attributes is not None else set()
         )
 
-        super(CondaStepDecorator, self).__init__(attributes, statically_defined)
+        super(CondaStepDecorator, self).__init__(
+            attributes, statically_defined, inserted_by
+        )
 
     def init(self):
-        super(CondaStepDecorator, self).init()
-
         # Support legacy 'libraries=' attribute for the decorator.
         self.attributes["packages"] = {
             **self.attributes["libraries"],
             **self.attributes["packages"],
         }
-        del self.attributes["libraries"]
+        # Keep because otherwise make_decorator_spec will fail
+        self.attributes["libraries"] = {}
         if self.attributes["packages"]:
             self._attributes_with_user_values.add("packages")
 
@@ -294,22 +295,23 @@ class CondaFlowDecorator(FlowDecorator):
         "disabled": None,
     }
 
-    def __init__(self, attributes=None, statically_defined=False):
+    def __init__(self, attributes=None, statically_defined=False, inserted_by=None):
         self._attributes_with_user_values = (
             set(attributes.keys()) if attributes is not None else set()
         )
 
-        super(CondaFlowDecorator, self).__init__(attributes, statically_defined)
+        super(CondaFlowDecorator, self).__init__(
+            attributes, statically_defined, inserted_by
+        )
 
     def init(self):
-        super(CondaFlowDecorator, self).init()
-
         # Support legacy 'libraries=' attribute for the decorator.
         self.attributes["packages"] = {
             **self.attributes["libraries"],
             **self.attributes["packages"],
         }
-        del self.attributes["libraries"]
+        # Keep because otherwise make_decorator_spec will fail
+        self.attributes["libraries"] = {}
         if self.attributes["python"]:
             self.attributes["python"] = str(self.attributes["python"])
 

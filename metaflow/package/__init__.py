@@ -158,7 +158,7 @@ class MetaflowPackage(object):
         return json.dumps(
             {
                 "version": 0,
-                "archive_format": self._backend.backend_type,
+                "archive_format": self._backend.backend_type(),
                 "mfcontent_version": self._mfcontent.get_package_version(),
             }
         )

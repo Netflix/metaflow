@@ -136,8 +136,6 @@ class BatchDecorator(StepDecorator):
     target_platform = "linux-64"
 
     def init(self):
-        super(BatchDecorator, self).init()
-
         # If no docker image is explicitly specified, impute a default image.
         if not self.attributes["image"]:
             # If metaflow-config specifies a docker image, just use that.

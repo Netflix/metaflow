@@ -336,7 +336,7 @@ class CondaEnvironment(MetaflowEnvironment):
                     environment[decorator.name] = {
                         k: copy.deepcopy(decorator.attributes[k])
                         for k in decorator.attributes
-                        if k != "disabled"
+                        if k not in ("disabled", "libraries")
                     }
                 else:
                     return {}

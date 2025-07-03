@@ -38,7 +38,6 @@ class TimeoutDecorator(StepDecorator):
     defaults = {"seconds": 0, "minutes": 0, "hours": 0}
 
     def init(self):
-        super().init()
         # Initialize secs in __init__ so other decorators could safely use this
         # value without worrying about decorator order.
         # Convert values in attributes to type:int since they can be type:str

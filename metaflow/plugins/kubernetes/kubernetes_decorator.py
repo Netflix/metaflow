@@ -178,8 +178,6 @@ class KubernetesDecorator(StepDecorator):
     target_platform = KUBERNETES_CONDA_ARCH or "linux-64"
 
     def init(self):
-        super(KubernetesDecorator, self).init()
-
         if not self.attributes["namespace"]:
             self.attributes["namespace"] = KUBERNETES_NAMESPACE
         if not self.attributes["service_account"]:
