@@ -9,7 +9,7 @@ from metaflow.debug import debug
 
 from .config_parameters import ConfigValue
 from ..exception import MetaflowException, MetaflowInternalError
-from ..packaging_sys import MFContent
+from ..packaging_sys import MetaflowCodeContent
 from ..parameters import DeployTimeField, ParameterContext, current_flow
 from ..util import get_username
 
@@ -25,7 +25,7 @@ _CONVERTED_DEFAULT_NO_FILE = _CONVERTED_DEFAULT + _NO_FILE
 
 def _load_config_values(info_file: Optional[str] = None) -> Optional[Dict[Any, Any]]:
     if info_file is None:
-        config_content = MFContent.get_config()
+        config_content = MetaflowCodeContent.get_config()
     else:
         try:
             with open(info_file, encoding="utf-8") as f:

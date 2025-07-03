@@ -7,8 +7,7 @@ from .backend import PackagingBackend
 
 
 class TarPackagingBackend(PackagingBackend):
-
-    _type = "tgz"
+    type = "tgz"
 
     @classmethod
     def get_extract_commands(cls, archive_name: str, dest_dir: str) -> List[str]:

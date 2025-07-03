@@ -1,6 +1,6 @@
 # Support saving of distribution information so we can give it back to users even
 # if we do not install those distributions. This is used to package distributions in
-# the MFContent package and provide an experience as if the packages were installed
+# the MetaflowCodeContent package and provide an experience as if the packages were installed
 # system-wide.
 
 import os
@@ -109,7 +109,7 @@ _ModuleInfo = NamedTuple(
 
 class PackagedDistribution(metadata.Distribution):
     """
-    A Python Package packaged within a MFContent. This allows users to use use importlib
+    A Python Package packaged within a MetaflowCodeContent. This allows users to use use importlib
     as they would regularly and the packaged Python Package would be considered as a
     distribution even if it really isn't (since it is just included in the PythonPath).
     """
@@ -133,7 +133,6 @@ class PackagedDistribution(metadata.Distribution):
 
 
 class PackagedDistributionFinder(metadata.DistributionFinder):
-
     def __init__(self, dist_info: Dict[str, Dict[str, str]]):
         self._dist_info = dist_info
 

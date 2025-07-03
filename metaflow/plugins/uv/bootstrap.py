@@ -7,7 +7,7 @@ import time
 from metaflow.util import which
 from metaflow.info_file import read_info_file
 from metaflow.metaflow_config import get_pinned_conda_libs
-from metaflow.packaging_sys import MFContent, ContentType
+from metaflow.packaging_sys import MetaflowCodeContent, ContentType
 from urllib.request import Request, urlopen
 from urllib.error import URLError
 
@@ -97,7 +97,9 @@ if __name__ == "__main__":
     def sync_uv_project(datastore_type):
         # Move the files to the current directory so uv can find them.
         for filename in ["uv.lock", "pyproject.toml"]:
-            path_to_file = MFContent.get_filename(filename, ContentType.OTHER_CONTENT)
+            path_to_file = MetaflowCodeContent.get_filename(
+                filename, ContentType.OTHER_CONTENT
+            )
             if path_to_file is None:
                 raise RuntimeError(f"Could not find {filename} in the package.")
             shutil.move(path_to_file, os.path.join(os.getcwd(), filename))

@@ -9,10 +9,10 @@ from types import ModuleType
 from typing import Callable, Dict, List, Optional, TYPE_CHECKING, Type, cast
 
 from ..debug import debug
-from ..packaging_sys import ContentType, MFContent
+from ..packaging_sys import ContentType, MetaflowCodeContent
 from ..packaging_sys.backend import PackagingBackend
 from ..packaging_sys.tar_backend import TarPackagingBackend
-from ..packaging_sys.v1 import MFContentV1
+from ..packaging_sys.v1 import MetaflowCodeContentV1
 from ..packaging_sys.utils import suffix_filter, walk
 from ..metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from ..exception import MetaflowException
@@ -49,7 +49,7 @@ class MetaflowPackage(object):
         suffixes: Optional[List[str]] = DEFAULT_SUFFIXES_LIST,
         user_code_filter: Optional[Callable[[str], bool]] = None,
         flow_datastore: Optional["metaflow.datastore.FlowDataStore"] = None,
-        mfcontent: Optional[MFContent] = None,
+        mfcontent: Optional[MetaflowCodeContent] = None,
         exclude_tl_dirs=None,
         backend: Type[PackagingBackend] = TarPackagingBackend,
     ):
@@ -73,7 +73,7 @@ class MetaflowPackage(object):
             self._suffixes = None
 
         if mfcontent is None:
-            self._mfcontent = MFContentV1(
+            self._mfcontent = MetaflowCodeContentV1(
                 criteria=lambda x: hasattr(x, "METAFLOW_PACKAGE"),
             )
         else:
@@ -158,7 +158,7 @@ class MetaflowPackage(object):
         return json.dumps(
             {
                 "version": 0,
-                "backend": self._backend.backend_type,
+                "archive_format": self._backend.backend_type,
                 "mfcontent_version": self._mfcontent.get_package_version(),
             }
         )
@@ -178,7 +178,7 @@ class MetaflowPackage(object):
         PackagingBackend
             The backend type that can be used to extract the package.
         """
-        backend_type = json.loads(pkg_metadata).get("backend", "tgz")
+        backend_type = json.loads(pkg_metadata).get("archive_format", "tgz")
         return PackagingBackend.get_backend(backend_type)
 
     @classmethod
@@ -204,7 +204,7 @@ class MetaflowPackage(object):
         List[str]
             The commands needed to extract the package into the directory dest_dir.
         """
-        backend_type = json.loads(pkg_metadata).get("backend", "tgz")
+        backend_type = json.loads(pkg_metadata).get("archive_format", "tgz")
         # We now ask the backend type how to extract itself
         backend = PackagingBackend.get_backend(backend_type)
         cmds = backend.get_extract_commands(archive_path, dest_dir)
@@ -234,7 +234,9 @@ class MetaflowPackage(object):
             that has been extracted into dest_dir.
         """
         mfcontent_version = json.loads(pkg_metadata).get("mfcontent_version", 0)
-        env_vars = MFContent.get_post_extract_env_vars(mfcontent_version, dest_dir)
+        env_vars = MetaflowCodeContent.get_post_extract_env_vars(
+            mfcontent_version, dest_dir
+        )
         debug.package_exec(
             f"Environment variables to access content extracted into {dest_dir}: {env_vars}"
         )
@@ -282,7 +284,7 @@ class MetaflowPackage(object):
         """
         backend = cls.get_backend(pkg_metadata)
         with backend.cls_open(archive) as opened_archive:
-            return MFContent.get_archive_info(opened_archive, backend)
+            return MetaflowCodeContent.get_archive_info(opened_archive, backend)
 
     @classmethod
     def cls_get_config(
@@ -305,7 +307,7 @@ class MetaflowPackage(object):
         """
         backend = cls.get_backend(pkg_metadata)
         with backend.cls_open(archive) as opened_archive:
-            return MFContent.get_archive_config(opened_archive, backend)
+            return MetaflowCodeContent.get_archive_config(opened_archive, backend)
 
     @classmethod
     def cls_extract_into(
@@ -331,7 +333,7 @@ class MetaflowPackage(object):
         """
         backend = cls.get_backend(pkg_metadata)
         with backend.cls_open(archive) as opened_archive:
-            include_names = MFContent.get_archive_content_names(
+            include_names = MetaflowCodeContent.get_archive_content_names(
                 opened_archive, content_types, backend
             )
             backend.extract_members(include_names, dest_dir)

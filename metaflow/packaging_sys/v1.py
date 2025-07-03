@@ -15,18 +15,18 @@ from ..extension_support import (
 from ..exception import MetaflowException
 from ..metaflow_version import get_version
 from ..util import get_metaflow_root
-from . import ContentType, MFCONTENT_MARKER, MFContentV1Base
+from . import ContentType, MFCONTENT_MARKER, MetaflowCodeContentV1Base
 from .distribution_support import _ModuleInfo, modules_to_distributions
 from .utils import suffix_filter, walk
 
 
-class MFContentV1(MFContentV1Base):
+class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
     METAFLOW_SUFFIXES_LIST = [".py", ".html", ".css", ".js"]
 
     def __init__(
         self,
-        code_dir: str = MFContentV1Base._code_dir,
-        other_dir: str = MFContentV1Base._other_dir,
+        code_dir: str = MetaflowCodeContentV1Base._code_dir,
+        other_dir: str = MetaflowCodeContentV1Base._other_dir,
         criteria: Callable[[ModuleType], bool] = lambda x: True,
     ):
         super().__init__(code_dir, other_dir)
@@ -116,7 +116,7 @@ class MFContentV1(MFContentV1Base):
         self, content_types: Optional[int] = None
     ) -> Generator[Tuple[str, str], None, None]:
         """
-        Detailed list of the content of this MFContent. This will list all files
+        Detailed list of the content of this MetaflowCodeContent. This will list all files
         (or non files -- for the INFO or CONFIG data for example) present in the archive.
 
         Parameters
@@ -153,13 +153,13 @@ class MFContentV1(MFContentV1Base):
     def show(self) -> str:
         """
         Returns a more human-readable string representation of the content of this
-        MFContent. This will not, for example, list all files but summarize what
+        MetaflowCodeContent. This will not, for example, list all files but summarize what
         is included at a more high level.
 
         Returns
         -------
         str
-            A human-readable string representation of the content of this MFContent
+            A human-readable string representation of the content of this MetaflowCodeContent
         """
         result = []
         if self._metaflow_version:
