@@ -13,13 +13,15 @@ class UVEnvironment(MetaflowEnvironment):
     TYPE = "uv"
 
     def __init__(self, flow):
+        super().__init__(flow)
         self.flow = flow
 
     def validate_environment(self, logger, datastore_type):
         self.datastore_type = datastore_type
         self.logger = logger
 
-    def init_environment(self, echo, only_steps=None):
+    def init_environment(self, echo, package, only_steps=None):
+        super().init_environment(echo, package)
         self.logger("Bootstrapping uv...")
 
     def executable(self, step_name, default=None):

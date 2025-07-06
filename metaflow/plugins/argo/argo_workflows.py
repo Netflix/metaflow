@@ -1572,7 +1572,6 @@ class ArgoWorkflows(object):
                     mflog_expr,
                 ]
                 + self.environment.get_package_commands(
-                    self.code_package_metadata,
                     self.code_package_url,
                     self.flow_datastore.TYPE,
                 )
@@ -2415,7 +2414,6 @@ class ArgoWorkflows(object):
                 mflog_expr,
             ]
             + self.environment.get_package_commands(
-                self.code_package_metadata,
                 self.code_package_url,
                 self.flow_datastore.TYPE,
             )[:-1]
@@ -2882,7 +2880,6 @@ class ArgoWorkflows(object):
                 mflog_expr,
             ]
             + self.environment.get_package_commands(
-                self.code_package_metadata,
                 self.code_package_url,
                 self.flow_datastore.TYPE,
             )[:-1]
