@@ -21,13 +21,13 @@ class MetaflowEnvironment(object):
     TYPE = "local"
 
     def __init__(self, flow):
-        pass
+        self._package = None
 
-    def init_environment(self, echo):
+    def init_environment(self, echo, package):
         """
         Run before any step decorators are initialized.
         """
-        pass
+        self._package = package
 
     def validate_environment(self, echo, datastore_type):
         """
@@ -187,9 +187,7 @@ class MetaflowEnvironment(object):
         # skip pip installs if we know that packages might already be available
         return "if [ -z $METAFLOW_SKIP_INSTALL_DEPENDENCIES ]; then {}; fi".format(cmd)
 
-    def get_package_commands(
-        self, code_package_metadata, code_package_url, datastore_type
-    ):
+    def get_package_commands(self, code_package_url, datastore_type):
         cmds = (
             [
                 BASH_MFLOG,
@@ -211,12 +209,12 @@ class MetaflowEnvironment(object):
                 "fi" % code_package_url,
             ]
             + MetaflowPackage.get_extract_commands(
-                code_package_metadata, "job.tar", dest_dir="."
+                self._package.package_metadata, "job.tar", dest_dir="."
             )
             + [
                 "export %s=%s:$(printenv %s)" % (k, v.replace('"', '\\"'), k)
                 for k, v in MetaflowPackage.get_post_extract_env_vars(
-                    code_package_metadata, dest_dir="."
+                    self._package.package_metadata, dest_dir="."
                 ).items()
             ]
             + [

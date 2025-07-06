@@ -7,6 +7,7 @@ from metaflow import JSONType, current, decorators, parameters
 from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import (
+    FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
     SERVICE_VERSION_CHECK,
     SFN_STATE_MACHINE_PREFIX,
     UI_URL,
@@ -335,11 +336,16 @@ def make_flow(
         obj.environment,
         obj.echo,
         suffixes=obj.package_suffixes,
-        flow_datastore=obj.flow_datastore,
+        flow_datastore=obj.flow_datastore if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE else None,
     )
     # This blocks until the package is created
-    package_url = obj.package.package_url()
-    package_sha = obj.package.package_sha()
+    if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE:
+        package_url = obj.package.package_url()
+        package_sha = obj.package.package_sha()
+    else:
+        package_url, package_sha = obj.flow_datastore.save_data(
+            [obj.package.blob], len_hint=1
+        )[0]
 
     return StepFunctions(
         name,

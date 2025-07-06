@@ -8,7 +8,7 @@ from .. import decorators, namespace, parameters, tracing
 from ..exception import CommandException
 from ..graph import FlowGraph
 from ..metaflow_current import current
-from ..metaflow_config import DEFAULT_DECOSPECS
+from ..metaflow_config import DEFAULT_DECOSPECS, FEAT_ALWAYS_UPLOAD_CODE_PACKAGE
 from ..package import MetaflowPackage
 from ..runtime import NativeRuntime
 from ..system import _system_logger
@@ -65,7 +65,7 @@ def before_run(obj, tags, decospecs):
         obj.environment,
         obj.echo,
         suffixes=obj.package_suffixes,
-        flow_datastore=obj.flow_datastore,
+        flow_datastore=obj.flow_datastore if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE else None,
     )
 
 

@@ -11,6 +11,7 @@ from metaflow.metadata_provider import MetaDatum
 from metaflow.metadata_provider.util import sync_local_metadata_to_datastore
 from metaflow.metaflow_config import (
     DATASTORE_LOCAL_DIR,
+    FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
     KUBERNETES_CONTAINER_IMAGE,
     KUBERNETES_CONTAINER_REGISTRY,
     KUBERNETES_CPU,
@@ -323,6 +324,7 @@ class KubernetesDecorator(StepDecorator):
         self.logger = logger
         self.environment = environment
         self.step = step
+        self._flow_datastore = flow_datastore
 
         if (
             self.attributes["qos"] is not None
@@ -461,7 +463,7 @@ class KubernetesDecorator(StepDecorator):
         # access to the code package. We store the package in the datastore
         # which the pod is able to download as part of it's entrypoint.
         if not is_cloned:
-            self._save_package_once(self.package)
+            self._save_package_once(self.package, self._flow_datastore)
 
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context
@@ -641,12 +643,17 @@ class KubernetesDecorator(StepDecorator):
             pass
 
     @classmethod
-    def _save_package_once(cls, package):
+    def _save_package_once(cls, package, flow_datastore):
         if cls.package_url is None:
-            # Blocks until the package is uploaded
-            cls.package_url = package.package_url()
-            cls.package_sha = package.package_sha()
-            cls.package_metadata = package.package_metadata
+            if not FEAT_ALWAYS_UPLOAD_CODE_PACKAGE:
+                cls.package_url, cls.package_sha = flow_datastore.save_data(
+                    [package.blob], len_hint=1
+                )[0]
+            else:
+                # Blocks until the package is uploaded
+                cls.package_url = package.package_url()
+                cls.package_sha = package.package_sha()
+                cls.package_metadata = package.package_metadata
 
 
 # TODO: Unify this method with the multi-node setup in @batch
