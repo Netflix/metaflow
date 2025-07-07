@@ -72,14 +72,18 @@ class ServiceMetadataProvider(MetadataProvider):
     @classmethod
     def compute_info(cls, val):
         v = val.rstrip("/")
-        try:
-            resp = cls._session.get(
-                os.path.join(v, "ping"), headers=SERVICE_HEADERS.copy()
-            )
-            resp.raise_for_status()
-        except:  # noqa E722
-            raise ValueError("Metaflow service [%s] unreachable." % v)
-        return v
+        for i in range(SERVICE_RETRY_COUNT):
+            try:
+                resp = cls._session.get(
+                    os.path.join(v, "ping"), headers=SERVICE_HEADERS.copy()
+                )
+                resp.raise_for_status()
+            except:  # noqa E722
+                time.sleep(2 ** (i - 1))
+            else:
+                return v
+
+        raise ValueError("Metaflow service [%s] unreachable." % v)
 
     @classmethod
     def default_info(cls):

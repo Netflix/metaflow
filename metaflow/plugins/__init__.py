@@ -241,6 +241,7 @@ from .cards.card_modules.test_cards import (
     TestTimeoutCard,
     TestRefreshCard,
     TestRefreshComponentCard,
+    TestImageCard,
 )
 
 CARDS = [
@@ -259,6 +260,7 @@ CARDS = [
     DefaultCardJSON,
     TestRefreshCard,
     TestRefreshComponentCard,
+    TestImageCard,
 ]
 merge_lists(CARDS, MF_EXTERNAL_CARDS, "type")
 

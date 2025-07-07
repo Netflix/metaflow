@@ -48,7 +48,7 @@ def get_ec2_instance_metadata():
         # Try to get an IMDSv2 token.
         token = requests.put(
             url="http://169.254.169.254/latest/api/token",
-            headers={"X-aws-ec2-metadata-token-ttl-seconds": 100},
+            headers={"X-aws-ec2-metadata-token-ttl-seconds": "100"},
             timeout=timeout,
         ).text
     except:

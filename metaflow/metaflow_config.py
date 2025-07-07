@@ -214,8 +214,6 @@ CARD_GSROOT = from_conf(
 )
 CARD_NO_WARNING = from_conf("CARD_NO_WARNING", False)
 
-SKIP_CARD_DUALWRITE = from_conf("SKIP_CARD_DUALWRITE", False)
-
 RUNTIME_CARD_RENDER_INTERVAL = from_conf("RUNTIME_CARD_RENDER_INTERVAL", 60)
 
 # Azure storage account URL
@@ -370,6 +368,8 @@ KUBERNETES_CONTAINER_IMAGE = from_conf(
 )
 # Image pull policy for container images
 KUBERNETES_IMAGE_PULL_POLICY = from_conf("KUBERNETES_IMAGE_PULL_POLICY", None)
+# Image pull secrets for container images
+KUBERNETES_IMAGE_PULL_SECRETS = from_conf("KUBERNETES_IMAGE_PULL_SECRETS", "")
 # Default container registry for K8S
 KUBERNETES_CONTAINER_REGISTRY = from_conf(
     "KUBERNETES_CONTAINER_REGISTRY", DEFAULT_CONTAINER_REGISTRY
