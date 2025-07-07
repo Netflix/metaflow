@@ -20,8 +20,7 @@ class UVEnvironment(MetaflowEnvironment):
         self.datastore_type = datastore_type
         self.logger = logger
 
-    def init_environment(self, echo, package, only_steps=None):
-        super().init_environment(echo, package)
+    def init_environment(self, echo, only_steps=None):
         self.logger("Bootstrapping uv...")
 
     def executable(self, step_name, default=None):

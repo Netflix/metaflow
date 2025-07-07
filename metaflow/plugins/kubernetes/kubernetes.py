@@ -90,6 +90,7 @@ class Kubernetes(object):
         step_name,
         task_id,
         attempt,
+        code_package_metadata,
         code_package_url,
         step_cmds,
     ):
@@ -104,7 +105,7 @@ class Kubernetes(object):
             stderr_path=STDERR_PATH,
         )
         init_cmds = self._environment.get_package_commands(
-            code_package_url, self._datastore.TYPE
+            code_package_url, self._datastore.TYPE, code_package_metadata
         )
         init_expr = " && ".join(init_cmds)
         step_expr = bash_capture_logs(
@@ -417,6 +418,7 @@ class Kubernetes(object):
             step_name=step_name,
             task_id=_tskid,
             attempt=attempt,
+            code_package_metadata=code_package_metadata,
             code_package_url=code_package_url,
             step_cmds=[
                 step_cli.replace(
@@ -514,6 +516,7 @@ class Kubernetes(object):
                     step_name=step_name,
                     task_id=task_id,
                     attempt=attempt,
+                    code_package_metadata=code_package_metadata,
                     code_package_url=code_package_url,
                     step_cmds=[step_cli],
                 ),

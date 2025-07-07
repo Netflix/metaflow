@@ -1574,6 +1574,7 @@ class ArgoWorkflows(object):
                 + self.environment.get_package_commands(
                     self.code_package_url,
                     self.flow_datastore.TYPE,
+                    self.code_package_metadata,
                 )
             )
             step_cmds = self.environment.bootstrap_commands(
@@ -2416,6 +2417,7 @@ class ArgoWorkflows(object):
             + self.environment.get_package_commands(
                 self.code_package_url,
                 self.flow_datastore.TYPE,
+                self.code_package_metadata,
             )[:-1]
             # Replace the line 'Task in starting'
             # FIXME: this can be brittle.

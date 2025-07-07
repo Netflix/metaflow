@@ -649,6 +649,7 @@ class KubernetesDecorator(StepDecorator):
                 cls.package_url, cls.package_sha = flow_datastore.save_data(
                     [package.blob], len_hint=1
                 )[0]
+                cls.package_metadata = package.package_metadata
             else:
                 # Blocks until the package is uploaded
                 cls.package_url = package.package_url()

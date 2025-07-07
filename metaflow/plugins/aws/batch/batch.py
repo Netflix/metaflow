@@ -62,6 +62,7 @@ class Batch(object):
     def _command(
         self,
         environment,
+        code_package_metadata,
         code_package_url,
         step_name,
         step_cmds,
@@ -73,7 +74,9 @@ class Batch(object):
             stderr_path=STDERR_PATH,
             **task_spec
         )
-        init_cmds = environment.get_package_commands(code_package_url, "s3")
+        init_cmds = environment.get_package_commands(
+            code_package_url, "s3", code_package_metadata
+        )
         init_expr = " && ".join(init_cmds)
         step_expr = bash_capture_logs(
             " && ".join(environment.bootstrap_commands(step_name, "s3") + step_cmds)
@@ -219,6 +222,7 @@ class Batch(object):
             .command(
                 self._command(
                     self.environment,
+                    code_package_metadata,
                     code_package_url,
                     step_name,
                     [step_cli],

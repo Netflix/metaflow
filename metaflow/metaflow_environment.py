@@ -21,13 +21,13 @@ class MetaflowEnvironment(object):
     TYPE = "local"
 
     def __init__(self, flow):
-        self._package = None
+        pass
 
-    def init_environment(self, echo, package):
+    def init_environment(self, echo):
         """
         Run before any step decorators are initialized.
         """
-        self._package = package
+        pass
 
     def validate_environment(self, echo, datastore_type):
         """
@@ -187,7 +187,19 @@ class MetaflowEnvironment(object):
         # skip pip installs if we know that packages might already be available
         return "if [ -z $METAFLOW_SKIP_INSTALL_DEPENDENCIES ]; then {}; fi".format(cmd)
 
-    def get_package_commands(self, code_package_url, datastore_type):
+    def get_package_commands(
+        self, code_package_url, datastore_type, code_package_metadata=None
+    ):
+        # HACK: We want to keep forward compatibility with compute layers so that
+        # they can still call get_package_commands and NOT pass any metadata. If
+        # there is no additional information, we *assume* that it is the default
+        # used.
+        if code_package_metadata is None:
+            code_package_metadata = {
+                "version": 0,
+                "archive_format": "tgz",
+                "mfcontent_version": 1,
+            }
         cmds = (
             [
                 BASH_MFLOG,
@@ -209,12 +221,12 @@ class MetaflowEnvironment(object):
                 "fi" % code_package_url,
             ]
             + MetaflowPackage.get_extract_commands(
-                self._package.package_metadata, "job.tar", dest_dir="."
+                code_package_metadata, "job.tar", dest_dir="."
             )
             + [
                 "export %s=%s:$(printenv %s)" % (k, v.replace('"', '\\"'), k)
                 for k, v in MetaflowPackage.get_post_extract_env_vars(
-                    self._package.package_metadata, dest_dir="."
+                    code_package_metadata, dest_dir="."
                 ).items()
             ]
             + [

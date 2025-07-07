@@ -54,7 +54,7 @@ class MetaflowPackage(object):
         backend: Type[PackagingBackend] = TarPackagingBackend,
     ):
         self._environment = environment
-        self._environment.init_environment(echo, self)
+        self._environment.init_environment(echo)
 
         self._echo = echo
         self._flow = flow
