@@ -6,7 +6,7 @@ import time
 
 from io import BytesIO
 from types import ModuleType
-from typing import Callable, Dict, List, Optional, TYPE_CHECKING, Type, cast
+from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING, Type, cast
 
 from ..debug import debug
 from ..packaging_sys import ContentType, MetaflowCodeContent
@@ -120,7 +120,14 @@ class MetaflowPackage(object):
         )
         self._create_thread.start()
 
-    def blob(self, timeout: Optional[float] = None) -> BytesIO:
+    # HORRIBLE HACK SO THAT CURRENT COMPUTE IMPLEMENTATIONS CAN STILL
+    # DO pkg.blob. Ideally, this goes away and blob_with_timeout becomes
+    # the main method (called blob).
+    @property
+    def blob(self) -> BytesIO:
+        return self.blob_with_timeout()
+
+    def blob_with_timeout(self, timeout: Optional[float] = None) -> BytesIO:
         if self._blob is None:
             self._create_thread.join(timeout)
             if self._is_package_available is not None:
@@ -340,13 +347,13 @@ class MetaflowPackage(object):
 
     def user_tuples(self, timeout: Optional[float] = None):
         # Wait for at least the blob to be formed
-        _ = self.blob(timeout=timeout)
+        _ = self.blob_with_timeout(timeout=timeout)
         for path, arcname in self._cached_user_members:
             yield path, arcname
 
     def path_tuples(self, timeout: Optional[float] = None):
         # Wait for at least the blob to be formed
-        _ = self.blob(timeout=timeout)
+        _ = self.blob_with_timeout(timeout=timeout)
         # Files included in the environment
         yield from self._mfcontent.content_names()
 
@@ -355,7 +362,7 @@ class MetaflowPackage(object):
 
     def show(self, timeout: Optional[float] = None) -> str:
         # Human-readable content of the package
-        blob = self.blob(timeout=timeout)  # Ensure the package is created
+        blob = self.blob_with_timeout(timeout=timeout)  # Ensure the package is created
         lines = [
             f"Package size: {self._format_size(len(blob))}",
             f"Number of files: {sum(1 for _ in self.path_tuples())}",
@@ -405,7 +412,7 @@ class MetaflowPackage(object):
             The content of the file. If the file is not found, None is returned.
         """
         # Wait for at least the blob to be formed
-        _ = self.blob(timeout=timeout)
+        _ = self.blob_with_timeout(timeout=timeout)
         if content_type == ContentType.USER_CONTENT:
             for path, arcname in self.user_tuples():
                 if name == arcname:
@@ -443,7 +450,7 @@ class MetaflowPackage(object):
         content_types : int, default ALL_CONTENT
             The types of content to extract.
         """
-        _ = self.blob(timeout=timeout)  # Ensure the package is created
+        _ = self.blob_with_timeout(timeout=timeout)  # Ensure the package is created
         member_list = []
         if content_types & ContentType.USER_CONTENT.value:
             member_list.extend(

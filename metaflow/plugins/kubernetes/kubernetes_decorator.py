@@ -324,7 +324,7 @@ class KubernetesDecorator(StepDecorator):
         self.logger = logger
         self.environment = environment
         self.step = step
-        self._flow_datastore = flow_datastore
+        self.flow_datastore = flow_datastore
 
         if (
             self.attributes["qos"] is not None
@@ -463,7 +463,7 @@ class KubernetesDecorator(StepDecorator):
         # access to the code package. We store the package in the datastore
         # which the pod is able to download as part of it's entrypoint.
         if not is_cloned:
-            self._save_package_once(self.package, self._flow_datastore)
+            self._save_package_once(self.flow_datastore, self.package)
 
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context
@@ -643,7 +643,7 @@ class KubernetesDecorator(StepDecorator):
             pass
 
     @classmethod
-    def _save_package_once(cls, package, flow_datastore):
+    def _save_package_once(cls, flow_datastore, package):
         if cls.package_url is None:
             if not FEAT_ALWAYS_UPLOAD_CODE_PACKAGE:
                 cls.package_url, cls.package_sha = flow_datastore.save_data(

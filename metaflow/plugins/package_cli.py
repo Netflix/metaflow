@@ -42,7 +42,7 @@ def info(obj):
 )
 @click.pass_obj
 def list(obj, archive=False):
-    _ = obj.package.blob(timeout=obj.package_op_timeout)
+    _ = obj.package.blob_with_timeout(timeout=obj.package_op_timeout)
     # We now have all the information about the blob
     obj.echo(
         "Files included in the code package (change with --package-suffixes):",
