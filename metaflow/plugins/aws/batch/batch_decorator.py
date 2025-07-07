@@ -191,7 +191,7 @@ class BatchDecorator(StepDecorator):
         self.logger = logger
         self.environment = environment
         self.step = step
-        self._flow_datastore = flow_datastore
+        self.flow_datastore = flow_datastore
 
         self.attributes.update(
             compute_resource_attributes(decos, self, self.resource_defaults)
@@ -220,7 +220,7 @@ class BatchDecorator(StepDecorator):
         self, task_datastore, task_id, split_index, input_paths, is_cloned, ubf_context
     ):
         if not is_cloned:
-            self._save_package_once(self.package, self._flow_datastore)
+            self._save_package_once(self.flow_datastore, self.package)
 
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context
@@ -404,7 +404,7 @@ class BatchDecorator(StepDecorator):
         )
 
     @classmethod
-    def _save_package_once(cls, package, flow_datastore):
+    def _save_package_once(cls, flow_datastore, package):
         if cls.package_url is None:
             if not FEAT_ALWAYS_UPLOAD_CODE_PACKAGE:
                 cls.package_url, cls.package_sha = flow_datastore.save_data(
