@@ -18,6 +18,7 @@ CLIS_DESC = [
     ("tag", ".tag_cli.cli"),
     ("spot-metadata", ".kubernetes.spot_metadata_cli.cli"),
     ("logs", ".logs_cli.cli"),
+    ("nomad", ".nomad.nomad_cli.cli"),
 ]
 
 # Add additional commands to the runner here
@@ -55,6 +56,7 @@ STEP_DECORATORS_DESC = [
     ("airflow_internal", ".airflow.airflow_decorator.AirflowInternalDecorator"),
     ("pypi", ".pypi.pypi_decorator.PyPIStepDecorator"),
     ("conda", ".pypi.conda_decorator.CondaStepDecorator"),
+    ("nomad", ".nomad.nomad_decorator.NomadDecorator"),
 ]
 
 # Add new flow decorators here

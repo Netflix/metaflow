@@ -395,6 +395,37 @@ ARGO_WORKFLOWS_ENV_VARS_TO_SKIP = from_conf("ARGO_WORKFLOWS_ENV_VARS_TO_SKIP", "
 KUBERNETES_JOBSET_GROUP = from_conf("KUBERNETES_JOBSET_GROUP", "jobset.x-k8s.io")
 KUBERNETES_JOBSET_VERSION = from_conf("KUBERNETES_JOBSET_VERSION", "v1alpha2")
 
+###
+# Nomad Configuration
+###
+# Address of the Nomad server
+NOMAD_ADDRESS = from_conf("NOMAD_ADDRESS")
+# Default Nomad region to use for jobs
+NOMAD_REGION = from_conf("NOMAD_REGION", "global")
+# Default Nomad namespace to use for jobs
+NOMAD_NAMESPACE = from_conf("NOMAD_NAMESPACE", "default")
+# Nomad ACL token for authentication
+NOMAD_TOKEN = from_conf("NOMAD_TOKEN")
+# Path to client TLS certificate for mTLS with Nomad
+NOMAD_CLIENT_CERT = from_conf("NOMAD_CLIENT_CERT")
+# Path to client TLS key for mTLS with Nomad
+NOMAD_CLIENT_KEY = from_conf("NOMAD_CLIENT_KEY")
+# Path to CA certificate for verifying Nomad server's TLS certificate
+NOMAD_CACERT = from_conf("NOMAD_CACERT")
+# Whether to verify Nomad server's TLS certificate (True/False/path_to_ca_bundle)
+NOMAD_VERIFY_TLS = from_conf("NOMAD_VERIFY_TLS", True)
+# Default Docker image for Nomad tasks if not specified in decorator
+NOMAD_DEFAULT_IMAGE = from_conf("NOMAD_DEFAULT_IMAGE", DEFAULT_CONTAINER_IMAGE)
+# Default datacenters for Nomad jobs (comma-separated string e.g., "dc1,dc2")
+NOMAD_DEFAULT_DATACENTERS = from_conf("NOMAD_DEFAULT_DATACENTERS", "dc1")
+# Default CPU request for Nomad tasks in MHz
+METAFLOW_NOMAD_CPU = from_conf("METAFLOW_NOMAD_CPU", "1000")
+# Default memory request for Nomad tasks in MB
+METAFLOW_NOMAD_MEMORY = from_conf("METAFLOW_NOMAD_MEMORY", "4096")
+# Default disk request for Nomad tasks in MB
+METAFLOW_NOMAD_DISK = from_conf("METAFLOW_NOMAD_DISK", "10240")
+
+
 ##
 # Argo Events Configuration
 ##
