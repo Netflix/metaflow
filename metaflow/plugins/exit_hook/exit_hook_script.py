@@ -1,16 +1,29 @@
+import os
 import inspect
 import importlib
 import sys
-import os
 
 
-def main(flow_file, fn_name, run_pathspec):
-    flow_import = flow_file.rstrip(".py")
+def main(flow_file, fn_name_or_path, run_pathspec):
+    hook_fn = None
 
-    tempflow = importlib.import_module(flow_import)
-
-    # hook_fn
-    hook_fn = getattr(tempflow, fn_name)
+    try:
+        module_path, function_name = fn_name_or_path.rsplit(".", 1)
+        module = importlib.import_module(module_path)
+        hook_fn = getattr(module, function_name)
+    except (ImportError, AttributeError, ValueError):
+        try:
+            module_name = os.path.splitext(os.path.basename(flow_file))[0]
+            spec = importlib.util.spec_from_file_location(module_name, flow_file)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            hook_fn = getattr(module, fn_name_or_path)
+        except (AttributeError, IOError) as e:
+            print(
+                f"[exit_hook] Could not load function '{fn_name_or_path}' "
+                f"as an import path or from '{flow_file}': {e}"
+            )
+            sys.exit(1)
 
     argspec = inspect.getfullargspec(hook_fn)
 

@@ -26,7 +26,21 @@ class ExitHookDecorator(FlowDecorator):
         self.success_hooks = []
         self.error_hooks = []
         for success_fn in on_success:
-            self.success_hooks.append(success_fn.__name__)
+            if isinstance(success_fn, str):
+                self.success_hooks.append(success_fn)
+            elif callable(success_fn):
+                self.success_hooks.append(success_fn.__name__)
+            else:
+                raise ValueError(
+                    "Exit hooks inside 'on_success' must be a function or a string referring to the function"
+                )
 
         for error_fn in on_error:
-            self.error_hooks.append(error_fn.__name__)
+            if isinstance(error_fn, str):
+                self.error_hooks.append(error_fn)
+            elif callable(error_fn):
+                self.error_hooks.append(error_fn.__name__)
+            else:
+                raise ValueError(
+                    "Exit hooks inside 'on_error' must be a function or a string referring to the function"
+                )
