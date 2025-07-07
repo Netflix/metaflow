@@ -77,7 +77,7 @@ class CondaEnvironment(MetaflowEnvironment):
         micromamba = Micromamba(self.logger, self._force_rebuild)
         self.solvers = {"conda": micromamba, "pypi": Pip(micromamba, self.logger)}
 
-    def init_environment(self, echo, package, only_steps=None):
+    def init_environment(self, echo, only_steps=None):
         # The implementation optimizes for latency to ensure as many operations can
         # be turned into cheap no-ops as feasible. Otherwise, we focus on maintaining
         # a balance between latency and maintainability of code without re-implementing
@@ -85,8 +85,6 @@ class CondaEnvironment(MetaflowEnvironment):
 
         # TODO: Introduce verbose logging
         #       https://github.com/Netflix/metaflow/issues/1494
-
-        super().init_environment(echo, package)
 
         def environments(type_):
             seen = set()

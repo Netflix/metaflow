@@ -479,6 +479,7 @@ class Airflow(object):
                 node.name,
                 AIRFLOW_MACROS.create_task_id(self.contains_foreach),
                 AIRFLOW_MACROS.ATTEMPT,
+                code_package_metadata=self.code_package_metadata,
                 code_package_url=self.code_package_url,
                 step_cmds=self._step_cli(
                     node, input_paths, self.code_package_url, user_code_retries
