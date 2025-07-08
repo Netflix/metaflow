@@ -1,3 +1,4 @@
+import json
 import os
 import platform
 import sys
@@ -195,11 +196,13 @@ class MetaflowEnvironment(object):
         # there is no additional information, we *assume* that it is the default
         # used.
         if code_package_metadata is None:
-            code_package_metadata = {
-                "version": 0,
-                "archive_format": "tgz",
-                "mfcontent_version": 1,
-            }
+            code_package_metadata = json.dumps(
+                {
+                    "version": 0,
+                    "archive_format": "tgz",
+                    "mfcontent_version": 1,
+                }
+            )
         cmds = (
             [
                 BASH_MFLOG,
