@@ -24,7 +24,7 @@ from contextlib import contextmanager
 
 from . import get_namespace
 from .metadata_provider import MetaDatum
-from .metaflow_config import MAX_ATTEMPTS, UI_URL
+from .metaflow_config import FEAT_ALWAYS_UPLOAD_CODE_PACKAGE, MAX_ATTEMPTS, UI_URL
 from .exception import (
     MetaflowException,
     MetaflowInternalError,
@@ -108,6 +108,7 @@ class NativeRuntime(object):
         self._flow_datastore = flow_datastore
         self._metadata = metadata
         self._environment = environment
+        self._package = package
         self._logger = logger
         self._max_workers = max_workers
         self._active_tasks = dict()  # Key: step name;
@@ -671,7 +672,6 @@ class NativeRuntime(object):
     # Given the current task information (task_index), the type of transition,
     # and the split index, return the new task index.
     def _translate_index(self, task, next_step, type, split_index=None):
-
         match = re.match(r"^(.+)\[(.*)\]$", task.task_index)
         if match:
             _, foreach_index = match.groups()
@@ -1009,6 +1009,22 @@ class NativeRuntime(object):
             # Initialize the task (which can be expensive using remote datastores)
             # before launching the worker so that cost is amortized over time, instead
             # of doing it during _queue_push.
+            if (
+                FEAT_ALWAYS_UPLOAD_CODE_PACKAGE
+                and "METAFLOW_CODE_SHA" not in os.environ
+            ):
+                # We check if the code package is uploaded and, if so, we set the
+                # environment variables that will cause the metadata service to
+                # register the code package with the task created in _new_task below
+                code_sha = self._package.package_sha(timeout=0.01)
+                if code_sha:
+                    os.environ["METAFLOW_CODE_SHA"] = code_sha
+                    os.environ["METAFLOW_CODE_URL"] = self._package.package_url()
+                    os.environ["METAFLOW_CODE_DS"] = self._flow_datastore.TYPE
+                    os.environ["METAFLOW_CODE_METADATA"] = (
+                        self._package.package_metadata
+                    )
+
             task = self._new_task(step, **task_kwargs)
             self._launch_worker(task)
 

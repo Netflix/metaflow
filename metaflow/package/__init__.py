@@ -530,7 +530,6 @@ class MetaflowPackage(object):
                 )
 
             self._blob = self._make()
-
             if self._flow_datastore:
                 if len(self._blob) > 100 * 1024 * 1024:
                     self._echo(
