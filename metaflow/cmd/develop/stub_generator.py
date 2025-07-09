@@ -7,7 +7,6 @@ import pathlib
 import re
 import time
 import typing
-
 from datetime import datetime
 from io import StringIO
 from types import ModuleType
@@ -335,6 +334,8 @@ class StubGenerator:
 
         # Imports that are needed at the top of the file
         self._imports = set()  # type: Set[str]
+
+        self._sub_module_imports = set()  # type: Set[Tuple[str, str]]``
         # Typing imports (behind if TYPE_CHECKING) that are needed at the top of the file
         self._typing_imports = set()  # type: Set[str]
         # Typevars that are defined
@@ -642,6 +643,21 @@ class StubGenerator:
                 self._deployer_injected_methods.setdefault(clazz_type, {})[
                     "deployer"
                 ] = (self._current_module_name + "." + name)
+
+        # Handle TypedDict gracefully for Python 3.7 compatibility
+        # _TypedDictMeta is not available in Python 3.7
+        typed_dict_meta = getattr(typing, "_TypedDictMeta", None)
+        if typed_dict_meta is not None and isinstance(clazz, typed_dict_meta):
+            self._sub_module_imports.add(("typing", "TypedDict"))
+            total_flag = getattr(clazz, "__total__", False)
+            buff = StringIO()
+            # Emit the TypedDict base and total flag
+            buff.write(f"class {name}(TypedDict, total={total_flag}):\n")
+            # Write out each field from __annotations__
+            for field_name, field_type in clazz.__annotations__.items():
+                ann = self._get_element_name_with_module(field_type)
+                buff.write(f"{TAB}{field_name}: {ann}\n")
+            return buff.getvalue()
 
         buff = StringIO()
         # Class prototype
@@ -987,7 +1003,6 @@ class StubGenerator:
         ]
 
         docs = split_docs(raw_doc, section_boundaries)
-
         parameters, no_arg_version = parse_params_from_doc(docs["param_doc"])
 
         if docs["add_to_current_doc"]:
@@ -1515,6 +1530,8 @@ class StubGenerator:
                     f.write("import " + module + "\n")
                     if module == "typing":
                         imported_typing = True
+                for module, sub_module in self._sub_module_imports:
+                    f.write(f"from {module} import {sub_module}\n")
                 if self._typing_imports:
                     if not imported_typing:
                         f.write("import typing\n")
