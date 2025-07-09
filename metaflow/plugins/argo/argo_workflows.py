@@ -2374,7 +2374,8 @@ class ArgoWorkflows(object):
                 kubernetes_sdk.V1Container(
                     name="main",
                     command=cmds,
-                    image=deco.attributes["image"] or resources["image"],
+                    image=deco.attributes["options"].get("image", None)
+                    or resources["image"],
                     env=[
                         kubernetes_sdk.V1EnvVar(name=k, value=str(v))
                         for k, v in env.items()

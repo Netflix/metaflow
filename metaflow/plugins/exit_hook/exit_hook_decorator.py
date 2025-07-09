@@ -7,9 +7,9 @@ class ExitHookDecorator(FlowDecorator):
     allow_multiple = True
 
     defaults = {
-        "image": None,
         "on_success": [],
         "on_error": [],
+        "options": {},
     }
 
     def flow_init(
