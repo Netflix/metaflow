@@ -644,7 +644,10 @@ class StubGenerator:
                     "deployer"
                 ] = (self._current_module_name + "." + name)
 
-        if isinstance(clazz, typing._TypedDictMeta):
+        # Handle TypedDict gracefully for Python 3.7 compatibility
+        # _TypedDictMeta is not available in Python 3.7
+        typed_dict_meta = getattr(typing, "_TypedDictMeta", None)
+        if typed_dict_meta is not None and isinstance(clazz, typed_dict_meta):
             self._sub_module_imports.add(("typing", "TypedDict"))
             total_flag = getattr(clazz, "__total__", False)
             buff = StringIO()
