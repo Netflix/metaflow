@@ -103,13 +103,7 @@ class FlowMutatorMeta(type):
         if not mcs._all_registered_decorators.inited:
             from metaflow.plugins import FLOW_DECORATORS
 
-            mcs._all_registered_decorators.init(
-                [
-                    (t.name, t)
-                    for t in FLOW_DECORATORS
-                    if not t.name.endswith("_internal")
-                ]
-            )
+            mcs._all_registered_decorators.init([(t.name, t) for t in FLOW_DECORATORS])
 
 
 class FlowMutator(metaclass=FlowMutatorMeta):

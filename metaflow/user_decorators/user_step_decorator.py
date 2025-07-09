@@ -37,7 +37,10 @@ class UserStepDecoratorMeta(type):
         ) and not effective_module.startswith("metaflow_extensions."):
             mcs._import_modules.add(effective_module)
 
-        if cls.decorator_name in mcs._do_not_register:
+        if (
+            name in ("FlowMutator", "UserStepDecorator")
+            or cls.decorator_name in mcs._do_not_register
+        ):
             return cls
 
         # We inject a __init_subclass__ method so we can figure out if there
@@ -123,13 +126,7 @@ class UserStepDecoratorMeta(type):
         if not mcs._all_registered_decorators.inited:
             from metaflow.plugins import STEP_DECORATORS
 
-            mcs._all_registered_decorators.init(
-                [
-                    (t.name, t)
-                    for t in STEP_DECORATORS
-                    if not t.name.endswith("_internal")
-                ]
-            )
+            mcs._all_registered_decorators.init([(t.name, t) for t in STEP_DECORATORS])
 
 
 class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):

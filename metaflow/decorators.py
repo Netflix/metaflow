@@ -61,7 +61,13 @@ class UnknownStepDecoratorException(MetaflowException):
     headline = "Unknown step decorator"
 
     def __init__(self, deconame):
-        decos = ", ".join(UserStepDecoratorMeta.all_decorators().keys())
+        decos = ", ".join(
+            [
+                x
+                for x in UserStepDecoratorMeta.all_decorators().keys()
+                if not x.endswith("_internal")
+            ]
+        )
 
         msg = (
             "Unknown step decorator *{deconame}*. The following decorators are "
