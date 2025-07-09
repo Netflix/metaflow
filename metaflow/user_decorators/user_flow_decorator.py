@@ -1,5 +1,4 @@
-import sys
-from typing import Dict, Optional, TYPE_CHECKING
+from typing import Dict, Optional, Union, TYPE_CHECKING
 
 from metaflow.exception import MetaflowException
 from metaflow.user_configs.config_parameters import (
@@ -7,35 +6,110 @@ from metaflow.user_configs.config_parameters import (
     unpack_delayed_evaluator,
 )
 
+from .common import ClassPath_Trie
+
 if TYPE_CHECKING:
     import metaflow.flowspec
     import metaflow.user_decorators.mutable_flow
 
 
 class FlowMutatorMeta(type):
-    _all_registered_decorators = {}
+    _all_registered_decorators = ClassPath_Trie()
+    _do_not_register = set()
+    _import_modules = set()
 
     def __new__(mcs, name, bases, namespace):
         cls = super().__new__(mcs, name, bases, namespace)
         cls.decorator_name = getattr(
             cls, "_decorator_name", f"{cls.__module__}.{cls.__name__}"
         )
-        # We inject `METAFLOW_PACKAGE` in the module so that this gets packaged
         if not cls.__module__.startswith("metaflow.") and not cls.__module__.startswith(
             "metaflow_extensions."
         ):
-            setattr(sys.modules[cls.__module__], "METAFLOW_PACKAGE", 1)
+            mcs._import_modules.add(cls.__module__)
 
-        if name != "FlowMutator":
-            mcs._all_registered_decorators[name] = cls
+        if name == "FlowMutator" or cls.decorator_name in mcs._do_not_register:
+            return cls
+
+        # We inject a __init_subclass__ method so we can figure out if there
+        # are subclasses. We want to register as decorators only the ones that do
+        # not have a subclass. The logic is that everything is registered and if
+        # a subclass shows up, we will unregister the parent class leaving only those
+        # classes that do not have any subclasses registered.
+        @classmethod
+        def do_unregister(cls_, **_kwargs):
+            for base in cls_.__bases__:
+                if isinstance(base, FlowMutatorMeta):
+                    # If the base is a FlowMutatorMeta, we unregister it
+                    # so that we don't have any decorators that are not the
+                    # most derived one.
+                    mcs._all_registered_decorators.remove(base.decorator_name)
+                    # Also make sure we don't register again
+                    mcs._do_not_register.add(base.decorator_name)
+
+        cls.__init_subclass__ = do_unregister
+        mcs._all_registered_decorators.insert(cls.decorator_name, cls)
         return cls
 
     @classmethod
     def all_decorators(mcs) -> Dict[str, "FlowMutatorMeta"]:
-        return mcs._all_registered_decorators
+        mcs._check_init()
+        return mcs._all_registered_decorators.get_unique_prefixes()
 
     def __str__(cls):
         return "FlowMutator(%s)" % cls.decorator_name
+
+    @classmethod
+    def get_decorator_by_name(
+        mcs, decorator_name: str
+    ) -> Optional[Union["FlowDecoratorMeta", "metaflow.decorators.Decorator"]]:
+        """
+        Get a decorator by its name.
+
+        Parameters
+        ----------
+        decorator_name: str
+            The name of the decorator to retrieve.
+
+        Returns
+        -------
+        Optional[FlowDecoratorMeta]
+            The decorator class if found, None otherwise.
+        """
+        mcs._check_init()
+        return mcs._all_registered_decorators.unique_prefix_value(decorator_name)
+
+    @classmethod
+    def get_decorator_name(mcs, decorator_type: type) -> Optional[str]:
+        """
+        Get the minimally unique classpath name for a decorator type.
+
+        Parameters
+        ----------
+        decorator_type: type
+            The type of the decorator to retrieve the name for.
+
+        Returns
+        -------
+        Optional[str]
+            The minimally unique classpath name if found, None otherwise.
+        """
+        mcs._check_init()
+        return mcs._all_registered_decorators.unique_prefix_for_type(decorator_type)
+
+    @classmethod
+    def _check_init(mcs):
+        # Delay importing STEP_DECORATORS until we actually need it
+        if not mcs._all_registered_decorators.inited:
+            from metaflow.plugins import FLOW_DECORATORS
+
+            mcs._all_registered_decorators.init(
+                [
+                    (t.name, t)
+                    for t in FLOW_DECORATORS
+                    if not t.name.endswith("_internal")
+                ]
+            )
 
 
 class FlowMutator(metaclass=FlowMutatorMeta):

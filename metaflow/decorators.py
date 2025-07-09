@@ -21,7 +21,7 @@ from .user_configs.config_parameters import (
 )
 from .user_decorators.mutable_flow import MutableFlow
 from .user_decorators.mutable_step import MutableStep
-from .user_decorators.user_flow_decorator import FlowMutator
+from .user_decorators.user_flow_decorator import FlowMutator, FlowMutatorMeta
 from .user_decorators.user_step_decorator import (
     StepMutator,
     UserStepDecoratorBase,
@@ -87,9 +87,7 @@ class UnknownFlowDecoratorException(MetaflowException):
     headline = "Unknown flow decorator"
 
     def __init__(self, deconame):
-        from .plugins import FLOW_DECORATORS
-
-        decos = ", ".join(t.name for t in FLOW_DECORATORS)
+        decos = ", ".join(FlowMutatorMeta.all_decorators().keys())
         msg = (
             "Unknown flow decorator *{deconame}*. The following decorators are "
             "supported: *{decos}*".format(deconame=deconame, decos=decos)
@@ -567,15 +565,8 @@ def get_all_flow_decos():
 def extract_step_decorator_from_decospec(decospec: str):
     splits = decospec.split(":", 1)
     deconame = splits[0]
-    # Check if this is a Metaflow decorator (ie: provided as a StepDecorator)
-    deco_cls = get_all_step_decos().get(deconame)
-    if deco_cls is not None:
-        return (
-            deco_cls.parse_decorator_spec(splits[1] if len(splits) > 1 else ""),
-            len(splits) > 1,
-        )
 
-    # Check if it is a user-defined decorator
+    # Check if it is a user-defined decorator or metaflow decorator
     deco_cls = UserStepDecoratorMeta.get_decorator_by_name(deconame)
     if deco_cls is not None:
         return (
@@ -612,7 +603,8 @@ def extract_step_decorator_from_decospec(decospec: str):
 def extract_flow_decorator_from_decospec(decospec: str):
     splits = decospec.split(":", 1)
     deconame = splits[0]
-    deco_cls = get_all_flow_decos().get(deconame)
+    # Check if it is a user-defined decorator or metaflow decorator
+    deco_cls = FlowMutatorMeta.get_decorator_by_name(deconame)
     if deco_cls is not None:
         return (
             deco_cls.parse_decorator_spec(splits[1] if len(splits) > 1 else ""),

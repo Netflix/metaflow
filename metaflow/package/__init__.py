@@ -17,7 +17,6 @@ from ..packaging_sys.utils import suffix_filter, walk
 from ..metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from ..exception import MetaflowException
 from ..user_configs.config_parameters import dump_config_values
-from ..util import get_metaflow_root
 from .. import R
 
 DEFAULT_SUFFIXES_LIST = DEFAULT_PACKAGE_SUFFIXES.split(",")
@@ -72,10 +71,27 @@ class MetaflowPackage(object):
         else:
             self._suffixes = None
 
+        def _module_selector(m) -> bool:
+            from ..user_decorators.user_flow_decorator import FlowMutatorMeta
+            from ..user_decorators.user_step_decorator import UserStepDecoratorMeta
+
+            if (
+                m.__name__ in FlowMutatorMeta._import_modules
+                or m.__name__ in UserStepDecoratorMeta._import_modules
+                or hasattr(m, "METAFLOW_PACKAGE")
+            ):
+                return True
+            # We also check the package of the module to see if METAFLOW_PACKAGE is
+            # set there
+            while hasattr(m, "__package__"):
+                m = sys.modules[m.__package__]
+                if hasattr(m, "METAFLOW_PACKAGE"):
+                    return True
+            return False
+
         if mfcontent is None:
-            self._mfcontent = MetaflowCodeContentV1(
-                criteria=lambda x: hasattr(x, "METAFLOW_PACKAGE"),
-            )
+            self._mfcontent = MetaflowCodeContentV1(criteria=_module_selector)
+
         else:
             self._mfcontent = mfcontent
         # We exclude the environment when packaging as this will be packaged separately.

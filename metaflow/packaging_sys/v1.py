@@ -354,11 +354,11 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
                 ), os.path.join(self._code_dir, MFCONTENT_MARKER)
             else:
                 for k in self._other_content.keys():
-                    yield "<generated content>", k
-                yield "<generated content>", os.path.join(
-                    self._other_dir, self._dist_info_file
-                )
-                yield "<generated content>", os.path.join(
+                    yield "<generated %s content>" % (os.path.basename(k)), k
+                yield "<generated %s content>" % (
+                    os.path.basename(self._dist_info_file)
+                ), os.path.join(self._other_dir, self._dist_info_file)
+                yield "<generated %s content>" % MFCONTENT_MARKER, os.path.join(
                     self._code_dir, MFCONTENT_MARKER
                 )
 
