@@ -58,7 +58,7 @@ class AddArgsDecorator(StepMutator):
 
     def mutate(self, mutable_step):
         mutable_step.add_decorator(
-            mutable_step.flow.cfg.args_decorator, **self.my_kwargs
+            mutable_step.flow.cfg.args_decorator, deco_kwargs=self.my_kwargs
         )
 
 

@@ -8,10 +8,17 @@ from my_decorators import (
 
 from hellodecos_base import MyBaseFlowSpec
 
-from metaflow import step
-from metaflow import Config
+from metaflow import step, environment, conda
+from metaflow import Config, FlowMutator
 
 
+class ListDecos(FlowMutator):
+    def mutate(self, mutable_flow):
+        for step_name, step in mutable_flow.steps:
+            print(step_name, list(step.decorator_specs))
+
+
+@ListDecos
 class DecoFlow(MyBaseFlowSpec):
     cfg = Config(
         "cfg",
@@ -22,6 +29,8 @@ class DecoFlow(MyBaseFlowSpec):
         },
     )
 
+    @conda(python="3.10.*")
+    @environment(vars={"FOO": 42})
     @step
     def start(self):
         print("Starting flow")

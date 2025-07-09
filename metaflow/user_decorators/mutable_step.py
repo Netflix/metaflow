@@ -75,13 +75,15 @@ class MutableStep:
     @property
     def decorator_specs(
         self,
-    ) -> Generator[Tuple[str, List[Any], Dict[str, Any]], None, None]:
+    ) -> Generator[Tuple[str, str, List[Any], Dict[str, Any]], None, None]:
         """
         Iterate over all the decorator specifications of this step. Note that the same
         type of decorator may be present multiple times and no order is guaranteed.
 
         The returned tuple contains:
-        - The decorator name
+        - The decorator's name (shortest possible)
+        - The decorator's fully qualified name (in the case of Metaflow decorators, this
+          will indicate which extension the decorator comes from)
         - A list of positional arguments
         - A dictionary of keyword arguments
 
@@ -89,22 +91,25 @@ class MutableStep:
 
         Yields
         ------
-        str, List[Any], Dict[str, Any]
-            A tuple containing the decorator name, a list of positional arguments, and
-            a dictionary of keyword arguments.
+        str, str, List[Any], Dict[str, Any]
+            A tuple containing the decorator name, it's fully qualified name,
+            a list of positional arguments, and a dictionary of keyword arguments.
         """
         for deco in self._my_step.decorators:
-            yield deco.name, *deco.get_args_kwargs()
+            yield deco.name, "%s.%s" % (
+                deco.__class__.__module__,
+                deco.__class__.__name__,
+            ), *deco.get_args_kwargs()
 
         for deco in self._my_step.wrappers:
             yield UserStepDecoratorBase.get_decorator_name(
-                deco
-            ), *deco.get_args_kwargs()
+                deco.__class__
+            ), deco.decorator_name, *deco.get_args_kwargs()
 
         for deco in self._my_step.config_decorators:
             yield UserStepDecoratorBase.get_decorator_name(
-                deco
-            ), *deco.get_args_kwargs()
+                deco.__class__
+            ), deco.decorator_name, *deco.get_args_kwargs()
 
     def add_decorator(
         self,
@@ -201,7 +206,7 @@ class MutableStep:
                 step_deco.inserted_by = self._inserted_by
                 self._my_step.decorators.append(step_deco)
                 debug.userconf_exec(
-                    "Mutable step adding step decorator '%s' to step '%s' (from str)"
+                    "Mutable step adding step decorator '%s' to step '%s'"
                     % (deco_type, self._my_step.name)
                 )
 
@@ -354,7 +359,10 @@ class MutableStep:
                     if deco.decorator_name == canonical_deco_type.decorator_name:
                         if do_all:
                             continue  # We remove all decorators with this name
-                        if deco.get_args_kwargs() == (deco_args, deco_kwargs):
+                        if deco.get_args_kwargs() == (
+                            deco_args or [],
+                            deco_kwargs or {},
+                        ):
                             if not self._pre_mutate and isinstance(deco, StepMutator):
                                 raise MetaflowException(
                                     "Removing step mutator '%s' from %s is only allowed in the "

@@ -1,5 +1,5 @@
 from functools import partial
-from typing import Generator, Optional, Tuple, TYPE_CHECKING, Union
+from typing import Any, Dict, Generator, List, Optional, Tuple, TYPE_CHECKING, Union
 
 from metaflow.debug import debug
 from metaflow.exception import MetaflowException
@@ -12,6 +12,10 @@ if TYPE_CHECKING:
 
 
 class MutableFlow:
+    IGNORE = 1
+    ERROR = 2
+    OVERRIDE = 3
+
     def __init__(
         self,
         flow_spec: "metaflow.flowspec.FlowSpec",
@@ -34,28 +38,35 @@ class MutableFlow:
             )
 
     @property
-    def decorator_specs(self) -> Generator[str, None, None]:
+    def decorator_specs(
+        self,
+    ) -> Generator[Tuple[str, str, List[Any], Dict[str, Any]], None, None]:
         """
         Iterate over all the decorator specifications of this flow. Note that the same
         type of decorator may be present multiple times and no order is guaranteed.
-        A decorator specification has the following format:
-        `<decorator_name>:<arg1>=<value1>,<arg2>=<value2>,...`.
+
+        The returned tuple contains:
+        - The decorator's name (shortest possible)
+        - The decorator's fully qualified name (in the case of Metaflow decorators, this
+          will indicate which extension the decorator comes from)
+        - A list of positional arguments
+        - A dictionary of keyword arguments
 
         You can use the decorator specification to remove a decorator from the flow
         for example.
 
         Yields
         ------
-        str
-            A string representing the decorator.
+        str, str, List[Any], Dict[str, Any]
+            A tuple containing the decorator name, it's fully qualified name,
+            a list of positional arguments, and a dictionary of keyword arguments.
         """
         for decos in self._flow_cls._flow_decorators.values():
             for deco in decos:
-                r = deco.make_decorator_spec()
-                debug.userconf_exec(
-                    "Mutable flow yielding flow decorator specification: %s" % r
-                )
-                yield r
+                yield deco.name, "%s.%s" % (
+                    deco.__class__.__module__,
+                    deco.__class__.__name__,
+                ), *deco.get_args_kwargs()
 
     @property
     def configs(self) -> Generator[Tuple[str, ConfigValue], None, None]:
@@ -226,19 +237,28 @@ class MutableFlow:
         )
         return False
 
-    def add_decorator(self, deco_type: Union[partial, str], **kwargs) -> None:
+    def add_decorator(
+        self,
+        deco_type: Union[partial, str],
+        deco_args: Optional[List[Any]] = None,
+        deco_kwargs: Optional[Dict[str, Any]] = None,
+        duplicates: int = IGNORE,
+    ) -> None:
         """
         Add a Metaflow flow-decorator to a flow. You can only add decorators in the
         `pre_mutate` method.
 
-        You can add either a Metaflow decorator directly or its decorator
-        specification for it (the same you would get back from decorator_specs).
+        You can either add the decorator itself or its decorator specification for it
+        (the same you would get back from decorator_specs). You can also mix and match
+        but you cannot provide arguments both through the string and the
+        deco_args/deco_kwargs.
+
         As an example:
         ```
         from metaflow import project
 
         ...
-        my_flow.add_decorator(project, name="my_project")
+        my_flow.add_decorator(project, deco_kwargs={"name":"my_project"})
         ```
 
         is equivalent to:
@@ -251,12 +271,34 @@ class MutableFlow:
         The latter syntax is useful to, for example, allow decorators to be stored as
         strings in a configuration file.
 
+        In terms of precedence for decorators:
+          - if a decorator can be applied multiple times all decorators
+            added are kept (this is rare for flow-decorators).
+          - if `duplicates` is set to `MutableFlow.IGNORE`, then the decorator
+            being added is ignored (in other words, the existing decorator has precedence).
+          - if `duplicates` is set to `MutableFlow.OVERRIDE`, then the *existing*
+            decorator is removed and this newly added one replaces it (in other
+            words, the newly added decorator has precedence).
+          - if `duplicates` is set to `MutableFlow.ERROR`, then an error is raised but only
+            if the newly added decorator is *static* (ie: defined directly in the code).
+            If not, it is ignored.
+
         Parameters
         ----------
         deco_type : Union[partial, str]
             The decorator class to add to this flow. If using a string, you cannot specify
             additional arguments as all argument will be parsed from the decorator
             specification.
+        deco_args : List[Any], optional, default None
+            Positional arguments to pass to the decorator.
+        deco_kwargs : Dict[str, Any], optional, default None
+            Keyword arguments to pass to the decorator.
+        duplicates : int, default MutableFlow.IGNORE
+            Instruction on how to handle duplicates. It can be one of:
+            - `MutableFlow.IGNORE`: Ignore the decorator if it already exists.
+            - `MutableFlow.ERROR`: Raise an error if the decorator already exists.
+            - `MutableFlow.OVERRIDE`: Remove the existing decorator and add this one.
+
         """
         if not self._pre_mutate:
             raise MetaflowException(
@@ -274,36 +316,73 @@ class MutableFlow:
             extract_flow_decorator_from_decospec,
         )
 
+        deco_args = deco_args or []
+        deco_kwargs = deco_kwargs or {}
+
+        def _add_flow_decorator(flow_deco):
+            if deco_args:
+                raise MetaflowException(
+                    "Flow decorators do not take additional positional arguments"
+                )
+            # Update kwargs:
+            flow_deco.attributes.update(deco_kwargs)
+
+            # Check duplicates
+            def _do_add():
+                flow_deco.statically_defined = self._statically_defined
+                flow_deco.inserted_by = self._inserted_by
+                self._flow_cls._flow_decorators.setdefault(flow_deco.name, []).append(
+                    flow_deco
+                )
+                debug.userconf_exec(
+                    "Mutable flow adding flow decorator '%s'" % deco_type
+                )
+
+            existing_deco = [
+                d for d in self._flow_cls._flow_decorators if d.name == flow_deco.name
+            ]
+
+            if flow_deco.allow_multiple or not existing_deco:
+                _do_add()
+            elif duplicates == MutableFlow.IGNORE:
+                # If we ignore, we do not add the decorator
+                debug.userconf_exec(
+                    "Mutable flow ignoring flow decorator '%s'"
+                    "(already exists and duplicates are ignored)" % flow_deco.name
+                )
+            elif duplicates == MutableFlow.OVERRIDE:
+                # If we override, we remove the existing decorator and add this one
+                debug.userconf_exec(
+                    "Mutable flow overriding flow decorator '%s' "
+                    "(removing existing decorator and adding new one)" % flow_deco.name
+                )
+                self._flow_cls._flow_decorators = [
+                    d
+                    for d in self._flow_cls._flow_decorators
+                    if d.name != flow_deco.name
+                ]
+                _do_add()
+            elif duplicates == MutableFlow.ERROR:
+                # If we error, we raise an exception
+                if self._statically_defined:
+                    raise DuplicateFlowDecoratorException(flow_deco.name)
+                else:
+                    debug.userconf_exec(
+                        "Mutable flow ignoring flow decorator '%s' "
+                        "(already exists and non statically defined)" % flow_deco.name
+                    )
+            else:
+                raise ValueError("Invalid duplicates value: %s" % duplicates)
+
         # If deco_type is a string, we want to parse it to a decospec
         if isinstance(deco_type, str):
-            if kwargs:
+            flow_deco, has_args_kwargs = extract_flow_decorator_from_decospec(deco_type)
+            if (deco_args or deco_kwargs) and has_args_kwargs:
                 raise MetaflowException(
                     "Cannot specify additional arguments when adding a flow decorator "
-                    "using a decospec"
+                    "using a decospec that already contains arguments"
                 )
-            flow_deco, has_kwargs = extract_flow_decorator_from_decospec(deco_type)
-            if kwargs:
-                if has_kwargs:
-                    raise MetaflowException(
-                        "Cannot specify additional arguments when adding a flow decorator "
-                        "using a decospec that already contains arguments"
-                    )
-                else:
-                    flow_deco.attributes.update(kwargs)
-            flow_deco.statically_defined = self._statically_defined
-            flow_deco.inserted_by = self._inserted_by
-            # Check duplicates
-            if (
-                flow_deco.name in self._flow_cls._flow_decorators
-                and not flow_deco.allow_multiple
-            ):
-                raise DuplicateFlowDecoratorException(flow_deco.name)
-            debug.userconf_exec(
-                "Mutable flow adding decorator '%s' to flow (from str)" % flow_deco.name
-            )
-            self._flow_cls._flow_decorators.setdefault(flow_deco.name, []).append(
-                flow_deco
-            )
+            _add_flow_decorator(flow_deco)
             return
 
         # Validate deco_type
@@ -315,24 +394,20 @@ class MutableFlow:
             raise TypeError("add_decorator takes a FlowDecorator")
 
         deco_type = deco_type.args[0]
-        if (
-            deco_type.name in self._flow_cls._flow_decorators
-            and not deco_type.allow_multiple
-        ):
-            raise DuplicateFlowDecoratorException(deco_type.name)
-
-        self._flow_cls._flow_decorators.setdefault(deco_type.name, []).append(
+        _add_flow_decorator(
             deco_type(
-                attributes=kwargs,
+                attributes=deco_kwargs,
                 statically_defined=self._statically_defined,
                 inserted_by=self._inserted_by,
             )
         )
-        debug.userconf_exec(
-            "Mutable flow adding decorator '%s' to flow" % deco_type.name
-        )
 
-    def remove_decorator(self, deco_spec: str) -> bool:
+    def remove_decorator(
+        self,
+        deco_name: str,
+        deco_args: Optional[List[Any]] = None,
+        deco_kwargs: Optional[Dict[str, Any]] = None,
+    ) -> bool:
         """
         Remove a flow-level decorator. To remove a decorator, you can pass the decorator
         specification (obtained from `decorator_specs` for example).
@@ -343,8 +418,13 @@ class MutableFlow:
 
         Parameters
         ----------
-        deco_spec : str
-            Decorator specification of the decorator to remove.
+        deco_name : str
+            Decorator specification of the decorator to remove. If nothing else is
+            specified, all decorators matching that name will be removed.
+        deco_args : List[Any], optional, default None
+            Positional arguments to match the decorator specification.
+        deco_kwargs : Dict[str, Any], optional, default None
+            Keyword arguments to match the decorator specification.
 
         Returns
         -------
@@ -355,29 +435,25 @@ class MutableFlow:
         if not self._pre_mutate:
             raise MetaflowException(
                 "Removing flow-decorator '%s' from %s is only allowed in the `pre_mutate` "
-                "method and not the `mutate` method" % (deco_spec, self._inserted_by)
+                "method and not the `mutate` method" % (deco_name, self._inserted_by)
             )
 
-        splits = deco_spec.split(":", 1)
-        deconame = splits[0]
-        new_deco_list = []
-        old_deco_list = self._flow_cls._flow_decorators.get(deconame)
-        if old_deco_list is None:
+        do_all = deco_args is None and deco_kwargs is None
+        did_remove = False
+        if do_all and deco_name in self._flow_cls._flow_decorators:
+            del self._flow_cls._flow_decorators[deco_name]
+            return True
+        old_deco_list = self._flow_cls._flow_decorators.get(deco_name)
+        if not old_deco_list:
             debug.userconf_exec(
                 "Mutable flow failed to remove decorator '%s' from flow (non present)"
-                % deco_spec
+                % deco_name
             )
             return False
-
-        did_remove = False
+        new_deco_list = []
         for deco in old_deco_list:
-            # Get the decospec and compare with the one passed in
-            to_compare_spec = deco.make_decorator_spec()
-            if to_compare_spec == deco_spec:
+            if deco.get_args_kwargs() == (deco_args or [], deco_kwargs or {}):
                 did_remove = True
-                debug.userconf_exec(
-                    "Mutable flow removing decorator '%s' from flow" % deco.name
-                )
             else:
                 new_deco_list.append(deco)
         debug.userconf_exec(
@@ -387,7 +463,7 @@ class MutableFlow:
         if new_deco_list:
             self._flow_cls._flow_decorators[deconame] = new_deco_list
         else:
-            del self._flow_cls._flow_decorators[deconame]
+            del self._flow_cls._flow_decorators[deco_name]
         return did_remove
 
     def __getattr__(self, name):
