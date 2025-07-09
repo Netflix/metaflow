@@ -607,7 +607,7 @@ class NativeRuntime(object):
                     result = (
                         subprocess.check_output(
                             args=[
-                                "python",
+                                sys.executable,
                                 "-m",
                                 "metaflow.plugins.exit_hook.exit_hook_script",
                                 flow_file,

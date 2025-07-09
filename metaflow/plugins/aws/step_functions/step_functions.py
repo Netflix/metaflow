@@ -304,7 +304,7 @@ class StepFunctions(object):
         if self.flow._flow_decorators.get("exit_hook"):
             raise StepFunctionsException(
                 "Deploying flows with the @exit_hook decorator "
-                "to AWS Step Functions is not supported currently."
+                "to AWS Step Functions is not currently supported."
             )
 
         # Visit every node of the flow and recursively build the state machine.

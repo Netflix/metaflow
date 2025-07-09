@@ -657,7 +657,7 @@ class Airflow(object):
         if self.flow._flow_decorators.get("exit_hook"):
             raise AirflowException(
                 "Deploying flows with the @exit_hook decorator "
-                "to Airflow is not supported currently."
+                "to Airflow is not currently supported."
             )
 
         # Visit every node of the flow and recursively build the state machine.
