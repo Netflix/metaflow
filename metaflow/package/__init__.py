@@ -83,7 +83,7 @@ class MetaflowPackage(object):
                 return True
             # We also check the package of the module to see if METAFLOW_PACKAGE is
             # set there
-            while hasattr(m, "__package__"):
+            while hasattr(m, "__package__") and m.__package__:
                 m = sys.modules[m.__package__]
                 if hasattr(m, "METAFLOW_PACKAGE"):
                     return True
