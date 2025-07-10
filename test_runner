@@ -25,6 +25,7 @@ run_switch_tests() {
   cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --switch --graphs switch_in_branch --tests SwitchInBranchTest && cd ../../
   cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --switch --graphs branch_in_switch --tests BranchInSwitchTest && cd ../../
   cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --switch --graphs foreach_in_switch --tests ForeachInSwitchTest && cd ../../
+  cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --switch --graphs switch_in_foreach --tests SwitchInForeachTest && cd ../../
 }
 
 # We run realtime cards tests separately because there these tests validate the asynchronous updates to the
