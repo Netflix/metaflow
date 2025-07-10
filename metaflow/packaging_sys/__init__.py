@@ -118,6 +118,25 @@ class MetaflowCodeContent:
         return handling_cls.get_filename_impl(mfcontent_info, filename, content_type)
 
     @classmethod
+    def get_env_vars_for_packaged_metaflow(
+        cls, dest_dir: str
+    ) -> Optional[Dict[str, str]]:
+        """
+        Get the environment variables that are needed to run Metaflow when it is
+        packaged. This is typically used to set the PYTHONPATH to include the
+        directory where the Metaflow code package has been extracted.
+
+        Returns
+        -------
+        Optional[Dict[str, str]]
+            The environment variables that are needed to run Metaflow when it is
+            packaged -- None if there are no such variables (not packaged for example)
+        """
+        mfcontent_info = cls._extract_mfcontent_info()
+        handling_cls = cls._get_mfcontent_class(mfcontent_info)
+        return handling_cls.get_post_extract_env_vars_impl(dest_dir)
+
+    @classmethod
     def get_archive_info(
         cls,
         archive: Any,

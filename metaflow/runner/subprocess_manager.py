@@ -9,6 +9,7 @@ import tempfile
 import threading
 from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
+from metaflow.packaging_sys import MetaflowCodeContent
 from .utils import check_process_exited
 
 
@@ -150,7 +151,10 @@ class SubprocessManager(object):
         int
             The process ID of the subprocess.
         """
-
+        updated_env = MetaflowCodeContent.get_env_vars_for_packaged_metaflow(cwd)
+        if updated_env:
+            env = env or {}
+            env.update(updated_env)
         command_obj = CommandManager(command, env, cwd)
         pid = command_obj.run(show_output=show_output)
         self.commands[pid] = command_obj
@@ -181,7 +185,10 @@ class SubprocessManager(object):
         int
             The process ID of the subprocess.
         """
-
+        updated_env = MetaflowCodeContent.get_env_vars_for_packaged_metaflow(cwd)
+        if updated_env:
+            env = env or {}
+            env.update(updated_env)
         command_obj = CommandManager(command, env, cwd)
         pid = await command_obj.async_run()
         self.commands[pid] = command_obj
