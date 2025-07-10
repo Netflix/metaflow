@@ -108,6 +108,7 @@ from .user_decorators.user_step_decorator import (
     UserStepDecorator,
     StepMutator,
     user_step_decorator,
+    USER_SKIP_STEP,
 )
 from .user_decorators.user_flow_decorator import FlowMutator
 

@@ -1,4 +1,4 @@
-from my_decorators import (
+from test_included_modules.my_decorators import (
     time_step,
     with_args,
     AddArgsDecorator,
@@ -6,6 +6,7 @@ from my_decorators import (
     SkipStep,
 )
 
+from somemod import test
 from hellodecos_base import MyBaseFlowSpec
 
 from metaflow import step, environment, conda

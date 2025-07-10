@@ -62,7 +62,7 @@ class MetaflowTask(object):
     def _exec_step_function(self, step_function, input_obj=None):
         wrappers_stack = []
         wrapped_func = None
-        do_skip = False
+        do_next = False
         raised_exception = None
         # If we have wrappers w1, w2 and w3, we need to execute
         #  - w3_pre
@@ -81,47 +81,58 @@ class MetaflowTask(object):
             wrappers_stack.append(w)
             if w.skip_step:
                 # We have nothing to run
-                do_skip = w.skip_step
+                do_next = w.skip_step
                 break
             if wrapped_func:
                 break  # We have nothing left to do since we now execute the
                 # wrapped function
             # Else, we continue down the list of wrappers
         try:
-            if not do_skip:
+            if not do_next:
                 if input_obj is None:
                     if wrapped_func:
-                        wrapped_func()
+                        do_next = wrapped_func(self.flow)
+                        if not do_next:
+                            do_next = True
                     else:
                         step_function()
                 else:
                     if wrapped_func:
-                        wrapped_func(input_obj)
+                        do_next = wrapped_func(self.flow, input_obj)
+                        if not do_next:
+                            do_next = True
                     else:
                         step_function(input_obj)
-            else:
-                # If we are skipping the step, we need to set the transition variables
-                # properly. We call the next function as needed
-                graph_node = self.flow._graph[step_function.name]
-                out_funcs = [getattr(self.flow, f) for f in graph_node.out_funcs]
-                if do_skip == True:
-                    # We need to extract things from the self.next. This is not possible
-                    # in the case where there was a num_parallel.
-                    if graph_node.parallel_foreach:
-                        raise RuntimeError(
-                            "Skipping a parallel foreach step without providing "
-                            "the arguments to the self.next call is not supported. "
-                        )
-                    if graph_node.foreach_param:
-                        self.flow.next(*out_funcs, foreach=graph_node.foreach_param)
-                    else:
-                        self.flow.next(*out_funcs)
-                else:
-                    # Here it is a dictionary so we just call the next method with
-                    # those arguments
-                    self.flow.next(*out_funcs, **do_skip)
         except Exception as ex:
             raised_exception = ex
+
+        if do_next:
+            # If we are skipping the step, or executed a wrapped function,
+            # we need to set the transition variables
+            # properly. We call the next function as needed
+            graph_node = self.flow._graph[step_function.name]
+            out_funcs = [getattr(self.flow, f) for f in graph_node.out_funcs]
+            if isinstance(do_next, bool):
+                # We need to extract things from the self.next. This is not possible
+                # in the case where there was a num_parallel.
+                if graph_node.parallel_foreach:
+                    raise RuntimeError(
+                        "Skipping a parallel foreach step without providing "
+                        "the arguments to the self.next call is not supported. "
+                    )
+                if graph_node.foreach_param:
+                    self.flow.next(*out_funcs, foreach=graph_node.foreach_param)
+                else:
+                    self.flow.next(*out_funcs)
+            elif isinstance(do_next, dict):
+                # Here it is a dictionary so we just call the next method with
+                # those arguments
+                self.flow.next(*out_funcs, **do_next)
+            else:
+                raise RuntimeError(
+                    "Invalid value passed to self.next; expected "
+                    " bool of a dictionary; got: %s" % do_next
+                )
         # We back out of the stack of generators
         for w in reversed(wrappers_stack):
             raised_exception = w.post_step(

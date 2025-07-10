@@ -1,6 +1,6 @@
 from metaflow import FlowSpec, FlowMutator
 
-from my_decorators import time_step
+from test_included_modules.my_decorators import time_step
 
 
 class MyMutator(FlowMutator):

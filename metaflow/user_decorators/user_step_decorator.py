@@ -20,6 +20,8 @@ if TYPE_CHECKING:
     import metaflow.flowspec
     import metaflow.user_decorators.mutable_step
 
+USER_SKIP_STEP = {}
+
 
 class UserStepDecoratorMeta(type):
     _all_registered_decorators = ClassPath_Trie()
@@ -541,9 +543,22 @@ def user_step_decorator(*args, **kwargs):
     ```
 
     Your generator should:
-      - yield once and only once
-      - yield either None or a callable that will replace whatever is being wrapped (it
-        should have the same signature as the wrapped function)
+      - yield at most once -- if you do not yield, the step will not execute.
+      - yield:
+          - None
+          - a callable that will replace whatever is being wrapped (it
+            should have the same parameters as the wrapped function, namely, it should
+            be a
+            Callable[[FlowSpec, Inputs], Optional[Union[Dict[str, Any]]]]).
+            Note that the return type is a bit different -- you can return:
+              - None: no special behavior;
+              - A dictionary containing parameters for `self.next()`.
+          - a dictionary to skip the step. An empty dictionary is equivalent
+            to just skipping the step. A full dictionary will pass the arguments
+            to the `self.next()` call -- this allows you to modify the behavior
+            of `self.next` (for example, changing the `foreach` values. We provide
+            USER_SKIP_STEP as a special value that is equivalent to {}.
+
 
     You are able to catch exceptions thrown by the yield statement (ie: coming from the
     wrapped code). Catching and not re-raising the exception will make the step
@@ -607,7 +622,15 @@ def user_step_decorator(*args, **kwargs):
                     )
                 else:
                     self._generator = self._generator(step_name, flow, inputs)
-                return self._generator.send(None)
+                v = self._generator.send(None)
+                if isinstance(v, dict):
+                    # We are skipping the step
+                    if v:
+                        self.skip_step = v
+                    else:
+                        self.skip_step = True
+                    return None
+                return v
 
             def post_step(self, step_name, flow, exception=None):
                 try:
