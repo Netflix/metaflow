@@ -11,4 +11,4 @@ class SecretsProvider(abc.ABC):
         environment variables."""
 
 
-from .secrets_func import get_secrets
+from .secrets_func import get_secret
