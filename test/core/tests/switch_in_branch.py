@@ -33,7 +33,4 @@ class SwitchInBranchTest(MetaflowTest):
         assert_equals(self.final_data, ["from_a_c", "from_b"])
 
     def check_results(self, flow, checker):
-        run = checker.get_run()
-        if run is None:
-            return
         checker.assert_artifact("join", "final_data", ["from_a_c", "from_b"])

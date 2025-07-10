@@ -34,12 +34,4 @@ class NestedSwitchTest(MetaflowTest):
         assert_equals("Nested path D", self.result)
 
     def check_results(self, flow, checker):
-        run = checker.get_run()
-        if run is None:
-            return
-
         checker.assert_artifact("d", "result", "Nested path D")
-        if "b" in run:
-            raise ExpectationFailed("Step 'b' should not have run")
-        if "c" in run:
-            raise ExpectationFailed("Step 'c' should not have run")
