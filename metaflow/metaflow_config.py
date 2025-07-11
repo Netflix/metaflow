@@ -450,6 +450,10 @@ CONDA_USE_FAST_INIT = from_conf("CONDA_USE_FAST_INIT", False)
 ESCAPE_HATCH_WARNING = from_conf("ESCAPE_HATCH_WARNING", True)
 
 ###
+# Features
+###
+FEAT_ALWAYS_UPLOAD_CODE_PACKAGE = from_conf("FEAT_ALWAYS_UPLOAD_CODE_PACKAGE", False)
+###
 # Debug configuration
 ###
 DEBUG_OPTIONS = [
@@ -460,6 +464,7 @@ DEBUG_OPTIONS = [
     "stubgen",
     "userconf",
     "conda",
+    "package",
 ]
 
 for typ in DEBUG_OPTIONS:

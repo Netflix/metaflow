@@ -42,6 +42,11 @@ class Debug(object):
         filename = inspect.stack()[1][1]
         print("debug[%s %s:%s]: %s" % (typ, filename, lineno, s), file=sys.stderr)
 
+    def __getattr__(self, name):
+        # Small piece of code to get pyright and other linters to recognize that there
+        # are dynamic attributes.
+        return getattr(self, name)
+
     def noop(self, args):
         pass
 
