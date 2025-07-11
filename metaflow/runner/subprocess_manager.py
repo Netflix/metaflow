@@ -10,7 +10,7 @@ import threading
 from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
 from metaflow.packaging_sys import MetaflowCodeContent
-from .utils import check_process_exited
+from .utils import check_process_exited, get_metaflow_root
 
 
 def kill_processes_and_descendants(pids: List[str], termination_timeout: float):
@@ -151,7 +151,9 @@ class SubprocessManager(object):
         int
             The process ID of the subprocess.
         """
-        updated_env = MetaflowCodeContent.get_env_vars_for_packaged_metaflow(cwd)
+        updated_env = MetaflowCodeContent.get_env_vars_for_packaged_metaflow(
+            get_metaflow_root()
+        )
         if updated_env:
             env = env or {}
             env.update(updated_env)
@@ -185,7 +187,9 @@ class SubprocessManager(object):
         int
             The process ID of the subprocess.
         """
-        updated_env = MetaflowCodeContent.get_env_vars_for_packaged_metaflow(cwd)
+        updated_env = MetaflowCodeContent.get_env_vars_for_packaged_metaflow(
+            get_metaflow_root()
+        )
         if updated_env:
             env = env or {}
             env.update(updated_env)
