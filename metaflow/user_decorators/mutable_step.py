@@ -96,20 +96,34 @@ class MutableStep:
             a list of positional arguments, and a dictionary of keyword arguments.
         """
         for deco in self._my_step.decorators:
-            yield deco.name, "%s.%s" % (
-                deco.__class__.__module__,
-                deco.__class__.__name__,
-            ), *deco.get_args_kwargs()
+            # 3.7 does not support yield foo, *bar syntax so we
+            # work around
+            r = [
+                deco.name,
+                "%s.%s"
+                % (
+                    deco.__class__.__module__,
+                    deco.__class__.__name__,
+                ),
+            ]
+            r.extend(deco.get_args_kwargs())
+            yield tuple(r)
 
         for deco in self._my_step.wrappers:
-            yield UserStepDecoratorBase.get_decorator_name(
-                deco.__class__
-            ), deco.decorator_name, *deco.get_args_kwargs()
+            r = [
+                UserStepDecoratorBase.get_decorator_name(deco.__class__),
+                deco.decorator_name,
+            ]
+            r.extend(deco.get_args_kwargs())
+            yield tuple(r)
 
         for deco in self._my_step.config_decorators:
-            yield UserStepDecoratorBase.get_decorator_name(
-                deco.__class__
-            ), deco.decorator_name, *deco.get_args_kwargs()
+            r = [
+                UserStepDecoratorBase.get_decorator_name(deco.__class__),
+                deco.decorator_name,
+            ]
+            r.extend(deco.get_args_kwargs())
+            yield tuple(r)
 
     def add_decorator(
         self,

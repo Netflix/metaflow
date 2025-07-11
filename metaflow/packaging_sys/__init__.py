@@ -133,6 +133,10 @@ class MetaflowCodeContent:
             packaged -- None if there are no such variables (not packaged for example)
         """
         mfcontent_info = cls._extract_mfcontent_info()
+        if mfcontent_info is None:
+            # No MFCONTENT_MARKER file found -- this is not a packaged Metaflow code
+            # package so no environment variables to set.
+            return None
         handling_cls = cls._get_mfcontent_class(mfcontent_info)
         return handling_cls.get_post_extract_env_vars_impl(dest_dir)
 

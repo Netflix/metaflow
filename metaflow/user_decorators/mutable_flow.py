@@ -63,10 +63,19 @@ class MutableFlow:
         """
         for decos in self._flow_cls._flow_decorators.values():
             for deco in decos:
-                yield deco.name, "%s.%s" % (
-                    deco.__class__.__module__,
-                    deco.__class__.__name__,
-                ), *deco.get_args_kwargs()
+                # 3.7 does not support yield foo, *bar syntax so we
+                # work around
+
+                r = [
+                    deco.name,
+                    "%s.%s"
+                    % (
+                        deco.__class__.__module__,
+                        deco.__class__.__name__,
+                    ),
+                ]
+                r.extend(deco.get_args_kwargs())
+                yield tuple(r)
 
     @property
     def configs(self) -> Generator[Tuple[str, ConfigValue], None, None]:
