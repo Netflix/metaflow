@@ -505,6 +505,11 @@ class KubernetesDecorator(StepDecorator):
             cli_args.command_options["run-time-limit"] = self.run_time_limit
             cli_args.entrypoint[0] = sys.executable
 
+    @classmethod
+    def should_attach(cls, step):
+        # return False if local decorator is attached to the step already.
+        return not any(deco.name == "local" for deco in step.decorators)
+
     def task_pre_step(
         self,
         step_name,

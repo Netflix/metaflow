@@ -385,6 +385,14 @@ class StepDecorator(Decorator):
         """
         pass
 
+    @classmethod
+    def should_attach(cls, step):
+        """
+        Can be used to check if the decorator can be attached to the step or not.
+        returns True by default
+        """
+        return True
+
     def task_pre_step(
         self,
         step_name,
@@ -556,6 +564,11 @@ def _attach_decorators_to_step(step, decospecs):
         deconame = splits[0]
         if deconame not in decos:
             raise UnknownStepDecoratorException(deconame)
+
+        # Skip attaching decorator if should_attach returns False.
+        if not decos[deconame].should_attach(step):
+            continue
+
         # Attach the decorator to step if it doesn't have the decorator
         # already. This means that statically defined decorators are always
         # preferred over runtime decorators.
