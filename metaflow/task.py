@@ -59,7 +59,7 @@ class MetaflowTask(object):
         self.monitor = monitor
         self.ubf_context = ubf_context
 
-    def _exec_step_function(self, step_function, input_obj=None):
+    def _exec_step_function(self, step_function, orig_step_func, input_obj=None):
         wrappers_stack = []
         wrapped_func = None
         do_next = False
@@ -76,8 +76,8 @@ class MetaflowTask(object):
         # Note that if any of the pre functions returns a function, we execute that
         # instead of the rest of the inside part. This is useful if you want to create
         # no-op function for example.
-        for w in reversed(step_function.wrappers):
-            wrapped_func = w.pre_step(step_function.name, self.flow, input_obj)
+        for w in reversed(orig_step_func.wrappers):
+            wrapped_func = w.pre_step(orig_step_func.name, self.flow, input_obj)
             wrappers_stack.append(w)
             if w.skip_step:
                 # We have nothing to run
@@ -112,27 +112,28 @@ class MetaflowTask(object):
             # properly. We call the next function as needed
             graph_node = self.flow._graph[step_function.name]
             out_funcs = [getattr(self.flow, f) for f in graph_node.out_funcs]
-            if isinstance(do_next, bool):
-                # We need to extract things from the self.next. This is not possible
-                # in the case where there was a num_parallel.
-                if graph_node.parallel_foreach:
-                    raise RuntimeError(
-                        "Skipping a parallel foreach step without providing "
-                        "the arguments to the self.next call is not supported. "
-                    )
-                if graph_node.foreach_param:
-                    self.flow.next(*out_funcs, foreach=graph_node.foreach_param)
+            if out_funcs:
+                if isinstance(do_next, bool):
+                    # We need to extract things from the self.next. This is not possible
+                    # in the case where there was a num_parallel.
+                    if graph_node.parallel_foreach:
+                        raise RuntimeError(
+                            "Skipping a parallel foreach step without providing "
+                            "the arguments to the self.next call is not supported. "
+                        )
+                    if graph_node.foreach_param:
+                        self.flow.next(*out_funcs, foreach=graph_node.foreach_param)
+                    else:
+                        self.flow.next(*out_funcs)
+                elif isinstance(do_next, dict):
+                    # Here it is a dictionary so we just call the next method with
+                    # those arguments
+                    self.flow.next(*out_funcs, **do_next)
                 else:
-                    self.flow.next(*out_funcs)
-            elif isinstance(do_next, dict):
-                # Here it is a dictionary so we just call the next method with
-                # those arguments
-                self.flow.next(*out_funcs, **do_next)
-            else:
-                raise RuntimeError(
-                    "Invalid value passed to self.next; expected "
-                    " bool of a dictionary; got: %s" % do_next
-                )
+                    raise RuntimeError(
+                        "Invalid value passed to self.next; expected "
+                        " bool of a dictionary; got: %s" % do_next
+                    )
         # We back out of the stack of generators
         for w in reversed(wrappers_stack):
             raised_exception = w.post_step(
@@ -733,6 +734,7 @@ class MetaflowTask(object):
                         inputs,
                     )
 
+                orig_step_func = step_func
                 for deco in decorators:
                     # decorators can actually decorate the step function,
                     # or they can replace it altogether. This functionality
@@ -749,9 +751,9 @@ class MetaflowTask(object):
                     )
 
                 if join_type:
-                    self._exec_step_function(step_func, input_obj)
+                    self._exec_step_function(step_func, orig_step_func, input_obj)
                 else:
-                    self._exec_step_function(step_func)
+                    self._exec_step_function(step_func, orig_step_func)
 
                 for deco in decorators:
                     deco.task_post_step(
