@@ -2,7 +2,6 @@ import os
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_environment import MetaflowEnvironment
-from metaflow.packaging_sys import ContentType
 
 
 class UVException(MetaflowException):
@@ -13,7 +12,6 @@ class UVEnvironment(MetaflowEnvironment):
     TYPE = "uv"
 
     def __init__(self, flow):
-        super().__init__(flow)
         self.flow = flow
 
     def validate_environment(self, logger, datastore_type):
@@ -45,8 +43,8 @@ class UVEnvironment(MetaflowEnvironment):
         pyproject_path = _find("pyproject.toml")
         uv_lock_path = _find("uv.lock")
         files = [
-            (uv_lock_path, "uv.lock", ContentType.OTHER_CONTENT),
-            (pyproject_path, "pyproject.toml", ContentType.OTHER_CONTENT),
+            (uv_lock_path, "uv.lock"),
+            (pyproject_path, "pyproject.toml"),
         ]
         return files
 

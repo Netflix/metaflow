@@ -9,30 +9,35 @@ def cli():
 
 
 @cli.group(help="Commands related to code packages.")
-@click.option(
-    "--timeout", default=60, help="Timeout for package operations in seconds."
-)
 @click.pass_obj
-def package(obj, timeout):
+def package(obj):
     # Prepare the package before any of the sub-commands are invoked.
-    # We explicitly will *not* upload it to the datastore.
     obj.package = MetaflowPackage(
-        obj.flow,
-        obj.environment,
-        obj.echo,
-        suffixes=obj.package_suffixes,
-        flow_datastore=None,
+        obj.flow, obj.environment, obj.echo, obj.package_suffixes
     )
-    obj.package_op_timeout = timeout
 
 
-@package.command(help="Output information about the code package.")
+@package.command(help="Output information about the current code package.")
 @click.pass_obj
 def info(obj):
-    obj.echo_always(obj.package.show())
+    obj.echo("Status of the current working directory:", fg="magenta", bold=False)
+    obj.echo_always(
+        "Hash: *%s*" % sha1(obj.package.blob).hexdigest(),
+        highlight="green",
+        highlight_bold=False,
+    )
+    obj.echo_always(
+        "Package size: *%d* KB" % (len(obj.package.blob) / 1024),
+        highlight="green",
+        highlight_bold=False,
+    )
+    num = sum(1 for _ in obj.package.path_tuples())
+    obj.echo_always(
+        "Number of files: *%d*" % num, highlight="green", highlight_bold=False
+    )
 
 
-@package.command(help="List all files included in the code package.")
+@package.command(help="List files included in the code package.")
 @click.option(
     "--archive/--no-archive",
     default=False,
@@ -42,10 +47,8 @@ def info(obj):
 )
 @click.pass_obj
 def list(obj, archive=False):
-    _ = obj.package.blob_with_timeout(timeout=obj.package_op_timeout)
-    # We now have all the information about the blob
     obj.echo(
-        "Files included in the code package (change with --package-suffixes):",
+        "Files included in the code package " "(change with --package-suffixes):",
         fg="magenta",
         bold=False,
     )
@@ -55,15 +58,10 @@ def list(obj, archive=False):
         obj.echo_always("\n".join(path for path, _ in obj.package.path_tuples()))
 
 
-@package.command(help="Save the current code package to a file.")
+@package.command(help="Save the current code package in a tar file")
 @click.argument("path")
 @click.pass_obj
 def save(obj, path):
     with open(path, "wb") as f:
-        f.write(obj.package.blob())
-    obj.echo(
-        "Code package saved in *%s* with metadata: %s"
-        % (path, obj.package.package_metadata),
-        fg="magenta",
-        bold=False,
-    )
+        f.write(obj.package.blob)
+    obj.echo("Code package saved in *%s*." % path, fg="magenta", bold=False)

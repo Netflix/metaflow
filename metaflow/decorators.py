@@ -21,6 +21,11 @@ from .user_configs.config_parameters import (
 
 from metaflow._vendor import click
 
+try:
+    unicode
+except NameError:
+    unicode = str
+    basestring = str
 
 # Contains the decorators on which _init was called. We want to ensure it is called
 # only once on each decorator and, as the _init() function below can be called in
@@ -184,7 +189,7 @@ class Decorator(object):
             # escaping but for more complex types (typically dictionaries or lists),
             # we dump using JSON.
             for k, v in attrs.items():
-                if isinstance(v, (int, float, str)):
+                if isinstance(v, (int, float, unicode, basestring)):
                     attr_list.append("%s=%s" % (k, str(v)))
                 else:
                     attr_list.append("%s=%s" % (k, json.dumps(v).replace('"', '\\"')))
@@ -310,36 +315,15 @@ class StepDecorator(Decorator):
 
     def add_to_package(self):
         """
-        Called to add custom files needed for this environment. This hook will be
+        Called to add custom packages needed for a decorator. This hook will be
         called in the `MetaflowPackage` class where metaflow compiles the code package
-        tarball. This hook can return one of two things (the first is for backwards
-        compatibility -- move to the second):
-          - a generator yielding a tuple of `(file_path, arcname)` to add files to
-            the code package. `file_path` is the path to the file on the local filesystem
-            and `arcname` is the path relative to the packaged code.
-          - a generator yielding a tuple of `(content, arcname, type)` where:
-            - type is one of
-            ContentType.{USER_CONTENT, CODE_CONTENT, MODULE_CONTENT, OTHER_CONTENT}
-            - for USER_CONTENT:
-              - the file will be included relative to the directory containing the
-                user's flow file.
-              - content: path to the file to include
-              - arcname: path relative to the directory containing the user's flow file
-            - for CODE_CONTENT:
-              - the file will be included relative to the code directory in the package.
-                This will be the directory containing `metaflow`.
-              - content: path to the file to include
-              - arcname: path relative to the code directory in the package
-            - for MODULE_CONTENT:
-              - the module will be added to the code package as a python module. It will
-                be accessible as usual (import <module_name>)
-              - content: name of the module
-              - arcname: None (ignored)
-            - for OTHER_CONTENT:
-              - the file will be included relative to any other configuration/metadata
-                files for the flow
-              - content: path to the file to include
-              - arcname: path relative to the config directory in the package
+        tarball. This hook is invoked in the `MetaflowPackage`'s `path_tuples`
+        function. The `path_tuples` function is a generator that yields a tuple of
+        `(file_path, arcname)`.`file_path` is the path of the file in the local file system;
+        the `arcname` is the path of the file in the constructed tarball or the path of the file
+        after decompressing the tarball.
+
+        Returns a list of tuples where each tuple represents (file_path, arcname)
         """
         return []
 
@@ -701,8 +685,12 @@ def step(
     f.is_step = True
     f.decorators = []
     f.config_decorators = []
-    f.wrappers = []
-    f.name = f.__name__
+    try:
+        # python 3
+        f.name = f.__name__
+    except:
+        # python 2
+        f.name = f.__func__.func_name
     return f
 
 
