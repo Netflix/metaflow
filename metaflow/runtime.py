@@ -24,7 +24,7 @@ from contextlib import contextmanager
 
 from . import get_namespace
 from .metadata_provider import MetaDatum
-from .metaflow_config import MAX_ATTEMPTS, UI_URL
+from .metaflow_config import FEAT_ALWAYS_UPLOAD_CODE_PACKAGE, MAX_ATTEMPTS, UI_URL
 from .exception import (
     MetaflowException,
     MetaflowInternalError,
@@ -95,6 +95,7 @@ class NativeRuntime(object):
         max_num_splits=MAX_NUM_SPLITS,
         max_log_size=MAX_LOG_SIZE,
         resume_identifier=None,
+        skip_decorator_hooks=False,
     ):
         if run_id is None:
             self._run_id = metadata.new_run_id()
@@ -107,6 +108,7 @@ class NativeRuntime(object):
         self._flow_datastore = flow_datastore
         self._metadata = metadata
         self._environment = environment
+        self._package = package
         self._logger = logger
         self._max_workers = max_workers
         self._active_tasks = dict()  # Key: step name;
@@ -128,6 +130,7 @@ class NativeRuntime(object):
         self._ran_or_scheduled_task_index = set()
         self._reentrant = reentrant
         self._run_url = None
+        self._skip_decorator_hooks = skip_decorator_hooks
 
         # If steps_to_rerun is specified, we will not clone them in resume mode.
         self._steps_to_rerun = steps_to_rerun or {}
@@ -179,9 +182,10 @@ class NativeRuntime(object):
         # finished.
         self._control_num_splits = {}  # control_task -> num_splits mapping
 
-        for step in flow:
-            for deco in step.decorators:
-                deco.runtime_init(flow, graph, package, self._run_id)
+        if not self._skip_decorator_hooks:
+            for step in flow:
+                for deco in step.decorators:
+                    deco.runtime_init(flow, graph, package, self._run_id)
 
     def _new_task(self, step, input_paths=None, **kwargs):
         if input_paths is None:
@@ -192,7 +196,7 @@ class NativeRuntime(object):
         if step in self._steps_to_rerun:
             may_clone = False
 
-        if step == "_parameters":
+        if step == "_parameters" or self._skip_decorator_hooks:
             decos = []
         else:
             decos = getattr(self._flow, step).decorators
@@ -566,9 +570,10 @@ class NativeRuntime(object):
                 raise
             finally:
                 # on finish clean tasks
-                for step in self._flow:
-                    for deco in step.decorators:
-                        deco.runtime_finished(exception)
+                if not self._skip_decorator_hooks:
+                    for step in self._flow:
+                        for deco in step.decorators:
+                            deco.runtime_finished(exception)
                 self._run_exit_hooks()
 
         # assert that end was executed and it was successful
@@ -667,7 +672,6 @@ class NativeRuntime(object):
     # Given the current task information (task_index), the type of transition,
     # and the split index, return the new task index.
     def _translate_index(self, task, next_step, type, split_index=None):
-
         match = re.match(r"^(.+)\[(.*)\]$", task.task_index)
         if match:
             _, foreach_index = match.groups()
@@ -1005,6 +1009,22 @@ class NativeRuntime(object):
             # Initialize the task (which can be expensive using remote datastores)
             # before launching the worker so that cost is amortized over time, instead
             # of doing it during _queue_push.
+            if (
+                FEAT_ALWAYS_UPLOAD_CODE_PACKAGE
+                and "METAFLOW_CODE_SHA" not in os.environ
+            ):
+                # We check if the code package is uploaded and, if so, we set the
+                # environment variables that will cause the metadata service to
+                # register the code package with the task created in _new_task below
+                code_sha = self._package.package_sha(timeout=0.01)
+                if code_sha:
+                    os.environ["METAFLOW_CODE_SHA"] = code_sha
+                    os.environ["METAFLOW_CODE_URL"] = self._package.package_url()
+                    os.environ["METAFLOW_CODE_DS"] = self._flow_datastore.TYPE
+                    os.environ["METAFLOW_CODE_METADATA"] = (
+                        self._package.package_metadata
+                    )
+
             task = self._new_task(step, **task_kwargs)
             self._launch_worker(task)
 

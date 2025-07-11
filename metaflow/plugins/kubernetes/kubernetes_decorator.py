@@ -11,6 +11,7 @@ from metaflow.metadata_provider import MetaDatum
 from metaflow.metadata_provider.util import sync_local_metadata_to_datastore
 from metaflow.metaflow_config import (
     DATASTORE_LOCAL_DIR,
+    FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
     KUBERNETES_CONTAINER_IMAGE,
     KUBERNETES_CONTAINER_REGISTRY,
     KUBERNETES_CPU,
@@ -168,6 +169,7 @@ class KubernetesDecorator(StepDecorator):
         "qos": KUBERNETES_QOS,
         "security_context": None,
     }
+    package_metadata = None
     package_url = None
     package_sha = None
     run_time_limit = None
@@ -471,6 +473,7 @@ class KubernetesDecorator(StepDecorator):
             # to execute on Kubernetes anymore. We can execute possible fallback
             # code locally.
             cli_args.commands = ["kubernetes", "step"]
+            cli_args.command_args.append(self.package_metadata)
             cli_args.command_args.append(self.package_sha)
             cli_args.command_args.append(self.package_url)
 
@@ -642,9 +645,16 @@ class KubernetesDecorator(StepDecorator):
     @classmethod
     def _save_package_once(cls, flow_datastore, package):
         if cls.package_url is None:
-            cls.package_url, cls.package_sha = flow_datastore.save_data(
-                [package.blob], len_hint=1
-            )[0]
+            if not FEAT_ALWAYS_UPLOAD_CODE_PACKAGE:
+                cls.package_url, cls.package_sha = flow_datastore.save_data(
+                    [package.blob], len_hint=1
+                )[0]
+                cls.package_metadata = package.package_metadata
+            else:
+                # Blocks until the package is uploaded
+                cls.package_url = package.package_url()
+                cls.package_sha = package.package_sha()
+                cls.package_metadata = package.package_metadata
 
 
 # TODO: Unify this method with the multi-node setup in @batch

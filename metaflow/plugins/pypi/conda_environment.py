@@ -17,6 +17,7 @@ from metaflow.debug import debug
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import get_pinned_conda_libs
 from metaflow.metaflow_environment import MetaflowEnvironment
+from metaflow.packaging_sys import ContentType
 
 from . import MAGIC_FILE, _datastore_packageroot
 from .utils import conda_platform
@@ -35,6 +36,7 @@ class CondaEnvironment(MetaflowEnvironment):
     _force_rebuild = False
 
     def __init__(self, flow):
+        super().__init__(flow)
         self.flow = flow
 
     def set_local_root(self, local_root):
@@ -474,7 +476,9 @@ class CondaEnvironment(MetaflowEnvironment):
         files = []
         manifest = self.get_environment_manifest_path()
         if os.path.exists(manifest):
-            files.append((manifest, os.path.basename(manifest)))
+            files.append(
+                (manifest, os.path.basename(manifest), ContentType.OTHER_CONTENT)
+            )
         return files
 
     def bootstrap_commands(self, step_name, datastore_type):
