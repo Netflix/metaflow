@@ -2304,11 +2304,11 @@ class ArgoWorkflows(object):
         start_step = [step for step in self.graph if step.name == "start"][0]
         # We want to grab the base image used by the start step, as this is known to be pullable from within the cluster,
         # and it might contain the required libraries, allowing us to start up faster.
-        resources = dict(
-            [deco for deco in start_step.decorators if deco.name == "kubernetes"][
-                0
-            ].attributes
-        )
+        start_kube_deco = [
+            deco for deco in start_step.decorators if deco.name == "kubernetes"
+        ][0]
+        resources = dict(start_kube_deco.attributes)
+        kube_defaults = dict(start_kube_deco.defaults)
 
         run_id_template = "argo-{{workflow.name}}"
         metaflow_version = self.environment.get_environment_info()
@@ -2407,15 +2407,10 @@ class ArgoWorkflows(object):
                         if k
                     ],
                     resources=kubernetes_sdk.V1ResourceRequirements(
-                        # NOTE: base resources for this are kept to a minimum to save on running costs.
                         requests={
-                            "cpu": "200m",
-                            "memory": "100Mi",
-                        },
-                        limits={
-                            "cpu": "200m",
-                            "memory": "500Mi",
-                        },
+                            "cpu": str(kube_defaults["cpu"]),
+                            "memory": "%sM" % str(kube_defaults["memory"]),
+                        }
                     ),
                 ).to_dict()
             )
