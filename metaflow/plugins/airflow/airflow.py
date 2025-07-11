@@ -66,7 +66,6 @@ class Airflow(object):
         name,
         graph,
         flow,
-        code_package_metadata,
         code_package_sha,
         code_package_url,
         metadata,
@@ -88,7 +87,6 @@ class Airflow(object):
         self.name = name
         self.graph = graph
         self.flow = flow
-        self.code_package_metadata = code_package_metadata
         self.code_package_sha = code_package_sha
         self.code_package_url = code_package_url
         self.metadata = metadata
@@ -374,7 +372,6 @@ class Airflow(object):
             # Technically the "user" is the stakeholder but should these labels be present.
         }
         additional_mf_variables = {
-            "METAFLOW_CODE_METADATA": self.code_package_metadata,
             "METAFLOW_CODE_SHA": self.code_package_sha,
             "METAFLOW_CODE_URL": self.code_package_url,
             "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
@@ -479,7 +476,6 @@ class Airflow(object):
                 node.name,
                 AIRFLOW_MACROS.create_task_id(self.contains_foreach),
                 AIRFLOW_MACROS.ATTEMPT,
-                code_package_metadata=self.code_package_metadata,
                 code_package_url=self.code_package_url,
                 step_cmds=self._step_cli(
                     node, input_paths, self.code_package_url, user_code_retries

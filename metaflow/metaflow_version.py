@@ -11,7 +11,7 @@ import subprocess
 from os import path, name, environ, listdir
 
 from metaflow.extension_support import update_package_info
-from metaflow.meta_files import read_info_file
+from metaflow.info_file import CURRENT_DIRECTORY, read_info_file
 
 
 # True/False correspond to the value `public`` in get_version

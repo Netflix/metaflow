@@ -15,7 +15,6 @@ from metaflow.exception import (
 )
 from metaflow.metaflow_config import (
     ARGO_WORKFLOWS_UI_URL,
-    FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
     KUBERNETES_NAMESPACE,
     SERVICE_VERSION_CHECK,
     UI_URL,
@@ -519,27 +518,16 @@ def make_flow(
     # Save the code package in the flow datastore so that both user code and
     # metaflow package can be retrieved during workflow execution.
     obj.package = MetaflowPackage(
-        obj.flow,
-        obj.environment,
-        obj.echo,
-        suffixes=obj.package_suffixes,
-        flow_datastore=obj.flow_datastore if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE else None,
+        obj.flow, obj.environment, obj.echo, obj.package_suffixes
     )
-
-    # This blocks until the package is created
-    if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE:
-        package_url = obj.package.package_url()
-        package_sha = obj.package.package_sha()
-    else:
-        package_url, package_sha = obj.flow_datastore.save_data(
-            [obj.package.blob], len_hint=1
-        )[0]
+    package_url, package_sha = obj.flow_datastore.save_data(
+        [obj.package.blob], len_hint=1
+    )[0]
 
     return ArgoWorkflows(
         name,
         obj.graph,
         obj.flow,
-        obj.package.package_metadata,
         package_sha,
         package_url,
         token,

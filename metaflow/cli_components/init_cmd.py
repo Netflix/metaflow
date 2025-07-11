@@ -46,7 +46,6 @@ def init(obj, run_id=None, task_id=None, tags=None, **kwargs):
         obj.event_logger,
         obj.monitor,
         run_id=run_id,
-        skip_decorator_hooks=True,
     )
     obj.flow._set_constants(obj.graph, kwargs, obj.config_options)
     runtime.persist_constants(task_id=task_id)

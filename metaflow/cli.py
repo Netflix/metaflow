@@ -28,7 +28,6 @@ from .metaflow_config import (
 from .metaflow_current import current
 from metaflow.system import _system_monitor, _system_logger
 from .metaflow_environment import MetaflowEnvironment
-from .packaging_sys import MetaflowCodeContent
 from .plugins import (
     DATASTORES,
     ENVIRONMENTS,
@@ -336,11 +335,6 @@ def start(
     echo("Metaflow %s" % version, fg="magenta", bold=True, nl=False)
     echo(" executing *%s*" % ctx.obj.flow.name, fg="magenta", nl=False)
     echo(" for *%s*" % resolve_identity(), fg="magenta")
-
-    # Check if we need to setup the distribution finder (if running )
-    dist_info = MetaflowCodeContent.get_distribution_finder()
-    if dist_info:
-        sys.meta_path.append(dist_info)
 
     # Setup the context
     cli_args._set_top_kwargs(ctx.params)

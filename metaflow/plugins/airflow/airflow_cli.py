@@ -7,7 +7,6 @@ from hashlib import sha1
 from metaflow import current, decorators
 from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
-from metaflow.metaflow_config import FEAT_ALWAYS_UPLOAD_CODE_PACKAGE
 from metaflow.package import MetaflowPackage
 from metaflow.plugins.aws.step_functions.production_token import (
     load_token,
@@ -293,26 +292,16 @@ def make_flow(
     # Save the code package in the flow datastore so that both user code and
     # metaflow package can be retrieved during workflow execution.
     obj.package = MetaflowPackage(
-        obj.flow,
-        obj.environment,
-        obj.echo,
-        suffixes=obj.package_suffixes,
-        flow_datastore=obj.flow_datastore if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE else None,
+        obj.flow, obj.environment, obj.echo, obj.package_suffixes
     )
-    # This blocks until the package is created
-    if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE:
-        package_url = obj.package.package_url()
-        package_sha = obj.package.package_sha()
-    else:
-        package_url, package_sha = obj.flow_datastore.save_data(
-            [obj.package.blob], len_hint=1
-        )[0]
+    package_url, package_sha = obj.flow_datastore.save_data(
+        [obj.package.blob], len_hint=1
+    )[0]
 
     return Airflow(
         dag_name,
         obj.graph,
         obj.flow,
-        obj.package.package_metadata,
         package_sha,
         package_url,
         obj.metadata,

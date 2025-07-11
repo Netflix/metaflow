@@ -90,7 +90,6 @@ class Kubernetes(object):
         step_name,
         task_id,
         attempt,
-        code_package_metadata,
         code_package_url,
         step_cmds,
     ):
@@ -105,7 +104,7 @@ class Kubernetes(object):
             stderr_path=STDERR_PATH,
         )
         init_cmds = self._environment.get_package_commands(
-            code_package_url, self._datastore.TYPE, code_package_metadata
+            code_package_url, self._datastore.TYPE
         )
         init_expr = " && ".join(init_cmds)
         step_expr = bash_capture_logs(
@@ -166,7 +165,6 @@ class Kubernetes(object):
         task_id,
         attempt,
         user,
-        code_package_metadata,
         code_package_sha,
         code_package_url,
         code_package_ds,
@@ -234,7 +232,6 @@ class Kubernetes(object):
                 qos=qos,
                 security_context=security_context,
             )
-            .environment_variable("METAFLOW_CODE_METADATA", code_package_metadata)
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
             .environment_variable("METAFLOW_CODE_DS", code_package_ds)
@@ -418,7 +415,6 @@ class Kubernetes(object):
             step_name=step_name,
             task_id=_tskid,
             attempt=attempt,
-            code_package_metadata=code_package_metadata,
             code_package_url=code_package_url,
             step_cmds=[
                 step_cli.replace(
@@ -467,7 +463,6 @@ class Kubernetes(object):
         task_id,
         attempt,
         user,
-        code_package_metadata,
         code_package_sha,
         code_package_url,
         code_package_ds,
@@ -516,7 +511,6 @@ class Kubernetes(object):
                     step_name=step_name,
                     task_id=task_id,
                     attempt=attempt,
-                    code_package_metadata=code_package_metadata,
                     code_package_url=code_package_url,
                     step_cmds=[step_cli],
                 ),
@@ -545,7 +539,6 @@ class Kubernetes(object):
                 qos=qos,
                 security_context=security_context,
             )
-            .environment_variable("METAFLOW_CODE_METADATA", code_package_metadata)
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
             .environment_variable("METAFLOW_CODE_DS", code_package_ds)

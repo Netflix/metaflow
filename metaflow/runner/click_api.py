@@ -658,7 +658,6 @@ if __name__ == "__main__":
         .kubernetes()
         .step(
             step_name="process",
-            code_package_metadata="some_version",
             code_package_sha="some_sha",
             code_package_url="some_url",
         )

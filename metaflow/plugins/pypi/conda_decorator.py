@@ -1,3 +1,5 @@
+import importlib
+import json
 import os
 import platform
 import re
@@ -5,9 +7,12 @@ import sys
 import tempfile
 
 from metaflow.decorators import FlowDecorator, StepDecorator
+from metaflow.extension_support import EXT_PKG
 from metaflow.metadata_provider import MetaDatum
 from metaflow.metaflow_environment import InvalidEnvironmentException
-from metaflow.packaging_sys import ContentType
+from metaflow.util import get_metaflow_root
+
+from ...info_file import INFO_FILE
 
 
 class CondaStepDecorator(StepDecorator):
@@ -40,10 +45,6 @@ class CondaStepDecorator(StepDecorator):
         "python": None,
         "disabled": None,
     }
-
-    _metaflow_home = None
-    _addl_env_vars = None
-
     # To define conda channels for the whole solve, users can specify
     # CONDA_CHANNELS in their environment. For pinning specific packages to specific
     # conda channels, users can specify channel::package as the package name.
@@ -151,17 +152,67 @@ class CondaStepDecorator(StepDecorator):
     def runtime_init(self, flow, graph, package, run_id):
         if self.disabled:
             return
-        # We need to make all the code package available to the user code in
-        # a temporary directory which will be added to the PYTHONPATH.
-        if self.__class__._metaflow_home is None:
-            # Do this ONCE per flow
-            self.__class__._metaflow_home = tempfile.TemporaryDirectory(dir="/tmp")
-            package.extract_into(
-                self.__class__._metaflow_home.name, ContentType.ALL_CONTENT
+        # Create a symlink to metaflow installed outside the virtual environment.
+        self.metaflow_dir = tempfile.TemporaryDirectory(dir="/tmp")
+        os.symlink(
+            os.path.join(get_metaflow_root(), "metaflow"),
+            os.path.join(self.metaflow_dir.name, "metaflow"),
+        )
+
+        info = os.path.join(get_metaflow_root(), os.path.basename(INFO_FILE))
+        # Symlink the INFO file as well to properly propagate down the Metaflow version
+        if os.path.isfile(info):
+            os.symlink(
+                info, os.path.join(self.metaflow_dir.name, os.path.basename(INFO_FILE))
             )
-            self.__class__._addl_env_vars = package.get_post_extract_env_vars(
-                package.package_metadata, self.__class__._metaflow_home.name
-            )
+        else:
+            # If there is no info file, we will actually create one in this new
+            # place because we won't be able to properly resolve the EXT_PKG extensions
+            # the same way as outside conda (looking at distributions, etc.). In a
+            # Conda environment, as shown below (where we set self.addl_paths), all
+            # EXT_PKG extensions are PYTHONPATH extensions. Instead of re-resolving,
+            # we use the resolved information that is written out to the INFO file.
+            with open(
+                os.path.join(self.metaflow_dir.name, os.path.basename(INFO_FILE)),
+                mode="wt",
+                encoding="utf-8",
+            ) as f:
+                f.write(
+                    json.dumps(
+                        self.environment.get_environment_info(include_ext_info=True)
+                    )
+                )
+
+        # Support metaflow extensions.
+        self.addl_paths = None
+        try:
+            m = importlib.import_module(EXT_PKG)
+        except ImportError:
+            # No additional check needed because if we are here, we already checked
+            # for other issues when loading at the toplevel.
+            pass
+        else:
+            custom_paths = list(set(m.__path__))
+            # For some reason, at times, unique paths appear multiple times. We
+            # simplify to avoid un-necessary links.
+
+            if len(custom_paths) == 1:
+                # Regular package; we take a quick shortcut here.
+                os.symlink(
+                    custom_paths[0],
+                    os.path.join(self.metaflow_dir.name, EXT_PKG),
+                )
+            else:
+                # This is a namespace package, we therefore create a bunch of
+                # directories so that we can symlink in those separately, and we will
+                # add those paths to the PYTHONPATH for the interpreter. Note that we
+                # don't symlink to the parent of the package because that could end up
+                # including more stuff we don't want
+                self.addl_paths = []
+                for p in custom_paths:
+                    temp_dir = tempfile.mkdtemp(dir=self.metaflow_dir.name)
+                    os.symlink(p, os.path.join(temp_dir, EXT_PKG))
+                    self.addl_paths.append(temp_dir)
 
         # # Also install any environment escape overrides directly here to enable
         # # the escape to work even in non metaflow-created subprocesses
@@ -240,15 +291,11 @@ class CondaStepDecorator(StepDecorator):
         if self.disabled:
             return
         # Ensure local installation of Metaflow is visible to user code
-        python_path = self.__class__._metaflow_home.name
-        addl_env_vars = {}
-        if self.__class__._addl_env_vars is not None:
-            for key, value in self.__class__._addl_env_vars.items():
-                if key == "PYTHONPATH":
-                    addl_env_vars[key] = os.pathsep.join([value, python_path])
-                else:
-                    addl_env_vars[key] = value
-        cli_args.env.update(addl_env_vars)
+        python_path = self.metaflow_dir.name
+        if self.addl_paths is not None:
+            addl_paths = os.pathsep.join(self.addl_paths)
+            python_path = os.pathsep.join([addl_paths, python_path])
+        cli_args.env["PYTHONPATH"] = python_path
         if self.interpreter:
             # https://github.com/conda/conda/issues/7707
             # Also ref - https://github.com/Netflix/metaflow/pull/178
@@ -259,9 +306,7 @@ class CondaStepDecorator(StepDecorator):
     def runtime_finished(self, exception):
         if self.disabled:
             return
-        if self.__class__._metaflow_home is not None:
-            self.__class__._metaflow_home.cleanup()
-            self.__class__._metaflow_home = None
+        self.metaflow_dir.cleanup()
 
 
 class CondaFlowDecorator(FlowDecorator):
