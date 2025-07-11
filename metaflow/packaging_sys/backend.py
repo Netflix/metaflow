@@ -20,6 +20,7 @@ class PackagingBackend(ABC):
         return cls._mappings[name]
 
     @classmethod
+    @property
     def backend_type(cls) -> str:
         return cls.type
 

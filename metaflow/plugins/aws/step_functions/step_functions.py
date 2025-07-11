@@ -303,6 +303,12 @@ class StepFunctions(object):
                 "to AWS Step Functions is not supported currently."
             )
 
+        if self.flow._flow_decorators.get("exit_hook"):
+            raise StepFunctionsException(
+                "Deploying flows with the @exit_hook decorator "
+                "to AWS Step Functions is not currently supported."
+            )
+
         # Visit every node of the flow and recursively build the state machine.
         def _visit(node, workflow, exit_node=None):
             if node.parallel_foreach:

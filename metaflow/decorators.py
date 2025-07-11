@@ -31,6 +31,12 @@ from .user_decorators.user_step_decorator import (
 from metaflow._vendor import click
 
 
+# Contains the decorators on which _init was called. We want to ensure it is called
+# only once on each decorator and, as the _init() function below can be called in
+# several places, we need to track which decorator had their init function called
+_inited_decorators = set()
+
+
 class BadStepDecoratorException(MetaflowException):
     headline = "Syntax error"
 

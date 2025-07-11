@@ -17,6 +17,7 @@ from ..packaging_sys.utils import suffix_filter, walk
 from ..metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from ..exception import MetaflowException
 from ..user_configs.config_parameters import dump_config_values
+from ..util import get_metaflow_root
 from .. import R
 
 DEFAULT_SUFFIXES_LIST = DEFAULT_PACKAGE_SUFFIXES.split(",")
@@ -174,7 +175,7 @@ class MetaflowPackage(object):
         return json.dumps(
             {
                 "version": 0,
-                "archive_format": self._backend.backend_type(),
+                "archive_format": self._backend.backend_type,
                 "mfcontent_version": self._mfcontent.get_package_version(),
             }
         )

@@ -143,7 +143,6 @@ class PackagedDistributionFinder(metadata.DistributionFinder):
                 yield PackagedDistribution(
                     os.path.join(get_metaflow_root(), name), info
                 )
-            return None
         name = name_normalizer.sub("-", cast(str, context.name)).lower()
         if name in self._dist_info:
             yield PackagedDistribution(
