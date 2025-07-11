@@ -10,7 +10,8 @@ import threading
 from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
 from metaflow.packaging_sys import MetaflowCodeContent
-from .utils import check_process_exited, get_metaflow_root
+from metaflow.util import get_metaflow_root
+from .utils import check_process_exited
 
 
 def kill_processes_and_descendants(pids: List[str], termination_timeout: float):
