@@ -361,11 +361,6 @@ class CardDecorator(StepDecorator):
 
         return list(self._options(top_level_options))
 
-    def task_exception(
-        self, exception, step_name, flow, graph, retry_count, max_user_code_retries
-    ):
-        self._cleanup(step_name)
-
     def _cleanup(self, step_name):
         self._increment_completed_counter()
         if self.task_finished_decos == self.total_decos_on_step[step_name]:

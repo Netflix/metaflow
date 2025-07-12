@@ -72,10 +72,20 @@ class MetaflowPackage(object):
         else:
             self._suffixes = None
 
+        def _module_selector(m) -> bool:
+            from ..user_decorators.user_flow_decorator import FlowMutatorMeta
+            from ..user_decorators.user_step_decorator import UserStepDecoratorMeta
+
+            if (
+                m.__name__ in FlowMutatorMeta._import_modules
+                or m.__name__ in UserStepDecoratorMeta._import_modules
+                or hasattr(m, "METAFLOW_PACKAGE")
+            ):
+                return True
+
         if mfcontent is None:
-            self._mfcontent = MetaflowCodeContentV1(
-                criteria=lambda x: hasattr(x, "METAFLOW_PACKAGE"),
-            )
+            self._mfcontent = MetaflowCodeContentV1(criteria=_module_selector)
+
         else:
             self._mfcontent = mfcontent
         # We exclude the environment when packaging as this will be packaged separately.
@@ -165,7 +175,7 @@ class MetaflowPackage(object):
         return json.dumps(
             {
                 "version": 0,
-                "archive_format": self._backend.backend_type,
+                "archive_format": self._backend.backend_type(),
                 "mfcontent_version": self._mfcontent.get_package_version(),
             }
         )

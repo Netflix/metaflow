@@ -1,6 +1,6 @@
 import inspect
 
-from metaflow.user_configs.config_decorators import CustomStepDecorator
+from metaflow import StepMutator
 
 INDENT = 4
 
@@ -51,7 +51,7 @@ class FlowFormatter(object):
         steps = []
         for attr in dir(test):
             obj = getattr(test, attr)
-            if isinstance(obj, CustomStepDecorator):
+            if isinstance(obj, StepMutator):
                 steps.append(obj._my_step)
             if hasattr(obj, "is_step"):
                 steps.append(obj)
@@ -91,8 +91,8 @@ class FlowFormatter(object):
         yield 0, "# -*- coding: utf-8 -*-"
         yield 0, (
             "from metaflow import Config, config_expr, FlowSpec, step, Parameter, "
-            "project, IncludeFile, JSONType, current, parallel, CustomFlowDecorator, "
-            "CustomStepDecorator"
+            "project, IncludeFile, JSONType, current, parallel, FlowMutator, "
+            "StepMutator, UserStepDecorator, user_step_decorator"
         )
         yield 0, (
             "from metaflow_test import assert_equals, assert_equals_metadata, "

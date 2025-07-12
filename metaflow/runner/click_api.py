@@ -46,7 +46,6 @@ from metaflow.exception import MetaflowException
 from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
 from metaflow.parameters import JSONTypeClass, flow_context
-from metaflow.user_configs.config_decorators import CustomFlowDecorator
 from metaflow.user_configs.config_options import (
     ConfigValue,
     ConvertDictOrStr,
@@ -55,6 +54,7 @@ from metaflow.user_configs.config_options import (
     MultipleTuple,
     config_options_with_config_input,
 )
+from metaflow.user_decorators.user_flow_decorator import FlowMutator
 
 # Define a recursive type alias for JSON
 JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
@@ -264,12 +264,12 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
             loaded_modules[flow_file] = module
 
         classes = inspect.getmembers(
-            module, lambda x: inspect.isclass(x) or isinstance(x, CustomFlowDecorator)
+            module, lambda x: inspect.isclass(x) or isinstance(x, FlowMutator)
         )
         flow_cls = None
 
         for _, kls in classes:
-            if isinstance(kls, CustomFlowDecorator):
+            if isinstance(kls, FlowMutator):
                 kls = kls._flow_cls
             if (
                 kls is not FlowSpec
@@ -512,7 +512,7 @@ class MetaflowAPI(object):
 
         # At this point, we are like in start() in cli.py -- we obtained the
         # properly processed config_options which we can now use to process
-        # the config decorators (including CustomStep/FlowDecorators)
+        # the config decorators (including StepMutator/FlowMutator)
         # Note that if CLICK_API_PROCESS_CONFIG is False, we still do this because
         # it will init all parameters (config_options will be None)
         # We ignore any errors if we don't check the configs in the click API.
