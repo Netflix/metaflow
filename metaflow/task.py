@@ -106,14 +106,15 @@ class MetaflowTask(object):
         except Exception as ex:
             raised_exception = ex
 
-        if do_next:
+        if do_next or raised_exception:
             # If we are skipping the step, or executed a wrapped function,
             # we need to set the transition variables
             # properly. We call the next function as needed
+            # We also do this in case we want to gobble the exception.
             graph_node = self.flow._graph[step_function.name]
             out_funcs = [getattr(self.flow, f) for f in graph_node.out_funcs]
             if out_funcs:
-                if isinstance(do_next, bool):
+                if isinstance(do_next, bool) or raised_exception:
                     # We need to extract things from the self.next. This is not possible
                     # in the case where there was a num_parallel.
                     if graph_node.parallel_foreach:

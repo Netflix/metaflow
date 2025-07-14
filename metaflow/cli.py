@@ -447,8 +447,8 @@ def start(
         # be raised. For resume, since we ignore those options, we ignore the error.
         raise ctx.obj.delayed_config_exception
 
-    # Init all values in the config decorators and then process them
-    for decorator in ctx.obj.flow._flow_state.get(_FlowState.CONFIG_DECORATORS, []):
+    # Init all values in the flow mutators and then process them
+    for decorator in ctx.obj.flow._flow_state.get(_FlowState.FLOW_MUTATORS, []):
         decorator.external_init()
 
     new_cls = ctx.obj.flow._process_config_decorators(config_options)
@@ -561,6 +561,9 @@ def start(
             ctx.obj.flow_datastore,
             ctx.obj.logger,
         )
+
+        # Check the graph again (mutators may have changed it)
+        ctx.obj.graph = ctx.obj.flow._graph
 
         # TODO (savin): Enable lazy instantiation of package
         ctx.obj.package = None

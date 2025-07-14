@@ -190,7 +190,7 @@ class FlowMutator(metaclass=FlowMutatorMeta):
     ) -> "metaflow.flowspec.FlowSpecMeta":
         from ..flowspec import _FlowState
 
-        flow_spec._flow_state.setdefault(_FlowState.CONFIG_DECORATORS, []).append(self)
+        flow_spec._flow_state.setdefault(_FlowState.FLOW_MUTATORS, []).append(self)
         self._flow_cls = flow_spec
         return flow_spec
 
@@ -225,6 +225,7 @@ class FlowMutator(metaclass=FlowMutatorMeta):
                 raise MetaflowException(
                     "%s is used with arguments but does not implement init" % self
                 )
+        if "init" in self.__class__.__dict__:
             self.init(*self._args, **self._kwargs)
 
     def pre_mutate(

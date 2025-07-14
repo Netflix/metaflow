@@ -54,6 +54,8 @@ def before_run(obj, tags, decospecs):
     decorators._init_step_decorators(
         obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
     )
+    # Re-read graph since it may have been modified by mutators
+    obj.graph = obj.flow._graph
 
     obj.metadata.add_sticky_tags(tags=tags)
 

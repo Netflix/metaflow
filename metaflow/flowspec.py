@@ -78,7 +78,7 @@ class ParallelUBF(UnboundedForeachInput):
 
 class _FlowState(Enum):
     CONFIGS = 1
-    CONFIG_DECORATORS = 2
+    FLOW_MUTATORS = 2
     CACHED_PARAMETERS = 3
     SET_CONFIG_PARAMETERS = (
         4  # These are Parameters that now have a ConfigValue (converted)
@@ -135,11 +135,16 @@ class FlowSpecMeta(type):
                         raise DuplicateFlowDecoratorException(deco_name)
                     cls._flow_decorators.setdefault(deco_name, []).extend(deco)
 
-                # Take care of configs and config decorators
-                base_configs = base._flow_state.get(_FlowState.CONFIG_DECORATORS)
+                # Take care of configs and flow mutators
+                base_configs = base._flow_state.get(_FlowState.CONFIGS)
                 if base_configs:
-                    cls._flow_state.setdefault(_FlowState.CONFIG_DECORATORS, []).extend(
+                    cls._flow_state.setdefault(_FlowState.CONFIGS, {}).update(
                         base_configs
+                    )
+                base_mutators = base._flow_state.get(_FlowState.FLOW_MUTATORS)
+                if base_mutators:
+                    cls._flow_state.setdefault(_FlowState.FLOW_MUTATORS, []).extend(
+                        base_mutators
                     )
 
         cls._init_graph()
@@ -245,7 +250,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
         # Fast path for no user configurations
         if not process_configs or (
-            not cls._flow_state.get(_FlowState.CONFIG_DECORATORS)
+            not cls._flow_state.get(_FlowState.FLOW_MUTATORS)
             and all(len(step.config_decorators) == 0 for step in cls._steps)
         ):
             # Process parameters to allow them to also use config values easily
@@ -284,7 +289,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
         # and then the step level ones to maintain a consistent order with how
         # other decorators are run.
 
-        for deco in cls._flow_state.get(_FlowState.CONFIG_DECORATORS, []):
+        for deco in cls._flow_state.get(_FlowState.FLOW_MUTATORS, []):
             if isinstance(deco, FlowMutator):
                 inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
                 mutable_flow = MutableFlow(
@@ -423,7 +428,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
                     "statically_defined": deco.statically_defined,
                     "inserted_by": deco.inserted_by,
                 }
-                for deco in self._flow_state.get(_FlowState.CONFIG_DECORATORS, [])
+                for deco in self._flow_state.get(_FlowState.FLOW_MUTATORS, [])
             ],
             "extensions": extension_info(),
         }

@@ -330,6 +330,7 @@ def make_flow(
     decorators._init_step_decorators(
         obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
     )
+    obj.graph = obj.flow._graph
 
     obj.package = MetaflowPackage(
         obj.flow,
