@@ -41,7 +41,11 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
         # We try to find the modules we need to package. We will first look at all modules
         # and apply the criteria to them. Then we will use the most parent module that
         # fits the criteria as the module to package
-        modules = filter(lambda x: criteria(x[1]), sys.modules.items())
+
+        # Make a copy since sys.modules could be modified while we load other
+        # modules. See https://github.com/Netflix/metaflow/issues/2489
+        all_modules = dict(sys.modules)
+        modules = filter(lambda x: criteria(x[1]), all_modules.items())
         # Ensure that we see the parent modules first
         modules = sorted(modules, key=lambda x: x[0])
         if modules:
