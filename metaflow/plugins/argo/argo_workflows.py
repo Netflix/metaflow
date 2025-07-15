@@ -2125,8 +2125,17 @@ class ArgoWorkflows(object):
                     .node_selectors(resources.get("node_selector"))
                     # Set tolerations
                     .tolerations(resources.get("tolerations"))
-                    # Set image pull secrets
-                    .image_pull_secrets(resources.get("image_pull_secrets"))
+                    # Set image pull secrets if present. We need to use pod_spec_patch due to Argo not supporting this on a template level.
+                    .pod_spec_patch(
+                        {
+                            "imagePullSecrets": [
+                                {"name": secret}
+                                for secret in resources["image_pull_secrets"]
+                            ]
+                        }
+                        if resources["image_pull_secrets"]
+                        else None
+                    )
                     # Set container
                     .container(
                         # TODO: Unify the logic with kubernetes.py
@@ -3825,6 +3834,14 @@ class Template(object):
             )
         return self
 
+    def pod_spec_patch(self, pod_spec_patch=None):
+        if pod_spec_patch is None:
+            return self
+
+        self.payload["podSpecPatch"] = json.dumps(pod_spec_patch)
+
+        return self
+
     def node_selectors(self, node_selectors):
         if "nodeSelector" not in self.payload:
             self.payload["nodeSelector"] = {}
@@ -3834,10 +3851,6 @@ class Template(object):
 
     def tolerations(self, tolerations):
         self.payload["tolerations"] = tolerations
-        return self
-
-    def image_pull_secrets(self, image_pull_secrets):
-        self.payload["image_pull_secrets"] = image_pull_secrets
         return self
 
     def to_json(self):
