@@ -368,7 +368,6 @@ class MutableStep:
         if issubclass(canonical_deco_type, UserStepDecoratorBase):
             for attr in ["config_decorators", "wrappers"]:
                 new_deco_list = []
-
                 for deco in getattr(self._my_step, attr):
                     if deco.decorator_name == canonical_deco_type.decorator_name:
                         if do_all:
@@ -396,6 +395,7 @@ class MutableStep:
 
         if did_remove:
             return True
+        new_deco_list = []
         for deco in self._my_step.decorators:
             if deco.name == deco_name:
                 if do_all:

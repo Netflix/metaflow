@@ -515,6 +515,7 @@ def make_flow(
     decorators._init_step_decorators(
         obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
     )
+    obj.graph = obj.flow._graph
 
     # Save the code package in the flow datastore so that both user code and
     # metaflow package can be retrieved during workflow execution.

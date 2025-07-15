@@ -715,13 +715,16 @@ def _init_flow_decorators(
 
 
 def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
+    # NOTE: We don't need graph but keeping it for backwards compatibility with
+    # extensions that use it directly. We will remove it at some point.
+
     # We call the mutate method for both the flow and step mutators.
     cls = flow.__class__
     # Run all the decorators. We first run the flow-level decorators
     # and then the step level ones to maintain a consistent order with how
     # other decorators are run.
 
-    for deco in cls._flow_state.get(_FlowState.CONFIG_DECORATORS, []):
+    for deco in cls._flow_state.get(_FlowState.FLOW_MUTATORS, []):
         if isinstance(deco, FlowMutator):
             inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
             mutable_flow = MutableFlow(
@@ -776,6 +779,9 @@ def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
         if step.config_decorators:
             # We remove all mention of the custom step decorator
             setattr(cls, step.name, step)
+
+    cls._init_graph()
+    graph = flow._graph
 
     for step in flow:
         for deco in step.decorators:

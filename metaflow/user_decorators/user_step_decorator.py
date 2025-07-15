@@ -393,7 +393,7 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
                 raise MetaflowException(
                     "%s is used with arguments but does not implement init" % self
                 )
-
+        if "init" in self.__class__.__dict__:
             self.init(*self._args, **self._kwargs)
 
 
