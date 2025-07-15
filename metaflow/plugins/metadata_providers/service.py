@@ -591,7 +591,7 @@ class ServiceMetadataProvider(MetadataProvider):
             else:
                 if resp.status_code < 300:
                     return resp.headers.get("METADATA_SERVICE_VERSION", None)
-                elif resp.status_code != 503:
+                elif resp.status_code not in (503, 500):
                     raise ServiceException(
                         "Metadata request (%s) failed"
                         " (code %s): %s" % (url, resp.status_code, resp.text),
