@@ -111,7 +111,7 @@ class MetaflowTask(object):
             # we need to set the transition variables
             # properly. We call the next function as needed
             # We also do this in case we want to gobble the exception.
-            graph_node = self.flow._graph[step_function.name]
+            graph_node = self.flow._graph[orig_step_func.name]
             out_funcs = [getattr(self.flow, f) for f in graph_node.out_funcs]
             if out_funcs:
                 if isinstance(do_next, bool) or raised_exception:
@@ -138,7 +138,7 @@ class MetaflowTask(object):
         # We back out of the stack of generators
         for w in reversed(wrappers_stack):
             raised_exception = w.post_step(
-                step_function.name, self.flow, raised_exception
+                orig_step_func.name, self.flow, raised_exception
             )
         if raised_exception:
             # We have an exception that we need to propagate
