@@ -7,6 +7,7 @@ class NestedSwitchTest(MetaflowTest):
     """
 
     PRIORITY = 2
+    ONLY_GRAPHS = ["nested_switch"]
 
     @steps(0, ["start-nested"], required=True)
     def step_start(self):

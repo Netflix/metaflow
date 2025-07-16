@@ -7,6 +7,14 @@ class CardExtensionsImportTest(MetaflowTest):
     """
 
     PRIORITY = 5
+    SKIP_GRAPHS = [
+        "simple_switch",
+        "nested_switch",
+        "branch_in_switch",
+        "foreach_in_switch",
+        "switch_in_branch",
+        "switch_in_foreach",
+    ]
 
     @tag('card(type="card_ext_init_b",save_errors=False)')
     @tag('card(type="card_ext_init_a",save_errors=False)')

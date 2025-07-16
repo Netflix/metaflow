@@ -8,6 +8,14 @@ class BasicLogTest(MetaflowTest):
     """
 
     PRIORITY = 0
+    SKIP_GRAPHS = [
+        "simple_switch",
+        "nested_switch",
+        "branch_in_switch",
+        "foreach_in_switch",
+        "switch_in_branch",
+        "switch_in_foreach",
+    ]
 
     @steps(0, ["singleton"], required=True)
     def step_single(self):

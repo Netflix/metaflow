@@ -3,6 +3,7 @@ from metaflow_test import MetaflowTest, steps, assert_equals
 
 class SwitchInBranchTest(MetaflowTest):
     PRIORITY = 2
+    ONLY_GRAPHS = ["switch_in_branch"]
 
     @steps(0, ["start-split"], required=True)
     def step_start(self):

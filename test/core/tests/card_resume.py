@@ -8,6 +8,14 @@ class CardResumeTest(MetaflowTest):
 
     RESUME = True
     PRIORITY = 4
+    SKIP_GRAPHS = [
+        "simple_switch",
+        "nested_switch",
+        "branch_in_switch",
+        "foreach_in_switch",
+        "switch_in_branch",
+        "switch_in_foreach",
+    ]
 
     @tag('card(type="taskspec_card")')
     @steps(0, ["start"])
