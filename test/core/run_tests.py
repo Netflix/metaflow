@@ -30,8 +30,8 @@ from metaflow_test import MetaflowTest
 from metaflow_test.formatter import FlowFormatter
 
 
-def iter_graphs(base_dir="graphs"):
-    root = os.path.join(os.path.dirname(__file__), base_dir)
+def iter_graphs():
+    root = os.path.join(os.path.dirname(__file__), "graphs")
     for graphfile in os.listdir(root):
         if graphfile.endswith(".json") and not graphfile[0] == ".":
             with open(os.path.join(root, graphfile)) as f:
@@ -367,7 +367,7 @@ def run_test(formatter, context, debug, checks, env_base, executor):
             shutil.rmtree(tempdir)
 
 
-def run_all(ok_tests, ok_contexts, ok_graphs, debug, switch, num_parallel, inherit_env):
+def run_all(ok_tests, ok_contexts, ok_graphs, debug, num_parallel, inherit_env):
     tests = [
         test
         for test in sorted(iter_tests(), key=lambda x: x.PRIORITY)
@@ -383,24 +383,19 @@ def run_all(ok_tests, ok_contexts, ok_graphs, debug, switch, num_parallel, inher
     if debug or num_parallel is None:
         for test in tests:
             failed.extend(
-                run_test_cases((test, ok_contexts, ok_graphs, debug, switch, base_env))
+                run_test_cases((test, ok_contexts, ok_graphs, debug, base_env))
             )
     else:
-        args = [
-            (test, ok_contexts, ok_graphs, debug, switch, base_env) for test in tests
-        ]
+        args = [(test, ok_contexts, ok_graphs, debug, base_env) for test in tests]
         for fail in Pool(num_parallel).imap_unordered(run_test_cases, args):
             failed.extend(fail)
     return failed
 
 
 def run_test_cases(args):
-    test, ok_contexts, ok_graphs, debug, switch, base_env = args
+    test, ok_contexts, ok_graphs, debug, base_env = args
     contexts = json.load(open("contexts.json"))
-    if switch:
-        graphs = list(iter_graphs("graphs/switch"))
-    else:
-        graphs = list(iter_graphs())
+    graphs = list(iter_graphs())
     test_name = test.__class__.__name__
     log("Loaded test %s" % test_name)
     failed = []
@@ -498,12 +493,6 @@ def run_test_cases(args):
     help="Debug mode: Stop at the first failure, " "don't delete test directory",
 )
 @click.option(
-    "--switch",
-    is_flag=True,
-    default=False,
-    help="Switch based graphs only",
-)
-@click.option(
     "--inherit-env", is_flag=True, default=False, help="Inherit env variables"
 )
 @click.option(
@@ -519,7 +508,6 @@ def cli(
     graphs=None,
     num_parallel=None,
     debug=False,
-    switch=False,
     inherit_env=False,
 ):
     parse = lambda x: {t.lower() for t in x.split(",") if t}
@@ -529,7 +517,6 @@ def cli(
         parse(contexts),
         parse(graphs),
         debug,
-        switch,
         num_parallel,
         inherit_env,
     )

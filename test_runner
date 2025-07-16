@@ -19,15 +19,6 @@ run_tests() {
   cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --num-parallel 8 && cd ../../
 }
 
-run_switch_tests() {
-  cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --switch --graphs simple_switch --tests BasicSwitchTest && cd ../../
-  cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --switch --graphs nested_switch --tests NestedSwitchTest && cd ../../
-  cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --switch --graphs switch_in_branch --tests SwitchInBranchTest && cd ../../
-  cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --switch --graphs branch_in_switch --tests BranchInSwitchTest && cd ../../
-  cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --switch --graphs foreach_in_switch --tests ForeachInSwitchTest && cd ../../
-  cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --switch --graphs switch_in_foreach --tests SwitchInForeachTest && cd ../../
-}
-
 # We run realtime cards tests separately because there these tests validate the asynchronous updates to the
 # information stored in the datastore. So if there are other processes starving resources then these tests will
 # surely fail since a lot of checks have timeouts. 
@@ -36,4 +27,4 @@ run_runtime_card_tests() {
   cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --num-parallel 8 --contexts python3-all-local-cards-realtime --graphs $CARD_GRAPHS && cd ../../
 }
 
-install_deps && install_extensions && run_switch_tests && run_tests && run_runtime_card_tests
+install_deps && install_extensions && run_tests && run_runtime_card_tests
