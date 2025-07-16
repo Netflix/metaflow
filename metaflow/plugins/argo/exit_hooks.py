@@ -1,6 +1,6 @@
 from collections import defaultdict
 import json
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 
 class JsonSerializable(object):
@@ -94,13 +94,13 @@ class _HttpSpec(JsonSerializable):
 class HttpExitHook(Hook):
     def __init__(
         self,
-        name,
-        url,
-        method="GET",
-        headers=None,
-        body=None,
-        on_success=False,
-        on_error=False,
+        name: str,
+        url: str,
+        method: str = "GET",
+        headers: Optional[Dict] = None,
+        body: Optional[str] = None,
+        on_success: bool = False,
+        on_error: bool = False,
     ):
         self.template = _Template(name)
         http = _HttpSpec(method).url(url)
@@ -109,7 +109,7 @@ class HttpExitHook(Hook):
                 http.header(header, value)
 
         if body is not None:
-            http.body(json.dumps(body))
+            http.body(body)
 
         self.template.http(http)
 
