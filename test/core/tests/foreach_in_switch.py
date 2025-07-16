@@ -3,6 +3,7 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps, assert_equals
 
 class ForeachInSwitchTest(MetaflowTest):
     PRIORITY = 2
+    ONLY_GRAPHS = ["foreach_in_switch"]
 
     @steps(0, ["start-foreach-in-switch"], required=True)
     def step_start(self):

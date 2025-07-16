@@ -7,6 +7,7 @@ class BasicSwitchTest(MetaflowTest):
     """
 
     PRIORITY = 2
+    ONLY_GRAPHS = ["simple_switch"]
 
     @steps(0, ["start"], required=True)
     def step_start(self):
