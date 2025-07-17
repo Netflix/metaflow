@@ -452,8 +452,8 @@ class FlowGraph(object):
                 steps_info[cur_name] = node_dict
                 resulting_list.append(cur_name)
 
-                if cur_node.type not in ("start", "linear", "join", "split-switch"):
-                    # We need to look at the different branches for this
+                node_type = node_to_type(cur_node)
+                if node_type in ("split-static", "split-foreach"):
                     resulting_list.append(
                         [
                             populate_block(s, cur_node.matching_join)
@@ -461,8 +461,19 @@ class FlowGraph(object):
                         ]
                     )
                     cur_name = cur_node.matching_join
+                elif node_type == "split-switch":
+                    all_paths = [
+                        populate_block(s, end_name) for s in cur_node.out_funcs
+                    ]
+                    resulting_list.append(all_paths)
+                    cur_name = end_name
                 else:
-                    cur_name = cur_node.out_funcs[0]
+                    # handles only linear, start, and join steps.
+                    if cur_node.out_funcs:
+                        cur_name = cur_node.out_funcs[0]
+                    else:
+                        # handles terminal nodes or when we jump to 'end_name'.
+                        break
             return resulting_list
 
         graph_structure = populate_block("start", "end")
