@@ -184,7 +184,7 @@ class Decorator(object):
 
             attrs[name.strip()] = val_parsed
 
-            return [], attrs
+        return [], attrs
 
     @classmethod
     def parse_decorator_spec(cls, deco_spec):
