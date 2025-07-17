@@ -22,6 +22,14 @@ class CardWithRefreshTest(MetaflowTest):
     """
 
     PRIORITY = 3
+    SKIP_GRAPHS = [
+        "simple_switch",
+        "nested_switch",
+        "branch_in_switch",
+        "foreach_in_switch",
+        "switch_in_branch",
+        "switch_in_foreach",
+    ]
 
     @tag('environment(vars={"METAFLOW_CARD_NO_WARNING": "True"})')
     @tag('card(type="test_refresh_card", id="refresh_card")')

@@ -16,7 +16,7 @@ def transform_flow_graph(step_info):
     def node_to_type(node_type):
         if node_type in ["linear", "start", "end", "join"]:
             return node_type
-        elif node_type == "split":
+        elif node_type in ["split", "split-switch"]:
             return "split"
         elif node_type == "split-parallel" or node_type == "split-foreach":
             return "foreach"

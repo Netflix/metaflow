@@ -956,6 +956,11 @@ class ArgoWorkflows(object):
                 dag_task = DAGTask(self._sanitize(node.name)).template(
                     self._sanitize(node.name)
                 )
+            if node.type == "split-switch":
+                raise ArgoWorkflowsException(
+                    "Deploying flows with switch statement "
+                    "to Argo Workflows is not supported currently."
+                )
             elif (
                 node.is_inside_foreach
                 and self.graph[node.in_funcs[0]].type == "foreach"

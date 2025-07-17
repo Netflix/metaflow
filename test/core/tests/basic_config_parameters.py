@@ -4,6 +4,14 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 class BasicConfigTest(MetaflowTest):
     PRIORITY = 1
     REQUIRED_FILES = ["basic_config_silly.txt"]
+    SKIP_GRAPHS = [
+        "simple_switch",
+        "nested_switch",
+        "branch_in_switch",
+        "foreach_in_switch",
+        "switch_in_branch",
+        "switch_in_foreach",
+    ]
     PARAMETERS = {
         "default_from_config": {
             "default": "config_expr('config2').default_param",

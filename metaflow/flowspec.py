@@ -788,6 +788,35 @@ class FlowSpec(metaclass=FlowSpecMeta):
         value = item if _is_primitive_type(item) else reprlib.Repr().repr(item)
         return basestring(value)[:MAXIMUM_FOREACH_VALUE_CHARS]
 
+    def _validate_switch_cases(self, switch_cases, step):
+        resolved_cases = {}
+        for case_key, step_method in switch_cases.items():
+            if isinstance(case_key, str) and case_key.startswith("config:"):
+                full_path = case_key[len("config:") :]
+                parts = full_path.split(".", 1)
+                if len(parts) == 2:
+                    config_var_name, config_key_name = parts
+                    try:
+                        config_obj = getattr(self, config_var_name)
+                        resolved_key = str(getattr(config_obj, config_key_name))
+                    except AttributeError:
+                        msg = (
+                            "Step *{step}* references unknown config '{path}' "
+                            "in switch case.".format(step=step, path=full_path)
+                        )
+                        raise InvalidNextException(msg)
+                else:
+                    raise MetaflowInternalError(
+                        "Invalid config path format in switch case."
+                    )
+            else:
+                resolved_key = case_key
+
+            func_name = step_method.__func__.__name__
+            resolved_cases[resolved_key] = func_name
+
+        return resolved_cases
+
     def next(self, *dsts: Callable[..., None], **kwargs) -> None:
         """
         Indicates the next step to execute after this step has completed.
@@ -812,6 +841,15 @@ class FlowSpec(metaclass=FlowSpecMeta):
           evaluates to an iterator. A task will be launched for each value in the iterator and
           each task will execute the code specified by the step `foreach_step`.
 
+        - Switch statement:
+          ```
+          self.next({"case1": self.step_a, "case2": self.step_b}, condition='condition_variable')
+          ```
+          In this situation, `step_a` and `step_b` are methods in the current class decorated
+          with the `@step` decorator and `condition_variable` is a variable name in the current
+          class. The value of the condition variable determines which step to execute. If the
+          value doesn't match any of the dictionary keys, a RuntimeError is raised.
+
         Parameters
         ----------
         dsts : Callable[..., None]
@@ -827,6 +865,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
         foreach = kwargs.pop("foreach", None)
         num_parallel = kwargs.pop("num_parallel", None)
+        condition = kwargs.pop("condition", None)
         if kwargs:
             kw = next(iter(kwargs))
             msg = (
@@ -840,6 +879,92 @@ class FlowSpec(metaclass=FlowSpecMeta):
             msg = (
                 "Multiple self.next() calls detected in step *{step}*. "
                 "Call self.next() only once.".format(step=step)
+            )
+            raise InvalidNextException(msg)
+
+        # check: switch case using condition
+        if condition is not None:
+            if len(dsts) != 1 or not isinstance(dsts[0], dict):
+                msg = (
+                    "Step *{step}* has an invalid self.next() transition. "
+                    "When using 'condition', provide exactly one dictionary argument "
+                    "mapping condition values to step methods.".format(step=step)
+                )
+                raise InvalidNextException(msg)
+
+            if not isinstance(condition, basestring):
+                msg = (
+                    "Step *{step}* has an invalid self.next() transition. "
+                    "The argument to 'condition' must be a string.".format(step=step)
+                )
+                raise InvalidNextException(msg)
+
+            if foreach is not None or num_parallel is not None:
+                msg = (
+                    "Step *{step}* has an invalid self.next() transition. "
+                    "Switch statements cannot be combined with foreach or num_parallel.".format(
+                        step=step
+                    )
+                )
+                raise InvalidNextException(msg)
+
+            switch_cases = dsts[0]
+            if not switch_cases:
+                msg = (
+                    "Step *{step}* has an invalid self.next() transition. "
+                    "Switch statement cannot have an empty dictionary.".format(
+                        step=step
+                    )
+                )
+                raise InvalidNextException(msg)
+
+            # Validate that condition variable exists
+            try:
+                getattr(self, condition)
+            except AttributeError:
+                msg = (
+                    "Condition variable *self.{var}* in step *{step}* "
+                    "does not exist. Make sure you set self.{var} in this step.".format(
+                        step=step, var=condition
+                    )
+                )
+                raise InvalidNextException(msg)
+
+            # Validate that all switch case values are step methods
+            funcs = []
+            for case_value, step_method in switch_cases.items():
+                try:
+                    func_name = step_method.__func__.__name__
+                except:
+                    msg = (
+                        "In step *{step}* switch case '{case}', the value is "
+                        "not a Metaflow step. Make sure all values in the switch dictionary "
+                        "are steps of the Flow class.".format(
+                            step=step, case=case_value
+                        )
+                    )
+                    raise InvalidNextException(msg)
+                if not hasattr(self, func_name):
+                    msg = (
+                        "Step *{step}* specifies a switch case to an "
+                        "unknown step, *{name}*.".format(step=step, name=func_name)
+                    )
+                    raise InvalidNextException(msg)
+                funcs.append(func_name)
+
+            resolved_switch_cases = self._validate_switch_cases(switch_cases, step)
+
+            # Store switch information for runtime evaluation
+            self._switch_cases = resolved_switch_cases
+            self._switch_condition = condition
+            self._transition = (funcs, None)
+            return
+
+        # Check for an invalid transition: a dictionary used without a 'condition' parameter.
+        if len(dsts) == 1 and isinstance(dsts[0], dict):
+            msg = (
+                "Step *{step}* has an invalid self.next() transition. "
+                "Dictionary argument requires 'condition' parameter.".format(step=step)
             )
             raise InvalidNextException(msg)
 
@@ -933,7 +1058,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
             self._foreach_var = foreach
 
         # check: non-keyword transitions are valid
-        if foreach is None:
+        if foreach is None and condition is None:
             if len(dsts) < 1:
                 msg = (
                     "Step *{step}* has an invalid self.next() transition. "
