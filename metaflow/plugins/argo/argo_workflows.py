@@ -1965,6 +1965,7 @@ class ArgoWorkflows(object):
                     disk=str(resources["disk"]),
                     gpu=resources["gpu"],
                     gpu_vendor=str(resources["gpu_vendor"]),
+                    gpu_type=str(resources["gpu_type"]),
                     tolerations=resources["tolerations"],
                     use_tmpfs=use_tmpfs,
                     tmpfs_tempdir=tmpfs_tempdir,
@@ -2191,10 +2192,13 @@ class ArgoWorkflows(object):
                                     limits={
                                         **qos_limits,
                                         **{
-                                            "%s.com/gpu".lower()
-                                            % resources["gpu_vendor"]: str(
-                                                resources["gpu"]
-                                            )
+                                            (
+                                                "%s.com/%s".lower()
+                                                % (
+                                                    resources["gpu_vendor"],
+                                                    resources["gpu_type"],
+                                                )
+                                            ): str(resources["gpu"])
                                             for k in [0]
                                             if resources["gpu"] is not None
                                         },
