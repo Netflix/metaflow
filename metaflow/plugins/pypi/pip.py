@@ -70,7 +70,7 @@ class Pip(object):
         debug.conda_exec("Solving packages for PyPI environment %s" % id_)
         with tempfile.TemporaryDirectory() as tmp_dir:
             report = "{tmp_dir}/report.json".format(tmp_dir=tmp_dir)
-            implementations, platforms, abis = zip(
+            interpreter, platforms, abis = zip(
                 *[
                     (tag.interpreter, tag.platform, tag.abi)
                     for tag in pip_tags(python, platform)
@@ -94,7 +94,8 @@ class Pip(object):
                 ),
                 *(chain.from_iterable(product(["--abi"], set(abis)))),
                 *(chain.from_iterable(product(["--platform"], set(platforms)))),
-                # *(chain.from_iterable(product(["--implementations"], set(implementations)))),
+                *(chain.from_iterable(product(["--implementation"], set(["cp"])))),
+                "--python-version=%s" % python,
             ]
             for package, version in packages.items():
                 if version.startswith(("<", ">", "!", "~", "@")):
@@ -208,7 +209,7 @@ class Pip(object):
                 shutil.move(os.path.join(path, wheel), target)
                 metadata["{url}".format(**package)] = target
 
-        implementations, platforms, abis = zip(
+        interpreter, platforms, abis = zip(
             *[
                 (tag.interpreter, tag.platform, tag.abi)
                 for tag in pip_tags(python, platform)
@@ -232,7 +233,8 @@ class Pip(object):
             ),
             *(chain.from_iterable(product(["--abi"], set(abis)))),
             *(chain.from_iterable(product(["--platform"], set(platforms)))),
-            # *(chain.from_iterable(product(["--implementations"], set(implementations)))),
+            *(chain.from_iterable(product(["--implementation"], set(["cp"])))),
+            "--python-version=%s" % python,
         ]
         packages = [package for package in packages if not package["require_build"]]
         for package in packages:
