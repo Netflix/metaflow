@@ -17,7 +17,6 @@ from ..packaging_sys.utils import suffix_filter, walk
 from ..metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from ..exception import MetaflowException
 from ..user_configs.config_parameters import dump_config_values
-from ..util import get_metaflow_root
 from .. import R
 
 DEFAULT_SUFFIXES_LIST = DEFAULT_PACKAGE_SUFFIXES.split(",")
