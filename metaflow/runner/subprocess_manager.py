@@ -155,9 +155,11 @@ class SubprocessManager(object):
         updated_env = MetaflowCodeContent.get_env_vars_for_packaged_metaflow(
             get_metaflow_root()
         )
+        print("UPDATE TO ENV IS: %s" % str(updated_env))
         if updated_env:
             env = env or {}
             env.update(updated_env)
+        print("COMMAND IS WITH ENV %s and CWD %s" % (str(env), cwd))
         command_obj = CommandManager(command, env, cwd)
         pid = command_obj.run(show_output=show_output)
         self.commands[pid] = command_obj
