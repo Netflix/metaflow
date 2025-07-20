@@ -355,16 +355,14 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
                 )
                 yield json.dumps(self.create_mfcontent_info()).encode(
                     "utf-8"
-                ), os.path.join(self._code_dir, MFCONTENT_MARKER)
+                ), MFCONTENT_MARKER
             else:
                 for k in self._other_content.keys():
                     yield "<generated %s content>" % (os.path.basename(k)), k
                 yield "<generated %s content>" % (
                     os.path.basename(self._dist_info_file)
                 ), os.path.join(self._other_dir, self._dist_info_file)
-                yield "<generated %s content>" % MFCONTENT_MARKER, os.path.join(
-                    self._code_dir, MFCONTENT_MARKER
-                )
+                yield "<generated %s content>" % MFCONTENT_MARKER, MFCONTENT_MARKER
 
     def _metaflow_distribution_files(self) -> Generator[Tuple[str, str], None, None]:
         debug.package_exec("Including Metaflow from '%s'" % self._metaflow_root)

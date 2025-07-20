@@ -138,7 +138,9 @@ class MetaflowCodeContent:
             # package so no environment variables to set.
             return None
         handling_cls = cls._get_mfcontent_class(mfcontent_info)
-        return handling_cls.get_post_extract_env_vars_impl(dest_dir)
+        v = handling_cls.get_post_extract_env_vars_impl(dest_dir)
+        v["METAFLOW_EXTRACTED_ROOT"] = dest_dir
+        return v
 
     @classmethod
     def get_archive_info(
@@ -276,7 +278,9 @@ class MetaflowCodeContent:
                 "Invalid package -- unknown version %s in info: %s"
                 % (version_id, cls._mappings)
             )
-        return cls._mappings[version_id].get_post_extract_env_vars_impl(dest_dir)
+        v = cls._mappings[version_id].get_post_extract_env_vars_impl(dest_dir)
+        v["METAFLOW_EXTRACTED_ROOT"] = dest_dir
+        return v
 
     # Implement the _impl methods in the base subclass (in this file). These need to
     # happen with as few imports as possible to prevent circular dependencies.
@@ -528,12 +532,13 @@ class MetaflowCodeContent:
             return cls._cached_mfcontent_info["_local"]
 
         mfcontent_info = None  # type: Optional[Dict[str, Any]]
-        if os.path.exists(os.path.join(get_metaflow_root(), MFCONTENT_MARKER)):
-            with open(
-                os.path.join(get_metaflow_root(), MFCONTENT_MARKER),
-                "r",
-                encoding="utf-8",
-            ) as f:
+        root = os.environ.get("METAFLOW_EXTRACTED_ROOT", get_metaflow_root())
+        if root.endswith(":"):
+            # Coming from env-var; it most likely ends in : since it can
+            # be a "list"
+            root = root[:-1]
+        if os.path.exists(os.path.join(root, MFCONTENT_MARKER)):
+            with open(os.path.join(root, MFCONTENT_MARKER), "r", encoding="utf-8") as f:
                 mfcontent_info = json.load(f)
         cls._cached_mfcontent_info["_local"] = mfcontent_info
         return mfcontent_info
@@ -848,7 +853,7 @@ class MetaflowCodeContentV1Base(MetaflowCodeContent, version_id=1):
                 to_return.append(filename)
             elif filename.startswith(cls._code_dir):
                 # Special case for marker which is a other content even if in code.
-                if filename == f"{cls._code_dir}/{MFCONTENT_MARKER}":
+                if filename == MFCONTENT_MARKER:
                     if content_types & ContentType.OTHER_CONTENT.value:
                         to_return.append(filename)
                     else:
