@@ -82,14 +82,16 @@ class ContentAddressedStore(object):
                 if _is_transfer:
                     key, blob_data, meta = blob
                     path = self._storage_impl.path_join(self._prefix, key[:2], key)
-                    is_raw = meta and meta.get("cas_raw", False)
+                    # Transfer data is always raw/decompressed, so mark it as such
+                    meta_corrected = {"cas_raw": True, "cas_version": 1}
+
                     results.append(
                         self.save_blobs_result(
-                            uri=self._storage_impl.full_uri(path) if is_raw else None,
+                            uri=self._storage_impl.full_uri(path),
                             key=key,
                         )
                     )
-                    yield path, (BytesIO(blob_data), meta)
+                    yield path, (BytesIO(blob_data), meta_corrected)
                     continue
                 sha = sha1(blob).hexdigest()
                 path = self._storage_impl.path_join(self._prefix, sha[:2], sha)
@@ -147,13 +149,18 @@ class ContentAddressedStore(object):
             if self._blob_cache:
                 blob = self._blob_cache.load_key(key)
             if blob is not None:
-                yield key, blob
+                if _is_transfer:
+                    # Cached blobs are decompressed/processed bytes regardless of original format
+                    yield key, blob, {"cas_raw": False, "cas_version": 1}
+                else:
+                    yield key, blob
             else:
                 path = self._storage_impl.path_join(self._prefix, key[:2], key)
                 load_paths.append((key, path))
 
         with self._storage_impl.load_bytes([p for _, p in load_paths]) as loaded:
             for path_key, file_path, meta in loaded:
+                print(f"path_key: {path_key}, file_path: {file_path}, meta: {meta}")
                 key = self._storage_impl.path_split(path_key)[-1]
                 # At this point, we either return the object as is (if raw) or
                 # decode it according to the encoding version
@@ -189,7 +196,10 @@ class ContentAddressedStore(object):
                 if self._blob_cache:
                     self._blob_cache.store_key(key, blob)
 
-                yield key, blob
+                if _is_transfer:
+                    yield key, blob, meta  # Preserve exact original metadata from storage
+                else:
+                    yield key, blob
 
     def _unpack_backward_compatible(self, blob):
         # This is the backward compatible unpack

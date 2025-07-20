@@ -656,23 +656,6 @@ class MetaflowTask(object):
                             "inputs." % step_name
                         )
                     self.flow._set_datastore(inputs[0])
-                    # Iterate over all artifacts in the parent pathspec and add them
-                    # to the current flow's datastore. We need to do this explictly
-                    # since we want to persist even those attributes that are not
-                    # used / redefined in the spin step.
-                    if self.orig_flow_datastore and persist:
-                        for artifact_name in self.flow._datastore._objects.keys():
-                            # This is highly inefficient since we are loading data
-                            # that we don't need, but there is no better way to
-                            # support this now
-                            artifact_data = self.spin_artifacts.get(
-                                artifact_name, self.flow._datastore[artifact_name]
-                            )
-                            setattr(
-                                self.flow,
-                                artifact_name,
-                                artifact_data,
-                            )
                     if input_paths:
                         # initialize parameters (if they exist)
                         # We take Parameter values from the first input,

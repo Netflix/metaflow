@@ -6,7 +6,7 @@ from metaflow import Runner, Run
 def complex_dag_run():
     # with Runner('complex_dag_flow.py').run() as running:
     #     yield running.run
-    return Run("ComplexDAGFlow/3", _namespace_check=False)
+    return Run("ComplexDAGFlow/5", _namespace_check=False)
 
 
 @pytest.fixture

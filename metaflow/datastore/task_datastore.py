@@ -279,7 +279,44 @@ class TaskDataStore(object):
         ):
             # Nothing to transfer -- artifacts are already saved properly
             return
-        # Otherwise, we need to transfer over artifacts
+
+        # Determine which artifacts need to be transferred
+        if names is None:
+            # Transfer all artifacts from other datastore
+            artifacts_to_transfer = list(other_datastore._objects.keys())
+        else:
+            # Transfer only specified artifacts
+            artifacts_to_transfer = [
+                name for name in names if name in other_datastore._objects
+            ]
+
+        if not artifacts_to_transfer:
+            return
+
+        # Get SHA keys for artifacts to transfer
+        shas_to_transfer = [
+            other_datastore._objects[name] for name in artifacts_to_transfer
+        ]
+
+        # Check which blobs are missing locally
+        missing_shas = []
+        for sha in shas_to_transfer:
+            local_path = self._ca_store._storage_impl.path_join(
+                self._ca_store._prefix, sha[:2], sha
+            )
+            if not self._ca_store._storage_impl.is_file([local_path])[0]:
+                missing_shas.append(sha)
+
+        if not missing_shas:
+            return  # All blobs already exist locally
+
+        # Load blobs from other datastore in transfer mode
+        transfer_blobs = other_datastore._ca_store.load_blobs(
+            missing_shas, _is_transfer=True
+        )
+
+        # Save blobs to local datastore in transfer mode
+        self._ca_store.save_blobs(transfer_blobs, _is_transfer=True)
 
     @only_if_not_done
     @require_mode("w")
@@ -718,9 +755,9 @@ class TaskDataStore(object):
             self._objects.update(flow._datastore._objects)
             self._info.update(flow._datastore._info)
 
-        # we create a list of valid_artifacts in advance, outside of
-        # artifacts_iter, so we can provide a len_hint below
+        # Scan flow object FIRST
         valid_artifacts = []
+        current_artifact_names = set()
         for var in dir(flow):
             if var.startswith("__") or var in flow._EPHEMERAL:
                 continue
@@ -737,6 +774,17 @@ class TaskDataStore(object):
                 or isinstance(val, Parameter)
             ):
                 valid_artifacts.append((var, val))
+                current_artifact_names.add(var)
+
+        # Transfer ONLY artifacts that aren't being overridden
+        if hasattr(flow._datastore, "orig_datastore"):
+            parent_artifacts = set(flow._datastore._objects.keys())
+            unchanged_artifacts = parent_artifacts - current_artifact_names
+            print(f"Transferring unchanged artifacts: {unchanged_artifacts}")
+            if unchanged_artifacts:
+                self.transfer_artifacts(
+                    flow._datastore.orig_datastore, names=list(unchanged_artifacts)
+                )
 
         def artifacts_iter():
             # we consume the valid_artifacts list destructively to
@@ -752,6 +800,7 @@ class TaskDataStore(object):
                     delattr(flow, var)
                 yield var, val
 
+        # Save current artifacts
         self.save_artifacts(artifacts_iter(), len_hint=len(valid_artifacts))
 
     @only_if_not_done
