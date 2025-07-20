@@ -26,7 +26,12 @@ from contextlib import contextmanager
 from . import get_namespace
 from .client.filecache import FileCache, FileBlobCache, TaskMetadataCache
 from .metadata_provider import MetaDatum
-from .metaflow_config import FEAT_ALWAYS_UPLOAD_CODE_PACKAGE, MAX_ATTEMPTS, UI_URL, SPIN_ALLOWED_DECORATORS
+from .metaflow_config import (
+    FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
+    MAX_ATTEMPTS,
+    UI_URL,
+    SPIN_ALLOWED_DECORATORS,
+)
 from .metaflow_profile import from_start
 from .plugins import DATASTORES
 from .exception import (
