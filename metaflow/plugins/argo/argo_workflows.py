@@ -262,6 +262,7 @@ class ArgoWorkflows(object):
                     flow_name=flow_name, run_id=name
                 )
             )
+        return True
 
     @staticmethod
     def get_workflow_status(flow_name, name):
