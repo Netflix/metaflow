@@ -545,15 +545,6 @@ def resolve_workflow_name(obj, name):
             % to_unicode(base64.b32encode(sha1(project_branch).digest()))[:16]
         )
         is_project = True
-        if len(workflow_name) > limit:
-            workflow_name = _truncate_workflow_name(workflow_name)
-            is_workflow_name_modified = True
-        if not VALID_NAME.search(workflow_name):
-            # TODO: create a new sanitize_for_argo_v2() function that is not surjective
-            #       and use it here. Might not be straight forward since it is also used
-            #       in validate_run_id() :(
-            workflow_name = sanitize_for_argo(workflow_name)
-            is_workflow_name_modified = True
     else:
         if name and not VALID_NAME.search(name):
             raise MetaflowException(
@@ -567,12 +558,16 @@ def resolve_workflow_name(obj, name):
         token_prefix = workflow_name
         is_project = False
 
-        if len(workflow_name) > limit:
-            workflow_name = _truncate_workflow_name(workflow_name)
-            is_workflow_name_modified = True
-        if not VALID_NAME.search(workflow_name):
-            workflow_name = sanitize_for_argo(workflow_name)
-            is_workflow_name_modified = True
+    if len(workflow_name) > limit:
+        workflow_name = _truncate_workflow_name(workflow_name)
+        is_workflow_name_modified = True
+    if not VALID_NAME.search(workflow_name):
+        # TODO: create a new sanitize_for_argo_v2() function that is not surjective
+        #       and use it here. Might not be straight forward since it is also used
+        #       in validate_run_id() :(
+        workflow_name = sanitize_for_argo(workflow_name)
+        is_workflow_name_modified = True
+
     return workflow_name, token_prefix.lower(), is_project, is_workflow_name_modified
 
 
