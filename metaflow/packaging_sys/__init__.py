@@ -710,7 +710,7 @@ class MetaflowCodeContentV1Base(MetaflowCodeContent, version_id=1):
         cls, mfcontent_info: Optional[Dict[str, Any]], filename: str, in_archive: bool
     ) -> str:
         if in_archive:
-            return filename
+            return os.path.join(cls._other_dir, filename)
         return os.path.join(get_metaflow_root(), "..", cls._other_dir, filename)
 
     @classmethod
@@ -718,7 +718,7 @@ class MetaflowCodeContentV1Base(MetaflowCodeContent, version_id=1):
         cls, mfcontent_info: Optional[Dict[str, Any]], filename: str, in_archive: bool
     ) -> str:
         if in_archive:
-            return filename
+            return os.path.join(cls._code_dir, filename)
         return os.path.join(get_metaflow_root(), filename)
 
     @classmethod
