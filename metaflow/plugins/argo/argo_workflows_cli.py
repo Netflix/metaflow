@@ -88,7 +88,7 @@ def argo_workflows(obj, name=None):
         obj.is_project,
         obj._is_workflow_name_modified,
     ) = resolve_workflow_name(obj, name)
-    # Backward compatibility for Metaflow versions <=2.12 because of
+    # Backward compatibility for Metaflow versions <=2.16 because of
     # change in name length restrictions in Argo Workflows from 253 to 52
     # characters.
     (
@@ -346,7 +346,7 @@ def create(
             obj.echo("Warning! ", bold=True, nl=False)
             obj.echo(
                 "Due to new naming restrictions on Argo Workflows, "
-                "re-deploying this flow with older\nversions of Metaflow (<2.13) "
+                "re-deploying this flow with older\nversions of Metaflow (<2.17) "
                 "will result in the flow being deployed with a different name:"
             )
             obj.echo(
@@ -356,7 +356,7 @@ def create(
             obj.echo(
                 "without replacing the existing deployment. This may result in "
                 "duplicate executions of this flow.\nTo avoid this issue, deploy "
-                "this flow using Metaflow ≥2.13 or specify the flow name with --name.\n"
+                "this flow using Metaflow ≥2.17 or specify the flow name with --name.\n"
             )
             # TODO: Add proper usage message for --name
 
@@ -458,7 +458,7 @@ def check_metadata_service_version(obj):
 #   project branch due to using email addresses as user names.
 # - We append a hash of the workflow name to the end to make it unique.
 
-# A complication here is that in previous versions of Metaflow (=<2.12), the limit was a
+# A complication here is that in previous versions of Metaflow (=<2.16), the limit was a
 # rather lax 253 characters - so we have two issues to contend with:
 # 1. Replacing any equivalent flows deployed using previous versions of Metaflow which
 #    adds a bit of complexity to the business logic.
@@ -486,12 +486,12 @@ def check_metadata_service_version(obj):
 
 
 def resolve_workflow_name_v1(obj, name):
-    # models the workflow_name calculation logic in Metaflow versions =<2.12
+    # models the workflow_name calculation logic in Metaflow versions =<2.16
     project = current.get("project_name")
     is_workflow_name_modified = False
     if project:
         if name:
-            return None, False  # not possible in versions =<2.12
+            return None, False  # not possible in versions =<2.16
         workflow_name = current.project_flow_name
         if len(workflow_name) > 253:
             name_hash = to_unicode(
@@ -504,10 +504,10 @@ def resolve_workflow_name_v1(obj, name):
             is_workflow_name_modified = True
     else:
         if name and not VALID_NAME.search(name):
-            return None, False  # not possible in versions =<2.12
+            return None, False  # not possible in versions =<2.16
         workflow_name = name if name else current.flow_name
         if len(workflow_name) > 253:
-            return None, False  # not possible in versions =<2.12
+            return None, False  # not possible in versions =<2.16
         if not VALID_NAME.search(workflow_name):
             # Note - since sanitize_for_argo() is a surjective mapping,
             #        using it here is a bug, but we leave this in place
@@ -834,7 +834,7 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
             obj.echo("Warning! ", bold=True, nl=False)
             obj.echo(
                 "Found a deployment of this flow with an old style name, defaulted to triggering *%s*. \nDue to new naming restrictions on Argo Workflows, "
-                "this flow will have a shorter name with newer\nversions of Metaflow (>=2.13) "
+                "this flow will have a shorter name with newer\nversions of Metaflow (>=2.17) "
                 "which will allow it to be triggered through Argo UI as well. "
                 % obj._v1_workflow_name
             )
