@@ -990,12 +990,7 @@ def suspend(obj, run_id, authorize=None):
             "about production tokens."
         )
 
-    workflows = [obj.workflow_name]
-    if obj.workflow_name != obj._v1_workflow_name:
-        # Only add the old name if there exists a deployment with such name.
-        # This is due to the way validate_token is tied to an existing deployment.
-        if ArgoWorkflows.get_existing_deployment(obj._v1_workflow_name) is not None:
-            workflows.append(obj._v1_workflow_name)
+    workflows = _get_existing_workflow_names(obj)
 
     for workflow_name in workflows:
         validate_run_id(
@@ -1043,12 +1038,7 @@ def unsuspend(obj, run_id, authorize=None):
             "about production tokens."
         )
 
-    workflows = [obj.workflow_name]
-    if obj.workflow_name != obj._v1_workflow_name:
-        # Only add the old name if there exists a deployment with such name.
-        # This is due to the way validate_token is tied to an existing deployment.
-        if ArgoWorkflows.get_existing_deployment(obj._v1_workflow_name) is not None:
-            workflows.append(obj._v1_workflow_name)
+    workflows = _get_existing_workflow_names(obj)
 
     for workflow_name in workflows:
         validate_run_id(
@@ -1170,12 +1160,7 @@ def terminate(obj, run_id, authorize=None):
             "about production tokens."
         )
 
-    workflows = [obj.workflow_name]
-    if obj.workflow_name != obj._v1_workflow_name:
-        # Only add the old name if there exists a deployment with such name.
-        # This is due to the way validate_token is tied to an existing deployment.
-        if ArgoWorkflows.get_existing_deployment(obj._v1_workflow_name) is not None:
-            workflows.append(obj._v1_workflow_name)
+    workflows = _get_existing_workflow_names(obj)
 
     for workflow_name in workflows:
         validate_run_id(
@@ -1296,6 +1281,20 @@ def validate_run_id(
         raise IncorrectProductionToken("Try again with the correct production token.")
 
     return True
+
+
+def _get_existing_workflow_names(obj):
+    """
+    Construct a list of the current workflow name and possible existing deployments of old workflow names
+    """
+    workflows = [obj.workflow_name]
+    if obj.workflow_name != obj._v1_workflow_name:
+        # Only add the old name if there exists a deployment with such name.
+        # This is due to the way validate_token is tied to an existing deployment.
+        if ArgoWorkflows.get_existing_deployment(obj._v1_workflow_name) is not None:
+            workflows.append(obj._v1_workflow_name)
+
+    return workflows
 
 
 def sanitize_for_argo(text):
