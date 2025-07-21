@@ -225,10 +225,9 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
         # When flow_name is None, use all=True to get all templates
         # When flow_name is specified, use all=False to filter by flow_name
         all_templates = flow_name is None
-        template_names = ArgoWorkflows.list_templates(
+        for template_name in ArgoWorkflows.list_templates(
             flow_name=flow_name, all=all_templates
-        )
-        for template_name in template_names:
+        ):
             try:
                 deployed_flow = cls.from_deployment(template_name)
                 yield deployed_flow

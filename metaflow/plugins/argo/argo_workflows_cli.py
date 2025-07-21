@@ -1011,8 +1011,7 @@ def terminate(obj, run_id, authorize=None):
 )
 @click.pass_obj
 def list_workflow_templates(obj, all=None):
-    templates = ArgoWorkflows.list_templates(obj.flow.name, all)
-    for template_name in templates:
+    for template_name in ArgoWorkflows.list_templates(obj.flow.name, all):
         obj.echo_always(template_name)
 
 
