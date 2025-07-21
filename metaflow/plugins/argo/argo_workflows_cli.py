@@ -524,6 +524,15 @@ def resolve_workflow_name(obj, name):
     limit = 45
     project = current.get("project_name")
     is_workflow_name_modified = False
+
+    def _truncate_workflow_name(workflow_name):
+        name_hash = to_unicode(
+            base64.b32encode(sha1(to_bytes(workflow_name)).digest())
+        )[:5].lower()
+        # TODO: We can create better names that try to preserve the flow name
+        workflow_name = "%s-%s" % (workflow_name[: limit - 6], name_hash)
+        return workflow_name
+
     if project:
         if name:
             raise MetaflowException(
@@ -537,11 +546,7 @@ def resolve_workflow_name(obj, name):
         )
         is_project = True
         if len(workflow_name) > limit:
-            name_hash = to_unicode(
-                base64.b32encode(sha1(to_bytes(workflow_name)).digest())
-            )[:5].lower()
-            # TODO: We can create better names that try to preserve the flow name
-            workflow_name = "%s-%s" % (workflow_name[: limit - 6], name_hash)
+            workflow_name = _truncate_workflow_name(workflow_name)
             is_workflow_name_modified = True
         if not VALID_NAME.search(workflow_name):
             # TODO: create a new sanitize_for_argo_v2() function that is not surjective
@@ -563,15 +568,8 @@ def resolve_workflow_name(obj, name):
         is_project = False
 
         if len(workflow_name) > limit:
-            msg = (
-                "The full name of the workflow:\n*%s*\nis longer than %s "
-                "characters.\n\n"
-                "To deploy this workflow to Argo Workflows, please "
-                "assign a shorter name\nusing the option\n"
-                "*argo-workflows --name <name> create*." % (workflow_name, limit)
-            )
-            raise ArgoWorkflowsNameTooLong(msg)
-
+            workflow_name = _truncate_workflow_name(workflow_name)
+            is_workflow_name_modified = True
         if not VALID_NAME.search(workflow_name):
             workflow_name = sanitize_for_argo(workflow_name)
             is_workflow_name_modified = True
