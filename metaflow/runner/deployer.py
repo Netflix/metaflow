@@ -229,7 +229,7 @@ class DeployedFlowMeta(type):
                 }
             )
 
-            def _default_injected_method():
+            def _from_deployment_injected_method():
                 def f(
                     cls,
                     identifier: str,
@@ -271,7 +271,7 @@ class DeployedFlowMeta(type):
                 f.__name__ = "from_deployment"
                 return f
 
-            def _per_type_injected_method(method_name, impl):
+            def _per_type_from_deployment_injected_method(method_name, impl):
                 def f(
                     cls,
                     identifier: str,
@@ -286,14 +286,18 @@ class DeployedFlowMeta(type):
                 f.__name__ = method_name
                 return f
 
-            setattr(cls, "from_deployment", classmethod(_default_injected_method()))
+            setattr(
+                cls, "from_deployment", classmethod(_from_deployment_injected_method())
+            )
 
             for impl in allowed_providers:
                 method_name = f"from_{impl}"
                 setattr(
                     cls,
                     method_name,
-                    classmethod(_per_type_injected_method(method_name, impl)),
+                    classmethod(
+                        _per_type_from_deployment_injected_method(method_name, impl)
+                    ),
                 )
 
         return cls

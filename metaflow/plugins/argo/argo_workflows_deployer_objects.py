@@ -204,6 +204,24 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
     TYPE: ClassVar[Optional[str]] = "argo-workflows"
 
     @classmethod
+    def list_deployed_flows(cls, flow_name: Optional[str] = None):
+        from metaflow.plugins.argo.argo_workflows import ArgoWorkflows
+
+        # When flow_name is None, use all=True to get all templates
+        # When flow_name is specified, use all=False to filter by flow_name
+        all_templates = flow_name is None
+        template_names = ArgoWorkflows.list_templates(
+            flow_name=flow_name, all=all_templates
+        )
+        for template_name in template_names:
+            try:
+                deployed_flow = cls.from_deployment(template_name)
+                yield deployed_flow
+            except Exception:
+                # Skip templates that can't be converted to DeployedFlow objects
+                continue
+
+    @classmethod
     def from_deployment(cls, identifier: str, metadata: Optional[str] = None):
         """
         Retrieves a `ArgoWorkflowsDeployedFlow` object from an identifier and optional
