@@ -286,17 +286,87 @@ class DeployedFlowMeta(type):
                 f.__name__ = method_name
                 return f
 
+            def _list_deployed_flows_injected_method():
+                def f(
+                    cls,
+                    flow_name: Optional[str] = None,
+                    impl: str = DEFAULT_FROM_DEPLOYMENT_IMPL.replace("-", "_"),
+                ):
+                    """
+                    List all deployed flows for the specified implementation.
+
+                    Parameters
+                    ----------
+                    flow_name : str, optional, default None
+                        If specified, only list deployed flows for this specific flow name.
+                        If None, list all deployed flows.
+                    impl : str, optional, default given by METAFLOW_DEFAULT_FROM_DEPLOYMENT_IMPL
+                        The default implementation to use if not specified
+
+                    Yields
+                    ------
+                    DeployedFlow
+                        `DeployedFlow` objects representing deployed flows.
+                    """
+                    if impl in allowed_providers:
+                        return (
+                            allowed_providers[impl]
+                            .deployed_flow_type()
+                            .list_deployed_flows(flow_name)
+                        )
+                    else:
+                        raise ValueError(
+                            f"No deployer '{impl}' exists; valid deployers are: "
+                            f"{list(allowed_providers.keys())}"
+                        )
+
+                f.__name__ = "list_deployed_flows"
+                return f
+
+            def _per_type_list_deployed_flows_injected_method(method_name, impl):
+                def f(
+                    cls,
+                    flow_name: Optional[str] = None,
+                ):
+                    return (
+                        allowed_providers[impl]
+                        .deployed_flow_type()
+                        .list_deployed_flows(flow_name)
+                    )
+
+                f.__name__ = method_name
+                return f
+
             setattr(
                 cls, "from_deployment", classmethod(_from_deployment_injected_method())
             )
+            setattr(
+                cls,
+                "list_deployed_flows",
+                classmethod(_list_deployed_flows_injected_method()),
+            )
 
             for impl in allowed_providers:
-                method_name = f"from_{impl}"
+                from_deployment_method_name = f"from_{impl}"
+                list_deployed_flows_method_name = f"list_{impl}"
+
                 setattr(
                     cls,
-                    method_name,
+                    from_deployment_method_name,
                     classmethod(
-                        _per_type_from_deployment_injected_method(method_name, impl)
+                        _per_type_from_deployment_injected_method(
+                            from_deployment_method_name, impl
+                        )
+                    ),
+                )
+
+                setattr(
+                    cls,
+                    list_deployed_flows_method_name,
+                    classmethod(
+                        _per_type_list_deployed_flows_injected_method(
+                            list_deployed_flows_method_name, impl
+                        )
                     ),
                 )
 
