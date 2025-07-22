@@ -3347,7 +3347,7 @@ class ArgoWorkflows(object):
                                     TriggerParameter()
                                     .src(
                                         dependency_name=event["sanitized_name"],
-                                        data_key="body.payload",
+                                        data_template="body.payload | toRawJson | squote",
                                         value=json.dumps(None),
                                     )
                                     .dest(
