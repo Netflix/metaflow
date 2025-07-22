@@ -35,6 +35,8 @@ from metaflow.util import get_username, to_bytes, to_unicode, version_parse
 
 from .argo_workflows import ArgoWorkflows, ArgoWorkflowsException
 
+NEW_ARGO_NAMELENGTH_METAFLOW_VERSION = "2.17"
+
 VALID_NAME = re.compile(r"^[a-z]([a-z0-9\.\-]*[a-z0-9])?$")
 
 unsupported_decorators = {
@@ -351,8 +353,9 @@ def create(
             obj.echo("Warning! ", bold=True, nl=False)
             obj.echo(
                 "Due to new naming restrictions on Argo Workflows, "
-                "re-deploying this flow with older\nversions of Metaflow (<2.17) "
+                "re-deploying this flow with older\nversions of Metaflow (<%s) "
                 "will result in the flow being deployed with a different name:"
+                % NEW_ARGO_NAMELENGTH_METAFLOW_VERSION
             )
             obj.echo(
                 "{v1_workflow_name}\n".format(v1_workflow_name=obj._v1_workflow_name),
@@ -361,7 +364,8 @@ def create(
             obj.echo(
                 "without replacing the existing deployment. This may result in "
                 "duplicate executions of this flow.\nTo avoid this issue, deploy "
-                "this flow using Metaflow ≥2.17 or specify the flow name with --name.\n"
+                "this flow using Metaflow ≥%s or specify the flow name with --name.\n"
+                % NEW_ARGO_NAMELENGTH_METAFLOW_VERSION
             )
             # TODO: Add proper usage message for --name
 
@@ -851,10 +855,11 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
         if ArgoWorkflows.get_existing_deployment(obj._v1_workflow_name):
             obj.echo("Warning! ", bold=True, nl=False)
             obj.echo(
-                "Found a deployment of this flow with an old style name, defaulted to triggering *%s*. \nDue to new naming restrictions on Argo Workflows, "
-                "this flow will have a shorter name with newer\nversions of Metaflow (>=2.17) "
+                "Found a deployment of this flow with an old style name, defaulted to triggering *%s*.\n"
+                "Due to new naming restrictions on Argo Workflows, "
+                "this flow will have a shorter name with newer\nversions of Metaflow (>=%s) "
                 "which will allow it to be triggered through Argo UI as well. "
-                % obj._v1_workflow_name
+                % (obj._v1_workflow_name, NEW_ARGO_NAMELENGTH_METAFLOW_VERSION)
             )
             obj.echo("re-deploy your flow in order to get rid of this message.")
             workflow_name_to_deploy = obj._v1_workflow_name
