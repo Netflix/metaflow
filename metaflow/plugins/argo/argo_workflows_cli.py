@@ -87,6 +87,7 @@ def argo_workflows(obj, name=None):
         obj.token_prefix,
         obj.is_project,
         obj._is_workflow_name_modified,
+        obj._exception_on_create,  # exception_on_create is used to prevent deploying new flows with too long names via --name
     ) = resolve_workflow_name(obj, name)
     # Backward compatibility for Metaflow versions <=2.16 because of
     # change in name length restrictions in Argo Workflows from 253 to 52
@@ -248,6 +249,10 @@ def create(
     deployer_attribute_file=None,
     enable_error_msg_capture=False,
 ):
+    # check if we are supposed to block deploying the flow due to name length constraints.
+    if obj._exception_on_create is not None:
+        raise obj._exception_on_create
+
     # TODO: Remove this once we have a proper validator system in place
     for node in obj.graph:
         for decorator, error_message in unsupported_decorators.items():
@@ -524,6 +529,7 @@ def resolve_workflow_name(obj, name):
     limit = 45
     project = current.get("project_name")
     is_workflow_name_modified = False
+    exception_on_create = None
 
     def _truncate_workflow_name(workflow_name):
         name_hash = to_unicode(
@@ -545,6 +551,10 @@ def resolve_workflow_name(obj, name):
             % to_unicode(base64.b32encode(sha1(project_branch).digest()))[:16]
         )
         is_project = True
+
+        if len(workflow_name) > limit:
+            workflow_name = _truncate_workflow_name(workflow_name)
+            is_workflow_name_modified = True
     else:
         if name and not VALID_NAME.search(name):
             raise MetaflowException(
@@ -558,9 +568,18 @@ def resolve_workflow_name(obj, name):
         token_prefix = workflow_name
         is_project = False
 
-    if len(workflow_name) > limit:
-        workflow_name = _truncate_workflow_name(workflow_name)
-        is_workflow_name_modified = True
+        if len(workflow_name) > limit:
+            # NOTE: We could have opted for truncating names specified by --name and flow_name as well, but chose to error instead
+            # due to the expectation that users would be intentionally explicit in their naming,
+            # and truncating these would lose information they intended to encode in the deployment.
+            exception_on_create = ArgoWorkflowsNameTooLong(
+                "The full name of the workflow:\n*%s*\nis longer than %s "
+                "characters.\n\n"
+                "To deploy this workflow to Argo Workflows, please "
+                "assign a shorter name\nusing the option\n"
+                "*argo-workflows --name <name> create*." % (workflow_name, limit)
+            )
+
     if not VALID_NAME.search(workflow_name):
         # TODO: create a new sanitize_for_argo_v2() function that is not surjective
         #       and use it here. Might not be straight forward since it is also used
@@ -568,7 +587,13 @@ def resolve_workflow_name(obj, name):
         workflow_name = sanitize_for_argo(workflow_name)
         is_workflow_name_modified = True
 
-    return workflow_name, token_prefix.lower(), is_project, is_workflow_name_modified
+    return (
+        workflow_name,
+        token_prefix.lower(),
+        is_project,
+        is_workflow_name_modified,
+        exception_on_create,
+    )
 
 
 def make_flow(
