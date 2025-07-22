@@ -61,23 +61,25 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
         else:
             new_modules = []
 
-        self._modules = {
-            name: _ModuleInfo(
-                name,
-                set(
-                    Path(p).resolve().as_posix()
-                    for p in getattr(mod, "__path__", [mod.__file__])
-                ),
-                mod,
-                True,  # This is a Metaflow module (see filter below)
-            )
-            for (name, mod) in new_modules
-        }
-
-        # Filter the modules
-        self._modules = {
-            name: info for name, info in self._modules.items() if criteria(info.module)
-        }
+        self._modules = {}  # type: Dict[str, _ModuleInfo]
+        # We do this explicitly module by module to harden it against misbehaving
+        # modules like the one in:
+        # https://github.com/Netflix/metaflow/issues/2512
+        # We will silently ignore modules that are not well built.
+        for name, mod in new_modules:
+            try:
+                minfo = _ModuleInfo(
+                    name,
+                    set(
+                        Path(p).resolve().as_posix()
+                        for p in getattr(mod, "__path__", [mod.__file__])
+                    ),
+                    mod,
+                    True,  # This is a Metaflow module (see filter below)
+                )
+            except:
+                continue
+            self._modules[name] = minfo
 
         # Contain metadata information regarding the distributions packaged.
         # This allows Metaflow to "fake" distribution information when packaged

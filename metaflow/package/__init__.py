@@ -75,12 +75,19 @@ class MetaflowPackage(object):
             from ..user_decorators.user_flow_decorator import FlowMutatorMeta
             from ..user_decorators.user_step_decorator import UserStepDecoratorMeta
 
-            if (
-                m.__name__ in FlowMutatorMeta._import_modules
-                or m.__name__ in UserStepDecoratorMeta._import_modules
-                or hasattr(m, "METAFLOW_PACKAGE")
-            ):
-                return True
+            # Be very defensive here to filter modules in case there are
+            # some badly behaved modules that have weird values for METAFLOW_PACKAGE
+            # for example.
+            try:
+                if (
+                    m.__name__ in FlowMutatorMeta._import_modules
+                    or m.__name__ in UserStepDecoratorMeta._import_modules
+                    or (hasattr(m, "METAFLOW_PACKAGE") and m.METAFLOW_PACKAGE == 1)
+                ):
+                    return True
+                return False
+            except:
+                return False
 
         if mfcontent is None:
             self._mfcontent = MetaflowCodeContentV1(criteria=_module_selector)
