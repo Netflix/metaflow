@@ -347,8 +347,10 @@ class MutableFlow:
                     "Mutable flow adding flow decorator '%s'" % deco_type
                 )
 
+            # self._flow_cls._flow_decorators is a  dictionary of form :
+            # <deco_name> : [deco_instance, deco_instance, ...]
             existing_deco = [
-                d for d in self._flow_cls._flow_decorators if d.name == flow_deco.name
+                d for d in self._flow_cls._flow_decorators if d == flow_deco.name
             ]
 
             if flow_deco.allow_multiple or not existing_deco:
