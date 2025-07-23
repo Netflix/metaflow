@@ -43,7 +43,7 @@ class BatchDecorator(StepDecorator):
         Number of GPUs required for this step. If `@resources` is
         also present, the maximum value from all decorators is used.
     memory : int, default 4096
-        Memory size (in MB) required for this step. If
+        Memory size (in MiB) required for this step. If
         `@resources` is also present, the maximum value from all decorators is
         used.
     image : str, optional, default None
