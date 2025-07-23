@@ -134,7 +134,7 @@ def test_late_attached_kubernetes_mutator_is_reflected_in_argo_template(
     ]
 
     assert start_resources["requests"]["cpu"] == "2"
-    assert start_resources["requests"]["memory"] == "8192M"
+    assert start_resources["requests"]["memory"] == "8192Mi"
 
     assert end_resources["requests"]["cpu"] == "1"
-    assert end_resources["requests"]["memory"] == "4096M"
+    assert end_resources["requests"]["memory"] == "4096Mi"

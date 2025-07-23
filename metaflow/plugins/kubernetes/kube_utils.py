@@ -43,8 +43,8 @@ def qos_requests_and_limits(qos: str, cpu: int, memory: int, storage: int):
         # Guaranteed - has both cpu/memory limits. requests not required, as these will be inferred.
         qos_limits = {
             "cpu": str(cpu),
-            "memory": "%sM" % str(memory),
-            "ephemeral-storage": "%sM" % str(storage),
+            "memory": "%sMi" % str(memory),
+            "ephemeral-storage": "%sMi" % str(storage),
         }
         # NOTE: Even though Kubernetes will produce matching requests for the specified limits, this happens late in the lifecycle.
         # We specify them explicitly here to make some K8S tooling happy, in case they rely on .resources.requests being present at time of submitting the job.
@@ -53,8 +53,8 @@ def qos_requests_and_limits(qos: str, cpu: int, memory: int, storage: int):
         # Burstable - not Guaranteed, and has a memory/cpu limit or request
         qos_requests = {
             "cpu": str(cpu),
-            "memory": "%sM" % str(memory),
-            "ephemeral-storage": "%sM" % str(storage),
+            "memory": "%sMi" % str(memory),
+            "ephemeral-storage": "%sMi" % str(storage),
         }
     # TODO: Add support for BestEffort once there is a use case for it.
     # BestEffort - no limit or requests for cpu/memory
