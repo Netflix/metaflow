@@ -14,7 +14,7 @@
 #'
 #' @param cpu Integer number of CPUs required for this step. Defaults to `1`.
 #' @param gpu Integer number of GPUs required for this step. Defaults to `0`.
-#' @param memory Integer memory size (in MB) required for this step. Defaults to
+#' @param memory Integer memory size (in MiB) required for this step. Defaults to
 #'   `4096`.
 #' @param image Character. Specifies the image to use when launching on AWS
 #'   Batch. If not specified, an appropriate
@@ -48,9 +48,9 @@
 #' @export
 #'
 #' @examples \dontrun{
-#' # This example will generate a large random matrix which takes up roughly
-#' # 48GB of memory, and sums the entries. The `batch` decorator forces this
-#' # step to run in an environment with 60000MB of memory.
+#' # This example will generate a large random matrix that takes up roughly
+#' # 48 GiB of memory and sum the entries. The `batch` decorator forces this
+#' # step to run in an environment with 60,000 MiB of memory.
 #'
 #' start <- function(self) {
 #'   big_matrix <- matrix(rexp(80000*80000), 80000)
