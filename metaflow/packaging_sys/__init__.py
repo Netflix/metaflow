@@ -132,7 +132,7 @@ class MetaflowCodeContent:
             The environment variables that are needed to run Metaflow when it is
             packaged -- None if there are no such variables (not packaged for example)
         """
-        mfcontent_info = cls._extract_mfcontent_info()
+        mfcontent_info = cls._extract_mfcontent_info(dest_dir)
         if mfcontent_info is None:
             # No MFCONTENT_MARKER file found -- this is not a packaged Metaflow code
             # package so no environment variables to set.
@@ -527,12 +527,18 @@ class MetaflowCodeContent:
         return mfcontent_info
 
     @classmethod
-    def _extract_mfcontent_info(cls) -> Optional[Dict[str, Any]]:
-        if "_local" in cls._cached_mfcontent_info:
-            return cls._cached_mfcontent_info["_local"]
+    def _extract_mfcontent_info(
+        cls, target_dir: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        target_dir = target_dir or "_local"
+        if target_dir in cls._cached_mfcontent_info:
+            return cls._cached_mfcontent_info[target_dir]
 
         mfcontent_info = None  # type: Optional[Dict[str, Any]]
-        root = os.environ.get("METAFLOW_EXTRACTED_ROOT", get_metaflow_root())
+        if target_dir == "_local":
+            root = os.environ.get("METAFLOW_EXTRACTED_ROOT", get_metaflow_root())
+        else:
+            root = target_dir
         if root.endswith(":"):
             # Coming from env-var; it most likely ends in : since it can
             # be a "list"
@@ -540,7 +546,7 @@ class MetaflowCodeContent:
         if os.path.exists(os.path.join(root, MFCONTENT_MARKER)):
             with open(os.path.join(root, MFCONTENT_MARKER), "r", encoding="utf-8") as f:
                 mfcontent_info = json.load(f)
-        cls._cached_mfcontent_info["_local"] = mfcontent_info
+        cls._cached_mfcontent_info[target_dir] = mfcontent_info
         return mfcontent_info
 
     def get_package_version(self) -> int:

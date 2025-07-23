@@ -79,7 +79,7 @@ class TarPackagingBackend(PackagingBackend):
         members: Optional[List[str]] = None,
         dest_dir: str = ".",
     ) -> None:
-        archive.extractall(path=dest_dir, members=members)
+        archive.extractall(path=dest_dir, members=map(archive.getmember, members))
 
     @classmethod
     def cls_list_members(cls, archive: tarfile.TarFile) -> Optional[List[str]]:

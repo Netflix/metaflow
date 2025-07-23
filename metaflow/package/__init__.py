@@ -359,7 +359,7 @@ class MetaflowPackage(object):
             include_names = MetaflowCodeContent.get_archive_content_names(
                 opened_archive, content_types, backend
             )
-            backend.extract_members(include_names, dest_dir)
+            backend.cls_extract_members(opened_archive, include_names, dest_dir)
 
     def user_tuples(self, timeout: Optional[float] = None):
         # Wait for at least the blob to be formed
