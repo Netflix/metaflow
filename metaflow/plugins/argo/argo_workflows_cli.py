@@ -367,7 +367,6 @@ def create(
                 "this flow using Metaflow ≥%s or specify the flow name with --name.\n"
                 % NEW_ARGO_NAMELENGTH_METAFLOW_VERSION
             )
-            # TODO: Add proper usage message for --name
 
         if ARGO_WORKFLOWS_UI_URL:
             obj.echo("See the deployed workflow here:", bold=True)
@@ -489,9 +488,6 @@ def check_metadata_service_version(obj):
 #    ------------------------------------------------------------------------------------------
 #    |  workflow_name_modified = True  |  workflow_name_modified = True   |  Messaging needed  |
 #    ------------------------------------------------------------------------------------------
-
-# TODO: Verify that all the CLI methods work as before if the user passes a metaflow-v1 name
-#       using --name argument (except for create)
 
 
 def resolve_workflow_name_v1(obj, name):
