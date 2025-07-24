@@ -73,7 +73,18 @@ check-docker:
 	fi
 	@echo "🔍 Checking Docker daemon..."
 	@if [ "$(shell uname)" = "Darwin" ]; then \
-		open -a Docker || (echo "❌ Please start Docker Desktop" && exit 1); \
+		if docker info >/dev/null 2>&1; then \
+			echo "✅ Docker daemon is running"; \
+			if command -v colima >/dev/null 2>&1 && colima status 2>&1 | grep -qi "colima is running"; then \
+				echo "✅ Using Colima as Docker runtime"; \
+			elif pgrep -x "Docker" >/dev/null 2>&1; then \
+				echo "✅ Using Docker Desktop"; \
+			else \
+				echo "✅ Using Docker (unknown runtime)"; \
+			fi \
+		else \
+			echo "❌ Docker daemon is not running. Please start Docker Desktop or Colima (colima start)" && exit 1; \
+		fi \
 	else \
                 docker info >/dev/null 2>&1 || (echo "❌ Docker daemon is not running." && exit 1); \
 	fi
