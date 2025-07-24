@@ -9,8 +9,9 @@ from ..exception import CommandException
 from ..graph import FlowGraph
 from ..metaflow_current import current
 from ..metaflow_config import DEFAULT_DECOSPECS, FEAT_ALWAYS_UPLOAD_CODE_PACKAGE
+from ..metaflow_profile import from_start
 from ..package import MetaflowPackage
-from ..runtime import NativeRuntime
+from ..runtime import NativeRuntime, SpinRuntime
 from ..system import _system_logger
 
 from ..tagging_util import validate_tags
@@ -20,7 +21,7 @@ from ..util import get_latest_run_id, write_latest_run_id
 def before_run(obj, tags, decospecs):
     validate_tags(tags)
 
-    # There's a --with option both at the top-level and for the run
+    # There's a --with option both at the top-level and for the run/resume/spin
     # subcommand. Why?
     #
     # "run --with shoes" looks so much better than "--with shoes run".
@@ -40,12 +41,12 @@ def before_run(obj, tags, decospecs):
         + list(obj.environment.decospecs() or [])
     )
     if all_decospecs:
-        # These decospecs are the ones from run/resume PLUS the ones from the
+        # These decospecs are the ones from run/resume/spin PLUS the ones from the
         # environment (for example the @conda)
         decorators._attach_decorators(obj.flow, all_decospecs)
         decorators._init(obj.flow)
         # Regenerate graph if we attached more decorators
-        obj.flow.__class__._init_graph()
+        obj.flow.__class__._init_attrs()
         obj.graph = obj.flow._graph
 
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
@@ -69,6 +70,29 @@ def before_run(obj, tags, decospecs):
         suffixes=obj.package_suffixes,
         flow_datastore=obj.flow_datastore if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE else None,
     )
+
+
+def common_runner_options(func):
+    @click.option(
+        "--run-id-file",
+        default=None,
+        show_default=True,
+        type=str,
+        help="Write the ID of this run to the file specified.",
+    )
+    @click.option(
+        "--runner-attribute-file",
+        default=None,
+        show_default=True,
+        type=str,
+        help="Write the metadata and pathspec of this run to the file specified. Used internally "
+        "for Metaflow's Runner API.",
+    )
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return func(*args, **kwargs)
+
+    return wrapper
 
 
 def write_file(file_path, content):
@@ -135,20 +159,6 @@ def common_run_options(func):
         "in steps.",
         callback=config_callback,
     )
-    @click.option(
-        "--run-id-file",
-        default=None,
-        show_default=True,
-        type=str,
-        help="Write the ID of this run to the file specified.",
-    )
-    @click.option(
-        "--runner-attribute-file",
-        default=None,
-        show_default=True,
-        type=str,
-        help="Write the metadata and pathspec of this run to the file specified. Used internally for Metaflow's Runner API.",
-    )
     @wraps(func)
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
@@ -193,6 +203,7 @@ def common_run_options(func):
 @click.command(help="Resume execution of a previous run of this flow.")
 @tracing.cli("cli/resume")
 @common_run_options
+@common_runner_options
 @click.pass_obj
 def resume(
     obj,
@@ -311,6 +322,7 @@ def resume(
 @click.command(help="Run the workflow locally.")
 @tracing.cli("cli/run")
 @common_run_options
+@common_runner_options
 @click.option(
     "--namespace",
     "user_namespace",
@@ -333,7 +345,7 @@ def run(
     run_id_file=None,
     runner_attribute_file=None,
     user_namespace=None,
-    **kwargs
+    **kwargs,
 ):
     if user_namespace is not None:
         namespace(user_namespace or None)
@@ -386,3 +398,113 @@ def run(
             )
     with runtime.run_heartbeat():
         runtime.execute()
+
+
+@parameters.add_custom_parameters(deploy_mode=True)
+@click.command(help="Spins up a task for a given step from a previous run locally.")
+@click.argument("step-name")
+@click.option(
+    "--spin-pathspec",
+    default=None,
+    type=str,
+    help="Use specified task pathspec from a previous run to spin up the step.",
+)
+@click.option(
+    "--skip-decorators/--no-skip-decorators",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Skip decorators attached to the step.",
+)
+@click.option(
+    "--artifacts-module",
+    default=None,
+    show_default=True,
+    help="Path to a module that contains artifacts to be used in the spun step. "
+    "The artifacts should be defined as a dictionary called ARTIFACTS with keys as "
+    "the artifact names and values as the artifact values. The artifact values will "
+    "overwrite the default values of the artifacts used in the spun step.",
+)
+@click.option(
+    "--persist/--no-persist",
+    "persist",
+    default=True,
+    show_default=True,
+    help="Whether to persist the artifacts in the spun step. If set to False, "
+    "the artifacts will notbe persisted and will not be available in the spun step's "
+    "datastore.",
+)
+@click.option(
+    "--max-log-size",
+    default=10,
+    show_default=True,
+    help="Maximum size of stdout and stderr captured in "
+    "megabytes. If a step outputs more than this to "
+    "stdout/stderr, its output will be truncated.",
+)
+@common_runner_options
+@click.pass_obj
+def spin(
+    obj,
+    step_name,
+    spin_pathspec=None,
+    persist=True,
+    artifacts_module=None,
+    skip_decorators=False,
+    max_log_size=None,
+    run_id_file=None,
+    runner_attribute_file=None,
+    **kwargs,
+):
+    before_run(obj, [], [])
+    obj.echo(f"Spinning up step *{step_name}* locally for flow *{obj.flow.name}*")
+    obj.flow._set_constants(obj.graph, kwargs, obj.config_options)
+    step_func = getattr(obj.flow, step_name, None)
+    if step_func is None:
+        raise CommandException(
+            f"Step '{step_name}' not found in flow '{obj.flow.name}'. "
+            "Please provide a valid step name."
+        )
+    from_start("Spin: before spin runtime init")
+    spin_runtime = SpinRuntime(
+        obj.flow,
+        obj.graph,
+        obj.flow_datastore,
+        obj.metadata,
+        obj.environment,
+        obj.package,
+        obj.logger,
+        obj.entrypoint,
+        obj.event_logger,
+        obj.monitor,
+        step_func,
+        step_name,
+        spin_pathspec,
+        skip_decorators,
+        artifacts_module,
+        persist,
+        max_log_size * 1024 * 1024,
+    )
+    write_latest_run_id(obj, spin_runtime.run_id)
+    write_file(run_id_file, spin_runtime.run_id)
+    # datastore_root is os.path.join(DATASTORE_SYSROOT_SPIN, DATASTORE_LOCAL_DIR)
+    # We only need the root for the metadata, i.e. the portion before DATASTORE_LOCAL_DIR
+    datastore_root = spin_runtime._flow_datastore._storage_impl.datastore_root
+    orig_task_metadata_root = datastore_root.rsplit("/", 1)[0]
+    from_start("Spin: going to execute")
+    spin_runtime.execute()
+    from_start("Spin: after spin runtime execute")
+
+    if runner_attribute_file:
+        with open(runner_attribute_file, "w") as f:
+            json.dump(
+                {
+                    "task_id": spin_runtime.task.task_id,
+                    "step_name": step_name,
+                    "run_id": spin_runtime.run_id,
+                    "flow_name": obj.flow.name,
+                    # Store metadata in a format that can be used by the Runner API
+                    "metadata": f"{obj.metadata.__class__.TYPE}@{orig_task_metadata_root}",
+                },
+                f,
+            )
