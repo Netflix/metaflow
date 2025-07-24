@@ -548,9 +548,14 @@ def resolve_workflow_name(obj, name):
             name_hash = to_unicode(
                 base64.b32encode(sha1(to_bytes(workflow_name)).digest())
             )[:5].lower()
-            # TODO: We can create better names that try to preserve the flow name
-            # take part of project, part of flowname and part of branch
-            workflow_name = "%s-%s" % (workflow_name[: limit - 6], name_hash)
+            # NOTE: the choice of the number of characters to keep from project, branch, and flow name are arbitrary here.
+            # They are treated as being in the order of importance.
+            descriptive_name = "%s.%s.%s" % (
+                project[:21],
+                current.branch_name[:11],
+                current.flow_name,
+            )
+            workflow_name = "%s-%s" % (descriptive_name[: limit - 6], name_hash)
             is_workflow_name_modified = True
     else:
         if name and not VALID_NAME.search(name):
