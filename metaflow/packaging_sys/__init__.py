@@ -118,9 +118,7 @@ class MetaflowCodeContent:
         return handling_cls.get_filename_impl(mfcontent_info, filename, content_type)
 
     @classmethod
-    def get_env_vars_for_packaged_metaflow(
-        cls, dest_dir: str
-    ) -> Optional[Dict[str, str]]:
+    def get_env_vars_for_packaged_metaflow(cls, dest_dir: str) -> Dict[str, str]:
         """
         Get the environment variables that are needed to run Metaflow when it is
         packaged. This is typically used to set the PYTHONPATH to include the
@@ -128,18 +126,18 @@ class MetaflowCodeContent:
 
         Returns
         -------
-        Optional[Dict[str, str]]
+        Dict[str, str]
             The environment variables that are needed to run Metaflow when it is
-            packaged -- None if there are no such variables (not packaged for example)
+            packaged it present.
         """
         mfcontent_info = cls._extract_mfcontent_info(dest_dir)
         if mfcontent_info is None:
             # No MFCONTENT_MARKER file found -- this is not a packaged Metaflow code
             # package so no environment variables to set.
-            return None
+            return {}
         handling_cls = cls._get_mfcontent_class(mfcontent_info)
         v = handling_cls.get_post_extract_env_vars_impl(dest_dir)
-        v["METAFLOW_EXTRACTED_ROOT"] = dest_dir
+        v["METAFLOW_EXTRACTED_ROOT:"] = dest_dir
         return v
 
     @classmethod
@@ -279,7 +277,7 @@ class MetaflowCodeContent:
                 % (version_id, cls._mappings)
             )
         v = cls._mappings[version_id].get_post_extract_env_vars_impl(dest_dir)
-        v["METAFLOW_EXTRACTED_ROOT"] = dest_dir
+        v["METAFLOW_EXTRACTED_ROOT:"] = dest_dir
         return v
 
     # Implement the _impl methods in the base subclass (in this file). These need to
@@ -539,10 +537,6 @@ class MetaflowCodeContent:
             root = os.environ.get("METAFLOW_EXTRACTED_ROOT", get_metaflow_root())
         else:
             root = target_dir
-        if root.endswith(":"):
-            # Coming from env-var; it most likely ends in : since it can
-            # be a "list"
-            root = root[:-1]
         if os.path.exists(os.path.join(root, MFCONTENT_MARKER)):
             with open(os.path.join(root, MFCONTENT_MARKER), "r", encoding="utf-8") as f:
                 mfcontent_info = json.load(f)

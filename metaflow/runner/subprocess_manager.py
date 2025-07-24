@@ -154,11 +154,14 @@ class SubprocessManager(object):
         """
         env = env or {}
         installed_root = os.environ.get("METAFLOW_EXTRACTED_ROOT", get_metaflow_root())
-        new_envs = (
-            MetaflowCodeContent.get_env_vars_for_packaged_metaflow(installed_root) or {}
-        )
-        for k, v in new_envs.items():
-            if k in env:
+
+        for k, v in MetaflowCodeContent.get_env_vars_for_packaged_metaflow(
+            installed_root
+        ).items():
+            if k.endswith(":"):
+                # Override
+                env[k[:-1]] = v
+            elif k in env:
                 env[k] = "%s:%s" % (v, env[k])
             else:
                 env[k] = v

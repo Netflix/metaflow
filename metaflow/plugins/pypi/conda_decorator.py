@@ -243,9 +243,11 @@ class CondaStepDecorator(StepDecorator):
         # Ensure local installation of Metaflow is visible to user code
         python_path = self.__class__._metaflow_home.name
         addl_env_vars = {}
-        if self.__class__._addl_env_vars is not None:
+        if self.__class__._addl_env_vars:
             for key, value in self.__class__._addl_env_vars.items():
-                if key == "PYTHONPATH":
+                if key.endswith(":"):
+                    addl_env_vars[key[:-1]] = value
+                elif key == "PYTHONPATH":
                     addl_env_vars[key] = os.pathsep.join([value, python_path])
                 else:
                     addl_env_vars[key] = value
