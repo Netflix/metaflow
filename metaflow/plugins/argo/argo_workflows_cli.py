@@ -550,10 +550,14 @@ def resolve_workflow_name(obj, name):
             )[:5].lower()
             # NOTE: the choice of the number of characters to keep from project, branch, and flow name are arbitrary here.
             # They are treated as being in the order of importance.
-            descriptive_name = "%s.%s.%s" % (
-                project[:21],
-                current.branch_name[:11],
-                current.flow_name,
+            # NOTE: we sanitize before truncating in order to avoid cutting the name_hash due to later sanitizing
+            descriptive_name = sanitize_for_argo_v2(
+                "%s.%s.%s"
+                % (
+                    project[:21],
+                    current.branch_name[:11],
+                    current.flow_name,
+                )
             )
             workflow_name = "%s-%s" % (descriptive_name[: limit - 6], name_hash)
             is_workflow_name_modified = True
@@ -1347,6 +1351,11 @@ def sanitize_for_argo_v2(text):
 
     replaceable_chars_count = len(re.findall(r"[_|@|+]", text))
     uppercase_chars_count = len(re.findall(r"[A-Z]", text))
+
+    # debug
+    print("string to be sanitized:", text)
+    print("characters replaced:", replaceable_chars_count)
+    print("uppercase letters lowered:", uppercase_chars_count)
 
     limit = replaceable_chars_count + uppercase_chars_count
     # create hash of original text

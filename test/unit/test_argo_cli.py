@@ -26,3 +26,8 @@ def test_sanitize_for_argo_v2():
 
     # should not sanitize a valid string
     assert sanitize_for_argo_v2("valid-string-123") == "valid-string-123"
+
+    # test for idempotency
+    assert sanitize_for_argo_v2(
+        sanitize_for_argo_v2("Test@_+123")
+    ) == sanitize_for_argo_v2("Test@_+123")
