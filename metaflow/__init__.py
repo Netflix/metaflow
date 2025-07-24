@@ -45,6 +45,10 @@ Metaflow GitHub page.
 import os
 import sys
 
+for k, v in os.environ.items():
+    if k.startswith("MF_") or k.startswith("METAFLOW_"):
+        print("Env: %s=%s" % (k, v))
+
 from metaflow.extension_support import (
     alias_submodules,
     get_modules,
