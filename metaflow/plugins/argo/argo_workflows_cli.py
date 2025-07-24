@@ -531,14 +531,6 @@ def resolve_workflow_name(obj, name):
     is_workflow_name_modified = False
     exception_on_create = None
 
-    def _truncate_workflow_name(workflow_name):
-        name_hash = to_unicode(
-            base64.b32encode(sha1(to_bytes(workflow_name)).digest())
-        )[:5].lower()
-        # TODO: We can create better names that try to preserve the flow name
-        workflow_name = "%s-%s" % (workflow_name[: limit - 6], name_hash)
-        return workflow_name
-
     if project:
         if name:
             raise MetaflowException(
@@ -553,7 +545,12 @@ def resolve_workflow_name(obj, name):
         is_project = True
 
         if len(workflow_name) > limit:
-            workflow_name = _truncate_workflow_name(workflow_name)
+            name_hash = to_unicode(
+                base64.b32encode(sha1(to_bytes(workflow_name)).digest())
+            )[:5].lower()
+            # TODO: We can create better names that try to preserve the flow name
+            # take part of project, part of flowname and part of branch
+            workflow_name = "%s-%s" % (workflow_name[: limit - 6], name_hash)
             is_workflow_name_modified = True
     else:
         if name and not VALID_NAME.search(name):
@@ -581,10 +578,7 @@ def resolve_workflow_name(obj, name):
             )
 
     if not VALID_NAME.search(workflow_name):
-        # TODO: create a new sanitize_for_argo_v2() function that is not surjective
-        #       and use it here. Might not be straight forward since it is also used
-        #       in validate_run_id() :(
-        workflow_name = sanitize_for_argo(workflow_name)
+        workflow_name = sanitize_for_argo_v2(workflow_name)
         is_workflow_name_modified = True
 
     return (
@@ -1328,6 +1322,35 @@ def sanitize_for_argo(text):
         .replace("+", "")
         .lower()
     )
+
+
+def sanitize_for_argo_v2(text):
+    """
+    Sanitizes a string so it does not contain characters that are not permitted in Argo Workflow resource names.
+    This implementation tries to avoid collisions to the best of its ability, while keeping the output length the same
+    """
+    sanitized = (
+        re.compile(r"^[^A-Za-z0-9]+")
+        .sub("", text)
+        .replace("_", "")
+        .replace("@", "")
+        .replace("+", "")
+        .lower()
+    )
+    if sanitized == text:
+        return sanitized
+
+    replaceable_chars_count = len(re.findall(r"[_|@|+]", text))
+    uppercase_chars_count = len(re.findall(r"[A-Z]", text))
+
+    limit = replaceable_chars_count + uppercase_chars_count
+    # create hash of original text
+    hash = to_unicode(base64.b32encode(sha1(to_bytes(text)).digest()))[:limit].lower()
+
+    # cut off portion of the sanitized name to make room for '-hash'
+    final_name = "%s-%s" % (sanitized[: -(uppercase_chars_count + 1)], hash)
+
+    return final_name
 
 
 def remap_status(status):
