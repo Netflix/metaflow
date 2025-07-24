@@ -76,13 +76,16 @@ class MetaflowPackage(object):
             from ..user_decorators.user_step_decorator import UserStepDecoratorMeta
 
             # Be very defensive here to filter modules in case there are
-            # some badly behaved modules that have weird values for METAFLOW_PACKAGE
-            # for example.
+            # some badly behaved modules that have weird values for
+            # METAFLOW_PACKAGE_POLICY for example.
             try:
                 if (
                     m.__name__ in FlowMutatorMeta._import_modules
                     or m.__name__ in UserStepDecoratorMeta._import_modules
-                    or (hasattr(m, "METAFLOW_PACKAGE") and m.METAFLOW_PACKAGE == 1)
+                    or (
+                        hasattr(m, "METAFLOW_PACKAGE_POLICY")
+                        and m.METAFLOW_PACKAGE_POLICY == "include"
+                    )
                 ):
                     return True
                 return False
