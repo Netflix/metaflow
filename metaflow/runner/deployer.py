@@ -417,7 +417,7 @@ class DeployedFlowMeta(type):
             for impl in allowed_providers:
                 from_deployment_method_name = f"from_{impl}"
                 list_deployed_flows_method_name = f"list_{impl}"
-                get_triggered_run_method_name = f"get_triggered_{impl}"
+                get_triggered_run_method_name = f"get_triggered_{impl}_run"
 
                 setattr(
                     cls,
