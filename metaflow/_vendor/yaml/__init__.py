@@ -8,7 +8,7 @@ from .nodes import *
 from .loader import *
 from .dumper import *
 
-__version__ = '6.0.2'
+__version__ = '5.3.1'
 try:
     from .cyaml import *
     __with_libyaml__ = True
@@ -18,12 +18,41 @@ except ImportError:
 import io
 
 #------------------------------------------------------------------------------
-# XXX "Warnings control" is now deprecated. Leaving in the API function to not
-# break code that uses it.
+# Warnings control
 #------------------------------------------------------------------------------
+
+# 'Global' warnings state:
+_warnings_enabled = {
+    'YAMLLoadWarning': True,
+}
+
+# Get or set global warnings' state
 def warnings(settings=None):
     if settings is None:
-        return {}
+        return _warnings_enabled
+
+    if type(settings) is dict:
+        for key in settings:
+            if key in _warnings_enabled:
+                _warnings_enabled[key] = settings[key]
+
+# Warn when load() is called without Loader=...
+class YAMLLoadWarning(RuntimeWarning):
+    pass
+
+def load_warning(method):
+    if _warnings_enabled['YAMLLoadWarning'] is False:
+        return
+
+    import warnings
+
+    message = (
+        "calling yaml.%s() without Loader=... is deprecated, as the "
+        "default Loader is unsafe. Please read "
+        "https://msg.pyyaml.org/load for full details."
+    ) % method
+
+    warnings.warn(message, YAMLLoadWarning, stacklevel=3)
 
 #------------------------------------------------------------------------------
 def scan(stream, Loader=Loader):
@@ -71,22 +100,30 @@ def compose_all(stream, Loader=Loader):
     finally:
         loader.dispose()
 
-def load(stream, Loader):
+def load(stream, Loader=None):
     """
     Parse the first YAML document in a stream
     and produce the corresponding Python object.
     """
+    if Loader is None:
+        load_warning('load')
+        Loader = FullLoader
+
     loader = Loader(stream)
     try:
         return loader.get_single_data()
     finally:
         loader.dispose()
 
-def load_all(stream, Loader):
+def load_all(stream, Loader=None):
     """
     Parse all YAML documents in a stream
     and produce corresponding Python objects.
     """
+    if Loader is None:
+        load_warning('load_all')
+        Loader = FullLoader
+
     loader = Loader(stream)
     try:
         while loader.check_data():
