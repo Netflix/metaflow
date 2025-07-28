@@ -7,6 +7,7 @@ from datetime import datetime
 
 import metaflow.tracing as tracing
 from metaflow._vendor import click
+from metaflow.system import _system_logger, _system_monitor
 
 from . import decorators, lint, metaflow_version, parameters, plugins
 from .cli_args import cli_args
@@ -26,7 +27,6 @@ from .metaflow_config import (
     DEFAULT_PACKAGE_SUFFIXES,
 )
 from .metaflow_current import current
-from metaflow.system import _system_monitor, _system_logger
 from .metaflow_environment import MetaflowEnvironment
 from .packaging_sys import MetaflowCodeContent
 from .plugins import (
@@ -38,9 +38,9 @@ from .plugins import (
 )
 from .pylint_wrapper import PyLint
 from .R import metaflow_r_version, use_r
-from .util import get_latest_run_id, resolve_identity
 from .user_configs.config_options import LocalFileInput, config_options
 from .user_configs.config_parameters import ConfigValue
+from .util import get_latest_run_id, resolve_identity
 
 ERASE_TO_EOL = "\033[K"
 HIGHLIGHT = "red"
@@ -56,6 +56,15 @@ def echo_dev_null(*args, **kwargs):
 
 
 def echo_always(line, **kwargs):
+    if kwargs.pop("wrap", False):
+        import textwrap
+
+        indent_str = INDENT if kwargs.get("indent", None) else ""
+        effective_width = 80 - len(indent_str)
+        wrapped = textwrap.wrap(line, width=effective_width, break_long_words=False)
+        line = "\n".join(indent_str + l for l in wrapped)
+        kwargs["indent"] = False
+
     kwargs["err"] = kwargs.get("err", True)
     if kwargs.pop("indent", None):
         line = "\n".join(INDENT + x for x in line.splitlines())
