@@ -59,6 +59,15 @@ class PackagingBackend(ABC):
 
     @classmethod
     @abstractmethod
+    def cls_member_name(cls, member: Union[Any, str]) -> str:
+        """
+        Returns the name of the member as a string.
+        This is used to ensure consistent naming across different archive formats.
+        """
+        pass
+
+    @classmethod
+    @abstractmethod
     def cls_has_member(cls, archive: Any, name: str) -> bool:
         pass
 
@@ -72,14 +81,20 @@ class PackagingBackend(ABC):
     def cls_extract_members(
         cls,
         archive: Any,
-        members: Optional[List[str]] = None,
+        members: Optional[List[Any]] = None,
         dest_dir: str = ".",
     ) -> None:
         pass
 
     @classmethod
     @abstractmethod
-    def cls_list_members(cls, archive: Any) -> Optional[List[str]]:
+    def cls_list_names(cls, archive: Any) -> Optional[List[str]]:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def cls_list_members(cls, archive: Any) -> Optional[List[Any]]:
+        """List all members in the archive."""
         pass
 
     def has_member(self, name: str) -> bool:
@@ -93,17 +108,17 @@ class PackagingBackend(ABC):
         raise ValueError("Cannot get member from an uncreated archive")
 
     def extract_members(
-        self, members: Optional[List[str]] = None, dest_dir: str = "."
+        self, members: Optional[List[Any]] = None, dest_dir: str = "."
     ) -> None:
         if self._archive:
             self.cls_extract_members(self._archive, members, dest_dir)
         else:
             raise ValueError("Cannot extract from an uncreated archive")
 
-    def list_members(self) -> Optional[List[str]]:
+    def list_names(self) -> Optional[List[str]]:
         if self._archive:
-            return self.cls_list_members(self._archive)
-        raise ValueError("Cannot list members from an uncreated archive")
+            return self.cls_list_names(self._archive)
+        raise ValueError("Cannot list names from an uncreated archive")
 
     def __enter__(self):
         self.create()

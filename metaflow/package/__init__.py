@@ -17,7 +17,6 @@ from ..packaging_sys.utils import suffix_filter, walk
 from ..metaflow_config import DEFAULT_PACKAGE_SUFFIXES
 from ..exception import MetaflowException
 from ..user_configs.config_parameters import dump_config_values
-from ..util import get_metaflow_root
 from .. import R
 
 DEFAULT_SUFFIXES_LIST = DEFAULT_PACKAGE_SUFFIXES.split(",")
@@ -76,12 +75,22 @@ class MetaflowPackage(object):
             from ..user_decorators.user_flow_decorator import FlowMutatorMeta
             from ..user_decorators.user_step_decorator import UserStepDecoratorMeta
 
-            if (
-                m.__name__ in FlowMutatorMeta._import_modules
-                or m.__name__ in UserStepDecoratorMeta._import_modules
-                or hasattr(m, "METAFLOW_PACKAGE")
-            ):
-                return True
+            # Be very defensive here to filter modules in case there are
+            # some badly behaved modules that have weird values for
+            # METAFLOW_PACKAGE_POLICY for example.
+            try:
+                if (
+                    m.__name__ in FlowMutatorMeta._import_modules
+                    or m.__name__ in UserStepDecoratorMeta._import_modules
+                    or (
+                        hasattr(m, "METAFLOW_PACKAGE_POLICY")
+                        and m.METAFLOW_PACKAGE_POLICY == "include"
+                    )
+                ):
+                    return True
+                return False
+            except:
+                return False
 
         if mfcontent is None:
             self._mfcontent = MetaflowCodeContentV1(criteria=_module_selector)
@@ -350,10 +359,10 @@ class MetaflowPackage(object):
         """
         backend = cls.get_backend(pkg_metadata)
         with backend.cls_open(archive) as opened_archive:
-            include_names = MetaflowCodeContent.get_archive_content_names(
+            include_members = MetaflowCodeContent.get_archive_content_members(
                 opened_archive, content_types, backend
             )
-            backend.extract_members(include_names, dest_dir)
+            backend.cls_extract_members(opened_archive, include_members, dest_dir)
 
     def user_tuples(self, timeout: Optional[float] = None):
         # Wait for at least the blob to be formed

@@ -1,7 +1,7 @@
 import tarfile
 
 from io import BytesIO
-from typing import IO, List, Optional, Union
+from typing import Any, IO, List, Optional, Union
 
 from .backend import PackagingBackend
 
@@ -57,6 +57,13 @@ class TarPackagingBackend(PackagingBackend):
         return tarfile.open(fileobj=content, mode="r:gz")
 
     @classmethod
+    def cls_member_name(cls, member: Union[tarfile.TarInfo, str]) -> str:
+        """
+        Returns the name of the member as a string.
+        """
+        return member.name if isinstance(member, tarfile.TarInfo) else member
+
+    @classmethod
     def cls_has_member(cls, archive: tarfile.TarFile, name: str) -> bool:
         try:
             archive.getmember(name)
@@ -76,11 +83,17 @@ class TarPackagingBackend(PackagingBackend):
     def cls_extract_members(
         cls,
         archive: tarfile.TarFile,
-        members: Optional[List[str]] = None,
+        members: Optional[List[Any]] = None,
         dest_dir: str = ".",
     ) -> None:
         archive.extractall(path=dest_dir, members=members)
 
     @classmethod
-    def cls_list_members(cls, archive: tarfile.TarFile) -> Optional[List[str]]:
+    def cls_list_members(
+        cls, archive: tarfile.TarFile
+    ) -> Optional[List[tarfile.TarInfo]]:
+        return archive.getmembers() or None
+
+    @classmethod
+    def cls_list_names(cls, archive: tarfile.TarFile) -> Optional[List[str]]:
         return archive.getnames() or None
