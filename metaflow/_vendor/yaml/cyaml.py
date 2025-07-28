@@ -4,7 +4,7 @@ __all__ = [
     'CBaseDumper', 'CSafeDumper', 'CDumper'
 ]
 
-from metaflow._vendor.yaml._yaml import CParser, CEmitter
+from _yaml import CParser, CEmitter
 
 from .constructor import *
 
