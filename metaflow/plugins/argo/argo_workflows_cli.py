@@ -90,7 +90,7 @@ def argo_workflows(obj, name=None):
         obj.is_project,
         obj._is_workflow_name_modified,
         obj._exception_on_create,  # exception_on_create is used to prevent deploying new flows with too long names via --name
-    ) = resolve_workflow_name(obj, name)
+    ) = resolve_workflow_name_v2(obj, name)
     # Backward compatibility for Metaflow versions <=2.16 because of
     # change in name length restrictions in Argo Workflows from 253 to 52
     # characters.
@@ -353,19 +353,14 @@ def create(
             obj.echo("Warning! ", bold=True, nl=False)
             obj.echo(
                 "Due to new naming restrictions on Argo Workflows, "
-                "re-deploying this flow with older\nversions of Metaflow (<%s) "
-                "will result in the flow being deployed with a different name:"
-                % NEW_ARGO_NAMELENGTH_METAFLOW_VERSION
-            )
-            obj.echo(
-                "{v1_workflow_name}\n".format(v1_workflow_name=obj._v1_workflow_name),
-                indent=True,
-            )
-            obj.echo(
-                "without replacing the existing deployment. This may result in "
-                "duplicate executions of this flow.\nTo avoid this issue, deploy "
-                "this flow using Metaflow ≥%s or specify the flow name with --name.\n"
-                % NEW_ARGO_NAMELENGTH_METAFLOW_VERSION
+                "re-deploying this flow with older\nversions of Metaflow (<{version}) "
+                "will result in the flow being deployed with a different name -\n"
+                "*{v1_workflow_name}* \nwithout replacing the version you just deployed."
+                "This may result in duplicate executions of \nthis flow. To avoid this issue, "
+                "always deploy this flow using Metaflow ≥{version} or specify the \nflow name with --name.\n".format(
+                    v1_workflow_name=obj._v1_workflow_name,
+                    version=NEW_ARGO_NAMELENGTH_METAFLOW_VERSION,
+                )
             )
 
         if ARGO_WORKFLOWS_UI_URL:
@@ -492,6 +487,7 @@ def check_metadata_service_version(obj):
 
 def resolve_workflow_name_v1(obj, name):
     # models the workflow_name calculation logic in Metaflow versions =<2.16
+    # important!! - should stay static including any future bugs
     project = current.get("project_name")
     is_workflow_name_modified = False
     if project:
@@ -505,7 +501,14 @@ def resolve_workflow_name_v1(obj, name):
             workflow_name = "%s-%s" % (workflow_name[:242], name_hash)
             is_workflow_name_modified = True
         if not VALID_NAME.search(workflow_name):
-            workflow_name = sanitize_for_argo(workflow_name)
+            workflow_name = (
+                re.compile(r"^[^A-Za-z0-9]+")
+                .sub("", workflow_name)
+                .replace("_", "")
+                .replace("@", "")
+                .replace("+", "")
+                .lower()
+            )
             is_workflow_name_modified = True
     else:
         if name and not VALID_NAME.search(name):
@@ -514,17 +517,25 @@ def resolve_workflow_name_v1(obj, name):
         if len(workflow_name) > 253:
             return None, False  # not possible in versions =<2.16
         if not VALID_NAME.search(workflow_name):
-            # Note - since sanitize_for_argo() is a surjective mapping,
-            #        using it here is a bug, but we leave this in place
-            #        since the usage of v1_workflow_name is to generate
-            #        historical workflow names, so we need to replicate
-            #        all the bugs too :'(
-            workflow_name = sanitize_for_argo(workflow_name)
+            # Note - since the original name sanitization was a surjective
+            #        mapping, using it here is a bug, but we leave this in
+            #        place since the usage of v1_workflow_name is to generate
+            #        historical workflow names, so we need to replicate all
+            #        the bugs too :'(
+
+            workflow_name = (
+                re.compile(r"^[^A-Za-z0-9]+")
+                .sub("", workflow_name)
+                .replace("_", "")
+                .replace("@", "")
+                .replace("+", "")
+                .lower()
+            )
             is_workflow_name_modified = True
     return workflow_name, is_workflow_name_modified
 
 
-def resolve_workflow_name(obj, name):
+def resolve_workflow_name_v2(obj, name):
     # current logic for imputing workflow_name
     limit = 45
     project = current.get("project_name")
@@ -548,18 +559,40 @@ def resolve_workflow_name(obj, name):
             name_hash = to_unicode(
                 base64.b32encode(sha1(to_bytes(workflow_name)).digest())
             )[:5].lower()
-            # NOTE: the choice of the number of characters to keep from project, branch, and flow name are arbitrary here.
-            # They are treated as being in the order of importance.
-            # NOTE: we sanitize before truncating in order to avoid cutting the name_hash due to later sanitizing
-            descriptive_name = sanitize_for_argo_v2(
-                "%s.%s.%s"
-                % (
-                    project[:21],
-                    current.branch_name[:11],
-                    current.flow_name,
-                )
+
+            # Generate a meaningful short name
+            project_name = project
+            branch_name = current.branch_name
+            flow_name = current.flow_name
+            parts = [project_name, branch_name, flow_name]
+            max_name_len = limit - 6
+            min_each = 7
+            total_len = sum(len(p) for p in parts)
+            remaining = max_name_len - 3 * min_each
+            extras = [int(remaining * len(p) / total_len) for p in parts]
+            while sum(extras) < remaining:
+                extras[extras.index(min(extras))] += 1
+            budgets = [min_each + e for e in extras]
+            proj_budget = budgets[0]
+            if len(project_name) <= proj_budget:
+                proj_str = project_name
+            else:
+                h = proj_budget // 2
+                t = proj_budget - h
+                proj_str = project_name[:h] + project_name[-t:]
+            branch_budget = budgets[1]
+            branch_str = branch_name[:branch_budget]
+            flow_budget = budgets[2]
+            if len(flow_name) <= flow_budget:
+                flow_str = flow_name
+            else:
+                h = flow_budget // 2
+                t = flow_budget - h
+                flow_str = flow_name[:h] + flow_name[-t:]
+            descriptive_name = sanitize_for_argo(
+                "%s.%s.%s" % (proj_str, branch_str, flow_str)
             )
-            workflow_name = "%s-%s" % (descriptive_name[: limit - 6], name_hash)
+            workflow_name = "%s-%s" % (descriptive_name, name_hash)
             is_workflow_name_modified = True
     else:
         if name and not VALID_NAME.search(name):
@@ -569,25 +602,29 @@ def resolve_workflow_name(obj, name):
                 ", and must start with an alphabetic character, "
                 "and end with an alphanumeric character." % name
             )
-
         workflow_name = name if name else current.flow_name
         token_prefix = workflow_name
         is_project = False
 
         if len(workflow_name) > limit:
-            # NOTE: We could have opted for truncating names specified by --name and flow_name as well, but chose to error instead
-            # due to the expectation that users would be intentionally explicit in their naming,
-            # and truncating these would lose information they intended to encode in the deployment.
+            # NOTE: We could have opted for truncating names specified by --name and flow_name
+            #       as well, but chose to error instead due to the expectation that users would
+            #       be intentionally explicit in their naming, and truncating these would lose
+            #       information they intended to encode in the deployment.
             exception_on_create = ArgoWorkflowsNameTooLong(
                 "The full name of the workflow:\n*%s*\nis longer than %s "
                 "characters.\n\n"
                 "To deploy this workflow to Argo Workflows, please "
                 "assign a shorter name\nusing the option\n"
-                "*argo-workflows --name <name> create*." % (workflow_name, limit)
+                "*argo-workflows --name <name> create*." % (name, limit)
             )
 
     if not VALID_NAME.search(workflow_name):
-        workflow_name = sanitize_for_argo_v2(workflow_name)
+        # NOTE: Even though sanitize_for_argo is surjective which can result in collisions,
+        #       we still use it here since production tokens guard against name collisions
+        #       and if we made it injective, metaflow 2.17 will result in every deployed
+        #       flow's name changing, significantly increasing the blast radius of the change.
+        workflow_name = sanitize_for_argo(workflow_name)
         is_workflow_name_modified = True
 
     return (
@@ -1321,7 +1358,8 @@ def _get_existing_workflow_names(obj):
 
 def sanitize_for_argo(text):
     """
-    Sanitizes a string so it does not contain characters that are not permitted in Argo Workflow resource names.
+    Sanitizes a string so it does not contain characters that are not permitted in
+    Argo Workflow resource names.
     """
     return (
         re.compile(r"^[^A-Za-z0-9]+")
@@ -1331,40 +1369,6 @@ def sanitize_for_argo(text):
         .replace("+", "")
         .lower()
     )
-
-
-def sanitize_for_argo_v2(text):
-    """
-    Sanitizes a string so it does not contain characters that are not permitted in Argo Workflow resource names.
-    This implementation tries to avoid collisions to the best of its ability, while keeping the output length the same
-    """
-    sanitized = (
-        re.compile(r"^[^A-Za-z0-9]+")
-        .sub("", text)
-        .replace("_", "")
-        .replace("@", "")
-        .replace("+", "")
-        .lower()
-    )
-    if sanitized == text:
-        return sanitized
-
-    replaceable_chars_count = len(re.findall(r"[_|@|+]", text))
-    uppercase_chars_count = len(re.findall(r"[A-Z]", text))
-
-    # debug
-    print("string to be sanitized:", text)
-    print("characters replaced:", replaceable_chars_count)
-    print("uppercase letters lowered:", uppercase_chars_count)
-
-    limit = replaceable_chars_count + uppercase_chars_count
-    # create hash of original text
-    hash = to_unicode(base64.b32encode(sha1(to_bytes(text)).digest()))[:limit].lower()
-
-    # cut off portion of the sanitized name to make room for '-hash'
-    final_name = "%s-%s" % (sanitized[: -(uppercase_chars_count + 1)], hash)
-
-    return final_name
 
 
 def remap_status(status):
