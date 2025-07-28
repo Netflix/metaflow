@@ -146,7 +146,13 @@ class TaskToDict:
             # Python 3.13 removes the standard ``imghdr`` module. Metaflow
             # vendors a copy so we can keep using ``what`` to detect image
             # formats irrespective of the Python version.
-            from metaflow._vendor import imghdr
+            import warnings
+
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore", category=DeprecationWarning, module="imghdr"
+                )
+                from metaflow._vendor import imghdr
 
             resp = imghdr.what(None, h=data_object)
             # Only accept types supported on the web
