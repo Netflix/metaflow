@@ -1,8 +1,19 @@
 """Recognize image file formats based on their first few bytes."""
 
 from os import PathLike
+import warnings
 
 __all__ = ["what"]
+
+
+# python-deadlib: Replace deprecation warning not to raise exception
+warnings.warn(
+    f"{__name__} was removed in Python 3.13. "
+    f"Please be aware that you are currently NOT using standard '{__name__}', "
+    f"but instead a separately installed 'standard-{__name__}'.",
+    DeprecationWarning, stacklevel=2
+)
+
 
 #-------------------------#
 # Recognize image headers #
