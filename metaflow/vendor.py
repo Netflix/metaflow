@@ -83,7 +83,7 @@ def fetch_licenses(*info_dirs, vendor_dir):
             elif item.is_dir() and item.name.lower() == "licenses":
                 for license_file in item.iterdir():
                     if license_file.is_file():
-                        dest_name = f"{project_name}_{license_file.name}"
+                        dest_name = f"{project_name}.{license_file.name}"
                         shutil.copy(license_file, vendor_dir / dest_name)
 
 
