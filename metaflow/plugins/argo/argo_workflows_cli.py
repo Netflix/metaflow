@@ -702,7 +702,8 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
     }
 
     response = ArgoWorkflows.trigger(obj.workflow_name, params)
-    run_id = "argo-" + response["metadata"]["name"]
+    argo_workflow_id = response["metadata"]["name"]
+    run_id = "argo-" + argo_workflow_id
 
     if run_id_file:
         with open(run_id_file, "w") as f:
@@ -725,11 +726,33 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
         bold=True,
     )
 
+    workflow_url = (
+        "%s/workflows/%s/%s"
+        % (
+            ARGO_WORKFLOWS_UI_URL.rstrip("/"),
+            KUBERNETES_NAMESPACE,
+            argo_workflow_id,
+        )
+        if ARGO_WORKFLOWS_UI_URL
+        else None
+    )
+
     run_url = (
         "%s/%s/%s" % (UI_URL.rstrip("/"), obj.flow.name, run_id) if UI_URL else None
     )
 
-    if run_url:
+    if workflow_url and run_url:
+        obj.echo(
+            "See the run in the UI at %s and in the Argo Workflows UI at %s"
+            % (run_url, workflow_url),
+            bold=True,
+        )
+    elif workflow_url:
+        obj.echo(
+            "See the run in the Argo Workflows UI at %s" % workflow_url,
+            bold=True,
+        )
+    elif run_url:
         obj.echo(
             "See the run in the UI at %s" % run_url,
             bold=True,
