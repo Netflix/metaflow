@@ -67,17 +67,55 @@ install-helm:
 	fi
 
 check-docker:
-	@if ! command -v docker >/dev/null 2>&1; then \
-		echo "❌ Docker is not installed. Please install Docker first: https://docs.docker.com/get-docker/"; \
+	@echo "Checking Docker runtime..."
+	@if command -v docker >/dev/null 2>&1; then \
+		if docker info >/dev/null 2>&1; then \
+			if colima status 2>&1 | grep -q "is running"; then \
+				echo "✓ Using Colima as Docker runtime"; \
+				$(MAKE) configure-colima; \
+			elif docker context ls | grep -q "desktop-linux"; then \
+				echo "✓ Using Docker Desktop"; \
+			else \
+				echo "✓ Using generic Docker runtime"; \
+			fi; \
+		else \
+			if command -v colima >/dev/null 2>&1; then \
+				echo "❌ Docker daemon not running. Colima is installed but not started."; \
+				echo "   Run: colima start"; \
+			else \
+				echo "❌ Docker daemon not running."; \
+				echo "   Please start Docker Desktop or install and start Colima:"; \
+				echo "   brew install colima && colima start"; \
+			fi; \
+			exit 1; \
+		fi; \
+	else \
+		echo "❌ Docker CLI not found. Please install Docker or Colima."; \
 		exit 1; \
 	fi
-	@echo "🔍 Checking Docker daemon..."
-	@if [ "$(shell uname)" = "Darwin" ]; then \
-		open -a Docker || (echo "❌ Please start Docker Desktop" && exit 1); \
-	else \
-                docker info >/dev/null 2>&1 || (echo "❌ Docker daemon is not running." && exit 1); \
+
+configure-colima:
+	@if [ ! -f .env.colima ]; then \
+		echo "export DOCKER_HOST=\"unix://\$${HOME}/.colima/default/docker.sock\"" > .env.colima; \
+		echo "export DOCKER_BUILDKIT=1" >> .env.colima; \
+		echo "export COMPOSE_DOCKER_CLI_BUILD=1" >> .env.colima; \
 	fi
-	@echo "✅ Docker is running"
+	@if DOCKER_HOST="unix://\$${HOME}/.colima/default/docker.sock" docker version >/dev/null 2>&1; then \
+		echo "✓ Docker commands routing through Colima successfully"; \
+	else \
+		echo "❌ Failed to connect to Docker through Colima"; \
+		exit 1; \
+	fi
+
+-include .env.colima
+
+ifdef DOCKER_HOST
+    DOCKER_CMD := DOCKER_HOST=$(DOCKER_HOST) docker
+    DOCKER_COMPOSE_CMD := DOCKER_HOST=$(DOCKER_HOST) docker-compose
+else
+    DOCKER_CMD := docker
+    DOCKER_COMPOSE_CMD := docker-compose
+endif
 
 install-brew:
 	@if [ "$(shell uname)" = "Darwin" ] && ! command -v brew >/dev/null 2>&1; then \
