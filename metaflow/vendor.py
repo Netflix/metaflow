@@ -63,13 +63,28 @@ def find_vendored_libs(vendor_dir, whitelist, whitelist_dirs):
     return vendored_libs, paths
 
 
-def fetch_licenses(*info_dir, vendor_dir):
-    for file in chain.from_iterable(map(iter_subtree, info_dir)):
-        if "LICENSE" in file.name:
-            library = file.parent.name.split("-")[0]
-            shutil.copy(file, vendor_dir / ("%s.LICENSE" % library))
-        else:
+def fetch_licenses(*info_dirs, vendor_dir):
+    for dist_info in info_dirs:
+        metadata_file = dist_info / "METADATA"
+        if not metadata_file.exists():
             continue
+
+        project_name = None
+        for line in metadata_file.read_text("utf-8").splitlines():
+            if line.startswith("Name: "):
+                project_name = line.split("Name: ", 1)[1].strip()
+                break
+        if not project_name:
+            continue
+
+        for item in dist_info.iterdir():
+            if item.is_file() and re.search(r"(LICENSE|COPYING)", item.name, re.I):
+                shutil.copy(item, vendor_dir / f"{project_name}.LICENSE")
+            elif item.is_dir() and item.name.lower() == "licenses":
+                for license_file in item.iterdir():
+                    if license_file.is_file():
+                        dest_name = f"{project_name}.{license_file.name}"
+                        shutil.copy(license_file, vendor_dir / dest_name)
 
 
 def vendor(vendor_dir):
@@ -108,6 +123,8 @@ def vendor(vendor_dir):
                 "-r",
                 "_vendor/vendor_%s.txt" % subdir,
                 "--no-compile",
+                "--no-binary",
+                ":all:",
             ]
         )
 
