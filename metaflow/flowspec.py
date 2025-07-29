@@ -884,11 +884,13 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
         # check: switch case using condition
         if condition is not None:
-            if len(dsts) != 1 or not isinstance(dsts[0], dict):
+            if len(dsts) != 1 or not isinstance(dsts[0], dict) or not dsts[0]:
                 msg = (
                     "Step *{step}* has an invalid self.next() transition. "
-                    "When using 'condition', provide exactly one dictionary argument "
-                    "mapping condition values to step methods.".format(step=step)
+                    "When using 'condition', the transition must be to a single, "
+                    "non-empty dictionary mapping condition values to step methods.".format(
+                        step=step
+                    )
                 )
                 raise InvalidNextException(msg)
 
@@ -909,14 +911,6 @@ class FlowSpec(metaclass=FlowSpecMeta):
                 raise InvalidNextException(msg)
 
             switch_cases = dsts[0]
-            if not switch_cases:
-                msg = (
-                    "Step *{step}* has an invalid self.next() transition. "
-                    "Switch statement cannot have an empty dictionary.".format(
-                        step=step
-                    )
-                )
-                raise InvalidNextException(msg)
 
             # Validate that condition variable exists
             try:
