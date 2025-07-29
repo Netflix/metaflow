@@ -12,6 +12,7 @@ from ..metaflow_config import DEFAULT_DECOSPECS, FEAT_ALWAYS_UPLOAD_CODE_PACKAGE
 from ..package import MetaflowPackage
 from ..runtime import NativeRuntime
 from ..system import _system_logger
+from ..client.core import Run
 
 from ..tagging_util import validate_tags
 from ..util import get_latest_run_id, write_latest_run_id
@@ -230,6 +231,16 @@ def resume(
                     step_to_rerun, ",".join(list(obj.graph.nodes.keys()))
                 )
             )
+
+        origin_run = Run(f"{obj.flow.name}/{origin_run_id}")
+        executed_steps = {step.path_components[-1] for step in origin_run}
+
+        if step_to_rerun not in executed_steps:
+            raise CommandException(
+                f"Cannot resume from step '{step_to_rerun}'. This step was not "
+                f"part of the original execution path for run '{origin_run_id}'."
+            )
+
         steps_to_rerun = {step_to_rerun}
 
     if run_id:
