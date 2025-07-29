@@ -52,6 +52,7 @@ export type PathSpecObject = {
 
 export type Dag = Record<string, DagStep>;
 
+// TODO: add support for switch-split
 export type StepType =
   | "linear"
   | "foreach"
