@@ -232,7 +232,7 @@ def resume(
                 )
             )
 
-        origin_run = Run(f"{obj.flow.name}/{origin_run_id}")
+        origin_run = Run(f"{obj.flow.name}/{origin_run_id}", _namespace_check=False)
         executed_steps = {step.path_components[-1] for step in origin_run}
 
         if step_to_rerun not in executed_steps:
