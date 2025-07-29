@@ -28,7 +28,7 @@ def find_makefile():
         if makefile_candidate.is_file():
             return makefile_candidate
 
-    # 4) When developing, mMtaflow might be installed with --editable, which means the devtools will not be located within site-packages.
+    # 4) When developing, Metaflow might be installed with --editable, which means the devtools will not be located within site-packages.
     # We read the actual location from package metadata in this case, but only do this heavier operation if the above lookups fail.
     try:
         import json
