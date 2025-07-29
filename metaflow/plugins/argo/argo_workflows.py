@@ -2787,17 +2787,22 @@ class ArgoWorkflows(object):
                 }
             )
         if ARGO_WORKFLOWS_UI_URL:
-            links.append(
-                {
-                    "href": "%s/workflows/%s/%s"
-                    % (
-                        ARGO_WORKFLOWS_UI_URL.rstrip("/"),
-                        "{{workflow.namespace}}",
-                        "{{workflow.name}}",
-                    ),
-                    "text": "Argo UI",
-                }
-            )
+            try:
+                links.append(
+                    {
+                        "href": ARGO_WORKFLOWS_UI_URL.rstrip("/").format(
+                            **{
+                                "uri": "workflows",
+                                "namespace": "{{workflow.namespace}}",
+                                "workflow_name": "{{workflow.name}}",
+                                "suffix": "{{workflow.name}}",
+                            }
+                        ),
+                        "text": "Argo UI",
+                    }
+                )
+            except:
+                pass
 
         return links
 
