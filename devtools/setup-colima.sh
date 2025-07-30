@@ -40,11 +40,18 @@ echo "  CPUs: ${COLIMA_CPUS}"
 echo "  Memory: ${COLIMA_MEMORY}GB"
 echo "  Disk: ${COLIMA_DISK}GB"
 
+# Detect macOS version for vm-type
+if [[ $(uname) == "Darwin" ]] && [[ $(sw_vers -productVersion | cut -d. -f1) -ge 13 ]]; then
+    VM_TYPE="--vm-type vz"
+else
+    VM_TYPE=""
+fi
+
 colima start \
     --cpu "${COLIMA_CPUS}" \
     --memory "${COLIMA_MEMORY}" \
     --disk "${COLIMA_DISK}" \
-    --vm-type vz \
+    ${VM_TYPE} \
     --network-address
 
 # Wait for Colima to be ready

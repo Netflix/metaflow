@@ -107,6 +107,13 @@ configure-colima:
 		exit 1; \
 	fi
 
+# Export for sub-makes
+ifdef DOCKER_HOST
+export DOCKER_HOST
+export DOCKER_BUILDKIT
+export COMPOSE_DOCKER_CLI_BUILD
+endif
+
 -include .env.colima
 
 ifdef DOCKER_HOST
