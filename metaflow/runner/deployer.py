@@ -231,6 +231,67 @@ class DeployedFlowMeta(type):
                 }
             )
 
+            def _get_triggered_run_injected_method():
+                def f(
+                    cls,
+                    identifier: str,
+                    run_id: str,
+                    metadata: Optional[str] = None,
+                    impl: str = DEFAULT_FROM_DEPLOYMENT_IMPL.replace("-", "_"),
+                ) -> "TriggeredRun":
+                    """
+                    Retrieves a `TriggeredRun` object from an identifier, a run id and optional
+                    metadata. The `impl` parameter specifies the deployer implementation
+                    to use (like `argo-workflows`).
+
+                    Parameters
+                    ----------
+                    identifier : str
+                        Deployer specific identifier for the workflow to retrieve
+                    run_id : str
+                        Run ID for the which to fetch the triggered run object
+                    metadata : str, optional, default None
+                        Optional deployer specific metadata.
+                    impl : str, optional, default given by METAFLOW_DEFAULT_FROM_DEPLOYMENT_IMPL
+                        The default implementation to use if not specified
+
+                    Returns
+                    -------
+                    TriggeredRun
+                        A `TriggeredRun` object representing the triggered run corresponding
+                        to the identifier and the run id.
+                    """
+                    if impl in allowed_providers:
+                        return (
+                            allowed_providers[impl]
+                            .deployed_flow_type()
+                            .get_triggered_run(identifier, run_id, metadata)
+                        )
+                    else:
+                        raise ValueError(
+                            f"No deployer '{impl}' exists; valid deployers are: "
+                            f"{list(allowed_providers.keys())}"
+                        )
+
+                f.__name__ = "get_triggered_run"
+                return f
+
+            def _per_type_get_triggered_run_injected_method(method_name, impl):
+                def f(
+                    cls,
+                    identifier: str,
+                    run_id: str,
+                    metadata: Optional[str] = None,
+                ):
+                    return (
+                        allowed_providers[impl]
+                        .deployed_flow_type()
+                        .get_triggered_run(identifier, run_id, metadata)
+                    )
+
+                f.__name__ = method_name
+                return f
+
             def _from_deployment_injected_method():
                 def f(
                     cls,
@@ -347,10 +408,16 @@ class DeployedFlowMeta(type):
                 "list_deployed_flows",
                 classmethod(_list_deployed_flows_injected_method()),
             )
+            setattr(
+                cls,
+                "get_triggered_run",
+                classmethod(_get_triggered_run_injected_method()),
+            )
 
             for impl in allowed_providers:
                 from_deployment_method_name = f"from_{impl}"
                 list_deployed_flows_method_name = f"list_{impl}"
+                get_triggered_run_method_name = f"get_triggered_{impl}_run"
 
                 setattr(
                     cls,
@@ -368,6 +435,16 @@ class DeployedFlowMeta(type):
                     classmethod(
                         _per_type_list_deployed_flows_injected_method(
                             list_deployed_flows_method_name, impl
+                        )
+                    ),
+                )
+
+                setattr(
+                    cls,
+                    get_triggered_run_method_name,
+                    classmethod(
+                        _per_type_get_triggered_run_injected_method(
+                            get_triggered_run_method_name, impl
                         )
                     ),
                 )

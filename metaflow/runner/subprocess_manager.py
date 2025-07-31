@@ -152,12 +152,20 @@ class SubprocessManager(object):
         int
             The process ID of the subprocess.
         """
-        updated_env = MetaflowCodeContent.get_env_vars_for_packaged_metaflow(
-            get_metaflow_root()
-        )
-        if updated_env:
-            env = env or {}
-            env.update(updated_env)
+        env = env or {}
+        installed_root = os.environ.get("METAFLOW_EXTRACTED_ROOT", get_metaflow_root())
+
+        for k, v in MetaflowCodeContent.get_env_vars_for_packaged_metaflow(
+            installed_root
+        ).items():
+            if k.endswith(":"):
+                # Override
+                env[k[:-1]] = v
+            elif k in env:
+                env[k] = "%s:%s" % (v, env[k])
+            else:
+                env[k] = v
+
         command_obj = CommandManager(command, env, cwd)
         pid = command_obj.run(show_output=show_output)
         self.commands[pid] = command_obj
@@ -188,12 +196,12 @@ class SubprocessManager(object):
         int
             The process ID of the subprocess.
         """
-        updated_env = MetaflowCodeContent.get_env_vars_for_packaged_metaflow(
-            get_metaflow_root()
-        )
-        if updated_env:
-            env = env or {}
-            env.update(updated_env)
+        env = env or {}
+        if "PYTHONPATH" in env:
+            env["PYTHONPATH"] = "%s:%s" % (get_metaflow_root(), env["PYTHONPATH"])
+        else:
+            env["PYTHONPATH"] = get_metaflow_root()
+
         command_obj = CommandManager(command, env, cwd)
         pid = await command_obj.async_run()
         self.commands[pid] = command_obj

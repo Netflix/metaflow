@@ -84,6 +84,22 @@ class StepFunctionsDeployedFlow(DeployedFlow):
             "from_deployment is not implemented for StepFunctions"
         )
 
+    @classmethod
+    def get_triggered_run(
+        cls, identifier: str, run_id: str, metadata: Optional[str] = None
+    ):
+        """
+        This method is not currently implemented for Step Functions.
+
+        Raises
+        ------
+        NotImplementedError
+            This method is not implemented for Step Functions.
+        """
+        raise NotImplementedError(
+            "get_triggered_run is not implemented for StepFunctions"
+        )
+
     @property
     def production_token(self: DeployedFlow) -> Optional[str]:
         """

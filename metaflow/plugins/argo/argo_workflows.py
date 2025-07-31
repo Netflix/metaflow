@@ -3226,8 +3226,8 @@ class ArgoWorkflows(object):
                     Trigger().template(
                         TriggerTemplate(self.name)
                         # Trigger a deployed workflow template
-                        .argo_workflow_trigger(
-                            ArgoWorkflowTrigger()
+                        .k8s_trigger(
+                            StandardK8STrigger()
                             .source(
                                 {
                                     "resource": {
@@ -4205,6 +4205,10 @@ class TriggerTemplate(object):
         self.payload = tree()
         self.payload["name"] = name
 
+    def k8s_trigger(self, k8s_trigger):
+        self.payload["k8s"] = k8s_trigger.to_json()
+        return self
+
     def argo_workflow_trigger(self, argo_workflow_trigger):
         self.payload["argoWorkflow"] = argo_workflow_trigger.to_json()
         return self
@@ -4272,6 +4276,60 @@ class TriggerParameter(object):
 
     def dest(self, dest):
         self.payload["dest"] = dest
+        return self
+
+    def to_json(self):
+        return self.payload
+
+    def __str__(self):
+        return json.dumps(self.payload, indent=4)
+
+
+class StandardK8STrigger(object):
+    # https://pkg.go.dev/github.com/argoproj/argo-events/pkg/apis/sensor/v1alpha1#StandardK8STrigger
+
+    def __init__(self):
+        tree = lambda: defaultdict(tree)
+        self.payload = tree()
+        self.payload["operation"] = "create"
+
+    def operation(self, operation):
+        self.payload["operation"] = operation
+        return self
+
+    def group(self, group):
+        self.payload["group"] = group
+        return self
+
+    def version(self, version):
+        self.payload["version"] = version
+        return self
+
+    def resource(self, resource):
+        self.payload["resource"] = resource
+        return self
+
+    def namespace(self, namespace):
+        self.payload["namespace"] = namespace
+        return self
+
+    def source(self, source):
+        self.payload["source"] = source
+        return self
+
+    def parameters(self, trigger_parameters):
+        if "parameters" not in self.payload:
+            self.payload["parameters"] = []
+        for trigger_parameter in trigger_parameters:
+            self.payload["parameters"].append(trigger_parameter.to_json())
+        return self
+
+    def live_object(self, live_object=True):
+        self.payload["liveObject"] = live_object
+        return self
+
+    def patch_strategy(self, patch_strategy):
+        self.payload["patchStrategy"] = patch_strategy
         return self
 
     def to_json(self):

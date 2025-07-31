@@ -205,9 +205,10 @@ def package_mfext_all():
     # the packaged metaflow_extensions directory "self-contained" so that
     # python doesn't go and search other parts of the system for more
     # metaflow_extensions.
-    yield os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "_empty_file.py"
-    ), os.path.join(EXT_PKG, "__init__.py")
+    if _all_packages:
+        yield os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "_empty_file.py"
+        ), os.path.join(EXT_PKG, "__init__.py")
 
     for p in _all_packages:
         for path_tuple in package_mfext_package(p):
