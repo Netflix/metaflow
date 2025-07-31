@@ -8,6 +8,14 @@ class LargeMflogTest(MetaflowTest):
     """
 
     PRIORITY = 2
+    SKIP_GRAPHS = [
+        "simple_switch",
+        "nested_switch",
+        "branch_in_switch",
+        "foreach_in_switch",
+        "switch_in_branch",
+        "switch_in_foreach",
+    ]
     HEADER = """
 NUM_FOREACH = 32
 NUM_LINES = 5000

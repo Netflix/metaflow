@@ -16,14 +16,24 @@ class FlowFormatter(object):
         self.used = set()
         self._code_cache = {}
         self.steps = self._index_steps(test)
-        self.flow_code = self._pretty_print(self._flow_lines())
-        self.check_code = self._pretty_print(self._check_lines())
         self.copy_files = getattr(test, "REQUIRED_FILES", [])
+        self.skip_graphs = getattr(test, "SKIP_GRAPHS", [])
+        self.only_graphs = getattr(test, "ONLY_GRAPHS", [])
         self.valid = True
 
-        for step in self.steps:
-            if step.required and step not in self.used:
-                self.valid = False
+        graph_name = self.graphspec.get("name", "")
+        if graph_name in self.skip_graphs:
+            self.valid = False
+        elif self.only_graphs and graph_name not in self.only_graphs:
+            self.valid = False
+
+        if self.valid:
+            self.flow_code = self._pretty_print(self._flow_lines())
+            self.check_code = self._pretty_print(self._check_lines())
+
+            for step in self.steps:
+                if step.required and step not in self.used:
+                    self.valid = False
 
     def _format_method(self, step):
         def lines():
@@ -68,6 +78,8 @@ class FlowFormatter(object):
             quals.add("parallel-step")
         if "linear" in node:
             quals.add("linear")
+        if "switch" in node:
+            quals.add("switch-step")
         for qual in node.get("quals", []):
             quals.add(qual)
         return quals
@@ -151,6 +163,19 @@ class FlowFormatter(object):
             elif "branch" in node:
                 branches = ",".join("self.%s" % x for x in node["branch"])
                 yield 2, "self.next(%s)" % branches
+            elif "switch" in node:
+                # Handle switch nodes - generate the switch dictionary and condition
+                switch_dict = node["switch"]
+                condition = node["condition"]
+                switch_branches = (
+                    "{"
+                    + ", ".join(
+                        '"%s": self.%s' % (key, branch)
+                        for key, branch in switch_dict.items()
+                    )
+                    + "}"
+                )
+                yield 2, "self.next(%s, condition='%s')" % (switch_branches, condition)
             elif "foreach" in node:
                 yield 2, 'self.next(self.%s, foreach="%s")' % (
                     node["foreach"],

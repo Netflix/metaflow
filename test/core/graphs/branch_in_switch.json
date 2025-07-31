@@ -1,0 +1,16 @@
+{
+    "name": "branch_in_switch",
+    "graph": {
+        "start": { 
+            "switch": {"process": "process_branch", "skip": "skip_path"},
+            "condition": "mode",
+            "quals": ["start-branch-in-switch"]
+        },
+        "process_branch": {"branch": ["p1", "p2"], "quals": ["process-path"]},
+        "p1": {"linear": "process_join", "quals": ["p1"]},
+        "p2": {"linear": "process_join", "quals": ["p2"]},
+        "process_join": {"linear": "end", "join": true, "quals": ["process-join"]},
+        "skip_path": {"linear": "end", "quals": ["skip-path"]},
+        "end": {"quals": ["end-branch-in-switch"]}
+    }
+}
