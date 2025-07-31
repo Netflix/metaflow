@@ -914,7 +914,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
             # Validate that condition variable exists
             try:
-                getattr(self, condition)
+                condition_value = getattr(self, condition)
             except AttributeError:
                 msg = (
                     "Condition variable *self.{var}* in step *{step}* "
@@ -924,34 +924,27 @@ class FlowSpec(metaclass=FlowSpecMeta):
                 )
                 raise InvalidNextException(msg)
 
-            # Validate that all switch case values are step methods
-            funcs = []
-            for case_value, step_method in switch_cases.items():
-                try:
-                    func_name = step_method.__func__.__name__
-                except:
-                    msg = (
-                        "In step *{step}* switch case '{case}', the value is "
-                        "not a Metaflow step. Make sure all values in the switch dictionary "
-                        "are steps of the Flow class.".format(
-                            step=step, case=case_value
-                        )
-                    )
-                    raise InvalidNextException(msg)
-                if not hasattr(self, func_name):
-                    msg = (
-                        "Step *{step}* specifies a switch case to an "
-                        "unknown step, *{name}*.".format(step=step, name=func_name)
-                    )
-                    raise InvalidNextException(msg)
-                funcs.append(func_name)
-
             resolved_switch_cases = self._validate_switch_cases(switch_cases, step)
 
-            # Store switch information for runtime evaluation
-            self._switch_cases = resolved_switch_cases
-            self._switch_condition = condition
-            self._transition = (funcs, None)
+            if str(condition_value) not in resolved_switch_cases:
+                available_cases = list(resolved_switch_cases.keys())
+                raise RuntimeError(
+                    f"Switch condition variable '{condition}' has value '{condition_value}' "
+                    f"which is not in the available cases: {available_cases}"
+                )
+
+            # Get the chosen step and set transition directly
+            chosen_step = resolved_switch_cases[str(condition_value)]
+
+            # Validate that the chosen step exists
+            if not hasattr(self, chosen_step):
+                msg = (
+                    "Step *{step}* specifies a switch transition to an "
+                    "unknown step, *{name}*.".format(step=step, name=chosen_step)
+                )
+                raise InvalidNextException(msg)
+
+            self._transition = ([chosen_step], None)
             return
 
         # Check for an invalid transition: a dictionary used without a 'condition' parameter.
