@@ -57,6 +57,7 @@ export type StepType =
   | "linear"
   | "foreach"
   | "split-and"
+  | "switch"
   | "join"
   | "start"
   | "end";
@@ -73,6 +74,8 @@ export interface DagStep {
   successful_tasks?: number;
   failed?: boolean;
   num_failed?: number;
+  condition?: string;
+  switch_cases?: Record<string, string>;
 }
 
 /* -------------------------------- RESPONSE -------------------------------- */
