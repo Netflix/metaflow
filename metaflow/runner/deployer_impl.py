@@ -3,7 +3,7 @@ import json
 import os
 import sys
 
-from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING, Type
+from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING, Type, List
 
 from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
 
@@ -67,15 +67,10 @@ class DeployerImpl(object):
 
         # Reload the CLI with an "empty" flow -- this will remove any configuration
         # and parameter options. They are re-added in from_cli (called below).
-        to_reload = [
-            "metaflow.cli",
-            "metaflow.cli_components.run_cmds",
-            "metaflow.cli_components.init_cmd",
-        ]
         with flow_context(None):
             [
                 importlib.reload(sys.modules[module])
-                for module in to_reload
+                for module in self.to_reload
                 if module in sys.modules
             ]
 
@@ -101,6 +96,19 @@ class DeployerImpl(object):
         self.spm = SubprocessManager()
         self.top_level_kwargs = kwargs
         self.api = MetaflowAPI.from_cli(self.flow_file, start)
+
+    @property
+    def to_reload(self) -> List[str]:
+        """
+        List of modules to reload when the deployer is initialized.
+        This is used to ensure that the CLI is in a clean state before
+        deploying the flow.
+        """
+        return [
+            "metaflow.cli",
+            "metaflow.cli_components.run_cmds",
+            "metaflow.cli_components.init_cmd",
+        ]
 
     @property
     def deployer_kwargs(self) -> Dict[str, Any]:
