@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import importlib
-import json
 import os
 import re
 import sys
@@ -11,6 +10,10 @@ from collections import defaultdict, namedtuple
 
 from importlib.abc import MetaPathFinder, Loader
 from itertools import chain
+from pathlib import Path
+
+from metaflow.meta_files import read_info_file
+
 
 #
 # This file provides the support for Metaflow's extension mechanism which allows
@@ -59,6 +62,9 @@ __all__ = (
     "load_module",
     "get_modules",
     "dump_module_info",
+    "get_extensions_in_dir",
+    "extension_info",
+    "update_package_info",
     "get_aliased_modules",
     "package_mfext_package",
     "package_mfext_all",
@@ -80,9 +86,14 @@ EXT_EXCLUDE_SUFFIXES = [".pyc"]
 # To get verbose messages, set METAFLOW_DEBUG_EXT to 1
 DEBUG_EXT = os.environ.get("METAFLOW_DEBUG_EXT", False)
 
+# This is extracted only from environment variable and here separately from
+# metaflow_config to prevent nasty circular dependencies
+EXTENSIONS_SEARCH_DIRS = os.environ.get("METAFLOW_EXTENSIONS_SEARCH_DIRS", "").split(
+    os.pathsep
+)
 
 MFExtPackage = namedtuple("MFExtPackage", "package_name tl_package config_module")
-MFExtModule = namedtuple("MFExtModule", "tl_package module")
+MFExtModule = namedtuple("MFExtModule", "package_name tl_package module")
 
 
 def load_module(module_name):
@@ -92,9 +103,6 @@ def load_module(module_name):
 
 def get_modules(extension_point):
     modules_to_load = []
-    if not _mfext_supported:
-        _ext_debug("Not supported for your Python version -- 3.4+ is needed")
-        return []
     if extension_point not in _extension_points:
         raise RuntimeError(
             "Metaflow extension point '%s' not supported" % extension_point
@@ -113,17 +121,61 @@ def get_modules(extension_point):
     return modules_to_load
 
 
-def dump_module_info():
-    _filter_files_all()
+def dump_module_info(all_packages=None, pkgs_per_extension_point=None):
+    if all_packages is None:
+        all_packages = _all_packages
+    if pkgs_per_extension_point is None:
+        pkgs_per_extension_point = _pkgs_per_extension_point
+
+    _filter_files_all(all_packages)
     sanitized_all_packages = dict()
     # Strip out root_paths (we don't need it and no need to expose user's dir structure)
-    for k, v in _all_packages.items():
+    for k, v in all_packages.items():
         sanitized_all_packages[k] = {
             "root_paths": None,
             "meta_module": v["meta_module"],
             "files": v["files"],
+            "version": v["version"],
+            "package_version": v.get("package_version", "<unk>"),
+            "extension_name": v.get("extension_name", "<unk>"),
         }
-    return "ext_info", [sanitized_all_packages, _pkgs_per_extension_point]
+    return "ext_info", [sanitized_all_packages, pkgs_per_extension_point]
+
+
+def get_extensions_in_dir(d):
+    return _get_extension_packages(ignore_info_file=True, restrict_to_directories=[d])
+
+
+def extension_info(packages=None):
+    if packages is None:
+        packages = _all_packages
+    # Returns information about installed extensions so it it can be stored in
+    # _graph_info.
+    return {
+        "installed": {
+            k: {
+                "dist_version": v["version"],
+                "package_version": v.get("package_version", "<unk>"),
+                "extension_name": v.get("extension_name", "<unk>"),
+            }
+            for k, v in packages.items()
+        },
+    }
+
+
+def update_package_info(pkg_to_update=None, package_name=None, **kwargs):
+    pkg = None
+    if pkg_to_update:
+        pkg = pkg_to_update
+    elif package_name:
+        pkg = _all_packages.get(package_name)
+    for k, v in kwargs.items():
+        if k in pkg:
+            raise ValueError(
+                "Trying to overwrite existing key '%s' for package %s" % (k, str(pkg))
+            )
+        pkg[k] = v
+    return pkg
 
 
 def get_aliased_modules():
@@ -134,8 +186,8 @@ def package_mfext_package(package_name):
     from metaflow.util import to_unicode
 
     _ext_debug("Packaging '%s'" % package_name)
-    _filter_files_package(package_name)
     pkg_info = _all_packages.get(package_name, None)
+    _filter_files_package(pkg_info)
     if pkg_info and pkg_info.get("root_paths", None):
         single_path = len(pkg_info["root_paths"]) == 1
         for p in pkg_info["root_paths"]:
@@ -153,13 +205,18 @@ def package_mfext_all():
     # the packaged metaflow_extensions directory "self-contained" so that
     # python doesn't go and search other parts of the system for more
     # metaflow_extensions.
-    yield os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "_empty_file.py"
-    ), os.path.join(EXT_PKG, "__init__.py")
+    if _all_packages:
+        yield os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "_empty_file.py"
+        ), os.path.join(EXT_PKG, "__init__.py")
 
     for p in _all_packages:
         for path_tuple in package_mfext_package(p):
             yield path_tuple
+
+
+def package_mfext_all_descriptions():
+    return _all_packages
 
 
 def load_globals(module, dst_globals, extra_indent=False):
@@ -254,21 +311,16 @@ def multiload_all(modules, extension_point, dst_globals):
 
 
 _py_ver = sys.version_info[:2]
-_mfext_supported = False
 _aliased_modules = []
 
-if _py_ver >= (3, 4):
-    import importlib.util
+import importlib.util
 
-    if _py_ver >= (3, 8):
-        from importlib import metadata
-    elif _py_ver >= (3, 7):
-        from metaflow._vendor import importlib_metadata as metadata
-    elif _py_ver >= (3, 6):
-        from metaflow._vendor.v3_6 import importlib_metadata as metadata
-    else:
-        from metaflow._vendor.v3_5 import importlib_metadata as metadata
-    _mfext_supported = True
+if _py_ver >= (3, 8):
+    from importlib import metadata
+elif _py_ver >= (3, 7):
+    from metaflow._vendor.v3_7 import importlib_metadata as metadata
+else:
+    from metaflow._vendor.v3_6 import importlib_metadata as metadata
 
 # Extension points are the directories that can be present in a EXT_PKG to
 # contribute to that extension point. For example, if you have
@@ -296,40 +348,40 @@ def _ext_debug(*args, **kwargs):
         print(init_str, *args, **kwargs)
 
 
-def _get_extension_packages():
-    if not _mfext_supported:
-        _ext_debug("Not supported for your Python version -- 3.4+ is needed")
-        return {}, {}
-
+def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None):
     # If we have an INFO file with the appropriate information (if running from a saved
     # code package for example), we use that directly
     # Pre-compute on _extension_points
-    from metaflow import INFO_FILE
+    info_content = read_info_file()
+    if not ignore_info_file and info_content:
+        all_pkg, ext_to_pkg = info_content.get("ext_info", (None, None))
+        if all_pkg is not None and ext_to_pkg is not None:
+            _ext_debug("Loading pre-computed information from INFO file")
+            # We need to properly convert stuff in ext_to_pkg
+            for k, v in ext_to_pkg.items():
+                v = [MFExtPackage(*d) for d in v]
+                ext_to_pkg[k] = v
+            return all_pkg, ext_to_pkg
 
-    try:
-        with open(INFO_FILE, encoding="utf-8") as contents:
-            all_pkg, ext_to_pkg = json.load(contents).get("ext_info", (None, None))
-            if all_pkg is not None and ext_to_pkg is not None:
-                _ext_debug("Loading pre-computed information from INFO file")
-                # We need to properly convert stuff in ext_to_pkg
-                for k, v in ext_to_pkg.items():
-                    v = [MFExtPackage(*d) for d in v]
-                    ext_to_pkg[k] = v
-                return all_pkg, ext_to_pkg
-    except IOError:
-        pass
+    # Late import to prevent some circular nastiness
+    if restrict_to_directories is None and EXTENSIONS_SEARCH_DIRS != [""]:
+        restrict_to_directories = EXTENSIONS_SEARCH_DIRS
 
     # Check if we even have extensions
     try:
         extensions_module = importlib.import_module(EXT_PKG)
     except ImportError as e:
-        if _py_ver >= (3, 6):
-            # e.name is set to the name of the package that fails to load
-            # so don't error ONLY IF the error is importing this module (but do
-            # error if there is a transitive import error)
-            if not (isinstance(e, ModuleNotFoundError) and e.name == EXT_PKG):
-                raise
+        # e.name is set to the name of the package that fails to load
+        # so don't error ONLY IF the error is importing this module (but do
+        # error if there is a transitive import error)
+        if not (isinstance(e, ModuleNotFoundError) and e.name == EXT_PKG):
+            raise
         return {}, {}
+
+    if restrict_to_directories:
+        restrict_to_directories = [
+            Path(p).resolve().as_posix() for p in restrict_to_directories
+        ]
 
     # There are two "types" of packages:
     #   - those installed on the system (distributions)
@@ -343,8 +395,12 @@ def _get_extension_packages():
     # At this point, we look at all the paths and create a set. As we find distributions
     # that match it, we will remove from the set and then will be left with any
     # PYTHONPATH "packages"
-    all_paths = set(extensions_module.__path__)
+    all_paths = set(Path(p).resolve().as_posix() for p in extensions_module.__path__)
     _ext_debug("Found packages present at %s" % str(all_paths))
+    if restrict_to_directories:
+        _ext_debug(
+            "Processed packages will be restricted to %s" % str(restrict_to_directories)
+        )
 
     list_ext_points = [x.split(".") for x in _extension_points]
     init_ext_points = [x[0] for x in list_ext_points]
@@ -391,9 +447,20 @@ def _get_extension_packages():
             # This is not 100% accurate because it is possible that at the same
             # location there is a package and a non-package, but this is extremely
             # unlikely so we are going to ignore this case.
-            dist_root = dist.locate_file(EXT_PKG).as_posix()
+            dist_root = dist.locate_file(EXT_PKG).resolve().as_posix()
             all_paths.discard(dist_root)
             dist_name = dist.metadata["Name"]
+            dist_version = dist.metadata["Version"]
+            if restrict_to_directories:
+                parent_dirs = list(
+                    p.as_posix() for p in Path(dist_root).resolve().parents
+                )
+                if all(p not in parent_dirs for p in restrict_to_directories):
+                    _ext_debug(
+                        "Ignoring package at %s as it is not in the considered directories"
+                        % dist_root
+                    )
+                    continue
             if dist_name in mf_ext_packages:
                 _ext_debug(
                     "Ignoring duplicate package '%s' (duplicate paths in sys.path? (%s))"
@@ -537,6 +604,7 @@ def _get_extension_packages():
                 "root_paths": [dist_root],
                 "meta_module": meta_module,
                 "files": files_to_include,
+                "version": dist_version,
             }
     # At this point, we have all the packages that contribute to EXT_PKG,
     # we now check to see if there is an order to respect based on dependencies. We will
@@ -605,6 +673,16 @@ def _get_extension_packages():
     if len(all_paths_list) > 0:
         _ext_debug("Non installed packages present at %s" % str(all_paths))
         for package_count, package_path in enumerate(all_paths_list):
+            if restrict_to_directories:
+                parent_dirs = list(
+                    p.as_posix() for p in Path(package_path).resolve().parents
+                )
+                if all(p not in parent_dirs for p in restrict_to_directories):
+                    _ext_debug(
+                        "Ignoring non-installed package at %s as it is not in "
+                        "the considered directories" % package_path
+                    )
+                    continue
             # We give an alternate name for the visible package name. It is
             # not exposed to the end user but used to refer to the package, and it
             # doesn't provide much additional information to have the full path
@@ -735,12 +813,16 @@ def _get_extension_packages():
                                 "    Extends '%s' with config '%s'"
                                 % (_extension_points[idx], config_module)
                             )
-            mf_pkg_list.append(package_name)
-            mf_ext_packages[package_name] = {
-                "root_paths": [package_path],
-                "meta_module": meta_module,
-                "files": files_to_include,
-            }
+            if files_to_include:
+                mf_pkg_list.append(package_name)
+                mf_ext_packages[package_name] = {
+                    "root_paths": [package_path],
+                    "meta_module": meta_module,
+                    "files": files_to_include,
+                    "version": "_local_",
+                }
+            else:
+                _ext_debug("Skipping package as no files found (empty dir?)")
 
     # Sanity check that we only have one package per configuration file.
     # This prevents multiple packages from providing the same named configuration
@@ -804,20 +886,19 @@ def _attempt_load_module(module_name):
     try:
         extension_module = importlib.import_module(module_name)
     except ImportError as e:
-        if _py_ver >= (3, 6):
-            # e.name is set to the name of the package that fails to load
-            # so don't error ONLY IF the error is importing this module (but do
-            # error if there is a transitive import error)
-            errored_names = [EXT_PKG]
-            parts = module_name.split(".")
-            for p in parts[1:]:
-                errored_names.append("%s.%s" % (errored_names[-1], p))
-            if not (isinstance(e, ModuleNotFoundError) and e.name in errored_names):
-                print(
-                    "The following exception occurred while trying to load '%s' ('%s')"
-                    % (EXT_PKG, module_name)
-                )
-                raise
+        # e.name is set to the name of the package that fails to load
+        # so don't error ONLY IF the error is importing this module (but do
+        # error if there is a transitive import error)
+        errored_names = [EXT_PKG]
+        parts = module_name.split(".")
+        for p in parts[1:]:
+            errored_names.append("%s.%s" % (errored_names[-1], p))
+        if not (isinstance(e, ModuleNotFoundError) and e.name in errored_names):
+            print(
+                "The following exception occurred while trying to load '%s' ('%s')"
+                % (EXT_PKG, module_name)
+            )
+            raise
         _ext_debug("        Unknown error when loading '%s': %s" % (module_name, e))
         return None
     else:
@@ -868,12 +949,13 @@ def _get_extension_config(distribution_name, tl_pkg, extension_point, config_mod
             _ext_debug("Package '%s' is rooted at %s" % (distribution_name, root_paths))
             _all_packages[distribution_name]["root_paths"] = root_paths
 
-        return MFExtModule(tl_package=tl_pkg, module=extension_module)
+        return MFExtModule(
+            package_name=distribution_name, tl_package=tl_pkg, module=extension_module
+        )
     return None
 
 
-def _filter_files_package(package_name):
-    pkg = _all_packages.get(package_name)
+def _filter_files_package(pkg):
     if pkg and pkg["root_paths"] and pkg["meta_module"]:
         meta_module = _attempt_load_module(pkg["meta_module"])
         if meta_module:
@@ -902,8 +984,8 @@ def _filter_files_package(package_name):
             pkg["files"] = new_files
 
 
-def _filter_files_all():
-    for p in _all_packages:
+def _filter_files_all(all_packages):
+    for p in all_packages.values():
         _filter_files_package(p)
 
 

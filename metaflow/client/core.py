@@ -5,6 +5,7 @@ import os
 import tarfile
 from collections import namedtuple
 from datetime import datetime
+from tempfile import TemporaryDirectory
 from io import BytesIO
 from itertools import chain
 from typing import (
@@ -16,6 +17,7 @@ from typing import (
     List,
     NamedTuple,
     Optional,
+    TYPE_CHECKING,
     Tuple,
 )
 
@@ -30,12 +32,16 @@ from metaflow.exception import (
 from metaflow.includefile import IncludedFile
 from metaflow.metaflow_config import DEFAULT_METADATA, MAX_ATTEMPTS
 from metaflow.metaflow_environment import MetaflowEnvironment
+from metaflow.package import MetaflowPackage
+from metaflow.packaging_sys import ContentType
 from metaflow.plugins import ENVIRONMENTS, METADATA_PROVIDERS
 from metaflow.unbounded_foreach import CONTROL_TASK_TAG
 from metaflow.util import cached_property, is_stringish, resolve_identity, to_unicode
 
-from .. import INFO_FILE
 from .filecache import FileCache
+
+if TYPE_CHECKING:
+    from metaflow.metadata_provider import MetadataProvider
 
 try:
     # python2
@@ -82,28 +88,16 @@ def metadata(ms: str) -> str:
         get_metadata()).
     """
     global current_metadata
-    infos = ms.split("@", 1)
-    types = [m.TYPE for m in METADATA_PROVIDERS]
-    if infos[0] in types:
-        current_metadata = [m for m in METADATA_PROVIDERS if m.TYPE == infos[0]][0]
-        if len(infos) > 1:
-            current_metadata.INFO = infos[1]
-    else:
-        # Deduce from ms; if starts with http, use service or else use local
-        if ms.startswith("http"):
-            metadata_type = "service"
-        else:
-            metadata_type = "local"
-        res = [m for m in METADATA_PROVIDERS if m.TYPE == metadata_type]
-        if not res:
-            print(
-                "Cannot find a '%s' metadata provider -- "
-                "try specifying one explicitly using <type>@<info>",
-                metadata_type,
-            )
-            return get_metadata()
-        current_metadata = res[0]
-        current_metadata.INFO = ms
+    provider, info = _metadata(ms)
+    if provider is None:
+        print(
+            "Cannot find a metadata provider -- "
+            "try specifying one explicitly using <type>@<info>",
+        )
+        return get_metadata()
+    current_metadata = provider
+    if info:
+        current_metadata.INFO = info
     return get_metadata()
 
 
@@ -127,7 +121,7 @@ def get_metadata() -> str:
     """
     if current_metadata is False:
         default_metadata()
-    return "%s@%s" % (current_metadata.TYPE, current_metadata.INFO)
+    return current_metadata.metadata_str()
 
 
 def default_metadata() -> str:
@@ -151,7 +145,7 @@ def default_metadata() -> str:
     if default:
         current_metadata = default[0]
     else:
-        from metaflow.plugins.metadata import LocalMetadataProvider
+        from metaflow.plugins.metadata_providers import LocalMetadataProvider
 
         current_metadata = LocalMetadataProvider
     return get_metadata()
@@ -268,9 +262,16 @@ class MetaflowObject(object):
         _object: Optional["MetaflowObject"] = None,
         _parent: Optional["MetaflowObject"] = None,
         _namespace_check: bool = True,
+        _metaflow: Optional["Metaflow"] = None,
         _current_namespace: Optional[str] = None,
+        _current_metadata: Optional[str] = None,
     ):
-        self._metaflow = Metaflow()
+        # the default namespace is activated lazily at the first
+        # get_namespace(). The other option of activating
+        # the namespace at the import time is problematic, since there
+        # may be other modules that alter environment variables etc.
+        # which may affect the namespace setting.
+        self._metaflow = Metaflow(_current_metadata) or _metaflow
         self._parent = _parent
         self._path_components = None
         self._attempt = attempt
@@ -380,7 +381,7 @@ class MetaflowObject(object):
             _CLASSES[self._CHILD_CLASS]._NAME,
             query_filter,
             self._attempt,
-            *self.path_components
+            *self.path_components,
         )
         unfiltered_children = unfiltered_children if unfiltered_children else []
         children = filter(
@@ -390,6 +391,7 @@ class MetaflowObject(object):
                     attempt=self._attempt,
                     _object=obj,
                     _parent=self,
+                    _metaflow=self._metaflow,
                     _namespace_check=self._namespace_check,
                     _current_namespace=(
                         self._current_namespace if self._namespace_check else None
@@ -505,6 +507,7 @@ class MetaflowObject(object):
                 attempt=self._attempt,
                 _object=obj,
                 _parent=self,
+                _metaflow=self._metaflow,
                 _namespace_check=self._namespace_check,
                 _current_namespace=(
                     self._current_namespace if self._namespace_check else None
@@ -552,7 +555,25 @@ class MetaflowObject(object):
             _current_namespace=ns,
         )
 
-    _UNPICKLE_FUNC = {"2.8.4": _unpickle_284, "2.12.4": _unpickle_2124}
+    def _unpickle_21227(self, data):
+        if len(data) != 5:
+            raise MetaflowInternalError(
+                "Unexpected size of array: {}".format(len(data))
+            )
+        pathspec, attempt, md, ns, namespace_check = data
+        self.__init__(
+            pathspec=pathspec,
+            attempt=attempt,
+            _namespace_check=namespace_check,
+            _current_metadata=md,
+            _current_namespace=ns,
+        )
+
+    _UNPICKLE_FUNC = {
+        "2.8.4": _unpickle_284,
+        "2.12.4": _unpickle_2124,
+        "2.12.27": _unpickle_21227,
+    }
 
     def __setstate__(self, state):
         """
@@ -595,10 +616,11 @@ class MetaflowObject(object):
         # checking for the namespace even after unpickling since we will know which
         # namespace to check.
         return {
-            "version": "2.12.4",
+            "version": "2.12.27",
             "data": [
                 self.pathspec,
                 self._attempt,
+                self._metaflow.metadata.metadata_str(),
                 self._current_namespace,
                 self._namespace_check,
             ],
@@ -670,7 +692,7 @@ class MetaflowObject(object):
         origin_pathspec = None
         if self._NAME == "run":
             latest_step = next(self.steps())
-            if latest_step:
+            if latest_step and latest_step.task:
                 # If we had a step
                 task = latest_step.task
                 origin_run_id = [
@@ -795,20 +817,28 @@ class MetaflowCode(object):
         self._path = info["location"]
         self._ds_type = info["ds_type"]
         self._sha = info["sha"]
+        self._code_metadata = info.get(
+            "metadata",
+            '{"version": 0, "archive_format": "tgz", "mfcontent_version": 0}',
+        )
+
+        self._backend = MetaflowPackage.get_backend(self._code_metadata)
 
         if filecache is None:
             filecache = FileCache()
         _, blobdata = filecache.get_data(
             self._ds_type, self._flow_name, self._path, self._sha
         )
-        code_obj = BytesIO(blobdata)
-        self._tar = tarfile.open(fileobj=code_obj, mode="r:gz")
-        # The JSON module in Python3 deals with Unicode. Tar gives bytes.
-        info_str = (
-            self._tar.extractfile(os.path.basename(INFO_FILE)).read().decode("utf-8")
-        )
-        self._info = json.loads(info_str)
-        self._flowspec = self._tar.extractfile(self._info["script"]).read()
+        self._code_obj = BytesIO(blobdata)
+        self._info = MetaflowPackage.cls_get_info(self._code_metadata, self._code_obj)
+        self._code_obj.seek(0)
+        if self._info:
+            self._flowspec = MetaflowPackage.cls_get_content(
+                self._code_metadata, self._code_obj, self._info["script"]
+            )
+            self._code_obj.seek(0)
+        else:
+            raise MetaflowInternalError("Code package metadata is invalid.")
 
     @property
     def path(self) -> str:
@@ -856,7 +886,62 @@ class MetaflowCode(object):
         TarFile
             TarFile for everything in this code package
         """
-        return self._tar
+        if self._backend.type == "tgz":
+            to_return = self._backend.cls_open(self._code_obj)
+            self._code_obj.seek(0)
+            return to_return
+        raise RuntimeError("Archive is not a tarball")
+
+    def extract(self) -> TemporaryDirectory:
+        """
+        Extracts the code package to a temporary directory.
+
+        This creates a temporary directory containing all user code
+        files from the code package. The temporary directory is
+        automatically deleted when the returned TemporaryDirectory
+        object is garbage collected or when its cleanup() is called.
+
+        To preserve the contents to a permanent location, use
+        os.replace() which performs a zero-copy move on the same
+        filesystem:
+
+        ```python
+        with task.code.extract() as tmp_dir:
+            # Move contents to permanent location
+            for item in os.listdir(tmp_dir):
+                src = os.path.join(tmp_dir, item)
+                dst = os.path.join('/path/to/permanent/dir', item)
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                os.replace(src, dst)  # Atomic move operation
+        ```
+        Returns
+        -------
+        TemporaryDirectory
+            A temporary directory containing the extracted code files.
+            The directory and its contents are automatically deleted when
+            this object is garbage collected.
+        """
+        tmp = TemporaryDirectory()
+        MetaflowPackage.cls_extract_into(
+            self._code_metadata, self._code_obj, tmp.name, ContentType.USER_CONTENT
+        )
+        self._code_obj.seek(0)
+        return tmp
+
+    @property
+    def script_name(self) -> str:
+        """
+        Returns the filename of the Python script containing the FlowSpec.
+
+        This is the main Python file that was used to execute the flow. For example,
+        if your flow is defined in 'myflow.py', this property will return 'myflow.py'.
+
+        Returns
+        -------
+        str
+            Name of the Python file containing the FlowSpec
+        """
+        return self._info["script"]
 
     def __str__(self):
         return "<MetaflowCode: %s>" % self._info["script"]
@@ -1102,6 +1187,143 @@ class Task(MetaflowObject):
     def _iter_filter(self, x):
         # exclude private data artifacts
         return x.id[0] != "_"
+
+    def _iter_matching_tasks(self, steps, metadata_key, metadata_pattern):
+        """
+        Yield tasks from specified steps matching a foreach path pattern.
+
+        Parameters
+        ----------
+        steps : List[str]
+            List of step names to search for tasks
+        pattern : str
+            Regex pattern to match foreach-indices metadata
+
+        Returns
+        -------
+        Iterator[Task]
+            Tasks matching the foreach path pattern
+        """
+        flow_id, run_id, _, _ = self.path_components
+
+        for step in steps:
+            task_pathspecs = self._metaflow.metadata.filter_tasks_by_metadata(
+                flow_id, run_id, step.id, metadata_key, metadata_pattern
+            )
+            for task_pathspec in task_pathspecs:
+                yield Task(pathspec=task_pathspec, _namespace_check=False)
+
+    @property
+    def parent_tasks(self) -> Iterator["Task"]:
+        """
+        Yields all parent tasks of the current task if one exists.
+
+        Yields
+        ------
+        Task
+            Parent task of the current task
+
+        """
+        flow_id, run_id, _, _ = self.path_components
+
+        steps = list(self.parent.parent_steps)
+        if not steps:
+            return []
+
+        current_path = self.metadata_dict.get("foreach-execution-path", "")
+
+        if len(steps) > 1:
+            # Static join - use exact path matching
+            pattern = current_path or ".*"
+            yield from self._iter_matching_tasks(
+                steps, "foreach-execution-path", pattern
+            )
+            return
+
+        # Handle single step case
+        target_task = Step(
+            f"{flow_id}/{run_id}/{steps[0].id}", _namespace_check=False
+        ).task
+        target_path = target_task.metadata_dict.get("foreach-execution-path")
+
+        if not target_path or not current_path:
+            # (Current task, "A:10") and (Parent task, "")
+            # Pattern: ".*"
+            pattern = ".*"
+        else:
+            current_depth = len(current_path.split(","))
+            target_depth = len(target_path.split(","))
+
+            if current_depth < target_depth:
+                # Foreach join
+                # (Current task, "A:10,B:13") and (Parent task, "A:10,B:13,C:21")
+                # Pattern: "A:10,B:13,.*"
+                pattern = f"{current_path},.*"
+            else:
+                # Foreach split or linear step
+                # Option 1:
+                # (Current task, "A:10,B:13,C:21") and (Parent task, "A:10,B:13")
+                # Option 2:
+                # (Current task, "A:10,B:13") and (Parent task, "A:10,B:13")
+                # Pattern: "A:10,B:13"
+                pattern = ",".join(current_path.split(",")[:target_depth])
+
+        yield from self._iter_matching_tasks(steps, "foreach-execution-path", pattern)
+
+    @property
+    def child_tasks(self) -> Iterator["Task"]:
+        """
+        Yield all child tasks of the current task if one exists.
+
+        Yields
+        ------
+        Task
+            Child task of the current task
+        """
+        flow_id, run_id, _, _ = self.path_components
+        steps = list(self.parent.child_steps)
+        if not steps:
+            return []
+
+        current_path = self.metadata_dict.get("foreach-execution-path", "")
+
+        if len(steps) > 1:
+            # Static split - use exact path matching
+            pattern = current_path or ".*"
+            yield from self._iter_matching_tasks(
+                steps, "foreach-execution-path", pattern
+            )
+            return
+
+        # Handle single step case
+        target_task = Step(
+            f"{flow_id}/{run_id}/{steps[0].id}", _namespace_check=False
+        ).task
+        target_path = target_task.metadata_dict.get("foreach-execution-path")
+
+        if not target_path or not current_path:
+            # (Current task, "A:10") and (Child task, "")
+            # Pattern: ".*"
+            pattern = ".*"
+        else:
+            current_depth = len(current_path.split(","))
+            target_depth = len(target_path.split(","))
+
+            if current_depth < target_depth:
+                # Foreach split
+                # (Current task, "A:10,B:13") and (Child task, "A:10,B:13,C:21")
+                # Pattern: "A:10,B:13,.*"
+                pattern = f"{current_path},.*"
+            else:
+                # Foreach join or linear step
+                # Option 1:
+                # (Current task, "A:10,B:13,C:21") and (Child task, "A:10,B:13")
+                # Option 2:
+                # (Current task, "A:10,B:13") and (Child task, "A:10,B:13")
+                # Pattern: "A:10,B:13"
+                pattern = ",".join(current_path.split(",")[:target_depth])
+
+        yield from self._iter_matching_tasks(steps, "foreach-execution-path", pattern)
 
     @property
     def metadata(self) -> List[Metadata]:
@@ -1817,6 +2039,41 @@ class Step(MetaflowObject):
         for t in self:
             return t.environment_info
 
+    @property
+    def parent_steps(self) -> Iterator["Step"]:
+        """
+        Yields parent steps for the current step.
+
+        Yields
+        ------
+        Step
+            Parent step
+        """
+        graph_info = self.task["_graph_info"].data
+
+        if self.id != "start":
+            flow, run, _ = self.path_components
+            for node_name, attributes in graph_info["steps"].items():
+                if self.id in attributes["next"]:
+                    yield Step(f"{flow}/{run}/{node_name}", _namespace_check=False)
+
+    @property
+    def child_steps(self) -> Iterator["Step"]:
+        """
+        Yields child steps for the current step.
+
+        Yields
+        ------
+        Step
+            Child step
+        """
+        graph_info = self.task["_graph_info"].data
+
+        if self.id != "end":
+            flow, run, _ = self.path_components
+            for next_step in graph_info["steps"][self.id]["next"]:
+                yield Step(f"{flow}/{run}/{next_step}", _namespace_check=False)
+
 
 class Run(MetaflowObject):
     """
@@ -1888,9 +2145,10 @@ class Run(MetaflowObject):
         # TODO: A more optimized way of figuring out if a run has remote steps (and thus a codepackage) available.
         # This might require changes to the metadata-service as well.
         for step in self:
-            code = step.task.code
-            if code:
-                return code
+            if step.task:
+                code = step.task.code
+                if code:
+                    return code
 
     @property
     def data(self) -> Optional[MetaflowData]:
@@ -2152,7 +2410,7 @@ class Run(MetaflowObject):
         Trigger, optional
             Container of triggering events
         """
-        if "start" in self:
+        if "start" in self and self["start"].task:
             meta = self["start"].task.metadata_dict.get("execution-triggers")
             if meta:
                 return Trigger(json.loads(meta))
@@ -2287,17 +2545,16 @@ class Metaflow(object):
         if it has at least one run in the namespace.
     """
 
-    def __init__(self):
-        # the default namespace is activated lazily at the first object
-        # invocation or get_namespace(). The other option of activating
-        # the namespace at the import time is problematic, since there
-        # may be other modules that alter environment variables etc.
-        # which may affect the namescape setting.
-        if current_namespace is False:
-            default_namespace()
-        if current_metadata is False:
-            default_metadata()
-        self.metadata = current_metadata
+    def __init__(self, _current_metadata: Optional[str] = None):
+        if _current_metadata:
+            provider, info = _metadata(_current_metadata)
+            self.metadata = provider
+            if info:
+                self.metadata.INFO = info
+        else:
+            if current_metadata is False:
+                default_metadata()
+            self.metadata = current_metadata
 
     @property
     def flows(self) -> List[Flow]:
@@ -2334,7 +2591,7 @@ class Metaflow(object):
         all_flows = all_flows if all_flows else []
         for flow in all_flows:
             try:
-                v = Flow(_object=flow)
+                v = Flow(_object=flow, _metaflow=self)
                 yield v
             except MetaflowNamespaceMismatch:
                 continue
@@ -2358,7 +2615,26 @@ class Metaflow(object):
         Flow
             Flow with the given name.
         """
-        return Flow(id)
+        return Flow(name, _metaflow=self)
+
+
+def _metadata(ms: str) -> Tuple[Optional["MetadataProvider"], Optional[str]]:
+    infos = ms.split("@", 1)
+    types = [m.TYPE for m in METADATA_PROVIDERS]
+    if infos[0] in types:
+        provider = [m for m in METADATA_PROVIDERS if m.TYPE == infos[0]][0]
+        if len(infos) > 1:
+            return provider, infos[1]
+        return provider, None
+    # Deduce from ms; if starts with http, use service or else use local
+    if ms.startswith("http"):
+        metadata_type = "service"
+    else:
+        metadata_type = "local"
+    res = [m for m in METADATA_PROVIDERS if m.TYPE == metadata_type]
+    if not res:
+        return None, None
+    return res[0], ms
 
 
 _CLASSES["flow"] = Flow

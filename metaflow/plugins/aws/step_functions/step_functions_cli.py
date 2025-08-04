@@ -4,10 +4,10 @@ import re
 from hashlib import sha1
 
 from metaflow import JSONType, current, decorators, parameters
-from metaflow.client.core import get_metadata
 from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import (
+    FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
     SERVICE_VERSION_CHECK,
     SFN_STATE_MACHINE_PREFIX,
     UI_URL,
@@ -154,6 +154,13 @@ def create(
     use_distributed_map=False,
     deployer_attribute_file=None,
 ):
+    for node in obj.graph:
+        if any([d.name == "slurm" for d in node.decorators]):
+            raise MetaflowException(
+                "Step *%s* is marked for execution on Slurm with AWS Step Functions which isn't currently supported."
+                % node.name
+            )
+
     validate_tags(tags)
 
     if deployer_attribute_file:
@@ -162,7 +169,7 @@ def create(
                 {
                     "name": obj.state_machine_name,
                     "flow_name": obj.flow.name,
-                    "metadata": get_metadata(),
+                    "metadata": obj.metadata.metadata_str(),
                 },
                 f,
             )
@@ -319,21 +326,33 @@ def make_flow(
 
     # Attach AWS Batch decorator to the flow
     decorators._attach_decorators(obj.flow, [BatchDecorator.name])
+    decorators._init(obj.flow)
     decorators._init_step_decorators(
         obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
     )
+    obj.graph = obj.flow._graph
 
     obj.package = MetaflowPackage(
-        obj.flow, obj.environment, obj.echo, obj.package_suffixes
+        obj.flow,
+        obj.environment,
+        obj.echo,
+        suffixes=obj.package_suffixes,
+        flow_datastore=obj.flow_datastore if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE else None,
     )
-    package_url, package_sha = obj.flow_datastore.save_data(
-        [obj.package.blob], len_hint=1
-    )[0]
+    # This blocks until the package is created
+    if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE:
+        package_url = obj.package.package_url()
+        package_sha = obj.package.package_sha()
+    else:
+        package_url, package_sha = obj.flow_datastore.save_data(
+            [obj.package.blob], len_hint=1
+        )[0]
 
     return StepFunctions(
         name,
         obj.graph,
         obj.flow,
+        obj.package.package_metadata,
         package_sha,
         package_url,
         token,
@@ -502,7 +521,7 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
             json.dump(
                 {
                     "name": obj.state_machine_name,
-                    "metadata": get_metadata(),
+                    "metadata": obj.metadata.metadata_str(),
                     "pathspec": "/".join((obj.flow.name, run_id)),
                 },
                 f,

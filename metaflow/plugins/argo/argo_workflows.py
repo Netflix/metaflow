@@ -7,12 +7,12 @@ import sys
 from collections import defaultdict
 from hashlib import sha1
 from math import inf
-from typing import List, Tuple
+from typing import List
 
 from metaflow import JSONType, current
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
-from metaflow.graph import DAGNode, FlowGraph
+from metaflow.graph import FlowGraph
 from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT,
@@ -40,9 +40,7 @@ from metaflow.metaflow_config import (
     DEFAULT_SECRETS_BACKEND_TYPE,
     GCP_SECRET_MANAGER_PREFIX,
     KUBERNETES_FETCH_EC2_METADATA,
-    KUBERNETES_LABELS,
     KUBERNETES_NAMESPACE,
-    KUBERNETES_NODE_SELECTOR,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     KUBERNETES_SECRETS,
     S3_ENDPOINT_URL,
@@ -54,12 +52,11 @@ from metaflow.metaflow_config import (
 from metaflow.metaflow_config_funcs import config_values
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
 from metaflow.parameters import deploy_time_eval
-from metaflow.plugins.kubernetes.kubernetes import (
-    parse_kube_keyvalue_list,
-    validate_kube_labels,
-)
+from metaflow.plugins.kubernetes.kube_utils import qos_requests_and_limits
+
 from metaflow.plugins.kubernetes.kubernetes_jobsets import KubernetesArgoJobSet
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
+from metaflow.user_configs.config_options import ConfigInput
 from metaflow.util import (
     compress_list,
     dict_to_cli_options,
@@ -69,6 +66,8 @@ from metaflow.util import (
 )
 
 from .argo_client import ArgoClient
+from .exit_hooks import ExitHookHack, HttpExitHook, ContainerHook
+from metaflow.util import resolve_identity
 
 
 class ArgoWorkflowsException(MetaflowException):
@@ -86,13 +85,9 @@ class ArgoWorkflowsSchedulingException(MetaflowException):
 # List of future enhancements -
 #     1. Configure Argo metrics.
 #     2. Support resuming failed workflows within Argo Workflows.
-#     3. Support gang-scheduled clusters for distributed PyTorch/TF - One option is to
-#        use volcano - https://github.com/volcano-sh/volcano/tree/master/example/integrations/argo
-#     4. Support GitOps workflows.
-#     5. Add Metaflow tags to labels/annotations.
-#     6. Support Multi-cluster scheduling - https://github.com/argoproj/argo-workflows/issues/3523#issuecomment-792307297
-#     7. Support R lang.
-#     8. Ping @savin at slack.outerbounds.co for any feature request
+#     3. Add Metaflow tags to labels/annotations.
+#     4. Support R lang.
+#     5. Ping @savin at slack.outerbounds.co for any feature request
 
 
 class ArgoWorkflows(object):
@@ -101,6 +96,7 @@ class ArgoWorkflows(object):
         name,
         graph: FlowGraph,
         flow,
+        code_package_metadata,
         code_package_sha,
         code_package_url,
         production_token,
@@ -120,6 +116,9 @@ class ArgoWorkflows(object):
         notify_on_success=False,
         notify_slack_webhook_url=None,
         notify_pager_duty_integration_key=None,
+        notify_incident_io_api_key=None,
+        incident_io_alert_source_config_id=None,
+        incident_io_metadata: List[str] = None,
         enable_heartbeat_daemon=True,
         enable_error_msg_capture=False,
     ):
@@ -150,6 +149,7 @@ class ArgoWorkflows(object):
         self.name = name
         self.graph = graph
         self.flow = flow
+        self.code_package_metadata = code_package_metadata
         self.code_package_sha = code_package_sha
         self.code_package_url = code_package_url
         self.production_token = production_token
@@ -169,13 +169,20 @@ class ArgoWorkflows(object):
         self.notify_on_success = notify_on_success
         self.notify_slack_webhook_url = notify_slack_webhook_url
         self.notify_pager_duty_integration_key = notify_pager_duty_integration_key
+        self.notify_incident_io_api_key = notify_incident_io_api_key
+        self.incident_io_alert_source_config_id = incident_io_alert_source_config_id
+        self.incident_io_metadata = self.parse_incident_io_metadata(
+            incident_io_metadata
+        )
         self.enable_heartbeat_daemon = enable_heartbeat_daemon
         self.enable_error_msg_capture = enable_error_msg_capture
         self.parameters = self._process_parameters()
+        self.config_parameters = self._process_config_parameters()
         self.triggers, self.trigger_options = self._process_triggers()
         self._schedule, self._timezone = self._get_schedule()
 
-        self.kubernetes_labels = self._get_kubernetes_labels()
+        self._base_labels = self._base_kubernetes_labels()
+        self._base_annotations = self._base_kubernetes_annotations()
         self._workflow_template = self._compile_workflow_template()
         self._sensor = self._compile_sensor()
 
@@ -238,23 +245,14 @@ class ArgoWorkflows(object):
         return name.replace(".", "-")
 
     @staticmethod
-    def list_templates(flow_name, all=False):
+    def list_templates(flow_name, all=False, page_size=100):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
-        templates = client.get_workflow_templates()
-        if templates is None:
-            return []
-
-        template_names = [
-            template["metadata"]["name"]
-            for template in templates
-            if all
-            or flow_name
-            == template["metadata"]
-            .get("annotations", {})
-            .get("metaflow/flow_name", None)
-        ]
-        return template_names
+        for template in client.get_workflow_templates(page_size=page_size):
+            if all or flow_name == template["metadata"].get("annotations", {}).get(
+                "metaflow/flow_name", None
+            ):
+                yield template["metadata"]["name"]
 
     @staticmethod
     def delete(name):
@@ -337,6 +335,21 @@ class ArgoWorkflows(object):
 
         return True
 
+    @staticmethod
+    def parse_incident_io_metadata(metadata: List[str] = None):
+        "parse key value pairs into a dict for incident.io metadata if given"
+        parsed_metadata = None
+        if metadata is not None:
+            parsed_metadata = {}
+            for kv in metadata:
+                key, value = kv.split("=", 1)
+                if key in parsed_metadata:
+                    raise MetaflowException(
+                        "Incident.io Metadata *%s* provided multiple times" % key
+                    )
+                parsed_metadata[key] = value
+        return parsed_metadata
+
     @classmethod
     def trigger(cls, name, parameters=None):
         if parameters is None:
@@ -356,7 +369,7 @@ class ArgoWorkflows(object):
             try:
                 # Check that the workflow was deployed through Metaflow
                 workflow_template["metadata"]["annotations"]["metaflow/owner"]
-            except KeyError as e:
+            except KeyError:
                 raise ArgoWorkflowsException(
                     "An existing non-metaflow workflow with the same name as "
                     "*%s* already exists in Argo Workflows. \nPlease modify the "
@@ -364,24 +377,56 @@ class ArgoWorkflows(object):
                     "Workflows before proceeding." % name
                 )
         try:
+            id_parts = resolve_identity().split(":")
+            parts_size = len(id_parts)
+            usertype = id_parts[0] if parts_size > 0 else "unknown"
+            username = id_parts[1] if parts_size > 1 else "unknown"
+
             return ArgoClient(namespace=KUBERNETES_NAMESPACE).trigger_workflow_template(
-                name, parameters
+                name,
+                usertype,
+                username,
+                parameters,
             )
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
 
-    @staticmethod
-    def _get_kubernetes_labels():
+    def _base_kubernetes_labels(self):
         """
-        Get Kubernetes labels from environment variable.
-        Parses the string into a dict and validates that values adhere to Kubernetes restrictions.
+        Get shared Kubernetes labels for Argo resources.
         """
-        if not KUBERNETES_LABELS:
-            return {}
-        env_labels = KUBERNETES_LABELS.split(",")
-        env_labels = parse_kube_keyvalue_list(env_labels, False)
-        validate_kube_labels(env_labels)
-        return env_labels
+        # TODO: Add configuration through an environment variable or Metaflow config in the future if required.
+        labels = {"app.kubernetes.io/part-of": "metaflow"}
+
+        return labels
+
+    def _base_kubernetes_annotations(self):
+        """
+        Get shared Kubernetes annotations for Argo resources.
+        """
+        from datetime import datetime, timezone
+
+        # TODO: Add configuration through an environment variable or Metaflow config in the future if required.
+        # base annotations
+        annotations = {
+            "metaflow/production_token": self.production_token,
+            "metaflow/owner": self.username,
+            "metaflow/user": "argo-workflows",
+            "metaflow/flow_name": self.flow.name,
+            "metaflow/deployment_timestamp": str(
+                datetime.now(timezone.utc).isoformat()
+            ),
+        }
+
+        if current.get("project_name"):
+            annotations.update(
+                {
+                    "metaflow/project_name": current.project_name,
+                    "metaflow/branch_name": current.branch_name,
+                    "metaflow/project_flow_name": current.project_flow_name,
+                }
+            )
+        return annotations
 
     def _get_schedule(self):
         schedule = self.flow._flow_decorators.get("schedule")
@@ -456,7 +501,7 @@ class ArgoWorkflows(object):
                         "metaflow/production_token"
                     ],
                 )
-            except KeyError as e:
+            except KeyError:
                 raise ArgoWorkflowsException(
                     "An existing non-metaflow workflow with the same name as "
                     "*%s* already exists in Argo Workflows. \nPlease modify the "
@@ -502,12 +547,22 @@ class ArgoWorkflows(object):
                     "case-insensitive." % param.name
                 )
             seen.add(norm)
+            # NOTE: We skip config parameters as these do not have dynamic values,
+            # and need to be treated differently.
+            if param.IS_CONFIG_PARAMETER:
+                continue
 
-            if param.kwargs.get("type") == JSONType or isinstance(
-                param.kwargs.get("type"), FilePathClass
-            ):
-                # Special-case this to avoid touching core
+            extra_attrs = {}
+            if param.kwargs.get("type") == JSONType:
                 param_type = str(param.kwargs.get("type").name)
+            elif isinstance(param.kwargs.get("type"), FilePathClass):
+                param_type = str(param.kwargs.get("type").name)
+                extra_attrs["is_text"] = getattr(
+                    param.kwargs.get("type"), "_is_text", True
+                )
+                extra_attrs["encoding"] = getattr(
+                    param.kwargs.get("type"), "_encoding", "utf-8"
+                )
             else:
                 param_type = str(param.kwargs.get("type").__name__)
 
@@ -529,12 +584,36 @@ class ArgoWorkflows(object):
             # execution - which needs to be fixed imminently.
             if not is_required or default_value is not None:
                 default_value = json.dumps(default_value)
+
             parameters[param.name] = dict(
+                python_var_name=var,
                 name=param.name,
                 value=default_value,
                 type=param_type,
                 description=param.kwargs.get("help"),
                 is_required=is_required,
+                **extra_attrs,
+            )
+        return parameters
+
+    def _process_config_parameters(self):
+        parameters = []
+        seen = set()
+        for var, param in self.flow._get_parameters():
+            if not param.IS_CONFIG_PARAMETER:
+                continue
+            # Throw an exception if the parameter is specified twice.
+            norm = param.name.lower()
+            if norm in seen:
+                raise MetaflowException(
+                    "Parameter *%s* is specified twice. "
+                    "Note that parameter names are "
+                    "case-insensitive." % param.name
+                )
+            seen.add(norm)
+
+            parameters.append(
+                dict(name=param.name, kv_name=ConfigInput.make_key_name(param.name))
             )
         return parameters
 
@@ -560,10 +639,17 @@ class ArgoWorkflows(object):
             # convert them to lower case since Metaflow parameters are case
             # insensitive.
             seen = set()
+            # NOTE: We skip config parameters as their values can not be set through event payloads
             params = set(
-                [param.name.lower() for var, param in self.flow._get_parameters()]
+                [
+                    param.name.lower()
+                    for var, param in self.flow._get_parameters()
+                    if not param.IS_CONFIG_PARAMETER
+                ]
             )
-            for event in self.flow._flow_decorators.get("trigger")[0].triggers:
+            trigger_deco = self.flow._flow_decorators.get("trigger")[0]
+            trigger_deco.format_deploytime_value()
+            for event in trigger_deco.triggers:
                 parameters = {}
                 # TODO: Add a check to guard against names starting with numerals(?)
                 if not re.match(r"^[A-Za-z0-9_.-]+$", event["name"]):
@@ -603,11 +689,23 @@ class ArgoWorkflows(object):
 
         # @trigger_on_finish decorator
         if self.flow._flow_decorators.get("trigger_on_finish"):
-            for event in self.flow._flow_decorators.get("trigger_on_finish")[
-                0
-            ].triggers:
+            trigger_on_finish_deco = self.flow._flow_decorators.get(
+                "trigger_on_finish"
+            )[0]
+            trigger_on_finish_deco.format_deploytime_value()
+            for event in trigger_on_finish_deco.triggers:
                 # Actual filters are deduced here since we don't have access to
                 # the current object in the @trigger_on_finish decorator.
+                project_name = event.get("project") or current.get("project_name")
+                branch_name = event.get("branch") or current.get("branch_name")
+                # validate that we have complete project info for an event name
+                if project_name or branch_name:
+                    if not (project_name and branch_name):
+                        # if one of the two is missing, we would end up listening to an event that will never be broadcast.
+                        raise ArgoWorkflowsException(
+                            "Incomplete project info. Please specify both 'project' and 'project_branch' or use the @project decorator"
+                        )
+
                 triggers.append(
                     {
                         # Make sure this remains consistent with the event name format
@@ -616,18 +714,16 @@ class ArgoWorkflows(object):
                         % ".".join(
                             v
                             for v in [
-                                event.get("project") or current.get("project_name"),
-                                event.get("branch") or current.get("branch_name"),
+                                project_name,
+                                branch_name,
                                 event["flow"],
                             ]
                             if v
                         ),
                         "filters": {
                             "auto-generated-by-metaflow": True,
-                            "project_name": event.get("project")
-                            or current.get("project_name"),
-                            "branch_name": event.get("branch")
-                            or current.get("branch_name"),
+                            "project_name": project_name,
+                            "branch_name": branch_name,
                             # TODO: Add a time filters to guard against cached events
                         },
                         "type": "run",
@@ -679,18 +775,9 @@ class ArgoWorkflows(object):
         # generate container templates at the top level (in WorkflowSpec) and maintain
         # references to them within the DAGTask.
 
-        from datetime import datetime, timezone
-
         annotations = {
-            "metaflow/production_token": self.production_token,
-            "metaflow/owner": self.username,
-            "metaflow/user": "argo-workflows",
-            "metaflow/flow_name": self.flow.name,
             "metaflow/has_schedule": str(self._schedule is not None),
             "metaflow/has_sensor": str(bool(self.triggers)),
-            "metaflow/deployment_timestamp": str(
-                datetime.now(timezone.utc).isoformat()
-            ),
         }
 
         if self._schedule is not None:
@@ -703,15 +790,6 @@ class ArgoWorkflows(object):
 
         if self.parameters:
             annotations.update({"metaflow/parameters": json.dumps(self.parameters)})
-
-        if current.get("project_name"):
-            annotations.update(
-                {
-                    "metaflow/project_name": current.project_name,
-                    "metaflow/branch_name": current.branch_name,
-                    "metaflow/project_flow_name": current.project_flow_name,
-                }
-            )
 
         # Some more annotations to populate the Argo UI nicely
         if self.tags:
@@ -736,6 +814,7 @@ class ArgoWorkflows(object):
                         {
                             "slack": bool(self.notify_slack_webhook_url),
                             "pager_duty": bool(self.notify_pager_duty_integration_key),
+                            "incident_io": bool(self.notify_incident_io_api_key),
                         }
                     )
                 }
@@ -747,11 +826,24 @@ class ArgoWorkflows(object):
                         {
                             "slack": bool(self.notify_slack_webhook_url),
                             "pager_duty": bool(self.notify_pager_duty_integration_key),
+                            "incident_io": bool(self.notify_incident_io_api_key),
                         }
                     )
                 }
             )
+        try:
+            # Build the DAG based on the DAGNodes given by the FlowGraph for the found FlowSpec class.
+            _steps_info, graph_structure = self.graph.output_steps()
+            graph_info = {
+                # for the time being, we only need the graph_structure. Being mindful of annotation size limits we do not include anything extra.
+                "graph_structure": graph_structure
+            }
+        except Exception:
+            graph_info = None
 
+        dag_annotation = {"metaflow/dag": json.dumps(graph_info)}
+
+        lifecycle_hooks = self._lifecycle_hooks()
         return (
             WorkflowTemplate()
             .metadata(
@@ -762,9 +854,11 @@ class ArgoWorkflows(object):
                 # is released, we should be able to support multi-namespace /
                 # multi-cluster scheduling.
                 .namespace(KUBERNETES_NAMESPACE)
-                .label("app.kubernetes.io/name", "metaflow-flow")
-                .label("app.kubernetes.io/part-of", "metaflow")
                 .annotations(annotations)
+                .annotations(self._base_annotations)
+                .labels(self._base_labels)
+                .label("app.kubernetes.io/name", "metaflow-flow")
+                .annotations(dag_annotation)
             )
             .spec(
                 WorkflowSpec()
@@ -794,10 +888,14 @@ class ArgoWorkflows(object):
                 # Set workflow metadata
                 .workflow_metadata(
                     Metadata()
+                    .labels(self._base_labels)
                     .label("app.kubernetes.io/name", "metaflow-run")
-                    .label("app.kubernetes.io/part-of", "metaflow")
                     .annotations(
-                        {**annotations, **{"metaflow/run_id": "argo-{{workflow.name}}"}}
+                        {
+                            **annotations,
+                            **self._base_annotations,
+                            **{"metaflow/run_id": "argo-{{workflow.name}}"},
+                        }
                     )
                     # TODO: Set dynamic labels using labels_from. Ideally, we would
                     #       want to expose run_id as a label. It's easy to add labels,
@@ -810,7 +908,11 @@ class ArgoWorkflows(object):
                     Arguments().parameters(
                         [
                             Parameter(parameter["name"])
-                            .value(parameter["value"])
+                            .value(
+                                "'%s'" % parameter["value"]
+                                if parameter["type"] == "JSON"
+                                else parameter["value"]
+                            )
                             .description(parameter.get("description"))
                             # TODO: Better handle IncludeFile in Argo Workflows UI.
                             for parameter in self.parameters.values()
@@ -830,10 +932,17 @@ class ArgoWorkflows(object):
                 # Set common pod metadata.
                 .pod_metadata(
                     Metadata()
+                    .labels(self._base_labels)
                     .label("app.kubernetes.io/name", "metaflow-task")
-                    .label("app.kubernetes.io/part-of", "metaflow")
-                    .annotations(annotations)
-                    .labels(self.kubernetes_labels)
+                    .annotations(
+                        {
+                            **annotations,
+                            **self._base_annotations,
+                            **{
+                                "metaflow/run_id": "argo-{{workflow.name}}"
+                            },  # we want pods of the workflow to have the run_id as an annotation as well
+                        }
+                    )
                 )
                 # Set the entrypoint to flow name
                 .entrypoint(self.flow.name)
@@ -843,73 +952,20 @@ class ArgoWorkflows(object):
                     if self.enable_error_msg_capture
                     else None
                 )
-                # Set exit hook handlers if notifications are enabled
+                # Set lifecycle hooks if notifications are enabled
                 .hooks(
                     {
-                        **(
-                            {
-                                # workflow status maps to Completed
-                                "notify-slack-on-success": LifecycleHook()
-                                .expression("workflow.status == 'Succeeded'")
-                                .template("notify-slack-on-success"),
-                            }
-                            if self.notify_on_success and self.notify_slack_webhook_url
-                            else {}
-                        ),
-                        **(
-                            {
-                                # workflow status maps to Completed
-                                "notify-pager-duty-on-success": LifecycleHook()
-                                .expression("workflow.status == 'Succeeded'")
-                                .template("notify-pager-duty-on-success"),
-                            }
-                            if self.notify_on_success
-                            and self.notify_pager_duty_integration_key
-                            else {}
-                        ),
-                        **(
-                            {
-                                # workflow status maps to Failed or Error
-                                "notify-slack-on-failure": LifecycleHook()
-                                .expression("workflow.status == 'Failed'")
-                                .template("notify-slack-on-error"),
-                                "notify-slack-on-error": LifecycleHook()
-                                .expression("workflow.status == 'Error'")
-                                .template("notify-slack-on-error"),
-                            }
-                            if self.notify_on_error and self.notify_slack_webhook_url
-                            else {}
-                        ),
-                        **(
-                            {
-                                # workflow status maps to Failed or Error
-                                "notify-pager-duty-on-failure": LifecycleHook()
-                                .expression("workflow.status == 'Failed'")
-                                .template("notify-pager-duty-on-error"),
-                                "notify-pager-duty-on-error": LifecycleHook()
-                                .expression("workflow.status == 'Error'")
-                                .template("notify-pager-duty-on-error"),
-                            }
-                            if self.notify_on_error
-                            and self.notify_pager_duty_integration_key
-                            else {}
-                        ),
-                        # Warning: terrible hack to workaround a bug in Argo Workflow
-                        #          where the hooks listed above do not execute unless
-                        #          there is an explicit exit hook. as and when this
-                        #          bug is patched, we should remove this effectively
-                        #          no-op hook.
-                        **(
-                            {"exit": LifecycleHook().template("exit-hook-hack")}
-                            if self.notify_on_error or self.notify_on_success
-                            else {}
-                        ),
+                        lifecycle.name: lifecycle
+                        for hook in lifecycle_hooks
+                        for lifecycle in hook.lifecycle_hooks
                     }
                 )
                 # Top-level DAG template(s)
                 .templates(self._dag_templates())
                 # Container templates
                 .templates(self._container_templates())
+                # Lifecycle hook template(s)
+                .templates([hook.template for hook in lifecycle_hooks])
                 # Exit hook template(s)
                 .templates(self._exit_hook_templates())
                 # Sidecar templates (Daemon Containers)
@@ -1486,7 +1542,9 @@ class ArgoWorkflows(object):
                     mflog_expr,
                 ]
                 + self.environment.get_package_commands(
-                    self.code_package_url, self.flow_datastore.TYPE
+                    self.code_package_url,
+                    self.flow_datastore.TYPE,
+                    self.code_package_metadata,
                 )
             )
             step_cmds = self.environment.bootstrap_commands(
@@ -1498,6 +1556,7 @@ class ArgoWorkflows(object):
                     decorator.make_decorator_spec()
                     for decorator in node.decorators
                     if not decorator.statically_defined
+                    and decorator.inserted_by is None
                 ]
             }
             # FlowDecorators can define their own top-level options. They are
@@ -1664,6 +1723,7 @@ class ArgoWorkflows(object):
                     **{
                         # These values are needed by Metaflow to set it's internal
                         # state appropriately.
+                        "METAFLOW_CODE_METADATA": self.code_package_metadata,
                         "METAFLOW_CODE_URL": self.code_package_url,
                         "METAFLOW_CODE_SHA": self.code_package_sha,
                         "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
@@ -1692,6 +1752,7 @@ class ArgoWorkflows(object):
                     },
                     **{
                         # Some optional values for bookkeeping
+                        "METAFLOW_FLOW_FILENAME": os.path.basename(sys.argv[0]),
                         "METAFLOW_FLOW_NAME": self.flow.name,
                         "METAFLOW_STEP_NAME": node.name,
                         "METAFLOW_RUN_ID": run_id,
@@ -1755,6 +1816,13 @@ class ArgoWorkflows(object):
             metaflow_version["flow_name"] = self.graph.name
             metaflow_version["production_token"] = self.production_token
             env["METAFLOW_VERSION"] = json.dumps(metaflow_version)
+
+            # map config values
+            cfg_env = {
+                param["name"]: param["kv_name"] for param in self.config_parameters
+            }
+            if cfg_env:
+                env["METAFLOW_FLOW_CONFIG_VALUE"] = json.dumps(cfg_env)
 
             # Set the template inputs and outputs for passing state. Very simply,
             # the container template takes in input-paths as input and outputs
@@ -1879,20 +1947,28 @@ class ArgoWorkflows(object):
             if tmpfs_enabled and tmpfs_tempdir:
                 env["METAFLOW_TEMPDIR"] = tmpfs_path
 
+            qos_requests, qos_limits = qos_requests_and_limits(
+                resources["qos"],
+                resources["cpu"],
+                resources["memory"],
+                resources["disk"],
+            )
+
+            security_context = resources.get("security_context", None)
+            _security_context = {}
+            if security_context is not None and len(security_context) > 0:
+                _security_context = {
+                    "security_context": kubernetes_sdk.V1SecurityContext(
+                        **security_context
+                    )
+                }
+
             # Create a ContainerTemplate for this node. Ideally, we would have
             # liked to inline this ContainerTemplate and avoid scanning the workflow
             # twice, but due to issues with variable substitution, we will have to
             # live with this routine.
             if node.parallel_step:
-                # Explicitly add the task-id-hint label. This is important because this label
-                # is returned as an Output parameter of this step and is used subsequently as an
-                # an input in the join step.
-                kubernetes_labels = self.kubernetes_labels.copy()
                 jobset_name = "{{inputs.parameters.jobset-name}}"
-                kubernetes_labels["task_id_entropy"] = (
-                    "{{inputs.parameters.task-id-entropy}}"
-                )
-                kubernetes_labels["num_parallel"] = "{{inputs.parameters.num-parallel}}"
                 jobset = KubernetesArgoJobSet(
                     kubernetes_sdk=kubernetes_sdk,
                     name=jobset_name,
@@ -1907,6 +1983,7 @@ class ArgoWorkflows(object):
                     namespace=resources["namespace"],
                     image=resources["image"],
                     image_pull_policy=resources["image_pull_policy"],
+                    image_pull_secrets=resources["image_pull_secrets"],
                     service_account=resources["service_account"],
                     secrets=(
                         [
@@ -1942,13 +2019,31 @@ class ArgoWorkflows(object):
                     persistent_volume_claims=resources["persistent_volume_claims"],
                     shared_memory=shared_memory,
                     port=port,
+                    qos=resources["qos"],
+                    security_context=security_context,
                 )
 
                 for k, v in env.items():
                     jobset.environment_variable(k, v)
 
-                for k, v in kubernetes_labels.items():
-                    jobset.label(k, v)
+                # Set labels. Do not allow user-specified task labels to override internal ones.
+                #
+                # Explicitly add the task-id-hint label. This is important because this label
+                # is returned as an Output parameter of this step and is used subsequently as an
+                # an input in the join step.
+                kubernetes_labels = {
+                    "task_id_entropy": "{{inputs.parameters.task-id-entropy}}",
+                    "num_parallel": "{{inputs.parameters.num-parallel}}",
+                    "metaflow/argo-workflows-name": "{{workflow.name}}",
+                    "workflows.argoproj.io/workflow": "{{workflow.name}}",
+                }
+                jobset.labels(
+                    {
+                        **resources["labels"],
+                        **self._base_labels,
+                        **kubernetes_labels,
+                    }
+                )
 
                 jobset.environment_variable(
                     "MF_MASTER_ADDR", jobset.jobset_control_addr
@@ -1956,6 +2051,12 @@ class ArgoWorkflows(object):
                 jobset.environment_variable("MF_MASTER_PORT", str(port))
                 jobset.environment_variable(
                     "MF_WORLD_SIZE", "{{inputs.parameters.num-parallel}}"
+                )
+                # We need this task-id set so that all the nodes are aware of the control
+                # task's task-id. These "MF_" variables populate the `current.parallel` namedtuple
+                jobset.environment_variable(
+                    "MF_PARALLEL_CONTROL_TASK_ID",
+                    "control-{{inputs.parameters.task-id-entropy}}-0",
                 )
                 # for k, v in .items():
                 jobset.environment_variables_from_selectors(
@@ -1971,27 +2072,23 @@ class ArgoWorkflows(object):
                         "TASK_ID_SUFFIX": "metadata.annotations['jobset.sigs.k8s.io/job-index']",
                     }
                 )
+
+                # Set annotations. Do not allow user-specified task-specific annotations to override internal ones.
                 annotations = {
                     # setting annotations explicitly as they wont be
                     # passed down from WorkflowTemplate level
                     "metaflow/step_name": node.name,
                     "metaflow/attempt": str(retry_count),
                     "metaflow/run_id": run_id,
-                    "metaflow/production_token": self.production_token,
-                    "metaflow/owner": self.username,
-                    "metaflow/user": "argo-workflows",
-                    "metaflow/flow_name": self.flow.name,
                 }
-                if current.get("project_name"):
-                    annotations.update(
-                        {
-                            "metaflow/project_name": current.project_name,
-                            "metaflow/branch_name": current.branch_name,
-                            "metaflow/project_flow_name": current.project_flow_name,
-                        }
-                    )
-                for k, v in annotations.items():
-                    jobset.annotation(k, v)
+
+                jobset.annotations(
+                    {
+                        **resources["annotations"],
+                        **self._base_annotations,
+                        **annotations,
+                    }
+                )
 
                 jobset.control.replicas(1)
                 jobset.worker.replicas("{{=asInt(inputs.parameters.workerCount)}}")
@@ -2048,13 +2145,16 @@ class ArgoWorkflows(object):
                         minutes_between_retries=minutes_between_retries,
                     )
                     .metadata(
-                        ObjectMeta().annotation("metaflow/step_name", node.name)
+                        ObjectMeta()
+                        .annotation("metaflow/step_name", node.name)
                         # Unfortunately, we can't set the task_id since it is generated
                         # inside the pod. However, it can be inferred from the annotation
                         # set by argo-workflows - `workflows.argoproj.io/outputs` - refer
                         # the field 'task-id' in 'parameters'
                         # .annotation("metaflow/task_id", ...)
                         .annotation("metaflow/attempt", retry_count)
+                        .annotations(resources["annotations"])
+                        .labels(resources["labels"])
                     )
                     # Set emptyDir volume for state management
                     .empty_dir_volume("out")
@@ -2070,6 +2170,17 @@ class ArgoWorkflows(object):
                     .node_selectors(resources.get("node_selector"))
                     # Set tolerations
                     .tolerations(resources.get("tolerations"))
+                    # Set image pull secrets if present. We need to use pod_spec_patch due to Argo not supporting this on a template level.
+                    .pod_spec_patch(
+                        {
+                            "imagePullSecrets": [
+                                {"name": secret}
+                                for secret in resources["image_pull_secrets"]
+                            ]
+                        }
+                        if resources["image_pull_secrets"]
+                        else None
+                    )
                     # Set container
                     .container(
                         # TODO: Unify the logic with kubernetes.py
@@ -2121,17 +2232,17 @@ class ArgoWorkflows(object):
                                 image=resources["image"],
                                 image_pull_policy=resources["image_pull_policy"],
                                 resources=kubernetes_sdk.V1ResourceRequirements(
-                                    requests={
-                                        "cpu": str(resources["cpu"]),
-                                        "memory": "%sM" % str(resources["memory"]),
-                                        "ephemeral-storage": "%sM"
-                                        % str(resources["disk"]),
-                                    },
+                                    requests=qos_requests,
                                     limits={
-                                        "%s.com/gpu".lower()
-                                        % resources["gpu_vendor"]: str(resources["gpu"])
-                                        for k in [0]
-                                        if resources["gpu"] is not None
+                                        **qos_limits,
+                                        **{
+                                            "%s.com/gpu".lower()
+                                            % resources["gpu_vendor"]: str(
+                                                resources["gpu"]
+                                            )
+                                            for k in [0]
+                                            if resources["gpu"] is not None
+                                        },
                                     },
                                 ),
                                 # Configure secrets
@@ -2197,6 +2308,7 @@ class ArgoWorkflows(object):
                                     is not None
                                     else []
                                 ),
+                                **_security_context,
                             ).to_dict()
                         )
                     )
@@ -2209,34 +2321,181 @@ class ArgoWorkflows(object):
             templates.append(self._heartbeat_daemon_template())
         return templates
 
-    # Return exit hook templates for workflow execution notifications.
-    def _exit_hook_templates(self):
-        templates = []
+    # Return lifecycle hooks for workflow execution notifications.
+    def _lifecycle_hooks(self):
+        hooks = []
         if self.notify_on_error:
-            templates.append(self._slack_error_template())
-            templates.append(self._pager_duty_alert_template())
+            hooks.append(self._slack_error_template())
+            hooks.append(self._pager_duty_alert_template())
+            hooks.append(self._incident_io_alert_template())
         if self.notify_on_success:
-            templates.append(self._slack_success_template())
-            templates.append(self._pager_duty_change_template())
-        if self.notify_on_error or self.notify_on_success:
-            # Warning: terrible hack to workaround a bug in Argo Workflow where the
-            #          templates listed above do not execute unless there is an
-            #          explicit exit hook. as and when this bug is patched, we should
-            #          remove this effectively no-op template.
-            # Note: We use the Http template because changing this to an actual no-op container had the side-effect of
-            # leaving LifecycleHooks in a pending state even when they have finished execution.
-            templates.append(
-                Template("exit-hook-hack").http(
-                    Http("GET")
-                    .url(
+            hooks.append(self._slack_success_template())
+            hooks.append(self._pager_duty_change_template())
+            hooks.append(self._incident_io_change_template())
+
+        exit_hook_decos = self.flow._flow_decorators.get("exit_hook", [])
+
+        for deco in exit_hook_decos:
+            hooks.extend(self._lifecycle_hook_from_deco(deco))
+
+        # Clean up None values from templates.
+        hooks = list(filter(None, hooks))
+
+        if hooks:
+            hooks.append(
+                ExitHookHack(
+                    url=(
                         self.notify_slack_webhook_url
                         or "https://events.pagerduty.com/v2/enqueue"
                     )
-                    .success_condition("true == true")
                 )
             )
+        return hooks
+
+    def _lifecycle_hook_from_deco(self, deco):
+        from kubernetes import client as kubernetes_sdk
+
+        start_step = [step for step in self.graph if step.name == "start"][0]
+        # We want to grab the base image used by the start step, as this is known to be pullable from within the cluster,
+        # and it might contain the required libraries, allowing us to start up faster.
+        start_kube_deco = [
+            deco for deco in start_step.decorators if deco.name == "kubernetes"
+        ][0]
+        resources = dict(start_kube_deco.attributes)
+        kube_defaults = dict(start_kube_deco.defaults)
+
+        run_id_template = "argo-{{workflow.name}}"
+        metaflow_version = self.environment.get_environment_info()
+        metaflow_version["flow_name"] = self.graph.name
+        metaflow_version["production_token"] = self.production_token
+        env = {
+            # These values are needed by Metaflow to set it's internal
+            # state appropriately.
+            "METAFLOW_CODE_URL": self.code_package_url,
+            "METAFLOW_CODE_SHA": self.code_package_sha,
+            "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
+            "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
+            "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
+            "METAFLOW_USER": "argo-workflows",
+            "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
+            "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
+            "METAFLOW_OWNER": self.username,
+        }
+        # pass on the Run pathspec for script
+        env["RUN_PATHSPEC"] = f"{self.graph.name}/{run_id_template}"
+
+        # support Metaflow sandboxes
+        env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
+
+        env["METAFLOW_WORKFLOW_NAME"] = "{{workflow.name}}"
+        env["METAFLOW_WORKFLOW_NAMESPACE"] = "{{workflow.namespace}}"
+        env = {
+            k: v
+            for k, v in env.items()
+            if v is not None
+            and k not in set(ARGO_WORKFLOWS_ENV_VARS_TO_SKIP.split(","))
+        }
+
+        def _cmd(fn_name):
+            mflog_expr = export_mflog_env_vars(
+                datastore_type=self.flow_datastore.TYPE,
+                stdout_path="$PWD/.logs/mflog_stdout",
+                stderr_path="$PWD/.logs/mflog_stderr",
+                flow_name=self.flow.name,
+                run_id=run_id_template,
+                step_name=f"_hook_{fn_name}",
+                task_id="1",
+                retry_count="0",
+            )
+            cmds = " && ".join(
+                [
+                    # For supporting sandboxes, ensure that a custom script is executed
+                    # before anything else is executed. The script is passed in as an
+                    # env var.
+                    '${METAFLOW_INIT_SCRIPT:+eval \\"${METAFLOW_INIT_SCRIPT}\\"}',
+                    "mkdir -p $PWD/.logs",
+                    mflog_expr,
+                ]
+                + self.environment.get_package_commands(
+                    self.code_package_url, self.flow_datastore.TYPE
+                )[:-1]
+                # Replace the line 'Task in starting'
+                + [f"mflog 'Lifecycle hook {fn_name} is starting.'"]
+                + [
+                    f"python -m metaflow.plugins.exit_hook.exit_hook_script {metaflow_version['script']} {fn_name} $RUN_PATHSPEC"
+                ]
+            )
+
+            cmds = shlex.split('bash -c "%s"' % cmds)
+            return cmds
+
+        def _container(cmds):
+            return to_camelcase(
+                kubernetes_sdk.V1Container(
+                    name="main",
+                    command=cmds,
+                    image=deco.attributes["options"].get("image", None)
+                    or resources["image"],
+                    env=[
+                        kubernetes_sdk.V1EnvVar(name=k, value=str(v))
+                        for k, v in env.items()
+                    ],
+                    env_from=[
+                        kubernetes_sdk.V1EnvFromSource(
+                            secret_ref=kubernetes_sdk.V1SecretEnvSource(
+                                name=str(k),
+                                # optional=True
+                            )
+                        )
+                        for k in list(
+                            []
+                            if not resources.get("secrets")
+                            else (
+                                [resources.get("secrets")]
+                                if isinstance(resources.get("secrets"), str)
+                                else resources.get("secrets")
+                            )
+                        )
+                        + KUBERNETES_SECRETS.split(",")
+                        + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
+                        if k
+                    ],
+                    resources=kubernetes_sdk.V1ResourceRequirements(
+                        requests={
+                            "cpu": str(kube_defaults["cpu"]),
+                            "memory": "%sM" % str(kube_defaults["memory"]),
+                        }
+                    ),
+                ).to_dict()
+            )
+
+        # create lifecycle hooks from deco
+        hooks = []
+        for success_fn_name in deco.success_hooks:
+            hook = ContainerHook(
+                name=f"success-{success_fn_name.replace('_', '-')}",
+                container=_container(cmds=_cmd(success_fn_name)),
+                service_account_name=resources["service_account"],
+                on_success=True,
+            )
+            hooks.append(hook)
+
+        for error_fn_name in deco.error_hooks:
+            hook = ContainerHook(
+                name=f"error-{error_fn_name.replace('_', '-')}",
+                service_account_name=resources["service_account"],
+                container=_container(cmds=_cmd(error_fn_name)),
+                on_error=True,
+            )
+            hooks.append(hook)
+
+        return hooks
+
+    def _exit_hook_templates(self):
+        templates = []
         if self.enable_error_msg_capture:
             templates.extend(self._error_msg_capture_hook_templates())
+
         return templates
 
     def _error_msg_capture_hook_templates(self):
@@ -2277,7 +2536,9 @@ class ArgoWorkflows(object):
                 mflog_expr,
             ]
             + self.environment.get_package_commands(
-                self.code_package_url, self.flow_datastore.TYPE
+                self.code_package_url,
+                self.flow_datastore.TYPE,
+                self.code_package_metadata,
             )[:-1]
             # Replace the line 'Task in starting'
             # FIXME: this can be brittle.
@@ -2297,6 +2558,7 @@ class ArgoWorkflows(object):
         env = {
             # These values are needed by Metaflow to set it's internal
             # state appropriately.
+            "METAFLOW_CODE_METADATA": self.code_package_metadata,
             "METAFLOW_CODE_URL": self.code_package_url,
             "METAFLOW_CODE_SHA": self.code_package_sha,
             "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
@@ -2323,7 +2585,9 @@ class ArgoWorkflows(object):
             and k not in set(ARGO_WORKFLOWS_ENV_VARS_TO_SKIP.split(","))
         }
         return [
-            Template("error-msg-capture-hook").container(
+            Template("error-msg-capture-hook")
+            .service_account_name(resources["service_account"])
+            .container(
                 to_camelcase(
                     kubernetes_sdk.V1Container(
                         name="main",
@@ -2366,7 +2630,7 @@ class ArgoWorkflows(object):
                                 "memory": "500Mi",
                             },
                         ),
-                    )
+                    ).to_dict()
                 )
             ),
             Template("capture-error-hook-fn-preflight").steps(
@@ -2383,57 +2647,187 @@ class ArgoWorkflows(object):
         # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgx-send-an-alert-event
         if self.notify_pager_duty_integration_key is None:
             return None
-        return Template("notify-pager-duty-on-error").http(
-            Http("POST")
-            .url("https://events.pagerduty.com/v2/enqueue")
-            .header("Content-Type", "application/json")
-            .body(
-                json.dumps(
-                    {
-                        "event_action": "trigger",
-                        "routing_key": self.notify_pager_duty_integration_key,
-                        # "dedup_key": self.flow.name,  # TODO: Do we need deduplication?
-                        "payload": {
-                            "source": "{{workflow.name}}",
-                            "severity": "info",
-                            "summary": "Metaflow run %s/argo-{{workflow.name}} failed!"
-                            % self.flow.name,
-                            "custom_details": {
-                                "Flow": self.flow.name,
-                                "Run ID": "argo-{{workflow.name}}",
-                            },
+        return HttpExitHook(
+            name="notify-pager-duty-on-error",
+            method="POST",
+            url="https://events.pagerduty.com/v2/enqueue",
+            headers={"Content-Type": "application/json"},
+            body=json.dumps(
+                {
+                    "event_action": "trigger",
+                    "routing_key": self.notify_pager_duty_integration_key,
+                    # "dedup_key": self.flow.name,  # TODO: Do we need deduplication?
+                    "payload": {
+                        "source": "{{workflow.name}}",
+                        "severity": "info",
+                        "summary": "Metaflow run %s/argo-{{workflow.name}} failed!"
+                        % self.flow.name,
+                        "custom_details": {
+                            "Flow": self.flow.name,
+                            "Run ID": "argo-{{workflow.name}}",
                         },
-                        "links": self._pager_duty_notification_links(),
-                    }
-                )
-            )
+                    },
+                    "links": self._pager_duty_notification_links(),
+                }
+            ),
+            on_error=True,
         )
+
+    def _incident_io_alert_template(self):
+        if self.notify_incident_io_api_key is None:
+            return None
+        if self.incident_io_alert_source_config_id is None:
+            raise MetaflowException(
+                "Creating alerts for errors requires a alert source config ID."
+            )
+        ui_links = self._incident_io_ui_urls_for_run()
+        return HttpExitHook(
+            name="notify-incident-io-on-error",
+            method="POST",
+            url=(
+                "https://api.incident.io/v2/alert_events/http/%s"
+                % self.incident_io_alert_source_config_id
+            ),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": "Bearer %s" % self.notify_incident_io_api_key,
+            },
+            body=json.dumps(
+                {
+                    "idempotency_key": "argo-{{workflow.name}}",  # use run id to deduplicate alerts.
+                    "status": "firing",
+                    "title": "Flow %s has failed." % self.flow.name,
+                    "description": "Metaflow run {run_pathspec} failed!{urls}".format(
+                        run_pathspec="%s/argo-{{workflow.name}}" % self.flow.name,
+                        urls=(
+                            "\n\nSee details for the run at:\n\n"
+                            + "\n\n".join(ui_links)
+                            if ui_links
+                            else ""
+                        ),
+                    ),
+                    "source_url": (
+                        "%s/%s/%s"
+                        % (
+                            UI_URL.rstrip("/"),
+                            self.flow.name,
+                            "argo-{{workflow.name}}",
+                        )
+                        if UI_URL
+                        else None
+                    ),
+                    "metadata": {
+                        **(self.incident_io_metadata or {}),
+                        **{
+                            "run_status": "failed",
+                            "flow_name": self.flow.name,
+                            "run_id": "argo-{{workflow.name}}",
+                        },
+                    },
+                }
+            ),
+            on_error=True,
+        )
+
+    def _incident_io_change_template(self):
+        if self.notify_incident_io_api_key is None:
+            return None
+        if self.incident_io_alert_source_config_id is None:
+            raise MetaflowException(
+                "Creating alerts for successes requires an alert source config ID."
+            )
+        ui_links = self._incident_io_ui_urls_for_run()
+        return HttpExitHook(
+            name="notify-incident-io-on-success",
+            method="POST",
+            url=(
+                "https://api.incident.io/v2/alert_events/http/%s"
+                % self.incident_io_alert_source_config_id
+            ),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": "Bearer %s" % self.notify_incident_io_api_key,
+            },
+            body=json.dumps(
+                {
+                    "idempotency_key": "argo-{{workflow.name}}",  # use run id to deduplicate alerts.
+                    "status": "firing",
+                    "title": "Flow %s has succeeded." % self.flow.name,
+                    "description": "Metaflow run {run_pathspec} succeeded!{urls}".format(
+                        run_pathspec="%s/argo-{{workflow.name}}" % self.flow.name,
+                        urls=(
+                            "\n\nSee details for the run at:\n\n"
+                            + "\n\n".join(ui_links)
+                            if ui_links
+                            else ""
+                        ),
+                    ),
+                    "source_url": (
+                        "%s/%s/%s"
+                        % (
+                            UI_URL.rstrip("/"),
+                            self.flow.name,
+                            "argo-{{workflow.name}}",
+                        )
+                        if UI_URL
+                        else None
+                    ),
+                    "metadata": {
+                        **(self.incident_io_metadata or {}),
+                        **{
+                            "run_status": "succeeded",
+                            "flow_name": self.flow.name,
+                            "run_id": "argo-{{workflow.name}}",
+                        },
+                    },
+                }
+            ),
+            on_success=True,
+        )
+
+    def _incident_io_ui_urls_for_run(self):
+        links = []
+        if UI_URL:
+            url = "[Metaflow UI](%s/%s/%s)" % (
+                UI_URL.rstrip("/"),
+                self.flow.name,
+                "argo-{{workflow.name}}",
+            )
+            links.append(url)
+        if ARGO_WORKFLOWS_UI_URL:
+            url = "[Argo UI](%s/workflows/%s/%s)" % (
+                ARGO_WORKFLOWS_UI_URL.rstrip("/"),
+                "{{workflow.namespace}}",
+                "{{workflow.name}}",
+            )
+            links.append(url)
+        return links
 
     def _pager_duty_change_template(self):
         # https://developer.pagerduty.com/docs/ZG9jOjExMDI5NTgy-send-a-change-event
         if self.notify_pager_duty_integration_key is None:
             return None
-        return Template("notify-pager-duty-on-success").http(
-            Http("POST")
-            .url("https://events.pagerduty.com/v2/change/enqueue")
-            .header("Content-Type", "application/json")
-            .body(
-                json.dumps(
-                    {
-                        "routing_key": self.notify_pager_duty_integration_key,
-                        "payload": {
-                            "summary": "Metaflow run %s/argo-{{workflow.name}} Succeeded"
-                            % self.flow.name,
-                            "source": "{{workflow.name}}",
-                            "custom_details": {
-                                "Flow": self.flow.name,
-                                "Run ID": "argo-{{workflow.name}}",
-                            },
+        return HttpExitHook(
+            name="notify-pager-duty-on-success",
+            method="POST",
+            url="https://events.pagerduty.com/v2/change/enqueue",
+            headers={"Content-Type": "application/json"},
+            body=json.dumps(
+                {
+                    "routing_key": self.notify_pager_duty_integration_key,
+                    "payload": {
+                        "summary": "Metaflow run %s/argo-{{workflow.name}} Succeeded"
+                        % self.flow.name,
+                        "source": "{{workflow.name}}",
+                        "custom_details": {
+                            "Flow": self.flow.name,
+                            "Run ID": "argo-{{workflow.name}}",
                         },
-                        "links": self._pager_duty_notification_links(),
-                    }
-                )
-            )
+                    },
+                    "links": self._pager_duty_notification_links(),
+                }
+            ),
+            on_success=True,
         )
 
     def _pager_duty_notification_links(self):
@@ -2466,7 +2860,7 @@ class ArgoWorkflows(object):
         Use Slack's Block Kit to add general information about the environment and
         execution metadata, including a link to the UI and an optional message.
         """
-        ui_link = "%s%s/argo-{{workflow.name}}" % (UI_URL, self.flow.name)
+        ui_link = "%s/%s/argo-{{workflow.name}}" % (UI_URL.rstrip("/"), self.flow.name)
         # fmt: off
         if getattr(current, "project_name", None):
             # Add @project metadata when available.
@@ -2474,7 +2868,7 @@ class ArgoWorkflows(object):
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": ":metaflow: Environment details"
+                    "text": "Environment details"
                 },
                 "fields": [
                     {
@@ -2492,7 +2886,7 @@ class ArgoWorkflows(object):
                 "type": "section",
                 "text": {
                     "type": "mrkdwn",
-                    "text": ":metaflow: Environment details"
+                    "text": "Environment details"
                 }
             }
 
@@ -2537,8 +2931,12 @@ class ArgoWorkflows(object):
             blocks = self._get_slack_blocks(message)
             payload = {"text": message, "blocks": blocks}
 
-        return Template("notify-slack-on-error").http(
-            Http("POST").url(self.notify_slack_webhook_url).body(json.dumps(payload))
+        return HttpExitHook(
+            name="notify-slack-on-error",
+            method="POST",
+            url=self.notify_slack_webhook_url,
+            body=json.dumps(payload),
+            on_error=True,
         )
 
     def _slack_success_template(self):
@@ -2553,18 +2951,41 @@ class ArgoWorkflows(object):
             blocks = self._get_slack_blocks(message)
             payload = {"text": message, "blocks": blocks}
 
-        return Template("notify-slack-on-success").http(
-            Http("POST").url(self.notify_slack_webhook_url).body(json.dumps(payload))
+        return HttpExitHook(
+            name="notify-slack-on-success",
+            method="POST",
+            url=self.notify_slack_webhook_url,
+            body=json.dumps(payload),
+            on_success=True,
         )
 
     def _heartbeat_daemon_template(self):
         # Use all the affordances available to _parameters task
         executable = self.environment.executable("_parameters")
         run_id = "argo-{{workflow.name}}"
-        entrypoint = [executable, "-m metaflow.plugins.argo.daemon"]
-        heartbeat_cmds = "{entrypoint} --flow_name {flow_name} --run_id {run_id} {tags} heartbeat".format(
+        script_name = os.path.basename(sys.argv[0])
+        entrypoint = [executable, script_name]
+        # FlowDecorators can define their own top-level options. These might affect run level information
+        # so it is important to pass these to the heartbeat process as well, as it might be the first task to register a run.
+        top_opts_dict = {}
+        for deco in flow_decorators(self.flow):
+            top_opts_dict.update(deco.get_top_level_options())
+
+        top_level = list(dict_to_cli_options(top_opts_dict)) + [
+            "--quiet",
+            "--metadata=%s" % self.metadata.TYPE,
+            "--environment=%s" % self.environment.TYPE,
+            "--datastore=%s" % self.flow_datastore.TYPE,
+            "--datastore-root=%s" % self.flow_datastore.datastore_root,
+            "--event-logger=%s" % self.event_logger.TYPE,
+            "--monitor=%s" % self.monitor.TYPE,
+            "--no-pylint",
+            "--with=argo_workflows_internal:auto-emit-argo-events=%i"
+            % self.auto_emit_argo_events,
+        ]
+        heartbeat_cmds = "{entrypoint} {top_level} argo-workflows heartbeat --run_id {run_id} {tags}".format(
             entrypoint=" ".join(entrypoint),
-            flow_name=self.flow.name,
+            top_level=" ".join(top_level) if top_level else "",
             run_id=run_id,
             tags=" ".join(["--tag %s" % t for t in self.tags]) if self.tags else "",
         )
@@ -2594,7 +3015,8 @@ class ArgoWorkflows(object):
                 mflog_expr,
             ]
             + self.environment.get_package_commands(
-                self.code_package_url, self.flow_datastore.TYPE
+                self.code_package_url,
+                self.flow_datastore.TYPE,
             )[:-1]
             # Replace the line 'Task in starting'
             # FIXME: this can be brittle.
@@ -2604,20 +3026,28 @@ class ArgoWorkflows(object):
         cmd_str = " && ".join([init_cmds, heartbeat_cmds])
         cmds = shlex.split('bash -c "%s"' % cmd_str)
 
-        # TODO: Check that this is the minimal env.
         # Env required for sending heartbeats to the metadata service, nothing extra.
+        # prod token / runtime info is required to correctly register flow branches
         env = {
             # These values are needed by Metaflow to set it's internal
             # state appropriately.
+            "METAFLOW_CODE_METADATA": self.code_package_metadata,
             "METAFLOW_CODE_URL": self.code_package_url,
             "METAFLOW_CODE_SHA": self.code_package_sha,
             "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
             "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
             "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
             "METAFLOW_USER": "argo-workflows",
+            "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
+            "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
             "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,
             "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
+            "METAFLOW_CARD_S3ROOT": CARD_S3ROOT,
+            "METAFLOW_KUBERNETES_WORKLOAD": 1,
+            "METAFLOW_KUBERNETES_FETCH_EC2_METADATA": KUBERNETES_FETCH_EC2_METADATA,
+            "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
             "METAFLOW_OWNER": self.username,
+            "METAFLOW_PRODUCTION_TOKEN": self.production_token,  # Used in identity resolving. This affects system tags.
         }
         # support Metaflow sandboxes
         env["METAFLOW_INIT_SCRIPT"] = KUBERNETES_SANDBOX_INIT_SCRIPT
@@ -2640,51 +3070,58 @@ class ArgoWorkflows(object):
         )
         from kubernetes import client as kubernetes_sdk
 
-        return DaemonTemplate("heartbeat-daemon").container(
-            to_camelcase(
-                kubernetes_sdk.V1Container(
-                    name="main",
-                    # TODO: Make the image configurable
-                    image=resources["image"],
-                    command=cmds,
-                    env=[
-                        kubernetes_sdk.V1EnvVar(name=k, value=str(v))
-                        for k, v in env.items()
-                    ],
-                    env_from=[
-                        kubernetes_sdk.V1EnvFromSource(
-                            secret_ref=kubernetes_sdk.V1SecretEnvSource(
-                                name=str(k),
-                                # optional=True
+        return (
+            DaemonTemplate("heartbeat-daemon")
+            # NOTE: Even though a retry strategy does not work for Argo daemon containers,
+            # this has the side-effect of protecting the exit hooks of the workflow from failing in case the daemon container errors out.
+            .retry_strategy(10, 1)
+            .service_account_name(resources["service_account"])
+            .container(
+                to_camelcase(
+                    kubernetes_sdk.V1Container(
+                        name="main",
+                        # TODO: Make the image configurable
+                        image=resources["image"],
+                        command=cmds,
+                        env=[
+                            kubernetes_sdk.V1EnvVar(name=k, value=str(v))
+                            for k, v in env.items()
+                        ],
+                        env_from=[
+                            kubernetes_sdk.V1EnvFromSource(
+                                secret_ref=kubernetes_sdk.V1SecretEnvSource(
+                                    name=str(k),
+                                    # optional=True
+                                )
                             )
-                        )
-                        for k in list(
-                            []
-                            if not resources.get("secrets")
-                            else (
-                                [resources.get("secrets")]
-                                if isinstance(resources.get("secrets"), str)
-                                else resources.get("secrets")
+                            for k in list(
+                                []
+                                if not resources.get("secrets")
+                                else (
+                                    [resources.get("secrets")]
+                                    if isinstance(resources.get("secrets"), str)
+                                    else resources.get("secrets")
+                                )
                             )
-                        )
-                        + KUBERNETES_SECRETS.split(",")
-                        + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
-                        if k
-                    ],
-                    resources=kubernetes_sdk.V1ResourceRequirements(
-                        # NOTE: base resources for this are kept to a minimum to save on running costs.
-                        # This has an adverse effect on startup time for the daemon, which can be completely
-                        # alleviated by using a base image that has the required dependencies pre-installed
-                        requests={
-                            "cpu": "200m",
-                            "memory": "100Mi",
-                        },
-                        limits={
-                            "cpu": "200m",
-                            "memory": "100Mi",
-                        },
-                    ),
-                )
+                            + KUBERNETES_SECRETS.split(",")
+                            + ARGO_WORKFLOWS_KUBERNETES_SECRETS.split(",")
+                            if k
+                        ],
+                        resources=kubernetes_sdk.V1ResourceRequirements(
+                            # NOTE: base resources for this are kept to a minimum to save on running costs.
+                            # This has an adverse effect on startup time for the daemon, which can be completely
+                            # alleviated by using a base image that has the required dependencies pre-installed
+                            requests={
+                                "cpu": "200m",
+                                "memory": "100Mi",
+                            },
+                            limits={
+                                "cpu": "200m",
+                                "memory": "100Mi",
+                            },
+                        ),
+                    )
+                ).to_dict()
             )
         )
 
@@ -2787,33 +3224,6 @@ class ArgoWorkflows(object):
                 "sdk (https://pypi.org/project/kubernetes/) first."
             )
 
-        labels = {"app.kubernetes.io/part-of": "metaflow"}
-
-        annotations = {
-            "metaflow/production_token": self.production_token,
-            "metaflow/owner": self.username,
-            "metaflow/user": "argo-workflows",
-            "metaflow/flow_name": self.flow.name,
-        }
-        if current.get("project_name"):
-            annotations.update(
-                {
-                    "metaflow/project_name": current.project_name,
-                    "metaflow/branch_name": current.branch_name,
-                    "metaflow/project_flow_name": current.project_flow_name,
-                }
-            )
-
-        # Useful to paint the UI
-        trigger_annotations = {
-            "metaflow/triggered_by": json.dumps(
-                [
-                    {key: trigger.get(key) for key in ["name", "type"]}
-                    for trigger in self.triggers
-                ]
-            )
-        }
-
         return (
             Sensor()
             .metadata(
@@ -2821,10 +3231,9 @@ class ArgoWorkflows(object):
                 ObjectMeta()
                 .name(ArgoWorkflows._sensor_name(self.name))
                 .namespace(ARGO_EVENTS_SENSOR_NAMESPACE)
+                .labels(self._base_labels)
                 .label("app.kubernetes.io/name", "metaflow-sensor")
-                .label("app.kubernetes.io/part-of", "metaflow")
-                .labels(self.kubernetes_labels)
-                .annotations(annotations)
+                .annotations(self._base_annotations)
             )
             .spec(
                 SensorSpec().template(
@@ -2834,7 +3243,7 @@ class ArgoWorkflows(object):
                         ObjectMeta()
                         .label("app.kubernetes.io/name", "metaflow-sensor")
                         .label("app.kubernetes.io/part-of", "metaflow")
-                        .annotations(annotations)
+                        .annotations(self._base_annotations)
                     )
                     .container(
                         # Run sensor in guaranteed QoS. The sensor isn't doing a lot
@@ -2854,7 +3263,7 @@ class ArgoWorkflows(object):
                                         "memory": "250Mi",
                                     },
                                 ),
-                            )
+                            ).to_dict()
                         )
                     )
                     .service_account_name(ARGO_EVENTS_SERVICE_ACCOUNT)
@@ -2871,8 +3280,8 @@ class ArgoWorkflows(object):
                     Trigger().template(
                         TriggerTemplate(self.name)
                         # Trigger a deployed workflow template
-                        .argo_workflow_trigger(
-                            ArgoWorkflowTrigger()
+                        .k8s_trigger(
+                            StandardK8STrigger()
                             .source(
                                 {
                                     "resource": {
@@ -2881,6 +3290,7 @@ class ArgoWorkflows(object):
                                         "metadata": {
                                             "generateName": "%s-" % self.name,
                                             "namespace": KUBERNETES_NAMESPACE,
+                                            # Useful to paint the UI
                                             "annotations": {
                                                 "metaflow/triggered_by": json.dumps(
                                                     [
@@ -2930,15 +3340,37 @@ class ArgoWorkflows(object):
                                                 # NOTE: We need the conditional logic in order to successfully fall back to the default value
                                                 # when the event payload does not contain a key for a parameter.
                                                 # NOTE: Keys might contain dashes, so use the safer 'get' for fetching the value
-                                                data_template='{{ if (hasKey $.Input.body.payload "%s") }}{{- (get $.Input.body.payload "%s" | toRawJson) -}}{{- else -}}{{ (fail "use-default-instead") }}{{- end -}}'
-                                                % (v, v),
+                                                data_template='{{ if (hasKey $.Input.body.payload "%s") }}{{- (get $.Input.body.payload "%s" %s) -}}{{- else -}}{{ (fail "use-default-instead") }}{{- end -}}'
+                                                % (
+                                                    v,
+                                                    v,
+                                                    (
+                                                        "| toRawJson | squote"
+                                                        if self.parameters[
+                                                            parameter_name
+                                                        ]["type"]
+                                                        == "JSON"
+                                                        else "| toRawJson"
+                                                    ),
+                                                ),
                                                 # Unfortunately the sensor needs to
                                                 # record the default values for
                                                 # the parameters - there doesn't seem
                                                 # to be any way for us to skip
-                                                value=self.parameters[parameter_name][
-                                                    "value"
-                                                ],
+                                                value=(
+                                                    json.dumps(
+                                                        self.parameters[parameter_name][
+                                                            "value"
+                                                        ]
+                                                    )
+                                                    if self.parameters[parameter_name][
+                                                        "type"
+                                                    ]
+                                                    == "JSON"
+                                                    else self.parameters[
+                                                        parameter_name
+                                                    ]["value"]
+                                                ),
                                             )
                                             .dest(
                                                 # this undocumented (mis?)feature in
@@ -3305,6 +3737,19 @@ class DaemonTemplate(object):
         self.payload["container"] = container
         return self
 
+    def service_account_name(self, service_account_name):
+        self.payload["serviceAccountName"] = service_account_name
+        return self
+
+    def retry_strategy(self, times, minutes_between_retries):
+        if times > 0:
+            self.payload["retryStrategy"] = {
+                "retryPolicy": "Always",
+                "limit": times,
+                "backoff": {"duration": "%sm" % minutes_between_retries},
+            }
+        return self
+
     def to_json(self):
         return self.payload
 
@@ -3434,6 +3879,14 @@ class Template(object):
             )
         return self
 
+    def pod_spec_patch(self, pod_spec_patch=None):
+        if pod_spec_patch is None:
+            return self
+
+        self.payload["podSpecPatch"] = json.dumps(pod_spec_patch)
+
+        return self
+
     def node_selectors(self, node_selectors):
         if "nodeSelector" not in self.payload:
             self.payload["nodeSelector"] = {}
@@ -3451,7 +3904,7 @@ class Template(object):
     def resource(self, action, manifest, success_criteria, failure_criteria):
         self.payload["resource"] = {}
         self.payload["resource"]["action"] = action
-        self.payload["setOwnerReference"] = True
+        self.payload["resource"]["setOwnerReference"] = True
         self.payload["resource"]["successCondition"] = success_criteria
         self.payload["resource"]["failureCondition"] = failure_criteria
         self.payload["resource"]["manifest"] = manifest
@@ -3806,6 +4259,10 @@ class TriggerTemplate(object):
         self.payload = tree()
         self.payload["name"] = name
 
+    def k8s_trigger(self, k8s_trigger):
+        self.payload["k8s"] = k8s_trigger.to_json()
+        return self
+
     def argo_workflow_trigger(self, argo_workflow_trigger):
         self.payload["argoWorkflow"] = argo_workflow_trigger.to_json()
         return self
@@ -3882,51 +4339,51 @@ class TriggerParameter(object):
         return json.dumps(self.payload, indent=4)
 
 
-class Http(object):
-    # https://argoproj.github.io/argo-workflows/fields/#http
-
-    def __init__(self, method):
-        tree = lambda: defaultdict(tree)
-        self.payload = tree()
-        self.payload["method"] = method
-        self.payload["headers"] = []
-
-    def header(self, header, value):
-        self.payload["headers"].append({"name": header, "value": value})
-        return self
-
-    def body(self, body):
-        self.payload["body"] = str(body)
-        return self
-
-    def url(self, url):
-        self.payload["url"] = url
-        return self
-
-    def success_condition(self, success_condition):
-        self.payload["successCondition"] = success_condition
-        return self
-
-    def to_json(self):
-        return self.payload
-
-    def __str__(self):
-        return json.dumps(self.payload, indent=4)
-
-
-class LifecycleHook(object):
-    # https://argoproj.github.io/argo-workflows/fields/#lifecyclehook
+class StandardK8STrigger(object):
+    # https://pkg.go.dev/github.com/argoproj/argo-events/pkg/apis/sensor/v1alpha1#StandardK8STrigger
 
     def __init__(self):
         tree = lambda: defaultdict(tree)
         self.payload = tree()
+        self.payload["operation"] = "create"
 
-    def expression(self, expression):
-        self.payload["expression"] = str(expression)
+    def operation(self, operation):
+        self.payload["operation"] = operation
         return self
 
-    def template(self, template):
-        self.payload["template"] = template
+    def group(self, group):
+        self.payload["group"] = group
+        return self
+
+    def version(self, version):
+        self.payload["version"] = version
+        return self
+
+    def resource(self, resource):
+        self.payload["resource"] = resource
+        return self
+
+    def namespace(self, namespace):
+        self.payload["namespace"] = namespace
+        return self
+
+    def source(self, source):
+        self.payload["source"] = source
+        return self
+
+    def parameters(self, trigger_parameters):
+        if "parameters" not in self.payload:
+            self.payload["parameters"] = []
+        for trigger_parameter in trigger_parameters:
+            self.payload["parameters"].append(trigger_parameter.to_json())
+        return self
+
+    def live_object(self, live_object=True):
+        self.payload["liveObject"] = live_object
+        return self
+
+    def patch_strategy(self, patch_strategy):
+        self.payload["patchStrategy"] = patch_strategy
         return self
 
     def to_json(self):

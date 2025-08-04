@@ -43,13 +43,19 @@ class MetaflowExceptionWrapper(Exception):
 class MetaflowException(Exception):
     headline = "Flow failed"
 
-    def __init__(self, msg="", lineno=None):
+    def __init__(self, msg="", lineno=None, source_file=None):
         self.message = msg
         self.line_no = lineno
+        self.source_file = source_file
         super(MetaflowException, self).__init__()
 
     def __str__(self):
-        prefix = "line %d: " % self.line_no if self.line_no else ""
+        prefix = ""
+        if self.source_file:
+            prefix = "%s:" % self.source_file
+        if self.line_no:
+            prefix = "line %d:" % self.line_no
+        prefix = "%s: " % prefix if prefix else ""
         return "%s%s" % (prefix, self.message)
 
 

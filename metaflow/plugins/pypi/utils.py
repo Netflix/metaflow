@@ -1,4 +1,3 @@
-import os
 import platform
 import sys
 
@@ -17,9 +16,12 @@ else:
     from metaflow._vendor.packaging import tags
     from metaflow._vendor.packaging.utils import parse_wheel_filename
 
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote
 
 from metaflow.exception import MetaflowException
+
+MICROMAMBA_URL = "https://micro.mamba.pm/api/micromamba/{platform}/{version}"
+MICROMAMBA_MIRROR_URL = "https://micromamba.outerbounds.sh/{platform}/{version}.tar.bz2"
 
 
 def conda_platform():
@@ -67,9 +69,31 @@ def pip_tags(python_version, mamba_platform):
                 "_2_25",
                 "_2_26",
                 "_2_27",
+                "_2_28",
+                "_2_29",
             )
         ]
         platforms.append("linux_x86_64")
+    elif mamba_platform == "linux-aarch64":
+        platforms = [
+            "manylinux%s_aarch64" % s
+            for s in (
+                "2014",
+                "_2_17",
+                "_2_18",
+                "_2_19",
+                "_2_20",
+                "_2_21",
+                "_2_23",
+                "_2_24",
+                "_2_25",
+                "_2_26",
+                "_2_27",
+                "_2_28",
+                "_2_29",
+            )
+        ]
+        platforms.append("linux_aarch64")
     elif mamba_platform == "osx-64":
         platforms = tags.mac_platforms(arch="x86_64")
     elif mamba_platform == "osx-arm64":

@@ -1,5 +1,3 @@
-import importlib
-import json
 import os
 import platform
 import re
@@ -7,12 +5,9 @@ import sys
 import tempfile
 
 from metaflow.decorators import FlowDecorator, StepDecorator
-from metaflow.extension_support import EXT_PKG
-from metaflow.metadata import MetaDatum
+from metaflow.metadata_provider import MetaDatum
 from metaflow.metaflow_environment import InvalidEnvironmentException
-from metaflow.util import get_metaflow_root
-
-from ... import INFO_FILE
+from metaflow.packaging_sys import ContentType
 
 
 class CondaStepDecorator(StepDecorator):
@@ -45,19 +40,36 @@ class CondaStepDecorator(StepDecorator):
         "python": None,
         "disabled": None,
     }
+
+    _metaflow_home = None
+    _addl_env_vars = None
+
     # To define conda channels for the whole solve, users can specify
     # CONDA_CHANNELS in their environment. For pinning specific packages to specific
     # conda channels, users can specify channel::package as the package name.
 
-    def __init__(self, attributes=None, statically_defined=False):
-        super(CondaStepDecorator, self).__init__(attributes, statically_defined)
+    def __init__(self, attributes=None, statically_defined=False, inserted_by=None):
+        self._attributes_with_user_values = (
+            set(attributes.keys()) if attributes is not None else set()
+        )
 
+        super(CondaStepDecorator, self).__init__(
+            attributes, statically_defined, inserted_by
+        )
+
+    def init(self):
         # Support legacy 'libraries=' attribute for the decorator.
         self.attributes["packages"] = {
             **self.attributes["libraries"],
             **self.attributes["packages"],
         }
-        del self.attributes["libraries"]
+        # Keep because otherwise make_decorator_spec will fail
+        self.attributes["libraries"] = {}
+        if self.attributes["packages"]:
+            self._attributes_with_user_values.add("packages")
+
+    def is_attribute_user_defined(self, name):
+        return name in self._attributes_with_user_values
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         # The init_environment hook for Environment creates the relevant virtual
@@ -71,11 +83,16 @@ class CondaStepDecorator(StepDecorator):
 
         # Support flow-level decorator.
         if "conda_base" in self.flow._flow_decorators:
-            super_attributes = self.flow._flow_decorators["conda_base"][0].attributes
+            conda_base = self.flow._flow_decorators["conda_base"][0]
+            super_attributes = conda_base.attributes
             self.attributes["packages"] = {
                 **super_attributes["packages"],
                 **self.attributes["packages"],
             }
+            self._attributes_with_user_values.update(
+                conda_base._attributes_with_user_values
+            )
+
             self.attributes["python"] = (
                 self.attributes["python"] or super_attributes["python"]
             )
@@ -135,67 +152,17 @@ class CondaStepDecorator(StepDecorator):
     def runtime_init(self, flow, graph, package, run_id):
         if self.disabled:
             return
-        # Create a symlink to metaflow installed outside the virtual environment.
-        self.metaflow_dir = tempfile.TemporaryDirectory(dir="/tmp")
-        os.symlink(
-            os.path.join(get_metaflow_root(), "metaflow"),
-            os.path.join(self.metaflow_dir.name, "metaflow"),
-        )
-
-        info = os.path.join(get_metaflow_root(), os.path.basename(INFO_FILE))
-        # Symlink the INFO file as well to properly propagate down the Metaflow version
-        if os.path.isfile(info):
-            os.symlink(
-                info, os.path.join(self.metaflow_dir.name, os.path.basename(INFO_FILE))
+        # We need to make all the code package available to the user code in
+        # a temporary directory which will be added to the PYTHONPATH.
+        if self.__class__._metaflow_home is None:
+            # Do this ONCE per flow
+            self.__class__._metaflow_home = tempfile.TemporaryDirectory(dir="/tmp")
+            package.extract_into(
+                self.__class__._metaflow_home.name, ContentType.ALL_CONTENT
             )
-        else:
-            # If there is no info file, we will actually create one in this new
-            # place because we won't be able to properly resolve the EXT_PKG extensions
-            # the same way as outside conda (looking at distributions, etc.). In a
-            # Conda environment, as shown below (where we set self.addl_paths), all
-            # EXT_PKG extensions are PYTHONPATH extensions. Instead of re-resolving,
-            # we use the resolved information that is written out to the INFO file.
-            with open(
-                os.path.join(self.metaflow_dir.name, os.path.basename(INFO_FILE)),
-                mode="wt",
-                encoding="utf-8",
-            ) as f:
-                f.write(
-                    json.dumps(
-                        self.environment.get_environment_info(include_ext_info=True)
-                    )
-                )
-
-        # Support metaflow extensions.
-        self.addl_paths = None
-        try:
-            m = importlib.import_module(EXT_PKG)
-        except ImportError:
-            # No additional check needed because if we are here, we already checked
-            # for other issues when loading at the toplevel.
-            pass
-        else:
-            custom_paths = list(set(m.__path__))
-            # For some reason, at times, unique paths appear multiple times. We
-            # simplify to avoid un-necessary links.
-
-            if len(custom_paths) == 1:
-                # Regular package; we take a quick shortcut here.
-                os.symlink(
-                    custom_paths[0],
-                    os.path.join(self.metaflow_dir.name, EXT_PKG),
-                )
-            else:
-                # This is a namespace package, we therefore create a bunch of
-                # directories so that we can symlink in those separately, and we will
-                # add those paths to the PYTHONPATH for the interpreter. Note that we
-                # don't symlink to the parent of the package because that could end up
-                # including more stuff we don't want
-                self.addl_paths = []
-                for p in custom_paths:
-                    temp_dir = tempfile.mkdtemp(dir=self.metaflow_dir.name)
-                    os.symlink(p, os.path.join(temp_dir, EXT_PKG))
-                    self.addl_paths.append(temp_dir)
+            self.__class__._addl_env_vars = package.get_post_extract_env_vars(
+                package.package_metadata, self.__class__._metaflow_home.name
+            )
 
         # # Also install any environment escape overrides directly here to enable
         # # the escape to work even in non metaflow-created subprocesses
@@ -210,7 +177,8 @@ class CondaStepDecorator(StepDecorator):
         self.interpreter = (
             self.environment.interpreter(self.step)
             if not any(
-                decorator.name in ["batch", "kubernetes", "nvidia", "snowpark", "slurm"]
+                decorator.name
+                in ["batch", "kubernetes", "nvidia", "snowpark", "slurm", "nvct"]
                 for decorator in next(
                     step for step in self.flow if step.name == self.step
                 ).decorators
@@ -273,11 +241,17 @@ class CondaStepDecorator(StepDecorator):
         if self.disabled:
             return
         # Ensure local installation of Metaflow is visible to user code
-        python_path = self.metaflow_dir.name
-        if self.addl_paths is not None:
-            addl_paths = os.pathsep.join(self.addl_paths)
-            python_path = os.pathsep.join([addl_paths, python_path])
-        cli_args.env["PYTHONPATH"] = python_path
+        python_path = self.__class__._metaflow_home.name
+        addl_env_vars = {}
+        if self.__class__._addl_env_vars:
+            for key, value in self.__class__._addl_env_vars.items():
+                if key.endswith(":"):
+                    addl_env_vars[key[:-1]] = value
+                elif key == "PYTHONPATH":
+                    addl_env_vars[key] = os.pathsep.join([value, python_path])
+                else:
+                    addl_env_vars[key] = value
+        cli_args.env.update(addl_env_vars)
         if self.interpreter:
             # https://github.com/conda/conda/issues/7707
             # Also ref - https://github.com/Netflix/metaflow/pull/178
@@ -288,7 +262,9 @@ class CondaStepDecorator(StepDecorator):
     def runtime_finished(self, exception):
         if self.disabled:
             return
-        self.metaflow_dir.cleanup()
+        if self.__class__._metaflow_home is not None:
+            self.__class__._metaflow_home.cleanup()
+            self.__class__._metaflow_home = None
 
 
 class CondaFlowDecorator(FlowDecorator):
@@ -321,21 +297,38 @@ class CondaFlowDecorator(FlowDecorator):
         "disabled": None,
     }
 
-    def __init__(self, attributes=None, statically_defined=False):
-        super(CondaFlowDecorator, self).__init__(attributes, statically_defined)
+    def __init__(self, attributes=None, statically_defined=False, inserted_by=None):
+        self._attributes_with_user_values = (
+            set(attributes.keys()) if attributes is not None else set()
+        )
 
+        super(CondaFlowDecorator, self).__init__(
+            attributes, statically_defined, inserted_by
+        )
+
+    def init(self):
         # Support legacy 'libraries=' attribute for the decorator.
         self.attributes["packages"] = {
             **self.attributes["libraries"],
             **self.attributes["packages"],
         }
-        del self.attributes["libraries"]
+        # Keep because otherwise make_decorator_spec will fail
+        self.attributes["libraries"] = {}
         if self.attributes["python"]:
             self.attributes["python"] = str(self.attributes["python"])
+
+    def is_attribute_user_defined(self, name):
+        return name in self._attributes_with_user_values
 
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
     ):
+        # NOTE: Important for extensions implementing custom virtual environments.
+        # Without this steps will not have an implicit conda step decorator on them unless the environment adds one in its decospecs.
+        from metaflow import decorators
+
+        decorators._attach_decorators(flow, ["conda"])
+
         # @conda uses a conda environment to create a virtual environment.
         # The conda environment can be created through micromamba.
         _supported_virtual_envs = ["conda"]

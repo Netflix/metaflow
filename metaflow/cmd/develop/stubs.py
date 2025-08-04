@@ -12,25 +12,13 @@ from . import develop
 from .stub_generator import StubGenerator
 
 _py_ver = sys.version_info[:2]
-_metadata_package = None
 
-
-def _check_stubs_supported():
-    global _metadata_package
-    if _metadata_package is not None:
-        return _metadata_package
-    else:
-        if _py_ver >= (3, 4):
-            if _py_ver >= (3, 8):
-                from importlib import metadata
-            elif _py_ver >= (3, 7):
-                from metaflow._vendor import importlib_metadata as metadata
-            elif _py_ver >= (3, 6):
-                from metaflow._vendor.v3_6 import importlib_metadata as metadata
-            else:
-                from metaflow._vendor.v3_5 import importlib_metadata as metadata
-            _metadata_package = metadata
-        return _metadata_package
+if _py_ver >= (3, 8):
+    from importlib import metadata
+elif _py_ver >= (3, 7):
+    from metaflow._vendor.v3_7 import importlib_metadata as metadata
+else:
+    from metaflow._vendor.v3_6 import importlib_metadata as metadata
 
 
 @develop.group(short_help="Stubs management")
@@ -45,12 +33,6 @@ def stubs(ctx: Any):
     This CLI provides utilities to check and generate stubs for your current Metaflow
     installation.
     """
-    if _check_stubs_supported() is None:
-        raise click.UsageError(
-            "Building and installing stubs are not supported on Python %d.%d "
-            "(3.4 minimum required)" % _py_ver,
-            ctx=ctx,
-        )
 
 
 @stubs.command(short_help="Check validity of stubs")
@@ -170,7 +152,7 @@ def install(ctx: Any, force: bool):
                     "Metaflow stubs are already installed and valid -- use --force to reinstall"
                 )
             return
-    mf_version, _ = get_mf_version()
+    mf_version, _ = get_mf_version(True)
     with tempfile.TemporaryDirectory() as tmp_dir:
         with open(os.path.join(tmp_dir, "setup.py"), "w") as f:
             f.write(
@@ -187,7 +169,7 @@ setup(
     packages=find_namespace_packages(),
     package_data={{"metaflow-stubs": ["generated_for.txt", "py.typed", "**/*.pyi"]}},
     install_requires=["metaflow=={mf_version}"],
-    python_requires=">=3.5.2",
+    python_requires=">=3.6.1",
 )
                 """
             )
@@ -261,10 +243,10 @@ def split_version(vers: str) -> Tuple[str, Optional[str]]:
     return vers_split[0], vers_split[1]
 
 
-def get_mf_version() -> Tuple[str, Optional[str]]:
+def get_mf_version(public: bool = False) -> Tuple[str, Optional[str]]:
     from metaflow.metaflow_version import get_version
 
-    return split_version(get_version())
+    return split_version(get_version(public))
 
 
 def get_stubs_version(stubs_root_path: Optional[str]) -> Tuple[str, Optional[str]]:
@@ -330,14 +312,14 @@ def get_packages_for_stubs() -> Tuple[List[Tuple[str, str]], List[str]]:
     # some reason it shows up multiple times.
     interesting_dists = [
         d
-        for d in _metadata_package.distributions()
+        for d in metadata.distributions()
         if any(
             [
                 p == "metaflow-stubs"
                 for p in (d.read_text("top_level.txt") or "").split()
             ]
         )
-        and isinstance(d, _metadata_package.PathDistribution)
+        and isinstance(d, metadata.PathDistribution)
     ]
 
     for dist in interesting_dists:

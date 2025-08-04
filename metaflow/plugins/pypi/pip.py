@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from itertools import chain, product
 from urllib.parse import unquote
 
+from metaflow.debug import debug
 from metaflow.exception import MetaflowException
 
 from .micromamba import Micromamba
@@ -50,10 +51,14 @@ INSTALLATION_MARKER = "{prefix}/.pip/id"
 
 
 class Pip(object):
-    def __init__(self, micromamba=None):
+    def __init__(self, micromamba=None, logger=None):
         # pip is assumed to be installed inside a conda environment managed by
         # micromamba. pip commands are executed using `micromamba run --prefix`
-        self.micromamba = micromamba or Micromamba()
+        self.micromamba = micromamba or Micromamba(logger)
+        if logger:
+            self.logger = logger
+        else:
+            self.logger = lambda *args, **kwargs: None  # No-op logger if not provided
 
     def solve(self, id_, packages, python, platform):
         prefix = self.micromamba.path_to_environment(id_)
@@ -62,6 +67,7 @@ class Pip(object):
             msg += "for id {id}".format(id=id_)
             raise PipException(msg)
 
+        debug.conda_exec("Solving packages for PyPI environment %s" % id_)
         with tempfile.TemporaryDirectory() as tmp_dir:
             report = "{tmp_dir}/report.json".format(tmp_dir=tmp_dir)
             implementations, platforms, abis = zip(
@@ -102,9 +108,8 @@ class Pip(object):
             except PipPackageNotFound as ex:
                 # pretty print package errors
                 raise PipException(
-                    "Could not find a binary distribution for %s \n"
-                    "for the platform %s\n\n"
-                    "Note that ***@pypi*** does not currently support source distributions"
+                    "Unable to find a binary distribution compatible with %s for %s.\n\n"
+                    "Note: ***@pypi*** does not currently support source distributions"
                     % (ex.package_spec, platform)
                 )
 
@@ -123,7 +128,7 @@ class Pip(object):
                         **res,
                         subdir_str=(
                             "#subdirectory=%s" % subdirectory if subdirectory else ""
-                        )
+                        ),
                     )
                     # used to deduplicate the storage location in case wheel does not
                     # build with enough unique identifiers.
@@ -140,12 +145,16 @@ class Pip(object):
         metadata_file = METADATA_FILE.format(prefix=prefix)
         # download packages only if they haven't ever been downloaded before
         if os.path.isfile(metadata_file):
-            return
+            with open(metadata_file, "r") as file:
+                metadata = json.load(file)
+                if all(package["url"] in metadata for package in packages):
+                    return
 
         metadata = {}
         custom_index_url, extra_index_urls = self.indices(prefix)
 
         # build wheels if needed
+        debug.conda_exec("Building wheels for PyPI environment %s if necessary" % id_)
         with ThreadPoolExecutor() as executor:
 
             def _build(key, package):
@@ -206,6 +215,7 @@ class Pip(object):
             ]
         )
 
+        debug.conda_exec("Downloading packages for PyPI environment %s" % id_)
         cmd = [
             "download",
             "--no-deps",
@@ -245,6 +255,7 @@ class Pip(object):
         # Pip can't install packages if the underlying virtual environment doesn't
         # share the same platform
         if self.micromamba.platform() == platform:
+            debug.conda_exec("Installing packages for local PyPI environment %s" % id_)
             cmd = [
                 "install",
                 "--no-compile",

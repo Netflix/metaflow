@@ -9,7 +9,6 @@ from io import BytesIO
 from itertools import takewhile
 import re
 
-from metaflow.exception import MetaflowUnknownUser, MetaflowInternalError
 
 try:
     # python2
@@ -162,6 +161,8 @@ def get_username():
 
 
 def resolve_identity_as_tuple():
+    from metaflow.exception import MetaflowUnknownUser
+
     prod_token = os.environ.get("METAFLOW_PRODUCTION_TOKEN")
     if prod_token:
         return "production", prod_token
@@ -236,6 +237,8 @@ def get_object_package_version(obj):
 
 
 def compress_list(lst, separator=",", rangedelim=":", zlibmarker="!", zlibmin=500):
+    from metaflow.exception import MetaflowInternalError
+
     bad_items = [x for x in lst if separator in x or rangedelim in x or zlibmarker in x]
     if bad_items:
         raise MetaflowInternalError(
@@ -296,6 +299,9 @@ def get_metaflow_root():
 
 
 def dict_to_cli_options(params):
+    # Prevent circular imports
+    from .user_configs.config_options import ConfigInput
+
     for k, v in params.items():
         # Omit boolean options set to false or None, but preserve options with an empty
         # string argument.
@@ -304,6 +310,20 @@ def dict_to_cli_options(params):
             # keyword in Python, so we call it 'decospecs' in click args
             if k == "decospecs":
                 k = "with"
+            if k in ("config", "config_value"):
+                # Special handling here since we gather them all in one option but actually
+                # need to send them one at a time using --config-value <name> kv.<name>
+                # Note it can be either config or config_value depending
+                # on click processing order.
+                for config_name in v.keys():
+                    yield "--config-value"
+                    yield to_unicode(config_name)
+                    yield to_unicode(ConfigInput.make_key_name(config_name))
+                continue
+            if k == "local_config_file":
+                # Skip this value -- it should only be used locally and never when
+                # forming another command line
+                continue
             k = k.replace("_", "-")
             v = v if isinstance(v, (list, tuple, set)) else [v]
             for value in v:
@@ -401,7 +421,7 @@ def to_pascalcase(obj):
     if isinstance(obj, dict):
         res = obj.__class__()
         for k in obj:
-            res[re.sub("([a-zA-Z])", lambda x: x.groups()[0].upper(), k, 1)] = (
+            res[re.sub("([a-zA-Z])", lambda x: x.groups()[0].upper(), k, count=1)] = (
                 to_pascalcase(obj[k])
             )
     elif isinstance(obj, (list, set, tuple)):
@@ -436,16 +456,18 @@ def to_pod(value):
         Value to convert to POD format. The value can be a string, number, list,
         dictionary, or a nested structure of these types.
     """
+    # Prevent circular imports
+    from metaflow.parameters import DeployTimeField
+
     if isinstance(value, (str, int, float)):
         return value
     if isinstance(value, dict):
         return {to_pod(k): to_pod(v) for k, v in value.items()}
     if isinstance(value, (list, set, tuple)):
         return [to_pod(v) for v in value]
+    if isinstance(value, DeployTimeField):
+        return value.print_representation
     return str(value)
 
 
-if sys.version_info[:2] > (3, 5):
-    from metaflow._vendor.packaging.version import parse as version_parse
-else:
-    from distutils.version import LooseVersion as version_parse
+from metaflow._vendor.packaging.version import parse as version_parse

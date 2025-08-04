@@ -1,5 +1,6 @@
 from metaflow.client import Task
-from metaflow import JSONType, namespace
+from metaflow.parameters import JSONTypeClass
+from metaflow import namespace
 from metaflow.util import resolve_identity
 from metaflow.exception import (
     CommandException,
@@ -29,7 +30,7 @@ from .exception import (
 )
 import traceback
 from collections import namedtuple
-
+from .metadata import _save_metadata
 from .card_resolver import resolve_paths_from_task, resumed_info
 
 id_func = id
@@ -551,7 +552,7 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
     "--options",
     default=None,
     show_default=True,
-    type=JSONType,
+    type=JSONTypeClass(),
     help="arguments of the card being created.",
 )
 @click.option(
@@ -612,6 +613,14 @@ def update_card(mf_card, mode, task, data, timeout_value=None):
     hidden=True,
     help="Delete data-file and component-file after reading. (internal)",
 )
+@click.option(
+    "--save-metadata",
+    default=None,
+    show_default=True,
+    type=JSONTypeClass(),
+    hidden=True,
+    help="JSON string containing metadata to be saved. (internal)",
+)
 @click.pass_context
 def create(
     ctx,
@@ -626,6 +635,7 @@ def create(
     card_uuid=None,
     delete_input_files=None,
     id=None,
+    save_metadata=None,
 ):
     card_id = id
     rendered_info = None  # Variable holding all the information which will be rendered
@@ -690,10 +700,15 @@ def create(
         try:
             if options is not None:
                 mf_card = filtered_card(
-                    options=options, components=component_arr, graph=graph_dict
+                    options=options,
+                    components=component_arr,
+                    graph=graph_dict,
+                    flow=ctx.obj.flow,
                 )
             else:
-                mf_card = filtered_card(components=component_arr, graph=graph_dict)
+                mf_card = filtered_card(
+                    components=component_arr, graph=graph_dict, flow=ctx.obj.flow
+                )
         except TypeError as e:
             if render_error_card:
                 mf_card = None
@@ -818,6 +833,16 @@ def create(
                 % (card_info.type, card_info.hash[:NUM_SHORT_HASH_CHARS]),
                 fg="green",
             )
+            if save_metadata:
+                _save_metadata(
+                    ctx.obj.metadata,
+                    task.parent.parent.id,
+                    task.parent.id,
+                    task.id,
+                    task.current_attempt,
+                    card_uuid,
+                    save_metadata,
+                )
 
 
 @card.command()

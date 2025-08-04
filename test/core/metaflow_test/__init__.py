@@ -155,6 +155,7 @@ class MetaflowTest(object):
     PRIORITY = 999999999
     PARAMETERS = {}
     INCLUDE_FILES = {}
+    CONFIGS = {}
     CLASS_VARS = {}
     HEADER = ""
 

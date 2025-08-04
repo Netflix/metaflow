@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING, TypeVar
@@ -49,11 +49,11 @@ class CollectionCheckStrategy(Enum):
     FIRST_ITEM = auto()
     ALL_ITEMS = auto()
 
-    def iterate_samples(self, collection: Collection[T]) -> Collection[T]:
+    def iterate_samples(self, collection: Iterable[T]) -> Iterable[T]:
         if self is CollectionCheckStrategy.FIRST_ITEM:
-            if len(collection):
+            try:
                 return [next(iter(collection))]
-            else:
+            except StopIteration:
                 return ()
         else:
             return collection

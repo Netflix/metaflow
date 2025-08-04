@@ -1,14 +1,14 @@
-import copy
 import json
 import math
 import random
 import time
 from collections import namedtuple
-
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import KUBERNETES_JOBSET_GROUP, KUBERNETES_JOBSET_VERSION
 from metaflow.tracing import inject_tracing_vars
-from metaflow.metaflow_config import KUBERNETES_SECRETS
+from metaflow._vendor import yaml
+
+from .kube_utils import qos_requests_and_limits
 
 
 class KubernetesJobsetException(MetaflowException):
@@ -256,7 +256,7 @@ class RunningJobSet(object):
         def best_effort_kill():
             try:
                 self.kill()
-            except Exception as ex:
+            except Exception:
                 pass
 
         atexit.register(best_effort_kill)
@@ -320,36 +320,51 @@ class RunningJobSet(object):
     def kill(self):
         plural = "jobsets"
         client = self._client.get()
-        # Get the jobset
-        with client.ApiClient() as api_client:
-            api_instance = client.CustomObjectsApi(api_client)
-            try:
-                obj = api_instance.get_namespaced_custom_object(
-                    group=self._group,
-                    version=self._version,
-                    namespace=self._namespace,
-                    plural=plural,
-                    name=self._name,
-                )
+        if not (self.is_running or self.is_waiting):
+            return
+        try:
+            # Killing the control pod will trigger the jobset to mark everything as failed.
+            # Since jobsets have a successPolicy set to `All` which ensures that everything has
+            # to succeed for the jobset to succeed.
+            from kubernetes.stream import stream
 
-                # Suspend the jobset and set the replica's to Zero.
-                #
-                obj["spec"]["suspend"] = True
-                for replicated_job in obj["spec"]["replicatedJobs"]:
-                    replicated_job["replicas"] = 0
-
-                api_instance.replace_namespaced_custom_object(
-                    group=self._group,
-                    version=self._version,
-                    namespace=self._namespace,
-                    plural=plural,
-                    name=obj["metadata"]["name"],
-                    body=obj,
-                )
-            except Exception as e:
-                raise KubernetesJobsetException(
-                    "Exception when suspending existing jobset: %s\n" % e
-                )
+            control_pod = self._fetch_pod()
+            stream(
+                client.CoreV1Api().connect_get_namespaced_pod_exec,
+                name=control_pod["metadata"]["name"],
+                namespace=control_pod["metadata"]["namespace"],
+                command=[
+                    "/bin/sh",
+                    "-c",
+                    "/sbin/killall5",
+                ],
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False,
+            )
+        except Exception:
+            with client.ApiClient() as api_client:
+                # If we are unable to kill the control pod then
+                # Delete the jobset to kill the subsequent pods.
+                # There are a few reasons for deleting a jobset to kill it :
+                # 1. Jobset has a `suspend` attribute to suspend it's execution, but this
+                # doesn't play nicely when jobsets are deployed with other components like kueue.
+                # 2. Jobset doesn't play nicely when we mutate status
+                # 3. Deletion is a gaurenteed way of removing any pods.
+                api_instance = client.CustomObjectsApi(api_client)
+                try:
+                    api_instance.delete_namespaced_custom_object(
+                        group=self._group,
+                        version=self._version,
+                        namespace=self._namespace,
+                        plural=plural,
+                        name=self._name,
+                    )
+                except Exception as e:
+                    raise KubernetesJobsetException(
+                        "Exception when deleting existing jobset: %s\n" % e
+                    )
 
     @property
     def id(self):
@@ -542,7 +557,18 @@ class JobSetSpec(object):
             if self._kwargs["shared_memory"]
             else None
         )
-
+        qos_requests, qos_limits = qos_requests_and_limits(
+            self._kwargs["qos"],
+            self._kwargs["cpu"],
+            self._kwargs["memory"],
+            self._kwargs["disk"],
+        )
+        security_context = self._kwargs.get("security_context", {})
+        _security_context = {}
+        if security_context is not None and len(security_context) > 0:
+            _security_context = {
+                "security_context": client.V1SecurityContext(**security_context)
+            }
         return dict(
             name=self.name,
             template=client.api_client.ApiClient().sanitize_for_serialization(
@@ -571,10 +597,8 @@ class JobSetSpec(object):
                                 namespace=self._kwargs["namespace"],
                             ),
                             spec=client.V1PodSpec(
-                                ##  --- jobset require podspec deets start----
                                 subdomain=self._kwargs["subdomain"],
                                 set_hostname_as_fqdn=True,
-                                ##  --- jobset require podspec deets end ----
                                 # Timeout is set on the pod and not the job (important!)
                                 active_deadline_seconds=self._kwargs[
                                     "timeout_in_seconds"
@@ -643,21 +667,18 @@ class JobSetSpec(object):
                                             "_", "-"
                                         ),
                                         resources=client.V1ResourceRequirements(
-                                            requests={
-                                                "cpu": str(self._kwargs["cpu"]),
-                                                "memory": "%sM"
-                                                % str(self._kwargs["memory"]),
-                                                "ephemeral-storage": "%sM"
-                                                % str(self._kwargs["disk"]),
-                                            },
+                                            requests=qos_requests,
                                             limits={
-                                                "%s.com/gpu".lower()
-                                                % self._kwargs["gpu_vendor"]: str(
-                                                    self._kwargs["gpu"]
-                                                )
-                                                for k in [0]
-                                                # Don't set GPU limits if gpu isn't specified.
-                                                if self._kwargs["gpu"] is not None
+                                                **qos_limits,
+                                                **{
+                                                    "%s.com/gpu".lower()
+                                                    % self._kwargs["gpu_vendor"]: str(
+                                                        self._kwargs["gpu"]
+                                                    )
+                                                    for k in [0]
+                                                    # Don't set GPU limits if gpu isn't specified.
+                                                    if self._kwargs["gpu"] is not None
+                                                },
                                             },
                                         ),
                                         volume_mounts=(
@@ -694,11 +715,15 @@ class JobSetSpec(object):
                                             is not None
                                             else []
                                         ),
+                                        **_security_context,
                                     )
                                 ],
                                 node_selector=self._kwargs.get("node_selector"),
-                                # TODO (savin): Support image_pull_secrets
-                                # image_pull_secrets=?,
+                                image_pull_secrets=[
+                                    client.V1LocalObjectReference(secret)
+                                    for secret in self._kwargs.get("image_pull_secrets")
+                                    or []
+                                ],
                                 # TODO (savin): Support preemption policies
                                 # preemption_policy=?,
                                 #
@@ -848,6 +873,16 @@ class KubernetesJobSet(object):
         self._annotations = dict(self._annotations, **{name: value})
         return self
 
+    def labels(self, labels):
+        for k, v in labels.items():
+            self.label(k, v)
+        return self
+
+    def annotations(self, annotations):
+        for k, v in annotations.items():
+            self.annotation(k, v)
+        return self
+
     def secret(self, name):
         self.worker.secret(name)
         self.control.secret(name)
@@ -868,7 +903,13 @@ class KubernetesJobSet(object):
             spec=dict(
                 replicatedJobs=[self.control.dump(), self.worker.dump()],
                 suspend=False,
-                startupPolicy=None,
+                startupPolicy=dict(
+                    # We explicitly set an InOrder Startup policy so that
+                    # we can ensure that the control pod starts before the worker pods.
+                    # This is required so that when worker pods try to access the control's IP
+                    # we are able to resolve the control's IP address.
+                    startupPolicyOrder="InOrder"
+                ),
                 successPolicy=None,
                 # The Failure Policy helps setting the number of retries for the jobset.
                 # but we don't rely on it and instead rely on either the local scheduler
@@ -967,43 +1008,50 @@ class KubernetesArgoJobSet(object):
         self._labels = dict(self._labels, **{name: value})
         return self
 
+    def labels(self, labels):
+        for k, v in labels.items():
+            self.label(k, v)
+        return self
+
     def annotation(self, name, value):
         self.worker.annotation(name, value)
         self.control.annotation(name, value)
         self._annotations = dict(self._annotations, **{name: value})
         return self
 
+    def annotations(self, annotations):
+        for k, v in annotations.items():
+            self.annotation(k, v)
+        return self
+
     def dump(self):
         client = self._kubernetes_sdk
-        import json
-
-        data = json.dumps(
-            client.ApiClient().sanitize_for_serialization(
-                dict(
-                    apiVersion=self._group + "/" + self._version,
-                    kind="JobSet",
-                    metadata=client.api_client.ApiClient().sanitize_for_serialization(
-                        client.V1ObjectMeta(
-                            name=self.name,
-                            labels=self._labels,
-                            annotations=self._annotations,
-                        )
-                    ),
-                    spec=dict(
-                        replicatedJobs=[self.control.dump(), self.worker.dump()],
-                        suspend=False,
-                        startupPolicy=None,
-                        successPolicy=None,
-                        # The Failure Policy helps setting the number of retries for the jobset.
-                        # but we don't rely on it and instead rely on either the local scheduler
-                        # or the Argo Workflows to handle retries.
-                        failurePolicy=None,
-                        network=None,
-                    ),
-                    status=None,
-                )
+        js_dict = client.ApiClient().sanitize_for_serialization(
+            dict(
+                apiVersion=self._group + "/" + self._version,
+                kind="JobSet",
+                metadata=client.api_client.ApiClient().sanitize_for_serialization(
+                    client.V1ObjectMeta(
+                        name=self.name,
+                        labels=self._labels,
+                        annotations=self._annotations,
+                    )
+                ),
+                spec=dict(
+                    replicatedJobs=[self.control.dump(), self.worker.dump()],
+                    suspend=False,
+                    startupPolicy=None,
+                    successPolicy=None,
+                    # The Failure Policy helps setting the number of retries for the jobset.
+                    # but we don't rely on it and instead rely on either the local scheduler
+                    # or the Argo Workflows to handle retries.
+                    failurePolicy=None,
+                    network=None,
+                ),
+                status=None,
             )
         )
+        data = yaml.dump(js_dict, default_flow_style=False, indent=2)
         # The values we populate in the Jobset manifest (for Argo Workflows) piggybacks on the Argo Workflow's templating engine.
         # Even though Argo Workflows's templating helps us constructing all the necessary IDs and populating the fields
         # required by Metaflow, we run into one glitch. When we construct JSON/YAML serializable objects,
@@ -1018,7 +1066,6 @@ class KubernetesArgoJobSet(object):
         # Since the value of `num_parallel` can be dynamic and can change from run to run, we need to ensure that the
         # value can be passed-down dynamically and is **explicitly set as a integer** in the Jobset Manifest submitted as a
         # part of the Argo Workflow
-
-        quoted_substring = '"{{=asInt(inputs.parameters.workerCount)}}"'
+        quoted_substring = "'{{=asInt(inputs.parameters.workerCount)}}'"
         unquoted_substring = "{{=asInt(inputs.parameters.workerCount)}}"
         return data.replace(quoted_substring, unquoted_substring)

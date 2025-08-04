@@ -44,6 +44,8 @@ BASH_MFLOG = (
 BASH_SAVE_LOGS_ARGS = ["python", "-m", "metaflow.mflog.save_logs"]
 BASH_SAVE_LOGS = " ".join(BASH_SAVE_LOGS_ARGS)
 
+BASH_FLUSH_LOGS = "flush_mflogs(){ " f"{BASH_SAVE_LOGS}; " "}"
+
 
 # this function returns a bash expression that redirects stdout
 # and stderr of the given bash expression to mflog.tee
@@ -63,7 +65,7 @@ def bash_capture_logs(bash_expr, var_transform=None):
 # update_delay determines how often logs should be uploaded to S3
 # as a function of the task execution time
 
-MIN_UPDATE_DELAY = 1.0  # the most frequent update interval
+MIN_UPDATE_DELAY = 0.25  # the most frequent update interval
 MAX_UPDATE_DELAY = 30.0  # the least frequent update interval
 
 
@@ -110,7 +112,6 @@ def export_mflog_env_vars(
 
 def tail_logs(prefix, stdout_tail, stderr_tail, echo, has_log_updates):
     def _available_logs(tail, stream, echo, should_persist=False):
-        # print the latest batch of lines
         try:
             for line in tail:
                 if should_persist:
@@ -128,7 +129,7 @@ def tail_logs(prefix, stdout_tail, stderr_tail, echo, has_log_updates):
 
     start_time = time.time()
     next_log_update = start_time
-    log_update_delay = 1
+    log_update_delay = update_delay(0)
     while has_log_updates():
         if time.time() > next_log_update:
             _available_logs(stdout_tail, "stdout", echo)

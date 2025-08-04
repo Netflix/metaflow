@@ -25,7 +25,6 @@ DATASTORE_LOCAL_DIR = ".metaflow"
 # Local configuration file (in .metaflow) containing overrides per-project
 LOCAL_CONFIG_FILE = "config.json"
 
-
 ###
 # Default configuration
 ###
@@ -43,6 +42,10 @@ DEFAULT_AZURE_CLIENT_PROVIDER = from_conf(
 DEFAULT_GCP_CLIENT_PROVIDER = from_conf("DEFAULT_GCP_CLIENT_PROVIDER", "gcp-default")
 DEFAULT_SECRETS_BACKEND_TYPE = from_conf("DEFAULT_SECRETS_BACKEND_TYPE")
 DEFAULT_SECRETS_ROLE = from_conf("DEFAULT_SECRETS_ROLE")
+
+DEFAULT_FROM_DEPLOYMENT_IMPL = from_conf(
+    "DEFAULT_FROM_DEPLOYMENT_IMPL", "argo-workflows"
+)
 
 ###
 # User configuration
@@ -105,6 +108,12 @@ S3_WORKER_COUNT = from_conf("S3_WORKER_COUNT", 64)
 # operations that have not succeeded retry as opposed to all operations for the
 # top-level retries)
 S3_TRANSIENT_RETRY_COUNT = from_conf("S3_TRANSIENT_RETRY_COUNT", 20)
+
+# S3 retry configuration used in the aws client
+# Use the adaptive retry strategy by default
+S3_CLIENT_RETRY_CONFIG = from_conf(
+    "S3_CLIENT_RETRY_CONFIG", {"max_attempts": 10, "mode": "adaptive"}
+)
 
 # Threshold to start printing warnings for an AWS retry
 RETRY_WARNING_THRESHOLD = 3
@@ -205,8 +214,6 @@ CARD_GSROOT = from_conf(
 )
 CARD_NO_WARNING = from_conf("CARD_NO_WARNING", False)
 
-SKIP_CARD_DUALWRITE = from_conf("SKIP_CARD_DUALWRITE", False)
-
 RUNTIME_CARD_RENDER_INTERVAL = from_conf("RUNTIME_CARD_RENDER_INTERVAL", 60)
 
 # Azure storage account URL
@@ -245,8 +252,7 @@ DEFAULT_CONTAINER_IMAGE = from_conf("DEFAULT_CONTAINER_IMAGE")
 # Default container registry
 DEFAULT_CONTAINER_REGISTRY = from_conf("DEFAULT_CONTAINER_REGISTRY")
 # Controls whether to include foreach stack information in metadata.
-# TODO(Darin, 05/01/24): Remove this flag once we are confident with this feature.
-INCLUDE_FOREACH_STACK = from_conf("INCLUDE_FOREACH_STACK", False)
+INCLUDE_FOREACH_STACK = from_conf("INCLUDE_FOREACH_STACK", True)
 # Maximum length of the foreach value string to be stored in each ForeachFrame.
 MAXIMUM_FOREACH_VALUE_CHARS = from_conf("MAXIMUM_FOREACH_VALUE_CHARS", 30)
 # The default runtime limit (In seconds) of jobs launched by any compute provider. Default of 5 days.
@@ -282,7 +288,7 @@ CONTACT_INFO = from_conf(
 ###
 # Format is a space separated string of decospecs (what is passed
 # using --with)
-DECOSPECS = from_conf("DECOSPECS", "")
+DEFAULT_DECOSPECS = from_conf("DEFAULT_DECOSPECS", "")
 
 ###
 # AWS Batch configuration
@@ -352,6 +358,8 @@ KUBERNETES_PERSISTENT_VOLUME_CLAIMS = from_conf(
 KUBERNETES_SECRETS = from_conf("KUBERNETES_SECRETS", "")
 # Default labels for kubernetes pods
 KUBERNETES_LABELS = from_conf("KUBERNETES_LABELS", "")
+# Default annotations for kubernetes pods
+KUBERNETES_ANNOTATIONS = from_conf("KUBERNETES_ANNOTATIONS", "")
 # Default GPU vendor to use by K8S jobs created by Metaflow (supports nvidia, amd)
 KUBERNETES_GPU_VENDOR = from_conf("KUBERNETES_GPU_VENDOR", "nvidia")
 # Default container image for K8S
@@ -360,6 +368,8 @@ KUBERNETES_CONTAINER_IMAGE = from_conf(
 )
 # Image pull policy for container images
 KUBERNETES_IMAGE_PULL_POLICY = from_conf("KUBERNETES_IMAGE_PULL_POLICY", None)
+# Image pull secrets for container images
+KUBERNETES_IMAGE_PULL_SECRETS = from_conf("KUBERNETES_IMAGE_PULL_SECRETS", "")
 # Default container registry for K8S
 KUBERNETES_CONTAINER_REGISTRY = from_conf(
     "KUBERNETES_CONTAINER_REGISTRY", DEFAULT_CONTAINER_REGISTRY
@@ -374,7 +384,11 @@ KUBERNETES_PORT = from_conf("KUBERNETES_PORT", None)
 KUBERNETES_CPU = from_conf("KUBERNETES_CPU", None)
 KUBERNETES_MEMORY = from_conf("KUBERNETES_MEMORY", None)
 KUBERNETES_DISK = from_conf("KUBERNETES_DISK", None)
+# Default kubernetes QoS class
+KUBERNETES_QOS = from_conf("KUBERNETES_QOS", "burstable")
 
+# Architecture of kubernetes nodes - used for @conda/@pypi in metaflow-dev
+KUBERNETES_CONDA_ARCH = from_conf("KUBERNETES_CONDA_ARCH")
 ARGO_WORKFLOWS_KUBERNETES_SECRETS = from_conf("ARGO_WORKFLOWS_KUBERNETES_SECRETS", "")
 ARGO_WORKFLOWS_ENV_VARS_TO_SKIP = from_conf("ARGO_WORKFLOWS_ENV_VARS_TO_SKIP", "")
 
@@ -429,6 +443,9 @@ CONDA_PACKAGE_GSROOT = from_conf("CONDA_PACKAGE_GSROOT")
 # should result in an appreciable speedup in flow environment initialization.
 CONDA_DEPENDENCY_RESOLVER = from_conf("CONDA_DEPENDENCY_RESOLVER", "conda")
 
+# Default to not using fast init binary.
+CONDA_USE_FAST_INIT = from_conf("CONDA_USE_FAST_INIT", False)
+
 ###
 # Escape hatch configuration
 ###
@@ -436,9 +453,22 @@ CONDA_DEPENDENCY_RESOLVER = from_conf("CONDA_DEPENDENCY_RESOLVER", "conda")
 ESCAPE_HATCH_WARNING = from_conf("ESCAPE_HATCH_WARNING", True)
 
 ###
+# Features
+###
+FEAT_ALWAYS_UPLOAD_CODE_PACKAGE = from_conf("FEAT_ALWAYS_UPLOAD_CODE_PACKAGE", False)
+###
 # Debug configuration
 ###
-DEBUG_OPTIONS = ["subcommand", "sidecar", "s3client", "tracing", "stubgen"]
+DEBUG_OPTIONS = [
+    "subcommand",
+    "sidecar",
+    "s3client",
+    "tracing",
+    "stubgen",
+    "userconf",
+    "conda",
+    "package",
+]
 
 for typ in DEBUG_OPTIONS:
     vars()["DEBUG_%s" % typ.upper()] = from_conf("DEBUG_%s" % typ.upper(), False)
@@ -506,6 +536,11 @@ DISABLE_TRACING = bool(os.environ.get("DISABLE_TRACING", False))
 # lexicographic ordering of attempts. This won't work if MAX_ATTEMPTS > 99.
 MAX_ATTEMPTS = 6
 
+# Feature flag (experimental features that are *explicitly* unsupported)
+
+# Process configs even when using the click_api for Runner/Deployer
+CLICK_API_PROCESS_CONFIG = from_conf("CLICK_API_PROCESS_CONFIG", False)
+
 
 # PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution
 # and are needed within a conda environment
@@ -519,10 +554,12 @@ def get_pinned_conda_libs(python_version, datastore_type):
         pins["azure-identity"] = ">=1.10.0"
         pins["azure-storage-blob"] = ">=12.12.0"
         pins["azure-keyvault-secrets"] = ">=4.7.0"
+        pins["simple-azure-blob-downloader"] = ">=0.1.0"
     elif datastore_type == "gs":
         pins["google-cloud-storage"] = ">=2.5.0"
         pins["google-auth"] = ">=2.11.0"
         pins["google-cloud-secret-manager"] = ">=2.10.0"
+        pins["simple-gcp-object-downloader"] = ">=0.1.0"
     elif datastore_type == "local":
         pass
     else:
@@ -569,9 +606,9 @@ try:
                 _TOGGLE_DECOSPECS.extend(o)
             elif not n.startswith("__") and not isinstance(o, types.ModuleType):
                 globals()[n] = o
-    # If DECOSPECS is set, use that, else extrapolate from extensions
-    if not DECOSPECS:
-        DECOSPECS = " ".join(_TOGGLE_DECOSPECS)
+    # If DEFAULT_DECOSPECS is set, use that, else extrapolate from extensions
+    if not DEFAULT_DECOSPECS:
+        DEFAULT_DECOSPECS = " ".join(_TOGGLE_DECOSPECS)
 
 finally:
     # Erase all temporary names to avoid leaking things

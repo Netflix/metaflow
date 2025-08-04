@@ -16,8 +16,14 @@ CLIS_DESC = [
     ("argo-workflows", ".argo.argo_workflows_cli.cli"),
     ("card", ".cards.card_cli.cli"),
     ("tag", ".tag_cli.cli"),
+    ("spot-metadata", ".kubernetes.spot_metadata_cli.cli"),
     ("logs", ".logs_cli.cli"),
 ]
+
+# Add additional commands to the runner here
+# These will be accessed using Runner().<command>()
+RUNNER_CLIS_DESC = []
+
 
 from .test_unbounded_foreach_decorator import InternalTestUnboundedForeachInput
 
@@ -63,18 +69,20 @@ FLOW_DECORATORS_DESC = [
     ("trigger_on_finish", ".events_decorator.TriggerOnFinishDecorator"),
     ("pypi_base", ".pypi.pypi_decorator.PyPIFlowDecorator"),
     ("conda_base", ".pypi.conda_decorator.CondaFlowDecorator"),
+    ("exit_hook", ".exit_hook.exit_hook_decorator.ExitHookDecorator"),
 ]
 
 # Add environments here
 ENVIRONMENTS_DESC = [
     ("conda", ".pypi.conda_environment.CondaEnvironment"),
     ("pypi", ".pypi.pypi_environment.PyPIEnvironment"),
+    ("uv", ".uv.uv_environment.UVEnvironment"),
 ]
 
 # Add metadata providers here
 METADATA_PROVIDERS_DESC = [
-    ("service", ".metadata.service.ServiceMetadataProvider"),
-    ("local", ".metadata.local.LocalMetadataProvider"),
+    ("service", ".metadata_providers.service.ServiceMetadataProvider"),
+    ("local", ".metadata_providers.local.LocalMetadataProvider"),
 ]
 
 # Add datastore here
@@ -85,13 +93,25 @@ DATASTORES_DESC = [
     ("gs", ".datastores.gs_storage.GSStorage"),
 ]
 
+# Dataclients are used for IncludeFile
+DATACLIENTS_DESC = [
+    ("local", ".datatools.Local"),
+    ("s3", ".datatools.S3"),
+    ("azure", ".azure.includefile_support.Azure"),
+    ("gs", ".gcp.includefile_support.GS"),
+]
+
 # Add non monitoring/logging sidecars here
 SIDECARS_DESC = [
     (
         "save_logs_periodically",
         "..mflog.save_logs_periodically.SaveLogsPeriodicallySidecar",
     ),
-    ("heartbeat", "metaflow.metadata.heartbeat.MetadataHeartBeat"),
+    (
+        "spot_termination_monitor",
+        ".kubernetes.spot_monitor_sidecar.SpotTerminationMonitorSidecar",
+    ),
+    ("heartbeat", "metaflow.metadata_provider.heartbeat.MetadataHeartBeat"),
 ]
 
 # Add logging sidecars here
@@ -149,6 +169,12 @@ DEPLOYER_IMPL_PROVIDERS_DESC = [
     ),
 ]
 
+TL_PLUGINS_DESC = [
+    ("requirements_txt_parser", ".pypi.parsers.requirements_txt_parser"),
+    ("pyproject_toml_parser", ".pypi.parsers.pyproject_toml_parser"),
+    ("conda_environment_yml_parser", ".pypi.parsers.conda_environment_yml_parser"),
+]
+
 process_plugins(globals())
 
 
@@ -156,11 +182,24 @@ def get_plugin_cli():
     return resolve_plugins("cli")
 
 
+def get_plugin_cli_path():
+    return resolve_plugins("cli", path_only=True)
+
+
+def get_runner_cli():
+    return resolve_plugins("runner_cli")
+
+
+def get_runner_cli_path():
+    return resolve_plugins("runner_cli", path_only=True)
+
+
 STEP_DECORATORS = resolve_plugins("step_decorator")
 FLOW_DECORATORS = resolve_plugins("flow_decorator")
 ENVIRONMENTS = resolve_plugins("environment")
 METADATA_PROVIDERS = resolve_plugins("metadata_provider")
 DATASTORES = resolve_plugins("datastore")
+DATACLIENTS = resolve_plugins("dataclient")
 SIDECARS = resolve_plugins("sidecar")
 LOGGING_SIDECARS = resolve_plugins("logging_sidecar")
 MONITOR_SIDECARS = resolve_plugins("monitor_sidecar")
@@ -175,6 +214,8 @@ GCP_CLIENT_PROVIDERS = resolve_plugins("gcp_client_provider")
 
 if sys.version_info >= (3, 7):
     DEPLOYER_IMPL_PROVIDERS = resolve_plugins("deployer_impl_provider")
+
+TL_PLUGINS = resolve_plugins("tl_plugin")
 
 from .cards.card_modules import MF_EXTERNAL_CARDS
 
@@ -200,6 +241,7 @@ from .cards.card_modules.test_cards import (
     TestTimeoutCard,
     TestRefreshCard,
     TestRefreshComponentCard,
+    TestImageCard,
 )
 
 CARDS = [
@@ -218,5 +260,12 @@ CARDS = [
     DefaultCardJSON,
     TestRefreshCard,
     TestRefreshComponentCard,
+    TestImageCard,
 ]
 merge_lists(CARDS, MF_EXTERNAL_CARDS, "type")
+
+
+def _import_tl_plugins(globals_dict):
+
+    for name, p in TL_PLUGINS.items():
+        globals_dict[name] = p

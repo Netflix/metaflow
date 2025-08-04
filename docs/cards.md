@@ -121,7 +121,7 @@ PATH_TO_CUSTOM_HTML = 'myhtml.html'
 class CustomCard(MetaflowCard):
     type = "custom_card"
 
-    def __init__(self, options={"no_header": True}, graph=None,components=[]):
+    def __init__(self, options={"no_header": True}, graph=None, components=[], flow=None, **kwargs):
         super().__init__()
         self._no_header = True
         self._graph = graph
@@ -177,7 +177,7 @@ class CustomCard(MetaflowCard):
 
     HTML = "<html><head></head><body>{data}<body></html>"
 
-    def __init__(self, options={"no_header": True}, graph=None,components=[]):
+    def __init__(self, options={"no_header": True}, graph=None, components=[], flow=None, **kwargs):
         super().__init__()
         self._no_header = True
         self._graph = graph
@@ -276,7 +276,7 @@ class YCard(MetaflowCard):
 
     ALLOW_USER_COMPONENTS = True
 
-    def __init__(self, options={}, components=[], graph=None):
+    def __init__(self, options={}, components=[], graph=None, flow=None, **kwargs):
         self._components = components
 
     def render(self, task):

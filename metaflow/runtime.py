@@ -6,13 +6,17 @@ using local / remote processes
 """
 
 from __future__ import print_function
+import json
 import os
 import sys
 import fcntl
+import re
+import tempfile
 import time
 import subprocess
 from datetime import datetime
 from io import BytesIO
+from itertools import chain
 from functools import partial
 from concurrent import futures
 
@@ -20,8 +24,8 @@ from metaflow.datastore.exceptions import DataException
 from contextlib import contextmanager
 
 from . import get_namespace
-from .metadata import MetaDatum
-from .metaflow_config import MAX_ATTEMPTS, UI_URL
+from .metadata_provider import MetaDatum
+from .metaflow_config import FEAT_ALWAYS_UPLOAD_CODE_PACKAGE, MAX_ATTEMPTS, UI_URL
 from .exception import (
     MetaflowException,
     MetaflowInternalError,
@@ -31,6 +35,7 @@ from . import procpoll
 from .datastore import TaskDataStoreSet
 from .debug import debug
 from .decorators import flow_decorators
+from .flowspec import _FlowState
 from .mflog import mflog, RUNTIME_LOG_SOURCE
 from .util import to_unicode, compress_list, unicode_type
 from .clone_util import clone_task_helper
@@ -39,6 +44,10 @@ from .unbounded_foreach import (
     UBF_CONTROL,
     UBF_TASK,
 )
+
+from .user_configs.config_options import ConfigInput
+from .user_configs.config_parameters import dump_config_values
+
 import metaflow.tracing as tracing
 
 MAX_WORKERS = 16
@@ -49,7 +58,13 @@ PROGRESS_INTERVAL = 300  # s
 # The following is a list of the (data) artifacts used by the runtime while
 # executing a flow. These are prefetched during the resume operation by
 # leveraging the TaskDataStoreSet.
-PREFETCH_DATA_ARTIFACTS = ["_foreach_stack", "_task_ok", "_transition"]
+PREFETCH_DATA_ARTIFACTS = [
+    "_foreach_stack",
+    "_task_ok",
+    "_transition",
+    "_control_mapper_tasks",
+    "_control_task_is_mapper_zero",
+]
 RESUME_POLL_SECONDS = 60
 
 # Runtime must use logsource=RUNTIME_LOG_SOURCE for all loglines that it
@@ -81,6 +96,7 @@ class NativeRuntime(object):
         max_num_splits=MAX_NUM_SPLITS,
         max_log_size=MAX_LOG_SIZE,
         resume_identifier=None,
+        skip_decorator_hooks=False,
     ):
         if run_id is None:
             self._run_id = metadata.new_run_id()
@@ -93,6 +109,7 @@ class NativeRuntime(object):
         self._flow_datastore = flow_datastore
         self._metadata = metadata
         self._environment = environment
+        self._package = package
         self._logger = logger
         self._max_workers = max_workers
         self._active_tasks = dict()  # Key: step name;
@@ -111,9 +128,10 @@ class NativeRuntime(object):
         self._clone_run_id = clone_run_id
         self._clone_only = clone_only
         self._cloned_tasks = []
-        self._cloned_task_index = set()
+        self._ran_or_scheduled_task_index = set()
         self._reentrant = reentrant
         self._run_url = None
+        self._skip_decorator_hooks = skip_decorator_hooks
 
         # If steps_to_rerun is specified, we will not clone them in resume mode.
         self._steps_to_rerun = steps_to_rerun or {}
@@ -165,9 +183,10 @@ class NativeRuntime(object):
         # finished.
         self._control_num_splits = {}  # control_task -> num_splits mapping
 
-        for step in flow:
-            for deco in step.decorators:
-                deco.runtime_init(flow, graph, package, self._run_id)
+        if not self._skip_decorator_hooks:
+            for step in flow:
+                for deco in step.decorators:
+                    deco.runtime_init(flow, graph, package, self._run_id)
 
     def _new_task(self, step, input_paths=None, **kwargs):
         if input_paths is None:
@@ -178,7 +197,7 @@ class NativeRuntime(object):
         if step in self._steps_to_rerun:
             may_clone = False
 
-        if step == "_parameters":
+        if step == "_parameters" or self._skip_decorator_hooks:
             decos = []
         else:
             decos = getattr(self._flow, step).decorators
@@ -269,6 +288,8 @@ class NativeRuntime(object):
         step_name,
         task_id,
         pathspec_index,
+        cloned_task_pathspec_index,
+        finished_tuple,
         ubf_context,
         generate_task_obj,
         verbose=False,
@@ -281,8 +302,13 @@ class NativeRuntime(object):
                     task.ubf_context = ubf_context
                 new_task_id = task.task_id
                 self._cloned_tasks.append(task)
-                self._cloned_task_index.add(task.task_index)
-
+                self._ran_or_scheduled_task_index.add(cloned_task_pathspec_index)
+                task_pathspec = "{}/{}/{}".format(self._run_id, step_name, new_task_id)
+            else:
+                task_pathspec = "{}/{}/{}".format(self._run_id, step_name, new_task_id)
+                Task.clone_pathspec_mapping[task_pathspec] = "{}/{}/{}".format(
+                    self._clone_run_id, step_name, task_id
+                )
             if verbose:
                 self._logger(
                     "Cloning task from {}/{}/{}/{} to {}/{}/{}/{}".format(
@@ -308,6 +334,8 @@ class NativeRuntime(object):
                 self._metadata,
                 origin_ds_set=self._origin_ds_set,
             )
+            self._finished[(step_name, finished_tuple)] = task_pathspec
+            self._is_cloned[task_pathspec] = True
         except Exception as e:
             self._logger(
                 "Cloning {}/{}/{}/{} failed with error: {}".format(
@@ -323,7 +351,8 @@ class NativeRuntime(object):
 
         inputs = []
 
-        ubf_mapper_tasks_to_clone = []
+        ubf_mapper_tasks_to_clone = set()
+        ubf_control_tasks = set()
         # We only clone ubf mapper tasks if the control task is complete.
         # Here we need to check which control tasks are complete, and then get the corresponding
         # mapper tasks.
@@ -331,13 +360,25 @@ class NativeRuntime(object):
             _, step_name, task_id = task_ds.pathspec.split("/")
             pathspec_index = task_ds.pathspec_index
             if task_ds["_task_ok"] and step_name != "_parameters":
-                # Only control task can have _control_mapper_tasks. We then store the corresponding mapepr task pathspecs.
+                # Control task contains "_control_mapper_tasks" but, in the case of
+                # @parallel decorator, the control task is also a mapper task so we
+                # need to distinguish this using _control_task_is_mapper_zero
                 control_mapper_tasks = (
                     []
                     if "_control_mapper_tasks" not in task_ds
                     else task_ds["_control_mapper_tasks"]
                 )
-                ubf_mapper_tasks_to_clone.extend(control_mapper_tasks)
+                if control_mapper_tasks:
+                    if task_ds.get("_control_task_is_mapper_zero", False):
+                        # Strip out the control task of list of mapper tasks
+                        ubf_control_tasks.add(control_mapper_tasks[0])
+                        ubf_mapper_tasks_to_clone.update(control_mapper_tasks[1:])
+                    else:
+                        ubf_mapper_tasks_to_clone.update(control_mapper_tasks)
+                        # Since we only add mapper tasks here, if we are not in the list
+                        # we are a control task
+                        if task_ds.pathspec not in ubf_mapper_tasks_to_clone:
+                            ubf_control_tasks.add(task_ds.pathspec)
 
         for task_ds in self._origin_ds_set:
             _, step_name, task_id = task_ds.pathspec.split("/")
@@ -348,35 +389,58 @@ class NativeRuntime(object):
                 and step_name != "_parameters"
                 and (step_name not in self._steps_to_rerun)
             ):
-                # "_unbounded_foreach" is a special flag to indicate that the transition is an unbounded foreach.
-                # Both parent and splitted children tasks will have this flag set. The splitted control/mapper tasks
-                # have no "foreach_param" because UBF is always followed by a join step.
+                # "_unbounded_foreach" is a special flag to indicate that the transition
+                # is an unbounded foreach.
+                # Both parent and splitted children tasks will have this flag set.
+                # The splitted control/mapper tasks
+                # are not foreach types because UBF is always followed by a join step.
                 is_ubf_task = (
                     "_unbounded_foreach" in task_ds and task_ds["_unbounded_foreach"]
-                ) and (self._graph[step_name].foreach_param is None)
+                ) and (self._graph[step_name].type != "foreach")
 
-                # Only the control task has "_control_mapper_tasks" artifact.
-                is_ubf_control_task = (
-                    is_ubf_task
-                    and ("_control_mapper_tasks" in task_ds)
-                    and task_ds["_control_mapper_tasks"]
-                )
-                is_ubf_mapper_tasks = is_ubf_task and (not is_ubf_control_task)
-                if is_ubf_mapper_tasks and (
+                is_ubf_control_task = task_ds.pathspec in ubf_control_tasks
+
+                is_ubf_mapper_task = is_ubf_task and (not is_ubf_control_task)
+
+                if is_ubf_mapper_task and (
                     task_ds.pathspec not in ubf_mapper_tasks_to_clone
                 ):
-                    # Skip copying UBF mapper tasks if control tasks is incomplete.
+                    # Skip copying UBF mapper tasks if control task is incomplete.
                     continue
 
                 ubf_context = None
                 if is_ubf_task:
-                    ubf_context = "ubf_test" if is_ubf_mapper_tasks else "ubf_control"
+                    ubf_context = "ubf_test" if is_ubf_mapper_task else "ubf_control"
+
+                finished_tuple = tuple(
+                    [s._replace(value=0) for s in task_ds.get("_foreach_stack", ())]
+                )
+                cloned_task_pathspec_index = pathspec_index.split("/")[1]
+                if task_ds.get("_control_task_is_mapper_zero", False):
+                    # Replace None with index 0 for control task as it is part of the
+                    # UBF (as a mapper as well)
+                    finished_tuple = finished_tuple[:-1] + (
+                        finished_tuple[-1]._replace(index=0),
+                    )
+                    # We need this reverse override though because when we check
+                    # if a task has been cloned in _queue_push, the index will be None
+                    # because the _control_task_is_mapper_zero is set in the control
+                    # task *itself* and *not* in the one that is launching the UBF nest.
+                    # This means that _translate_index will use None.
+                    cloned_task_pathspec_index = re.sub(
+                        r"(\[(?:\d+, ?)*)0\]",
+                        lambda m: (m.group(1) or "[") + "None]",
+                        cloned_task_pathspec_index,
+                    )
+
                 inputs.append(
                     (
                         step_name,
                         task_id,
                         pathspec_index,
-                        is_ubf_mapper_tasks,
+                        cloned_task_pathspec_index,
+                        finished_tuple,
+                        is_ubf_mapper_task,
                         ubf_context,
                     )
                 )
@@ -388,15 +452,19 @@ class NativeRuntime(object):
                     step_name,
                     task_id,
                     pathspec_index,
+                    cloned_task_pathspec_index,
+                    finished_tuple,
                     ubf_context=ubf_context,
-                    generate_task_obj=generate_task_obj and (not is_ubf_mapper_tasks),
+                    generate_task_obj=generate_task_obj and (not is_ubf_mapper_task),
                     verbose=verbose,
                 )
                 for (
                     step_name,
                     task_id,
                     pathspec_index,
-                    is_ubf_mapper_tasks,
+                    cloned_task_pathspec_index,
+                    finished_tuple,
+                    is_ubf_mapper_task,
                     ubf_context,
                 ) in inputs
             ]
@@ -417,82 +485,97 @@ class NativeRuntime(object):
             else:
                 self._queue_push("start", {})
         progress_tstamp = time.time()
-        try:
-            # main scheduling loop
-            exception = None
-            while self._run_queue or self._active_tasks[0] > 0 or self._cloned_tasks:
-                # 1. are any of the current workers finished?
-                if self._cloned_tasks:
-                    finished_tasks = self._cloned_tasks
-                    # reset the list of cloned tasks and let poll_workers handle
-                    # the remaining transition
-                    self._cloned_tasks = []
-                else:
-                    finished_tasks = list(self._poll_workers())
-                # 2. push new tasks triggered by the finished tasks to the queue
-                self._queue_tasks(finished_tasks)
-                # 3. if there are available worker slots, pop and start tasks
-                #    from the queue.
-                self._launch_workers()
-
-                if time.time() - progress_tstamp > PROGRESS_INTERVAL:
-                    progress_tstamp = time.time()
-                    tasks_print = ", ".join(
-                        [
-                            "%s (%d running; %d done)" % (k, v[0], v[1])
-                            for k, v in self._active_tasks.items()
-                            if k != 0 and v[0] > 0
-                        ]
-                    )
-                    if self._active_tasks[0] == 0:
-                        msg = "No tasks are running."
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as config_file:
+            # Configurations are passed through a file to avoid overloading the
+            # command-line. We only need to create this file once and it can be reused
+            # for any task launch
+            config_value = dump_config_values(self._flow)
+            if config_value:
+                json.dump(config_value, config_file)
+                config_file.flush()
+                self._config_file_name = config_file.name
+            else:
+                self._config_file_name = None
+            try:
+                # main scheduling loop
+                exception = None
+                while (
+                    self._run_queue or self._active_tasks[0] > 0 or self._cloned_tasks
+                ):
+                    # 1. are any of the current workers finished?
+                    if self._cloned_tasks:
+                        finished_tasks = self._cloned_tasks
+                        # reset the list of cloned tasks and let poll_workers handle
+                        # the remaining transition
+                        self._cloned_tasks = []
                     else:
-                        if self._active_tasks[0] == 1:
-                            msg = "1 task is running: "
-                        else:
-                            msg = "%d tasks are running: " % self._active_tasks[0]
-                        msg += "%s." % tasks_print
+                        finished_tasks = list(self._poll_workers())
+                    # 2. push new tasks triggered by the finished tasks to the queue
+                    self._queue_tasks(finished_tasks)
+                    # 3. if there are available worker slots, pop and start tasks
+                    #    from the queue.
+                    self._launch_workers()
 
-                    self._logger(msg, system_msg=True)
-
-                    if len(self._run_queue) == 0:
-                        msg = "No tasks are waiting in the queue."
-                    else:
-                        if len(self._run_queue) == 1:
-                            msg = "1 task is waiting in the queue: "
+                    if time.time() - progress_tstamp > PROGRESS_INTERVAL:
+                        progress_tstamp = time.time()
+                        tasks_print = ", ".join(
+                            [
+                                "%s (%d running; %d done)" % (k, v[0], v[1])
+                                for k, v in self._active_tasks.items()
+                                if k != 0 and v[0] > 0
+                            ]
+                        )
+                        if self._active_tasks[0] == 0:
+                            msg = "No tasks are running."
                         else:
-                            msg = "%d tasks are waiting in the queue." % len(
-                                self._run_queue
-                            )
+                            if self._active_tasks[0] == 1:
+                                msg = "1 task is running: "
+                            else:
+                                msg = "%d tasks are running: " % self._active_tasks[0]
+                            msg += "%s." % tasks_print
 
-                    self._logger(msg, system_msg=True)
-                    if len(self._unprocessed_steps) > 0:
-                        if len(self._unprocessed_steps) == 1:
-                            msg = "%s step has not started" % (
-                                next(iter(self._unprocessed_steps)),
-                            )
-                        else:
-                            msg = "%d steps have not started: " % len(
-                                self._unprocessed_steps
-                            )
-                            msg += "%s." % ", ".join(self._unprocessed_steps)
                         self._logger(msg, system_msg=True)
 
-        except KeyboardInterrupt as ex:
-            self._logger("Workflow interrupted.", system_msg=True, bad=True)
-            self._killall()
-            exception = ex
-            raise
-        except Exception as ex:
-            self._logger("Workflow failed.", system_msg=True, bad=True)
-            self._killall()
-            exception = ex
-            raise
-        finally:
-            # on finish clean tasks
-            for step in self._flow:
-                for deco in step.decorators:
-                    deco.runtime_finished(exception)
+                        if len(self._run_queue) == 0:
+                            msg = "No tasks are waiting in the queue."
+                        else:
+                            if len(self._run_queue) == 1:
+                                msg = "1 task is waiting in the queue: "
+                            else:
+                                msg = "%d tasks are waiting in the queue." % len(
+                                    self._run_queue
+                                )
+
+                        self._logger(msg, system_msg=True)
+                        if len(self._unprocessed_steps) > 0:
+                            if len(self._unprocessed_steps) == 1:
+                                msg = "%s step has not started" % (
+                                    next(iter(self._unprocessed_steps)),
+                                )
+                            else:
+                                msg = "%d steps have not started: " % len(
+                                    self._unprocessed_steps
+                                )
+                                msg += "%s." % ", ".join(self._unprocessed_steps)
+                            self._logger(msg, system_msg=True)
+
+            except KeyboardInterrupt as ex:
+                self._logger("Workflow interrupted.", system_msg=True, bad=True)
+                self._killall()
+                exception = ex
+                raise
+            except Exception as ex:
+                self._logger("Workflow failed.", system_msg=True, bad=True)
+                self._killall()
+                exception = ex
+                raise
+            finally:
+                # on finish clean tasks
+                if not self._skip_decorator_hooks:
+                    for step in self._flow:
+                        for deco in step.decorators:
+                            deco.runtime_finished(exception)
+                self._run_exit_hooks()
 
         # assert that end was executed and it was successful
         if ("end", ()) in self._finished:
@@ -514,6 +597,50 @@ class NativeRuntime(object):
             raise MetaflowInternalError(
                 "The *end* step was not successful by the end of flow."
             )
+
+    def _run_exit_hooks(self):
+        try:
+            exit_hook_decos = self._flow._flow_decorators.get("exit_hook", [])
+            if not exit_hook_decos:
+                return
+
+            successful = ("end", ()) in self._finished or self._clone_only
+            pathspec = f"{self._graph.name}/{self._run_id}"
+            flow_file = self._environment.get_environment_info()["script"]
+
+            def _call(fn_name):
+                try:
+                    result = (
+                        subprocess.check_output(
+                            args=[
+                                sys.executable,
+                                "-m",
+                                "metaflow.plugins.exit_hook.exit_hook_script",
+                                flow_file,
+                                fn_name,
+                                pathspec,
+                            ],
+                            env=os.environ,
+                        )
+                        .decode()
+                        .strip()
+                    )
+                    print(result)
+                except subprocess.CalledProcessError as e:
+                    print(f"[exit_hook] Hook '{fn_name}' failed with error: {e}")
+                except Exception as e:
+                    print(f"[exit_hook] Unexpected error in hook '{fn_name}': {e}")
+
+            # Call all exit hook functions regardless of individual failures
+            for fn_name in [
+                name
+                for deco in exit_hook_decos
+                for name in (deco.success_hooks if successful else deco.error_hooks)
+            ]:
+                _call(fn_name)
+
+        except Exception as ex:
+            pass  # do not fail due to exit hooks for whatever reason.
 
     def _killall(self):
         # If we are here, all children have received a signal and are shutting down.
@@ -546,8 +673,6 @@ class NativeRuntime(object):
     # Given the current task information (task_index), the type of transition,
     # and the split index, return the new task index.
     def _translate_index(self, task, next_step, type, split_index=None):
-        import re
-
         match = re.match(r"^(.+)\[(.*)\]$", task.task_index)
         if match:
             _, foreach_index = match.groups()
@@ -574,10 +699,18 @@ class NativeRuntime(object):
     # Store the parameters needed for task creation, so that pushing on items
     # onto the run_queue is an inexpensive operation.
     def _queue_push(self, step, task_kwargs, index=None):
-        # If the to-be-pushed task is already cloned before, we don't need
-        # to re-run it.
-        if index and index in self._cloned_task_index:
-            return
+        # In the case of cloning, we set all the cloned tasks as the
+        # finished tasks when pushing tasks using _queue_tasks. This means that we
+        # could potentially try to push the same task multiple times (for example
+        # if multiple parents of a join are cloned). We therefore keep track of what
+        # has executed (been cloned) or what has been scheduled and avoid scheduling
+        # it again.
+        if index:
+            if index in self._ran_or_scheduled_task_index:
+                # It has already run or been scheduled
+                return
+            # Note that we are scheduling this to run
+            self._ran_or_scheduled_task_index.add(index)
         self._run_queue.insert(0, (step, task_kwargs))
         # For foreaches, this will happen multiple time but is ok, becomes a no-op
         self._unprocessed_steps.discard(step)
@@ -640,15 +773,18 @@ class NativeRuntime(object):
                 # If the control task is cloned, all mapper tasks should have been cloned
                 # as well, so we no longer need to handle cloning of mapper tasks in runtime.
 
-                # Update _finished since these tasks were successfully
-                # run elsewhere so that join will be unblocked.
-                _, foreach_stack = task.finished_id
-                top = foreach_stack[-1]
-                bottom = list(foreach_stack[:-1])
-                for i in range(num_splits):
-                    s = tuple(bottom + [top._replace(index=i)])
-                    self._finished[(task.step, s)] = mapper_tasks[i]
-                    self._is_cloned[mapper_tasks[i]] = False
+                # Update _finished if we are not cloned. If we were cloned, we already
+                # updated _finished with the new tasks. Note that the *value* of mapper
+                # tasks is incorrect and contains the pathspec of the *cloned* run
+                # but we don't use it for anything. We could look to clean it up though
+                if not task.is_cloned:
+                    _, foreach_stack = task.finished_id
+                    top = foreach_stack[-1]
+                    bottom = list(foreach_stack[:-1])
+                    for i in range(num_splits):
+                        s = tuple(bottom + [top._replace(index=i)])
+                        self._finished[(task.step, s)] = mapper_tasks[i]
+                        self._is_cloned[mapper_tasks[i]] = False
 
             # Find and check status of control task and retrieve its pathspec
             # for retrieving unbounded foreach cardinality.
@@ -874,6 +1010,22 @@ class NativeRuntime(object):
             # Initialize the task (which can be expensive using remote datastores)
             # before launching the worker so that cost is amortized over time, instead
             # of doing it during _queue_push.
+            if (
+                FEAT_ALWAYS_UPLOAD_CODE_PACKAGE
+                and "METAFLOW_CODE_SHA" not in os.environ
+            ):
+                # We check if the code package is uploaded and, if so, we set the
+                # environment variables that will cause the metadata service to
+                # register the code package with the task created in _new_task below
+                code_sha = self._package.package_sha(timeout=0.01)
+                if code_sha:
+                    os.environ["METAFLOW_CODE_SHA"] = code_sha
+                    os.environ["METAFLOW_CODE_URL"] = self._package.package_url()
+                    os.environ["METAFLOW_CODE_DS"] = self._flow_datastore.TYPE
+                    os.environ["METAFLOW_CODE_METADATA"] = (
+                        self._package.package_metadata
+                    )
+
             task = self._new_task(step, **task_kwargs)
             self._launch_worker(task)
 
@@ -901,7 +1053,7 @@ class NativeRuntime(object):
             )
             return
 
-        worker = Worker(task, self._max_log_size)
+        worker = Worker(task, self._max_log_size, self._config_file_name)
         for fd in worker.fds():
             self._workers[fd] = worker
             self._poll.add(fd)
@@ -1080,7 +1232,7 @@ class Task(object):
                     # To avoid the edge case where the resume leader is selected but has not
                     # yet written the _resume_leader metadata, we will wait for a few seconds.
                     # We will wait for resume leader for at most 3 times.
-                    for resume_leader_wait_retry in range(3):
+                    for _ in range(3):
                         if ds.has_metadata("_resume_leader", add_attempt=False):
                             resume_leader = ds.load_metadata(
                                 ["_resume_leader"], add_attempt=False
@@ -1181,7 +1333,6 @@ class Task(object):
         # Open the output datastore only if the task is not being cloned.
         if not self._is_cloned:
             self.new_attempt()
-
             for deco in decos:
                 deco.runtime_task_created(
                     self._ds,
@@ -1426,6 +1577,7 @@ class CLIArgs(object):
     def __init__(self, task):
         self.task = task
         self.entrypoint = list(task.entrypoint)
+        step_obj = getattr(self.task.flow, self.task.step)
         self.top_level_options = {
             "quiet": True,
             "metadata": self.task.metadata_type,
@@ -1437,8 +1589,12 @@ class CLIArgs(object):
             "datastore-root": self.task.datastore_sysroot,
             "with": [
                 deco.make_decorator_spec()
-                for deco in self.task.decos
-                if not deco.statically_defined
+                for deco in chain(
+                    self.task.decos,
+                    step_obj.wrappers,
+                    step_obj.config_decorators,
+                )
+                if not deco.statically_defined and deco.inserted_by is None
             ],
         }
 
@@ -1447,6 +1603,15 @@ class CLIArgs(object):
         # the get_top_level_options() hook.
         for deco in flow_decorators(self.task.flow):
             self.top_level_options.update(deco.get_top_level_options())
+
+        # We also pass configuration options using the kv.<name> syntax which will cause
+        # the configuration options to be loaded from the CONFIG file (or local-config-file
+        # in the case of the local runtime)
+        configs = self.task.flow._flow_state.get(_FlowState.CONFIGS)
+        if configs:
+            self.top_level_options["config-value"] = [
+                (k, ConfigInput.make_key_name(k)) for k in configs
+            ]
 
         self.commands = ["step"]
         self.command_args = [self.task.step]
@@ -1481,12 +1646,15 @@ class CLIArgs(object):
                 for value in v:
                     yield "--%s" % k
                     if not isinstance(value, bool):
-                        yield to_unicode(value)
+                        value = value if isinstance(value, tuple) else (value,)
+                        for vv in value:
+                            yield to_unicode(vv)
 
         args = list(self.entrypoint)
         args.extend(_options(self.top_level_options))
         args.extend(self.commands)
         args.extend(self.command_args)
+
         args.extend(_options(self.command_options))
         return args
 
@@ -1498,8 +1666,9 @@ class CLIArgs(object):
 
 
 class Worker(object):
-    def __init__(self, task, max_logs_size):
+    def __init__(self, task, max_logs_size, config_file_name):
         self.task = task
+        self._config_file_name = config_file_name
         self._proc = self._launch()
 
         if task.retries > task.user_code_retries:
@@ -1551,6 +1720,12 @@ class Worker(object):
                     self.task.user_code_retries,
                     self.task.ubf_context,
                 )
+
+        # Add user configurations using a file to avoid using up too much space on the
+        # command line
+        if self._config_file_name:
+            args.top_level_options["local-config-file"] = self._config_file_name
+        # Pass configuration options
         env.update(args.get_env())
         env["PYTHONUNBUFFERED"] = "x"
         tracing.inject_tracing_vars(env)

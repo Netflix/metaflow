@@ -34,41 +34,41 @@ class TestPathSpecCard(MetaflowCard):
 class TestEditableCard(MetaflowCard):
     type = "test_editable_card"
 
-    seperator = "$&#!!@*"
+    separator = "$&#!!@*"
 
     ALLOW_USER_COMPONENTS = True
 
-    def __init__(self, options={}, components=[], graph=None):
+    def __init__(self, components=[], **kwargs):
         self._components = components
 
     def render(self, task):
-        return self.seperator.join([str(comp) for comp in self._components])
+        return self.separator.join([str(comp) for comp in self._components])
 
 
 class TestEditableCard2(MetaflowCard):
     type = "test_editable_card_2"
 
-    seperator = "$&#!!@*"
+    separator = "$&#!!@*"
 
     ALLOW_USER_COMPONENTS = True
 
-    def __init__(self, options={}, components=[], graph=None):
+    def __init__(self, components=[], **kwargs):
         self._components = components
 
     def render(self, task):
-        return self.seperator.join([str(comp) for comp in self._components])
+        return self.separator.join([str(comp) for comp in self._components])
 
 
 class TestNonEditableCard(MetaflowCard):
     type = "test_non_editable_card"
 
-    seperator = "$&#!!@*"
+    separator = "$&#!!@*"
 
-    def __init__(self, options={}, components=[], graph=None):
+    def __init__(self, components=[], **kwargs):
         self._components = components
 
     def render(self, task):
-        return self.seperator.join([str(comp) for comp in self._components])
+        return self.separator.join([str(comp) for comp in self._components])
 
 
 class TestMockCard(MetaflowCard):
@@ -193,7 +193,7 @@ class TestRefreshComponentCard(MetaflowCard):
 
     type = "test_component_refresh_card"
 
-    def __init__(self, options={}, components=[], graph=None):
+    def __init__(self, components=[], **kwargs):
         self._components = components
 
     def render(self, task) -> str:
@@ -213,3 +213,19 @@ class TestRefreshComponentCard(MetaflowCard):
         if task.finished:
             return "final"
         return "runtime-%s" % _component_values_to_hash(data["components"])
+
+
+class TestImageCard(MetaflowCard):
+    """Card that renders a tiny PNG using ``TaskToDict.parse_image``."""
+
+    type = "test_image_card"
+
+    def render(self, task):
+        from .convert_to_native_type import TaskToDict
+        import base64
+
+        png_bytes = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABRDE8UwAAAABJRU5ErkJggg=="
+        )
+        img_src = TaskToDict().parse_image(png_bytes)
+        return f"<html><img src='{img_src}' /></html>"

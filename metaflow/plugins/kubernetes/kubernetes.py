@@ -1,11 +1,8 @@
-import copy
 import json
 import math
 import os
-import re
 import shlex
 import time
-from typing import Dict, List, Optional
 from uuid import uuid4
 
 from metaflow import current, util
@@ -35,7 +32,6 @@ from metaflow.metaflow_config import (
     DEFAULT_SECRETS_BACKEND_TYPE,
     GCP_SECRET_MANAGER_PREFIX,
     KUBERNETES_FETCH_EC2_METADATA,
-    KUBERNETES_LABELS,
     KUBERNETES_SANDBOX_INIT_SCRIPT,
     OTEL_ENDPOINT,
     S3_ENDPOINT_URL,
@@ -94,6 +90,7 @@ class Kubernetes(object):
         step_name,
         task_id,
         attempt,
+        code_package_metadata,
         code_package_url,
         step_cmds,
     ):
@@ -108,7 +105,7 @@ class Kubernetes(object):
             stderr_path=STDERR_PATH,
         )
         init_cmds = self._environment.get_package_commands(
-            code_package_url, self._datastore.TYPE
+            code_package_url, self._datastore.TYPE, code_package_metadata
         )
         init_expr = " && ".join(init_cmds)
         step_expr = bash_capture_logs(
@@ -169,11 +166,13 @@ class Kubernetes(object):
         task_id,
         attempt,
         user,
+        code_package_metadata,
         code_package_sha,
         code_package_url,
         code_package_ds,
         docker_image,
         docker_image_pull_policy,
+        image_pull_secrets=None,
         step_cli=None,
         service_account=None,
         secrets=None,
@@ -193,9 +192,12 @@ class Kubernetes(object):
         persistent_volume_claims=None,
         tolerations=None,
         labels=None,
+        annotations=None,
         shared_memory=None,
         port=None,
         num_parallel=None,
+        qos=None,
+        security_context=None,
     ):
         name = "js-%s" % str(uuid4())[:6]
         jobset = (
@@ -207,6 +209,7 @@ class Kubernetes(object):
                 node_selector=node_selector,
                 image=docker_image,
                 image_pull_policy=docker_image_pull_policy,
+                image_pull_secrets=image_pull_secrets,
                 cpu=cpu,
                 memory=memory,
                 disk=disk,
@@ -228,7 +231,10 @@ class Kubernetes(object):
                 shared_memory=shared_memory,
                 port=port,
                 num_parallel=num_parallel,
+                qos=qos,
+                security_context=security_context,
             )
+            .environment_variable("METAFLOW_CODE_METADATA", code_package_metadata)
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
             .environment_variable("METAFLOW_CODE_DS", code_package_ds)
@@ -302,10 +308,6 @@ class Kubernetes(object):
             # see get_datastore_root_from_config in datastore/local.py).
         )
 
-        _labels = self._get_labels(labels)
-        for k, v in _labels.items():
-            jobset.label(k, v)
-
         for k in list(
             [] if not secrets else [secrets] if isinstance(secrets, str) else secrets
         ) + KUBERNETES_SECRETS.split(","):
@@ -377,13 +379,16 @@ class Kubernetes(object):
         for name, value in env.items():
             jobset.environment_variable(name, value)
 
-        annotations = {
+        system_annotations = {
             "metaflow/user": user,
             "metaflow/flow_name": flow_name,
             "metaflow/control-task-id": task_id,
+            "metaflow/run_id": run_id,
+            "metaflow/step_name": step_name,
+            "metaflow/attempt": attempt,
         }
         if current.get("project_name"):
-            annotations.update(
+            system_annotations.update(
                 {
                     "metaflow/project_name": current.project_name,
                     "metaflow/branch_name": current.branch_name,
@@ -391,16 +396,19 @@ class Kubernetes(object):
                 }
             )
 
-        for name, value in annotations.items():
-            jobset.annotation(name, value)
+        system_labels = {
+            "app.kubernetes.io/name": "metaflow-task",
+            "app.kubernetes.io/part-of": "metaflow",
+        }
 
-        (
-            jobset.annotation("metaflow/run_id", run_id)
-            .annotation("metaflow/step_name", step_name)
-            .annotation("metaflow/attempt", attempt)
-            .label("app.kubernetes.io/name", "metaflow-task")
-            .label("app.kubernetes.io/part-of", "metaflow")
+        jobset.labels({**({} if not labels else labels), **system_labels})
+
+        jobset.annotations(
+            {**({} if not annotations else annotations), **system_annotations}
         )
+        # We need this task-id set so that all the nodes are aware of the control
+        # task's task-id. These "MF_" variables populate the `current.parallel` namedtuple
+        jobset.environment_variable("MF_PARALLEL_CONTROL_TASK_ID", str(task_id))
 
         ## ----------- control/worker specific values START here -----------
         # We will now set the appropriate command for the control/worker job
@@ -410,6 +418,7 @@ class Kubernetes(object):
             step_name=step_name,
             task_id=_tskid,
             attempt=attempt,
+            code_package_metadata=code_package_metadata,
             code_package_url=code_package_url,
             step_cmds=[
                 step_cli.replace(
@@ -458,12 +467,14 @@ class Kubernetes(object):
         task_id,
         attempt,
         user,
+        code_package_metadata,
         code_package_sha,
         code_package_url,
         code_package_ds,
         step_cli,
         docker_image,
         docker_image_pull_policy,
+        image_pull_secrets=None,
         service_account=None,
         secrets=None,
         node_selector=None,
@@ -485,6 +496,9 @@ class Kubernetes(object):
         shared_memory=None,
         port=None,
         name_pattern=None,
+        qos=None,
+        annotations=None,
+        security_context=None,
     ):
         if env is None:
             env = {}
@@ -502,11 +516,13 @@ class Kubernetes(object):
                     step_name=step_name,
                     task_id=task_id,
                     attempt=attempt,
+                    code_package_metadata=code_package_metadata,
                     code_package_url=code_package_url,
                     step_cmds=[step_cli],
                 ),
                 image=docker_image,
                 image_pull_policy=docker_image_pull_policy,
+                image_pull_secrets=image_pull_secrets,
                 cpu=cpu,
                 memory=memory,
                 disk=disk,
@@ -517,7 +533,8 @@ class Kubernetes(object):
                 retries=0,
                 step_name=step_name,
                 tolerations=tolerations,
-                labels=self._get_labels(labels),
+                labels=labels,
+                annotations=annotations,
                 use_tmpfs=use_tmpfs,
                 tmpfs_tempdir=tmpfs_tempdir,
                 tmpfs_size=tmpfs_size,
@@ -525,7 +542,10 @@ class Kubernetes(object):
                 persistent_volume_claims=persistent_volume_claims,
                 shared_memory=shared_memory,
                 port=port,
+                qos=qos,
+                security_context=security_context,
             )
+            .environment_variable("METAFLOW_CODE_METADATA", code_package_metadata)
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
             .environment_variable("METAFLOW_CODE_DS", code_package_ds)
@@ -635,13 +655,25 @@ class Kubernetes(object):
 
         for name, value in env.items():
             job.environment_variable(name, value)
+        # Add job specific labels
+        system_labels = {
+            "app.kubernetes.io/name": "metaflow-task",
+            "app.kubernetes.io/part-of": "metaflow",
+        }
+        for name, value in system_labels.items():
+            job.label(name, value)
 
-        annotations = {
-            "metaflow/user": user,
+        # Add job specific annotations not set in the decorator.
+        system_annotations = {
             "metaflow/flow_name": flow_name,
+            "metaflow/run_id": run_id,
+            "metaflow/step_name": step_name,
+            "metaflow/task_id": task_id,
+            "metaflow/attempt": attempt,
+            "metaflow/user": user,
         }
         if current.get("project_name"):
-            annotations.update(
+            system_annotations.update(
                 {
                     "metaflow/project_name": current.project_name,
                     "metaflow/branch_name": current.branch_name,
@@ -649,17 +681,8 @@ class Kubernetes(object):
                 }
             )
 
-        for name, value in annotations.items():
+        for name, value in system_annotations.items():
             job.annotation(name, value)
-
-        (
-            job.annotation("metaflow/run_id", run_id)
-            .annotation("metaflow/step_name", step_name)
-            .annotation("metaflow/task_id", task_id)
-            .annotation("metaflow/attempt", attempt)
-            .label("app.kubernetes.io/name", "metaflow-task")
-            .label("app.kubernetes.io/part-of", "metaflow")
-        )
 
         return job
 
@@ -698,7 +721,7 @@ class Kubernetes(object):
                     t = time.time()
                 time.sleep(update_delay(time.time() - start_time))
 
-        _make_prefix = lambda: b"[%s] " % util.to_bytes(self._job.id)
+        prefix = lambda: b"[%s] " % util.to_bytes(self._job.id)
 
         stdout_tail = get_log_tailer(stdout_location, self._datastore.TYPE)
         stderr_tail = get_log_tailer(stderr_location, self._datastore.TYPE)
@@ -707,12 +730,23 @@ class Kubernetes(object):
         wait_for_launch(self._job)
 
         # 2) Tail logs until the job has finished
+        self._output_final_logs = False
+
+        def _has_updates():
+            if self._job.is_running:
+                return True
+            # Make sure to output final tail for a job that has finished.
+            if not self._output_final_logs:
+                self._output_final_logs = True
+                return True
+            return False
+
         tail_logs(
-            prefix=_make_prefix(),
+            prefix=prefix(),
             stdout_tail=stdout_tail,
             stderr_tail=stderr_tail,
             echo=echo,
-            has_log_updates=lambda: self._job.is_running,
+            has_log_updates=_has_updates,
         )
         # 3) Fetch remaining logs
         #
@@ -757,60 +791,3 @@ class Kubernetes(object):
             "stderr",
             job_id=self._job.id,
         )
-
-    @staticmethod
-    def _get_labels(extra_labels=None):
-        if extra_labels is None:
-            extra_labels = {}
-        env_labels = KUBERNETES_LABELS.split(",") if KUBERNETES_LABELS else []
-        env_labels = parse_kube_keyvalue_list(env_labels, False)
-        labels = {**env_labels, **extra_labels}
-        validate_kube_labels(labels)
-        return labels
-
-
-def validate_kube_labels(
-    labels: Optional[Dict[str, Optional[str]]],
-) -> bool:
-    """Validate label values.
-
-    This validates the kubernetes label values.  It does not validate the keys.
-    Ideally, keys should be static and also the validation rules for keys are
-    more complex than those for values.  For full validation rules, see:
-
-    https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
-    """
-
-    def validate_label(s: Optional[str]):
-        regex_match = r"^(([A-Za-z0-9][-A-Za-z0-9_.]{0,61})?[A-Za-z0-9])?$"
-        if not s:
-            # allow empty label
-            return True
-        if not re.search(regex_match, s):
-            raise KubernetesException(
-                'Invalid value: "%s"\n'
-                "A valid label must be an empty string or one that\n"
-                "  - Consist of alphanumeric, '-', '_' or '.' characters\n"
-                "  - Begins and ends with an alphanumeric character\n"
-                "  - Is at most 63 characters" % s
-            )
-        return True
-
-    return all([validate_label(v) for v in labels.values()]) if labels else True
-
-
-def parse_kube_keyvalue_list(items: List[str], requires_both: bool = True):
-    try:
-        ret = {}
-        for item_str in items:
-            item = item_str.split("=", 1)
-            if requires_both:
-                item[1]  # raise IndexError
-            if str(item[0]) in ret:
-                raise KubernetesException("Duplicate key found: %s" % str(item[0]))
-            ret[str(item[0])] = str(item[1]) if len(item) > 1 else None
-        return ret
-    except KubernetesException as e:
-        raise e
-    except (AttributeError, IndexError):
-        raise KubernetesException("Unable to parse kubernetes list: %s" % items)

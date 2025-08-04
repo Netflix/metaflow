@@ -17,9 +17,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04]
-        ver: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12']
+        os: [ubuntu-22.04]
+        ver: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
         include:
+          - os: macos-latest
+            ver: "3.13"
           - os: macos-latest
             ver: "3.12"
           - os: macos-latest
@@ -46,10 +48,20 @@ jobs:
     - name: Install metaflow-stubs
       run: metaflow develop stubs install --force
 
+    - name: Create version-specific mypy config
+      run: |
+          # Copy the existing setup.cfg
+          cp ./stubs/test/setup.cfg ./stubs/test/mypy_${{ matrix.ver }}.cfg
+          # Add Python version setting
+          echo "python_version = ${{ matrix.ver }}" >> ./stubs/test/mypy_${{ matrix.ver }}.cfg
+          if [[ "${{ matrix.ver }}" == "3.7" ]]; then
+            echo "follow_imports = skip" >> ./stubs/test/mypy_${{ matrix.ver }}.cfg
+          fi
+
     - name: Run mypy tests
       uses: nick-fields/retry@v2
       with:
         max_attempts: 2
         timeout_minutes: 3
         retry_on: error
-        command: cd ./stubs && pytest --mypy-ini-file test/setup.cfg --mypy-only-local-stub && cd -
+        command: cd ./stubs && pytest --mypy-ini-file test/mypy_${{ matrix.ver }}.cfg --mypy-only-local-stub && cd -

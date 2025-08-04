@@ -1,0 +1,651 @@
+# Tilt configuration for running Metaflow on a local Kubernetes stack
+#
+# Usage:
+#   Start the development environment:
+#     $ tilt up
+#   Stop and clean up:
+#     $ tilt down
+
+# TODO:
+# 1. move away from temporary images
+# 2. introduce kueue and jobsets
+# 3. lock versions
+
+version_settings(constraint='>=0.22.2')
+allow_k8s_contexts('minikube')
+
+components = {
+    "metadata-service": ["postgresql"],
+    "ui": ["postgresql", "minio"],
+    "minio": [],
+    "postgresql": [],
+    "argo-workflows": [],
+    "argo-events": ["argo-workflows"],
+}
+
+services_env = os.getenv("SERVICES", "").strip().lower()
+
+if services_env:
+    if services_env == "all":
+        requested_components = list(components.keys())
+    else:
+        requested_components = services_env.split(",")
+else:
+    requested_components = list(components.keys())
+
+metaflow_config = {}
+metaflow_config["METAFLOW_KUBERNETES_NAMESPACE"] = "default"
+
+aws_config = []
+
+def write_config_files():
+    metaflow_json = encode_json(metaflow_config)
+    cmd = '''cat > .devtools/config_local.json <<EOF
+%s
+EOF
+''' % (metaflow_json)
+    if aws_config and aws_config.strip():
+        cmd += '''cat > .devtools/aws_config <<EOF
+%s
+EOF
+''' % (aws_config.strip())
+    return cmd
+
+load('ext://helm_resource', 'helm_resource', 'helm_repo')
+load('ext://helm_remote', 'helm_remote')
+
+
+def resolve(component, resolved=None):
+    if resolved == None:
+        resolved = []
+    if component in resolved:
+        return resolved
+    if component in components:
+        for dep in components[component]:
+            resolve(dep, resolved)
+    resolved.append(component)
+    return resolved
+
+valid_components = []
+for component in components.keys():
+    if component not in valid_components:
+        valid_components.append(component)
+for deps in components.values():
+    for dep in deps:
+        if dep not in valid_components:
+            valid_components.append(dep)
+
+enabled_components = []
+for component in requested_components:
+    if component not in valid_components:
+        fail("Unknown component: " + component)
+    for result in resolve(component):
+        if result not in enabled_components:
+            enabled_components.append(result)
+
+# Print a friendly summary when running `tilt up`.
+if config.tilt_subcommand == 'up':
+    print("\n📦 Components to install:")
+    for component in enabled_components:
+        print("• " + component)
+        if component in components and components[component]:
+            print("  ↳ requires: " + ", ".join(components[component]))
+
+config_resources = []
+
+#################################################
+# MINIO
+#################################################
+if "minio" in enabled_components:
+    helm_remote(
+        'minio',
+        repo_name='minio-s3',
+        repo_url='https://charts.min.io/',
+        set=[
+            'rootUser=rootuser',
+            'rootPassword=rootpass123',
+            # TODO: perturb the bucket name to avoid conflicts
+            'buckets[0].name=metaflow-test',
+            'buckets[0].policy=none',
+            'buckets[0].purge=false',
+            'mode=standalone',
+            'replicas=1',
+            'persistence.enabled=false',
+            'resources.requests.memory=128Mi',
+            'resources.requests.cpu=50m',
+            'resources.limits.memory=256Mi',
+            'resources.limits.cpu=100m',
+        ]
+    )
+
+    k8s_resource(
+        'minio',
+        port_forwards=[
+            '9000:9000',
+            '9001:9001'
+        ],
+        links=[
+            link('http://localhost:9000', 'MinIO API'),
+            link('http://localhost:9001/login', 'MinIO Console (rootuser/rootpass123)')
+        ],
+        labels=['minio'],
+    )
+
+    k8s_resource(
+        "minio-post-job",
+        labels=['minio'],
+    )
+
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'v1',
+        'kind': 'Secret',
+        'metadata': {'name': 'minio-secret'},
+        'type': 'Opaque',
+        'stringData': {
+            'AWS_ACCESS_KEY_ID': 'rootuser',
+            'AWS_SECRET_ACCESS_KEY': 'rootpass123',
+            'AWS_ENDPOINT_URL_S3': 'http://minio.default.svc.cluster.local:9000',
+        }
+    }))
+
+    metaflow_config["METAFLOW_DEFAULT_DATASTORE"] = "s3"
+    metaflow_config["METAFLOW_DATASTORE_SYSROOT_S3"] = "s3://metaflow-test/metaflow"
+    metaflow_config["METAFLOW_KUBERNETES_SECRETS"] = "minio-secret"
+
+    aws_config = """[default]
+aws_access_key_id = rootuser
+aws_secret_access_key = rootpass123
+endpoint_url = http://localhost:9000
+"""
+    config_resources.append('minio')
+
+#################################################
+# POSTGRESQL
+#################################################
+if "postgresql" in enabled_components:
+    helm_remote(
+        'postgresql',
+        version='12.5.6',
+        repo_name='postgresql',
+        repo_url='https://charts.bitnami.com/bitnami',
+        set=[
+            'auth.username=metaflow',
+            'auth.password=metaflow123',
+            'auth.database=metaflow',
+            'primary.persistence.enabled=false',
+            'primary.resources.requests.memory=128Mi',
+            'primary.resources.requests.cpu=50m',
+            'primary.resources.limits.memory=256Mi',
+            'primary.resources.limits.cpu=100m',
+            'primary.terminationGracePeriodSeconds=1',
+            'primary.podSecurityContext.enabled=false',
+            'primary.containerSecurityContext.enabled=false',
+            'volumePermissions.enabled=false',
+            'shmVolume.enabled=false',
+            'primary.extraVolumes=null',
+            'primary.extraVolumeMounts=null'
+        ]
+    )
+
+    k8s_resource(
+        'postgresql',
+        port_forwards=['5432:5432'],
+        links=[
+            link('postgresql://metaflow:metaflow@localhost:5432/metaflow', 'PostgreSQL Connection')
+        ],
+        labels=['postgresql'],
+        resource_deps=components['postgresql'],
+    )
+
+    config_resources.append('postgresql')
+
+#################################################
+# ARGO WORKFLOWS
+#################################################
+if "argo-workflows" in enabled_components:
+    helm_remote(
+        'argo-workflows',
+        repo_name='argo',
+        repo_url='https://argoproj.github.io/argo-helm',
+        set=[
+            'server.extraArgs[0]=--auth-mode=server',
+            'workflow.serviceAccount.create=true',
+            'workflow.rbac.create=true',
+            'server.livenessProbe.initialDelaySeconds=1',
+            'server.readinessProbe.initialDelaySeconds=1',
+            'server.resources.requests.memory=128Mi',
+            'server.resources.requests.cpu=50m',
+            'server.resources.limits.memory=256Mi',
+            'server.resources.limits.cpu=100m',
+            'controller.resources.requests.memory=128Mi',
+            'controller.resources.requests.cpu=50m',
+            'controller.resources.limits.memory=256Mi',
+            'controller.resources.limits.cpu=100m'
+        ]
+    )
+
+    # This fixes issue described in: https://github.com/argoproj/argo-workflows/issues/10340
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'v1',
+        'kind': 'Secret',
+        'metadata': {
+            'name': 'default.service-account-token',
+            'annotations': {
+                'kubernetes.io/service-account.name': 'default'
+            }
+        },
+        'type': 'kubernetes.io/service-account-token'
+    }))
+
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'rbac.authorization.k8s.io/v1',
+        'kind': 'Role',
+        'metadata': {
+            'name': 'argo-workflowtaskresults-role',
+            'namespace': 'default'
+        },
+        'rules': [
+            {
+            'apiGroups': ['argoproj.io'],
+            'resources': ['workflowtaskresults'],
+            'verbs': ['create', 'patch', 'get', 'list']
+            },
+            {
+            'apiGroups': ['argoproj.io'],
+            'resources': ['workflowtasksets'],
+            'verbs': ['watch', 'list']
+            },
+            {
+            'apiGroups': ['argoproj.io'],
+            'resources': ['workflowtasksets/status'],
+            'verbs': ['patch']
+            },
+        ]
+    }))
+
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'rbac.authorization.k8s.io/v1',
+        'kind': 'RoleBinding',
+        'metadata': {
+            'name': 'default-argo-workflowtaskresults-binding',
+            'namespace': 'default'
+        },
+        'subjects': [{
+            'kind': 'ServiceAccount',
+            'name': 'default',
+            'namespace': 'default'
+        }],
+        'roleRef': {
+            'kind': 'Role',
+            'name': 'argo-workflowtaskresults-role',
+            'apiGroup': 'rbac.authorization.k8s.io'
+        }
+    }))
+
+    k8s_resource(
+        workload='argo-workflows-server',
+        port_forwards=['2746:2746'],
+        links=[
+            link('http://localhost:2746', 'Argo Workflows UI')
+        ],
+        labels=['argo-workflows'],
+        resource_deps=components['argo-workflows']
+    )
+
+    k8s_resource(
+        workload='argo-workflows-workflow-controller',
+        labels=['argo-workflows'],
+        resource_deps=components['argo-workflows']
+    )
+
+    config_resources.append('argo-workflows-workflow-controller')
+    config_resources.append('argo-workflows-server')
+
+#################################################
+# ARGO EVENTS
+#################################################
+if "argo-events" in enabled_components:
+    helm_remote(
+        'argo-events',
+        repo_name='argo',
+        repo_url='https://argoproj.github.io/argo-helm',
+        set=[
+            'crds.install=true',
+            'controller.metrics.enabled=true',
+            'controller.livenessProbe.initialDelaySeconds=1',
+            'controller.readinessProbe.initialDelaySeconds=1',
+            'controller.resources.requests.memory=64Mi',
+            'controller.resources.requests.cpu=25m',
+            'controller.resources.limits.memory=128Mi',
+            'controller.resources.limits.cpu=50m',
+            'configs.jetstream.streamConfig.maxAge=72h',
+            'configs.jetstream.streamConfig.replicas=1',
+            'controller.rbac.enabled=true',
+            'controller.rbac.namespaced=false',
+            'controller.serviceAccount.create=true',
+            'controller.serviceAccount.name=argo-events-events-controller-sa',
+            'configs.jetstream.versions[0].configReloaderImage=natsio/nats-server-config-reloader:latest',
+            'configs.jetstream.versions[0].metricsExporterImage=natsio/prometheus-nats-exporter:latest',
+            'configs.jetstream.versions[0].natsImage=nats:latest',
+            'configs.jetstream.versions[0].startCommand=/nats-server',
+            'configs.jetstream.versions[0].version=latest',
+            'configs.jetstream.versions[1].configReloaderImage=natsio/nats-server-config-reloader:latest',
+            'configs.jetstream.versions[1].metricsExporterImage=natsio/prometheus-nats-exporter:latest',
+            'configs.jetstream.versions[1].natsImage=nats:2.9.15',
+            'configs.jetstream.versions[1].startCommand=/nats-server',
+            'configs.jetstream.versions[1].version=2.9.15',
+        ]
+    )
+
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'v1',
+        'kind': 'ServiceAccount',
+        'metadata': {
+            'name': 'operate-workflow-sa',
+            'namespace': 'default'
+        }
+    }))
+
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'rbac.authorization.k8s.io/v1',
+        'kind': 'Role',
+        'metadata': {
+            'name': 'operate-workflow-role',
+            'namespace': 'default'
+        },
+        'rules': [{
+            'apiGroups': ['argoproj.io'],
+            'resources': [
+                'workflows',
+                'workflowtemplates',
+                'cronworkflows',
+                'clusterworkflowtemplates'
+            ],
+            'verbs': ['*']
+        }]
+    }))
+
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'rbac.authorization.k8s.io/v1',
+        'kind': 'RoleBinding',
+        'metadata': {
+            'name': 'operate-workflow-role-binding',
+            'namespace': 'default'
+        },
+        'roleRef': {
+            'apiGroup': 'rbac.authorization.k8s.io',
+            'kind': 'Role',
+            'name': 'operate-workflow-role'
+        },
+        'subjects': [{
+            'kind': 'ServiceAccount',
+            'name': 'operate-workflow-sa'
+        }]
+    }))
+
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'rbac.authorization.k8s.io/v1',
+        'kind': 'Role',
+        'metadata': {
+            'name': 'view-events-role',
+            'namespace': 'default'
+        },
+        'rules': [{
+            'apiGroups': ['argoproj.io'],
+            'resources': [
+                'eventsources',
+                'eventbuses',
+                'sensors'
+            ],
+            'verbs': [
+                'get',
+                'list',
+                'watch'
+            ]
+        }]
+    }))
+
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'rbac.authorization.k8s.io/v1',
+        'kind': 'RoleBinding',
+        'metadata': {
+            'name': 'view-events-role-binding',
+            'namespace': 'default'
+        },
+        'roleRef': {
+            'apiGroup': 'rbac.authorization.k8s.io',
+            'kind': 'Role',
+            'name': 'view-events-role'
+        },
+        'subjects': [{
+            'kind': 'ServiceAccount',
+            'name': 'argo-workflows',
+            'namespace': 'default'
+        }]
+    }))
+
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'argoproj.io/v1alpha1',
+        'kind': 'EventBus',
+        'metadata': {
+            'name': 'default',
+            'namespace': 'default'
+        },
+        'spec': {
+            'jetstream': {
+                'version': '2.9.15',
+                'replicas': 3,
+                'containerTemplate': {
+                    'resources': {
+                        'limits': {
+                            'cpu': '100m',
+                            'memory': '128Mi'
+                        },
+                        'requests': {
+                            'cpu': '100m',
+                            'memory': '128Mi'
+                        }
+                    }
+                }
+            }
+        }
+    }))
+
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'argoproj.io/v1alpha1',
+        'kind': 'EventSource',
+        'metadata': {
+            'name': 'argo-events-webhook',
+            'namespace': 'default'
+        },
+        'spec': {
+            'template': {
+                'container': {
+                    'resources': {
+                        'requests': {
+                            'cpu': '25m',
+                            'memory': '50Mi'
+                        },
+                        'limits': {
+                            'cpu': '25m',
+                            'memory': '50Mi'
+                        }
+                    }
+                }
+            },
+            'service': {
+                'ports': [
+                    {
+                        'port': 12000,
+                        'targetPort': 12000
+                    }
+                ]
+            },
+            'webhook': {
+                'metaflow-event': {
+                    'port': '12000',
+                    'endpoint': '/metaflow-event',
+                    'method': 'POST'
+                }
+            }
+        }
+    }))
+
+    # Create a custom service and port-forward it because tilt :/
+    k8s_yaml(encode_yaml(
+        {
+        'apiVersion': 'v1',
+        'kind': 'Service',
+        'metadata': {
+            'name': 'argo-events-webhook-eventsource-svc-tilt',
+            'namespace': 'default',
+        },
+        'spec': {
+            'ports': [{
+                'port': 12000,
+                'protocol': 'TCP',
+                'targetPort': 12000
+            }],
+            'selector': {
+                'controller': 'eventsource-controller',
+                'eventsource-name': 'argo-events-webhook',
+                'owner-name': 'argo-events-webhook'
+            },
+                'type': 'ClusterIP'
+            }
+        }
+    ))
+
+    local_resource(
+        name='argo-events-webhook-eventsource-svc',
+        serve_cmd='while ! kubectl get service/argo-events-webhook-eventsource-svc-tilt >/dev/null 2>&1 || ! kubectl get pods -l eventsource-name=argo-events-webhook -o jsonpath="{.items[*].status.phase}" | grep -q "Running"; do sleep 5; done && kubectl port-forward service/argo-events-webhook-eventsource-svc-tilt 12000:12000',
+        links=[
+            link('http://localhost:12000/metaflow-event', 'Argo Events Webhook'),
+        ],
+        labels=['argo-events']
+    )
+
+    k8s_resource(
+        'argo-events-controller-manager',
+        labels=['argo-events'],
+    )
+
+    metaflow_config["METAFLOW_ARGO_EVENTS_EVENT"] = "metaflow-event"
+    metaflow_config["METAFLOW_ARGO_EVENTS_EVENT_BUS"] = "default"
+    metaflow_config["METAFLOW_ARGO_EVENTS_EVENT_SOURCE"] = "argo-events-webhook"
+    metaflow_config["METAFLOW_ARGO_EVENTS_SERVICE_ACCOUNT"] = "operate-workflow-sa"
+    metaflow_config["METAFLOW_ARGO_EVENTS_WEBHOOK_AUTH"] = "service"
+    metaflow_config["METAFLOW_ARGO_EVENTS_INTERNAL_WEBHOOK_URL"] = "http://argo-events-webhook-eventsource-svc:12000/metaflow-event"
+    metaflow_config["METAFLOW_ARGO_EVENTS_WEBHOOK_URL"] = "http://localhost:12000/metaflow-event"
+
+    config_resources.append('argo-events-controller-manager')
+    config_resources.append('argo-events-webhook-eventsource-svc')
+
+#################################################
+# METADATA SERVICE
+#################################################
+if "metadata-service" in enabled_components:
+    helm_remote(
+        'metaflow-service',
+        repo_name='metaflow-tools',
+        repo_url='https://outerbounds.github.io/metaflow-tools',
+        set=[
+            'metadatadb.user=metaflow',
+            'metadatadb.password=metaflow123',
+            'metadatadb.database=metaflow',
+            'metadatadb.host=postgresql',
+            'image.repository=public.ecr.aws/outerbounds/metaflow_metadata_service',
+            'image.tag=2.4.13-2-g70af4ed',
+            'resources.requests.cpu=25m',
+            'resources.requests.memory=64Mi',
+            'resources.limits.cpu=50m',
+            'resources.limits.memory=128Mi'
+        ]
+    )
+
+    k8s_resource(
+        'metaflow-service',
+        port_forwards=['8080:8080'],
+        links=[link('http://localhost:8080/ping', 'Ping Metaflow Service')],
+        labels=['metadata-service'],
+        resource_deps=components['metadata-service']
+    )
+
+    metaflow_config["METAFLOW_DEFAULT_METADATA"] = "service"
+    metaflow_config["METAFLOW_SERVICE_URL"] = "http://localhost:8080"
+    metaflow_config["METAFLOW_SERVICE_INTERNAL_URL"] = "http://metaflow-service.default.svc.cluster.local:8080"
+
+    config_resources.append('metaflow-service')
+
+#################################################
+# METAFLOW UI
+#################################################
+if "ui" in enabled_components:
+    helm_remote(
+        'metaflow-ui',
+        repo_name='metaflow-tools',
+        repo_url='https://outerbounds.github.io/metaflow-tools',
+        set=[
+            'uiBackend.metadatadb.user=metaflow',
+            'uiBackend.metadatadb.password=metaflow123',
+            'uiBackend.metadatadb.name=metaflow',
+            'uiBackend.metadatadb.host=postgresql',
+            'uiBackend.metaflowDatastoreSysRootS3=s3://metaflow-test',
+            'uiBackend.metaflowS3EndpointURL=http://minio.default.svc.cluster.local:9000',
+            'uiBackend.image.name=public.ecr.aws/outerbounds/metaflow_metadata_service',
+            'uiBackend.image.tag=2.4.13-2-g70af4ed',
+            'uiBackend.env[0].name=AWS_ACCESS_KEY_ID',
+            'uiBackend.env[0].value=rootuser',
+            'uiBackend.env[1].name=AWS_SECRET_ACCESS_KEY',
+            'uiBackend.env[1].value=rootpass123',
+            # TODO: configure lower cache limits
+            'uiBackend.resources.requests.cpu=100m',
+            'uiBackend.resources.requests.memory=256Mi',
+            'uiStatic.metaflowUIBackendURL=http://localhost:8083/api',
+            'uiStatic.image.name=public.ecr.aws/outerbounds/metaflow_ui',
+            'uiStatic.image.tag=v1.3.13-5-g5dd049e',
+            'uiStatic.resources.requests.cpu=25m',
+            'uiStatic.resources.requests.memory=64Mi',
+            'uiStatic.resources.limits.cpu=50m',
+            'uiStatic.resources.limits.memory=128Mi',
+        ]
+    )
+
+    k8s_resource(
+        'metaflow-ui-static',
+        port_forwards=['3000:3000'],
+        links=[link('http://localhost:3000', 'Metaflow UI')],
+        labels=['metaflow-ui'],
+        resource_deps=components['ui']
+    )
+
+    k8s_resource(
+        'metaflow-ui',
+        port_forwards=['8083:8083'],
+        links=[link('http://localhost:3000', 'Metaflow UI')],
+        labels=['metaflow-ui'],
+        resource_deps=components['ui']
+    )
+
+    metaflow_config["METAFLOW_UI_URL"] = "http://localhost:3000"
+
+    config_resources.append('metaflow-ui')
+    config_resources.append('metaflow-ui-static')
+
+cmd = '''
+ARCH=$(kubectl get nodes -o jsonpath='{.items[0].status.nodeInfo.architecture}')
+case "$ARCH" in
+  arm64)   echo linux-aarch64 ;;
+  amd64)   echo linux-64 ;;
+  *)       echo linux-64 ;;
+esac
+'''
+
+# For @conda/@pypi emulation
+metaflow_config["METAFLOW_KUBERNETES_CONDA_ARCH"] = str(local(cmd)).strip()
+
+local_resource(
+    name="generate-configs",
+    cmd=write_config_files(),
+    resource_deps=config_resources,
+)

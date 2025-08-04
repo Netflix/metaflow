@@ -1,15 +1,17 @@
+import json
 import os
 import platform
 import sys
 
 from .util import get_username
 from . import metaflow_version
+from . import metaflow_git
 from metaflow.exception import MetaflowException
 from metaflow.extension_support import dump_module_info
-from metaflow.mflog import BASH_MFLOG
-from . import R
+from metaflow.mflog import BASH_MFLOG, BASH_FLUSH_LOGS
+from metaflow.package import MetaflowPackage
 
-version_cache = None
+from . import R
 
 
 class InvalidEnvironmentException(MetaflowException):
@@ -50,8 +52,36 @@ class MetaflowEnvironment(object):
 
     def add_to_package(self):
         """
-        A list of tuples (file, arcname) to add to the job package.
-        `arcname` is an alternative name for the file in the job package.
+        Called to add custom files needed for this environment. This hook will be
+        called in the `MetaflowPackage` class where metaflow compiles the code package
+        tarball. This hook can return one of two things (the first is for backwards
+        compatibility -- move to the second):
+          - a generator yielding a tuple of `(file_path, arcname)` to add files to
+            the code package. `file_path` is the path to the file on the local filesystem
+            and `arcname` is the path relative to the packaged code.
+          - a generator yielding a tuple of `(content, arcname, type)` where:
+            - type is one of
+            ContentType.{USER_CONTENT, CODE_CONTENT, MODULE_CONTENT, OTHER_CONTENT}
+            - for USER_CONTENT:
+              - the file will be included relative to the directory containing the
+                user's flow file.
+              - content: path to the file to include
+              - arcname: path relative to the directory containing the user's flow file
+            - for CODE_CONTENT:
+              - the file will be included relative to the code directory in the package.
+                This will be the directory containing `metaflow`.
+              - content: path to the file to include
+              - arcname: path relative to the code directory in the package
+            - for MODULE_CONTENT:
+              - the module will be added to the code package as a python module. It will
+                be accessible as usual (import <module_name>)
+              - content: name of the module
+              - arcname: None (ignored)
+            - for OTHER_CONTENT:
+              - the file will be included relative to any other configuration/metadata
+                files for the flow
+              - content: path to the file to include
+              - arcname: path relative to the config directory in the package
         """
         return []
 
@@ -98,7 +128,7 @@ class MetaflowEnvironment(object):
             # Boto3 does not play well with passing None or an empty string to endpoint_url
             return "{python} -c '{script}'".format(
                 python=self._python(),
-                script='import boto3, os; ep=os.getenv(\\"METAFLOW_S3_ENDPOINT_URL\\"); boto3.client(\\"s3\\", **({endpoint_url:ep} if ep else {})).download_file(\\"%s\\", \\"%s\\", \\"job.tar\\")'
+                script='import boto3, os; ep=os.getenv(\\"METAFLOW_S3_ENDPOINT_URL\\"); boto3.client(\\"s3\\", **({\\"endpoint_url\\":ep} if ep else {})).download_file(\\"%s\\", \\"%s\\", \\"job.tar\\")'
                 % (bucket, s3_object),
             )
         elif datastore_type == "azure":
@@ -127,7 +157,9 @@ class MetaflowEnvironment(object):
             )
 
     def _get_install_dependencies_cmd(self, datastore_type):
-        base_cmd = "{} -m pip install -qqq".format(self._python())
+        base_cmd = "{} -m pip install -qqq --no-compile --no-cache-dir --disable-pip-version-check".format(
+            self._python()
+        )
 
         datastore_packages = {
             "s3": ["boto3"],
@@ -156,34 +188,66 @@ class MetaflowEnvironment(object):
         # skip pip installs if we know that packages might already be available
         return "if [ -z $METAFLOW_SKIP_INSTALL_DEPENDENCIES ]; then {}; fi".format(cmd)
 
-    def get_package_commands(self, code_package_url, datastore_type):
-        cmds = [
-            BASH_MFLOG,
-            "mflog 'Setting up task environment.'",
-            self._get_install_dependencies_cmd(datastore_type),
-            "mkdir metaflow",
-            "cd metaflow",
-            "mkdir .metaflow",  # mute local datastore creation log
-            "i=0; while [ $i -le 5 ]; do "
-            "mflog 'Downloading code package...'; "
-            + self._get_download_code_package_cmd(code_package_url, datastore_type)
-            + " && mflog 'Code package downloaded.' && break; "
-            "sleep 10; i=$((i+1)); "
-            "done",
-            "if [ $i -gt 5 ]; then "
-            "mflog 'Failed to download code package from %s "
-            "after 6 tries. Exiting...' && exit 1; "
-            "fi" % code_package_url,
-            "TAR_OPTIONS='--warning=no-timestamp' tar xf job.tar",
-            "mflog 'Task is starting.'",
-        ]
+    def get_package_commands(
+        self, code_package_url, datastore_type, code_package_metadata=None
+    ):
+        # HACK: We want to keep forward compatibility with compute layers so that
+        # they can still call get_package_commands and NOT pass any metadata. If
+        # there is no additional information, we *assume* that it is the default
+        # used.
+        if code_package_metadata is None:
+            code_package_metadata = json.dumps(
+                {
+                    "version": 0,
+                    "archive_format": "tgz",
+                    "mfcontent_version": 1,
+                }
+            )
+
+        extra_exports = []
+        for k, v in MetaflowPackage.get_post_extract_env_vars(
+            code_package_metadata, dest_dir="$(pwd)"
+        ).items():
+            if k.endswith(":"):
+                # If the value ends with a colon, we override the existing value
+                extra_exports.append("export %s=%s" % (k[:-1], v))
+            else:
+                extra_exports.append(
+                    "export %s=%s:$(printenv %s)" % (k, v.replace('"', '\\"'), k)
+                )
+
+        cmds = (
+            [
+                BASH_MFLOG,
+                BASH_FLUSH_LOGS,
+                "mflog 'Setting up task environment.'",
+                self._get_install_dependencies_cmd(datastore_type),
+                "mkdir metaflow",
+                "cd metaflow",
+                "mkdir .metaflow",  # mute local datastore creation log
+                "i=0; while [ $i -le 5 ]; do "
+                "mflog 'Downloading code package...'; "
+                + self._get_download_code_package_cmd(code_package_url, datastore_type)
+                + " && mflog 'Code package downloaded.' && break; "
+                "sleep 10; i=$((i+1)); "
+                "done",
+                "if [ $i -gt 5 ]; then "
+                "mflog 'Failed to download code package from %s "
+                "after 6 tries. Exiting...' && exit 1; "
+                "fi" % code_package_url,
+            ]
+            + MetaflowPackage.get_extract_commands(
+                code_package_metadata, "job.tar", dest_dir="."
+            )
+            + extra_exports
+            + [
+                "mflog 'Task is starting.'",
+                "flush_mflogs",
+            ]
+        )
         return cmds
 
     def get_environment_info(self, include_ext_info=False):
-        global version_cache
-        if version_cache is None:
-            version_cache = metaflow_version.get_version()
-
         # note that this dict goes into the code package
         # so variables here should be relatively stable (no
         # timestamps) so the hash won't change all the time
@@ -197,8 +261,12 @@ class MetaflowEnvironment(object):
             "use_r": R.use_r(),
             "python_version": sys.version,
             "python_version_code": "%d.%d.%d" % sys.version_info[:3],
-            "metaflow_version": version_cache,
+            "metaflow_version": metaflow_version.get_version(),
             "script": os.path.basename(os.path.abspath(sys.argv[0])),
+            # Add git info
+            **metaflow_git.get_repository_info(
+                path=os.path.dirname(os.path.abspath(sys.argv[0]))
+            ),
         }
         if R.use_r():
             env["metaflow_r_version"] = R.metaflow_r_version()
@@ -208,7 +276,7 @@ class MetaflowEnvironment(object):
             # Information about extension modules (to load them in the proper order)
             ext_key, ext_val = dump_module_info()
             env[ext_key] = ext_val
-        return env
+        return {k: v for k, v in env.items() if v is not None and v != ""}
 
     def executable(self, step_name, default=None):
         if default is not None:

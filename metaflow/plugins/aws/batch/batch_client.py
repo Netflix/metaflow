@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
-from collections import defaultdict, deque
+from collections import defaultdict
 import copy
 import random
-import select
-import sys
 import time
 import hashlib
 
@@ -89,6 +87,9 @@ class BatchJob(object):
         # Multinode
         if getattr(self, "num_parallel", 0) >= 1:
             num_nodes = self.num_parallel
+            # We need this task-id set so that all the nodes are aware of the control
+            # task's task-id. These "MF_" variables populate the `current.parallel` namedtuple
+            self.environment_variable("MF_PARALLEL_CONTROL_TASK_ID", self._task_id)
             main_task_override = copy.deepcopy(self.payload["containerOverrides"])
 
             # main

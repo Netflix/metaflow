@@ -6,13 +6,14 @@ import os
 import time
 import traceback
 
+
 from types import MethodType, FunctionType
 
 from metaflow.sidecar import Message, MessageTypes
 from metaflow.datastore.exceptions import DataException
 
 from .metaflow_config import MAX_ATTEMPTS
-from .metadata import MetaDatum
+from .metadata_provider import MetaDatum
 from .mflog import TASK_LOG_SOURCE
 from .datastore import Inputs, TaskDataStoreSet
 from .exception import (
@@ -24,6 +25,7 @@ from .unbounded_foreach import UBF_CONTROL
 from .util import all_equal, get_username, resolve_identity, unicode_type
 from .clone_util import clone_task_helper
 from .metaflow_current import current
+from metaflow.user_configs.config_parameters import ConfigValue
 from metaflow.system import _system_logger, _system_monitor
 from metaflow.tracing import get_trace_id
 from metaflow.tuple_util import ForeachFrame
@@ -57,11 +59,90 @@ class MetaflowTask(object):
         self.monitor = monitor
         self.ubf_context = ubf_context
 
-    def _exec_step_function(self, step_function, input_obj=None):
-        if input_obj is None:
-            step_function()
-        else:
-            step_function(input_obj)
+    def _exec_step_function(self, step_function, orig_step_func, input_obj=None):
+        wrappers_stack = []
+        wrapped_func = None
+        do_next = False
+        raised_exception = None
+        # If we have wrappers w1, w2 and w3, we need to execute
+        #  - w3_pre
+        #  - w2_pre
+        #  - w1_pre
+        #  - step_function
+        #  - w1_post
+        #  - w2_post
+        #  - w3_post
+        # in that order. We do this by maintaining a stack of generators.
+        # Note that if any of the pre functions returns a function, we execute that
+        # instead of the rest of the inside part. This is useful if you want to create
+        # no-op function for example.
+        for w in reversed(orig_step_func.wrappers):
+            wrapped_func = w.pre_step(orig_step_func.name, self.flow, input_obj)
+            wrappers_stack.append(w)
+            if w.skip_step:
+                # We have nothing to run
+                do_next = w.skip_step
+                break
+            if wrapped_func:
+                break  # We have nothing left to do since we now execute the
+                # wrapped function
+            # Else, we continue down the list of wrappers
+        try:
+            if not do_next:
+                if input_obj is None:
+                    if wrapped_func:
+                        do_next = wrapped_func(self.flow)
+                        if not do_next:
+                            do_next = True
+                    else:
+                        step_function()
+                else:
+                    if wrapped_func:
+                        do_next = wrapped_func(self.flow, input_obj)
+                        if not do_next:
+                            do_next = True
+                    else:
+                        step_function(input_obj)
+        except Exception as ex:
+            raised_exception = ex
+
+        if do_next or raised_exception:
+            # If we are skipping the step, or executed a wrapped function,
+            # we need to set the transition variables
+            # properly. We call the next function as needed
+            # We also do this in case we want to gobble the exception.
+            graph_node = self.flow._graph[orig_step_func.name]
+            out_funcs = [getattr(self.flow, f) for f in graph_node.out_funcs]
+            if out_funcs:
+                if isinstance(do_next, bool) or raised_exception:
+                    # We need to extract things from the self.next. This is not possible
+                    # in the case where there was a num_parallel.
+                    if graph_node.parallel_foreach:
+                        raise RuntimeError(
+                            "Skipping a parallel foreach step without providing "
+                            "the arguments to the self.next call is not supported. "
+                        )
+                    if graph_node.foreach_param:
+                        self.flow.next(*out_funcs, foreach=graph_node.foreach_param)
+                    else:
+                        self.flow.next(*out_funcs)
+                elif isinstance(do_next, dict):
+                    # Here it is a dictionary so we just call the next method with
+                    # those arguments
+                    self.flow.next(*out_funcs, **do_next)
+                else:
+                    raise RuntimeError(
+                        "Invalid value passed to self.next; expected "
+                        " bool of a dictionary; got: %s" % do_next
+                    )
+        # We back out of the stack of generators
+        for w in reversed(wrappers_stack):
+            raised_exception = w.post_step(
+                orig_step_func.name, self.flow, raised_exception
+            )
+        if raised_exception:
+            # We have an exception that we need to propagate
+            raise raised_exception
 
     def _init_parameters(self, parameter_ds, passdown=True):
         cls = self.flow.__class__
@@ -180,6 +261,10 @@ class MetaflowTask(object):
         # 2) join - pop the topmost frame from the stack
         # 3) step following a split - push a new frame in the stack
 
+        # We have a non-modifying case (case 4)) where we propagate the
+        # foreach-stack information to all tasks in the foreach. This is
+        # then used later to write the foreach-stack metadata for that task
+
         # case 1) - reset the stack
         if step_name == "start":
             self.flow._foreach_stack = []
@@ -264,6 +349,9 @@ class MetaflowTask(object):
             stack = inputs[0]["_foreach_stack"]
             stack.append(frame)
             self.flow._foreach_stack = stack
+        # case 4) - propagate in the foreach nest
+        elif "_foreach_stack" in inputs[0]:
+            self.flow._foreach_stack = inputs[0]["_foreach_stack"]
 
     def _clone_flow(self, datastore):
         x = self.flow.__class__(use_cli=False)
@@ -299,8 +387,6 @@ class MetaflowTask(object):
             "origin_run_id": origin_run_id,
             "origin_task_id": origin_task_id,
         }
-        _system_logger.update_context(task_payload)
-        _system_monitor.update_context(task_payload)
 
         msg = "Cloning task from {}/{}/{}/{} to {}/{}/{}/{}".format(
             self.flow.name,
@@ -488,6 +574,25 @@ class MetaflowTask(object):
                     )
                 )
 
+            # Add runtime dag information to the metadata of the task
+            foreach_execution_path = ",".join(
+                [
+                    "{}:{}".format(foreach_frame.step, foreach_frame.index)
+                    for foreach_frame in foreach_stack
+                ]
+            )
+            if foreach_execution_path:
+                metadata.extend(
+                    [
+                        MetaDatum(
+                            field="foreach-execution-path",
+                            value=foreach_execution_path,
+                            type="foreach-execution-path",
+                            tags=metadata_tags,
+                        ),
+                    ]
+                )
+
         self.metadata.register_metadata(
             run_id,
             step_name,
@@ -505,8 +610,7 @@ class MetaflowTask(object):
             origin_run_id=origin_run_id,
             namespace=resolve_identity(),
             username=get_username(),
-            metadata_str="%s@%s"
-            % (self.metadata.__class__.TYPE, self.metadata.__class__.INFO),
+            metadata_str=self.metadata.metadata_str(),
             is_running=True,
             tags=self.metadata.sticky_tags,
         )
@@ -515,6 +619,9 @@ class MetaflowTask(object):
         output.save_metadata(
             {
                 "task_begin": {
+                    "code_package_metadata": os.environ.get(
+                        "METAFLOW_CODE_METADATA", ""
+                    ),
                     "code_package_sha": os.environ.get("METAFLOW_CODE_SHA"),
                     "code_package_ds": os.environ.get("METAFLOW_CODE_DS"),
                     "code_package_url": os.environ.get("METAFLOW_CODE_URL"),
@@ -539,9 +646,6 @@ class MetaflowTask(object):
             "project_flow_name": current.get("project_flow_name"),
             "trace_id": trace_id or None,
         }
-
-        _system_logger.update_context(task_payload)
-        _system_monitor.update_context(task_payload)
         start = time.time()
         self.metadata.start_task_heartbeat(self.flow.name, run_id, step_name, task_id)
         with self.monitor.measure("metaflow.task.duration"):
@@ -558,6 +662,7 @@ class MetaflowTask(object):
                 self.flow._success = False
                 self.flow._task_ok = None
                 self.flow._exception = None
+
                 # Note: All internal flow attributes (ie: non-user artifacts)
                 # should either be set prior to running the user code or listed in
                 # FlowSpec._EPHEMERAL to allow for proper merging/importing of
@@ -586,7 +691,8 @@ class MetaflowTask(object):
                         {
                             "parameter_names": self._init_parameters(
                                 inputs[0], passdown=True
-                            )
+                            ),
+                            "graph_info": self.flow._graph_info,
                         }
                     )
                 else:
@@ -610,10 +716,10 @@ class MetaflowTask(object):
                             {
                                 "parameter_names": self._init_parameters(
                                     inputs[0], passdown=False
-                                )
+                                ),
+                                "graph_info": self.flow._graph_info,
                             }
                         )
-
                 for deco in decorators:
                     deco.task_pre_step(
                         step_name,
@@ -629,6 +735,7 @@ class MetaflowTask(object):
                         inputs,
                     )
 
+                orig_step_func = step_func
                 for deco in decorators:
                     # decorators can actually decorate the step function,
                     # or they can replace it altogether. This functionality
@@ -645,9 +752,9 @@ class MetaflowTask(object):
                     )
 
                 if join_type:
-                    self._exec_step_function(step_func, input_obj)
+                    self._exec_step_function(step_func, orig_step_func, input_obj)
                 else:
-                    self._exec_step_function(step_func)
+                    self._exec_step_function(step_func, orig_step_func)
 
                 for deco in decorators:
                     deco.task_post_step(
@@ -702,24 +809,34 @@ class MetaflowTask(object):
                         name="end",
                         payload={**task_payload, "msg": "Task ended"},
                     )
-
-                attempt_ok = str(bool(self.flow._task_ok))
-                self.metadata.register_metadata(
-                    run_id,
-                    step_name,
-                    task_id,
-                    [
-                        MetaDatum(
-                            field="attempt_ok",
-                            value=attempt_ok,
-                            type="internal_attempt_status",
-                            tags=["attempt_id:{0}".format(retry_count)],
-                        )
-                    ],
-                )
+                try:
+                    # persisting might fail due to unpicklable artifacts.
+                    output.persist(self.flow)
+                except Exception as ex:
+                    self.flow._task_ok = False
+                    raise ex
+                finally:
+                    # The attempt_ok metadata is used to determine task status so it is important
+                    # we ensure that it is written even in case of preceding failures.
+                    # f.ex. failing to serialize artifacts leads to a non-zero exit code for the process,
+                    # even if user code finishes successfully. Flow execution will not continue due to the exit,
+                    # so arguably we should mark the task as failed.
+                    attempt_ok = str(bool(self.flow._task_ok))
+                    self.metadata.register_metadata(
+                        run_id,
+                        step_name,
+                        task_id,
+                        [
+                            MetaDatum(
+                                field="attempt_ok",
+                                value=attempt_ok,
+                                type="internal_attempt_status",
+                                tags=["attempt_id:{0}".format(retry_count)],
+                            ),
+                        ],
+                    )
 
                 output.save_metadata({"task_end": {}})
-                output.persist(self.flow)
 
                 # this writes a success marker indicating that the
                 # "transaction" is done

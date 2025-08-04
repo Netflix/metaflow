@@ -16,19 +16,17 @@ from ._functions import TypeCheckFailCallback
 from ._transformer import TypeguardTransformer
 from ._utils import Unset, function_name, get_stacklevel, is_method_of, unset
 
+T_CallableOrType = TypeVar("T_CallableOrType", bound=Callable[..., Any])
+
 if TYPE_CHECKING:
     from typeshed.stdlib.types import _Cell
 
-    _F = TypeVar("_F")
-
-    def typeguard_ignore(f: _F) -> _F:
+    def typeguard_ignore(f: T_CallableOrType) -> T_CallableOrType:
         """This decorator is a noop during static type-checking."""
         return f
 
 else:
     from typing import no_type_check as typeguard_ignore  # noqa: F401
-
-T_CallableOrType = TypeVar("T_CallableOrType", bound=Callable[..., Any])
 
 
 def make_cell(value: object) -> _Cell:
@@ -133,13 +131,11 @@ def typechecked(
     typecheck_fail_callback: TypeCheckFailCallback | Unset = unset,
     collection_check_strategy: CollectionCheckStrategy | Unset = unset,
     debug_instrumentation: bool | Unset = unset,
-) -> Callable[[T_CallableOrType], T_CallableOrType]:
-    ...
+) -> Callable[[T_CallableOrType], T_CallableOrType]: ...
 
 
 @overload
-def typechecked(target: T_CallableOrType) -> T_CallableOrType:
-    ...
+def typechecked(target: T_CallableOrType) -> T_CallableOrType: ...
 
 
 def typechecked(
@@ -215,9 +211,9 @@ def typechecked(
         return target
 
     # Find either the first Python wrapper or the actual function
-    wrapper_class: type[classmethod[Any, Any, Any]] | type[
-        staticmethod[Any, Any]
-    ] | None = None
+    wrapper_class: (
+        type[classmethod[Any, Any, Any]] | type[staticmethod[Any, Any]] | None
+    ) = None
     if isinstance(target, (classmethod, staticmethod)):
         wrapper_class = target.__class__
         target = target.__func__

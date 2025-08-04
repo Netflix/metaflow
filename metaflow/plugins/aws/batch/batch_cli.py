@@ -7,7 +7,7 @@ import traceback
 from metaflow import util
 from metaflow import R
 from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
-from metaflow.metadata.util import sync_local_metadata_from_datastore
+from metaflow.metadata_provider.util import sync_local_metadata_from_datastore
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.mflog import TASK_LOG_SOURCE
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
@@ -100,6 +100,7 @@ def kill(ctx, run_id, user, my_runs):
     "Metaflow."
 )
 @click.argument("step-name")
+@click.argument("code-package-metadata")
 @click.argument("code-package-sha")
 @click.argument("code-package-url")
 @click.option("--executable", help="Executable requirement for AWS Batch.")
@@ -185,6 +186,7 @@ def kill(ctx, run_id, user, my_runs):
 def step(
     ctx,
     step_name,
+    code_package_metadata,
     code_package_sha,
     code_package_url,
     executable=None,
@@ -211,7 +213,7 @@ def step(
     log_driver=None,
     log_options=None,
     num_parallel=None,
-    **kwargs
+    **kwargs,
 ):
     def echo(msg, stream="stderr", batch_id=None, **kwargs):
         msg = util.to_unicode(msg)
@@ -273,11 +275,11 @@ def step(
         "metaflow_version"
     ]
 
+    env = {"METAFLOW_FLOW_FILENAME": os.path.basename(sys.argv[0])}
+
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
-        env = env_deco[0].attributes["vars"]
-    else:
-        env = {}
+        env.update(env_deco[0].attributes["vars"])
 
     # Add the environment variables related to the input-paths argument
     if split_vars:
@@ -317,6 +319,7 @@ def step(
                 step_name,
                 step_cli,
                 task_spec,
+                code_package_metadata,
                 code_package_sha,
                 code_package_url,
                 ctx.obj.flow_datastore.TYPE,

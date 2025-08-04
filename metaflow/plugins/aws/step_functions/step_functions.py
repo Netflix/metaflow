@@ -18,6 +18,7 @@ from metaflow.metaflow_config import (
     SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH,
 )
 from metaflow.parameters import deploy_time_eval
+from metaflow.user_configs.config_options import ConfigInput
 from metaflow.util import dict_to_cli_options, to_pascalcase
 
 from ..batch.batch import Batch
@@ -39,6 +40,7 @@ class StepFunctions(object):
         name,
         graph,
         flow,
+        code_package_metadata,
         code_package_sha,
         code_package_url,
         production_token,
@@ -58,6 +60,7 @@ class StepFunctions(object):
         self.name = name
         self.graph = graph
         self.flow = flow
+        self.code_package_metadata = code_package_metadata
         self.code_package_sha = code_package_sha
         self.code_package_url = code_package_url
         self.production_token = production_token
@@ -71,6 +74,7 @@ class StepFunctions(object):
         self.username = username
         self.max_workers = max_workers
         self.workflow_timeout = workflow_timeout
+        self.config_parameters = self._process_config_parameters()
 
         # https://aws.amazon.com/blogs/aws/step-functions-distributed-map-a-serverless-solution-for-large-scale-parallel-data-processing/
         self.use_distributed_map = use_distributed_map
@@ -234,7 +238,7 @@ class StepFunctions(object):
                 return parameters.get("metaflow.owner"), parameters.get(
                     "metaflow.production_token"
                 )
-            except KeyError as e:
+            except KeyError:
                 raise StepFunctionsException(
                     "An existing non-metaflow "
                     "workflow with the same name as "
@@ -297,6 +301,12 @@ class StepFunctions(object):
             raise StepFunctionsException(
                 "Deploying flows with @trigger or @trigger_on_finish decorator(s) "
                 "to AWS Step Functions is not supported currently."
+            )
+
+        if self.flow._flow_decorators.get("exit_hook"):
+            raise StepFunctionsException(
+                "Deploying flows with the @exit_hook decorator "
+                "to AWS Step Functions is not currently supported."
             )
 
         # Visit every node of the flow and recursively build the state machine.
@@ -485,6 +495,10 @@ class StepFunctions(object):
                     "case-insensitive." % param.name
                 )
             seen.add(norm)
+            # NOTE: We skip config parameters as these do not have dynamic values,
+            # and need to be treated differently.
+            if param.IS_CONFIG_PARAMETER:
+                continue
 
             is_required = param.kwargs.get("required", False)
             # Throw an exception if a schedule is set for a flow with required
@@ -499,6 +513,27 @@ class StepFunctions(object):
                 )
             value = deploy_time_eval(param.kwargs.get("default"))
             parameters.append(dict(name=param.name, value=value))
+        return parameters
+
+    def _process_config_parameters(self):
+        parameters = []
+        seen = set()
+        for var, param in self.flow._get_parameters():
+            if not param.IS_CONFIG_PARAMETER:
+                continue
+            # Throw an exception if the parameter is specified twice.
+            norm = param.name.lower()
+            if norm in seen:
+                raise MetaflowException(
+                    "Parameter *%s* is specified twice. "
+                    "Note that parameter names are "
+                    "case-insensitive." % param.name
+                )
+            seen.add(norm)
+
+            parameters.append(
+                dict(name=param.name, kv_name=ConfigInput.make_key_name(param.name))
+            )
         return parameters
 
     def _batch(self, node):
@@ -747,6 +782,11 @@ class StepFunctions(object):
         metaflow_version["production_token"] = self.production_token
         env["METAFLOW_VERSION"] = json.dumps(metaflow_version)
 
+        # map config values
+        cfg_env = {param["name"]: param["kv_name"] for param in self.config_parameters}
+        if cfg_env:
+            env["METAFLOW_FLOW_CONFIG_VALUE"] = json.dumps(cfg_env)
+
         # Set AWS DynamoDb Table Name for state tracking for for-eaches.
         # There are three instances when metaflow runtime directly interacts
         # with AWS DynamoDB.
@@ -815,6 +855,7 @@ class StepFunctions(object):
                     node, input_paths, self.code_package_url, user_code_retries
                 ),
                 task_spec=task_spec,
+                code_package_metadata=self.code_package_metadata,
                 code_package_sha=self.code_package_sha,
                 code_package_url=self.code_package_url,
                 code_package_ds=self.flow_datastore.TYPE,
@@ -875,7 +916,7 @@ class StepFunctions(object):
             "with": [
                 decorator.make_decorator_spec()
                 for decorator in node.decorators
-                if not decorator.statically_defined
+                if not decorator.statically_defined and decorator.inserted_by is None
             ]
         }
         # FlowDecorators can define their own top-level options. They are

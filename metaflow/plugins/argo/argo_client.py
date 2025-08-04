@@ -1,6 +1,4 @@
 import json
-import os
-import sys
 
 from metaflow.metaflow_config import ARGO_EVENTS_SENSOR_NAMESPACE
 from metaflow.exception import MetaflowException
@@ -9,6 +7,14 @@ from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
 
 class ArgoClientException(MetaflowException):
     headline = "Argo Client error"
+
+
+class ArgoResourceNotFound(MetaflowException):
+    headline = "Resource not found"
+
+
+class ArgoNotPermitted(MetaflowException):
+    headline = "Operation not permitted"
 
 
 class ArgoClient(object):
@@ -53,21 +59,38 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def get_workflow_templates(self):
+    def get_workflow_templates(self, page_size=100):
         client = self._client.get()
-        try:
-            return client.CustomObjectsApi().list_namespaced_custom_object(
-                group=self._group,
-                version=self._version,
-                namespace=self._namespace,
-                plural="workflowtemplates",
-            )["items"]
-        except client.rest.ApiException as e:
-            if e.status == 404:
-                return None
-            raise ArgoClientException(
-                json.loads(e.body)["message"] if e.body is not None else e.reason
-            )
+        continue_token = None
+
+        while True:
+            try:
+                params = {"limit": page_size}
+                if continue_token:
+                    params["_continue"] = continue_token
+
+                response = client.CustomObjectsApi().list_namespaced_custom_object(
+                    group=self._group,
+                    version=self._version,
+                    namespace=self._namespace,
+                    plural="workflowtemplates",
+                    **params,
+                )
+
+                for item in response.get("items", []):
+                    yield item
+
+                metadata = response.get("metadata", {})
+                continue_token = metadata.get("continue")
+
+                if not continue_token:
+                    break
+            except client.rest.ApiException as e:
+                if e.status == 404:
+                    return None
+                raise ArgoClientException(
+                    json.loads(e.body)["message"] if e.body is not None else e.reason
+                )
 
     def register_workflow_template(self, name, workflow_template):
         # Unfortunately, Kubernetes client does not handle optimistic
@@ -141,9 +164,7 @@ class ArgoClient(object):
             if e.status == 404:
                 return None
             else:
-                raise ArgoClientException(
-                    json.loads(e.body)["message"] if e.body is not None else e.reason
-                )
+                raise wrap_api_error(e)
 
     def delete_workflow_template(self, name):
         """
@@ -165,9 +186,7 @@ class ArgoClient(object):
             if e.status == 404:
                 return None
             else:
-                raise ArgoClientException(
-                    json.loads(e.body)["message"] if e.body is not None else e.reason
-                )
+                raise wrap_api_error(e)
 
     def terminate_workflow(self, name):
         client = self._client.get()
@@ -255,12 +274,19 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def trigger_workflow_template(self, name, parameters={}):
+    def trigger_workflow_template(self, name, usertype, username, parameters={}):
         client = self._client.get()
         body = {
             "apiVersion": "argoproj.io/v1alpha1",
             "kind": "Workflow",
-            "metadata": {"generateName": name + "-"},
+            "metadata": {
+                "generateName": name + "-",
+                "annotations": {
+                    "metaflow/triggered_by_user": json.dumps(
+                        {"type": usertype, "name": username}
+                    )
+                },
+            },
             "spec": {
                 "workflowTemplateRef": {"name": name},
                 "arguments": {
@@ -303,6 +329,8 @@ class ArgoClient(object):
                 "suspend": schedule is None,
                 "schedule": schedule,
                 "timezone": timezone,
+                "failedJobsHistoryLimit": 10000,  # default is unfortunately 1
+                "successfulJobsHistoryLimit": 10000,  # default is unfortunately 3
                 "workflowSpec": {"workflowTemplateRef": {"name": name}},
             },
         }
@@ -437,6 +465,18 @@ class ArgoClient(object):
         except client.rest.ApiException as e:
             if e.status == 404:
                 return None
-            raise ArgoClientException(
-                json.loads(e.body)["message"] if e.body is not None else e.reason
-            )
+            raise wrap_api_error(e)
+
+
+def wrap_api_error(error):
+    message = (
+        json.loads(error.body)["message"] if error.body is not None else error.reason
+    )
+    # catch all
+    ex = ArgoClientException(message)
+    if error.status == 404:
+        # usually handled outside this function as most cases want to return None instead.
+        ex = ArgoResourceNotFound(message)
+    if error.status == 403:
+        ex = ArgoNotPermitted(message)
+    return ex

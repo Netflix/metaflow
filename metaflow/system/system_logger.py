@@ -7,25 +7,10 @@ class SystemLogger(object):
     def __init__(self):
         self._logger = None
         self._flow_name = None
-        self._context = {}
-        self._is_context_updated = False
 
     def __del__(self):
         if self._flow_name == "not_a_real_flow":
             self.logger.terminate()
-
-    def update_context(self, context: Dict[str, Any]):
-        """
-        Update the global context maintained by the system logger.
-
-        Parameters
-        ----------
-        context : Dict[str, Any]
-            A dictionary containing the context to update.
-
-        """
-        self._is_context_updated = True
-        self._context.update(context)
 
     def init_system_logger(
         self, flow_name: str, logger: "metaflow.event_logger.NullEventLogger"
@@ -71,7 +56,7 @@ class SystemLogger(object):
             "false",
             "",
         ):
-            print("system monitor: %s" % msg, file=sys.stderr)
+            print("system logger: %s" % msg, file=sys.stderr)
 
     def log_event(
         self, level: str, module: str, name: str, payload: Optional[Any] = None
@@ -96,8 +81,5 @@ class SystemLogger(object):
                 "module": module,
                 "name": name,
                 "payload": payload if payload is not None else {},
-                "context": self._context,
-                "is_context_updated": self._is_context_updated,
             }
         )
-        self._is_context_updated = False

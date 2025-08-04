@@ -2,7 +2,7 @@ from collections import namedtuple
 from metaflow.decorators import StepDecorator
 from metaflow.unbounded_foreach import UBF_CONTROL, CONTROL_TASK_TAG
 from metaflow.exception import MetaflowException
-from metaflow.metadata import MetaDatum
+from metaflow.metadata_provider import MetaDatum
 from metaflow.metaflow_current import current, Parallel
 import os
 import sys
@@ -13,17 +13,20 @@ class ParallelDecorator(StepDecorator):
     MF Add To Current
     -----------------
     parallel -> metaflow.metaflow_current.Parallel
+        Returns a namedtuple with relevant information about the parallel task.
 
         @@ Returns
         -------
         Parallel
             `namedtuple` with the following fields:
-                - main_ip : str
+                - main_ip (`str`)
                     The IP address of the control task.
-                - num_nodes : int
+                - num_nodes (`int`)
                     The total number of tasks created by @parallel
-                - node_index : int
+                - node_index (`int`)
                     The index of the current task in all the @parallel tasks.
+                - control_task_id (`Optional[str]`)
+                    The task ID of the control task. Available to all tasks.
 
     is_parallel -> bool
         True if the current step is a @parallel step.
@@ -33,8 +36,10 @@ class ParallelDecorator(StepDecorator):
     defaults = {}
     IS_PARALLEL = True
 
-    def __init__(self, attributes=None, statically_defined=False):
-        super(ParallelDecorator, self).__init__(attributes, statically_defined)
+    def __init__(self, attributes=None, statically_defined=False, inserted_by=None):
+        super(ParallelDecorator, self).__init__(
+            attributes, statically_defined, inserted_by
+        )
 
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context
@@ -42,6 +47,8 @@ class ParallelDecorator(StepDecorator):
         if ubf_context == UBF_CONTROL:
             num_parallel = cli_args.task.ubf_iter.num_parallel
             cli_args.command_options["num-parallel"] = str(num_parallel)
+            if os.environ.get("METAFLOW_RUNTIME_ENVIRONMENT", "local") == "local":
+                cli_args.command_options["split_index"] = "0"
 
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
@@ -67,6 +74,7 @@ class ParallelDecorator(StepDecorator):
                     main_ip=os.environ.get("MF_PARALLEL_MAIN_IP", "127.0.0.1"),
                     num_nodes=int(os.environ.get("MF_PARALLEL_NUM_NODES", "1")),
                     node_index=int(os.environ.get("MF_PARALLEL_NODE_INDEX", "0")),
+                    control_task_id=os.environ.get("MF_PARALLEL_CONTROL_TASK_ID", None),
                 )
             ),
         )
@@ -122,6 +130,8 @@ class ParallelDecorator(StepDecorator):
                     tags=["attempt_id:{0}".format(0)],
                 )
             ]
+            flow._control_task_is_mapper_zero = True
+
         metadata.register_metadata(run_id, step_name, task_id, task_metadata_list)
 
     def task_decorate(
@@ -177,6 +187,7 @@ def _local_multinode_control_task_step_func(
     num_parallel = foreach_iter.num_parallel
     os.environ["MF_PARALLEL_NUM_NODES"] = str(num_parallel)
     os.environ["MF_PARALLEL_MAIN_IP"] = "127.0.0.1"
+    os.environ["MF_PARALLEL_CONTROL_TASK_ID"] = str(current.task_id)
 
     run_id = current.run_id
     step_name = current.step_name
@@ -216,7 +227,6 @@ def _local_multinode_control_task_step_func(
         "%s/%s/%s" % (run_id, step_name, mapper_task_id)
         for mapper_task_id in mapper_task_ids
     ]
-    flow._control_task_is_mapper_zero = True
 
     # run the step function ourselves
     os.environ["MF_PARALLEL_NODE_INDEX"] = "0"

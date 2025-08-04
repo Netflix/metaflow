@@ -11,15 +11,15 @@ from metaflow.plugins.gcp.gs_utils import parse_gs_full_path
 class GSTail(object):
     def __init__(self, blob_full_uri):
         """Location should be something like gs://<bucket_name>/blob"""
-        bucket_name, blob_name = parse_gs_full_path(blob_full_uri)
-        if not blob_name:
+        self.bucket_name, self.blob_name = parse_gs_full_path(blob_full_uri)
+        if not self.blob_name:
             raise MetaflowException(
                 msg="Failed to parse blob_full_uri into gs://<bucket_name>/<blob_name> (got %s)"
                 % blob_full_uri
             )
         client = get_gs_storage_client()
-        bucket = client.bucket(bucket_name)
-        self._blob_client = bucket.blob(blob_name)
+        self.bucket = client.bucket(self.bucket_name)
+        self._blob_client = self.bucket.blob(self.blob_name)
         self._pos = 0
         self._tail = b""
 
@@ -46,7 +46,11 @@ class GSTail(object):
     def _make_range_request(self):
         try:
             # Yes we read to the end... memory blow up is possible. We can improve by specifying length param
-            return self._blob_client.download_as_bytes(start=self._pos)
+            # NOTE: We must re-instantiate the whole client here due to a behavior with the GS library,
+            # otherwise download_as_bytes will simply return the same content for consecutive requests with the same attributes,
+            # even if the blob has grown in size.
+            blob_client = self.bucket.blob(self.blob_name)
+            return blob_client.download_as_bytes(start=self._pos)
         except NotFound:
             return None
         except ClientError as e:
@@ -63,7 +67,7 @@ class GSTail(object):
         if data is None:
             return None
         if data:
-            buf = BytesIO(data)
+            buf = BytesIO(self._tail + data)
             self._pos += len(data)
             self._tail = b""
             return buf

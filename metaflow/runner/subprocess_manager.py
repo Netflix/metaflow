@@ -1,26 +1,68 @@
 import asyncio
 import os
+import time
 import shutil
 import signal
 import subprocess
 import sys
 import tempfile
 import threading
-import time
 from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
+from metaflow.packaging_sys import MetaflowCodeContent
+from metaflow.util import get_metaflow_root
+from .utils import check_process_exited
 
-def kill_process_and_descendants(pid, termination_timeout):
+
+def kill_processes_and_descendants(pids: List[str], termination_timeout: float):
+    # TODO: there's a race condition that new descendants might
+    # spawn b/w the invocations of 'pkill' and 'kill'.
+    # Needs to be fixed in future.
     try:
-        subprocess.check_call(["pkill", "-TERM", "-P", str(pid)])
+        subprocess.check_call(["pkill", "-TERM", "-P", *pids])
+        subprocess.check_call(["kill", "-TERM", *pids])
     except subprocess.CalledProcessError:
         pass
 
     time.sleep(termination_timeout)
 
     try:
-        subprocess.check_call(["pkill", "-KILL", "-P", str(pid)])
+        subprocess.check_call(["pkill", "-KILL", "-P", *pids])
+        subprocess.check_call(["kill", "-KILL", *pids])
     except subprocess.CalledProcessError:
+        pass
+
+
+async def async_kill_processes_and_descendants(
+    pids: List[str], termination_timeout: float
+):
+    # TODO: there's a race condition that new descendants might
+    # spawn b/w the invocations of 'pkill' and 'kill'.
+    # Needs to be fixed in future.
+    try:
+        sub_term = await asyncio.create_subprocess_exec("pkill", "-TERM", "-P", *pids)
+        await sub_term.wait()
+    except Exception:
+        pass
+
+    try:
+        main_term = await asyncio.create_subprocess_exec("kill", "-TERM", *pids)
+        await main_term.wait()
+    except Exception:
+        pass
+
+    await asyncio.sleep(termination_timeout)
+
+    try:
+        sub_kill = await asyncio.create_subprocess_exec("pkill", "-KILL", "-P", *pids)
+        await sub_kill.wait()
+    except Exception:
+        pass
+
+    try:
+        main_kill = await asyncio.create_subprocess_exec("kill", "-KILL", *pids)
+        await main_kill.wait()
+    except Exception:
         pass
 
 
@@ -37,6 +79,39 @@ class SubprocessManager(object):
     def __init__(self):
         self.commands: Dict[int, CommandManager] = {}
 
+        try:
+            try:
+                loop = asyncio.get_running_loop()
+                loop.add_signal_handler(
+                    signal.SIGINT,
+                    lambda: asyncio.create_task(self._async_handle_sigint()),
+                )
+            except RuntimeError:
+                signal.signal(signal.SIGINT, self._handle_sigint)
+        except ValueError:
+            sys.stderr.write(
+                "Warning: Unable to set signal handlers in non-main thread. "
+                "Interrupt handling will be limited.\n"
+            )
+
+    async def _async_handle_sigint(self):
+        pids = [
+            str(command.process.pid)
+            for command in self.commands.values()
+            if command.process and not check_process_exited(command)
+        ]
+        if pids:
+            await async_kill_processes_and_descendants(pids, termination_timeout=2)
+
+    def _handle_sigint(self, signum, frame):
+        pids = [
+            str(command.process.pid)
+            for command in self.commands.values()
+            if command.process and not check_process_exited(command)
+        ]
+        if pids:
+            kill_processes_and_descendants(pids, termination_timeout=2)
+
     async def __aenter__(self) -> "SubprocessManager":
         return self
 
@@ -52,6 +127,9 @@ class SubprocessManager(object):
     ) -> int:
         """
         Run a command synchronously and return its process ID.
+
+        Note: in no case does this wait for the process to *finish*. Use sync_wait()
+        to wait for the command to finish.
 
         Parameters
         ----------
@@ -74,6 +152,19 @@ class SubprocessManager(object):
         int
             The process ID of the subprocess.
         """
+        env = env or {}
+        installed_root = os.environ.get("METAFLOW_EXTRACTED_ROOT", get_metaflow_root())
+
+        for k, v in MetaflowCodeContent.get_env_vars_for_packaged_metaflow(
+            installed_root
+        ).items():
+            if k.endswith(":"):
+                # Override
+                env[k[:-1]] = v
+            elif k in env:
+                env[k] = "%s:%s" % (v, env[k])
+            else:
+                env[k] = v
 
         command_obj = CommandManager(command, env, cwd)
         pid = command_obj.run(show_output=show_output)
@@ -105,6 +196,11 @@ class SubprocessManager(object):
         int
             The process ID of the subprocess.
         """
+        env = env or {}
+        if "PYTHONPATH" in env:
+            env["PYTHONPATH"] = "%s:%s" % (get_metaflow_root(), env["PYTHONPATH"])
+        else:
+            env["PYTHONPATH"] = get_metaflow_root()
 
         command_obj = CommandManager(command, env, cwd)
         pid = await command_obj.async_run()
@@ -161,13 +257,14 @@ class CommandManager(object):
         self.command = command
 
         self.env = env if env is not None else os.environ.copy()
-        self.cwd = cwd if cwd is not None else os.getcwd()
+        self.cwd = cwd or os.getcwd()
 
         self.process = None
+        self.stdout_thread = None
+        self.stderr_thread = None
         self.run_called: bool = False
+        self.timeout: bool = False
         self.log_files: Dict[str, str] = {}
-
-        signal.signal(signal.SIGINT, self._handle_sigint)
 
     async def __aenter__(self) -> "CommandManager":
         return self
@@ -209,12 +306,21 @@ class CommandManager(object):
                 else:
                     await asyncio.wait_for(self.emit_logs(stream), timeout)
             except asyncio.TimeoutError:
+                self.timeout = True
                 command_string = " ".join(self.command)
-                await self.kill()
+                self.kill(termination_timeout=2)
                 print(
                     "Timeout: The process (PID %d; command: '%s') did not complete "
                     "within %s seconds." % (self.process.pid, command_string, timeout)
                 )
+
+    def sync_wait(self):
+        if not self.run_called:
+            raise RuntimeError("No command run yet to wait for...")
+
+        self.process.wait()
+        self.stdout_thread.join()
+        self.stderr_thread.join()
 
     def run(self, show_output: bool = False):
         """
@@ -260,22 +366,17 @@ class CommandManager(object):
 
                 self.run_called = True
 
-                stdout_thread = threading.Thread(
+                self.stdout_thread = threading.Thread(
                     target=stream_to_stdout_and_file,
                     args=(self.process.stdout, stdout_logfile),
                 )
-                stderr_thread = threading.Thread(
+                self.stderr_thread = threading.Thread(
                     target=stream_to_stdout_and_file,
                     args=(self.process.stderr, stderr_logfile),
                 )
 
-                stdout_thread.start()
-                stderr_thread.start()
-
-                self.process.wait()
-
-                stdout_thread.join()
-                stderr_thread.join()
+                self.stdout_thread.start()
+                self.stderr_thread.start()
 
                 return self.process.pid
             except Exception as e:
@@ -436,24 +537,21 @@ class CommandManager(object):
         if self.run_called:
             shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    async def kill(self, termination_timeout: float = 1):
+    def kill(self, termination_timeout: float = 2):
         """
         Kill the subprocess and its descendants.
 
         Parameters
         ----------
-        termination_timeout : float, default 1
+        termination_timeout : float, default 2
             The time to wait after sending a SIGTERM to the process and its descendants
             before sending a SIGKILL.
         """
 
         if self.process is not None:
-            kill_process_and_descendants(self.process.pid, termination_timeout)
+            kill_processes_and_descendants([str(self.process.pid)], termination_timeout)
         else:
             print("No process to kill.")
-
-    def _handle_sigint(self, signum, frame):
-        asyncio.create_task(self.kill())
 
 
 async def main():

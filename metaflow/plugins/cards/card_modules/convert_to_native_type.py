@@ -143,7 +143,16 @@ class TaskToDict:
         obj_type_name = self._get_object_type(data_object)
         if obj_type_name == "bytes":
             # Works for python 3.1+
-            import imghdr
+            # Python 3.13 removes the standard ``imghdr`` module. Metaflow
+            # vendors a copy so we can keep using ``what`` to detect image
+            # formats irrespective of the Python version.
+            import warnings
+
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore", category=DeprecationWarning, module="imghdr"
+                )
+                from metaflow._vendor import imghdr
 
             resp = imghdr.what(None, h=data_object)
             # Only accept types supported on the web
@@ -157,7 +166,7 @@ class TaskToDict:
         obj_type_name = self._get_object_type(data_object)
         if obj_type_name == "bytes":
             # Works for python 3.1+
-            import imghdr
+            from metaflow._vendor import imghdr
 
             resp = imghdr.what(None, h=data_object)
             # Only accept types supported on the web

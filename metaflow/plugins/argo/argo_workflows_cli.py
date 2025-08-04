@@ -4,10 +4,10 @@ import platform
 import re
 import sys
 from hashlib import sha1
+from time import sleep
 
 from metaflow import JSONType, Run, current, decorators, parameters
 from metaflow._vendor import click
-from metaflow.client.core import get_metadata
 from metaflow.exception import (
     MetaflowException,
     MetaflowInternalError,
@@ -15,6 +15,7 @@ from metaflow.exception import (
 )
 from metaflow.metaflow_config import (
     ARGO_WORKFLOWS_UI_URL,
+    FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
     KUBERNETES_NAMESPACE,
     SERVICE_VERSION_CHECK,
     UI_URL,
@@ -40,6 +41,7 @@ unsupported_decorators = {
     "snowpark": "Step *%s* is marked for execution on Snowpark with Argo Workflows which isn't currently supported.",
     "slurm": "Step *%s* is marked for execution on Slurm with Argo Workflows which isn't currently supported.",
     "nvidia": "Step *%s* is marked for execution on Nvidia with Argo Workflows which isn't currently supported.",
+    "nvct": "Step *%s* is marked for execution on Nvct with Argo Workflows which isn't currently supported.",
 }
 
 
@@ -130,6 +132,7 @@ def argo_workflows(obj, name=None):
     is_flag=True,
     default=False,
     help="Only print out JSON sent to Argo Workflows. Do not deploy anything.",
+    hidden=True,
 )
 @click.option(
     "--max-workers",
@@ -168,17 +171,34 @@ def argo_workflows(obj, name=None):
 )
 @click.option(
     "--notify-slack-webhook-url",
-    default="",
+    default=None,
     help="Slack incoming webhook url for workflow success/failure notifications.",
 )
 @click.option(
     "--notify-pager-duty-integration-key",
-    default="",
+    default=None,
     help="PagerDuty Events API V2 Integration key for workflow success/failure notifications.",
 )
 @click.option(
+    "--notify-incident-io-api-key",
+    default=None,
+    help="Incident.io API V2 key for workflow success/failure notifications.",
+)
+@click.option(
+    "--incident-io-alert-source-config-id",
+    default=None,
+    help="Incident.io Alert source config ID. Example '01GW2G3V0S59R238FAHPDS1R66'",
+)
+@click.option(
+    "--incident-io-metadata",
+    default=None,
+    type=str,
+    multiple=True,
+    help="Incident.io Alert Custom Metadata field in the form of Key=Value",
+)
+@click.option(
     "--enable-heartbeat-daemon/--no-enable-heartbeat-daemon",
-    default=True,
+    default=False,
     show_default=True,
     help="Use a daemon container to broadcast heartbeats.",
 )
@@ -213,6 +233,9 @@ def create(
     notify_on_success=False,
     notify_slack_webhook_url=None,
     notify_pager_duty_integration_key=None,
+    notify_incident_io_api_key=None,
+    incident_io_alert_source_config_id=None,
+    incident_io_metadata=None,
     enable_heartbeat_daemon=True,
     deployer_attribute_file=None,
     enable_error_msg_capture=False,
@@ -225,12 +248,12 @@ def create(
     validate_tags(tags)
 
     if deployer_attribute_file:
-        with open(deployer_attribute_file, "w") as f:
+        with open(deployer_attribute_file, "w", encoding="utf-8") as f:
             json.dump(
                 {
                     "name": obj.workflow_name,
                     "flow_name": obj.flow.name,
-                    "metadata": get_metadata(),
+                    "metadata": obj.metadata.metadata_str(),
                 },
                 f,
             )
@@ -268,6 +291,9 @@ def create(
         notify_on_success,
         notify_slack_webhook_url,
         notify_pager_duty_integration_key,
+        notify_incident_io_api_key,
+        incident_io_alert_source_config_id,
+        incident_io_metadata,
         enable_heartbeat_daemon,
         enable_error_msg_capture,
     )
@@ -320,20 +346,20 @@ def create(
 
 
 def check_python_version(obj):
-    # argo-workflows integration for Metaflow isn't supported for Py versions below 3.5.
+    # argo-workflows integration for Metaflow isn't supported for Py versions below 3.6.
     # This constraint can very well be lifted if desired.
-    if sys.version_info < (3, 5):
+    if sys.version_info < (3, 6):
         obj.echo("")
         obj.echo(
             "Metaflow doesn't support Argo Workflows for Python %s right now."
             % platform.python_version()
         )
         obj.echo(
-            "Please upgrade your Python interpreter to version 3.5 (or higher) or "
+            "Please upgrade your Python interpreter to version 3.6 (or higher) or "
             "reach out to us at slack.outerbounds.co for more help."
         )
         raise UnsupportedPythonVersion(
-            "Try again with a more recent version of Python (>=3.5)."
+            "Try again with a more recent version of Python (>=3.6)."
         )
 
 
@@ -443,6 +469,9 @@ def make_flow(
     notify_on_success,
     notify_slack_webhook_url,
     notify_pager_duty_integration_key,
+    notify_incident_io_api_key,
+    incident_io_alert_source_config_id,
+    incident_io_metadata,
     enable_heartbeat_daemon,
     enable_error_msg_capture,
 ):
@@ -454,15 +483,27 @@ def make_flow(
         )
 
     if (notify_on_error or notify_on_success) and not (
-        notify_slack_webhook_url or notify_pager_duty_integration_key
+        notify_slack_webhook_url
+        or notify_pager_duty_integration_key
+        or notify_incident_io_api_key
     ):
         raise MetaflowException(
-            "Notifications require specifying an incoming Slack webhook url via --notify-slack-webhook-url or "
-            "PagerDuty events v2 integration key via --notify-pager-duty-integration-key.\n If you would like to set up "
-            "notifications for your Slack workspace, follow the instructions at "
-            "https://api.slack.com/messaging/webhooks to generate a webhook url.\n For notifications through PagerDuty, "
-            "generate an integration key by following the instructions at "
-            "https://support.pagerduty.com/docs/services-and-integrations#create-a-generic-events-api-integration"
+            "Notifications require specifying an incoming Slack webhook url via --notify-slack-webhook-url, PagerDuty events v2 integration key via --notify-pager-duty-integration-key or\n"
+            "Incident.io integration API key via --notify-incident-io-api-key.\n"
+            " If you would like to set up notifications for your Slack workspace, follow the instructions at "
+            "https://api.slack.com/messaging/webhooks to generate a webhook url.\n"
+            " For notifications through PagerDuty, generate an integration key by following the instructions at "
+            "https://support.pagerduty.com/docs/services-and-integrations#create-a-generic-events-api-integration\n"
+            " For notifications through Incident.io, generate an alert source config."
+        )
+
+    if (
+        (notify_on_error or notify_on_success)
+        and notify_incident_io_api_key
+        and incident_io_alert_source_config_id is None
+    ):
+        raise MetaflowException(
+            "Incident.io alerts require an alert source configuration ID. Please set one with --incident-io-alert-source-config-id"
         )
 
     # Attach @kubernetes and @environment decorator to the flow to
@@ -470,24 +511,37 @@ def make_flow(
     decorators._attach_decorators(
         obj.flow, [KubernetesDecorator.name, EnvironmentDecorator.name]
     )
+    decorators._init(obj.flow)
 
     decorators._init_step_decorators(
         obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
     )
+    obj.graph = obj.flow._graph
 
     # Save the code package in the flow datastore so that both user code and
     # metaflow package can be retrieved during workflow execution.
     obj.package = MetaflowPackage(
-        obj.flow, obj.environment, obj.echo, obj.package_suffixes
+        obj.flow,
+        obj.environment,
+        obj.echo,
+        suffixes=obj.package_suffixes,
+        flow_datastore=obj.flow_datastore if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE else None,
     )
-    package_url, package_sha = obj.flow_datastore.save_data(
-        [obj.package.blob], len_hint=1
-    )[0]
+
+    # This blocks until the package is created
+    if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE:
+        package_url = obj.package.package_url()
+        package_sha = obj.package.package_sha()
+    else:
+        package_url, package_sha = obj.flow_datastore.save_data(
+            [obj.package.blob], len_hint=1
+        )[0]
 
     return ArgoWorkflows(
         name,
         obj.graph,
         obj.flow,
+        obj.package.package_metadata,
         package_sha,
         package_url,
         token,
@@ -507,6 +561,9 @@ def make_flow(
         notify_on_success=notify_on_success,
         notify_slack_webhook_url=notify_slack_webhook_url,
         notify_pager_duty_integration_key=notify_pager_duty_integration_key,
+        notify_incident_io_api_key=notify_incident_io_api_key,
+        incident_io_alert_source_config_id=incident_io_alert_source_config_id,
+        incident_io_metadata=incident_io_metadata,
         enable_heartbeat_daemon=enable_heartbeat_daemon,
         enable_error_msg_capture=enable_error_msg_capture,
     )
@@ -657,7 +714,7 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
             json.dump(
                 {
                     "name": obj.workflow_name,
-                    "metadata": get_metadata(),
+                    "metadata": obj.metadata.metadata_str(),
                     "pathspec": "/".join((obj.flow.name, run_id)),
                 },
                 f,
@@ -955,9 +1012,33 @@ def terminate(obj, run_id, authorize=None):
 )
 @click.pass_obj
 def list_workflow_templates(obj, all=None):
-    templates = ArgoWorkflows.list_templates(obj.flow.name, all)
-    for template_name in templates:
+    for template_name in ArgoWorkflows.list_templates(obj.flow.name, all):
         obj.echo_always(template_name)
+
+
+# Internal CLI command to run a heartbeat daemon in an Argo Workflows Daemon container.
+@argo_workflows.command(hidden=True, help="start heartbeat process for a run")
+@click.option("--run_id", required=True)
+@click.option(
+    "--tag",
+    "tags",
+    multiple=True,
+    default=None,
+    help="Annotate all objects produced by Argo Workflows runs "
+    "with the given tag. You can specify this option multiple "
+    "times to attach multiple tags.",
+)
+@click.pass_obj
+def heartbeat(obj, run_id, tags=None):
+    # Try to register a run in case the start task has not taken care of it yet.
+    obj.metadata.register_run_id(run_id, tags)
+    # Start run heartbeat
+    obj.metadata.start_run_heartbeat(obj.flow.name, run_id)
+    # Keepalive loop
+    while True:
+        # Do not pollute daemon logs with anything unnecessary,
+        # as they might be extremely long running.
+        sleep(10)
 
 
 def validate_run_id(
@@ -991,13 +1072,7 @@ def validate_run_id(
 
     if project_name is not None:
         # Verify we are operating on the correct project.
-        # Perform match with separators to avoid substrings matching
-        # e.g. 'test_proj' and 'test_project' should count as a mismatch.
-        project_part = "%s." % sanitize_for_argo(project_name)
-        if (
-            current.get("project_name") != project_name
-            and project_part not in workflow_name
-        ):
+        if current.get("project_name") != project_name:
             raise RunIdMismatch(
                 "The workflow belongs to the project *%s*. "
                 "Please use the project decorator or --name to target the correct project"
@@ -1005,13 +1080,7 @@ def validate_run_id(
             )
 
         # Verify we are operating on the correct branch.
-        # Perform match with separators to avoid substrings matching.
-        # e.g. 'user.tes' and 'user.test' should count as a mismatch.
-        branch_part = ".%s." % sanitize_for_argo(branch_name)
-        if (
-            current.get("branch_name") != branch_name
-            and branch_part not in workflow_name
-        ):
+        if current.get("branch_name") != branch_name:
             raise RunIdMismatch(
                 "The workflow belongs to the branch *%s*. "
                 "Please use --branch, --production or --name to target the correct branch"

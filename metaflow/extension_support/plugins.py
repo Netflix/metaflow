@@ -93,7 +93,32 @@ def merge_lists(base, overrides, attr):
     base[:] = l[:]
 
 
-def resolve_plugins(category):
+def get_plugin(category, class_path, name):
+    path, cls_name = class_path.rsplit(".", 1)
+    try:
+        plugin_module = importlib.import_module(path)
+    except ImportError as e:
+        raise ValueError(
+            "Cannot locate %s plugin '%s' at '%s'" % (category, name, path)
+        ) from e
+    cls = getattr(plugin_module, cls_name, None)
+    if cls is None:
+        raise ValueError(
+            "Cannot locate '%s' class for %s plugin at '%s'"
+            % (cls_name, category, path)
+        )
+    extracted_name = get_plugin_name(category, cls)
+    if extracted_name and extracted_name != name:
+        raise ValueError(
+            "Class '%s' at '%s' for %s plugin expected to be named '%s' but got '%s'"
+            % (cls_name, path, category, name, extracted_name)
+        )
+    globals()[cls_name] = cls
+    _ext_debug("        Added %s plugin '%s' from '%s'" % (category, name, class_path))
+    return cls
+
+
+def resolve_plugins(category, path_only=False):
     # Called to return a list of classes that are the available plugins for 'category'
 
     # The ENABLED_<category> variable is set in process_plugins
@@ -114,7 +139,7 @@ def resolve_plugins(category):
 
     available_plugins = globals()[_dict_for_category(category)]
     name_extractor = _plugin_categories[category]
-    if not name_extractor:
+    if path_only or not name_extractor:
         # If we have no name function, it means we just use the name in the dictionary
         # and we return a dictionary. This is for sidecars mostly as they do not have
         # a field that indicates their name
@@ -132,32 +157,14 @@ def resolve_plugins(category):
                 "Configuration requested %s plugin '%s' but no such plugin is available"
                 % (category, name)
             )
-        path, cls_name = class_path.rsplit(".", 1)
-        try:
-            plugin_module = importlib.import_module(path)
-        except ImportError:
-            raise ValueError(
-                "Cannot locate %s plugin '%s' at '%s'" % (category, name, path)
-            )
-        cls = getattr(plugin_module, cls_name, None)
-        if cls is None:
-            raise ValueError(
-                "Cannot locate '%s' class for %s plugin at '%s'"
-                % (cls_name, category, path)
-            )
-        if name_extractor and name_extractor(cls) != name:
-            raise ValueError(
-                "Class '%s' at '%s' for %s plugin expected to be named '%s' but got '%s'"
-                % (cls_name, path, category, name, name_extractor(cls))
-            )
-        globals()[cls_name] = cls
-        if name_extractor is not None:
-            to_return.append(cls)
+        if path_only:
+            to_return[name] = class_path
         else:
-            to_return[name] = cls
-        _ext_debug(
-            "        Added %s plugin '%s' from '%s'" % (category, name, class_path)
-        )
+            if name_extractor is not None:
+                to_return.append(get_plugin(category, class_path, name))
+            else:
+                to_return[name] = get_plugin(category, class_path, name)
+
     return to_return
 
 
@@ -178,6 +185,7 @@ _plugin_categories = {
     "environment": lambda x: x.TYPE,
     "metadata_provider": lambda x: x.TYPE,
     "datastore": lambda x: x.TYPE,
+    "dataclient": lambda x: x.TYPE,
     "secrets_provider": lambda x: x.TYPE,
     "gcp_client_provider": lambda x: x.name,
     "deployer_impl_provider": lambda x: x.TYPE,
@@ -189,7 +197,16 @@ _plugin_categories = {
     "cli": lambda x: (
         list(x.commands)[0] if len(x.commands) == 1 else "too many commands"
     ),
+    "runner_cli": lambda x: x.name,
+    "tl_plugin": None,
 }
+
+
+def get_plugin_name(category, plugin):
+    extractor = _plugin_categories[category]
+    if extractor:
+        return extractor(plugin)
+    return None
 
 
 def _list_for_category(category):

@@ -1,3 +1,4 @@
+import errno
 import json
 import os
 import re
@@ -18,6 +19,7 @@ from metaflow.metaflow_config import (
     S3_RETRY_COUNT,
     S3_TRANSIENT_RETRY_COUNT,
     S3_SERVER_SIDE_ENCRYPTION,
+    S3_WORKER_COUNT,
     TEMPDIR,
 )
 from metaflow.util import (
@@ -134,6 +136,10 @@ class MetaflowS3AccessDenied(MetaflowException):
 
 class MetaflowS3InvalidRange(MetaflowException):
     headline = "S3 invalid range"
+
+
+class MetaflowS3InsufficientDiskSpace(MetaflowException):
+    headline = "Insufficient disk space"
 
 
 class S3Object(object):
@@ -504,6 +510,8 @@ class S3(object):
         If `run` is not specified, use this as the S3 prefix.
     """
 
+    TYPE = "s3"
+
     @classmethod
     def get_root_from_config(cls, echo, create_on_absent=True):
         return DATATOOLS_S3ROOT
@@ -598,7 +606,9 @@ class S3(object):
         # returned are Unicode.
         key = getattr(key_value, "key", key_value)
         if self._s3root is None:
-            parsed = urlparse(to_unicode(key))
+            # NOTE: S3 allows fragments as part of object names, e.g. /dataset #1/data.txt
+            # Without allow_fragments=False the parsed.path for an object name with fragments is incomplete.
+            parsed = urlparse(to_unicode(key), allow_fragments=False)
             if parsed.scheme == "s3" and parsed.path:
                 return key
             else:
@@ -763,7 +773,9 @@ class S3(object):
         """
 
         url = self._url(key)
-        src = urlparse(url)
+        # NOTE: S3 allows fragments as part of object names, e.g. /dataset #1/data.txt
+        # Without allow_fragments=False the parsed src.path for an object name with fragments is incomplete.
+        src = urlparse(url, allow_fragments=False)
 
         def _info(s3, tmp):
             resp = s3.head_object(Bucket=src.netloc, Key=src.path.lstrip('/"'))
@@ -889,7 +901,9 @@ class S3(object):
         DOWNLOAD_MAX_CHUNK = 2 * 1024 * 1024 * 1024 - 1
 
         url, r = self._url_and_range(key)
-        src = urlparse(url)
+        # NOTE: S3 allows fragments as part of object names, e.g. /dataset #1/data.txt
+        # Without allow_fragments=False the parsed src.path for an object name with fragments is incomplete.
+        src = urlparse(url, allow_fragments=False)
 
         def _download(s3, tmp):
             if r:
@@ -1171,7 +1185,9 @@ class S3(object):
         blob.close = lambda: None
 
         url = self._url(key)
-        src = urlparse(url)
+        # NOTE: S3 allows fragments as part of object names, e.g. /dataset #1/data.txt
+        # Without allow_fragments=False the parsed src.path for an object name with fragments is incomplete.
+        src = urlparse(url, allow_fragments=False)
         extra_args = None
         if content_type or metadata or self._encryption:
             extra_args = {}
@@ -1366,8 +1382,10 @@ class S3(object):
                 elif error_code == "NoSuchBucket":
                     raise MetaflowS3URLException("Specified S3 bucket doesn't exist.")
                 error = str(err)
+            except OSError as e:
+                if e.errno == errno.ENOSPC:
+                    raise MetaflowS3InsufficientDiskSpace(str(e))
             except Exception as ex:
-                # TODO specific error message for out of disk space
                 error = str(ex)
             if tmp:
                 os.unlink(tmp.name)
@@ -1380,9 +1398,31 @@ class S3(object):
         )
 
     # add some jitter to make sure retries are not synchronized
-    def _jitter_sleep(self, trynum, multiplier=2):
-        interval = multiplier**trynum + random.randint(0, 10)
-        time.sleep(interval)
+    def _jitter_sleep(
+        self, trynum: int, base: int = 2, cap: int = 360, jitter: float = 0.1
+    ) -> None:
+        """
+        Sleep for an exponentially increasing interval with added jitter.
+
+        Parameters
+        ----------
+        trynum: The current retry attempt number.
+        base: The base multiplier for the exponential backoff.
+        cap: The maximum interval to sleep.
+        jitter: The maximum jitter percentage to add to the interval.
+        """
+        # Calculate the exponential backoff interval
+        interval = min(cap, base**trynum)
+
+        # Add random jitter
+        jitter_value = interval * jitter * random.uniform(-1, 1)
+        interval_with_jitter = interval + jitter_value
+
+        # Ensure the interval is not negative
+        interval_with_jitter = max(0, interval_with_jitter)
+
+        # Sleep for the calculated interval
+        time.sleep(interval_with_jitter)
 
     # NOTE: re: _read_many_files and _put_many_files
     # All file IO is through binary files - we write bytes, we read
@@ -1470,20 +1510,17 @@ class S3(object):
         #    - a known transient failure (SlowDown for example) in which case we will
         #      retry *only* the inputs that have this transient failure.
         #    - an unknown failure (something went wrong but we cannot say if it was
-        #      a known permanent failure or something else). In this case, we retry
-        #      the operation completely.
+        #      a known permanent failure or something else). In this case, we assume
+        #      it's a transient failure and retry only those inputs (same as above).
         #
-        # There are therefore two retry counts:
-        #  - the transient failure retry count: how many times do we try on known
-        #    transient errors
-        #  - the top-level retry count: how many times do we try on unknown failures
-        #
-        # Note that, if the operation runs out of transient failure retries, it will
-        # count as an "unknown" failure (ie: it will be retried according to the
-        # outer top-level retry count). In other words, you can potentially have
-        # transient_retry_count * retry_count tries).
-        # Finally, if on transient failures, we make NO progress (ie: no input is
-        # successfully processed), that counts as an "unknown" failure.
+        # NOTES(npow): 2025-05-13
+        # Previously, this code would also retry the fatal failures, including no_progress
+        # and unknown failures, from the beginning. This is not ideal because:
+        # 1. Fatal errors are not supposed to be retried.
+        # 2. Retrying from the beginning does not improve the situation, and is
+        #    wasteful since we have already uploaded some files.
+        # 3. The number of transient errors is far more than fatal errors, so we
+        #    can be optimistic and assume the unknown errors are transient.
         cmdline = [sys.executable, os.path.abspath(s3op.__file__), mode]
         recursive_get = False
         for key, value in options.items():
@@ -1518,7 +1555,6 @@ class S3(object):
             # Otherwise, we cap the failure rate at 90%
             return min(90, self._s3_inject_failures)
 
-        retry_count = 0  # Number of retries (excluding transient failures)
         transient_retry_count = 0  # Number of transient retries (per top-level retry)
         inject_failures = _inject_failure_rate()
         out_lines = []  # List to contain the lines returned by _s3op_with_retries
@@ -1585,7 +1621,12 @@ class S3(object):
                         # things, this will shrink more and more until we are doing a
                         # single operation at a time. If things start going better, it
                         # will increase by 20% every round.
-                        max_count = min(int(last_ok_count * 1.2), len(pending_retries))
+                        #
+                        # If we made no progress (last_ok_count == 0) we retry at most
+                        # 2*S3_WORKER_COUNT from whatever is left in `pending_retries`
+                        max_count = min(
+                            int(last_ok_count * 1.2), len(pending_retries)
+                        ) or min(2 * S3_WORKER_COUNT, len(pending_retries))
                         tmp_input.writelines(pending_retries[:max_count])
                         tmp_input.flush()
                         debug.s3client_exec(
@@ -1702,38 +1743,16 @@ class S3(object):
                         _update_out_lines(out_lines, ok_lines, resize=loop_count == 0)
                         return 0, 0, inject_failures, err_out
 
-        while retry_count <= S3_RETRY_COUNT:
+        while transient_retry_count <= S3_TRANSIENT_RETRY_COUNT:
             (
                 last_ok_count,
                 last_retry_count,
                 inject_failures,
                 err_out,
             ) = try_s3_op(last_ok_count, pending_retries, out_lines, inject_failures)
-            if err_out or (
-                last_retry_count != 0
-                and (
-                    last_ok_count == 0
-                    or transient_retry_count > S3_TRANSIENT_RETRY_COUNT
-                )
-            ):
-                # We had a fatal failure (err_out is not None)
-                # or we made no progress (last_ok_count is 0)
-                # or we are out of transient retries
-                # so we will restart from scratch (being very conservative)
-                retry_count += 1
-                err_msg = err_out
-                if err_msg is None and last_ok_count == 0:
-                    err_msg = "No progress"
-                if err_msg is None:
-                    err_msg = "Too many transient errors"
-                print(
-                    "S3 non-transient error (attempt #%d): %s" % (retry_count, err_msg)
-                )
-                _reset()
-                if retry_count <= S3_RETRY_COUNT:
-                    self._jitter_sleep(retry_count)
-                continue
-            elif last_retry_count != 0:
+            if err_out:
+                break
+            if last_retry_count != 0:
                 # During our last try, we did not manage to process everything we wanted
                 # due to a transient failure so we try again.
                 transient_retry_count += 1

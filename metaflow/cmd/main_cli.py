@@ -12,7 +12,7 @@ import metaflow.tracing as tracing
 
 
 @click.group()
-@tracing.cli_entrypoint("cli/main")
+@tracing.cli("cli/main")
 def main():
     pass
 
@@ -67,6 +67,7 @@ CMDS_DESC = [
     ("configure", ".configure_cmd.cli"),
     ("tutorials", ".tutorials_cmd.cli"),
     ("develop", ".develop.cli"),
+    ("code", ".code.cli"),
 ]
 
 process_cmds(globals())
@@ -84,15 +85,16 @@ def start(ctx):
 
     import metaflow
 
+    version = get_version()
     echo("Metaflow ", fg="magenta", bold=True, nl=False)
 
     if ctx.invoked_subcommand is None:
-        echo("(%s): " % get_version(), fg="magenta", bold=False, nl=False)
+        echo("(%s): " % version, fg="magenta", bold=False, nl=False)
     else:
-        echo("(%s)\n" % get_version(), fg="magenta", bold=False)
+        echo("(%s)\n" % version, fg="magenta", bold=False)
 
     if ctx.invoked_subcommand is None:
-        echo("More data science, less engineering\n", fg="magenta")
+        echo("More AI, less engineering\n", fg="magenta")
 
         lnk_sz = max(len(lnk) for lnk in CONTACT_INFO.values()) + 1
         for what, lnk in CONTACT_INFO.items():

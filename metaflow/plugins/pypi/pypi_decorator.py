@@ -24,11 +24,12 @@ class PyPIStepDecorator(StepDecorator):
     name = "pypi"
     defaults = {"packages": {}, "python": None, "disabled": None}  # wheels
 
-    def __init__(self, attributes=None, statically_defined=False):
-        self._user_defined_attributes = (
-            attributes.copy() if attributes is not None else {}
+    def __init__(self, attributes=None, statically_defined=False, inserted_by=None):
+        self._attributes_with_user_values = (
+            set(attributes.keys()) if attributes is not None else set()
         )
-        super().__init__(attributes, statically_defined)
+
+        super().__init__(attributes, statically_defined, inserted_by)
 
     def step_init(self, flow, graph, step, decos, environment, flow_datastore, logger):
         # The init_environment hook for Environment creates the relevant virtual
@@ -40,7 +41,11 @@ class PyPIStepDecorator(StepDecorator):
 
         # Support flow-level decorator
         if "pypi_base" in self.flow._flow_decorators:
-            super_attributes = self.flow._flow_decorators["pypi_base"][0].attributes
+            pypi_base = self.flow._flow_decorators["pypi_base"][0]
+            super_attributes = pypi_base.attributes
+            self._attributes_with_user_values.update(
+                pypi_base._attributes_with_user_values
+            )
             self.attributes["packages"] = {
                 **super_attributes["packages"],
                 **self.attributes["packages"],
@@ -93,9 +98,15 @@ class PyPIStepDecorator(StepDecorator):
                     ),
                 )
             )
+        # TODO: This code snippet can be done away with by altering the constructor of
+        #       MetaflowEnvironment. A good first-task exercise.
+        # Avoid circular import
+        from metaflow.plugins.datastores.local_storage import LocalStorage
+
+        environment.set_local_root(LocalStorage.get_datastore_root_from_config(logger))
 
     def is_attribute_user_defined(self, name):
-        return name in self._user_defined_attributes
+        return name in self._attributes_with_user_values
 
 
 class PyPIFlowDecorator(FlowDecorator):
@@ -117,12 +128,20 @@ class PyPIFlowDecorator(FlowDecorator):
     name = "pypi_base"
     defaults = {"packages": {}, "python": None, "disabled": None}
 
+    def __init__(self, attributes=None, statically_defined=False, inserted_by=None):
+        self._attributes_with_user_values = (
+            set(attributes.keys()) if attributes is not None else set()
+        )
+
+        super().__init__(attributes, statically_defined, inserted_by)
+
     def flow_init(
         self, flow, graph, environment, flow_datastore, metadata, logger, echo, options
     ):
         from metaflow import decorators
 
         decorators._attach_decorators(flow, ["pypi"])
+        decorators._init(flow)
 
         # @pypi uses a conda environment to create a virtual environment.
         # The conda environment can be created through micromamba.

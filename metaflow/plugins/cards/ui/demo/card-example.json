@@ -1087,7 +1087,7 @@
           "contents": [
             {
               "type": "log",
-              "data": "Card of type default is unable to be rendered with arguements {'only_repr': True}.\nStack trace :  Traceback (most recent call last):\n  File \"/Users/valay/Documents/Outerbounds-Code-Workspace/metaflow/metaflow/plugins/cards/card_cli.py\", line 407, in create\n    rendered_info = render_card(mf_card, task, timeout_value=timeout)\n  File \"/Users/valay/Documents/Outerbounds-Code-Workspace/metaflow/metaflow/plugins/cards/card_cli.py\", line 283, in render_card\n    rendered_info = mf_card.render(task)\n  File \"/Users/valay/Documents/Outerbounds-Code-Workspace/metaflow/metaflow/plugins/cards/card_modules/basic.py\", line 461, in render\n    raise Exception(\"Hellow There\")\nException: Hellow There\n"
+              "data": "Card of type default is unable to be rendered with arguments {'only_repr': True}.\nStack trace :  Traceback (most recent call last):\n  File \"/Users/valay/Documents/Outerbounds-Code-Workspace/metaflow/metaflow/plugins/cards/card_cli.py\", line 407, in create\n    rendered_info = render_card(mf_card, task, timeout_value=timeout)\n  File \"/Users/valay/Documents/Outerbounds-Code-Workspace/metaflow/metaflow/plugins/cards/card_cli.py\", line 283, in render_card\n    rendered_info = mf_card.render(task)\n  File \"/Users/valay/Documents/Outerbounds-Code-Workspace/metaflow/metaflow/plugins/cards/card_modules/basic.py\", line 461, in render\n    raise Exception(\"Hellow There\")\nException: Hellow There\n"
             }
           ]
         },
