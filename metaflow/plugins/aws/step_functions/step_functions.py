@@ -921,7 +921,12 @@ class StepFunctions(object):
                     self._upload_command_to_s3(command_str, s3_path)
                     # Replace with download command
                     bucket = self.flow_datastore.datastore_root.split("/")[2]
-                    full_s3_path = f"s3://{bucket}/{s3_path}"
+                    # The s3_path already includes the bucket name, so we need to extract just the key part
+                    if s3_path.startswith(bucket + "/"):
+                        key = s3_path[len(bucket + "/") :]
+                    else:
+                        key = s3_path
+                    full_s3_path = f"s3://{bucket}/{key}"
                     download_cmd = f"aws s3 cp {full_s3_path} /tmp/step_command.sh && chmod +x /tmp/step_command.sh && bash /tmp/step_command.sh"
                     batch_job.payload["containerOverrides"]["command"] = [
                         "bash",
