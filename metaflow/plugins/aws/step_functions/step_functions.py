@@ -917,11 +917,8 @@ class StepFunctions(object):
             if len(command_str) > self.command_size_threshold:
                 # Upload the command to S3 during deployment
                 s3_path = self._get_command_s3_path(node.name, self.deployment_id)
-                print(f"DEBUG: Attempting to upload command to S3 path: {s3_path}")
-                print(f"DEBUG: Datastore root: {self.flow_datastore.datastore_root}")
                 try:
                     self._upload_command_to_s3(command_str, s3_path)
-                    print(f"DEBUG: Successfully uploaded command to S3")
                     # Replace with download command
                     bucket = self.flow_datastore.datastore_root.split("/")[2]
                     full_s3_path = f"s3://{bucket}/{s3_path}"
@@ -986,12 +983,10 @@ class StepFunctions(object):
                 key = s3_path[len(bucket + "/") :]
             else:
                 key = s3_path
-            print(f"DEBUG: Uploading to bucket: {bucket}, key: {key}")
 
             # Upload directly to S3
             s3_client = boto3.client("s3")
             s3_client.upload_fileobj(command_stream, bucket, key)
-            print(f"DEBUG: Upload completed successfully")
 
             # Return a command that downloads and executes the uploaded script
             full_s3_path = f"s3://{bucket}/{key}"
