@@ -1134,16 +1134,6 @@ class StepFunctions(object):
             print(final_command)
             print("=" * 50)
 
-        # Check if command should be uploaded to S3
-        if (
-            self.upload_commands_to_s3
-            and len(final_command) > self.command_size_threshold
-        ):
-            s3_path = self._get_command_s3_path(node.name)
-            final_command = self._upload_command_to_s3(final_command, s3_path)
-        else:
-            print(f"DEBUG: NOT uploading command to S3 for step {node.name}")
-
         return final_command
 
 
