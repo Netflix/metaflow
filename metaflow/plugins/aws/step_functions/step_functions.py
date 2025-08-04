@@ -56,6 +56,9 @@ class StepFunctions(object):
         workflow_timeout=None,
         is_project=False,
         use_distributed_map=False,
+        upload_commands_to_s3=False,
+        command_s3_path=None,
+        dump_commands=False,
     ):
         self.name = name
         self.graph = graph
@@ -79,6 +82,18 @@ class StepFunctions(object):
         # https://aws.amazon.com/blogs/aws/step-functions-distributed-map-a-serverless-solution-for-large-scale-parallel-data-processing/
         self.use_distributed_map = use_distributed_map
 
+        # S3 command upload configuration
+        self.upload_commands_to_s3 = (
+            upload_commands_to_s3
+            or os.environ.get("METAFLOW_SFN_UPLOAD_COMMANDS_TO_S3", "false").lower()
+            == "true"
+        )
+        self.command_s3_path = command_s3_path
+        self.dump_commands = dump_commands
+        self.command_size_threshold = int(
+            os.environ.get("METAFLOW_SFN_COMMAND_SIZE_THRESHOLD", "4096")
+        )  # 4K threshold
+
         self._client = StepFunctionsClient()
         self._workflow = self._compile()
         self._cron = self._cron()
@@ -98,7 +113,7 @@ class StepFunctions(object):
                 % self.event_bridge_rule
             )
         else:
-            return "No triggers defined. " "You need to launch this workflow manually."
+            return "No triggers defined. You need to launch this workflow manually."
 
     def deploy(self, log_execution_history):
         if SFN_IAM_ROLE is None:
@@ -220,7 +235,7 @@ class StepFunctions(object):
             raise StepFunctionsException(repr(e))
         if state_machine is None:
             raise StepFunctionsException(
-                "The workflow *%s* doesn't exist " "on AWS Step Functions." % name
+                "The workflow *%s* doesn't exist on AWS Step Functions." % name
             )
         try:
             state_machine_arn = state_machine.get("stateMachineArn")
@@ -329,9 +344,7 @@ class StepFunctions(object):
             state = (
                 State(node.name)
                 .batch(self._batch(node))
-                .output_path(
-                    "$.['JobId', " "'Parameters', " "'Index', " "'SplitParentTaskId']"
-                )
+                .output_path("$.['JobId', 'Parameters', 'Index', 'SplitParentTaskId']")
             )
             # End the (sub)workflow if we have reached the end of the flow or
             # the parent step of matching_join of the sub workflow.
@@ -899,6 +912,48 @@ class StepFunctions(object):
 
         return max_user_code_retries, max_user_code_retries + max_error_retries
 
+    def _get_command_s3_path(self, node_name, run_id_template="sfn-${METAFLOW_RUN_ID}"):
+        """Generate S3 path for storing commands."""
+        if self.command_s3_path:
+            base_path = self.command_s3_path
+        else:
+            # Use datastore root with commands suffix
+            base_path = self.flow_datastore.datastore_root.rstrip("/") + "/commands"
+
+        return f"{base_path}/{self.flow.name}/{run_id_template}/{node_name}/command.sh"
+
+    def _upload_command_to_s3(self, command, s3_path):
+        """Upload command to S3 and return a retrieval command."""
+        try:
+            from io import BytesIO
+
+            command_bytes = command.encode("utf-8")
+            command_stream = BytesIO(command_bytes)
+
+            # Upload using datastore's save_bytes method
+            self.flow_datastore._storage_impl.save_bytes(
+                [(s3_path, command_stream)], overwrite=True
+            )
+
+            # Return a command that downloads and executes the uploaded script
+            download_cmd = (
+                f"aws s3 cp s3://{s3_path} /tmp/step_command.sh && "
+                f"chmod +x /tmp/step_command.sh && "
+                f"bash /tmp/step_command.sh"
+            )
+
+            if self.dump_commands:
+                print(f"Uploaded command for step to: s3://{s3_path}")
+                print(f"Download command: {download_cmd}")
+
+            return download_cmd
+
+        except Exception as e:
+            # Fall back to inline command if S3 upload fails
+            print(f"Warning: Failed to upload command to S3: {e}")
+            print("Falling back to inline command")
+            return command
+
     def _step_cli(self, node, paths, code_package_url, user_code_retries):
         cmds = []
 
@@ -1011,7 +1066,24 @@ class StepFunctions(object):
         if self.namespace is not None:
             step.append("--namespace=%s" % self.namespace)
         cmds.append(" ".join(entrypoint + top_level + step))
-        return " && ".join(cmds)
+
+        final_command = " && ".join(cmds)
+
+        # Dump command if requested
+        if self.dump_commands:
+            print(f"=== Command for step {node.name} ===")
+            print(final_command)
+            print("=" * 50)
+
+        # Check if command should be uploaded to S3
+        if (
+            self.upload_commands_to_s3
+            and len(final_command) > self.command_size_threshold
+        ):
+            s3_path = self._get_command_s3_path(node.name)
+            final_command = self._upload_command_to_s3(final_command, s3_path)
+
+        return final_command
 
 
 class Workflow(object):
@@ -1090,17 +1162,13 @@ class State(object):
             "arn:%s:states:::batch:submitJob.sync" % self._partition()
         ).parameter("JobDefinition", job.payload["jobDefinition"]).parameter(
             "JobName", job.payload["jobName"]
-        ).parameter(
-            "JobQueue", job.payload["jobQueue"]
-        ).parameter(
+        ).parameter("JobQueue", job.payload["jobQueue"]).parameter(
             "Parameters", job.payload["parameters"]
         ).parameter(
             "ContainerOverrides", to_pascalcase(job.payload["containerOverrides"])
         ).parameter(
             "RetryStrategy", to_pascalcase(job.payload["retryStrategy"])
-        ).parameter(
-            "Timeout", to_pascalcase(job.payload["timeout"])
-        )
+        ).parameter("Timeout", to_pascalcase(job.payload["timeout"]))
         # tags may not be present in all scenarios
         if "tags" in job.payload:
             self.parameter("Tags", job.payload["tags"])
@@ -1124,9 +1192,7 @@ class State(object):
             "TableName", table_name
         ).parameter("Key", {"pathspec": {"S.$": primary_key}}).parameter(
             "ConsistentRead", True
-        ).parameter(
-            "ProjectionExpression", values
-        )
+        ).parameter("ProjectionExpression", values)
         return self
 
 
