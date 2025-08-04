@@ -860,13 +860,17 @@ class StepFunctions(object):
             "retry_count": "$((AWS_BATCH_JOB_ATTEMPT-1))",
         }
 
-        return (
+        # Get the step command
+        step_cli = self._step_cli(
+            node, input_paths, self.code_package_url, user_code_retries
+        )
+
+        # Create the batch job
+        batch_job = (
             Batch(self.metadata, self.environment)
             .create_job(
                 step_name=node.name,
-                step_cli=self._step_cli(
-                    node, input_paths, self.code_package_url, user_code_retries
-                ),
+                step_cli=step_cli,
                 task_spec=task_spec,
                 code_package_metadata=self.code_package_metadata,
                 code_package_sha=self.code_package_sha,
@@ -900,6 +904,24 @@ class StepFunctions(object):
             .attempts(total_retries + 1)
         )
 
+        # If S3 upload is enabled, we need to modify the command after it's created
+        if self.upload_commands_to_s3:
+            # Get the command that was created
+            command = batch_job.payload["containerOverrides"]["command"]
+            command_str = " ".join(command)
+            if len(command_str) > self.command_size_threshold:
+                # Upload the entire command to S3
+                s3_path = self._get_command_s3_path(node.name)
+                download_cmd = self._upload_command_to_s3(command_str, s3_path)
+                # Replace the command with the download command
+                batch_job.payload["containerOverrides"]["command"] = [
+                    "bash",
+                    "-c",
+                    download_cmd,
+                ]
+
+        return batch_job
+
     def _get_retries(self, node):
         max_user_code_retries = 0
         max_error_retries = 0
@@ -920,6 +942,10 @@ class StepFunctions(object):
             # Use datastore root with commands suffix
             base_path = self.flow_datastore.datastore_root.rstrip("/") + "/commands"
 
+        # Return relative path (without s3:// prefix) for datastore compatibility
+        if base_path.startswith("s3://"):
+            base_path = base_path[5:]  # Remove s3:// prefix
+
         return f"{base_path}/{self.flow.name}/{run_id_template}/{node_name}/command.sh"
 
     def _upload_command_to_s3(self, command, s3_path):
@@ -936,8 +962,13 @@ class StepFunctions(object):
             )
 
             # Return a command that downloads and executes the uploaded script
+            # Reconstruct full S3 URL for aws s3 cp command
+            bucket = self.flow_datastore.datastore_root.split("/")[
+                2
+            ]  # Extract bucket from datastore_root
+            full_s3_path = f"s3://{bucket}/{s3_path}"
             download_cmd = (
-                f"aws s3 cp s3://{s3_path} /tmp/step_command.sh && "
+                f"aws s3 cp {full_s3_path} /tmp/step_command.sh && "
                 f"chmod +x /tmp/step_command.sh && "
                 f"bash /tmp/step_command.sh"
             )
@@ -1082,6 +1113,8 @@ class StepFunctions(object):
         ):
             s3_path = self._get_command_s3_path(node.name)
             final_command = self._upload_command_to_s3(final_command, s3_path)
+        else:
+            print(f"DEBUG: NOT uploading command to S3 for step {node.name}")
 
         return final_command
 

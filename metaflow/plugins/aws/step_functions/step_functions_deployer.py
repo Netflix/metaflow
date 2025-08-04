@@ -37,11 +37,9 @@ class StepFunctionsDeployer(DeployerImpl):
         return self._deployer_kwargs
 
     @staticmethod
-    def deployed_flow_type() -> (
-        Type[
-            "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.StepFunctionsDeployedFlow"
-        ]
-    ):
+    def deployed_flow_type() -> Type[
+        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.StepFunctionsDeployedFlow"
+    ]:
         from .step_functions_deployer_objects import StepFunctionsDeployedFlow
 
         return StepFunctionsDeployedFlow
@@ -76,6 +74,14 @@ class StepFunctionsDeployer(DeployerImpl):
         use_distributed_map : bool, optional, default False
             Use AWS Step Functions Distributed Map instead of Inline Map for defining foreach
             tasks in Amazon State Language.
+        upload_commands_to_s3 : bool, optional, default False
+            Upload large commands to S3 instead of embedding them in job payload
+            to avoid 8K AWS limit. Commands will be downloaded at runtime.
+        command_s3_path : str, optional, default None
+            S3 path prefix for uploading commands. If not specified, uses
+            the default datastore path with 'commands' suffix.
+        dump_commands : bool, optional, default False
+            Print the generated commands to stdout for debugging.
         deployer_attribute_file : str, optional, default None
             Write the workflow name to the specified file. Used internally for Metaflow's Deployer API.
 
