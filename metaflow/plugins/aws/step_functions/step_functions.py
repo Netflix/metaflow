@@ -94,6 +94,11 @@ class StepFunctions(object):
             os.environ.get("METAFLOW_SFN_COMMAND_SIZE_THRESHOLD", "4096")
         )  # 4K threshold
 
+        # Generate a deployment ID for this deployment
+        import time
+
+        self.deployment_id = f"deployment-{int(time.time())}"
+
         self._client = StepFunctionsClient()
         self._workflow = self._compile()
         self._cron = self._cron()
@@ -910,15 +915,25 @@ class StepFunctions(object):
             command = batch_job.payload["containerOverrides"]["command"]
             command_str = " ".join(command)
             if len(command_str) > self.command_size_threshold:
-                # Upload the entire command to S3
-                s3_path = self._get_command_s3_path(node.name)
-                download_cmd = self._upload_command_to_s3(command_str, s3_path)
-                # Replace the command with the download command
-                batch_job.payload["containerOverrides"]["command"] = [
-                    "bash",
-                    "-c",
-                    download_cmd,
-                ]
+                # Upload the command to S3 during deployment
+                s3_path = self._get_command_s3_path(node.name, self.deployment_id)
+                print(f"DEBUG: Attempting to upload command to S3 path: {s3_path}")
+                print(f"DEBUG: Datastore root: {self.flow_datastore.datastore_root}")
+                try:
+                    self._upload_command_to_s3(command_str, s3_path)
+                    print(f"DEBUG: Successfully uploaded command to S3")
+                    # Replace with download command
+                    bucket = self.flow_datastore.datastore_root.split("/")[2]
+                    full_s3_path = f"s3://{bucket}/{s3_path}"
+                    download_cmd = f"aws s3 cp {full_s3_path} /tmp/step_command.sh && chmod +x /tmp/step_command.sh && bash /tmp/step_command.sh"
+                    batch_job.payload["containerOverrides"]["command"] = [
+                        "bash",
+                        "-c",
+                        download_cmd,
+                    ]
+                except Exception as e:
+                    print(f"Warning: Failed to upload command to S3: {e}")
+                    print("Falling back to inline command")
 
         return batch_job
 
@@ -934,7 +949,7 @@ class StepFunctions(object):
 
         return max_user_code_retries, max_user_code_retries + max_error_retries
 
-    def _get_command_s3_path(self, node_name, run_id_template="sfn-${METAFLOW_RUN_ID}"):
+    def _get_command_s3_path(self, node_name, deployment_id=None):
         """Generate S3 path for storing commands."""
         if self.command_s3_path:
             base_path = self.command_s3_path
@@ -946,27 +961,40 @@ class StepFunctions(object):
         if base_path.startswith("s3://"):
             base_path = base_path[5:]  # Remove s3:// prefix
 
-        return f"{base_path}/{self.flow.name}/{run_id_template}/{node_name}/command.sh"
+        # Use deployment-specific ID instead of run ID
+        if deployment_id is None:
+            # Generate a deployment ID based on flow name and timestamp
+            import time
+
+            deployment_id = f"deployment-{int(time.time())}"
+
+        return f"{base_path}/{self.flow.name}/{deployment_id}/{node_name}/command.sh"
 
     def _upload_command_to_s3(self, command, s3_path):
         """Upload command to S3 and return a retrieval command."""
         try:
+            import boto3
             from io import BytesIO
 
             command_bytes = command.encode("utf-8")
             command_stream = BytesIO(command_bytes)
 
-            # Upload using datastore's save_bytes method
-            self.flow_datastore._storage_impl.save_bytes(
-                [(s3_path, command_stream)], overwrite=True
-            )
+            # Extract bucket and key from s3_path
+            bucket = self.flow_datastore.datastore_root.split("/")[2]
+            # The s3_path already includes the bucket name, so we need to extract just the key part
+            if s3_path.startswith(bucket + "/"):
+                key = s3_path[len(bucket + "/") :]
+            else:
+                key = s3_path
+            print(f"DEBUG: Uploading to bucket: {bucket}, key: {key}")
+
+            # Upload directly to S3
+            s3_client = boto3.client("s3")
+            s3_client.upload_fileobj(command_stream, bucket, key)
+            print(f"DEBUG: Upload completed successfully")
 
             # Return a command that downloads and executes the uploaded script
-            # Reconstruct full S3 URL for aws s3 cp command
-            bucket = self.flow_datastore.datastore_root.split("/")[
-                2
-            ]  # Extract bucket from datastore_root
-            full_s3_path = f"s3://{bucket}/{s3_path}"
+            full_s3_path = f"s3://{bucket}/{key}"
             download_cmd = (
                 f"aws s3 cp {full_s3_path} /tmp/step_command.sh && "
                 f"chmod +x /tmp/step_command.sh && "
@@ -974,7 +1002,7 @@ class StepFunctions(object):
             )
 
             if self.dump_commands:
-                print(f"Uploaded command for step to: s3://{s3_path}")
+                print(f"Uploaded command for step to: {full_s3_path}")
                 print(f"Download command: {download_cmd}")
 
             return download_cmd
