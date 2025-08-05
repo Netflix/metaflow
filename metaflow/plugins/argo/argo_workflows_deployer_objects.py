@@ -204,6 +204,38 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
     TYPE: ClassVar[Optional[str]] = "argo-workflows"
 
     @classmethod
+    def list_deployed_flows(cls, flow_name: Optional[str] = None):
+        """
+        List all deployed Argo Workflow templates.
+
+        Parameters
+        ----------
+        flow_name : str, optional, default None
+            If specified, only list deployed flows for this specific flow name.
+            If None, list all deployed flows.
+
+        Yields
+        ------
+        ArgoWorkflowsDeployedFlow
+            `ArgoWorkflowsDeployedFlow` objects representing deployed
+            workflow templates on Argo Workflows.
+        """
+        from metaflow.plugins.argo.argo_workflows import ArgoWorkflows
+
+        # When flow_name is None, use all=True to get all templates
+        # When flow_name is specified, use all=False to filter by flow_name
+        all_templates = flow_name is None
+        for template_name in ArgoWorkflows.list_templates(
+            flow_name=flow_name, all=all_templates
+        ):
+            try:
+                deployed_flow = cls.from_deployment(template_name)
+                yield deployed_flow
+            except Exception:
+                # Skip templates that can't be converted to DeployedFlow objects
+                continue
+
+    @classmethod
     def from_deployment(cls, identifier: str, metadata: Optional[str] = None):
         """
         Retrieves a `ArgoWorkflowsDeployedFlow` object from an identifier and optional
@@ -277,6 +309,43 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
                 d.metadata = metadata
 
         return cls(deployer=d)
+
+    @classmethod
+    def get_triggered_run(
+        cls, identifier: str, run_id: str, metadata: Optional[str] = None
+    ):
+        """
+        Retrieves a `ArgoWorkflowsTriggeredRun` object from an identifier, a run id and
+        optional metadata.
+
+        Parameters
+        ----------
+        identifier : str
+            Deployer specific identifier for the workflow to retrieve
+        run_id : str
+            Run ID for the which to fetch the triggered run object
+        metadata : str, optional, default None
+            Optional deployer specific metadata.
+
+        Returns
+        -------
+        ArgoWorkflowsTriggeredRun
+            A `ArgoWorkflowsTriggeredRun` object representing the
+            triggered run on argo workflows.
+        """
+        deployed_flow_obj = cls.from_deployment(identifier, metadata)
+        return ArgoWorkflowsTriggeredRun(
+            deployer=deployed_flow_obj.deployer,
+            content=json.dumps(
+                {
+                    "metadata": deployed_flow_obj.deployer.metadata,
+                    "pathspec": "/".join(
+                        (deployed_flow_obj.deployer.flow_name, run_id)
+                    ),
+                    "name": run_id,
+                }
+            ),
+        )
 
     @property
     def production_token(self) -> Optional[str]:

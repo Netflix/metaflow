@@ -59,7 +59,14 @@ class RuntimeDagTest(MetaflowTest):
                 for name, value in type(task1).__dict__.items()
                 if isinstance(value, property)
                 if name
-                not in ["parent_tasks", "child_tasks", "metadata", "data", "artifacts"]
+                not in [
+                    "parent_tasks",
+                    "child_tasks",
+                    "metadata",
+                    "data",
+                    "artifacts",
+                    "code",
+                ]
             ]
 
             for prop_name in properties:

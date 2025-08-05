@@ -831,10 +831,12 @@ class MetaflowCode(object):
         )
         self._code_obj = BytesIO(blobdata)
         self._info = MetaflowPackage.cls_get_info(self._code_metadata, self._code_obj)
+        self._code_obj.seek(0)
         if self._info:
             self._flowspec = MetaflowPackage.cls_get_content(
                 self._code_metadata, self._code_obj, self._info["script"]
             )
+            self._code_obj.seek(0)
         else:
             raise MetaflowInternalError("Code package metadata is invalid.")
 
@@ -885,7 +887,9 @@ class MetaflowCode(object):
             TarFile for everything in this code package
         """
         if self._backend.type == "tgz":
-            return self._backend.cls_open(self._code_obj)
+            to_return = self._backend.cls_open(self._code_obj)
+            self._code_obj.seek(0)
+            return to_return
         raise RuntimeError("Archive is not a tarball")
 
     def extract(self) -> TemporaryDirectory:
@@ -921,6 +925,7 @@ class MetaflowCode(object):
         MetaflowPackage.cls_extract_into(
             self._code_metadata, self._code_obj, tmp.name, ContentType.USER_CONTENT
         )
+        self._code_obj.seek(0)
         return tmp
 
     @property

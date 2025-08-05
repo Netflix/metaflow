@@ -43,6 +43,7 @@ from metaflow._vendor.click.types import (
 )
 from metaflow.decorators import add_decorator_options
 from metaflow.exception import MetaflowException
+from metaflow.flowspec import _FlowState
 from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
 from metaflow.parameters import JSONTypeClass, flow_context
@@ -171,7 +172,6 @@ def _lazy_load_command(
     _self,
     name: str,
 ):
-
     # Context is not used in get_command so we can pass None. Since we pin click,
     # this won't change from under us.
 
@@ -516,6 +516,11 @@ class MetaflowAPI(object):
         # Note that if CLICK_API_PROCESS_CONFIG is False, we still do this because
         # it will init all parameters (config_options will be None)
         # We ignore any errors if we don't check the configs in the click API.
+
+        # Init all values in the flow mutators and then process them
+        for decorator in self._flow_cls._flow_state.get(_FlowState.FLOW_MUTATORS, []):
+            decorator.external_init()
+
         new_cls = self._flow_cls._process_config_decorators(
             config_options, process_configs=CLICK_API_PROCESS_CONFIG
         )
@@ -541,14 +546,16 @@ def extract_all_params(cmd_obj: Union[click.Command, click.Group]):
 
     for each_param in cmd_obj.params:
         if isinstance(each_param, click.Argument):
-            arg_params_sigs[each_param.name], annotations[each_param.name] = (
-                get_inspect_param_obj(each_param, inspect.Parameter.POSITIONAL_ONLY)
-            )
+            (
+                arg_params_sigs[each_param.name],
+                annotations[each_param.name],
+            ) = get_inspect_param_obj(each_param, inspect.Parameter.POSITIONAL_ONLY)
             arg_parameters[each_param.name] = each_param
         elif isinstance(each_param, click.Option):
-            opt_params_sigs[each_param.name], annotations[each_param.name] = (
-                get_inspect_param_obj(each_param, inspect.Parameter.KEYWORD_ONLY)
-            )
+            (
+                opt_params_sigs[each_param.name],
+                annotations[each_param.name],
+            ) = get_inspect_param_obj(each_param, inspect.Parameter.KEYWORD_ONLY)
             opt_parameters[each_param.name] = each_param
 
         defaults[each_param.name] = each_param.default

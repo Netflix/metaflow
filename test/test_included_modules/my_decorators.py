@@ -1,4 +1,4 @@
-# METAFLOW_PACKAGE = 1
+# METAFLOW_PACKAGE_POLICY = "include"
 
 import time
 from typing import Any, Callable, Optional
