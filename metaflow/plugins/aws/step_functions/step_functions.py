@@ -970,7 +970,7 @@ class StepFunctions(object):
         try:
             import boto3
             from io import BytesIO
-            from .aws_utils import parse_s3_full_path
+            from ..aws_utils import parse_s3_full_path
 
             command_bytes = command.encode("utf-8")
             command_stream = BytesIO(command_bytes)
