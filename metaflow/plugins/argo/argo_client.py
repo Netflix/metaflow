@@ -311,15 +311,8 @@ class ArgoClient(object):
             )
 
     def schedule_workflow_template(self, name, schedule=None, timezone=None):
-        """
-        Issue an API call for creating or suspending a schedule (CronWorkflow)
-
-        Unfortunately, Kubernetes client does not handle optimistic
-        concurrency control by itself unlike kubectl.
-
-        We suspend rather than delete the cron workflow, because the user
-        may not have permissions to delete resources (only modify them).
-        """
+        # Unfortunately, Kubernetes client does not handle optimistic
+        # concurrency control by itself unlike kubectl
         client = self._client.get()
         body = {
             "apiVersion": "argoproj.io/v1alpha1",
