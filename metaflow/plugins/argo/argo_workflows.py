@@ -190,6 +190,7 @@ class ArgoWorkflows(object):
         return str(self._workflow_template)
 
     def deploy(self):
+        self.cleanup_previous_sensors()
         try:
             # Register workflow template.
             ArgoClient(namespace=KUBERNETES_NAMESPACE).register_workflow_template(

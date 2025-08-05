@@ -302,7 +302,6 @@ def create(
         obj.echo_always(str(flow), err=False, no_bold=True)
         # TODO: Support echo-ing Argo Events Sensor template
     else:
-        flow.cleanup_previous_sensors()
         flow.deploy()
         obj.echo(
             "Workflow *{workflow_name}* "
