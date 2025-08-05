@@ -330,8 +330,9 @@ def create(
         if obj._is_workflow_name_modified:
             obj.echo(
                 "Note that the flow was deployed with a modified name "
-                "due to Kubernetes naming conventions\non Argo Workflows. The "
-                "original flow name is stored in the workflow annotations.\n"
+                "due to Kubernetes naming conventions on Argo Workflows. The "
+                "original flow name is stored in the workflow annotations.\n",
+                wrap=True,
             )
 
         if obj.workflow_name != obj._v1_workflow_name:
@@ -341,10 +342,11 @@ def create(
                 obj.echo("Important!", bold=True, nl=False)
                 obj.echo(
                     " To comply with new naming restrictions on Argo "
-                    "Workflows, this deployment replaced the\npreviously "
+                    "Workflows, this deployment replaced the previously "
                     "deployed workflow {v1_workflow_name}.\n".format(
                         v1_workflow_name=obj._v1_workflow_name
-                    )
+                    ),
+                    wrap=True,
                 )
             except ArgoWorkflowsException as e:
                 # TODO: Catch a more specific exception
@@ -353,14 +355,15 @@ def create(
             obj.echo("Warning! ", bold=True, nl=False)
             obj.echo(
                 "Due to new naming restrictions on Argo Workflows, "
-                "re-deploying this flow with older\nversions of Metaflow (<{version}) "
+                "re-deploying this flow with older versions of Metaflow (<{version}) "
                 "will result in the flow being deployed with a different name -\n"
-                "*{v1_workflow_name}* \nwithout replacing the version you just deployed."
-                "This may result in duplicate executions of \nthis flow. To avoid this issue, "
-                "always deploy this flow using Metaflow ≥{version} or specify the \nflow name with --name.\n".format(
+                "*{v1_workflow_name}* without replacing the version you just deployed. "
+                "This may result in duplicate executions of this flow. To avoid this issue, "
+                "always deploy this flow using Metaflow ≥{version} or specify the flow name with --name.".format(
                     v1_workflow_name=obj._v1_workflow_name,
                     version=NEW_ARGO_NAMELENGTH_METAFLOW_VERSION,
-                )
+                ),
+                wrap=True,
             )
 
         if ARGO_WORKFLOWS_UI_URL:
@@ -891,11 +894,16 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
         if ArgoWorkflows.get_existing_deployment(obj._v1_workflow_name):
             obj.echo("Warning! ", bold=True, nl=False)
             obj.echo(
-                "Found a deployment of this flow with an old style name, defaulted to triggering *%s*.\n"
+                "Found a deployment of this flow with an old style name, defaulted to triggering *%s*."
+                % obj._v1_workflow_name,
+                wrap=True,
+            )
+            obj.echo(
                 "Due to new naming restrictions on Argo Workflows, "
-                "this flow will have a shorter name with newer\nversions of Metaflow (>=%s) "
+                "this flow will have a shorter name with newer versions of Metaflow (>=%s) "
                 "which will allow it to be triggered through Argo UI as well. "
-                % (obj._v1_workflow_name, NEW_ARGO_NAMELENGTH_METAFLOW_VERSION)
+                % NEW_ARGO_NAMELENGTH_METAFLOW_VERSION,
+                wrap=True,
             )
             obj.echo("re-deploy your flow in order to get rid of this message.")
             workflow_name_to_deploy = obj._v1_workflow_name
@@ -995,8 +1003,9 @@ def delete(obj, authorize=None):
         if ArgoWorkflows.get_existing_deployment(obj._v1_workflow_name) is not None:
             cleanup_old_name = True
             obj.echo(
-                "This flow has been deployed with another name in the past due to a limitation with Argo Workflows.\n"
-                "Will also delete the older deployment."
+                "This flow has been deployed with another name in the past due to a limitation with Argo Workflows. "
+                "Will also delete the older deployment.",
+                wrap=True,
             )
             _delete(obj._v1_workflow_name)
             workflows_deleted = True
