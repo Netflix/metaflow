@@ -221,9 +221,6 @@ class ArgoWorkflows(object):
                 old_sensor_name = old_template["metadata"]["annotations"][
                     "metaflow/sensor_name"
                 ]
-                old_sensor_namespace = old_template["metadata"]["annotations"][
-                    "metaflow/sensor_namespace"
-                ]
                 if (
                     not self._sensor
                     or old_sensor_namespace != ARGO_EVENTS_SENSOR_NAMESPACE
