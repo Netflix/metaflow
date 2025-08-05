@@ -956,10 +956,12 @@ class StepFunctions(object):
 
         # Use deployment-specific ID instead of run ID
         if deployment_id is None:
-            # Generate a deployment ID based on flow name and timestamp
-            import time
+            # Use the instance deployment_id if available, otherwise generate a new one
+            deployment_id = getattr(self, "deployment_id", None)
+            if deployment_id is None:
+                import time
 
-            deployment_id = f"deployment-{int(time.time())}"
+                deployment_id = f"deployment-{int(time.time())}"
 
         return f"{base_path}/{self.flow.name}/{deployment_id}/{node_name}/command.sh"
 
@@ -968,17 +970,13 @@ class StepFunctions(object):
         try:
             import boto3
             from io import BytesIO
+            from .aws_utils import parse_s3_full_path
 
             command_bytes = command.encode("utf-8")
             command_stream = BytesIO(command_bytes)
 
-            # Extract bucket and key from s3_path
-            bucket = self.flow_datastore.datastore_root.split("/")[2]
-            # The s3_path already includes the bucket name, so we need to extract just the key part
-            if s3_path.startswith(bucket + "/"):
-                key = s3_path[len(bucket + "/") :]
-            else:
-                key = s3_path
+            # Use the existing S3 path parsing utility
+            bucket, key = parse_s3_full_path(f"s3://{s3_path}")
 
             # Upload directly to S3
             s3_client = boto3.client("s3")
