@@ -198,7 +198,7 @@ class ArgoWorkflows(object):
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
 
-    def cleanup_previous(self):
+    def cleanup_previous_sensors(self):
         try:
             client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
             # Check for existing deployment and do cleanup
@@ -206,16 +206,17 @@ class ArgoWorkflows(object):
             if not old_template:
                 return None
             # Clean up old sensors
-            old_has_sensor = old_template["metadata"]["annotations"].get(
-                "metaflow/has_sensor"
+            old_sensor_namespace = old_template["metadata"]["annotations"].get(
+                "metaflow/sensor_namespace"
             )
-            if old_has_sensor is None:
+
+            if old_sensor_namespace is None:
                 # This workflow was created before sensor annotations
                 # and may have a sensor in the default namespace
                 # we will delete it and it'll get recreated if need be
                 old_sensor_name = ArgoWorkflows._sensor_name(self.name)
                 client.delete_sensor(old_sensor_name, client._namespace)
-            elif old_has_sensor == "True":
+            else:
                 # delete old sensor only if it was somewhere else, otherwise it'll get replaced
                 old_sensor_name = old_template["metadata"]["annotations"][
                     "metaflow/sensor_name"
@@ -775,10 +776,7 @@ class ArgoWorkflows(object):
         # generate container templates at the top level (in WorkflowSpec) and maintain
         # references to them within the DAGTask.
 
-        annotations = {
-            "metaflow/has_schedule": str(self._schedule is not None),
-            "metaflow/has_sensor": str(bool(self.triggers)),
-        }
+        annotations = {}
 
         if self._schedule is not None:
             # timezone is an optional field and json dumps on None will result in null
