@@ -79,9 +79,6 @@ class StepFunctionsDeployer(DeployerImpl):
         compress_state_machine : bool, optional, default False
             Upload large commands to S3 instead of embedding them in job payload
             to avoid 8K AWS limit. Commands will be downloaded at runtime.
-        command_s3_path : str, optional, default None
-            S3 path prefix for uploading commands. If not specified, uses
-            the default datastore path with 'commands' suffix.
 
         deployer_attribute_file : str, optional, default None
             Write the workflow name to the specified file. Used internally for Metaflow's Deployer API.

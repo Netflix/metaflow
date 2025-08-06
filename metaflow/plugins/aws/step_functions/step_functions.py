@@ -57,7 +57,6 @@ class StepFunctions(object):
         is_project=False,
         use_distributed_map=False,
         compress_state_machine=False,
-        command_s3_path=None,
     ):
         self.name = name
         self.graph = graph
@@ -83,11 +82,10 @@ class StepFunctions(object):
 
         # S3 command upload configuration
         self.upload_commands_to_s3 = (
-            upload_commands_to_s3
+            compress_state_machine
             or os.environ.get("METAFLOW_SFN_COMPRESS_STATE_MACHINE", "false").lower()
             == "true"
         )
-        self.command_s3_path = command_s3_path
         self.command_size_threshold = int(
             os.environ.get("METAFLOW_SFN_COMMAND_SIZE_THRESHOLD", "4096")
         )  # 4K threshold
@@ -188,7 +186,7 @@ class StepFunctions(object):
 
         if sfn_deleted is None:
             raise StepFunctionsException(
-                "The workflow *%s* doesn't exist " "on AWS Step Functions." % name
+                "The workflow *%s* doesn't exist on AWS Step Functions." % name
             )
 
         return schedule_deleted, sfn_deleted
@@ -944,11 +942,8 @@ class StepFunctions(object):
 
     def _get_command_s3_path(self, node_name, deployment_id=None):
         """Generate S3 path for storing commands."""
-        if self.command_s3_path:
-            base_path = self.command_s3_path
-        else:
-            # Use datastore root with commands suffix
-            base_path = self.flow_datastore.datastore_root.rstrip("/") + "/commands"
+        # Use datastore root with commands suffix
+        base_path = self.flow_datastore.datastore_root.rstrip("/") + "/commands"
 
         # Return relative path (without s3:// prefix) for datastore compatibility
         if base_path.startswith("s3://"):
