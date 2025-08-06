@@ -63,7 +63,7 @@ def step_functions(obj, name=None):
 
 
 @step_functions.command(
-    help="Deploy a new version of this workflow to AWS Step Functions."
+    help="Deploy a new version of this workflow to " "AWS Step Functions."
 )
 @click.option(
     "--authorize",
@@ -108,7 +108,7 @@ def step_functions(obj, name=None):
     "--only-json",
     is_flag=True,
     default=False,
-    help="Only print out JSON sent to AWS Step Functions. Do not deploy anything.",
+    help="Only print out JSON sent to AWS Step Functions. Do not " "deploy anything.",
 )
 @click.option(
     "--max-workers",
@@ -122,7 +122,8 @@ def step_functions(obj, name=None):
 @click.option(
     "--log-execution-history",
     is_flag=True,
-    help="Log AWS Step Functions execution history to AWS CloudWatch Logs log group.",
+    help="Log AWS Step Functions execution history to AWS CloudWatch "
+    "Logs log group.",
 )
 @click.option(
     "--use-distributed-map/--no-use-distributed-map",
@@ -270,7 +271,7 @@ def check_metadata_service_version(obj):
             "re-execute your command."
         )
         raise IncorrectMetadataServiceVersion(
-            "Try again with a more recent version of metaflow service (>=2.0.2)."
+            "Try again with a more recent " "version of metaflow service " "(>=2.0.2)."
         )
 
 
@@ -287,7 +288,7 @@ def resolve_state_machine_name(obj, name):
     if project:
         if name:
             raise MetaflowException(
-                "--name is not supported for @projects. Use --branch instead."
+                "--name is not supported for @projects. " "Use --branch instead."
             )
         state_machine_name = attach_prefix(current.project_flow_name)
         project_branch = to_bytes(".".join((project, current.branch_name)))
@@ -434,7 +435,7 @@ def resolve_token(
                 "information about production tokens."
             )
             raise IncorrectProductionToken(
-                "Try again with the correct production token."
+                "Try again with the correct " "production token."
             )
 
     # 3) do we need a new token or should we use the existing token?
@@ -457,7 +458,7 @@ def resolve_token(
         if token is None:
             if prev_token is None:
                 raise MetaflowInternalError(
-                    "We could not generate a new token. This is unexpected. "
+                    "We could not generate a new " "token. This is unexpected. "
                 )
             else:
                 raise MetaflowException(
@@ -475,7 +476,7 @@ def resolve_token(
     obj.echo("The namespace of this production flow is")
     obj.echo("    production:%s" % token, fg="green")
     obj.echo(
-        "To analyze results of this production flow add this line in your notebooks:"
+        "To analyze results of this production flow " "add this line in your notebooks:"
     )
     obj.echo('    namespace("production:%s")' % token, fg="green")
     obj.echo(
@@ -483,7 +484,7 @@ def resolve_token(
         "of this flow to AWS Step Functions, they need to call"
     )
     obj.echo("    step-functions create --authorize %s" % token, fg="green")
-    obj.echo("when deploying this flow to AWS Step Functions for the first time.")
+    obj.echo("when deploying this flow to AWS Step Functions for the first " "time.")
     obj.echo(
         'See "Organizing Results" at https://docs.metaflow.org/ for more '
         "information about production tokens."
@@ -548,7 +549,8 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
             )
 
     obj.echo(
-        "Workflow *{name}* triggered on AWS Step Functions (run-id *{run_id}*).".format(
+        "Workflow *{name}* triggered on AWS Step Functions "
+        "(run-id *{run_id}*).".format(
             name=obj.state_machine_name, run_id=run_id
         ),
         bold=True,
@@ -570,31 +572,31 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
     "--running",
     default=False,
     is_flag=True,
-    help="List all runs of the workflow in RUNNING state on AWS Step Functions.",
+    help="List all runs of the workflow in RUNNING state on " "AWS Step Functions.",
 )
 @click.option(
     "--succeeded",
     default=False,
     is_flag=True,
-    help="List all runs of the workflow in SUCCEEDED state on AWS Step Functions.",
+    help="List all runs of the workflow in SUCCEEDED state on " "AWS Step Functions.",
 )
 @click.option(
     "--failed",
     default=False,
     is_flag=True,
-    help="List all runs of the workflow in FAILED state on AWS Step Functions.",
+    help="List all runs of the workflow in FAILED state on " "AWS Step Functions.",
 )
 @click.option(
     "--timed-out",
     default=False,
     is_flag=True,
-    help="List all runs of the workflow in TIMED_OUT state on AWS Step Functions.",
+    help="List all runs of the workflow in TIMED_OUT state on " "AWS Step Functions.",
 )
 @click.option(
     "--aborted",
     default=False,
     is_flag=True,
-    help="List all runs of the workflow in ABORTED state on AWS Step Functions.",
+    help="List all runs of the workflow in ABORTED state on " "AWS Step Functions.",
 )
 @click.pass_obj
 def list_runs(
@@ -629,7 +631,9 @@ def list_runs(
             )
         else:
             obj.echo(
-                "*sfn-{id}* startedAt:'{startDate}' *{status}*".format(
+                "*sfn-{id}* "
+                "startedAt:'{startDate}' "
+                "*{status}*".format(
                     id=execution["name"],
                     status=execution["status"],
                     startDate=execution["startDate"].replace(microsecond=0),
