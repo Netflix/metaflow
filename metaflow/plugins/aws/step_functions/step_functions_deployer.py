@@ -80,8 +80,7 @@ class StepFunctionsDeployer(DeployerImpl):
         command_s3_path : str, optional, default None
             S3 path prefix for uploading commands. If not specified, uses
             the default datastore path with 'commands' suffix.
-        dump_commands : bool, optional, default False
-            Print the generated commands to stdout for debugging.
+
         deployer_attribute_file : str, optional, default None
             Write the workflow name to the specified file. Used internally for Metaflow's Deployer API.
 

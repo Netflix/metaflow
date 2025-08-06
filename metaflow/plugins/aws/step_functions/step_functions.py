@@ -58,7 +58,6 @@ class StepFunctions(object):
         use_distributed_map=False,
         upload_commands_to_s3=False,
         command_s3_path=None,
-        dump_commands=False,
     ):
         self.name = name
         self.graph = graph
@@ -89,7 +88,6 @@ class StepFunctions(object):
             == "true"
         )
         self.command_s3_path = command_s3_path
-        self.dump_commands = dump_commands
         self.command_size_threshold = int(
             os.environ.get("METAFLOW_SFN_COMMAND_SIZE_THRESHOLD", "4096")
         )  # 4K threshold
@@ -990,10 +988,6 @@ class StepFunctions(object):
                 f"bash /tmp/step_command.sh"
             )
 
-            if self.dump_commands:
-                print(f"Uploaded command for step to: {full_s3_path}")
-                print(f"Download command: {download_cmd}")
-
             return download_cmd
 
         except Exception as e:
@@ -1116,12 +1110,6 @@ class StepFunctions(object):
         cmds.append(" ".join(entrypoint + top_level + step))
 
         final_command = " && ".join(cmds)
-
-        # Dump command if requested
-        if self.dump_commands:
-            print(f"=== Command for step {node.name} ===")
-            print(final_command)
-            print("=" * 50)
 
         return final_command
 

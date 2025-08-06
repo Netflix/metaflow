@@ -144,12 +144,6 @@ def step_functions(obj, name=None):
     "the default datastore path with 'commands' suffix.",
 )
 @click.option(
-    "--dump-commands",
-    is_flag=True,
-    default=False,
-    help="Print the generated commands to stdout for debugging.",
-)
-@click.option(
     "--deployer-attribute-file",
     default=None,
     show_default=True,
@@ -172,7 +166,6 @@ def create(
     use_distributed_map=False,
     upload_commands_to_s3=False,
     command_s3_path=None,
-    dump_commands=False,
     deployer_attribute_file=None,
 ):
     for node in obj.graph:
@@ -224,7 +217,6 @@ def create(
         use_distributed_map,
         upload_commands_to_s3,
         command_s3_path,
-        dump_commands,
     )
 
     if only_json:
@@ -346,7 +338,6 @@ def make_flow(
     use_distributed_map,
     upload_commands_to_s3=False,
     command_s3_path=None,
-    dump_commands=False,
 ):
     if obj.flow_datastore.TYPE != "s3":
         raise MetaflowException("AWS Step Functions requires --datastore=s3.")
@@ -397,7 +388,6 @@ def make_flow(
         use_distributed_map=use_distributed_map,
         upload_commands_to_s3=upload_commands_to_s3,
         command_s3_path=command_s3_path,
-        dump_commands=dump_commands,
     )
 
 
