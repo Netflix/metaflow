@@ -541,9 +541,7 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
 
     obj.echo(
         "Workflow *{name}* triggered on AWS Step Functions "
-        "(run-id *{run_id}*).".format(
-            name=obj.state_machine_name, run_id=run_id
-        ),
+        "(run-id *{run_id}*).".format(name=obj.state_machine_name, run_id=run_id),
         bold=True,
     )
 
