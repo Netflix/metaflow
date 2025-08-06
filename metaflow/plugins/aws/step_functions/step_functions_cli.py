@@ -132,7 +132,7 @@ def step_functions(obj, name=None):
     "defining foreach tasks in Amazon State Language.",
 )
 @click.option(
-    "--upload-commands-to-s3/--no-upload-commands-to-s3",
+    "--compress-state-machine/--no-compress-state-machine",
     is_flag=True,
     default=False,
     help="Upload large commands to S3 instead of embedding them in job payload "
@@ -165,7 +165,7 @@ def create(
     workflow_timeout=None,
     log_execution_history=False,
     use_distributed_map=False,
-    upload_commands_to_s3=False,
+    compress_state_machine=False,
     command_s3_path=None,
     deployer_attribute_file=None,
 ):
@@ -216,7 +216,7 @@ def create(
         workflow_timeout,
         obj.is_project,
         use_distributed_map,
-        upload_commands_to_s3,
+        compress_state_machine,
         command_s3_path,
     )
 
@@ -337,7 +337,7 @@ def make_flow(
     workflow_timeout,
     is_project,
     use_distributed_map,
-    upload_commands_to_s3=False,
+    compress_state_machine=False,
     command_s3_path=None,
 ):
     if obj.flow_datastore.TYPE != "s3":
@@ -387,7 +387,7 @@ def make_flow(
         workflow_timeout=workflow_timeout,
         is_project=is_project,
         use_distributed_map=use_distributed_map,
-        upload_commands_to_s3=upload_commands_to_s3,
+        upload_commands_to_s3=compress_state_machine,
         command_s3_path=command_s3_path,
     )
 

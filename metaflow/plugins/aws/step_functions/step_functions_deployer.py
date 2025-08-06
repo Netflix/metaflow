@@ -76,7 +76,7 @@ class StepFunctionsDeployer(DeployerImpl):
         use_distributed_map : bool, optional, default False
             Use AWS Step Functions Distributed Map instead of Inline Map for defining foreach
             tasks in Amazon State Language.
-        upload_commands_to_s3 : bool, optional, default False
+        compress_state_machine : bool, optional, default False
             Upload large commands to S3 instead of embedding them in job payload
             to avoid 8K AWS limit. Commands will be downloaded at runtime.
         command_s3_path : str, optional, default None

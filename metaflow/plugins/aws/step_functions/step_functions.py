@@ -56,7 +56,7 @@ class StepFunctions(object):
         workflow_timeout=None,
         is_project=False,
         use_distributed_map=False,
-        upload_commands_to_s3=False,
+        compress_state_machine=False,
         command_s3_path=None,
     ):
         self.name = name
@@ -84,7 +84,7 @@ class StepFunctions(object):
         # S3 command upload configuration
         self.upload_commands_to_s3 = (
             upload_commands_to_s3
-            or os.environ.get("METAFLOW_SFN_UPLOAD_COMMANDS_TO_S3", "false").lower()
+            or os.environ.get("METAFLOW_SFN_COMPRESS_STATE_MACHINE", "false").lower()
             == "true"
         )
         self.command_s3_path = command_s3_path
