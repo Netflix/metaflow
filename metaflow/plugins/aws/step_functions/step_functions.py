@@ -56,6 +56,7 @@ class StepFunctions(object):
         workflow_timeout=None,
         is_project=False,
         use_distributed_map=False,
+        compress_state_machine=False,
     ):
         self.name = name
         self.graph = graph
@@ -78,6 +79,18 @@ class StepFunctions(object):
 
         # https://aws.amazon.com/blogs/aws/step-functions-distributed-map-a-serverless-solution-for-large-scale-parallel-data-processing/
         self.use_distributed_map = use_distributed_map
+
+        # S3 command upload configuration
+        self.upload_commands_to_s3 = (
+            compress_state_machine
+            or os.environ.get("METAFLOW_SFN_COMPRESS_STATE_MACHINE", "false").lower()
+            == "true"
+        )
+
+        # Generate a deployment ID for this deployment
+        import time
+
+        self.deployment_id = f"deployment-{int(time.time())}"
 
         self._client = StepFunctionsClient()
         self._workflow = self._compile()
@@ -847,13 +860,17 @@ class StepFunctions(object):
             "retry_count": "$((AWS_BATCH_JOB_ATTEMPT-1))",
         }
 
-        return (
+        # Get the step command
+        step_cli = self._step_cli(
+            node, input_paths, self.code_package_url, user_code_retries
+        )
+
+        # Create the batch job
+        batch_job = (
             Batch(self.metadata, self.environment)
             .create_job(
                 step_name=node.name,
-                step_cli=self._step_cli(
-                    node, input_paths, self.code_package_url, user_code_retries
-                ),
+                step_cli=step_cli,
                 task_spec=task_spec,
                 code_package_metadata=self.code_package_metadata,
                 code_package_sha=self.code_package_sha,
@@ -887,6 +904,26 @@ class StepFunctions(object):
             .attempts(total_retries + 1)
         )
 
+        # If S3 upload is enabled, we need to modify the command after it's created
+        if self.upload_commands_to_s3:
+            # Get the command that was created
+            command = batch_job.payload["containerOverrides"]["command"]
+            command_str = " ".join(command)
+            # Upload the command to S3 during deployment
+            s3_path = self._get_command_s3_path(node.name, self.deployment_id)
+            try:
+                download_cmd = self._upload_command_to_s3(command_str, s3_path)
+                batch_job.payload["containerOverrides"]["command"] = [
+                    "bash",
+                    "-c",
+                    download_cmd,
+                ]
+            except Exception as e:
+                print(f"Warning: Failed to upload command to S3: {e}")
+                print("Falling back to inline command")
+
+        return batch_job
+
     def _get_retries(self, node):
         max_user_code_retries = 0
         max_error_retries = 0
@@ -898,6 +935,59 @@ class StepFunctions(object):
             max_error_retries = max(max_error_retries, error_retries)
 
         return max_user_code_retries, max_user_code_retries + max_error_retries
+
+    def _get_command_s3_path(self, node_name, deployment_id=None):
+        """Generate S3 path for storing commands."""
+        # Use datastore root with commands suffix
+        base_path = self.flow_datastore.datastore_root.rstrip("/") + "/commands"
+
+        # Return relative path (without s3:// prefix) for datastore compatibility
+        if base_path.startswith("s3://"):
+            base_path = base_path[5:]  # Remove s3:// prefix
+
+        # Use deployment-specific ID instead of run ID
+        if deployment_id is None:
+            # Use the instance deployment_id if available, otherwise generate a new one
+            deployment_id = getattr(self, "deployment_id", None)
+            if deployment_id is None:
+                import time
+
+                deployment_id = f"deployment-{int(time.time())}"
+
+        return f"{base_path}/{self.flow.name}/{deployment_id}/{node_name}/command.sh"
+
+    def _upload_command_to_s3(self, command, s3_path):
+        """Upload command to S3 and return a retrieval command."""
+        try:
+            import boto3
+            from io import BytesIO
+            from ..aws_utils import parse_s3_full_path
+
+            command_bytes = command.encode("utf-8")
+            command_stream = BytesIO(command_bytes)
+
+            # Use the existing S3 path parsing utility
+            bucket, key = parse_s3_full_path(f"s3://{s3_path}")
+
+            # Upload directly to S3
+            s3_client = boto3.client("s3")
+            s3_client.upload_fileobj(command_stream, bucket, key)
+
+            # Return a command that downloads and executes the uploaded script
+            full_s3_path = f"s3://{bucket}/{key}"
+            download_cmd = (
+                f"aws s3 cp {full_s3_path} /tmp/step_command.sh && "
+                f"chmod +x /tmp/step_command.sh && "
+                f"bash /tmp/step_command.sh"
+            )
+
+            return download_cmd
+
+        except Exception as e:
+            # Fall back to inline command if S3 upload fails
+            print(f"Warning: Failed to upload command to S3: {e}")
+            print("Falling back to inline command")
+            return command
 
     def _step_cli(self, node, paths, code_package_url, user_code_retries):
         cmds = []
