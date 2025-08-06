@@ -1212,9 +1212,7 @@ class State(object):
     def dynamo_db(self, table_name, primary_key, values):
         self.resource("arn:%s:states:::dynamodb:getItem" % self._partition()).parameter(
             "TableName", table_name
-        ).parameter(
-            "Key", {"pathspec": {"S.$": primary_key}}
-        ).parameter(
+        ).parameter("Key", {"pathspec": {"S.$": primary_key}}).parameter(
             "ConsistentRead", True
         ).parameter(
             "ProjectionExpression", values
