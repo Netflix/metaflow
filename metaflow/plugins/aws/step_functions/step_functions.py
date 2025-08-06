@@ -86,9 +86,6 @@ class StepFunctions(object):
             or os.environ.get("METAFLOW_SFN_COMPRESS_STATE_MACHINE", "false").lower()
             == "true"
         )
-        self.command_size_threshold = int(
-            os.environ.get("METAFLOW_SFN_COMMAND_SIZE_THRESHOLD", "4096")
-        )  # 4K threshold
 
         # Generate a deployment ID for this deployment
         import time
@@ -912,19 +909,18 @@ class StepFunctions(object):
             # Get the command that was created
             command = batch_job.payload["containerOverrides"]["command"]
             command_str = " ".join(command)
-            if len(command_str) > self.command_size_threshold:
-                # Upload the command to S3 during deployment
-                s3_path = self._get_command_s3_path(node.name, self.deployment_id)
-                try:
-                    download_cmd = self._upload_command_to_s3(command_str, s3_path)
-                    batch_job.payload["containerOverrides"]["command"] = [
-                        "bash",
-                        "-c",
-                        download_cmd,
-                    ]
-                except Exception as e:
-                    print(f"Warning: Failed to upload command to S3: {e}")
-                    print("Falling back to inline command")
+            # Upload the command to S3 during deployment
+            s3_path = self._get_command_s3_path(node.name, self.deployment_id)
+            try:
+                download_cmd = self._upload_command_to_s3(command_str, s3_path)
+                batch_job.payload["containerOverrides"]["command"] = [
+                    "bash",
+                    "-c",
+                    download_cmd,
+                ]
+            except Exception as e:
+                print(f"Warning: Failed to upload command to S3: {e}")
+                print("Falling back to inline command")
 
         return batch_job
 
