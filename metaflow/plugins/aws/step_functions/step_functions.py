@@ -116,7 +116,7 @@ class StepFunctions(object):
                 % self.event_bridge_rule
             )
         else:
-            return "No triggers defined. You need to launch this workflow manually."
+            return "No triggers defined. " "You need to launch this workflow manually."
 
     def deploy(self, log_execution_history):
         if SFN_IAM_ROLE is None:
@@ -188,7 +188,7 @@ class StepFunctions(object):
 
         if sfn_deleted is None:
             raise StepFunctionsException(
-                "The workflow *%s* doesn't exist on AWS Step Functions." % name
+                "The workflow *%s* doesn't exist " "on AWS Step Functions." % name
             )
 
         return schedule_deleted, sfn_deleted
@@ -238,7 +238,7 @@ class StepFunctions(object):
             raise StepFunctionsException(repr(e))
         if state_machine is None:
             raise StepFunctionsException(
-                "The workflow *%s* doesn't exist on AWS Step Functions." % name
+                "The workflow *%s* doesn't exist " "on AWS Step Functions." % name
             )
         try:
             state_machine_arn = state_machine.get("stateMachineArn")
@@ -347,7 +347,9 @@ class StepFunctions(object):
             state = (
                 State(node.name)
                 .batch(self._batch(node))
-                .output_path("$.['JobId', 'Parameters', 'Index', 'SplitParentTaskId']")
+                .output_path(
+                    "$.['JobId', " "'Parameters', " "'Index', " "'SplitParentTaskId']"
+                )
             )
             # End the (sub)workflow if we have reached the end of the flow or
             # the parent step of matching_join of the sub workflow.
@@ -1190,13 +1192,17 @@ class State(object):
             "arn:%s:states:::batch:submitJob.sync" % self._partition()
         ).parameter("JobDefinition", job.payload["jobDefinition"]).parameter(
             "JobName", job.payload["jobName"]
-        ).parameter("JobQueue", job.payload["jobQueue"]).parameter(
+        ).parameter(
+            "JobQueue", job.payload["jobQueue"]
+        ).parameter(
             "Parameters", job.payload["parameters"]
         ).parameter(
             "ContainerOverrides", to_pascalcase(job.payload["containerOverrides"])
         ).parameter(
             "RetryStrategy", to_pascalcase(job.payload["retryStrategy"])
-        ).parameter("Timeout", to_pascalcase(job.payload["timeout"]))
+        ).parameter(
+            "Timeout", to_pascalcase(job.payload["timeout"])
+        )
         # tags may not be present in all scenarios
         if "tags" in job.payload:
             self.parameter("Tags", job.payload["tags"])
@@ -1218,9 +1224,13 @@ class State(object):
     def dynamo_db(self, table_name, primary_key, values):
         self.resource("arn:%s:states:::dynamodb:getItem" % self._partition()).parameter(
             "TableName", table_name
-        ).parameter("Key", {"pathspec": {"S.$": primary_key}}).parameter(
+        ).parameter(
+            "Key", {"pathspec": {"S.$": primary_key}}
+        ).parameter(
             "ConsistentRead", True
-        ).parameter("ProjectionExpression", values)
+        ).parameter(
+            "ProjectionExpression", values
+        )
         return self
 
 

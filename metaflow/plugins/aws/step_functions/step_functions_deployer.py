@@ -37,9 +37,11 @@ class StepFunctionsDeployer(DeployerImpl):
         return self._deployer_kwargs
 
     @staticmethod
-    def deployed_flow_type() -> Type[
-        "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.StepFunctionsDeployedFlow"
-    ]:
+    def deployed_flow_type() -> (
+        Type[
+            "metaflow.plugins.aws.step_functions.step_functions_deployer_objects.StepFunctionsDeployedFlow"
+        ]
+    ):
         from .step_functions_deployer_objects import StepFunctionsDeployedFlow
 
         return StepFunctionsDeployedFlow
