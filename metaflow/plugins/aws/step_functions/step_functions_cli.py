@@ -379,7 +379,7 @@ def make_flow(
         workflow_timeout=workflow_timeout,
         is_project=is_project,
         use_distributed_map=use_distributed_map,
-        upload_commands_to_s3=compress_state_machine,
+        compress_state_machine=compress_state_machine,
     )
 
 
