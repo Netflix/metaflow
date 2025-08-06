@@ -1105,10 +1105,7 @@ class StepFunctions(object):
         if self.namespace is not None:
             step.append("--namespace=%s" % self.namespace)
         cmds.append(" ".join(entrypoint + top_level + step))
-
-        final_command = " && ".join(cmds)
-
-        return final_command
+        return " && ".join(cmds)
 
 
 class Workflow(object):
