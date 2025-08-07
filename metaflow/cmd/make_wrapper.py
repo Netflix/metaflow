@@ -49,6 +49,12 @@ def find_makefile():
     except Exception:
         return None
 
+    # Do not bother with .egg-link installs produced by Python <=3.8 due to the handling of the file contents being a headache due to lack of a unified spec.
+    if sys.version_info[0] <= 3 and sys.version_info[1] <= 8:
+        print(
+            "Could not find any installation of Metaflow. Editable installs for Python <=3.8 are not supported for the metaflow-dev command."
+        )
+
     return None
 
 
