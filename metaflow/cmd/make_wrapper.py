@@ -46,14 +46,17 @@ def find_makefile():
             )
             if makefile_candidate.is_file():
                 return makefile_candidate
+        else:
+            # No dist metadata found. This is tied to the version of pip being used
+            # Do not bother with .egg-link installs due to the handling of the file contents being a headache due to lack of a unified spec.
+            print(
+                "Could not locate an installation of Metaflow. No package metadata found."
+            )
+            print(
+                "If Metaflow is installed as editable, try upgrading the version of pip and reinstalling in order to generate proper package metadata.\n"
+            )
     except Exception:
         return None
-
-    # Do not bother with .egg-link installs produced by Python <=3.8 due to the handling of the file contents being a headache due to lack of a unified spec.
-    if sys.version_info[0] <= 3 and sys.version_info[1] <= 8:
-        print(
-            "Could not find any installation of Metaflow. Editable installs for Python <=3.8 are not supported for the metaflow-dev command."
-        )
 
     return None
 
