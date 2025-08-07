@@ -196,6 +196,8 @@ def package_mfext_package(package_name):
                 f_unicode = to_unicode(f)
                 fp = os.path.join(root_path, f_unicode)
                 if single_path or os.path.isfile(fp):
+                    if ".mypy_cache" in fp:
+                        continue
                     _ext_debug("    Adding '%s'" % fp)
                     yield fp, os.path.join(EXT_PKG, f_unicode)
 
