@@ -81,7 +81,10 @@ EXT_PKG = "metaflow_extensions"
 EXT_CONFIG_REGEXP = re.compile(r"^mfextinit_[a-zA-Z0-9_-]+\.py$")
 EXT_META_REGEXP = re.compile(r"^mfextmeta_[a-zA-Z0-9_-]+\.py$")
 REQ_NAME = re.compile(r"^(([a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9])|[a-zA-Z0-9]).*$")
-EXT_EXCLUDE_SUFFIXES = [".pyc"]
+EXT_EXCLUDE_SUFFIXES = [".pyc"]  # Deprecated, use EXT_EXCLUDE_REGEX_PATTERNS instead.
+EXT_EXCLUDE_REGEX_PATTERNS = [
+    re.compile(r".mypy_cache"),
+]
 
 # To get verbose messages, set METAFLOW_DEBUG_EXT to 1
 DEBUG_EXT = os.environ.get("METAFLOW_DEBUG_EXT", False)
@@ -350,6 +353,16 @@ def _ext_debug(*args, **kwargs):
         print(init_str, *args, **kwargs)
 
 
+def _should_include(path) -> bool:
+    for suffix in EXT_EXCLUDE_SUFFIXES:
+        if path.endswith(suffix):
+            return False
+    for pattern in EXT_EXCLUDE_REGEX_PATTERNS:
+        if pattern.search(path) is not None:
+            return False
+    return True
+
+
 def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None):
     # If we have an INFO file with the appropriate information (if running from a saved
     # code package for example), we use that directly
@@ -494,9 +507,8 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
 
                     # Record the file as a candidate for inclusion when packaging if
                     # needed
-                    if not any(
-                        parts[-1].endswith(suffix) for suffix in EXT_EXCLUDE_SUFFIXES
-                    ):
+                    if _should_include(str(f):
+                        # WHY `parts[1:]` is used instead of `parts`?
                         files_to_include.append(os.path.join(*parts[1:]))
 
                     if parts[1] in init_ext_points:
@@ -709,9 +721,7 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
                     [
                         "/".join([relative_root, f]) if relative_root else f
                         for f in files
-                        if not any(
-                            [f.endswith(suffix) for suffix in EXT_EXCLUDE_SUFFIXES]
-                        )
+                        if _should_include("/".join([relative_root, f]))
                     ]
                 )
                 if cur_depth == base_depth:
