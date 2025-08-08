@@ -928,6 +928,7 @@ class ArgoWorkflows(object):
             templates=None,
             dag_tasks=None,
             parent_foreach=None,
+            visited_nodes=None,
         ):  # Returns Tuple[List[Template], List[DAGTask]]
             """ """
             # Every for-each node results in a separate subDAG and an equivalent
@@ -937,10 +938,23 @@ class ArgoWorkflows(object):
             # of the for-each node.
 
             # Emit if we have reached the end of the sub workflow
+            if visited_nodes is None:
+                visited_nodes = set()
             if dag_tasks is None:
+                print("RESET DAG_TASKS")
                 dag_tasks = []
             if templates is None:
+                print("RESET TEMPLATES")
                 templates = []
+
+            # Break early if we have reached a node we already visited. Happens when parsing through all conditional branches of split-switch
+            if node.name in visited_nodes:
+                print(f"BROKE EARLY on step :{node.name}")
+                return templates, dag_tasks
+            else:
+                print(f"added to visited :{node.name}")
+                visited_nodes.add(node.name)
+
             if exit_node is not None and exit_node is node.name:
                 return templates, dag_tasks
             if node.name == "start":
@@ -948,12 +962,7 @@ class ArgoWorkflows(object):
                 dag_task = DAGTask(self._sanitize(node.name)).template(
                     self._sanitize(node.name)
                 )
-            if node.type == "split-switch":
-                raise ArgoWorkflowsException(
-                    "Deploying flows with switch statement "
-                    "to Argo Workflows is not supported currently."
-                )
-            elif (
+            if (
                 node.is_inside_foreach
                 and self.graph[node.in_funcs[0]].type == "foreach"
                 and not self.graph[node.in_funcs[0]].parallel_foreach
@@ -1113,6 +1122,7 @@ class ArgoWorkflows(object):
                         templates,
                         dag_tasks,
                         parent_foreach,
+                        visited_nodes,
                     )
                 return _visit(
                     self.graph[node.matching_join],
@@ -1120,6 +1130,27 @@ class ArgoWorkflows(object):
                     templates,
                     dag_tasks,
                     parent_foreach,
+                    visited_nodes,
+                )
+            elif node.type == "split-switch":
+                # Traverse all branches of a switch split. This should work as all branches lead to 'exit_node'
+                for n in node.out_funcs[:-1]:
+                    _visit(
+                        self.graph[n],
+                        exit_node,
+                        templates,
+                        dag_tasks,
+                        parent_foreach,
+                        visited_nodes,
+                    )
+
+                return _visit(
+                    self.graph[node.out_funcs[-1:][0]],
+                    exit_node,
+                    templates,
+                    dag_tasks,
+                    parent_foreach,
+                    visited_nodes,
                 )
             # For foreach nodes generate a new sub DAGTemplate
             # We do this for "regular" foreaches (ie. `self.next(self.a, foreach=)`)
@@ -1200,6 +1231,7 @@ class ArgoWorkflows(object):
                     templates,
                     [],
                     node.name,
+                    visited_nodes,
                 )
 
                 # How do foreach's work on Argo:
@@ -1318,6 +1350,7 @@ class ArgoWorkflows(object):
                     templates,
                     dag_tasks,
                     parent_foreach,
+                    visited_nodes,
                 )
             # For linear nodes continue traversing to the next node
             if node.type in ("linear", "join", "start"):
@@ -1327,6 +1360,7 @@ class ArgoWorkflows(object):
                     templates,
                     dag_tasks,
                     parent_foreach,
+                    visited_nodes,
                 )
             else:
                 raise ArgoWorkflowsException(
@@ -1849,6 +1883,14 @@ class ArgoWorkflows(object):
             # are derived at runtime.
             if not (node.name == "end" or node.parallel_step):
                 outputs = [Parameter("task-id").valueFrom({"path": "/mnt/out/task_id"})]
+
+            # If this step is a split-switch one, we need to output the switch step name
+            # Note we can not use node.type for this, as the start step can also be a switching one
+            if node.type == "split-switch":
+                outputs.append(
+                    Parameter("switch-step").valueFrom({"path": "/mnt/out/switch_step"})
+                )
+
             if node.type == "foreach":
                 # Emit split cardinality from foreach task
                 outputs.append(
