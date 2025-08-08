@@ -82,7 +82,7 @@ EXT_CONFIG_REGEXP = re.compile(r"^mfextinit_[a-zA-Z0-9_-]+\.py$")
 EXT_META_REGEXP = re.compile(r"^mfextmeta_[a-zA-Z0-9_-]+\.py$")
 REQ_NAME = re.compile(r"^(([a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9])|[a-zA-Z0-9]).*$")
 EXT_EXCLUDE_SUFFIXES = [".pyc"]  # Deprecated, use EXT_EXCLUDE_REGEX_PATTERNS instead.
-EXT_EXCLUDE_REGEX_PATTERNS = [
+EXT_EXCLUDE_REGEXP_LIST = [
     re.compile(r".mypy_cache"),
 ]
 
@@ -355,7 +355,7 @@ def _should_include(path) -> bool:
     for suffix in EXT_EXCLUDE_SUFFIXES:
         if path.endswith(suffix):
             return False
-    for pattern in EXT_EXCLUDE_REGEX_PATTERNS:
+    for pattern in EXT_EXCLUDE_REGEXP_LIST:
         if pattern.search(path) is not None:
             return False
     return True
