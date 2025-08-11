@@ -928,7 +928,6 @@ class ArgoWorkflows(object):
             templates=None,
             dag_tasks=None,
             parent_foreach=None,
-            visited_nodes=None,
         ):  # Returns Tuple[List[Template], List[DAGTask]]
             """ """
             # Every for-each node results in a separate subDAG and an equivalent
@@ -938,22 +937,10 @@ class ArgoWorkflows(object):
             # of the for-each node.
 
             # Emit if we have reached the end of the sub workflow
-            if visited_nodes is None:
-                visited_nodes = set()
             if dag_tasks is None:
-                print("RESET DAG_TASKS")
                 dag_tasks = []
             if templates is None:
-                print("RESET TEMPLATES")
                 templates = []
-
-            # Break early if we have reached a node we already visited. Happens when parsing through all conditional branches of split-switch
-            if node.name in visited_nodes:
-                print(f"BROKE EARLY on step :{node.name}")
-                return templates, dag_tasks
-            else:
-                print(f"added to visited :{node.name}")
-                visited_nodes.add(node.name)
 
             if exit_node is not None and exit_node is node.name:
                 return templates, dag_tasks
@@ -1096,14 +1083,41 @@ class ArgoWorkflows(object):
                             ]
                         )
 
+                conditional_deps = [
+                    "%s.Succeeded" % self._sanitize(in_func)
+                    for in_func in node.in_funcs
+                    if self.graph[in_func].is_conditional
+                ]
+                required_deps = [
+                    "%s.Succeeded" % self._sanitize(in_func)
+                    for in_func in node.in_funcs
+                    if not self.graph[in_func].is_conditional
+                ]
+                both_conditions = required_deps and conditional_deps
+
+                depends_str = "{required}{_and}{conditional}".format(
+                    required=("(%s)" if both_conditions else "%s")
+                    % " && ".join(required_deps),
+                    _and=" && " if both_conditions else "",
+                    conditional=("(%s)" if both_conditions else "%s")
+                    % " || ".join(conditional_deps),
+                )
                 dag_task = (
                     DAGTask(self._sanitize(node.name))
-                    .dependencies(
-                        [self._sanitize(in_func) for in_func in node.in_funcs]
-                    )
+                    .depends(depends_str)
                     .template(self._sanitize(node.name))
                     .arguments(Arguments().parameters(parameters))
                 )
+
+                # Add conditional if this is the first step in a conditional branch
+                if node.is_conditional and not any(
+                    self.graph[in_func].is_conditional for in_func in node.in_funcs
+                ):
+                    in_func = node.in_funcs[0]
+                    dag_task.when(
+                        "{{tasks.%s.outputs.parameters.switch-step}}==%s"
+                        % (self._sanitize(in_func), node.name)
+                    )
 
             dag_tasks.append(dag_task)
             # End the workflow if we have reached the end of the flow
@@ -1133,24 +1147,21 @@ class ArgoWorkflows(object):
                     visited_nodes,
                 )
             elif node.type == "split-switch":
-                # Traverse all branches of a switch split. This should work as all branches lead to 'exit_node'
-                for n in node.out_funcs[:-1]:
+                for n in node.out_funcs:
                     _visit(
                         self.graph[n],
-                        exit_node,
+                        node.conditional_join,
                         templates,
                         dag_tasks,
                         parent_foreach,
-                        visited_nodes,
                     )
 
                 return _visit(
-                    self.graph[node.out_funcs[-1:][0]],
+                    self.graph[node.conditional_join],
                     exit_node,
                     templates,
                     dag_tasks,
                     parent_foreach,
-                    visited_nodes,
                 )
             # For foreach nodes generate a new sub DAGTemplate
             # We do this for "regular" foreaches (ie. `self.next(self.a, foreach=)`)
@@ -1231,7 +1242,6 @@ class ArgoWorkflows(object):
                     templates,
                     [],
                     node.name,
-                    visited_nodes,
                 )
 
                 # How do foreach's work on Argo:
@@ -1350,7 +1360,6 @@ class ArgoWorkflows(object):
                     templates,
                     dag_tasks,
                     parent_foreach,
-                    visited_nodes,
                 )
             # For linear nodes continue traversing to the next node
             if node.type in ("linear", "join", "start"):
@@ -1360,7 +1369,6 @@ class ArgoWorkflows(object):
                     templates,
                     dag_tasks,
                     parent_foreach,
-                    visited_nodes,
                 )
             else:
                 raise ArgoWorkflowsException(
@@ -4023,6 +4031,10 @@ class DAGTask(object):
         self.payload["dependencies"] = dependencies
         return self
 
+    def depends(self, depends: str):
+        self.payload["depends"] = depends
+        return self
+
     def template(self, template):
         # Template reference
         self.payload["template"] = template
@@ -4032,6 +4044,10 @@ class DAGTask(object):
         # We could have inlined the template here but
         # https://github.com/argoproj/argo-workflows/issues/7432 prevents us for now.
         self.payload["inline"] = template.to_json()
+        return self
+
+    def when(self, when: str):
+        self.payload["when"] = when
         return self
 
     def with_param(self, with_param):
