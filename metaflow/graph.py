@@ -3,6 +3,7 @@ import ast
 import re
 
 from itertools import chain
+from typing import List, Optional
 
 
 from .util import to_pod
@@ -80,6 +81,9 @@ class DAGNode(object):
         self.split_parents = []
         self.split_branches = []
         self.matching_join = None
+        self.is_conditional = False  # will this node always be executed, or is it in a conditional branch?
+        self.conditional_branch = []
+        self.conditional_join = None  # Node where conditional branches end, and further nodes always execute.
         # these attributes are populated by _postprocess
         self.is_inside_foreach = False
 
@@ -297,7 +301,14 @@ class FlowGraph(object):
                 node.is_inside_foreach = True
 
     def _traverse_graph(self):
-        def traverse(node, seen, split_parents, split_branches):
+        def traverse(
+            node,
+            seen,
+            split_parents,
+            split_branches,
+            conditional_branch: List[str],
+            conditional_root_nodes: Optional[List[List[str]]] = None,
+        ):
             add_split_branch = False
             try:
                 self.sorted_nodes.remove(node.name)
@@ -312,6 +323,14 @@ class FlowGraph(object):
             elif node.type == "split-switch":
                 node.split_parents = split_parents
                 node.split_branches = split_branches
+
+                conditional_branch = conditional_branch + [node.name]
+                node.conditional_branch = conditional_branch
+                conditional_root_nodes = (
+                    [node.out_funcs]
+                    if not conditional_root_nodes
+                    else conditional_root_nodes + [node.out_funcs]
+                )
             elif node.type == "join":
                 # ignore joins without splits
                 if split_parents:
@@ -323,6 +342,41 @@ class FlowGraph(object):
             else:
                 node.split_parents = split_parents
                 node.split_branches = split_branches
+
+            if conditional_root_nodes and not node.type == "split-switch":
+                conditional_branch = conditional_branch + [node.name]
+                node.conditional_branch = conditional_branch
+                # Multiple cases for conditional branching. TODO: describe the structure
+                # 1. we are in only one conditional branch
+                # 2. we are in a nested conditional branch
+
+                *root_nodes, last_root_nodes = conditional_root_nodes
+                # Check if the node is joining all of the conditional root nodes branches.
+                is_conditional_join = all(
+                    any(p in last_root_nodes for p in self[in_func].conditional_branch)
+                    for in_func in node.in_funcs
+                )
+
+                if is_conditional_join:
+                    conditional_root_nodes = root_nodes
+
+                # we are in a conditional branch if we have conditional root nodes left open, and
+                # we did not join the most recent conditional branches.
+                is_in_conditional_branch = (
+                    bool(conditional_root_nodes) and not is_conditional_join
+                )
+
+                if not is_in_conditional_branch:
+                    conditional_branch = []
+                    # add the conditional join step info
+                    for n in set(
+                        step
+                        for in_func in node.in_funcs
+                        for step in self[in_func].conditional_branch
+                    ):
+                        self[n].conditional_join = node.name
+
+                node.is_conditional = is_in_conditional_branch
 
             for n in node.out_funcs:
                 # graph may contain loops - ignore them
@@ -336,10 +390,12 @@ class FlowGraph(object):
                             seen + [n],
                             split_parents,
                             split_branches + ([n] if add_split_branch else []),
+                            conditional_branch,
+                            conditional_root_nodes,
                         )
 
         if "start" in self:
-            traverse(self["start"], [], [], [])
+            traverse(self["start"], [], [], [], [])
 
         # fix the order of in_funcs
         for node in self.nodes.values():
