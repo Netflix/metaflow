@@ -125,10 +125,12 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
 
         # For conditional branches we need to record the value of the switch to disk, in order to pass it as an
         # output from the switching step to be used further down the DAG
-        if graph[step_name].type == "switch-split":
-            switch_step_name = getattr(self, graph[step_name].condition)
+        if graph[step_name].type == "split-switch":
+            # TODO: A nicer way to access the chosen step?
+            _out_funcs, _ = flow._transition
+            chosen_step = _out_funcs[0]
             with open("/mnt/out/switch_step", "w") as file:
-                json.dump(switch_step_name, file)
+                file.write(chosen_step)
 
         # For steps that have a `@parallel` decorator set to them, we will be relying on Jobsets
         # to run the task. In this case, we cannot set anything in the
