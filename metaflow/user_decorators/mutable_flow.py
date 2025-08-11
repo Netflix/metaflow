@@ -472,7 +472,7 @@ class MutableFlow:
             % (len(old_deco_list) - len(new_deco_list))
         )
         if new_deco_list:
-            self._flow_cls._flow_decorators[deconame] = new_deco_list
+            self._flow_cls._flow_decorators[deco_name] = new_deco_list
         else:
             del self._flow_cls._flow_decorators[deco_name]
         return did_remove
