@@ -418,6 +418,7 @@ class TaskInfoComponent(MetaflowCardComponent):
             "Task Finished On": task_data_dict["finished_at"],
             # Remove Microseconds from timedelta
             "Tags": ", ".join(tags),
+            "Attempt": self._task.current_attempt,
         }
         if not self.runtime:
             task_metadata_dict["Task Duration"] = str(
