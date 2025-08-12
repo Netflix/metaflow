@@ -81,9 +81,15 @@ class DAGNode(object):
         self.split_parents = []
         self.split_branches = []
         self.matching_join = None
+        # Conditional info, also populated in _traverse_graph
         self.is_conditional = False  # will this node always be executed, or is it in a conditional branch?
-        self.conditional_branch = []
-        self.conditional_join = None  # Node where conditional branches end, and further nodes always execute.
+        self.is_conditional_join = (
+            False  # Does this node 'join' some set of conditional branches?
+        )
+        self.conditional_branch = (
+            []
+        )  # All the steps leading to this node that depends on a condition, starting from the split-switch
+        self.conditional_end_node = None  # Node where conditional branches end, and further nodes always execute.
         # these attributes are populated by _postprocess
         self.is_inside_foreach = False
 
@@ -358,6 +364,7 @@ class FlowGraph(object):
                 )
 
                 if is_conditional_join:
+                    node.is_conditional_join = True
                     conditional_root_nodes = root_nodes
 
                 # we are in a conditional branch if we have conditional root nodes left open, and
@@ -374,7 +381,7 @@ class FlowGraph(object):
                         for in_func in node.in_funcs
                         for step in self[in_func].conditional_branch
                     ):
-                        self[n].conditional_join = node.name
+                        self[n].conditional_end_node = node.name
 
                 node.is_conditional = is_in_conditional_branch
 

@@ -1150,14 +1150,14 @@ class ArgoWorkflows(object):
                 for n in node.out_funcs:
                     _visit(
                         self.graph[n],
-                        node.conditional_join,
+                        node.conditional_end_node,
                         templates,
                         dag_tasks,
                         parent_foreach,
                     )
 
                 return _visit(
-                    self.graph[node.conditional_join],
+                    self.graph[node.conditional_end_node],
                     exit_node,
                     templates,
                     dag_tasks,
@@ -1610,6 +1610,11 @@ class ArgoWorkflows(object):
                     ]
                 )
                 input_paths = "%s/_parameters/%s" % (run_id, task_id_params)
+            elif node.is_conditional_join:
+                input_paths = (
+                    "$(python -m metaflow.plugins.argo.conditional_input_paths %s)"
+                    % input_paths
+                )
             elif (
                 node.type == "join"
                 and self.graph[node.split_parents[-1]].type == "foreach"
