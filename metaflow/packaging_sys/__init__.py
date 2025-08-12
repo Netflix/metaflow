@@ -118,9 +118,7 @@ class MetaflowCodeContent:
         return handling_cls.get_filename_impl(mfcontent_info, filename, content_type)
 
     @classmethod
-    def get_env_vars_for_packaged_metaflow(
-        cls, dest_dir: str
-    ) -> Optional[Dict[str, str]]:
+    def get_env_vars_for_packaged_metaflow(cls, dest_dir: str) -> Dict[str, str]:
         """
         Get the environment variables that are needed to run Metaflow when it is
         packaged. This is typically used to set the PYTHONPATH to include the
@@ -128,17 +126,19 @@ class MetaflowCodeContent:
 
         Returns
         -------
-        Optional[Dict[str, str]]
+        Dict[str, str]
             The environment variables that are needed to run Metaflow when it is
-            packaged -- None if there are no such variables (not packaged for example)
+            packaged it present.
         """
-        mfcontent_info = cls._extract_mfcontent_info()
+        mfcontent_info = cls._extract_mfcontent_info(dest_dir)
         if mfcontent_info is None:
             # No MFCONTENT_MARKER file found -- this is not a packaged Metaflow code
             # package so no environment variables to set.
-            return None
+            return {}
         handling_cls = cls._get_mfcontent_class(mfcontent_info)
-        return handling_cls.get_post_extract_env_vars_impl(dest_dir)
+        v = handling_cls.get_post_extract_env_vars_impl(dest_dir)
+        v["METAFLOW_EXTRACTED_ROOT:"] = dest_dir
+        return v
 
     @classmethod
     def get_archive_info(
@@ -216,15 +216,15 @@ class MetaflowCodeContent:
         )
 
     @classmethod
-    def get_archive_content_names(
+    def get_archive_content_members(
         cls,
         archive: Any,
         content_types: Optional[int] = None,
         packaging_backend: Type[PackagingBackend] = TarPackagingBackend,
-    ) -> List[str]:
+    ) -> List[Any]:
         mfcontent_info = cls._extract_archive_mfcontent_info(archive, packaging_backend)
         handling_cls = cls._get_mfcontent_class(mfcontent_info)
-        return handling_cls.get_archive_content_names_impl(
+        return handling_cls.get_archive_content_members_impl(
             mfcontent_info, archive, content_types, packaging_backend
         )
 
@@ -276,7 +276,9 @@ class MetaflowCodeContent:
                 "Invalid package -- unknown version %s in info: %s"
                 % (version_id, cls._mappings)
             )
-        return cls._mappings[version_id].get_post_extract_env_vars_impl(dest_dir)
+        v = cls._mappings[version_id].get_post_extract_env_vars_impl(dest_dir)
+        v["METAFLOW_EXTRACTED_ROOT:"] = dest_dir
+        return v
 
     # Implement the _impl methods in the base subclass (in this file). These need to
     # happen with as few imports as possible to prevent circular dependencies.
@@ -337,14 +339,14 @@ class MetaflowCodeContent:
         raise NotImplementedError("get_archive_filename_impl not implemented")
 
     @classmethod
-    def get_archive_content_names_impl(
+    def get_archive_content_members_impl(
         cls,
         mfcontent_info: Optional[Dict[str, Any]],
         archive: Any,
         content_types: Optional[int] = None,
         packaging_backend: Type[PackagingBackend] = TarPackagingBackend,
-    ) -> List[str]:
-        raise NotImplementedError("get_archive_content_names_impl not implemented")
+    ) -> List[Any]:
+        raise NotImplementedError("get_archive_content_members_impl not implemented")
 
     @classmethod
     def get_post_extract_env_vars_impl(cls, dest_dir: str) -> Dict[str, str]:
@@ -523,19 +525,22 @@ class MetaflowCodeContent:
         return mfcontent_info
 
     @classmethod
-    def _extract_mfcontent_info(cls) -> Optional[Dict[str, Any]]:
-        if "_local" in cls._cached_mfcontent_info:
-            return cls._cached_mfcontent_info["_local"]
+    def _extract_mfcontent_info(
+        cls, target_dir: Optional[str] = None
+    ) -> Optional[Dict[str, Any]]:
+        target_dir = target_dir or "_local"
+        if target_dir in cls._cached_mfcontent_info:
+            return cls._cached_mfcontent_info[target_dir]
 
         mfcontent_info = None  # type: Optional[Dict[str, Any]]
-        if os.path.exists(os.path.join(get_metaflow_root(), MFCONTENT_MARKER)):
-            with open(
-                os.path.join(get_metaflow_root(), MFCONTENT_MARKER),
-                "r",
-                encoding="utf-8",
-            ) as f:
+        if target_dir == "_local":
+            root = os.environ.get("METAFLOW_EXTRACTED_ROOT", get_metaflow_root())
+        else:
+            root = target_dir
+        if os.path.exists(os.path.join(root, MFCONTENT_MARKER)):
+            with open(os.path.join(root, MFCONTENT_MARKER), "r", encoding="utf-8") as f:
                 mfcontent_info = json.load(f)
-        cls._cached_mfcontent_info["_local"] = mfcontent_info
+        cls._cached_mfcontent_info[target_dir] = mfcontent_info
         return mfcontent_info
 
     def get_package_version(self) -> int:
@@ -627,13 +632,13 @@ class MetaflowCodeContentV0(MetaflowCodeContent, version_id=0):
         return None
 
     @classmethod
-    def get_archive_content_names_impl(
+    def get_archive_content_members_impl(
         cls,
         mfcontent_info: Optional[Dict[str, Any]],
         archive: Any,
         content_types: Optional[int] = None,
         packaging_backend: Type[PackagingBackend] = TarPackagingBackend,
-    ) -> List[str]:
+    ) -> List[Any]:
         """
         For V0, we use a static list of known files to classify the content
         """
@@ -649,16 +654,20 @@ class MetaflowCodeContentV0(MetaflowCodeContent, version_id=0):
             "condav2-1.cnd": ContentType.OTHER_CONTENT.value,
         }
         to_return = []
-        for filename in packaging_backend.cls_list_members(archive):
+        for member in packaging_backend.cls_list_members(archive):
+            filename = packaging_backend.cls_member_name(member)
+            added = False
             for prefix, classification in known_prefixes.items():
                 if (
                     prefix[-1] == "/" and filename.startswith(prefix)
                 ) or prefix == filename:
                     if content_types & classification:
-                        to_return.append(filename)
-                elif content_types & ContentType.USER_CONTENT.value:
-                    # Everything else is user content
-                    to_return.append(filename)
+                        to_return.append(member)
+                        added = True
+                        break
+            if not added and content_types & ContentType.USER_CONTENT.value:
+                # Everything else is user content
+                to_return.append(member)
         return to_return
 
     @classmethod
@@ -705,7 +714,7 @@ class MetaflowCodeContentV1Base(MetaflowCodeContent, version_id=1):
         cls, mfcontent_info: Optional[Dict[str, Any]], filename: str, in_archive: bool
     ) -> str:
         if in_archive:
-            return filename
+            return os.path.join(cls._other_dir, filename)
         return os.path.join(get_metaflow_root(), "..", cls._other_dir, filename)
 
     @classmethod
@@ -713,7 +722,7 @@ class MetaflowCodeContentV1Base(MetaflowCodeContent, version_id=1):
         cls, mfcontent_info: Optional[Dict[str, Any]], filename: str, in_archive: bool
     ) -> str:
         if in_archive:
-            return filename
+            return os.path.join(cls._code_dir, filename)
         return os.path.join(get_metaflow_root(), filename)
 
     @classmethod
@@ -832,37 +841,38 @@ class MetaflowCodeContentV1Base(MetaflowCodeContent, version_id=1):
         return None
 
     @classmethod
-    def get_archive_content_names_impl(
+    def get_archive_content_members_impl(
         cls,
         mfcontent_info: Optional[Dict[str, Any]],
         archive: Any,
         content_types: Optional[int] = None,
         packaging_backend: Type[PackagingBackend] = TarPackagingBackend,
-    ) -> List[str]:
+    ) -> List[Any]:
         to_return = []
         module_content = set(mfcontent_info.get("module_files", []))
-        for filename in packaging_backend.cls_list_members(archive):
+        for member in packaging_backend.cls_list_members(archive):
+            filename = packaging_backend.cls_member_name(member)
             if filename.startswith(cls._other_dir) and (
                 content_types & ContentType.OTHER_CONTENT.value
             ):
-                to_return.append(filename)
+                to_return.append(member)
             elif filename.startswith(cls._code_dir):
                 # Special case for marker which is a other content even if in code.
-                if filename == f"{cls._code_dir}/{MFCONTENT_MARKER}":
+                if filename == MFCONTENT_MARKER:
                     if content_types & ContentType.OTHER_CONTENT.value:
-                        to_return.append(filename)
+                        to_return.append(member)
                     else:
                         continue
                 # Here it is either module or code
                 if os.path.join(cls._code_dir, filename) in module_content:
                     if content_types & ContentType.MODULE_CONTENT.value:
-                        to_return.append(filename)
+                        to_return.append(member)
                 elif content_types & ContentType.CODE_CONTENT.value:
-                    to_return.append(filename)
+                    to_return.append(member)
             else:
                 if content_types & ContentType.USER_CONTENT.value:
                     # Everything else is user content
-                    to_return.append(filename)
+                    to_return.append(member)
         return to_return
 
     @classmethod

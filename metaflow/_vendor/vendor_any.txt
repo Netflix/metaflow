@@ -4,3 +4,5 @@ importlib_metadata==4.8.3
 typeguard==4.4.0
 typing_extensions==4.12.2
 zipp==3.6.0
+standard-imghdr==3.13.0
+pyyaml==5.3.1
