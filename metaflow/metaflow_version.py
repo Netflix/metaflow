@@ -133,6 +133,16 @@ def read_info_version():
     return None
 
 
+def make_public_version(version_string):
+    """
+    Takes a complex version string and returns a public, PEP 440-compliant version.
+    It removes local version identifiers (+...) and development markers (-...).
+    """
+    base_version = version_string.split("+", 1)[0]
+    public_version = base_version.split("-", 1)[0]
+    return public_version
+
+
 def get_version(public=False):
     """Tracks the version number.
 
@@ -161,7 +171,6 @@ def get_version(public=False):
     #  - Then if we are in the GIT repository and if so, use the git describe
     #  - If we don't have an INFO file, we look at the version information that is
     #    populated by metaflow and the extensions.
-
     if _version_cache[public] is not None:
         return _version_cache[public]
 
@@ -170,6 +179,8 @@ def get_version(public=False):
     )  # Version info is cached in INFO file; includes extension info
 
     if version:
+        if public:
+            version = make_public_version(version)
         _version_cache[public] = version
         return version
 

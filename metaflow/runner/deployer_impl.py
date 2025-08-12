@@ -40,6 +40,10 @@ class DeployerImpl(object):
         directory is used.
     file_read_timeout : int, default 3600
         The timeout until which we try to read the deployer attribute file (in seconds).
+    extend_existing_env : bool, default True
+        If True, the environment variables from the current process are extended
+        with the ones specified in `env`. If False, the environment variables
+        specified in `env` will be used as the only environment variables.
     **kwargs : Any
         Additional arguments that you would pass to `python myflow.py` before
         the deployment command.
@@ -55,6 +59,7 @@ class DeployerImpl(object):
         env: Optional[Dict] = None,
         cwd: Optional[str] = None,
         file_read_timeout: int = 3600,
+        extend_existing_env: bool = True,
         **kwargs
     ):
         if self.TYPE is None:
@@ -88,7 +93,7 @@ class DeployerImpl(object):
         self.cwd = cwd or os.getcwd()
         self.file_read_timeout = file_read_timeout
 
-        self.env_vars = os.environ.copy()
+        self.env_vars = os.environ.copy() if extend_existing_env else {}
         self.env_vars.update(self.env or {})
         if self.profile:
             self.env_vars["METAFLOW_PROFILE"] = profile
