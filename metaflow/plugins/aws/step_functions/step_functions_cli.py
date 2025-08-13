@@ -10,6 +10,7 @@ from metaflow.metaflow_config import (
     FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
     SERVICE_VERSION_CHECK,
     SFN_STATE_MACHINE_PREFIX,
+    SFN_COMPRESS_STATE_MACHINE,
     UI_URL,
 )
 from metaflow.package import MetaflowPackage
@@ -134,11 +135,10 @@ def step_functions(obj, name=None):
 @click.option(
     "--compress-state-machine/--no-compress-state-machine",
     is_flag=True,
-    default=False,
+    default=SFN_COMPRESS_STATE_MACHINE,
     help="Upload large commands to S3 instead of embedding them in job payload "
     "to avoid 8K AWS limit. Commands will be downloaded at runtime.",
 )
-
 @click.option(
     "--deployer-attribute-file",
     default=None,

@@ -81,16 +81,7 @@ class StepFunctions(object):
         self.use_distributed_map = use_distributed_map
 
         # S3 command upload configuration
-        self.upload_commands_to_s3 = (
-            compress_state_machine
-            or os.environ.get("METAFLOW_SFN_COMPRESS_STATE_MACHINE", "false").lower()
-            == "true"
-        )
-
-        # Generate a deployment ID for this deployment
-        import time
-
-        self.deployment_id = f"deployment-{int(time.time())}"
+        self.compress_state_machine = compress_state_machine
 
         self._client = StepFunctionsClient()
         self._workflow = self._compile()
@@ -905,19 +896,35 @@ class StepFunctions(object):
         )
 
         # If S3 upload is enabled, we need to modify the command after it's created
-        if self.upload_commands_to_s3:
+        if self.compress_state_machine:
+            from metaflow.plugins.aws.aws_utils import parse_s3_full_path
+            import shlex
+
             # Get the command that was created
             command = batch_job.payload["containerOverrides"]["command"]
             command_str = " ".join(command)
             # Upload the command to S3 during deployment
-            s3_path = self._get_command_s3_path(node.name, self.deployment_id)
             try:
-                download_cmd = self._upload_command_to_s3(command_str, s3_path)
-                batch_job.payload["containerOverrides"]["command"] = [
-                    "bash",
-                    "-c",
-                    download_cmd,
-                ]
+                command_bytes = command_str.encode("utf-8")
+                result_paths = self.flow_datastore.save_data(
+                    [command_bytes], len_hint=1
+                )
+                s3_path, _key = result_paths[0]
+
+                bucket, s3_object = parse_s3_full_path(s3_path)
+                download_script = "{python} -c '{script}'".format(
+                    python=self.environment._python(),
+                    script='import boto3, os; ep=os.getenv(\\"METAFLOW_S3_ENDPOINT_URL\\"); boto3.client(\\"s3\\", **({\\"endpoint_url\\":ep} if ep else {})).download_file(\\"%s\\", \\"%s\\", \\"/tmp/step_command.sh\\")'
+                    % (bucket, s3_object),
+                )
+                download_cmd = (
+                    f"{self.environment._get_install_dependencies_cmd('s3')} && "  # required for boto3 due to the original dependencies cmd getting packaged, and not being downloaded in time.
+                    f"{download_script} && "
+                    f"chmod +x /tmp/step_command.sh && "
+                    f"bash /tmp/step_command.sh"
+                )
+                new_cmd = shlex.split('bash -c "%s"' % download_cmd)
+                batch_job.payload["containerOverrides"]["command"] = new_cmd
             except Exception as e:
                 print(f"Warning: Failed to upload command to S3: {e}")
                 print("Falling back to inline command")
@@ -935,59 +942,6 @@ class StepFunctions(object):
             max_error_retries = max(max_error_retries, error_retries)
 
         return max_user_code_retries, max_user_code_retries + max_error_retries
-
-    def _get_command_s3_path(self, node_name, deployment_id=None):
-        """Generate S3 path for storing commands."""
-        # Use datastore root with commands suffix
-        base_path = self.flow_datastore.datastore_root.rstrip("/") + "/commands"
-
-        # Return relative path (without s3:// prefix) for datastore compatibility
-        if base_path.startswith("s3://"):
-            base_path = base_path[5:]  # Remove s3:// prefix
-
-        # Use deployment-specific ID instead of run ID
-        if deployment_id is None:
-            # Use the instance deployment_id if available, otherwise generate a new one
-            deployment_id = getattr(self, "deployment_id", None)
-            if deployment_id is None:
-                import time
-
-                deployment_id = f"deployment-{int(time.time())}"
-
-        return f"{base_path}/{self.flow.name}/{deployment_id}/{node_name}/command.sh"
-
-    def _upload_command_to_s3(self, command, s3_path):
-        """Upload command to S3 and return a retrieval command."""
-        try:
-            import boto3
-            from io import BytesIO
-            from ..aws_utils import parse_s3_full_path
-
-            command_bytes = command.encode("utf-8")
-            command_stream = BytesIO(command_bytes)
-
-            # Use the existing S3 path parsing utility
-            bucket, key = parse_s3_full_path(f"s3://{s3_path}")
-
-            # Upload directly to S3
-            s3_client = boto3.client("s3")
-            s3_client.upload_fileobj(command_stream, bucket, key)
-
-            # Return a command that downloads and executes the uploaded script
-            full_s3_path = f"s3://{bucket}/{key}"
-            download_cmd = (
-                f"aws s3 cp {full_s3_path} /tmp/step_command.sh && "
-                f"chmod +x /tmp/step_command.sh && "
-                f"bash /tmp/step_command.sh"
-            )
-
-            return download_cmd
-
-        except Exception as e:
-            # Fall back to inline command if S3 upload fails
-            print(f"Warning: Failed to upload command to S3: {e}")
-            print("Falling back to inline command")
-            return command
 
     def _step_cli(self, node, paths, code_package_url, user_code_retries):
         cmds = []
