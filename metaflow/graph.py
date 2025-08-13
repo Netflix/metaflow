@@ -95,7 +95,7 @@ class DAGNode(object):
                 # handle string literals
                 if isinstance(key, ast.Str):
                     case_key = key.s
-                elif isinstance(key, ast.Constant) and isinstance(key.value, str):
+                elif isinstance(key, ast.Constant):
                     case_key = key.value
                 elif isinstance(key, ast.Attribute):
                     if isinstance(key.value, ast.Attribute) and isinstance(

@@ -788,35 +788,6 @@ class FlowSpec(metaclass=FlowSpecMeta):
         value = item if _is_primitive_type(item) else reprlib.Repr().repr(item)
         return basestring(value)[:MAXIMUM_FOREACH_VALUE_CHARS]
 
-    def _validate_switch_cases(self, switch_cases, step):
-        resolved_cases = {}
-        for case_key, step_method in switch_cases.items():
-            if isinstance(case_key, str) and case_key.startswith("config:"):
-                full_path = case_key[len("config:") :]
-                parts = full_path.split(".", 1)
-                if len(parts) == 2:
-                    config_var_name, config_key_name = parts
-                    try:
-                        config_obj = getattr(self, config_var_name)
-                        resolved_key = str(getattr(config_obj, config_key_name))
-                    except AttributeError:
-                        msg = (
-                            "Step *{step}* references unknown config '{path}' "
-                            "in switch case.".format(step=step, path=full_path)
-                        )
-                        raise InvalidNextException(msg)
-                else:
-                    raise MetaflowInternalError(
-                        "Invalid config path format in switch case."
-                    )
-            else:
-                resolved_key = case_key
-
-            func_name = step_method.__func__.__name__
-            resolved_cases[resolved_key] = func_name
-
-        return resolved_cases
-
     def next(self, *dsts: Callable[..., None], **kwargs) -> None:
         """
         Indicates the next step to execute after this step has completed.
@@ -924,27 +895,34 @@ class FlowSpec(metaclass=FlowSpecMeta):
                 )
                 raise InvalidNextException(msg)
 
-            resolved_switch_cases = self._validate_switch_cases(switch_cases, step)
-
-            if str(condition_value) not in resolved_switch_cases:
-                available_cases = list(resolved_switch_cases.keys())
+            if condition_value not in switch_cases:
+                available_cases = list(switch_cases.keys())
                 raise RuntimeError(
                     f"Switch condition variable '{condition}' has value '{condition_value}' "
                     f"which is not in the available cases: {available_cases}"
                 )
 
             # Get the chosen step and set transition directly
-            chosen_step = resolved_switch_cases[str(condition_value)]
+            chosen_step_func = switch_cases[condition_value]
 
             # Validate that the chosen step exists
-            if not hasattr(self, chosen_step):
+            try:
+                name = chosen_step_func.__func__.__name__
+            except:
+                msg = (
+                    "Step *{step}* specifies a switch transition that is not a function. "
+                    "Make sure the value in the dictionary is a method "
+                    "of the Flow class.".format(step=step)
+                )
+                raise InvalidNextException(msg)
+            if not hasattr(self, name):
                 msg = (
                     "Step *{step}* specifies a switch transition to an "
-                    "unknown step, *{name}*.".format(step=step, name=chosen_step)
+                    "unknown step, *{name}*.".format(step=step, name=name)
                 )
                 raise InvalidNextException(msg)
 
-            self._transition = ([chosen_step], None)
+            self._transition = ([name], None)
             return
 
         # Check for an invalid transition: a dictionary used without a 'condition' parameter.

@@ -37,7 +37,7 @@ from .debug import debug
 from .decorators import flow_decorators
 from .flowspec import _FlowState
 from .mflog import mflog, RUNTIME_LOG_SOURCE
-from .util import to_unicode, compress_list, unicode_type, get_split_branch_for_node
+from .util import to_unicode, compress_list, unicode_type
 from .clone_util import clone_task_helper
 from .unbounded_foreach import (
     CONTROL_TASK_TAG,
@@ -825,82 +825,51 @@ class NativeRuntime(object):
 
             # next step is a foreach join
             if matching_split.type == "foreach":
-                top_frame = task.finished_id[1][-1]
-                num_splits = top_frame.num_splits
 
-                finished_for_each_index = {}
-                for finished_id, pathspec in self._finished.items():
-                    finished_step, finished_foreach_stack = finished_id
+                def siblings(foreach_stack):
+                    top = foreach_stack[-1]
+                    bottom = list(foreach_stack[:-1])
+                    for index in range(top.num_splits):
+                        yield tuple(bottom + [top._replace(index=index)])
 
-                    if finished_step not in direct_parents:
-                        continue
-
-                    if (
-                        len(finished_foreach_stack) != len(task.finished_id[1])
-                        or finished_foreach_stack[:-1] != task.finished_id[1][:-1]
-                    ):
-                        continue
-
-                    current_index = finished_foreach_stack[-1].index
-                    finished_for_each_index[current_index] = pathspec
-
-                if (
-                    num_splits is not None
-                    and len(finished_for_each_index) == num_splits
-                ):
-                    required_tasks = list(finished_for_each_index.values())
-                    index = self._translate_index(task, next_step, "join")
-                    self._queue_push(
-                        next_step,
-                        {"input_paths": required_tasks, "join_type": "foreach"},
-                        index,
+                # required tasks are all split-siblings of the finished task
+                required_tasks = list(
+                    filter(
+                        lambda x: x is not None,
+                        [
+                            self._finished.get((p, s))
+                            for p in direct_parents
+                            for s in siblings(foreach_stack)
+                        ],
                     )
-            elif matching_split.type == "split-switch":
-                required_tasks = [task.path]
-                join_type = "split-switch"
+                )
+                required_count = task.finished_id[1][-1].num_splits
+                join_type = "foreach"
+                index = self._translate_index(task, next_step, "join")
+            else:
+                # next step is a split
+                required_tasks = list(
+                    filter(
+                        lambda x: x is not None,
+                        [
+                            self._finished.get(
+                                (p, foreach_stack) for p in direct_parents
+                            )
+                        ],
+                    )
+                )
+                required_count = len(matching_split.out_funcs)
+                join_type = "linear"
                 index = self._translate_index(task, next_step, "linear")
+            if len(required_tasks) == required_count:
+                # We have all the required previous tasks to schedule a join
                 self._queue_push(
                     next_step,
                     {"input_paths": required_tasks, "join_type": join_type},
                     index,
                 )
-            else:
-                split_node_name = matching_split.name
-                expected_branches = set(matching_split.out_funcs)
-
-                resolved_and_finished = {}
-                for finished_id, pathspec in self._finished.items():
-                    finished_step, finished_foreach_stack = finished_id
-
-                    if finished_step not in direct_parents:
-                        continue
-
-                    if finished_foreach_stack != foreach_stack:
-                        continue
-
-                    branch = get_split_branch_for_node(
-                        self._graph, finished_step, split_node_name
-                    )
-                    if branch in expected_branches:
-                        resolved_and_finished[branch] = pathspec
-
-                if set(resolved_and_finished.keys()) == expected_branches:
-                    required_tasks = list(resolved_and_finished.values())
-                    index = self._translate_index(task, next_step, "linear")
-                    self._queue_push(
-                        next_step,
-                        {"input_paths": required_tasks, "join_type": "linear"},
-                        index,
-                    )
 
     def _queue_task_switch(self, task, next_steps):
-        if len(next_steps) != 1:
-            msg = (
-                "Step *{step}* is a switch statement but runtime got {actual} transitions. "
-                "Expected exactly 1 chosen step."
-            )
-            raise Exception(msg.format(step=task.step, actual=len(next_steps)))
-
         chosen_step = next_steps[0]
         index = self._translate_index(task, chosen_step, "linear")
         self._queue_push(chosen_step, {"input_paths": [task.path]}, index)
