@@ -852,9 +852,8 @@ class NativeRuntime(object):
                     filter(
                         lambda x: x is not None,
                         [
-                            self._finished.get(
-                                (p, foreach_stack) for p in direct_parents
-                            )
+                            self._finished.get((p, foreach_stack))
+                            for p in direct_parents
                         ],
                     )
                 )
