@@ -1136,7 +1136,6 @@ class ArgoWorkflows(object):
                         templates,
                         dag_tasks,
                         parent_foreach,
-                        visited_nodes,
                     )
                 return _visit(
                     self.graph[node.matching_join],
@@ -1144,7 +1143,6 @@ class ArgoWorkflows(object):
                     templates,
                     dag_tasks,
                     parent_foreach,
-                    visited_nodes,
                 )
             elif node.type == "split-switch":
                 for n in node.out_funcs:
