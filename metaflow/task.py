@@ -673,7 +673,7 @@ class MetaflowTask(object):
                     passdown_params = None
 
                     # Ensure that we have the right number of inputs.
-                    if join_type not in ("foreach", "split-switch"):
+                    if join_type != "foreach":
                         # Find the corresponding split node from the graph.
                         split_node = self.flow._graph[node.split_parents[-1]]
                         # The number of expected inputs is the number of branches from that split.
@@ -684,26 +684,15 @@ class MetaflowTask(object):
                                 "Join *%s* expected %d inputs but only %d inputs "
                                 "were found" % (step_name, expected_inputs, len(inputs))
                             )
-                    if join_type == "split-switch":
-                        # Switch joins only have one input path (the chosen branch from the switch).
-                        # This occurs when a switch leads directly to a step without other converging branches.
-                        if len(inputs) > 1:
-                            raise MetaflowInternalError(
-                                f"Step *{step_name}* is a switch join but gets multiple inputs"
-                            )
-                        # Use input datastore directly - no need to copy parameters since we're not
-                        # creating a new output datastore
-                        self.flow._set_datastore(inputs[0])
-                        passdown_params = False
-                    else:
-                        # Multiple input contexts are passed in as an argument
-                        # to the step function.
-                        input_obj = Inputs(self._clone_flow(inp) for inp in inputs)
-                        self.flow._set_datastore(output)
-                        passdown_params = True
-                        # initialize parameters (if they exist)
-                        # We take Parameter values from the first input,
-                        # which is always safe since parameters are read-only
+
+                    # Multiple input contexts are passed in as an argument
+                    # to the step function.
+                    input_obj = Inputs(self._clone_flow(inp) for inp in inputs)
+                    self.flow._set_datastore(output)
+                    passdown_params = True
+                    # initialize parameters (if they exist)
+                    # We take Parameter values from the first input,
+                    # which is always safe since parameters are read-only
                     if passdown_params is not None:
                         current._update_env(
                             {
@@ -770,10 +759,7 @@ class MetaflowTask(object):
                     )
 
                 if join_type:
-                    if join_type == "split-switch":
-                        self._exec_step_function(step_func, orig_step_func)
-                    else:
-                        self._exec_step_function(step_func, orig_step_func, input_obj)
+                    self._exec_step_function(step_func, orig_step_func, input_obj)
                 else:
                     self._exec_step_function(step_func, orig_step_func)
 
