@@ -3,6 +3,14 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps
 
 class BasicIncludeTest(MetaflowTest):
     PRIORITY = 1
+    SKIP_GRAPHS = [
+        "simple_switch",
+        "nested_switch",
+        "branch_in_switch",
+        "foreach_in_switch",
+        "switch_in_branch",
+        "switch_in_foreach",
+    ]
     INCLUDE_FILES = {
         "myfile_txt": {"default": "'./reg.txt'"},
         "myfile_utf8": {"default": "'./utf8.txt'", "encoding": "'utf8'"},

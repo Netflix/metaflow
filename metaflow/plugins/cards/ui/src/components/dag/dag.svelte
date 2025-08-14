@@ -9,7 +9,7 @@
   import { getFromPathSpec } from "../../utils";
   import { currentStepContext } from "./constants.svelte";
 
-  export let componentData: DagComponent;
+  export let componentData: DagComponent & {rendered: boolean};
 
   const { data: steps } = componentData;
   let boxes: Boxes = {};

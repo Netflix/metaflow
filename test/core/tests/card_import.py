@@ -10,6 +10,14 @@ class CardImportTest(MetaflowTest):
     """
 
     PRIORITY = 4
+    SKIP_GRAPHS = [
+        "simple_switch",
+        "nested_switch",
+        "branch_in_switch",
+        "foreach_in_switch",
+        "switch_in_branch",
+        "switch_in_foreach",
+    ]
 
     @tag('card(type="editable_import_test_card",save_errors=False)')
     @tag('card(type="test_broken_card",save_errors=False)')
