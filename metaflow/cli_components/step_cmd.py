@@ -155,6 +155,13 @@ def step(
         ctx.obj.monitor,
         ubf_context,
     )
+
+    latest_done_attempt = task.flow_datastore.get_latest_done_attempt(
+        run_id=run_id, step_name=step_name, task_id=task_id
+    )
+    if latest_done_attempt:
+        retry_count = latest_done_attempt + 1
+
     if clone_only:
         task.clone_only(
             step_name,
