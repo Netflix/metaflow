@@ -62,8 +62,17 @@ class MetaflowTask(object):
     def _exec_step_function(self, step_function, orig_step_func, input_obj=None):
         wrappers_stack = []
         wrapped_func = None
-        do_next = False
+
+        # Will set to non-Falsy if we need to fake calling `self.next`
+        # This is used when skipping the step.
+        # If a dictionary, it will
+        # contain the arguments to pass to `self.next`. If
+        # True, it means we are using whatever the usual
+        # arguments to `self.next` are for this step.
+        fake_next_call_args = False
         raised_exception = None
+        had_raised_exception = False
+
         # If we have wrappers w1, w2 and w3, we need to execute
         #  - w3_pre
         #  - w2_pre
@@ -80,41 +89,66 @@ class MetaflowTask(object):
             wrapped_func = w.pre_step(orig_step_func.name, self.flow, input_obj)
             wrappers_stack.append(w)
             if w.skip_step:
-                # We have nothing to run
-                do_next = w.skip_step
+                # We are not going to run anything so we will have to fake calling
+                # next.
+                fake_next_call_args = w.skip_step
                 break
             if wrapped_func:
                 break  # We have nothing left to do since we now execute the
                 # wrapped function
             # Else, we continue down the list of wrappers
         try:
-            if not do_next:
+            # fake_next_call is used here to also indicate that the step was skipped
+            # so we do not execute anything.
+            if not fake_next_call_args:
                 if input_obj is None:
                     if wrapped_func:
-                        do_next = wrapped_func(self.flow)
-                        if not do_next:
-                            do_next = True
+                        fake_next_call_args = wrapped_func(self.flow)
                     else:
                         step_function()
                 else:
                     if wrapped_func:
-                        do_next = wrapped_func(self.flow, input_obj)
-                        if not do_next:
-                            do_next = True
+                        fake_next_call_args = wrapped_func(self.flow, input_obj)
                     else:
                         step_function(input_obj)
         except Exception as ex:
             raised_exception = ex
+            had_raised_exception = True
 
-        if do_next or raised_exception:
-            # If we are skipping the step, or executed a wrapped function,
+        # We back out of the stack of generators
+        for w in reversed(wrappers_stack):
+            r = w.post_step(orig_step_func.name, self.flow, raised_exception)
+            if r is None or isinstance(r, Exception):
+                raised_exception = None
+            elif isinstance(r, tuple):
+                raised_exception, fake_next_call_args = r
+            else:
+                raise RuntimeError(
+                    "Invalid return value from a UserStepDecorator. Expected an"
+                    "exception or an exception and arguments for self.next, got: %s" % r
+                )
+        if raised_exception:
+            # We have an exception that we need to propagate
+            raise raised_exception
+
+        if fake_next_call_args or had_raised_exception:
+            # We want to override the next call or we caught an exception (in which
+            # case the regular step code didn't call self.next). In this case,
             # we need to set the transition variables
             # properly. We call the next function as needed
             # We also do this in case we want to gobble the exception.
             graph_node = self.flow._graph[orig_step_func.name]
             out_funcs = [getattr(self.flow, f) for f in graph_node.out_funcs]
             if out_funcs:
-                if isinstance(do_next, bool) or raised_exception:
+                if isinstance(fake_next_call_args, dict) and fake_next_call_args:
+                    # Not an empty dictionary -- we use this as arguments for the next
+                    # call
+                    self.flow.next(*out_funcs, **fake_next_call_args)
+                elif (
+                    fake_next_call_args == True
+                    or fake_next_call_args == {}
+                    or had_raised_exception
+                ):
                     # We need to extract things from the self.next. This is not possible
                     # in the case where there was a num_parallel.
                     if graph_node.parallel_foreach:
@@ -126,23 +160,11 @@ class MetaflowTask(object):
                         self.flow.next(*out_funcs, foreach=graph_node.foreach_param)
                     else:
                         self.flow.next(*out_funcs)
-                elif isinstance(do_next, dict):
-                    # Here it is a dictionary so we just call the next method with
-                    # those arguments
-                    self.flow.next(*out_funcs, **do_next)
                 else:
                     raise RuntimeError(
                         "Invalid value passed to self.next; expected "
-                        " bool of a dictionary; got: %s" % do_next
+                        " bool of a dictionary; got: %s" % fake_next_call_args
                     )
-        # We back out of the stack of generators
-        for w in reversed(wrappers_stack):
-            raised_exception = w.post_step(
-                orig_step_func.name, self.flow, raised_exception
-            )
-        if raised_exception:
-            # We have an exception that we need to propagate
-            raise raised_exception
 
     def _init_parameters(self, parameter_ds, passdown=True):
         cls = self.flow.__class__
