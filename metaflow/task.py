@@ -670,13 +670,14 @@ class MetaflowTask(object):
 
                 if join_type:
                     # Join step:
-                    passdown_params = None
 
                     # Ensure that we have the right number of inputs.
                     if join_type != "foreach":
                         # Find the corresponding split node from the graph.
                         split_node = self.flow._graph[node.split_parents[-1]]
-                        # The number of expected inputs is the number of branches from that split.
+                        # The number of expected inputs is the number of branches
+                        # from that split -- we can't use in_funcs because there may
+                        # be more due to split-switch branches that all converge here.
                         expected_inputs = len(split_node.out_funcs)
 
                         if len(inputs) != expected_inputs:
@@ -689,19 +690,17 @@ class MetaflowTask(object):
                     # to the step function.
                     input_obj = Inputs(self._clone_flow(inp) for inp in inputs)
                     self.flow._set_datastore(output)
-                    passdown_params = True
                     # initialize parameters (if they exist)
                     # We take Parameter values from the first input,
                     # which is always safe since parameters are read-only
-                    if passdown_params is not None:
-                        current._update_env(
-                            {
-                                "parameter_names": self._init_parameters(
-                                    inputs[0], passdown=passdown_params
-                                ),
-                                "graph_info": self.flow._graph_info,
-                            }
-                        )
+                    current._update_env(
+                        {
+                            "parameter_names": self._init_parameters(
+                                inputs[0], passdown=True
+                            ),
+                            "graph_info": self.flow._graph_info,
+                        }
+                    )
                 else:
                     # Linear step:
                     # We are running with a single input context.
