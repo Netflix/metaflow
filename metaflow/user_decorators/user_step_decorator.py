@@ -463,7 +463,9 @@ class UserStepDecorator(UserStepDecoratorBase):
         step_name: str,
         flow: "metaflow.flowspec.FlowSpec",
         exception: Optional[Exception] = None,
-    ):
+    ) -> Optional[
+        Union[Optional[Exception], Tuple[Optional[Exception], Optional[Dict[str, Any]]]]
+    ]:
         """
         Implement this method to perform any action after the execution of a step.
 
@@ -483,9 +485,23 @@ class UserStepDecorator(UserStepDecoratorBase):
             The flow object to which the step belongs.
         exception: Optional[Exception]
             The exception raised during the step execution, if any.
+
+        Returns
+        -------
+        Optional[Union[Optional[Exception], Tuple[Optional[Exception], Optional[Dict[str, Any]]]]]
+            An exception (if None, the step is considered successful)
+            OR
+            A tuple containing:
+              - An exception to be raised (if None, the step is considered successful).
+              - A dictionary with values to pass to `self.next()`. If an empty dictionary
+                is returned, the default arguments to `self.next()` for this step will be
+                used. Return None if you do not want to call `self.next()` at all
+                (this is typically the case as the step will call it itself).
+        Note that returning None will gobble the exception.
         """
         if exception:
-            raise exception
+            return exception, None
+        return None, None
 
     @property
     def skip_step(self) -> Union[bool, Dict[str, Any]]:
@@ -624,24 +640,27 @@ def user_step_decorator(*args, **kwargs):
                     self._generator = self._generator(step_name, flow, inputs)
                 v = self._generator.send(None)
                 if isinstance(v, dict):
-                    # We are skipping the step
+                    # We are modifying the behavior of self.next
                     if v:
                         self.skip_step = v
                     else:
+                        # Emtpy dict is just skip the step
                         self.skip_step = True
                     return None
                 return v
 
             def post_step(self, step_name, flow, exception=None):
+                to_return = None, None
                 try:
                     if exception:
                         self._generator.throw(exception)
                     else:
                         self._generator.send(None)
-                except StopIteration:
-                    pass
+                except StopIteration as e:
+                    to_return = e.value
                 else:
                     raise MetaflowException(" %s should only yield once" % self)
+                return to_return
 
         return WrapClass
     else:
