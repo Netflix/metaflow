@@ -259,7 +259,7 @@ def check_split_join_balance(graph):
 
                 # Resolve each incoming function to its root branch from the split.
                 resolved_branches = set(
-                    graph[n].split_branches[-2] for n in node.in_funcs
+                    graph[n].split_branches[-1] for n in node.in_funcs
                 )
 
                 # compares the set of resolved branches against the expected branches
