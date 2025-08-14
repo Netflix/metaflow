@@ -1148,14 +1148,14 @@ class ArgoWorkflows(object):
                 for n in node.out_funcs:
                     _visit(
                         self.graph[n],
-                        node.conditional_end_node,
+                        node.matching_conditional_join,
                         templates,
                         dag_tasks,
                         parent_foreach,
                     )
 
                 return _visit(
-                    self.graph[node.conditional_end_node],
+                    self.graph[node.matching_conditional_join],
                     exit_node,
                     templates,
                     dag_tasks,
