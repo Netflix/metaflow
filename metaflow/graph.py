@@ -478,7 +478,9 @@ class FlowGraph(object):
                     cur_name = cur_node.matching_join
                 elif node_type == "split-switch":
                     all_paths = [
-                        populate_block(s, end_name) for s in cur_node.out_funcs
+                        populate_block(s, end_name)
+                        for s in cur_node.out_funcs
+                        if s != cur_name
                     ]
                     resulting_list.append(all_paths)
                     cur_name = end_name

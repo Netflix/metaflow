@@ -698,7 +698,7 @@ class NativeRuntime(object):
 
     # Store the parameters needed for task creation, so that pushing on items
     # onto the run_queue is an inexpensive operation.
-    def _queue_push(self, step, task_kwargs, index=None):
+    def _queue_push(self, step, task_kwargs, index=None, is_self_loop_switch=False):
         # In the case of cloning, we set all the cloned tasks as the
         # finished tasks when pushing tasks using _queue_tasks. This means that we
         # could potentially try to push the same task multiple times (for example
@@ -706,7 +706,7 @@ class NativeRuntime(object):
         # has executed (been cloned) or what has been scheduled and avoid scheduling
         # it again.
         if index:
-            if index in self._ran_or_scheduled_task_index:
+            if index in self._ran_or_scheduled_task_index and not is_self_loop_switch:
                 # It has already run or been scheduled
                 return
             # Note that we are scheduling this to run
@@ -870,8 +870,11 @@ class NativeRuntime(object):
 
     def _queue_task_switch(self, task, next_steps):
         chosen_step = next_steps[0]
+        is_self_loop_switch = task.step == chosen_step
         index = self._translate_index(task, chosen_step, "linear")
-        self._queue_push(chosen_step, {"input_paths": [task.path]}, index)
+        self._queue_push(
+            chosen_step, {"input_paths": [task.path]}, index, is_self_loop_switch
+        )
 
     def _queue_task_foreach(self, task, next_steps):
         # CHECK: this condition should be enforced by the linter but

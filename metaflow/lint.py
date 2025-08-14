@@ -175,6 +175,8 @@ def check_for_acyclicity(graph):
 
     def check_path(node, seen):
         for n in node.out_funcs:
+            if node.type == "split-switch" and n == node.name:
+                continue
             if n in seen:
                 path = "->".join(seen + [n])
                 raise LintWarn(
@@ -241,6 +243,8 @@ def check_split_join_balance(graph):
         elif node.type == "split-switch":
             # For a switch, continue traversal down each path with the same stack
             for n in node.out_funcs:
+                if node.type == "split-switch" and n == node.name:
+                    continue
                 traverse(graph[n], split_stack)
             return
         elif node.type == "end":
@@ -293,6 +297,8 @@ def check_split_join_balance(graph):
             new_stack = split_stack
 
         for n in node.out_funcs:
+            if node.type == "split-switch" and n == node.name:
+                continue
             traverse(graph[n], new_stack)
 
     traverse(graph["start"], [])
