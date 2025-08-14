@@ -78,6 +78,7 @@ class DAGNode(object):
         # these attributes are populated by _traverse_graph
         self.in_funcs = set()
         self.split_parents = []
+        self.split_branches = []
         self.matching_join = None
         # these attributes are populated by _postprocess
         self.is_inside_foreach = False
@@ -227,6 +228,7 @@ class DAGNode(object):
     in_funcs={in_funcs}
     out_funcs={out_funcs}
     split_parents={parents}
+    split_branches={branches}
     matching_join={matching_join}
     is_inside_foreach={is_inside_foreach}
     decorators={decos}
@@ -244,6 +246,7 @@ class DAGNode(object):
             out_funcs=", ".join("[%s]" % x for x in self.out_funcs),
             in_funcs=", ".join("[%s]" % x for x in self.in_funcs),
             parents=", ".join("[%s]" % x for x in self.split_parents),
+            branches=", ".join("[%s]" % x for x in self.split_branches),
             decos=" | ".join(map(str, self.decorators)),
             out=", ".join("[%s]" % x for x in self.out_funcs),
         )
@@ -294,7 +297,8 @@ class FlowGraph(object):
                 node.is_inside_foreach = True
 
     def _traverse_graph(self):
-        def traverse(node, seen, split_parents):
+        def traverse(node, seen, split_parents, split_branches):
+            add_split_branch = False
             try:
                 self.sorted_nodes.remove(node.name)
             except ValueError:
@@ -302,17 +306,23 @@ class FlowGraph(object):
             self.sorted_nodes.append(node.name)
             if node.type in ("split", "foreach"):
                 node.split_parents = split_parents
+                node.split_branches = split_branches
+                add_split_branch = True
                 split_parents = split_parents + [node.name]
             elif node.type == "split-switch":
                 node.split_parents = split_parents
+                node.split_branches = split_branches
             elif node.type == "join":
                 # ignore joins without splits
                 if split_parents:
                     self[split_parents[-1]].matching_join = node.name
                     node.split_parents = split_parents
+                    node.split_branches = split_branches
                     split_parents = split_parents[:-1]
+                    split_branches = split_branches[:-1]
             else:
                 node.split_parents = split_parents
+                node.split_branches = split_branches
 
             for n in node.out_funcs:
                 # graph may contain loops - ignore them
@@ -321,10 +331,15 @@ class FlowGraph(object):
                     if n in self:
                         child = self[n]
                         child.in_funcs.add(node.name)
-                        traverse(child, seen + [n], split_parents)
+                        traverse(
+                            child,
+                            seen + [n],
+                            split_parents,
+                            split_branches + ([n] if add_split_branch else []),
+                        )
 
         if "start" in self:
-            traverse(self["start"], [], [])
+            traverse(self["start"], [], [], [])
 
         # fix the order of in_funcs
         for node in self.nodes.values():

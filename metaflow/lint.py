@@ -1,6 +1,6 @@
 import re
 from .exception import MetaflowException
-from .util import all_equal, get_split_branch_for_node
+from .util import all_equal
 
 
 class LintWarn(MetaflowException):
@@ -261,16 +261,15 @@ def check_split_join_balance(graph):
                 split_node_name = node.split_parents[-1]
 
                 # Resolve each incoming function to its root branch from the split.
-                resolved_branches = set()
-                for in_node_name in node.in_funcs:
-                    branch = get_split_branch_for_node(
-                        graph, in_node_name, split_node_name
-                    )
-                    if branch:
-                        resolved_branches.add(branch)
+                resolved_branches = set(
+                    graph[n].split_branches[-1] for n in node.in_funcs
+                )
 
-                # compares the set of resolved branches against the expected branches from the split.
-                if len(resolved_branches) != len(split_roots):
+                # compares the set of resolved branches against the expected branches
+                # from the split.
+                if len(resolved_branches) != len(
+                    split_roots
+                ) or resolved_branches ^ set(split_roots):
                     paths = ", ".join(node.in_funcs)
                     roots = ", ".join(split_roots)
                     raise LintWarn(

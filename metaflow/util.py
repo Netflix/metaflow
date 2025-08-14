@@ -212,35 +212,6 @@ def write_latest_run_id(obj, run_id):
         f.write(str(run_id))
 
 
-def get_split_branch_for_node(graph, node_name, split_node_name):
-    """
-    Walks backwards from a node to find which branch of a given split
-    it belongs to. The branches are the direct children of the split node.
-    """
-
-    # The branches are the direct children of the split node
-    split_branches = set(graph[split_node_name].out_funcs)
-
-    # Use a queue for breadth-first search backwards
-    q = [node_name]
-    visited = {node_name}
-
-    while q:
-        current_name = q.pop(0)
-
-        # If we have reached one of the original branches, we are done
-        if current_name in split_branches:
-            return current_name
-
-        # Add this node's parents to the queue to continue searching
-        for parent_name in graph[current_name].in_funcs:
-            if parent_name not in visited:
-                visited.add(parent_name)
-                q.append(parent_name)
-
-    return None
-
-
 def get_object_package_version(obj):
     """
     Return the top level package name and package version that defines the
