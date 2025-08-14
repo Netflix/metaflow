@@ -1188,7 +1188,7 @@ class ArgoWorkflows(object):
                 #
                 foreach_task = (
                     DAGTask(foreach_template_name)
-                    .dependencies([self._sanitize(node.name)])
+                    .depends(f"{self._sanitize(node.name)}.Succeeded")
                     .template(foreach_template_name)
                     .arguments(
                         Arguments().parameters(
@@ -1233,6 +1233,15 @@ class ArgoWorkflows(object):
                         % self._sanitize(node.name)
                     )
                 )
+                # Add conditional if this is the first step in a conditional branch
+                if node.is_conditional and not any(
+                    self.graph[in_func].is_conditional for in_func in node.in_funcs
+                ):
+                    in_func = node.in_funcs[0]
+                    foreach_task.when(
+                        "{{tasks.%s.outputs.parameters.switch-step}}==%s"
+                        % (self._sanitize(in_func), node.name)
+                    )
                 dag_tasks.append(foreach_task)
                 templates, dag_tasks_1 = _visit(
                     self.graph[node.out_funcs[0]],
@@ -1309,7 +1318,7 @@ class ArgoWorkflows(object):
                 join_foreach_task = (
                     DAGTask(self._sanitize(self.graph[node.matching_join].name))
                     .template(self._sanitize(self.graph[node.matching_join].name))
-                    .dependencies([foreach_template_name])
+                    .depends(f"{foreach_template_name}.Succeeded")
                     .arguments(
                         Arguments().parameters(
                             (
