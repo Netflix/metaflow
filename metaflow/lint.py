@@ -257,12 +257,9 @@ def check_split_join_balance(graph):
                 _, split_roots = split_stack[-1]
                 new_stack = split_stack[:-1]
 
-                # Identify the split this join corresponds to from its parentage.
-                split_node_name = node.split_parents[-1]
-
                 # Resolve each incoming function to its root branch from the split.
                 resolved_branches = set(
-                    graph[n].split_branches[-1] for n in node.in_funcs
+                    graph[n].split_branches[-2] for n in node.in_funcs
                 )
 
                 # compares the set of resolved branches against the expected branches
@@ -270,7 +267,7 @@ def check_split_join_balance(graph):
                 if len(resolved_branches) != len(
                     split_roots
                 ) or resolved_branches ^ set(split_roots):
-                    paths = ", ".join(node.in_funcs)
+                    paths = ", ".join(resolved_branches)
                     roots = ", ".join(split_roots)
                     raise LintWarn(
                         msg1.format(

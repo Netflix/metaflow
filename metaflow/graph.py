@@ -317,7 +317,7 @@ class FlowGraph(object):
                 if split_parents:
                     self[split_parents[-1]].matching_join = node.name
                     node.split_parents = split_parents
-                    node.split_branches = split_branches
+                    node.split_branches = split_branches[:-1]
                     split_parents = split_parents[:-1]
                     split_branches = split_branches[:-1]
             else:
