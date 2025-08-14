@@ -139,7 +139,7 @@ def check_valid_transitions(graph):
         "  • Fan-out: self.next(self.step1, self.step2, ...)\n"
         "  • Foreach: self.next(self.step, foreach='variable')\n"
         "  • Switch: self.next({{\"key\": self.step, ...}}, condition='variable')\n\n"
-        "For switch statements, keys must be string literals or config expressions "
+        "For switch statements, keys must be string literals, numbers or config expressions "
         "(self.config.key_name), not variables."
     )
     for node in graph:
