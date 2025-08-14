@@ -820,9 +820,11 @@ class NativeRuntime(object):
             # matching_split is the split-parent of the finished task
             matching_split = self._graph[self._graph[next_step].split_parents[-1]]
             _, foreach_stack = task.finished_id
-            index = ""
+
+            direct_parents = set(self._graph[next_step].in_funcs)
+
+            # next step is a foreach join
             if matching_split.type == "foreach":
-                # next step is a foreach join
 
                 def siblings(foreach_stack):
                     top = foreach_stack[-1]
@@ -831,28 +833,45 @@ class NativeRuntime(object):
                         yield tuple(bottom + [top._replace(index=index)])
 
                 # required tasks are all split-siblings of the finished task
-                required_tasks = [
-                    self._finished.get((task.step, s)) for s in siblings(foreach_stack)
-                ]
+                required_tasks = list(
+                    filter(
+                        lambda x: x is not None,
+                        [
+                            self._finished.get((p, s))
+                            for p in direct_parents
+                            for s in siblings(foreach_stack)
+                        ],
+                    )
+                )
+                required_count = task.finished_id[1][-1].num_splits
                 join_type = "foreach"
                 index = self._translate_index(task, next_step, "join")
             else:
                 # next step is a split
-                # required tasks are all branches joined by the next step
-                required_tasks = [
-                    self._finished.get((step, foreach_stack))
-                    for step in self._graph[next_step].in_funcs
-                ]
+                required_tasks = list(
+                    filter(
+                        lambda x: x is not None,
+                        [
+                            self._finished.get((p, foreach_stack))
+                            for p in direct_parents
+                        ],
+                    )
+                )
+                required_count = len(matching_split.out_funcs)
                 join_type = "linear"
                 index = self._translate_index(task, next_step, "linear")
-
-            if all(required_tasks):
-                # all tasks to be joined are ready. Schedule the next join step.
+            if len(required_tasks) == required_count:
+                # We have all the required previous tasks to schedule a join
                 self._queue_push(
                     next_step,
                     {"input_paths": required_tasks, "join_type": join_type},
                     index,
                 )
+
+    def _queue_task_switch(self, task, next_steps):
+        chosen_step = next_steps[0]
+        index = self._translate_index(task, chosen_step, "linear")
+        self._queue_push(chosen_step, {"input_paths": [task.path]}, index)
 
     def _queue_task_foreach(self, task, next_steps):
         # CHECK: this condition should be enforced by the linter but
@@ -930,7 +949,28 @@ class NativeRuntime(object):
                 next_steps = []
                 foreach = None
             expected = self._graph[task.step].out_funcs
-            if next_steps != expected:
+            if self._graph[task.step].type == "split-switch":
+                if len(next_steps) != 1:
+                    msg = (
+                        "Switch step *{step}* should transition to exactly "
+                        "one step at runtime, but got: {actual}"
+                    )
+                    raise MetaflowInternalError(
+                        msg.format(step=task.step, actual=", ".join(next_steps))
+                    )
+                if next_steps[0] not in expected:
+                    msg = (
+                        "Switch step *{step}* transitioned to unexpected "
+                        "step *{actual}*. Expected one of: {expected}"
+                    )
+                    raise MetaflowInternalError(
+                        msg.format(
+                            step=task.step,
+                            actual=next_steps[0],
+                            expected=", ".join(expected),
+                        )
+                    )
+            elif next_steps != expected:
                 msg = (
                     "Based on static analysis of the code, step *{step}* "
                     "was expected to transition to step(s) *{expected}*. "
@@ -954,6 +994,9 @@ class NativeRuntime(object):
             elif foreach:
                 # Next step is a foreach child
                 self._queue_task_foreach(task, next_steps)
+            elif self._graph[task.step].type == "split-switch":
+                # Next step is switch - queue the chosen step
+                self._queue_task_switch(task, next_steps)
             else:
                 # Next steps are normal linear steps
                 for step in next_steps:

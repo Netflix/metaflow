@@ -671,14 +671,20 @@ class MetaflowTask(object):
                 if join_type:
                     # Join step:
 
-                    # Ensure that we have the right number of inputs. The
-                    # foreach case is checked above.
-                    if join_type != "foreach" and len(inputs) != len(node.in_funcs):
-                        raise MetaflowDataMissing(
-                            "Join *%s* expected %d "
-                            "inputs but only %d inputs "
-                            "were found" % (step_name, len(node.in_funcs), len(inputs))
-                        )
+                    # Ensure that we have the right number of inputs.
+                    if join_type != "foreach":
+                        # Find the corresponding split node from the graph.
+                        split_node = self.flow._graph[node.split_parents[-1]]
+                        # The number of expected inputs is the number of branches
+                        # from that split -- we can't use in_funcs because there may
+                        # be more due to split-switch branches that all converge here.
+                        expected_inputs = len(split_node.out_funcs)
+
+                        if len(inputs) != expected_inputs:
+                            raise MetaflowDataMissing(
+                                "Join *%s* expected %d inputs but only %d inputs "
+                                "were found" % (step_name, expected_inputs, len(inputs))
+                            )
 
                     # Multiple input contexts are passed in as an argument
                     # to the step function.

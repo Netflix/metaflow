@@ -3,6 +3,14 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps
 
 class DynamicParameterTest(MetaflowTest):
     PRIORITY = 3
+    SKIP_GRAPHS = [
+        "simple_switch",
+        "nested_switch",
+        "branch_in_switch",
+        "foreach_in_switch",
+        "switch_in_branch",
+        "switch_in_foreach",
+    ]
     PARAMETERS = {
         "str_param": {"default": "str_func"},
         "json_param": {"default": "json_func", "type": "JSONType"},

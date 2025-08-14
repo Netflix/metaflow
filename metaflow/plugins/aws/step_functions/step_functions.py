@@ -321,6 +321,12 @@ class StepFunctions(object):
                     "to AWS Step Functions is not supported currently."
                 )
 
+            if node.type == "split-switch":
+                raise StepFunctionsException(
+                    "Deploying flows with switch statement "
+                    "to AWS Step Functions is not supported currently."
+                )
+
             # Assign an AWS Batch job to the AWS Step Functions state
             # and pass the intermediate state by exposing `JobId` and
             # `Parameters` to the child job(s) as outputs. `Index` and
