@@ -12,7 +12,7 @@
   let stepElement: HTMLElement | null = null;
 
   const setBox = () => {
-    if (stepElement) {
+    if (stepElement && !boxes[stepName]) {
       boxes[stepName] = stepElement;
     }
   };
@@ -20,9 +20,14 @@
   onMount(setBox);
 
   let currentStep = steps[stepName];
+
   if (!currentStep) {
     console.warn("step ", stepName, " not found");
   }
+
+  let hasNext = currentStep?.next?.find((nextStepName) => {
+    return steps[nextStepName]?.type !== "join";
+  });
 
   // For a static analysis, increase the level for a foreach and decrease it for a join
   const childLevels =
@@ -32,12 +37,11 @@
         ? levels - 1
         : levels;
 
-  let hasNext = currentStep?.next?.find((nextStepName) => {
-    return steps[nextStepName]?.type !== "join";
-  });
+
+
 </script>
 
-{#if currentStep}
+{#if currentStep && !currentStep.rendered}
   <div class="stepwrapper">
     <Step
       name={stepName}
