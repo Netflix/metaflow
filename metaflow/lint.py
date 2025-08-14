@@ -140,7 +140,7 @@ def check_valid_transitions(graph):
         "  • Foreach: self.next(self.step, foreach='variable')\n"
         "  • Switch: self.next({{\"key\": self.step, ...}}, condition='variable')\n\n"
         "For switch statements, keys must be string literals or config expressions "
-        "(self.config.key_name), not variables or numbers."
+        "(self.config.key_name), not variables."
     )
     for node in graph:
         if node.type != "end" and node.has_tail_next and node.invalid_tail_next:
