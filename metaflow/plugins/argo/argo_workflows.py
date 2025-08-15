@@ -1292,15 +1292,32 @@ class ArgoWorkflows(object):
                                     # Note: If the nodes leading to the join are conditional, then we need to use an expression to pick the outputs from the task that executed.
                                     # ref for operators: https://github.com/expr-lang/expr/blob/master/docs/language-definition.md
                                     {
-                                        "expression": "get((%s)?.outputs?.parameters, 'task-id')"
+                                        "expression": "get((%s)?.parameters, 'task-id')"
                                         % " ?? ".join(
-                                            f"tasks['{self._sanitize(func)}']"
+                                            f"tasks['{self._sanitize(func)}']?.outputs"
                                             for func in self.graph[
                                                 node.matching_join
                                             ].in_funcs
                                         )
                                     }
-                                )
+                                ),
+                                # Add the out step for all foreach templates to keep things simpler.
+                                # This is used to be able to create the input-paths correctly for the join step
+                                Parameter("foreach-out-step").valueFrom(
+                                    {
+                                        "expression": "filter([%s], {#[1]=='Succeeded'})[0][0]"
+                                        % ",".join(
+                                            '["%s", tasks["%s"].status]'
+                                            % (
+                                                self._sanitize(func),
+                                                self._sanitize(func),
+                                            )
+                                            for func in self.graph[
+                                                node.matching_join
+                                            ].in_funcs
+                                        )
+                                    }
+                                ),
                             ]
                             if not node.parallel_foreach
                             else [
@@ -1345,6 +1362,12 @@ class ArgoWorkflows(object):
                                     Parameter("split-cardinality").value(
                                         "{{tasks.%s.outputs.parameters.split-cardinality}}"
                                         % self._sanitize(node.name)
+                                    ),
+                                    # Only pick the output step from the first iteration of the foreach task, as it should be identical for all.
+                                    # TODO: This still needs fixing.
+                                    Parameter("foreach-out-step").value(
+                                        "{{= toJson(tasks['%s'].outputs.parameters['foreach-out-step'])[0] }}"
+                                        % foreach_template_name
                                     ),
                                 ]
                                 if not node.parallel_foreach
@@ -1632,7 +1655,7 @@ class ArgoWorkflows(object):
                     ]
                 )
                 input_paths = "%s/_parameters/%s" % (run_id, task_id_params)
-            elif node.is_conditional_join:
+            elif node.is_conditional_join and not node.type == "join":
                 input_paths = (
                     "$(python -m metaflow.plugins.argo.conditional_input_paths %s)"
                     % input_paths
@@ -1647,11 +1670,8 @@ class ArgoWorkflows(object):
                 )
                 if not self.graph[node.split_parents[-1]].parallel_foreach:
                     input_paths = (
-                        "$(python -m metaflow.plugins.argo.generate_input_paths %s {{workflow.creationTimestamp}} %s {{inputs.parameters.split-cardinality}})"
-                        % (
-                            foreach_step,
-                            input_paths,
-                        )
+                        "$(python -m metaflow.plugins.argo.generate_input_paths {{inputs.parameters.foreach-out-step}} {{workflow.creationTimestamp}} %s {{inputs.parameters.split-cardinality}})"
+                        % (input_paths,)
                     )
                 else:
                     # Handle @parallel where output from volume mount isn't accessible
@@ -1883,8 +1903,9 @@ class ArgoWorkflows(object):
                         [Parameter("num-parallel"), Parameter("task-id-entropy")]
                     )
                 else:
-                    # append this only for joins of foreaches, not static splits
+                    # append these only for joins of foreaches, not static splits
                     inputs.append(Parameter("split-cardinality"))
+                    inputs.append(Parameter("foreach-out-step"))
             # check if the node is a @parallel node.
             elif node.parallel_step:
                 inputs.extend(
