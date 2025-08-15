@@ -123,6 +123,15 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
             with open("/mnt/out/split_cardinality", "w") as file:
                 json.dump(flow._foreach_num_splits, file)
 
+        # For conditional branches we need to record the value of the switch to disk, in order to pass it as an
+        # output from the switching step to be used further down the DAG
+        if graph[step_name].type == "split-switch":
+            # TODO: A nicer way to access the chosen step?
+            _out_funcs, _ = flow._transition
+            chosen_step = _out_funcs[0]
+            with open("/mnt/out/switch_step", "w") as file:
+                file.write(chosen_step)
+
         # For steps that have a `@parallel` decorator set to them, we will be relying on Jobsets
         # to run the task. In this case, we cannot set anything in the
         # `/mnt/out` directory, since such form of output mounts are not available to Jobset executions.

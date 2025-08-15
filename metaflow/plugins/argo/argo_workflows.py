@@ -941,6 +941,7 @@ class ArgoWorkflows(object):
                 dag_tasks = []
             if templates is None:
                 templates = []
+
             if exit_node is not None and exit_node is node.name:
                 return templates, dag_tasks
             if node.name == "start":
@@ -948,12 +949,7 @@ class ArgoWorkflows(object):
                 dag_task = DAGTask(self._sanitize(node.name)).template(
                     self._sanitize(node.name)
                 )
-            if node.type == "split-switch":
-                raise ArgoWorkflowsException(
-                    "Deploying flows with switch statement "
-                    "to Argo Workflows is not supported currently."
-                )
-            elif (
+            if (
                 node.is_inside_foreach
                 and self.graph[node.in_funcs[0]].type == "foreach"
                 and not self.graph[node.in_funcs[0]].parallel_foreach
@@ -1087,14 +1083,42 @@ class ArgoWorkflows(object):
                             ]
                         )
 
+                conditional_deps = [
+                    "%s.Succeeded" % self._sanitize(in_func)
+                    for in_func in node.in_funcs
+                    if self.graph[in_func].is_conditional
+                ]
+                required_deps = [
+                    "%s.Succeeded" % self._sanitize(in_func)
+                    for in_func in node.in_funcs
+                    if not self.graph[in_func].is_conditional
+                ]
+                both_conditions = required_deps and conditional_deps
+
+                depends_str = "{required}{_and}{conditional}".format(
+                    required=("(%s)" if both_conditions else "%s")
+                    % " && ".join(required_deps),
+                    _and=" && " if both_conditions else "",
+                    conditional=("(%s)" if both_conditions else "%s")
+                    % " || ".join(conditional_deps),
+                )
                 dag_task = (
                     DAGTask(self._sanitize(node.name))
-                    .dependencies(
-                        [self._sanitize(in_func) for in_func in node.in_funcs]
-                    )
+                    .depends(depends_str)
                     .template(self._sanitize(node.name))
                     .arguments(Arguments().parameters(parameters))
                 )
+
+                # Add conditional if this is the first step in a conditional branch
+                if (
+                    node.is_conditional
+                    and self.graph[node.in_funcs[0]].type == "split-switch"
+                ):
+                    in_func = node.in_funcs[0]
+                    dag_task.when(
+                        "{{tasks.%s.outputs.parameters.switch-step}}==%s"
+                        % (self._sanitize(in_func), node.name)
+                    )
 
             dag_tasks.append(dag_task)
             # End the workflow if we have reached the end of the flow
@@ -1116,6 +1140,23 @@ class ArgoWorkflows(object):
                     )
                 return _visit(
                     self.graph[node.matching_join],
+                    exit_node,
+                    templates,
+                    dag_tasks,
+                    parent_foreach,
+                )
+            elif node.type == "split-switch":
+                for n in node.out_funcs:
+                    _visit(
+                        self.graph[n],
+                        node.matching_conditional_join,
+                        templates,
+                        dag_tasks,
+                        parent_foreach,
+                    )
+
+                return _visit(
+                    self.graph[node.matching_conditional_join],
                     exit_node,
                     templates,
                     dag_tasks,
@@ -1148,7 +1189,7 @@ class ArgoWorkflows(object):
                 #
                 foreach_task = (
                     DAGTask(foreach_template_name)
-                    .dependencies([self._sanitize(node.name)])
+                    .depends(f"{self._sanitize(node.name)}.Succeeded")
                     .template(foreach_template_name)
                     .arguments(
                         Arguments().parameters(
@@ -1193,6 +1234,15 @@ class ArgoWorkflows(object):
                         % self._sanitize(node.name)
                     )
                 )
+                # Add conditional if this is the first step in a conditional branch
+                if node.is_conditional and not any(
+                    self.graph[in_func].is_conditional for in_func in node.in_funcs
+                ):
+                    in_func = node.in_funcs[0]
+                    foreach_task.when(
+                        "{{tasks.%s.outputs.parameters.switch-step}}==%s"
+                        % (self._sanitize(in_func), node.name)
+                    )
                 dag_tasks.append(foreach_task)
                 templates, dag_tasks_1 = _visit(
                     self.graph[node.out_funcs[0]],
@@ -1236,7 +1286,22 @@ class ArgoWorkflows(object):
                                             self.graph[node.matching_join].in_funcs[0]
                                         )
                                     }
-                                )
+                                    if not self.graph[
+                                        node.matching_join
+                                    ].is_conditional_join
+                                    else
+                                    # Note: If the nodes leading to the join are conditional, then we need to use an expression to pick the outputs from the task that executed.
+                                    # ref for operators: https://github.com/expr-lang/expr/blob/master/docs/language-definition.md
+                                    {
+                                        "expression": "get((%s)?.parameters, 'task-id')"
+                                        % " ?? ".join(
+                                            f"tasks['{self._sanitize(func)}']?.outputs"
+                                            for func in self.graph[
+                                                node.matching_join
+                                            ].in_funcs
+                                        )
+                                    }
+                                ),
                             ]
                             if not node.parallel_foreach
                             else [
@@ -1269,7 +1334,7 @@ class ArgoWorkflows(object):
                 join_foreach_task = (
                     DAGTask(self._sanitize(self.graph[node.matching_join].name))
                     .template(self._sanitize(self.graph[node.matching_join].name))
-                    .dependencies([foreach_template_name])
+                    .depends(f"{foreach_template_name}.Succeeded")
                     .arguments(
                         Arguments().parameters(
                             (
@@ -1568,10 +1633,25 @@ class ArgoWorkflows(object):
                     ]
                 )
                 input_paths = "%s/_parameters/%s" % (run_id, task_id_params)
+            # Only for static joins and conditional_joins
+            elif node.is_conditional_join and not (
+                node.type == "join"
+                and self.graph[node.split_parents[-1]].type == "foreach"
+            ):
+                input_paths = (
+                    "$(python -m metaflow.plugins.argo.conditional_input_paths %s)"
+                    % input_paths
+                )
             elif (
                 node.type == "join"
                 and self.graph[node.split_parents[-1]].type == "foreach"
             ):
+                # foreach-joins straight out of conditional branches are not yet supported
+                if node.is_conditional_join:
+                    raise ArgoWorkflowsException(
+                        "Foreach steps with a conditional step as the last one are not yet supported with Argo Workflows."
+                        "For now, you can add a merging step after the conditional ones that will be then joined by the foreach-join"
+                    )
                 # Set aggregated input-paths for a for-each join
                 foreach_step = next(
                     n for n in node.in_funcs if self.graph[n].is_inside_foreach
@@ -1814,7 +1894,7 @@ class ArgoWorkflows(object):
                         [Parameter("num-parallel"), Parameter("task-id-entropy")]
                     )
                 else:
-                    # append this only for joins of foreaches, not static splits
+                    # append these only for joins of foreaches, not static splits
                     inputs.append(Parameter("split-cardinality"))
             # check if the node is a @parallel node.
             elif node.parallel_step:
@@ -1849,6 +1929,13 @@ class ArgoWorkflows(object):
             # are derived at runtime.
             if not (node.name == "end" or node.parallel_step):
                 outputs = [Parameter("task-id").valueFrom({"path": "/mnt/out/task_id"})]
+
+            # If this step is a split-switch one, we need to output the switch step name
+            if node.type == "split-switch":
+                outputs.append(
+                    Parameter("switch-step").valueFrom({"path": "/mnt/out/switch_step"})
+                )
+
             if node.type == "foreach":
                 # Emit split cardinality from foreach task
                 outputs.append(
@@ -3981,6 +4068,10 @@ class DAGTask(object):
         self.payload["dependencies"] = dependencies
         return self
 
+    def depends(self, depends: str):
+        self.payload["depends"] = depends
+        return self
+
     def template(self, template):
         # Template reference
         self.payload["template"] = template
@@ -3990,6 +4081,10 @@ class DAGTask(object):
         # We could have inlined the template here but
         # https://github.com/argoproj/argo-workflows/issues/7432 prevents us for now.
         self.payload["inline"] = template.to_json()
+        return self
+
+    def when(self, when: str):
+        self.payload["when"] = when
         return self
 
     def with_param(self, with_param):
