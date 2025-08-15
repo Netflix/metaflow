@@ -311,6 +311,12 @@ class FlowGraph(object):
             if node.conditional_parents:
                 # do the required postprocessing for anything requiring node.in_funcs
 
+                # check that in previous parsing we have not closed all conditional in_funcs.
+                # If so, this step can not be conditional either
+                node.is_conditional = any(
+                    self[in_func].is_conditional or self[in_func].type == "split-switch"
+                    for in_func in node.in_funcs
+                )
                 # does this node close the latest conditional parent branches?
                 conditional_in_funcs = [
                     in_func
