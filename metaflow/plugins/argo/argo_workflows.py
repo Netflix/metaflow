@@ -1905,7 +1905,6 @@ class ArgoWorkflows(object):
                 outputs = [Parameter("task-id").valueFrom({"path": "/mnt/out/task_id"})]
 
             # If this step is a split-switch one, we need to output the switch step name
-            # Note we can not use node.type for this, as the start step can also be a switching one
             if node.type == "split-switch":
                 outputs.append(
                     Parameter("switch-step").valueFrom({"path": "/mnt/out/switch_step"})
