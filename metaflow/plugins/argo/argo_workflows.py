@@ -1285,6 +1285,21 @@ class ArgoWorkflows(object):
                                             self.graph[node.matching_join].in_funcs[0]
                                         )
                                     }
+                                    if not self.graph[
+                                        node.matching_join
+                                    ].is_conditional_join
+                                    else
+                                    # Note: If the nodes leading to the join are conditional, then we need to use an expression to pick the outputs from the task that executed.
+                                    # ref for operators: https://github.com/expr-lang/expr/blob/master/docs/language-definition.md
+                                    {
+                                        "expression": "get((%s)?.outputs?.parameters, 'task-id')"
+                                        % " ?? ".join(
+                                            f"tasks['{self._sanitize(func)}']"
+                                            for func in self.graph[
+                                                node.matching_join
+                                            ].in_funcs
+                                        )
+                                    }
                                 )
                             ]
                             if not node.parallel_foreach
