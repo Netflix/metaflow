@@ -1655,7 +1655,11 @@ class ArgoWorkflows(object):
                     ]
                 )
                 input_paths = "%s/_parameters/%s" % (run_id, task_id_params)
-            elif node.is_conditional_join and not node.type == "join":
+            # Only for static joins and conditional_joins
+            elif node.is_conditional_join and not (
+                node.type == "join"
+                and self.graph[node.split_parents[-1]].type == "foreach"
+            ):
                 input_paths = (
                     "$(python -m metaflow.plugins.argo.conditional_input_paths %s)"
                     % input_paths
