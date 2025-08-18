@@ -1443,6 +1443,7 @@ class ArgoWorkflows(object):
 
             task_idx = ""
             input_paths = ""
+            input_paths_filename = ""
             root_input = None
             # export input_paths as it is used multiple times in the container script
             # and we do not want to repeat the values.
@@ -1633,25 +1634,15 @@ class ArgoWorkflows(object):
                     ]
                 )
                 input_paths = "%s/_parameters/%s" % (run_id, task_id_params)
-            # Only for static joins and conditional_joins
-            elif node.is_conditional_join and not (
-                node.type == "join"
-                and self.graph[node.split_parents[-1]].type == "foreach"
-            ):
-                input_paths = (
-                    "$(python -m metaflow.plugins.argo.conditional_input_paths %s)"
-                    % input_paths
+            elif node.is_conditional_join:
+                input_paths_filename = (
+                    "$(python -m metaflow.plugins.argo.create_input_paths_file '%s' '%s')"
+                    % (",".join(node.in_funcs), f"{self.flow.name}/{run_id}")
                 )
             elif (
                 node.type == "join"
                 and self.graph[node.split_parents[-1]].type == "foreach"
             ):
-                # foreach-joins straight out of conditional branches are not yet supported
-                if node.is_conditional_join:
-                    raise ArgoWorkflowsException(
-                        "Foreach steps with a conditional step as the last one are not yet supported with Argo Workflows."
-                        "For now, you can add a merging step after the conditional ones that will be then joined by the foreach-join"
-                    )
                 # Set aggregated input-paths for a for-each join
                 foreach_step = next(
                     n for n in node.in_funcs if self.graph[n].is_inside_foreach
@@ -1680,7 +1671,11 @@ class ArgoWorkflows(object):
                 "--task-id %s" % task_id,
                 "--retry-count %s" % retry_count,
                 "--max-user-code-retries %d" % user_code_retries,
-                "--input-paths %s" % input_paths,
+                (
+                    "--input-paths-filename %s" % input_paths_filename
+                    if input_paths_filename
+                    else "--input-paths %s" % input_paths
+                ),
             ]
             if node.parallel_step:
                 step.append(
