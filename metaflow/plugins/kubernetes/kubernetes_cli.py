@@ -11,7 +11,11 @@ from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
 import metaflow.tracing as tracing
 from metaflow import JSONTypeClass, util
 from metaflow._vendor import click
-from metaflow.exception import METAFLOW_EXIT_DISALLOW_RETRY, MetaflowException
+from metaflow.exception import (
+    METAFLOW_EXIT_DISALLOW_RETRY,
+    METAFLOW_EXIT_ALLOW_RETRY,
+    MetaflowException,
+)
 from metaflow.metadata_provider.util import sync_local_metadata_from_datastore
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.mflog import TASK_LOG_SOURCE
@@ -21,7 +25,9 @@ from .kubernetes import (
     Kubernetes,
     KubernetesException,
     KubernetesKilledException,
+    KubernetesSpotInstanceTerminated,
 )
+from metaflow.plugins.retry_decorator import RetryEvents
 
 
 @click.group()
@@ -237,6 +243,7 @@ def step(
         minutes_between_retries = int(
             retry_deco[0].attributes.get("minutes_between_retries", 2)
         )
+    retry_conditions = retry_deco[0].attributes["only_on"] if retry_deco else []
     if retry_count:
         ctx.obj.echo_always(
             "Sleeping %d minutes before the next retry" % minutes_between_retries
@@ -349,6 +356,17 @@ def step(
         # don't retry killed tasks
         traceback.print_exc()
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
+    except KubernetesSpotInstanceTerminated:
+        traceback.print_exc()
+        if not retry_conditions or RetryEvents.PREEMPT.value in retry_conditions:
+            sys.exit(METAFLOW_EXIT_ALLOW_RETRY)
+        else:
+            sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
+    except KubernetesException:
+        if not retry_conditions or RetryEvents.STEP.value in retry_conditions:
+            raise
+        sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
+
     finally:
         _sync_metadata()
 

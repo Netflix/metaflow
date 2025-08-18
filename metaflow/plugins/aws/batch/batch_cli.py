@@ -6,12 +6,22 @@ import traceback
 
 from metaflow import util
 from metaflow import R
-from metaflow.exception import CommandException, METAFLOW_EXIT_DISALLOW_RETRY
+from metaflow.exception import (
+    METAFLOW_EXIT_ALLOW_RETRY,
+    CommandException,
+    METAFLOW_EXIT_DISALLOW_RETRY,
+)
 from metaflow.metadata_provider.util import sync_local_metadata_from_datastore
 from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.mflog import TASK_LOG_SOURCE
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
-from .batch import Batch, BatchKilledException
+from .batch import (
+    Batch,
+    BatchException,
+    BatchKilledException,
+    BatchSpotInstanceTerminated,
+)
+from metaflow.plugins.retry_decorator import RetryEvents
 
 
 @click.group()
@@ -285,6 +295,7 @@ def step(
     if split_vars:
         env.update(split_vars)
 
+    retry_conditions = retry_deco[0].attributes["only_on"] if retry_deco else []
     if retry_count:
         ctx.obj.echo_always(
             "Sleeping %d minutes before the next AWS Batch retry"
@@ -358,6 +369,16 @@ def step(
     except BatchKilledException:
         # don't retry killed tasks
         traceback.print_exc()
+        sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
+    except BatchSpotInstanceTerminated:
+        traceback.print_exc()
+        if not retry_conditions or RetryEvents.PREEMPT.value in retry_conditions:
+            sys.exit(METAFLOW_EXIT_ALLOW_RETRY)
+        else:
+            sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
+    except BatchException:
+        if not retry_conditions or RetryEvents.STEP.value in retry_conditions:
+            raise
         sys.exit(METAFLOW_EXIT_DISALLOW_RETRY)
     finally:
         _sync_metadata()

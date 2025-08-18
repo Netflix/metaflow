@@ -18,10 +18,11 @@ from metaflow.metaflow_config import (
     SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH,
 )
 from metaflow.parameters import deploy_time_eval
+from metaflow.plugins.retry_decorator import RetryEvents
 from metaflow.user_configs.config_options import ConfigInput
 from metaflow.util import dict_to_cli_options, to_pascalcase
 
-from ..batch.batch import Batch
+from ..batch.batch import Batch, SPOT_INTERRUPT_EXITCODE
 from .event_bridge_client import EventBridgeClient
 from .step_functions_client import StepFunctionsClient
 
@@ -838,8 +839,37 @@ class StepFunctions(object):
         batch_deco = [deco for deco in node.decorators if deco.name == "batch"][0]
         resources = {}
         resources.update(batch_deco.attributes)
+
         # Resolve retry strategy.
         user_code_retries, total_retries = self._get_retries(node)
+
+        # retry conditions mapping
+        retry_deco = next(
+            (deco for deco in node.decorators if deco.name == "retry"), None
+        )
+        retry_conditions = (
+            retry_deco.attributes["only_on"] if retry_deco is not None else []
+        )
+
+        # Translate RetryEvents to expressions for SFN
+        event_to_expr = {
+            RetryEvents.STEP: {"action": "RETRY", "onExitCode": "1"},
+            RetryEvents.PREEMPT: {
+                "action": "RETRY",
+                "onExitCode": str(SPOT_INTERRUPT_EXITCODE),
+            },
+        }
+        retry_expr = None
+        # NOTE: AWS only allows 5 distinct EvaluateOnExit conditions, so any more than this will require combining them.
+        if retry_conditions:
+            retry_expr = [
+                expr
+                for event, expr in event_to_expr.items()
+                if event.value in retry_conditions
+            ]
+            # we need to append a catch-all exit condition, as for no matches the default behavior with Batch is to retry the job.
+            # retry conditions are only evaluated for non-zero exit codes, so the wildcard is fine here.
+            retry_expr.append({"action": "EXIT", "onExitCode": "*"})
 
         task_spec = {
             "flow_name": attrs["metaflow.flow_name"],
@@ -890,7 +920,7 @@ class StepFunctions(object):
                 log_driver=resources["log_driver"],
                 log_options=resources["log_options"],
             )
-            .attempts(total_retries + 1)
+            .attempts(attempts=total_retries + 1, evaluate_on_exit=retry_expr)
         )
 
     def _get_retries(self, node):

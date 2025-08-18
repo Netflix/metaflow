@@ -54,6 +54,8 @@ from metaflow.parameters import deploy_time_eval
 from metaflow.plugins.kubernetes.kube_utils import qos_requests_and_limits
 
 from metaflow.plugins.kubernetes.kubernetes_jobsets import KubernetesArgoJobSet
+from metaflow.plugins.kubernetes.kubernetes import SPOT_INTERRUPT_EXITCODE
+from metaflow.plugins.retry_decorator import RetryEvents
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from metaflow.user_configs.config_options import ConfigInput
 from metaflow.util import (
@@ -1444,11 +1446,13 @@ class ArgoWorkflows(object):
             max_user_code_retries = 0
             max_error_retries = 0
             minutes_between_retries = "2"
+            retry_conditions = []
             for decorator in node.decorators:
                 if decorator.name == "retry":
                     minutes_between_retries = decorator.attributes.get(
                         "minutes_between_retries", minutes_between_retries
                     )
+                    retry_conditions = decorator.attributes["only_on"]
                 user_code_retries, error_retries = decorator.step_task_retry_count()
                 max_user_code_retries = max(max_user_code_retries, user_code_retries)
                 max_error_retries = max(max_error_retries, error_retries)
@@ -1469,6 +1473,21 @@ class ArgoWorkflows(object):
             )
 
             minutes_between_retries = int(minutes_between_retries)
+
+            # Translate RetryEvents to expressions for Argo
+            event_to_expr = {
+                RetryEvents.STEP: "asInt(lastRetry.exitCode) == 1",
+                RetryEvents.PREEMPT: "asInt(lastRetry.exitCode) == %s"
+                % SPOT_INTERRUPT_EXITCODE,
+            }
+            retry_expr = None
+            if retry_conditions:
+                retry_expressions = [
+                    expr
+                    for event, expr in event_to_expr.items()
+                    if event.value in retry_conditions
+                ]
+                retry_expr = "||".join(retry_expressions)
 
             # Configure log capture.
             mflog_expr = export_mflog_env_vars(
@@ -2076,6 +2095,7 @@ class ArgoWorkflows(object):
                     .retry_strategy(
                         times=total_retries,
                         minutes_between_retries=minutes_between_retries,
+                        expression=retry_expr,
                     )
                 )
             else:
@@ -2095,6 +2115,7 @@ class ArgoWorkflows(object):
                     .retry_strategy(
                         times=total_retries,
                         minutes_between_retries=minutes_between_retries,
+                        expression=retry_expr,
                     )
                     .metadata(
                         ObjectMeta()
@@ -3770,13 +3791,17 @@ class Template(object):
         self.payload["serviceAccountName"] = service_account_name
         return self
 
-    def retry_strategy(self, times, minutes_between_retries):
+    def retry_strategy(self, times, minutes_between_retries, expression=None):
         if times > 0:
             self.payload["retryStrategy"] = {
-                "retryPolicy": "Always",
                 "limit": times,
                 "backoff": {"duration": "%sm" % minutes_between_retries},
             }
+            if expression is None:
+                self.payload["retryStrategy"]["retryPolicy"] = "Always"
+            else:
+                self.payload["retryStrategy"]["expression"] = expression
+
         return self
 
     def empty_dir_volume(self, name, medium=None, size_limit=None):
