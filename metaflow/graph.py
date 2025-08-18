@@ -3,7 +3,6 @@ import ast
 import re
 
 from itertools import chain
-from typing import List, Optional
 
 
 from .util import to_pod
@@ -83,16 +82,6 @@ class DAGNode(object):
         self.matching_join = None
         # these attributes are populated by _postprocess
         self.is_inside_foreach = False
-        # Conditional info
-        self.is_conditional = False  # will this node always be executed, or is it in a conditional branch?
-        self.matching_conditional_join = None  # which step joins the conditional branches. filled for split-switch only.
-        self.is_conditional_join = (
-            False  # Does this node 'join' some set of conditional branches?
-        )
-        self.conditional_parents = []
-        self.conditional_branch = (
-            []
-        )  # All the steps leading to this node that depends on a condition, starting from the split-switch
 
     def _expr_str(self, expr):
         return "%s.%s" % (expr.value.id, expr.attr)
@@ -307,61 +296,8 @@ class FlowGraph(object):
             if [f for f in foreaches if self.nodes[f].matching_join != node.name]:
                 node.is_inside_foreach = True
 
-            # Fill in conditionals related info.
-            if node.conditional_parents:
-                # do the required postprocessing for anything requiring node.in_funcs
-
-                # check that in previous parsing we have not closed all conditional in_funcs.
-                # If so, this step can not be conditional either
-                node.is_conditional = any(
-                    self[in_func].is_conditional or self[in_func].type == "split-switch"
-                    for in_func in node.in_funcs
-                )
-                # does this node close the latest conditional parent branches?
-                conditional_in_funcs = [
-                    in_func
-                    for in_func in node.in_funcs
-                    if self[in_func].conditional_branch
-                ]
-                closed_conditional_parents = []
-                for last_split_switch in node.conditional_parents[::-1]:
-                    # last_split_switch = node.conditional_parents[-1]
-                    last_conditional_split_nodes = self[last_split_switch].out_funcs
-                    # p needs to be in at least one conditional_branch for it to be closed.
-                    if all(
-                        any(
-                            p in self[in_func].conditional_branch
-                            for in_func in conditional_in_funcs
-                        )
-                        for p in last_conditional_split_nodes
-                    ):
-                        closed_conditional_parents.append(last_split_switch)
-
-                        node.is_conditional_join = True
-                        self[last_split_switch].matching_conditional_join = node.name
-
-                # Did we close all conditionals? Then this branch and all its children are not conditional anymore.
-                if not [
-                    p
-                    for p in node.conditional_parents
-                    if p not in closed_conditional_parents
-                ]:
-                    node.is_conditional = False
-                    node.conditional_parents = []
-                    for p in node.out_funcs:
-                        child = self[p]
-                        child.is_conditional = False
-                        child.conditional_parents = []
-
     def _traverse_graph(self):
-        def traverse(
-            node: DAGNode,
-            seen,
-            split_parents,
-            split_branches,
-            conditional_branch: List[str],
-            conditional_parents: Optional[List[str]] = None,
-        ):
+        def traverse(node, seen, split_parents, split_branches):
             add_split_branch = False
             try:
                 self.sorted_nodes.remove(node.name)
@@ -376,13 +312,6 @@ class FlowGraph(object):
             elif node.type == "split-switch":
                 node.split_parents = split_parents
                 node.split_branches = split_branches
-
-                node.conditional_branch = conditional_branch + [node.name]
-                node.conditional_parents = (
-                    [node.name]
-                    if not conditional_parents
-                    else conditional_parents + [node.name]
-                )
             elif node.type == "join":
                 # ignore joins without splits
                 if split_parents:
@@ -394,11 +323,6 @@ class FlowGraph(object):
             else:
                 node.split_parents = split_parents
                 node.split_branches = split_branches
-
-            if conditional_parents and not node.type == "split-switch":
-                node.conditional_parents = conditional_parents
-                node.conditional_branch = conditional_branch + [node.name]
-                node.is_conditional = True
 
             for n in node.out_funcs:
                 # graph may contain loops - ignore them
@@ -412,12 +336,10 @@ class FlowGraph(object):
                             seen + [n],
                             split_parents,
                             split_branches + ([n] if add_split_branch else []),
-                            node.conditional_branch,
-                            node.conditional_parents,
                         )
 
         if "start" in self:
-            traverse(self["start"], [], [], [], [])
+            traverse(self["start"], [], [], [])
 
         # fix the order of in_funcs
         for node in self.nodes.values():
