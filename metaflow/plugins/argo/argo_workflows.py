@@ -1649,8 +1649,8 @@ class ArgoWorkflows(object):
                 # foreach-joins straight out of conditional branches are not yet supported
                 if node.is_conditional_join:
                     raise ArgoWorkflowsException(
-                        "Foreach steps with a conditional step as the last one are not yet supported with Argo Workflows."
-                        "For now, you can add a merging step after the conditional ones that will be then joined by the foreach-join"
+                        "Conditionals steps that transition directly into a join step are not currently supported. "
+                        "As a workaround, you can add a normal step after the conditional steps that transitions to a join step."
                     )
                 # Set aggregated input-paths for a for-each join
                 foreach_step = next(
