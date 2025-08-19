@@ -1156,15 +1156,32 @@ class ArgoWorkflows(object):
             else:
                 # Every other node needs only input-paths
                 parameters = [
-                    Parameter("input-paths").value(
-                        compress_list(
-                            [
-                                "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
-                                % (n, self._sanitize(n))
-                                for n in node.in_funcs
-                            ],
-                            # NOTE: We set zlibmin to infinite because zlib compression for the Argo input-paths breaks template value substitution.
-                            zlibmin=inf,
+                    (
+                        Parameter("input-paths").value(
+                            compress_list(
+                                [
+                                    "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
+                                    % (n, self._sanitize(n))
+                                    for n in node.in_funcs
+                                ],
+                                # NOTE: We set zlibmin to infinite because zlib compression for the Argo input-paths breaks template value substitution.
+                                zlibmin=inf,
+                            )
+                        )
+                        if not self._is_conditional_join_node(node)
+                        # The value fetching for input-paths from conditional steps has to be quite involved
+                        # in order to avoid issues with replacements due to missing step outputs.
+                        # NOTE: we differentiate the input-path expression only for conditional joins so we can still utilize the list compression,
+                        # but do not have to rework all decompress usage due to the need for a custom separator
+                        else Parameter("input-paths").value(
+                            compress_list(
+                                [
+                                    "argo-{{workflow.name}}/%s/{{=(get(tasks['%s']?.outputs?.parameters, 'task-id') ?? 'no-task')}}"
+                                    % (n, self._sanitize(n))
+                                    for n in node.in_funcs
+                                ],
+                                separator="%",  # non-default separator is required due to commas in the value expression
+                            )
                         )
                     )
                 ]
