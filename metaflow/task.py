@@ -280,32 +280,18 @@ class MetaflowTask(object):
         self.flow._foreach_var = None
         self.flow._foreach_num_splits = None
 
-        # There are five cases that can alter the foreach state:
+        # There are four cases that can alter the foreach state:
         # 1) start - initialize an empty foreach stack
-        # 2) end - clears the foreach stack, signifying a clean end to the run
-        # 3) recursive conditional - a new synthesized frame is pushed to track iteration count
-        # 4) join - pop the topmost frame from the stack
-        # 5) step following a split - push a new frame in the stack
+        # 2) recursive conditional - a new synthesized frame is pushed to track iteration count
+        # 3) join - pop the topmost frame from the stack
+        # 4) step following a split - push a new frame in the stack
 
-        # We have a non-modifying case (case 6)) where we propagate the
+        # We have a non-modifying case (case 5)) where we propagate the
         # foreach-stack information to all tasks in the foreach. This is
         # then used later to write the foreach-stack metadata for that task
 
         # case 1) 'start' step - reset the stack
         if step_name == "start":
-            self.flow._foreach_stack = []
-
-        # case 2) 'end' step - clear the stack
-        elif step_name == "end":
-            # The 'end' step can be reached from within a synthesized foreach context
-            # (e.g., after a recursive loop). If it inherits this non-empty stack,
-            # the runtime's final completion check in runtime.py, which specifically
-            # looks for the finished ID `("end", ())`, will fail incorrectly.
-            #
-            # To ensure a clean exit and a correct success status, we explicitly
-            # clear the stack here. This mirrors the 'start' step's behavior and
-            # makes the 'end' step's context consistent with what is expected
-            # after a standard, joined foreach.
             self.flow._foreach_stack = []
 
         # This block handles the case where we are exiting a recursive loop.
@@ -332,7 +318,7 @@ class MetaflowTask(object):
                 else:
                     self.flow._foreach_stack = stack
 
-            # case 3) recursive conditional step - manage synthesized stack
+            # case 2) recursive conditional step - manage synthesized stack
             elif recursive_loop_index is not None:
 
                 # Create a new 'synthesized' ForeachFrame to represent the current
@@ -362,7 +348,7 @@ class MetaflowTask(object):
                 # Set the flow's current foreach stack to our newly constructed stack.
                 self.flow._foreach_stack = stack
 
-            # case 4) - this is a join step
+            # case 3) - this is a join step
             elif join_type:
                 # assert the lineage of incoming branches
                 def lineage():
@@ -410,7 +396,7 @@ class MetaflowTask(object):
                     # a non-foreach join doesn't change the stack
                     self.flow._foreach_stack = inp["_foreach_stack"]
 
-            # case 5) - our parent was a split. Initialize a new foreach frame.
+            # case 4) - our parent was a split. Initialize a new foreach frame.
             elif not inputs[0].is_none("_foreach_var"):
                 if len(inputs) != 1:
                     raise MetaflowInternalError(
@@ -442,7 +428,7 @@ class MetaflowTask(object):
                 stack = inputs[0]["_foreach_stack"]
                 stack.append(frame)
                 self.flow._foreach_stack = stack
-            # case 6) - propagate in the foreach nest
+            # case 5) - propagate in the foreach nest
             elif "_foreach_stack" in inputs[0]:
                 self.flow._foreach_stack = inputs[0]["_foreach_stack"]
 
