@@ -132,6 +132,7 @@ class NativeRuntime(object):
         self._reentrant = reentrant
         self._run_url = None
         self._skip_decorator_hooks = skip_decorator_hooks
+        self._clone_phase_complete = False
 
         # If steps_to_rerun is specified, we will not clone them in resume mode.
         self._steps_to_rerun = steps_to_rerun or {}
@@ -189,7 +190,9 @@ class NativeRuntime(object):
                     deco.runtime_init(flow, graph, package, self._run_id)
 
     def _new_task(self, step, input_paths=None, **kwargs):
-        if input_paths is None:
+        if self._clone_phase_complete and self._clone_run_id:
+            may_clone = False
+        elif input_paths is None:
             may_clone = True
         else:
             may_clone = all(self._is_cloned[path] for path in input_paths)
@@ -484,6 +487,10 @@ class NativeRuntime(object):
                 self._queue_push("start", {"input_paths": [self._params_task.path]})
             else:
                 self._queue_push("start", {})
+
+        if self._clone_run_id and not self._clone_only:
+            self._clone_phase_complete = True
+
         progress_tstamp = time.time()
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as config_file:
             # Configurations are passed through a file to avoid overloading the
@@ -505,6 +512,58 @@ class NativeRuntime(object):
                     # 1. are any of the current workers finished?
                     if self._cloned_tasks:
                         finished_tasks = self._cloned_tasks
+
+                        # When resuming a flow with a recursive conditional step (a loop),
+                        # self._cloned_tasks will contain *all* successful iterations of that loop.
+                        # If we process the transitions from all of them, we will incorrectly
+                        # launch multiple new tasks in parallel.
+                        #
+                        # To fix this, we filter the list to only include the *last* successful
+                        # iteration of any recursive step. This ensures that we only resume
+                        # from the true frontier of the previously successful execution.
+
+                        # Group all cloned tasks by their step name. This allows us to process
+                        # all iterations of a given recursive loop as a single batch.
+                        tasks_by_step = {}
+                        for task in finished_tasks:
+                            tasks_by_step.setdefault(task.step, []).append(task)
+
+                        filtered_tasks = []
+                        # Iterate through the grouped tasks on a per-step basis.
+                        for step_name, tasks in tasks_by_step.items():
+                            node = self._graph[step_name]
+                            # Identify if a step is recursive by checking if it's a split-switch
+                            # that can transition back to itself.
+                            is_recursive_step = (
+                                node.type == "split-switch"
+                                and step_name in node.out_funcs
+                            )
+
+                            if is_recursive_step and tasks:
+                                # This is a recursive step. We must find the single task that represents
+                                # the last successfully completed iteration.
+                                def get_loop_index(t):
+                                    # Helper function to extract the iteration index from the task's
+                                    # persisted '_foreach_stack'.
+                                    stack = t.results.get("_foreach_stack", [])
+                                    if stack and stack[-1].var == "_recursive_loop":
+                                        return stack[-1].index
+                                    return -1
+
+                                # Use max() to find the task with the highest iteration index.
+                                last_task_in_loop = max(tasks, key=get_loop_index)
+
+                                # Add only this "leaf" task to our new list of tasks to process.
+                                filtered_tasks.append(last_task_in_loop)
+                            else:
+                                # For all non-recursive steps, we keep all their
+                                # corresponding tasks to be processed normally.
+                                filtered_tasks.extend(tasks)
+
+                        # Replace the original list of finished tasks with our new, filtered list.
+                        # The scheduler will now only process transitions from the correct "leaf" tasks.
+                        finished_tasks = filtered_tasks
+
                         # reset the list of cloned tasks and let poll_workers handle
                         # the remaining transition
                         self._cloned_tasks = []
@@ -870,11 +929,43 @@ class NativeRuntime(object):
 
     def _queue_task_switch(self, task, next_steps):
         chosen_step = next_steps[0]
+        # Check if the chosen next step is the same as the current step.
         is_self_loop_switch = task.step == chosen_step
-        index = self._translate_index(task, chosen_step, "linear")
-        self._queue_push(
-            chosen_step, {"input_paths": [task.path]}, index, is_self_loop_switch
-        )
+
+        # If this is a recursive conditional (a step transitioning to itself),
+        # we treat it as a synthesized foreach.
+        if is_self_loop_switch:
+            # Read the stack from the parent task to get the previous iteration's index.
+            parent_stack = task.results.get("_foreach_stack", [])
+
+            # If a '_recursive_loop' frame exists, it means we are in the middle of a
+            # loop, so we increment its index. Otherwise, we start at 0.
+            if parent_stack and parent_stack[-1].var == "_recursive_loop":
+                loop_index = parent_stack[-1].index + 1
+            else:
+                loop_index = 0
+
+            # Generate the unique task_index for the new task, e.g., 'loop_step[5]'.
+            index = self._translate_index(task, chosen_step, "split", loop_index)
+            self._queue_push(
+                chosen_step,
+                {
+                    "input_paths": [task.path],
+                    # Pass the calculated index to the new task process.
+                    "recursive_loop_index": loop_index,
+                },
+                index,
+                # Pass this flag to _queue_push to allow this task to be scheduled.
+                is_self_loop_switch=True,
+            )
+        else:
+            # This is a normal switch; treat it as a standard linear transition.
+            index = self._translate_index(task, chosen_step, "linear")
+            self._queue_push(
+                chosen_step,
+                {"input_paths": [task.path]},
+                index,
+            )
 
     def _queue_task_foreach(self, task, next_steps):
         # CHECK: this condition should be enforced by the linter but
@@ -1142,6 +1233,7 @@ class Task(object):
         task_id=None,
         resume_identifier=None,
         pathspec_index=None,
+        recursive_loop_index=None,
     ):
         self.step = step
         self.flow = flow
@@ -1151,6 +1243,7 @@ class Task(object):
         self._path = None
         self.input_paths = input_paths
         self.split_index = split_index
+        self.recursive_loop_index = recursive_loop_index
         self.ubf_context = ubf_context
         self.ubf_iter = ubf_iter
         self.decos = [] if decos is None else decos
@@ -1666,6 +1759,7 @@ class CLIArgs(object):
             "task-id": task.task_id,
             "input-paths": compress_list(task.input_paths),
             "split-index": task.split_index,
+            "recursive-loop-index": task.recursive_loop_index,
             "retry-count": task.retries,
             "max-user-code-retries": task.user_code_retries,
             "tag": task.tags,
