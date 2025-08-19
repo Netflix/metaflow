@@ -16,7 +16,7 @@ import time
 import subprocess
 from datetime import datetime
 from io import BytesIO
-from itertools import chain
+from itertools import chain, groupby
 from functools import partial
 from concurrent import futures
 
@@ -541,7 +541,7 @@ class NativeRuntime(object):
 
                             if is_recursive_step and tasks:
                                 # This is a recursive step. We must find the single task that represents
-                                # the last successfully completed iteration.
+                                # the last successfully completed iteration *for each branch*.
                                 def get_loop_index(t):
                                     # Helper function to extract the iteration index from the task's
                                     # persisted '_foreach_stack'.
@@ -550,11 +550,26 @@ class NativeRuntime(object):
                                         return stack[-1].index
                                     return -1
 
-                                # Use max() to find the task with the highest iteration index.
-                                last_task_in_loop = max(tasks, key=get_loop_index)
+                                def get_branch_context(t):
+                                    # Helper to get the outer foreach's context, which we
+                                    # use as the key for grouping.
+                                    stack = t.results.get("_foreach_stack", [])
+                                    if stack and stack[-1].var == "_recursive_loop":
+                                        return tuple(stack[:-1])
+                                    return tuple(stack)
 
-                                # Add only this "leaf" task to our new list of tasks to process.
-                                filtered_tasks.append(last_task_in_loop)
+                                # Sort tasks by their branch context to enable grouping.
+                                tasks.sort(key=get_branch_context)
+
+                                # Group tasks by their parent foreach branch, then find the
+                                # latest iteration (max) within each group.
+                                for _, branch_tasks in groupby(
+                                    tasks, key=get_branch_context
+                                ):
+                                    last_task_in_branch = max(
+                                        branch_tasks, key=get_loop_index
+                                    )
+                                    filtered_tasks.append(last_task_in_branch)
                             else:
                                 # For all non-recursive steps, we keep all their
                                 # corresponding tasks to be processed normally.
