@@ -1279,6 +1279,13 @@ class ArgoWorkflows(object):
                     parent_foreach,
                 )
             elif node.type == "split-switch":
+                if node.is_inside_foreach:
+                    # TODO: Fix this. The issue is with conditional branches nested inside a foreach branch. The value expression for the input-paths parameter
+                    # on Argo fails completely for the nested structure (though the identical shape outside of nesting works fine).
+                    raise MetaflowException(
+                        "*%s* is a switch step inside a foreach. Conditional steps are not supported inside a foreach on Argo Workflows yet."
+                        % node.name
+                    )
                 for n in node.out_funcs:
                     _visit(
                         self.graph[n],
