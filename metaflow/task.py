@@ -124,7 +124,12 @@ class MetaflowTask(object):
             if r is None or isinstance(r, Exception):
                 raised_exception = None
             elif isinstance(r, tuple):
-                raised_exception, fake_next_call_args = r
+                if len(r) == 2:
+                    raised_exception, fake_next_call_args = r
+                else:
+                    # The last argument is an exception to be re-raised. Used in
+                    # user_step_decorator's post_step
+                    raise r[2]
             else:
                 raise RuntimeError(
                     "Invalid return value from a UserStepDecorator. Expected an"
