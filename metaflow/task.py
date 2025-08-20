@@ -117,7 +117,10 @@ class MetaflowTask(object):
 
         # We back out of the stack of generators
         for w in reversed(wrappers_stack):
-            r = w.post_step(orig_step_func.name, self.flow, raised_exception)
+            try:
+                r = w.post_step(orig_step_func.name, self.flow, raised_exception)
+            except Exception as ex:
+                r = ex
             if r is None or isinstance(r, Exception):
                 raised_exception = None
             elif isinstance(r, tuple):
