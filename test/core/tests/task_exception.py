@@ -14,6 +14,7 @@ class TaskExceptionTest(MetaflowTest):
         "foreach_in_switch",
         "switch_in_branch",
         "switch_in_foreach",
+        "recursive_switch",
     ]
     SHOULD_FAIL = True
 

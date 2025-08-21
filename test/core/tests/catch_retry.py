@@ -11,6 +11,7 @@ class CatchRetryTest(MetaflowTest):
         "foreach_in_switch",
         "switch_in_branch",
         "switch_in_foreach",
+        "recursive_switch",
     ]
 
     @tag("retry(times=3,minutes_between_retries=0)")

@@ -16,6 +16,7 @@ class ResumeUBFJoinTest(MetaflowTest):
         "foreach_in_switch",
         "switch_in_branch",
         "switch_in_foreach",
+        "recursive_switch",
     ]
 
     @steps(0, ["start"])

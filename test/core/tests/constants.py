@@ -15,6 +15,7 @@ class ConstantsTest(MetaflowTest):
         "foreach_in_switch",
         "switch_in_branch",
         "switch_in_foreach",
+        "recursive_switch",
     ]
     CLASS_VARS = {
         "str_const": '"this is a constant"',

@@ -15,6 +15,7 @@ class RunIdFileTest(MetaflowTest):
         "foreach_in_switch",
         "switch_in_branch",
         "switch_in_foreach",
+        "recursive_switch",
     ]
 
     @steps(0, ["singleton-start"], required=True)

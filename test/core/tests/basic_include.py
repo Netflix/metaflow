@@ -10,6 +10,7 @@ class BasicIncludeTest(MetaflowTest):
         "foreach_in_switch",
         "switch_in_branch",
         "switch_in_foreach",
+        "recursive_switch",
     ]
     INCLUDE_FILES = {
         "myfile_txt": {"default": "'./reg.txt'"},

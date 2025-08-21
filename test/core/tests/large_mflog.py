@@ -15,6 +15,7 @@ class LargeMflogTest(MetaflowTest):
         "foreach_in_switch",
         "switch_in_branch",
         "switch_in_foreach",
+        "recursive_switch",
     ]
     HEADER = """
 NUM_FOREACH = 32
