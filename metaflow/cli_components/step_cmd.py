@@ -272,6 +272,7 @@ def spin_step(
     artifacts_module=None,
     persist=True,
 ):
+    from_start("I am in spin step")
     import time
 
     if ctx.obj.is_quiet:

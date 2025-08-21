@@ -783,7 +783,6 @@ class TaskDataStore(object):
         if hasattr(flow._datastore, "orig_datastore"):
             parent_artifacts = set(flow._datastore._objects.keys())
             unchanged_artifacts = parent_artifacts - current_artifact_names
-            print(f"Transferring unchanged artifacts: {unchanged_artifacts}")
             if unchanged_artifacts:
                 self.transfer_artifacts(
                     flow._datastore.orig_datastore, names=list(unchanged_artifacts)

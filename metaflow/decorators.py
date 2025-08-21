@@ -714,7 +714,9 @@ def _init_flow_decorators(
             )
 
 
-def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
+def _init_step_decorators(
+    flow, graph, environment, flow_datastore, logger, whitelist_decorators=None
+):
     # NOTE: We don't need graph but keeping it for backwards compatibility with
     # extensions that use it directly. We will remove it at some point.
 
@@ -785,6 +787,9 @@ def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
 
     for step in flow:
         for deco in step.decorators:
+            # We skip decorators that are not in the whitelist
+            if not whitelist_decorators and deco.name not in whitelist_decorators:
+                continue
             deco.step_init(
                 flow,
                 graph,

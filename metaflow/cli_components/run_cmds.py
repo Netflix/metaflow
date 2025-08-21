@@ -20,7 +20,7 @@ from ..tagging_util import validate_tags
 from ..util import get_latest_run_id, write_latest_run_id
 
 
-def before_run(obj, tags, decospecs):
+def before_run(obj, tags, decospecs, skip_decorators=False):
     validate_tags(tags)
 
     # There's a --with option both at the top-level and for the run/resume/spin
@@ -37,26 +37,27 @@ def before_run(obj, tags, decospecs):
     # - run level decospecs
     # - top level decospecs
     # - environment decospecs
-    all_decospecs = (
-        list(decospecs or [])
-        + obj.tl_decospecs
-        + list(obj.environment.decospecs() or [])
-    )
-    if all_decospecs:
-        # These decospecs are the ones from run/resume/spin PLUS the ones from the
-        # environment (for example the @conda)
-        decorators._attach_decorators(obj.flow, all_decospecs)
-        decorators._init(obj.flow)
-        # Regenerate graph if we attached more decorators
-        obj.flow.__class__._init_attrs()
-        obj.graph = obj.flow._graph
+    if not skip_decorators:
+        all_decospecs = (
+            list(decospecs or [])
+            + obj.tl_decospecs
+            + list(obj.environment.decospecs() or [])
+        )
+        if all_decospecs:
+            # These decospecs are the ones from run/resume/spin PLUS the ones from the
+            # environment (for example the @conda)
+            decorators._attach_decorators(obj.flow, all_decospecs)
+            decorators._init(obj.flow)
+            # Regenerate graph if we attached more decorators
+            obj.flow.__class__._init_attrs()
+            obj.graph = obj.flow._graph
 
-    obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
-    # obj.environment.init_environment(obj.logger)
+        obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
+        # obj.environment.init_environment(obj.logger)
 
-    decorators._init_step_decorators(
-        obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
-    )
+        decorators._init_step_decorators(
+            obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
+        )
     # Re-read graph since it may have been modified by mutators
     obj.graph = obj.flow._graph
 
@@ -471,7 +472,7 @@ def spin(
     runner_attribute_file=None,
     **kwargs,
 ):
-    before_run(obj, [], [])
+    before_run(obj, [], [], skip_decorators)
     obj.echo(f"Spinning up step *{step_name}* locally for flow *{obj.flow.name}*")
     obj.flow._set_constants(obj.graph, kwargs, obj.config_options)
     step_func = getattr(obj.flow, step_name, None)
