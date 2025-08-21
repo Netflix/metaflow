@@ -1,9 +1,10 @@
-from metaflow import FlowSpec, step, Parameter
+from metaflow import FlowSpec, step, Parameter, titus
 
 
 class SimpleParameterFlow(FlowSpec):
     alpha = Parameter("alpha", help="Learning rate", default=0.01)
 
+    @titus
     @step
     def start(self):
         print("SimpleParameterFlow is starting.")

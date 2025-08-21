@@ -25,8 +25,6 @@ from .metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_MONITOR,
     DEFAULT_PACKAGE_SUFFIXES,
-    DATASTORE_SYSROOT_SPIN,
-    DATASTORE_LOCAL_DIR,
 )
 from .metaflow_current import current
 from .metaflow_profile import from_start
@@ -42,10 +40,9 @@ from .plugins import (
 )
 from .pylint_wrapper import PyLint
 from .R import metaflow_r_version, use_r
-from .util import get_latest_run_id, resolve_identity
+from .util import get_latest_run_id, resolve_identity, decompress_list
 from .user_configs.config_options import LocalFileInput, config_options
 from .user_configs.config_parameters import ConfigValue
-from .util import get_latest_run_id, resolve_identity
 
 ERASE_TO_EOL = "\033[K"
 HIGHLIGHT = "red"
@@ -527,9 +524,12 @@ def start(
             ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
         )
         ctx.obj.datastore_impl = [d for d in DATASTORES if d.TYPE == "local"][0]
-        # Set datastore_root to be DATASTORE_SYSROOT_SPIN if not provided
-        datastore_root = os.path.join(DATASTORE_SYSROOT_SPIN, DATASTORE_LOCAL_DIR)
+        # Set a separate datastore root for spin
+        datastore_root = ctx.obj.datastore_impl.get_datastore_root_from_config(
+            ctx.obj.echo, create_on_absent=True, use_spin_dir=True
+        )
         ctx.obj.datastore_impl.datastore_root = datastore_root
+
         ctx.obj.flow_datastore = FlowDataStore(
             ctx.obj.flow.name,
             ctx.obj.environment,  # Same environment as run/resume
@@ -550,6 +550,7 @@ def start(
 
     # It is important to initialize flow decorators early as some of the
     # things they provide may be used by some of the objects initialized after.
+    from_start(f"I am just above _init_flow_decorators")
     decorators._init_flow_decorators(
         ctx.obj.flow,
         ctx.obj.graph,
@@ -593,6 +594,15 @@ def start(
     ):
         # run/resume are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.
+        whitelist_decorators = None
+        if "--whitelist-decorators" in ctx.saved_args:
+            # If whitelist-decorators is specified, we only will run the decorators hooks
+            # for the decorators that are whitelisted.
+            idx = ctx.saved_args.index("--whitelist-decorators")
+            whitelist_decorators = ctx.saved_args[idx + 1]
+            whitelist_decorators = (
+                decompress_list(whitelist_decorators) if whitelist_decorators else []
+            )
 
         all_decospecs = ctx.obj.tl_decospecs + list(
             ctx.obj.environment.decospecs() or []
@@ -603,6 +613,9 @@ def start(
         # or a scheduler setting them up in their own way.
         if ctx.saved_args[0] not in ("step", "init"):
             all_decospecs += DEFAULT_DECOSPECS.split()
+        elif ctx.saved_args[0] == "spin-step":
+            # If we are in spin-args, we will not attach any decorators
+            all_decospecs = []
         if all_decospecs:
             decorators._attach_decorators(ctx.obj.flow, all_decospecs)
             decorators._init(ctx.obj.flow)
@@ -616,6 +629,7 @@ def start(
             ctx.obj.environment,
             ctx.obj.flow_datastore,
             ctx.obj.logger,
+            whitelist_decorators,
         )
 
         # Check the graph again (mutators may have changed it)

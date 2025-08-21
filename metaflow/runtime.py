@@ -226,7 +226,8 @@ class SpinRuntime(object):
     @property
     def whitelist_decorators(self):
         if self._skip_decorators:
-            return []
+            self._whitelist_decorators = []
+            return self._whitelist_decorators
         if self._whitelist_decorators:
             return self._whitelist_decorators
         self._whitelist_decorators = [
@@ -2226,6 +2227,7 @@ class Worker(object):
         # by read_logline() below that relies on readline() not blocking
         # print('running', args)
         cmdline = args.get_args()
+        from_start(f"Command line: {' '.join(cmdline)}")
         debug.subcommand_exec(cmdline)
         return subprocess.Popen(
             cmdline,
