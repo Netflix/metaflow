@@ -1,4 +1,4 @@
-from metaflow_test import MetaflowTest, ExpectationFailed, steps, assert_equals
+from metaflow_test import MetaflowTest, steps, assert_equals
 
 
 class BasicSwitchTest(MetaflowTest):
