@@ -53,6 +53,13 @@ class ParallelDecorator(StepDecorator):
     def step_init(
         self, flow, graph, step_name, decorators, environment, flow_datastore, logger
     ):
+        # TODO: This can be supported in the future, but for the time being we disable the transition as it leads to
+        # a UBF exception during runtime when the actual parallel-join step is conditional (switching between different join implementations from the @parallel step).
+        if graph[step_name].type == "split-switch":
+            raise MetaflowException(
+                "A @parallel step can not be a conditional switch step. Please add a join step after *%s*"
+                % step_name
+            )
         self.environment = environment
         # Previously, the `parallel` property was a hardcoded, static property within `current`.
         # Whenever `current.parallel` was called, it returned a named tuple with values coming from
