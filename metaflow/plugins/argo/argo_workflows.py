@@ -1578,6 +1578,14 @@ class ArgoWorkflows(object):
                 input_paths_expr = (
                     "export INPUT_PATHS={{inputs.parameters.input-paths}}"
                 )
+                if self._is_conditional_join_node(node):
+                    # NOTE: Argo template expressions that fail to resolve, output the expression itself as a value.
+                    # With conditional steps, some of the input-paths are therefore 'broken' due to containing a nil expression
+                    # e.g. "{{ tasks['A'].outputs.parameters.task-id }}" when task A never executed.
+                    # We base64 encode the input-paths in order to not pollute the execution environment with templating expressions.
+                    # NOTE: Adding conditionals that check if a key exists or not does not work either, due to an issue with how Argo
+                    # handles tasks in a nested foreach (withParam template) leading to all such expressions getting evaluated as false.
+                    input_paths_expr = "export INPUT_PATHS={{=toBase64(inputs.parameters['input-paths'])}}"
                 input_paths = "$(echo $INPUT_PATHS)"
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 task_idx = "{{inputs.parameters.split-index}}"
@@ -1593,7 +1601,6 @@ class ArgoWorkflows(object):
                     # foreaches
                     task_idx = "{{inputs.parameters.split-index}}"
                     root_input = "{{inputs.parameters.root-input-path}}"
-
             # Task string to be hashed into an ID
             task_str = "-".join(
                 [
