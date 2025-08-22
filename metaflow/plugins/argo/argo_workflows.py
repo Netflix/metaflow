@@ -926,6 +926,7 @@ class ArgoWorkflows(object):
         self.conditional_nodes = set()
         self.conditional_join_nodes = set()
         self.matching_conditional_join_dict = {}
+        self.recursive_nodes = set()
 
         node_conditional_parents = {}
         node_conditional_branches = {}
@@ -947,6 +948,12 @@ class ArgoWorkflows(object):
                     else conditional_parents + [node.name]
                 )
                 node_conditional_parents[node.name] = conditional_parents
+
+                # check for recursion. this split is recursive if any of its out functions are itself.
+                if any(
+                    out_func for out_func in node.out_funcs if out_func == node.name
+                ):
+                    self.recursive_nodes.add(node.name)
 
             if conditional_parents and not node.type == "split-switch":
                 node_conditional_parents[node.name] = conditional_parents
@@ -1033,6 +1040,9 @@ class ArgoWorkflows(object):
     def _is_conditional_join_node(self, node):
         return node.name in self.conditional_join_nodes
 
+    def _is_recursive_node(self, node):
+        return node.name in self.recursive_nodes
+
     def _matching_conditional_join(self, node):
         return self.matching_conditional_join_dict.get(node.name, None)
 
@@ -1044,6 +1054,7 @@ class ArgoWorkflows(object):
             templates=None,
             dag_tasks=None,
             parent_foreach=None,
+            seen=None,
         ):  # Returns Tuple[List[Template], List[DAGTask]]
             """ """
             # Every for-each node results in a separate subDAG and an equivalent
@@ -1053,6 +1064,8 @@ class ArgoWorkflows(object):
             # of the for-each node.
 
             # Emit if we have reached the end of the sub workflow
+            if seen is None:
+                seen = []
             if dag_tasks is None:
                 dag_tasks = []
             if templates is None:
@@ -1060,6 +1073,11 @@ class ArgoWorkflows(object):
 
             if exit_node is not None and exit_node is node.name:
                 return templates, dag_tasks
+            if node.name in seen:
+                return templates, dag_tasks
+
+            seen.append(node.name)
+
             if node.name == "start":
                 # Start node has no dependencies.
                 dag_task = DAGTask(self._sanitize(node.name)).template(
@@ -1209,6 +1227,18 @@ class ArgoWorkflows(object):
                     for in_func in node.in_funcs
                     if not self._is_conditional_node(self.graph[in_func])
                 ]
+                # dependencies for recursive nodes are quite different
+                if self._is_recursive_node(node):
+                    required_deps = []
+                    conditional_deps = (
+                        [
+                            "%s.Succeeded" % self._sanitize(in_func)
+                            for in_func in node.in_funcs
+                        ]
+                        + ["%s.Succeeded" % self._sanitize(node.name)]
+                        if self._is_recursive_node(node)
+                        else []
+                    )
                 both_conditions = required_deps and conditional_deps
 
                 depends_str = "{required}{_and}{conditional}".format(
@@ -1235,6 +1265,16 @@ class ArgoWorkflows(object):
                         "{{tasks.%s.outputs.parameters.switch-step}}==%s"
                         % (self._sanitize(in_func), node.name)
                     )
+                # Completely different condition for recursive nodes
+                elif self._is_recursive_node(node):
+                    in_func = node.in_funcs[0]
+                    when_clause = "{{tasks.{sanitize_in_func}.status=='Succeeded'}}||{{tasks.{sanitize_node_name}.outputs.parameters.switch-step}}=={node_name}".format(
+                        sanitize_in_func=self._sanitize(in_func),
+                        sanitize_node_name=self._sanitize(node.name),
+                        node_name=node.name,
+                    )
+
+                    dag_task.when(when_clause)
 
             dag_tasks.append(dag_task)
             # End the workflow if we have reached the end of the flow
@@ -1253,6 +1293,7 @@ class ArgoWorkflows(object):
                         templates,
                         dag_tasks,
                         parent_foreach,
+                        seen,
                     )
                 return _visit(
                     self.graph[node.matching_join],
@@ -1260,6 +1301,7 @@ class ArgoWorkflows(object):
                     templates,
                     dag_tasks,
                     parent_foreach,
+                    seen,
                 )
             elif node.type == "split-switch":
                 for n in node.out_funcs:
@@ -1269,6 +1311,7 @@ class ArgoWorkflows(object):
                         templates,
                         dag_tasks,
                         parent_foreach,
+                        seen,
                     )
 
                 return _visit(
@@ -1277,6 +1320,7 @@ class ArgoWorkflows(object):
                     templates,
                     dag_tasks,
                     parent_foreach,
+                    seen,
                 )
             # For foreach nodes generate a new sub DAGTemplate
             # We do this for "regular" foreaches (ie. `self.next(self.a, foreach=)`)
@@ -1367,6 +1411,7 @@ class ArgoWorkflows(object):
                     templates,
                     [],
                     node.name,
+                    seen,
                 )
 
                 # How do foreach's work on Argo:
@@ -1500,6 +1545,7 @@ class ArgoWorkflows(object):
                     templates,
                     dag_tasks,
                     parent_foreach,
+                    seen,
                 )
             # For linear nodes continue traversing to the next node
             if node.type in ("linear", "join", "start"):
@@ -1509,6 +1555,7 @@ class ArgoWorkflows(object):
                     templates,
                     dag_tasks,
                     parent_foreach,
+                    seen,
                 )
             else:
                 raise ArgoWorkflowsException(
