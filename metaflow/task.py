@@ -239,6 +239,7 @@ class MetaflowTask(object):
                 # Prefetch 'foreach' related artifacts to improve time taken by
                 # _init_foreach.
                 prefetch_data_artifacts = [
+                    "_iteration_stack",
                     "_foreach_stack",
                     "_foreach_num_splits",
                     "_foreach_var",
@@ -272,165 +273,158 @@ class MetaflowTask(object):
             )
         return ds_list
 
-    def _init_foreach(
-        self, step_name, join_type, inputs, split_index, recursive_loop_index=None
-    ):
+    def _init_foreach(self, step_name, join_type, inputs, split_index):
         # these variables are only set by the split step in the output
         # data. They don't need to be accessible in the flow.
         self.flow._foreach_var = None
         self.flow._foreach_num_splits = None
 
-        # There are four cases that can alter the foreach state:
+        # There are three cases that can alter the foreach state:
         # 1) start - initialize an empty foreach stack
-        # 2) recursive conditional - a new synthesized frame is pushed to track iteration count
-        # 3) join - pop the topmost frame from the stack
-        # 4) step following a split - push a new frame in the stack
+        # 2) join - pop the topmost frame from the stack
+        # 3) step following a split - push a new frame in the stack
 
-        # We have a non-modifying case (case 5)) where we propagate the
+        # We have a non-modifying case (case 4)) where we propagate the
         # foreach-stack information to all tasks in the foreach. This is
         # then used later to write the foreach-stack metadata for that task
 
-        # case 1) 'start' step - reset the stack
+        # case 1) - reset the stack
         if step_name == "start":
             self.flow._foreach_stack = []
 
-        # This block handles the case where we are exiting a recursive loop.
-        # We identify this by checking if our parent was a recursive step but
-        # we are not one ourselves.
-        elif inputs:
-            parent_datastore = inputs[0]
-            parent_step_name = parent_datastore.pathspec.split("/")[1]
-            parent_node = self.flow._graph[parent_step_name]
-            is_exiting_recursive_loop = (
-                parent_node.type == "split-switch"
-                and parent_node.name in parent_node.out_funcs
-                and recursive_loop_index is None
-                and not join_type  # Ensure this is not a join step
+        # case 2) - this is a join step
+        elif join_type:
+            # assert the lineage of incoming branches
+            def lineage():
+                for i in inputs:
+                    if join_type == "foreach":
+                        top = i["_foreach_stack"][-1]
+                        bottom = i["_foreach_stack"][:-1]
+                        # the topmost indices and values in the stack are
+                        # all different naturally, so ignore them in the
+                        # assertion
+                        yield bottom + [top._replace(index=0, value=0)]
+                    else:
+                        yield i["_foreach_stack"]
+
+            if not all_equal(lineage()):
+                raise MetaflowInternalError(
+                    "Step *%s* tried to join branches "
+                    "whose lineages don't match." % step_name
+                )
+
+            # assert that none of the inputs are splits - we don't
+            # allow empty `foreach`s (joins immediately following splits)
+            if any(not i.is_none("_foreach_var") for i in inputs):
+                raise MetaflowInternalError(
+                    "Step *%s* tries to join a foreach "
+                    "split with no intermediate steps." % step_name
+                )
+
+            inp = inputs[0]
+            if join_type == "foreach":
+                # Make sure that the join got all splits as its inputs.
+                # Datastore.resolve() leaves out all undone tasks, so if
+                # something strange happened upstream, the inputs list
+                # may not contain all inputs which should raise an exception
+                stack = inp["_foreach_stack"]
+                if stack[-1].num_splits and len(inputs) != stack[-1].num_splits:
+                    raise MetaflowDataMissing(
+                        "Foreach join *%s* expected %d "
+                        "splits but only %d inputs were "
+                        "found" % (step_name, stack[-1].num_splits, len(inputs))
+                    )
+                # foreach-join pops the topmost frame from the stack
+                self.flow._foreach_stack = stack[:-1]
+            else:
+                # a non-foreach join doesn't change the stack
+                self.flow._foreach_stack = inp["_foreach_stack"]
+
+        # case 3) - our parent was a split. Initialize a new foreach frame.
+        elif not inputs[0].is_none("_foreach_var"):
+            if len(inputs) != 1:
+                raise MetaflowInternalError(
+                    "Step *%s* got multiple inputs "
+                    "although it follows a split step." % step_name
+                )
+
+            if self.ubf_context != UBF_CONTROL and split_index is None:
+                raise MetaflowInternalError(
+                    "Step *%s* follows a split step "
+                    "but no split_index is "
+                    "specified." % step_name
+                )
+
+            split_value = (
+                inputs[0]["_foreach_values"][split_index]
+                if not inputs[0].is_none("_foreach_values")
+                else None
             )
-            if is_exiting_recursive_loop:
-                # The parent was the last step of a recursive loop. We need to "pop"
-                # the synthesized frame from the stack to clean up the context before
-                # proceeding. This prevents the synthesized state from leaking out and
-                # interfering with subsequent steps, like an outer foreach join.
-                stack = parent_datastore["_foreach_stack"]
-                if stack and stack[-1].var == "_recursive_loop":
-                    self.flow._foreach_stack = stack[:-1]
-                else:
-                    self.flow._foreach_stack = stack
+            # push a new index after a split to the stack
+            frame = ForeachFrame(
+                step_name,
+                inputs[0]["_foreach_var"],
+                inputs[0]["_foreach_num_splits"],
+                split_index,
+                split_value,
+            )
 
-            # case 2) recursive conditional step - manage synthesized stack
-            elif recursive_loop_index is not None:
+            stack = inputs[0]["_foreach_stack"]
+            stack.append(frame)
+            self.flow._foreach_stack = stack
+        # case 4) - propagate in the foreach nest
+        elif "_foreach_stack" in inputs[0]:
+            self.flow._foreach_stack = inputs[0]["_foreach_stack"]
 
-                # Create a new 'synthesized' ForeachFrame to represent the current
-                # iteration of the recursive loop. We use a special internal name
-                # '_recursive_loop' to distinguish this from a user-defined foreach.
-                frame = ForeachFrame(
-                    var="_recursive_loop",
-                    step=step_name,
-                    index=recursive_loop_index,
-                    num_splits=None,  # Not a real foreach, so this is irrelevant
-                    value=None,  # Not a real foreach, so this is irrelevant
+    def _init_iteration(self, step_name, inputs, is_recursive_step):
+        # We track the iteration "stack" for loops. At this time, we
+        # only support one type of "looping" which is a recursive step but
+        # this can generalize to arbitrary well-scoped loops in the future.
+
+        # _iteration_stack will contain the iteration count for each loop
+        # level. Currently, there will be only no elements (no loops) or
+        # a single element (a single recursive step).
+
+        # We just need to determine the rules to add a new looping level,
+        # increment the looping level or pop the looping level. In our
+        # current support for only recursive steps, this is pretty straightforward:
+        # 1) if is_recursive_step:
+        #    - we are entering a loop -- we are either entering for the first time
+        #      or we are continuing the loop. Note that a recursive step CANNOT
+        #      be a join step so there is always a single input
+        #    1a) If inputs[0]["_iteration_stack"] contains an element, we are looping
+        #      so we increment the count
+        #    1b) If inputs[0]["_iteration_stack"] is empty, this is the first time we
+        #      are entering the loop so we set the iteration count to 0
+        # 2) if it is not a recursive step, we need to determine if this is the step
+        #    *after* the recursive step. The easiest way to determine that is to
+        #    look at all inputs (there can be multiple in case of a join) and pop
+        #    _iteration_stack if it is set. However, since we know that non recursive
+        #    steps are *never* part of an iteration, we can simplify and just set it
+        #    to [] without even checking anything. We will have to revisit this if/when
+        #    more complex loop structures are supported.
+
+        # Note that just like _foreach_stack, we need to set _iteration_stack to *something*
+        # so that it doesn't get clobbered weirdly by merge_artifacts.
+
+        if is_recursive_step:
+            # Case 1)
+            if len(inputs) != 1:
+                raise MetaflowInternalError(
+                    "Step *%s* is a recursive step but got multiple inputs." % step_name
                 )
-
-                # Get the foreach stack from the parent task to build upon its context.
-                stack = inputs[0]["_foreach_stack"]
-
-                # If the parent's stack already has a frame for this recursive loop
-                # (i.e., this is not the first iteration), pop it. This "pop-and-push"
-                # mechanism is how we increment the loop's state from one iteration
-                # to the next.
-                if stack and stack[-1].var == "_recursive_loop":
-                    stack.pop()
-
-                # Push the frame for the current iteration onto the stack.
-                stack.append(frame)
-
-                # Set the flow's current foreach stack to our newly constructed stack.
-                self.flow._foreach_stack = stack
-
-            # case 3) - this is a join step
-            elif join_type:
-                # assert the lineage of incoming branches
-                def lineage():
-                    for i in inputs:
-                        if join_type == "foreach":
-                            top = i["_foreach_stack"][-1]
-                            bottom = i["_foreach_stack"][:-1]
-                            # the topmost indices and values in the stack are
-                            # all different naturally, so ignore them in the
-                            # assertion
-                            yield bottom + [top._replace(index=0, value=0)]
-                        else:
-                            yield i["_foreach_stack"]
-
-                if not all_equal(lineage()):
-                    raise MetaflowInternalError(
-                        "Step *%s* tried to join branches "
-                        "whose lineages don't match." % step_name
-                    )
-
-                # assert that none of the inputs are splits - we don't
-                # allow empty `foreach`s (joins immediately following splits)
-                if any(not i.is_none("_foreach_var") for i in inputs):
-                    raise MetaflowInternalError(
-                        "Step *%s* tries to join a foreach "
-                        "split with no intermediate steps." % step_name
-                    )
-
-                inp = inputs[0]
-                if join_type == "foreach":
-                    # Make sure that the join got all splits as its inputs.
-                    # Datastore.resolve() leaves out all undone tasks, so if
-                    # something strange happened upstream, the inputs list
-                    # may not contain all inputs which should raise an exception
-                    stack = inp["_foreach_stack"]
-                    if stack[-1].num_splits and len(inputs) != stack[-1].num_splits:
-                        raise MetaflowDataMissing(
-                            "Foreach join *%s* expected %d "
-                            "splits but only %d inputs were "
-                            "found" % (step_name, stack[-1].num_splits, len(inputs))
-                        )
-                    # foreach-join pops the topmost frame from the stack
-                    self.flow._foreach_stack = stack[:-1]
-                else:
-                    # a non-foreach join doesn't change the stack
-                    self.flow._foreach_stack = inp["_foreach_stack"]
-
-            # case 4) - our parent was a split. Initialize a new foreach frame.
-            elif not inputs[0].is_none("_foreach_var"):
-                if len(inputs) != 1:
-                    raise MetaflowInternalError(
-                        "Step *%s* got multiple inputs "
-                        "although it follows a split step." % step_name
-                    )
-
-                if self.ubf_context != UBF_CONTROL and split_index is None:
-                    raise MetaflowInternalError(
-                        "Step *%s* follows a split step "
-                        "but no split_index is "
-                        "specified." % step_name
-                    )
-
-                split_value = (
-                    inputs[0]["_foreach_values"][split_index]
-                    if not inputs[0].is_none("_foreach_values")
-                    else None
-                )
-                # push a new index after a split to the stack
-                frame = ForeachFrame(
-                    step_name,
-                    inputs[0]["_foreach_var"],
-                    inputs[0]["_foreach_num_splits"],
-                    split_index,
-                    split_value,
-                )
-
-                stack = inputs[0]["_foreach_stack"]
-                stack.append(frame)
-                self.flow._foreach_stack = stack
-            # case 5) - propagate in the foreach nest
-            elif "_foreach_stack" in inputs[0]:
-                self.flow._foreach_stack = inputs[0]["_foreach_stack"]
+            inp = inputs[0]
+            if "_iteration_stack" not in inp or not inp["_iteration_stack"]:
+                # Case 1b)
+                self.flow._iteration_stack = [0]
+            else:
+                # Case 1a)
+                stack = inp["_iteration_stack"]
+                stack[-1] += 1
+                self.flow._iteration_stack = stack
+        else:
+            # Case 2)
+            self.flow._iteration_stack = []
 
     def _clone_flow(self, datastore):
         x = self.flow.__class__(use_cli=False)
@@ -540,7 +534,6 @@ class MetaflowTask(object):
         origin_run_id,
         input_paths,
         split_index,
-        recursive_loop_index,
         retry_count,
         max_user_code_retries,
     ):
@@ -619,9 +612,13 @@ class MetaflowTask(object):
             inputs = self._init_data(run_id, join_type, input_paths)
 
             # 3. initialize foreach state
-            self._init_foreach(
-                step_name, join_type, inputs, split_index, recursive_loop_index
+            self._init_foreach(step_name, join_type, inputs, split_index)
+
+            # 4. initialize the iteration state
+            is_recursive_step = (
+                node.type == "split-switch" and step_name in node.out_funcs
             )
+            self._init_iteration(step_name, inputs, is_recursive_step)
 
             # Add foreach stack to metadata of the task
 

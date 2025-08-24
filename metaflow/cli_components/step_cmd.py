@@ -44,13 +44,6 @@ import metaflow.tracing as tracing
     help="Index of this foreach split.",
 )
 @click.option(
-    "--recursive-loop-index",
-    type=int,
-    default=None,
-    help="Index of this recursive conditional step.",
-    hidden=True,
-)
-@click.option(
     "--tag",
     "opt_tag",
     multiple=True,
@@ -108,7 +101,6 @@ def step(
     input_paths=None,
     input_paths_filename=None,
     split_index=None,
-    recursive_loop_index=None,
     opt_namespace=None,
     retry_count=None,
     max_user_code_retries=None,
@@ -179,7 +171,6 @@ def step(
             clone_run_id,
             paths,
             split_index,
-            recursive_loop_index,
             retry_count,
             max_user_code_retries,
         )
