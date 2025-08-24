@@ -468,6 +468,7 @@ class NativeRuntime(object):
                     pathspec_index,
                     cloned_task_pathspec_index,
                     finished_tuple,
+                    iteration_tuple,
                     ubf_context=ubf_context,
                     generate_task_obj=generate_task_obj and (not is_ubf_mapper_task),
                     verbose=verbose,
@@ -478,6 +479,7 @@ class NativeRuntime(object):
                     pathspec_index,
                     cloned_task_pathspec_index,
                     finished_tuple,
+                    iteration_tuple,
                     is_ubf_mapper_task,
                     ubf_context,
                 ) in inputs
