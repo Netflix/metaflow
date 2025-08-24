@@ -37,6 +37,9 @@ def before_run(obj, tags, decospecs, skip_decorators=False):
     # - run level decospecs
     # - top level decospecs
     # - environment decospecs
+    from_start(
+        f"Inside before_run, skip_decorators={skip_decorators}, is_spin={obj.is_spin}"
+    )
     if not skip_decorators:
         all_decospecs = (
             list(decospecs or [])
@@ -56,7 +59,13 @@ def before_run(obj, tags, decospecs, skip_decorators=False):
         # obj.environment.init_environment(obj.logger)
 
         decorators._init_step_decorators(
-            obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
+            obj.flow,
+            obj.graph,
+            obj.environment,
+            obj.flow_datastore,
+            obj.logger,
+            obj.is_spin,
+            skip_decorators,
         )
     # Re-read graph since it may have been modified by mutators
     obj.graph = obj.flow._graph
@@ -430,7 +439,7 @@ def run(
     is_flag=True,
     default=False,
     show_default=True,
-    help="Skip decorators attached to the step.",
+    help="Skip decorators attached to the step or flow.",
 )
 @click.option(
     "--artifacts-module",
@@ -472,6 +481,7 @@ def spin(
     runner_attribute_file=None,
     **kwargs,
 ):
+    from_start(f"I am just before before_run for spin of {step_name}")
     before_run(obj, [], [], skip_decorators)
     obj.echo(f"Spinning up step *{step_name}* locally for flow *{obj.flow.name}*")
     obj.flow._set_constants(obj.graph, kwargs, obj.config_options)

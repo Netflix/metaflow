@@ -42,6 +42,7 @@ class TimeoutDecorator(StepDecorator):
         # value without worrying about decorator order.
         # Convert values in attributes to type:int since they can be type:str
         # when passed using the CLI option --with.
+        print(f"TimeoutDecorator init with attributes {self.attributes}")
         self.secs = (
             int(self.attributes["hours"]) * 3600
             + int(self.attributes["minutes"]) * 60

@@ -273,9 +273,9 @@ class SpinRuntime(object):
             self._config_file_name,
             orig_flow_datastore=self._orig_flow_datastore,
             spin_pathspec=self._spin_pathspec,
-            whitelist_decorators=self.whitelist_decorators,
             artifacts_module=self._artifacts_module,
             persist=self._persist,
+            skip_decorators=self._skip_decorators,
         )
         from_start("SpinRuntime: created worker")
 
@@ -1851,9 +1851,9 @@ class CLIArgs(object):
         task,
         orig_flow_datastore=None,
         spin_pathspec=None,
-        whitelist_decorators=None,
         artifacts_module=None,
         persist=True,
+        skip_decorators=False,
     ):
         self.task = task
         if orig_flow_datastore is not None:
@@ -1864,9 +1864,9 @@ class CLIArgs(object):
         else:
             self.orig_flow_datastore = None
         self.spin_pathspec = spin_pathspec
-        self.whitelist_decorators = whitelist_decorators
         self.artifacts_module = artifacts_module
         self.persist = persist
+        self.skip_decorators = skip_decorators
         self.entrypoint = list(task.entrypoint)
         step_obj = getattr(self.task.flow, self.task.step)
         self.top_level_options = {
@@ -1929,8 +1929,6 @@ class CLIArgs(object):
         self.commands = ["spin-step"]
         self.command_args = [self.task.step]
 
-        whitelist_decos = [deco.name for deco in self.whitelist_decorators]
-
         self.command_options = {
             "run-id": self.task.run_id,
             "task-id": self.task.task_id,
@@ -1941,8 +1939,8 @@ class CLIArgs(object):
             "namespace": get_namespace() or "",
             "orig-flow-datastore": self.orig_flow_datastore,
             "spin-pathspec": self.spin_pathspec,
-            "whitelist-decorators": compress_list(whitelist_decos),
             "artifacts-module": self.artifacts_module,
+            "skip-decorators": self.skip_decorators,
         }
         if self.persist:
             self.command_options["persist"] = True
@@ -1993,16 +1991,16 @@ class Worker(object):
         config_file_name,
         orig_flow_datastore=None,
         spin_pathspec=None,
-        whitelist_decorators=None,
         artifacts_module=None,
         persist=True,
+        skip_decorators=False,
     ):
         self.task = task
         self._config_file_name = config_file_name
         self._orig_flow_datastore = orig_flow_datastore
         self._spin_pathspec = spin_pathspec
-        self._whitelist_decorators = whitelist_decorators
         self._artifacts_module = artifacts_module
+        self._skip_decorators = skip_decorators
         self._persist = persist
         self._proc = self._launch()
 
@@ -2039,9 +2037,9 @@ class Worker(object):
             self.task,
             orig_flow_datastore=self._orig_flow_datastore,
             spin_pathspec=self._spin_pathspec,
-            whitelist_decorators=self._whitelist_decorators,
             artifacts_module=self._artifacts_module,
             persist=self._persist,
+            skip_decorators=self._skip_decorators,
         )
         env = dict(os.environ)
 
