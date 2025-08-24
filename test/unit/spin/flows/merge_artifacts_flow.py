@@ -25,7 +25,6 @@ class MergeArtifactsFlow(FlowSpec):
 
     @step
     def join(self, inputs):
-        print(f"In join step, self._datastore: {(type(self._datastore))}")
         self.x = inputs.a.x
         self.merge_artifacts(inputs, exclude=["y"])
         print("x is %s" % self.x)

@@ -17,7 +17,7 @@ from ..system import _system_logger
 # from ..client.core import Run
 
 from ..tagging_util import validate_tags
-from ..util import get_latest_run_id, write_latest_run_id
+from ..util import get_latest_run_id, write_latest_run_id, parse_spin_pathspec
 
 
 def before_run(obj, tags, decospecs, skip_decorators=False):
@@ -37,6 +37,9 @@ def before_run(obj, tags, decospecs, skip_decorators=False):
     # - run level decospecs
     # - top level decospecs
     # - environment decospecs
+    from_start(
+        f"Inside before_run, skip_decorators={skip_decorators}, is_spin={obj.is_spin}"
+    )
     if not skip_decorators:
         all_decospecs = (
             list(decospecs or [])
@@ -56,7 +59,13 @@ def before_run(obj, tags, decospecs, skip_decorators=False):
         # obj.environment.init_environment(obj.logger)
 
         decorators._init_step_decorators(
-            obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
+            obj.flow,
+            obj.graph,
+            obj.environment,
+            obj.flow_datastore,
+            obj.logger,
+            obj.is_spin,
+            skip_decorators,
         )
     # Re-read graph since it may have been modified by mutators
     obj.graph = obj.flow._graph
@@ -418,19 +427,14 @@ def run(
 
 @parameters.add_custom_parameters(deploy_mode=True)
 @click.command(help="Spins up a task for a given step from a previous run locally.")
-@click.argument("step-name")
-@click.option(
-    "--spin-pathspec",
-    default=None,
-    type=str,
-    help="Use specified task pathspec from a previous run to spin up the step.",
-)
+@tracing.cli("cli/spin")
+@click.argument("pathspec")
 @click.option(
     "--skip-decorators/--no-skip-decorators",
     is_flag=True,
     default=False,
     show_default=True,
-    help="Skip decorators attached to the step.",
+    help="Skip decorators attached to the step or flow.",
 )
 @click.option(
     "--artifacts-module",
@@ -462,8 +466,7 @@ def run(
 @click.pass_obj
 def spin(
     obj,
-    step_name,
-    spin_pathspec=None,
+    pathspec,
     persist=True,
     artifacts_module=None,
     skip_decorators=False,
@@ -472,6 +475,9 @@ def spin(
     runner_attribute_file=None,
     **kwargs,
 ):
+    # Parse the pathspec argument to extract step name and full pathspec
+    step_name, parsed_pathspec = parse_spin_pathspec(pathspec, obj.flow.name)
+
     before_run(obj, [], [], skip_decorators)
     obj.echo(f"Spinning up step *{step_name}* locally for flow *{obj.flow.name}*")
     obj.flow._set_constants(obj.graph, kwargs, obj.config_options)
@@ -495,7 +501,7 @@ def spin(
         obj.monitor,
         step_func,
         step_name,
-        spin_pathspec,
+        parsed_pathspec,
         skip_decorators,
         artifacts_module,
         persist,
@@ -503,7 +509,6 @@ def spin(
     )
     write_latest_run_id(obj, spin_runtime.run_id)
     write_file(run_id_file, spin_runtime.run_id)
-    # datastore_root is os.path.join(DATASTORE_SYSROOT_SPIN, DATASTORE_LOCAL_DIR)
     # We only need the root for the metadata, i.e. the portion before DATASTORE_LOCAL_DIR
     datastore_root = spin_runtime._flow_datastore._storage_impl.datastore_root
     orig_task_metadata_root = datastore_root.rsplit("/", 1)[0]
@@ -521,6 +526,7 @@ def spin(
                     "flow_name": obj.flow.name,
                     # Store metadata in a format that can be used by the Runner API
                     "metadata": f"{obj.metadata.__class__.TYPE}@{orig_task_metadata_root}",
+                    # "metadata": f"spin@{orig_task_metadata_root}",
                 },
                 f,
             )

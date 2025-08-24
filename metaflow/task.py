@@ -11,6 +11,7 @@ from types import MethodType, FunctionType
 from metaflow.sidecar import Message, MessageTypes
 from metaflow.datastore.exceptions import DataException
 
+from metaflow.plugins import METADATA_PROVIDERS
 from .metaflow_config import MAX_ATTEMPTS
 from .metadata_provider import MetaDatum
 from .metaflow_profile import from_start
@@ -853,10 +854,17 @@ class MetaflowTask(object):
                         )
                 from_start("MetaflowTask: before pre-step decorators")
                 for deco in decorators:
+                    if deco.name == "card" and self.orig_flow_datastore:
+                        # if spin step and card decorator, pass spin metadata
+                        metadata = [m for m in METADATA_PROVIDERS if m.TYPE == "spin"][
+                            0
+                        ](self.environment, self.flow, self.event_logger, self.monitor)
+                    else:
+                        metadata = self.metadata
                     deco.task_pre_step(
                         step_name,
                         output,
-                        self.metadata,
+                        metadata,
                         run_id,
                         task_id,
                         self.flow,

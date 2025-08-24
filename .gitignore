@@ -2,6 +2,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.metaflow
+*.spin_metaflow
+metaflow_card_cache/
 
 build/
 dist/

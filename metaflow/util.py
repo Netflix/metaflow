@@ -9,7 +9,7 @@ import re
 from functools import wraps
 from io import BytesIO
 from itertools import takewhile
-import re
+from typing import Dict, Any, Tuple, Optional, List
 
 
 try:
@@ -178,6 +178,117 @@ def resolve_identity_as_tuple():
 def resolve_identity():
     identity_type, identity_value = resolve_identity_as_tuple()
     return "%s:%s" % (identity_type, identity_value)
+
+
+def parse_spin_pathspec(pathspec: str, flow_name: str) -> Tuple:
+    """
+    Parse various pathspec formats for the spin command.
+
+    Parameters
+    ----------
+    pathspec : str
+        The pathspec string in one of the following formats:
+        - step_name (e.g., 'start')
+        - run_id/step_name (e.g., '221165/start')
+        - run_id/step_name/task_id (e.g., '221165/start/1350987')
+        - flow_name/run_id/step_name (e.g., 'ScalableFlow/221165/start')
+        - flow_name/run_id/step_name/task_id (e.g., 'ScalableFlow/221165/start/1350987')
+    flow_name : str
+        The name of the current flow.
+
+    Returns
+    -------
+    Tuple
+        A tuple of (step_name, full_pathspec_or_none)
+
+    Raises
+    ------
+    CommandException
+        If the pathspec format is invalid or flow name doesn't match.
+    """
+    from .exception import CommandException
+
+    parts = pathspec.split("/")
+
+    if len(parts) == 1:
+        # Just step name: 'start'
+        step_name = parts[0]
+        parsed_pathspec = None
+    elif len(parts) == 2:
+        # run_id/step_name: '221165/start'
+        run_id, step_name = parts
+        parsed_pathspec = f"{flow_name}/{run_id}/{step_name}"
+    elif len(parts) == 3:
+        # Could be run_id/step_name/task_id or flow_name/run_id/step_name
+        if parts[0] == flow_name:
+            # flow_name/run_id/step_name
+            _, run_id, step_name = parts
+            parsed_pathspec = f"{flow_name}/{run_id}/{step_name}"
+        else:
+            # run_id/step_name/task_id
+            run_id, step_name, task_id = parts
+            parsed_pathspec = f"{flow_name}/{run_id}/{step_name}/{task_id}"
+    elif len(parts) == 4:
+        # flow_name/run_id/step_name/task_id
+        parsed_flow_name, run_id, step_name, task_id = parts
+        if parsed_flow_name != flow_name:
+            raise CommandException(
+                f"Flow name '{parsed_flow_name}' in pathspec does not match current flow '{flow_name}'."
+            )
+        parsed_pathspec = pathspec
+    else:
+        raise CommandException(
+            f"Invalid pathspec format: '{pathspec}'. \n"
+            "Expected formats:\n"
+            "  - step_name (e.g., 'start')\n"
+            "  - run_id/step_name (e.g., '221165/start')\n"
+            "  - run_id/step_name/task_id (e.g., '221165/start/1350987')\n"
+            "  - flow_name/run_id/step_name (e.g., 'ScalableFlow/221165/start')\n"
+            "  - flow_name/run_id/step_name/task_id (e.g., 'ScalableFlow/221165/start/1350987')"
+        )
+
+    return step_name, parsed_pathspec
+
+
+def get_latest_task_pathspec(flow_name: str, step_name: str, run_id: str = None) -> "metaflow.Task":
+    """
+    Returns a task pathspec from the latest run (or specified run) of the flow for the queried step.
+    If the queried step has several tasks, the task pathspec of the first task is returned.
+
+    Parameters
+    ----------
+    flow_name : str
+        The name of the flow.
+    step_name : str
+        The name of the step.
+    run_id : str, optional
+        The run ID to use. If None, uses the latest run.
+
+    Returns
+    -------
+    Task
+        A Metaflow Task instance containing the latest task for the queried step.
+
+    Raises
+    ------
+    MetaflowNotFound
+        If no task or run is found for the queried step.
+    """
+    from metaflow import Flow, Step
+    from metaflow.exception import MetaflowNotFound
+
+    if not run_id:
+        flow = Flow(flow_name, _namespace_check=False)
+        run = flow.latest_run
+        if run is None:
+            raise MetaflowNotFound(f"No run found for flow {flow_name}")
+        run_id = run.id
+
+    try:
+        task = Step(f"{flow_name}/{run_id}/{step_name}", _namespace_check=False).task
+        return task
+    except:
+        raise MetaflowNotFound(f"No task found for step {step_name} in run {run_id}")
 
 
 def get_latest_run_id(echo, flow_name):
@@ -473,6 +584,41 @@ def to_pod(value):
 
 
 from metaflow._vendor.packaging.version import parse as version_parse
+
+
+def read_artifacts_module(file_path: str) -> Dict[str, Any]:
+    """
+    Read a Python module from the given file path and return its ARTIFACTS variable.
+
+    Parameters
+    ----------
+    file_path : str
+        The path to the Python file containing the ARTIFACTS variable.
+
+    Returns
+    -------
+    Dict[str, Any]
+        A dictionary containing the ARTIFACTS variable from the module.
+
+    Raises
+    -------
+    MetaflowInternalError
+        If the file cannot be read or does not contain the ARTIFACTS variable.
+    """
+    import importlib.util
+
+    try:
+        spec = importlib.util.spec_from_file_location("artifacts_module", file_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        variables = vars(module)
+        if "ARTIFACTS" not in variables:
+            raise MetaflowInternalError(
+                f"Module {file_path} does not contain ARTIFACTS variable"
+            )
+        return variables.get("ARTIFACTS")
+    except Exception as e:
+        raise MetaflowInternalError(f"Error reading file {file_path}") from e
 
 
 # this is os.walk(follow_symlinks=True) with cycle detection
