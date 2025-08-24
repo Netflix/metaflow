@@ -1,10 +1,10 @@
-from metaflow import FlowSpec, step, Parameter, titus
+from metaflow import FlowSpec, step, Parameter, current, project
 
 
+@project(name="simple_parameter_flow")
 class SimpleParameterFlow(FlowSpec):
     alpha = Parameter("alpha", help="Learning rate", default=0.01)
 
-    @titus
     @step
     def start(self):
         print("SimpleParameterFlow is starting.")
@@ -19,6 +19,11 @@ class SimpleParameterFlow(FlowSpec):
         self.x = 100
         self.y = 200
         print("Parameter alpha in end step is: ", self.alpha)
+        print(
+            f"Pathspec: {current.pathspec}, flow_name: {current.flow_name}, run_id: {current.run_id}"
+        )
+        print(f"step_name: {current.step_name}, task_id: {current.task_id}")
+        print(f"Project name: {current.project_name}, Namespace: {current.namespace}")
         del self.a
         del self.x
         print("SimpleParameterFlow is all done.")

@@ -52,7 +52,18 @@ DEFAULT_FROM_DEPLOYMENT_IMPL = from_conf(
 # Spin configuration
 ###
 SPIN_ALLOWED_DECORATORS = from_conf(
-    "SPIN_ALLOWED_DECORATORS", ["conda", "pypi", "environment"]
+    "SPIN_ALLOWED_DECORATORS",
+    [
+        "conda",
+        "pypi",
+        "conda_base",
+        "pypi_base",
+        "environment",
+        "project",
+        "timeout",
+        "conda_env_internal",
+        "card",
+    ],
 )
 
 ###
@@ -65,7 +76,7 @@ USER = from_conf("USER")
 # Datastore configuration
 ###
 DATASTORE_SYSROOT_LOCAL = from_conf("DATASTORE_SYSROOT_LOCAL")
-DATASTORE_SYSROOT_SPIN = from_conf("DATASTORE_SYSROOT_SPIN", "/tmp")
+DATASTORE_SYSROOT_SPIN = from_conf("DATASTORE_SYSROOT_SPIN")
 # S3 bucket and prefix to store artifacts for 's3' datastore.
 DATASTORE_SYSROOT_S3 = from_conf("DATASTORE_SYSROOT_S3")
 # Azure Blob Storage container and blob prefix

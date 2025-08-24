@@ -6,6 +6,7 @@ from ..cli_args import cli_args
 from ..datastore.flow_datastore import FlowDataStore
 from ..exception import CommandException
 from ..client.filecache import FileCache, FileBlobCache, TaskMetadataCache
+from ..metaflow_config import SPIN_ALLOWED_DECORATORS
 from ..metaflow_profile import from_start
 from ..plugins import DATASTORES
 from ..task import MetaflowTask
@@ -235,8 +236,11 @@ def step(
     help="Change namespace from the default (your username) to the specified tag.",
 )
 @click.option(
-    "--whitelist-decorators",
-    help="A comma-separated list of whitelisted decorators to use for the spin step",
+    "--skip-decorators/--no-skip-decorators",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Skip decorators attached to the step or flow.",
 )
 @click.option(
     "--persist/--no-persist",
@@ -268,11 +272,10 @@ def spin_step(
     retry_count=None,
     max_user_code_retries=None,
     opt_namespace=None,
-    whitelist_decorators=None,
+    skip_decorators=False,
     artifacts_module=None,
     persist=True,
 ):
-    from_start("I am in spin step")
     import time
 
     if ctx.obj.is_quiet:
@@ -285,9 +288,8 @@ def spin_step(
 
     input_paths = decompress_list(input_paths) if input_paths else []
 
-    whitelist_decorators = (
-        decompress_list(whitelist_decorators) if whitelist_decorators else []
-    )
+    skip_decorators = skip_decorators
+    whitelist_decorators = [] if skip_decorators else SPIN_ALLOWED_DECORATORS
     from_start("SpinStep: initialized decorators")
     spin_artifacts = read_artifacts_module(artifacts_module) if artifacts_module else {}
     from_start("SpinStep: read artifacts module")

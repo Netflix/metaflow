@@ -477,19 +477,12 @@ def start(
     # set force rebuild flag for environments that support it.
     ctx.obj.environment._force_rebuild = force_rebuild_environments
     ctx.obj.environment.validate_environment(ctx.obj.logger, datastore)
-
     ctx.obj.event_logger = LOGGING_SIDECARS[event_logger](
         flow=ctx.obj.flow, env=ctx.obj.environment
     )
-    ctx.obj.event_logger.start()
-    _system_logger.init_system_logger(ctx.obj.flow.name, ctx.obj.event_logger)
-
     ctx.obj.monitor = MONITOR_SIDECARS[monitor](
         flow=ctx.obj.flow, env=ctx.obj.environment
     )
-    ctx.obj.monitor.start()
-    _system_monitor.init_system_monitor(ctx.obj.flow.name, ctx.obj.monitor)
-
     ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == metadata][0](
         ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
     )
@@ -504,29 +497,33 @@ def start(
 
     ctx.obj.config_options = config_options
     ctx.obj.is_spin = False
+    ctx.obj.skip_decorators = False
 
     # Override values for spin
     if hasattr(ctx, "saved_args") and ctx.saved_args and "spin" in ctx.saved_args[0]:
-        # To minimize side-effects for spin, we will only use the following:
+        # To minimize side effects for spin, we will only use the following:
         # - local metadata provider,
         # - local datastore,
         # - local environment,
         # - null event logger,
         # - null monitor
         ctx.obj.is_spin = True
+        if "--skip-decorators" in ctx.saved_args:
+            ctx.obj.skip_decorators = True
+
         ctx.obj.event_logger = LOGGING_SIDECARS["nullSidecarLogger"](
             flow=ctx.obj.flow, env=ctx.obj.environment
         )
         ctx.obj.monitor = MONITOR_SIDECARS["nullSidecarMonitor"](
             flow=ctx.obj.flow, env=ctx.obj.environment
         )
-        ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == "local"][0](
+        # Use spin metadata, spin datastore, and spin datastore root
+        ctx.obj.metadata = [m for m in METADATA_PROVIDERS if m.TYPE == "spin"][0](
             ctx.obj.environment, ctx.obj.flow, ctx.obj.event_logger, ctx.obj.monitor
         )
-        ctx.obj.datastore_impl = [d for d in DATASTORES if d.TYPE == "local"][0]
-        # Set a separate datastore root for spin
+        ctx.obj.datastore_impl = [d for d in DATASTORES if d.TYPE == "spin"][0]
         datastore_root = ctx.obj.datastore_impl.get_datastore_root_from_config(
-            ctx.obj.echo, create_on_absent=True, use_spin_dir=True
+            ctx.obj.echo, create_on_absent=True
         )
         ctx.obj.datastore_impl.datastore_root = datastore_root
 
@@ -550,7 +547,6 @@ def start(
 
     # It is important to initialize flow decorators early as some of the
     # things they provide may be used by some of the objects initialized after.
-    from_start(f"I am just above _init_flow_decorators")
     decorators._init_flow_decorators(
         ctx.obj.flow,
         ctx.obj.graph,
@@ -560,6 +556,8 @@ def start(
         ctx.obj.logger,
         echo,
         deco_options,
+        ctx.obj.is_spin,
+        ctx.obj.skip_decorators,
     )
 
     # In the case of run/resume/spin, we will want to apply the TL decospecs
@@ -592,18 +590,8 @@ def start(
         and ctx.saved_args
         and ctx.saved_args[0] not in ("run", "resume", "spin")
     ):
-        # run/resume are special cases because they can add more decorators with --with,
+        # run/resume/spin are special cases because they can add more decorators with --with,
         # so they have to take care of themselves.
-        whitelist_decorators = None
-        if "--whitelist-decorators" in ctx.saved_args:
-            # If whitelist-decorators is specified, we only will run the decorators hooks
-            # for the decorators that are whitelisted.
-            idx = ctx.saved_args.index("--whitelist-decorators")
-            whitelist_decorators = ctx.saved_args[idx + 1]
-            whitelist_decorators = (
-                decompress_list(whitelist_decorators) if whitelist_decorators else []
-            )
-
         all_decospecs = ctx.obj.tl_decospecs + list(
             ctx.obj.environment.decospecs() or []
         )
@@ -629,7 +617,9 @@ def start(
             ctx.obj.environment,
             ctx.obj.flow_datastore,
             ctx.obj.logger,
-            whitelist_decorators,
+            # The last two arguments are only used for spin steps
+            ctx.obj.is_spin,
+            ctx.obj.skip_decorators,
         )
 
         # Check the graph again (mutators may have changed it)
