@@ -1156,32 +1156,15 @@ class ArgoWorkflows(object):
             else:
                 # Every other node needs only input-paths
                 parameters = [
-                    (
-                        Parameter("input-paths").value(
-                            compress_list(
-                                [
-                                    "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
-                                    % (n, self._sanitize(n))
-                                    for n in node.in_funcs
-                                ],
-                                # NOTE: We set zlibmin to infinite because zlib compression for the Argo input-paths breaks template value substitution.
-                                zlibmin=inf,
-                            )
-                        )
-                        if not self._is_conditional_join_node(node)
-                        # The value fetching for input-paths from conditional steps has to be quite involved
-                        # in order to avoid issues with replacements due to missing step outputs.
-                        # NOTE: we differentiate the input-path expression only for conditional joins so we can still utilize the list compression,
-                        # but do not have to rework all decompress usage due to the need for a custom separator
-                        else Parameter("input-paths").value(
-                            compress_list(
-                                [
-                                    "argo-{{workflow.name}}/%s/{{=(get(tasks['%s']?.outputs?.parameters, 'task-id') ?? 'no-task')}}"
-                                    % (n, self._sanitize(n))
-                                    for n in node.in_funcs
-                                ],
-                                separator="%",  # non-default separator is required due to commas in the value expression
-                            )
+                    Parameter("input-paths").value(
+                        compress_list(
+                            [
+                                "argo-{{workflow.name}}/%s/{{tasks.%s.outputs.parameters.task-id}}"
+                                % (n, self._sanitize(n))
+                                for n in node.in_funcs
+                            ],
+                            # NOTE: We set zlibmin to infinite because zlib compression for the Argo input-paths breaks template value substitution.
+                            zlibmin=inf,
                         )
                     )
                 ]
@@ -1279,13 +1262,6 @@ class ArgoWorkflows(object):
                     parent_foreach,
                 )
             elif node.type == "split-switch":
-                if node.is_inside_foreach:
-                    # TODO: Fix this. The issue is with conditional branches nested inside a foreach branch. The value expression for the input-paths parameter
-                    # on Argo fails completely for the nested structure (though the identical shape outside of nesting works fine).
-                    raise MetaflowException(
-                        "*%s* is a switch step inside a foreach. Conditional steps are not supported inside a foreach on Argo Workflows yet."
-                        % node.name
-                    )
                 for n in node.out_funcs:
                     _visit(
                         self.graph[n],
@@ -1602,6 +1578,14 @@ class ArgoWorkflows(object):
                 input_paths_expr = (
                     "export INPUT_PATHS={{inputs.parameters.input-paths}}"
                 )
+                if self._is_conditional_join_node(node):
+                    # NOTE: Argo template expressions that fail to resolve, output the expression itself as a value.
+                    # With conditional steps, some of the input-paths are therefore 'broken' due to containing a nil expression
+                    # e.g. "{{ tasks['A'].outputs.parameters.task-id }}" when task A never executed.
+                    # We base64 encode the input-paths in order to not pollute the execution environment with templating expressions.
+                    # NOTE: Adding conditionals that check if a key exists or not does not work either, due to an issue with how Argo
+                    # handles tasks in a nested foreach (withParam template) leading to all such expressions getting evaluated as false.
+                    input_paths_expr = "export INPUT_PATHS={{=toBase64(inputs.parameters['input-paths'])}}"
                 input_paths = "$(echo $INPUT_PATHS)"
             if any(self.graph[n].type == "foreach" for n in node.in_funcs):
                 task_idx = "{{inputs.parameters.split-index}}"
@@ -1617,7 +1601,6 @@ class ArgoWorkflows(object):
                     # foreaches
                     task_idx = "{{inputs.parameters.split-index}}"
                     root_input = "{{inputs.parameters.root-input-path}}"
-
             # Task string to be hashed into an ID
             task_str = "-".join(
                 [

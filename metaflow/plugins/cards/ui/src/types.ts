@@ -76,7 +76,18 @@ export interface DagStep {
   num_failed?: number;
   condition?: string;
   switch_cases?: Record<string, string>;
+  pathToStep?: string;
+  connections?: string[];
 }
+
+export type DagStructure = {
+  [key: string]: {
+    stepName: string;
+    pathToStep: string;
+    connections: string[];
+    node: HTMLElement;
+  };
+};
 
 /* -------------------------------- RESPONSE -------------------------------- */
 

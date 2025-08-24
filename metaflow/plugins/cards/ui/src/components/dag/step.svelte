@@ -75,7 +75,6 @@
 
   const currentStep: string = getContext(currentStepContext);
   const current = name === currentStep;
-  step.rendered = true;
 
   // Set color of the step based on the results
   if (step.failed || step.num_failed) {
