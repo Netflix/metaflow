@@ -1230,15 +1230,10 @@ class ArgoWorkflows(object):
                 # dependencies for recursive nodes are quite different
                 if self._is_recursive_node(node):
                     required_deps = []
-                    conditional_deps = (
-                        [
-                            "%s.Succeeded" % self._sanitize(in_func)
-                            for in_func in node.in_funcs
-                        ]
-                        + ["%s.Succeeded" % self._sanitize(node.name)]
-                        if self._is_recursive_node(node)
-                        else []
-                    )
+                    conditional_deps = [
+                        "%s.Succeeded" % self._sanitize(in_func)
+                        for in_func in node.in_funcs
+                    ]
                 both_conditions = required_deps and conditional_deps
 
                 depends_str = "{required}{_and}{conditional}".format(
@@ -1265,16 +1260,6 @@ class ArgoWorkflows(object):
                         "{{tasks.%s.outputs.parameters.switch-step}}==%s"
                         % (self._sanitize(in_func), node.name)
                     )
-                # Completely different condition for recursive nodes
-                elif self._is_recursive_node(node):
-                    in_func = node.in_funcs[0]
-                    when_clause = "{{tasks.{sanitize_in_func}.status=='Succeeded'}}||{{tasks.{sanitize_node_name}.outputs.parameters.switch-step}}=={node_name}".format(
-                        sanitize_in_func=self._sanitize(in_func),
-                        sanitize_node_name=self._sanitize(node.name),
-                        node_name=node.name,
-                    )
-
-                    dag_task.when(when_clause)
 
             dag_tasks.append(dag_task)
             # End the workflow if we have reached the end of the flow
@@ -1304,6 +1289,79 @@ class ArgoWorkflows(object):
                     seen,
                 )
             elif node.type == "split-switch":
+                if node.is_inside_foreach:
+                    # TODO: Fix this. The issue is with conditional branches nested inside a foreach branch. The value expression for the input-paths parameter
+                    # on Argo fails completely for the nested structure (though the identical shape outside of nesting works fine).
+                    raise MetaflowException(
+                        "*%s* is a switch step inside a foreach. Conditional steps are not supported inside a foreach on Argo Workflows yet."
+                        % node.name
+                    )
+                if self._is_recursive_node(node):
+                    # we need an additional recursive template if the step is recursive
+                    # NOTE: in the recursive case, the original step is renamed in the container templates to 'recursive-<step_name>'
+                    # so that we do not have to touch the step references in the DAG.
+                    sanitized_name = self._sanitize(node.name)
+                    templates.append(
+                        Template(sanitized_name)
+                        .steps(
+                            [
+                                WorkflowStep()
+                                .name("%s-internal" % sanitized_name)
+                                .template("recursive-%s" % sanitized_name)
+                                .arguments(
+                                    Arguments().parameters(
+                                        [
+                                            Parameter("input-paths").value(
+                                                "{{inputs.parameters.input-paths}}"
+                                            )
+                                        ]
+                                    )
+                                )
+                            ]
+                        )
+                        .steps(
+                            [
+                                # TODO: We need to add all recursive switch conditions to the when-clause of this step
+                                WorkflowStep()
+                                .name("%s-recursion" % sanitized_name)
+                                .template(sanitized_name)
+                                .when(
+                                    "{{steps.%s-internal.outputs.parameters.switch-step}}==%s"
+                                    % (sanitized_name, node.name)
+                                )
+                                .arguments(
+                                    Arguments().parameters(
+                                        [
+                                            Parameter("input-paths").value(
+                                                "argo-{{workflow.name}}/%s/{{steps.%s-internal.outputs.parameters.task-id}}"
+                                                % (node.name, sanitized_name)
+                                            )
+                                        ]
+                                    )
+                                ),
+                            ]
+                        )
+                        .inputs(Inputs().parameters([Parameter("input-paths")]))
+                        .outputs(
+                            # TODO: How do we target the latest iteration of the recursive step as the value source?
+                            Outputs().parameters(
+                                [
+                                    Parameter("task-id").valueFrom(
+                                        {
+                                            "expression": "steps['%s-internal'].outputs.parameters['task-id']"
+                                            % sanitized_name
+                                        }
+                                    ),
+                                    Parameter("switch-step").valueFrom(
+                                        {
+                                            "expression": "steps['%s-internal'].outputs.parameters['switch-step']"
+                                            % sanitized_name
+                                        }
+                                    ),
+                                ]
+                            )
+                        )
+                    )
                 for n in node.out_funcs:
                     _visit(
                         self.graph[n],
@@ -2337,8 +2395,13 @@ class ArgoWorkflows(object):
                     )
                 )
             else:
+                template_name = self._sanitize(node.name)
+                if self._is_recursive_node(node):
+                    # The recursive template has the original step name,
+                    # this becomes a template within the recursive ones 'steps'
+                    template_name = self._sanitize("recursive-%s" % node.name)
                 yield (
-                    Template(self._sanitize(node.name))
+                    Template(template_name)
                     # Set @timeout values
                     .active_deadline_seconds(run_time_limit)
                     # Set service account
@@ -3795,6 +3858,10 @@ class WorkflowStep(object):
 
     def template(self, template):
         self.payload["template"] = str(template)
+        return self
+
+    def arguments(self, arguments):
+        self.payload["arguments"] = arguments.to_json()
         return self
 
     def when(self, condition):
