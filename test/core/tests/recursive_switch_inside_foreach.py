@@ -22,7 +22,7 @@ class RecursiveSwitchInsideForeachFlowTest(MetaflowTest):
     @steps(0, ["loop_body"], required=True)
     def step_loop_body(self):
         self.item_loop_count += 1
-        self.should_continue = self.item_loop_count < self.max_loops
+        self.should_continue = str(self.item_loop_count < self.max_loops)
 
     @steps(0, ["loop_exit"], required=True)
     def step_exit_item_loop(self):
