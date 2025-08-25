@@ -2,6 +2,7 @@ from metaflow_test import MetaflowTest, steps, assert_equals
 
 
 class ResumeRecursiveSwitchFlowTest(MetaflowTest):
+    RESUME = True
     PRIORITY = 2
     ONLY_GRAPHS = ["recursive_switch"]
 
