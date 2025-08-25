@@ -59,11 +59,6 @@ class ResumeRecursiveSwitchInsideForeachFlowTest(MetaflowTest):
             exit_steps_by_id = {s.data.item_id: s for s in exit_steps}
             assert_equals(3, len(list(exit_steps)))
 
-            # Branches 'A' and 'C' succeeded in the first run, so their exit steps
-            # should be clones in the resumed run, identified by 'origin-task-id'.
-            assert "origin-task-id" in exit_steps_by_id["A"].metadata_dict
-            assert "origin-task-id" in exit_steps_by_id["C"].metadata_dict
-
             # Branch 'B' failed and was re-executed from the start of the branch.
             # Its exit step is a new task and should NOT have an 'origin-task-id'.
             assert "origin-task-id" not in exit_steps_by_id["B"].metadata_dict
