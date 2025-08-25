@@ -17,6 +17,8 @@ class CardImportTest(MetaflowTest):
         "foreach_in_switch",
         "switch_in_branch",
         "switch_in_foreach",
+        "recursive_switch",
+        "recursive_switch_inside_foreach",
     ]
 
     @tag('card(type="editable_import_test_card",save_errors=False)')

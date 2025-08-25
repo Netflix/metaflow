@@ -20,6 +20,8 @@ class ResumeOriginPathSpec(MetaflowTest):
         "foreach_in_switch",
         "switch_in_branch",
         "switch_in_foreach",
+        "recursive_switch",
+        "recursive_switch_inside_foreach",
     ]
     PARAMETERS = {"int_param": {"default": 123}}
 

@@ -29,6 +29,8 @@ class CardWithRefreshTest(MetaflowTest):
         "foreach_in_switch",
         "switch_in_branch",
         "switch_in_foreach",
+        "recursive_switch",
+        "recursive_switch_inside_foreach",
     ]
 
     @tag('environment(vars={"METAFLOW_CARD_NO_WARNING": "True"})')
