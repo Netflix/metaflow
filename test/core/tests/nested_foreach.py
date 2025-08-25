@@ -11,6 +11,7 @@ class NestedForeachTest(MetaflowTest):
         "switch_in_branch",
         "switch_in_foreach",
         "recursive_switch",
+        "recursive_switch_inside_foreach",
     ]
 
     @steps(0, ["foreach-nested-inner"], required=True)

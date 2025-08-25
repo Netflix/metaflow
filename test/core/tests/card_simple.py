@@ -17,6 +17,7 @@ class CardDecoratorBasicTest(MetaflowTest):
         "switch_in_branch",
         "switch_in_foreach",
         "recursive_switch",
+        "recursive_switch_inside_foreach",
     ]
 
     @tag('card(type="taskspec_card")')
