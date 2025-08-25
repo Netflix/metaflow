@@ -1300,6 +1300,13 @@ class ArgoWorkflows(object):
                     # we need an additional recursive template if the step is recursive
                     # NOTE: in the recursive case, the original step is renamed in the container templates to 'recursive-<step_name>'
                     # so that we do not have to touch the step references in the DAG.
+                    #
+                    # NOTE: The way that recursion in Argo Workflows is achieved is with the following structure:
+                    # - the usual 'example-step' template which would match example_step in flow code is renamed to 'recursive-example-step'
+                    # - templates has another template with the original task name: 'example-step'
+                    # - the template 'example-step' in turn has steps
+                    #   - 'example-step-internal' which uses the metaflow step executing template 'recursive-example-step'
+                    #   - 'example-step-recursion' which calls the parent template 'example-step' if switch-step output from 'example-step-internal' matches the condition.
                     sanitized_name = self._sanitize(node.name)
                     templates.append(
                         Template(sanitized_name)
@@ -1342,19 +1349,20 @@ class ArgoWorkflows(object):
                         )
                         .inputs(Inputs().parameters([Parameter("input-paths")]))
                         .outputs(
-                            # TODO: How do we target the latest iteration of the recursive step as the value source?
+                            # NOTE: We try to read the output parameters from the recursive template call first (<step>-recursion), and the internal step second (<step>-internal).
+                            # This guarantees that we always get the output parameters of the last recursive step that executed.
                             Outputs().parameters(
                                 [
                                     Parameter("task-id").valueFrom(
                                         {
-                                            "expression": "steps['%s-internal'].outputs.parameters['task-id']"
-                                            % sanitized_name
+                                            "expression": "(steps['%s-recursion']?.outputs ?? steps['%s-internal']?.outputs).parameters['task-id']"
+                                            % (sanitized_name, sanitized_name)
                                         }
                                     ),
                                     Parameter("switch-step").valueFrom(
                                         {
-                                            "expression": "steps['%s-internal'].outputs.parameters['switch-step']"
-                                            % sanitized_name
+                                            "expression": "(steps['%s-recursion']?.outputs ?? steps['%s-internal']?.outputs).parameters['switch-step']"
+                                            % (sanitized_name, sanitized_name)
                                         }
                                     ),
                                 ]
