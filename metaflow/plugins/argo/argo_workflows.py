@@ -1078,6 +1078,10 @@ class ArgoWorkflows(object):
 
             seen.append(node.name)
 
+            # helper variables for recursive conditional inputs
+            has_foreach_inputs = False
+            has_foreach_join_inputs = False
+            has_parallel_inputs = False
             if node.name == "start":
                 # Start node has no dependencies.
                 dag_task = DAGTask(self._sanitize(node.name)).template(
@@ -1093,7 +1097,7 @@ class ArgoWorkflows(object):
             ):
                 # Child of a foreach node needs input-paths as well as split-index
                 # This child is the first node of the sub workflow and has no dependency
-
+                has_foreach_inputs = True
                 parameters = [
                     Parameter("input-paths").value("{{inputs.parameters.input-paths}}"),
                     Parameter("split-index").value("{{inputs.parameters.split-index}}"),
@@ -1128,6 +1132,9 @@ class ArgoWorkflows(object):
                 #                   contains the relevant amount of entropy to ensure that task-ids and jobset names
                 #                   are uniquish. We will also use this in the join task to construct the task-ids of
                 #                   all parallel tasks since the task-ids for parallel task are minted formulaically.
+                has_parallel_inputs = (
+                    True  # helper variable for recursive conditional inputs
+                )
                 parameters = [
                     Parameter("input-paths").value("{{inputs.parameters.input-paths}}"),
                     Parameter("num-parallel").value(
@@ -1206,6 +1213,9 @@ class ArgoWorkflows(object):
                         and self.graph[parent].type == "foreach"
                         for parent in self.graph[node.out_funcs[0]].split_parents
                     ):
+                        has_foreach_join_inputs = (
+                            True  # helper variable for recursive conditional inputs
+                        )
                         parameters.extend(
                             [
                                 Parameter("split-index").value(
@@ -1305,6 +1315,18 @@ class ArgoWorkflows(object):
                         Template(sanitized_name)
                         .steps(
                             [
+                                # parameters include
+                                # input-paths
+                                # -- foreach task --
+                                # ? split-index
+                                # -- foreach join --
+                                # ? root-input-path
+                                # -- @parallel --
+                                # - num-parallel
+                                # - task-id-entropy
+                                # - workerCount
+                                # - jobset-name
+                                # - retryCount
                                 WorkflowStep()
                                 .name("%s-internal" % sanitized_name)
                                 .template("recursive-%s" % sanitized_name)
@@ -1315,6 +1337,25 @@ class ArgoWorkflows(object):
                                                 "{{inputs.parameters.input-paths}}"
                                             )
                                         ]
+                                        + (
+                                            [
+                                                Parameter("split-index").value(
+                                                    "{{inputs.parameters.split-index}}"
+                                                )
+                                            ]
+                                            if has_foreach_inputs
+                                            or has_foreach_join_inputs
+                                            else []
+                                        )
+                                        + (
+                                            [
+                                                Parameter("root-input-path").value(
+                                                    "{{inputs.parameters.root-input-path}}"
+                                                )
+                                            ]
+                                            if has_foreach_join_inputs
+                                            else []
+                                        )
                                     )
                                 )
                             ]
@@ -1329,7 +1370,8 @@ class ArgoWorkflows(object):
                                     % (sanitized_name, node.name)
                                 )
                                 .arguments(
-                                    Arguments().parameters(
+                                    Arguments()
+                                    .parameters(
                                         [
                                             Parameter("input-paths").value(
                                                 "argo-{{workflow.name}}/%s/{{steps.%s-internal.outputs.parameters.task-id}}"
@@ -1337,10 +1379,31 @@ class ArgoWorkflows(object):
                                             )
                                         ]
                                     )
+                                    .parameters(
+                                        (
+                                            [
+                                                Parameter("split-index").value(
+                                                    "{{inputs.parameters.split-index}}"
+                                                )
+                                            ]
+                                            if has_foreach_inputs
+                                            or has_foreach_join_inputs
+                                            else []
+                                        )
+                                        + (
+                                            [
+                                                Parameter("root-input-path").value(
+                                                    "{{inputs.parameters.root-input-path}}"
+                                                )
+                                            ]
+                                            if has_foreach_join_inputs
+                                            else []
+                                        )
+                                    )
                                 ),
                             ]
                         )
-                        .inputs(Inputs().parameters([Parameter("input-paths")]))
+                        .inputs(Inputs().parameters(parameters))
                         .outputs(
                             # NOTE: We try to read the output parameters from the recursive template call first (<step>-recursion), and the internal step second (<step>-internal).
                             # This guarantees that we always get the output parameters of the last recursive step that executed.
