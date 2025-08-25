@@ -117,11 +117,19 @@ class MetaflowTask(object):
 
         # We back out of the stack of generators
         for w in reversed(wrappers_stack):
-            r = w.post_step(orig_step_func.name, self.flow, raised_exception)
+            try:
+                r = w.post_step(orig_step_func.name, self.flow, raised_exception)
+            except Exception as ex:
+                r = ex
             if r is None or isinstance(r, Exception):
                 raised_exception = None
             elif isinstance(r, tuple):
-                raised_exception, fake_next_call_args = r
+                if len(r) == 2:
+                    raised_exception, fake_next_call_args = r
+                else:
+                    # The last argument is an exception to be re-raised. Used in
+                    # user_step_decorator's post_step
+                    raise r[2]
             else:
                 raise RuntimeError(
                     "Invalid return value from a UserStepDecorator. Expected an"
