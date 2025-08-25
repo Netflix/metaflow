@@ -926,6 +926,7 @@ class ArgoWorkflows(object):
         self.conditional_nodes = set()
         self.conditional_join_nodes = set()
         self.matching_conditional_join_dict = {}
+        self.recursive_nodes = set()
 
         node_conditional_parents = {}
         node_conditional_branches = {}
@@ -947,6 +948,12 @@ class ArgoWorkflows(object):
                     else conditional_parents + [node.name]
                 )
                 node_conditional_parents[node.name] = conditional_parents
+
+                # check for recursion. this split is recursive if any of its out functions are itself.
+                if any(
+                    out_func for out_func in node.out_funcs if out_func == node.name
+                ):
+                    self.recursive_nodes.add(node.name)
 
             if conditional_parents and not node.type == "split-switch":
                 node_conditional_parents[node.name] = conditional_parents
@@ -1033,6 +1040,9 @@ class ArgoWorkflows(object):
     def _is_conditional_join_node(self, node):
         return node.name in self.conditional_join_nodes
 
+    def _is_recursive_node(self, node):
+        return node.name in self.recursive_nodes
+
     def _matching_conditional_join(self, node):
         return self.matching_conditional_join_dict.get(node.name, None)
 
@@ -1044,6 +1054,7 @@ class ArgoWorkflows(object):
             templates=None,
             dag_tasks=None,
             parent_foreach=None,
+            seen=None,
         ):  # Returns Tuple[List[Template], List[DAGTask]]
             """ """
             # Every for-each node results in a separate subDAG and an equivalent
@@ -1053,6 +1064,8 @@ class ArgoWorkflows(object):
             # of the for-each node.
 
             # Emit if we have reached the end of the sub workflow
+            if seen is None:
+                seen = []
             if dag_tasks is None:
                 dag_tasks = []
             if templates is None:
@@ -1060,6 +1073,15 @@ class ArgoWorkflows(object):
 
             if exit_node is not None and exit_node is node.name:
                 return templates, dag_tasks
+            if node.name in seen:
+                return templates, dag_tasks
+
+            seen.append(node.name)
+
+            # helper variables for recursive conditional inputs
+            has_foreach_inputs = False
+            has_foreach_join_inputs = False
+            has_parallel_inputs = False
             if node.name == "start":
                 # Start node has no dependencies.
                 dag_task = DAGTask(self._sanitize(node.name)).template(
@@ -1075,7 +1097,7 @@ class ArgoWorkflows(object):
             ):
                 # Child of a foreach node needs input-paths as well as split-index
                 # This child is the first node of the sub workflow and has no dependency
-
+                has_foreach_inputs = True
                 parameters = [
                     Parameter("input-paths").value("{{inputs.parameters.input-paths}}"),
                     Parameter("split-index").value("{{inputs.parameters.split-index}}"),
@@ -1110,6 +1132,9 @@ class ArgoWorkflows(object):
                 #                   contains the relevant amount of entropy to ensure that task-ids and jobset names
                 #                   are uniquish. We will also use this in the join task to construct the task-ids of
                 #                   all parallel tasks since the task-ids for parallel task are minted formulaically.
+                has_parallel_inputs = (
+                    True  # helper variable for recursive conditional inputs
+                )
                 parameters = [
                     Parameter("input-paths").value("{{inputs.parameters.input-paths}}"),
                     Parameter("num-parallel").value(
@@ -1188,6 +1213,9 @@ class ArgoWorkflows(object):
                         and self.graph[parent].type == "foreach"
                         for parent in self.graph[node.out_funcs[0]].split_parents
                     ):
+                        has_foreach_join_inputs = (
+                            True  # helper variable for recursive conditional inputs
+                        )
                         parameters.extend(
                             [
                                 Parameter("split-index").value(
@@ -1209,6 +1237,13 @@ class ArgoWorkflows(object):
                     for in_func in node.in_funcs
                     if not self._is_conditional_node(self.graph[in_func])
                 ]
+                # dependencies for recursive nodes are quite different
+                if self._is_recursive_node(node):
+                    required_deps = []
+                    conditional_deps = [
+                        "%s.Succeeded" % self._sanitize(in_func)
+                        for in_func in node.in_funcs
+                    ]
                 both_conditions = required_deps and conditional_deps
 
                 depends_str = "{required}{_and}{conditional}".format(
@@ -1253,6 +1288,7 @@ class ArgoWorkflows(object):
                         templates,
                         dag_tasks,
                         parent_foreach,
+                        seen,
                     )
                 return _visit(
                     self.graph[node.matching_join],
@@ -1260,8 +1296,135 @@ class ArgoWorkflows(object):
                     templates,
                     dag_tasks,
                     parent_foreach,
+                    seen,
                 )
             elif node.type == "split-switch":
+                if self._is_recursive_node(node):
+                    # we need an additional recursive template if the step is recursive
+                    # NOTE: in the recursive case, the original step is renamed in the container templates to 'recursive-<step_name>'
+                    # so that we do not have to touch the step references in the DAG.
+                    #
+                    # NOTE: The way that recursion in Argo Workflows is achieved is with the following structure:
+                    # - the usual 'example-step' template which would match example_step in flow code is renamed to 'recursive-example-step'
+                    # - templates has another template with the original task name: 'example-step'
+                    # - the template 'example-step' in turn has steps
+                    #   - 'example-step-internal' which uses the metaflow step executing template 'recursive-example-step'
+                    #   - 'example-step-recursion' which calls the parent template 'example-step' if switch-step output from 'example-step-internal' matches the condition.
+                    sanitized_name = self._sanitize(node.name)
+                    templates.append(
+                        Template(sanitized_name)
+                        .steps(
+                            [
+                                # parameters include
+                                # input-paths
+                                # -- foreach task --
+                                # ? split-index
+                                # -- foreach join --
+                                # ? root-input-path
+                                # -- @parallel --
+                                # - num-parallel
+                                # - task-id-entropy
+                                # - workerCount
+                                # - jobset-name
+                                # - retryCount
+                                WorkflowStep()
+                                .name("%s-internal" % sanitized_name)
+                                .template("recursive-%s" % sanitized_name)
+                                .arguments(
+                                    Arguments().parameters(
+                                        [
+                                            Parameter("input-paths").value(
+                                                "{{inputs.parameters.input-paths}}"
+                                            )
+                                        ]
+                                        + (
+                                            [
+                                                Parameter("split-index").value(
+                                                    "{{inputs.parameters.split-index}}"
+                                                )
+                                            ]
+                                            if has_foreach_inputs
+                                            or has_foreach_join_inputs
+                                            else []
+                                        )
+                                        + (
+                                            [
+                                                Parameter("root-input-path").value(
+                                                    "{{inputs.parameters.root-input-path}}"
+                                                )
+                                            ]
+                                            if has_foreach_join_inputs
+                                            else []
+                                        )
+                                    )
+                                )
+                            ]
+                        )
+                        .steps(
+                            [
+                                WorkflowStep()
+                                .name("%s-recursion" % sanitized_name)
+                                .template(sanitized_name)
+                                .when(
+                                    "{{steps.%s-internal.outputs.parameters.switch-step}}==%s"
+                                    % (sanitized_name, node.name)
+                                )
+                                .arguments(
+                                    Arguments()
+                                    .parameters(
+                                        [
+                                            Parameter("input-paths").value(
+                                                "argo-{{workflow.name}}/%s/{{steps.%s-internal.outputs.parameters.task-id}}"
+                                                % (node.name, sanitized_name)
+                                            )
+                                        ]
+                                    )
+                                    .parameters(
+                                        (
+                                            [
+                                                Parameter("split-index").value(
+                                                    "{{inputs.parameters.split-index}}"
+                                                )
+                                            ]
+                                            if has_foreach_inputs
+                                            or has_foreach_join_inputs
+                                            else []
+                                        )
+                                        + (
+                                            [
+                                                Parameter("root-input-path").value(
+                                                    "{{inputs.parameters.root-input-path}}"
+                                                )
+                                            ]
+                                            if has_foreach_join_inputs
+                                            else []
+                                        )
+                                    )
+                                ),
+                            ]
+                        )
+                        .inputs(Inputs().parameters(parameters))
+                        .outputs(
+                            # NOTE: We try to read the output parameters from the recursive template call first (<step>-recursion), and the internal step second (<step>-internal).
+                            # This guarantees that we always get the output parameters of the last recursive step that executed.
+                            Outputs().parameters(
+                                [
+                                    Parameter("task-id").valueFrom(
+                                        {
+                                            "expression": "(steps['%s-recursion']?.outputs ?? steps['%s-internal']?.outputs).parameters['task-id']"
+                                            % (sanitized_name, sanitized_name)
+                                        }
+                                    ),
+                                    Parameter("switch-step").valueFrom(
+                                        {
+                                            "expression": "(steps['%s-recursion']?.outputs ?? steps['%s-internal']?.outputs).parameters['switch-step']"
+                                            % (sanitized_name, sanitized_name)
+                                        }
+                                    ),
+                                ]
+                            )
+                        )
+                    )
                 for n in node.out_funcs:
                     _visit(
                         self.graph[n],
@@ -1269,6 +1432,7 @@ class ArgoWorkflows(object):
                         templates,
                         dag_tasks,
                         parent_foreach,
+                        seen,
                     )
 
                 return _visit(
@@ -1277,6 +1441,7 @@ class ArgoWorkflows(object):
                     templates,
                     dag_tasks,
                     parent_foreach,
+                    seen,
                 )
             # For foreach nodes generate a new sub DAGTemplate
             # We do this for "regular" foreaches (ie. `self.next(self.a, foreach=)`)
@@ -1367,6 +1532,7 @@ class ArgoWorkflows(object):
                     templates,
                     [],
                     node.name,
+                    seen,
                 )
 
                 # How do foreach's work on Argo:
@@ -1500,6 +1666,7 @@ class ArgoWorkflows(object):
                     templates,
                     dag_tasks,
                     parent_foreach,
+                    seen,
                 )
             # For linear nodes continue traversing to the next node
             if node.type in ("linear", "join", "start"):
@@ -1509,6 +1676,7 @@ class ArgoWorkflows(object):
                     templates,
                     dag_tasks,
                     parent_foreach,
+                    seen,
                 )
             else:
                 raise ArgoWorkflowsException(
@@ -2290,8 +2458,13 @@ class ArgoWorkflows(object):
                     )
                 )
             else:
+                template_name = self._sanitize(node.name)
+                if self._is_recursive_node(node):
+                    # The recursive template has the original step name,
+                    # this becomes a template within the recursive ones 'steps'
+                    template_name = self._sanitize("recursive-%s" % node.name)
                 yield (
-                    Template(self._sanitize(node.name))
+                    Template(template_name)
                     # Set @timeout values
                     .active_deadline_seconds(run_time_limit)
                     # Set service account
@@ -3748,6 +3921,10 @@ class WorkflowStep(object):
 
     def template(self, template):
         self.payload["template"] = str(template)
+        return self
+
+    def arguments(self, arguments):
+        self.payload["arguments"] = arguments.to_json()
         return self
 
     def when(self, condition):
