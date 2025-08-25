@@ -13,6 +13,7 @@ from metaflow.metaflow_config import (
     CARD_S3ROOT,
     CARD_LOCALROOT,
     DATASTORE_LOCAL_DIR,
+    DATASTORE_SPIN_LOCAL_DIR,
     CARD_SUFFIX,
     CARD_AZUREROOT,
     CARD_GSROOT,
@@ -55,7 +56,7 @@ def is_file_present(path):
 
 class CardDatastore(object):
     @classmethod
-    def get_storage_root(cls, storage_type):
+    def get_storage_root(cls, storage_type, is_spin=False):
         if storage_type == "s3":
             return CARD_S3ROOT
         elif storage_type == "azure":
@@ -65,9 +66,10 @@ class CardDatastore(object):
         elif storage_type == "local":
             # Borrowing some of the logic from LocalStorage.get_storage_root
             result = CARD_LOCALROOT
+            local_dir = DATASTORE_SPIN_LOCAL_DIR if is_spin else DATASTORE_LOCAL_DIR
             if result is None:
                 current_path = os.getcwd()
-                check_dir = os.path.join(current_path, DATASTORE_LOCAL_DIR, CARD_SUFFIX)
+                check_dir = os.path.join(current_path, local_dir, CARD_SUFFIX)
                 check_dir = os.path.realpath(check_dir)
                 orig_path = check_dir
                 while not os.path.isdir(check_dir):
@@ -75,9 +77,7 @@ class CardDatastore(object):
                     if new_path == current_path:
                         break  # We are no longer making upward progress
                     current_path = new_path
-                    check_dir = os.path.join(
-                        current_path, DATASTORE_LOCAL_DIR, CARD_SUFFIX
-                    )
+                    check_dir = os.path.join(current_path, local_dir, CARD_SUFFIX)
                 result = orig_path
 
             return result
