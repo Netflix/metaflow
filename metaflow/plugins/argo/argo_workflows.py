@@ -1230,13 +1230,6 @@ class ArgoWorkflows(object):
                     for in_func in node.in_funcs
                     if not self._is_conditional_node(self.graph[in_func])
                 ]
-                # dependencies for recursive nodes are quite different
-                if self._is_recursive_node(node):
-                    required_deps = []
-                    conditional_deps = [
-                        "%s.Succeeded" % self._sanitize(in_func)
-                        for in_func in node.in_funcs
-                    ]
                 both_conditions = required_deps and conditional_deps
 
                 depends_str = "{required}{_and}{conditional}".format(
