@@ -1321,7 +1321,6 @@ class ArgoWorkflows(object):
                         )
                         .steps(
                             [
-                                # TODO: We need to add all recursive switch conditions to the when-clause of this step
                                 WorkflowStep()
                                 .name("%s-recursion" % sanitized_name)
                                 .template(sanitized_name)
