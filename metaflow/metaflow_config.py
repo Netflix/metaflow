@@ -62,6 +62,7 @@ SPIN_ALLOWED_DECORATORS = from_conf(
         "project",
         "timeout",
         "conda_env_internal",
+        "card",
     ],
 )
 

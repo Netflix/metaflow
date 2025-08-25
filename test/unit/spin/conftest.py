@@ -53,6 +53,18 @@ def simple_parameter_run(request):
 
 
 @pytest.fixture(scope="session")
+def simple_card_run(request):
+    """Run SimpleCardFlow and return the completed run."""
+    if request.config.getoption("--use-latest"):
+        flow = Flow("SimpleCardFlow", _namespace_check=False)
+        return flow.latest_run
+    else:
+        flow_path = os.path.join(FLOWS_DIR, "simple_card_flow.py")
+        with Runner(flow_path, cwd=FLOWS_DIR).run(alpha=0.05) as running:
+            return running.run
+
+
+@pytest.fixture(scope="session")
 def simple_config_run(request):
     """Run SimpleConfigFlow and return the completed run."""
     if request.config.getoption("--use-latest"):

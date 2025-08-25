@@ -92,3 +92,31 @@ def test_skip_decorators(simple_config_run):
         # Should complete successfully even though sleep(5) > timeout(2)
         spin_task = spin.task
         assert spin_task.finished
+
+
+def test_hidden_artifacts(simple_parameter_run):
+    """Test simple flows that just need artifact validation."""
+    step_name = "start"
+    task = simple_parameter_run[step_name].task
+    flow_path = os.path.join(FLOWS_DIR, "simple_parameter_flow.py")
+    print(f"Running test for hidden artifacts in {flow_path}: {simple_parameter_run}")
+
+    with Runner(flow_path, cwd=FLOWS_DIR).spin(task.pathspec) as spin:
+        spin_task = spin.task
+        assert "_graph_info" in spin_task
+        assert "_foreach_stack" in spin_task
+
+
+def test_card_flow(simple_card_run):
+    """Test a simple flow that has @card decorator."""
+    step_name = "start"
+    task = simple_card_run[step_name].task
+    flow_path = os.path.join(FLOWS_DIR, "simple_card_flow.py")
+    print(f"Running test for cards in {flow_path}: {simple_card_run}")
+
+    with Runner(flow_path, cwd=FLOWS_DIR).spin(task.pathspec) as spin:
+        spin_task = spin.task
+        from metaflow.cards import get_cards
+
+        res = get_cards(spin_task, follow_resumed=False)
+        print(res)

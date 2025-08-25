@@ -3,6 +3,7 @@ __pycache__/
 *$py.class
 *.metaflow
 *.spin_metaflow
+metaflow_card_cache/
 
 build/
 dist/
