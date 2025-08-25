@@ -42,12 +42,12 @@ class ResumeRecursiveSwitchFlowTest(MetaflowTest):
 
             loop_steps_by_count = {s.data.count: s for s in loop_steps}
 
-            task_5_metadata = loop_steps_by_count[5].task.metadata_dict
+            task_5_metadata = loop_steps_by_count[5].metadata_dict
             assert (
                 "origin-task-id" in task_5_metadata
             ), "Task for iteration 5 should be a clone with an 'origin-task-id'."
 
-            task_6_metadata = loop_steps_by_count[6].task.metadata_dict
+            task_6_metadata = loop_steps_by_count[6].metadata_dict
             assert (
                 "origin-task-id" not in task_6_metadata
             ), "Task for iteration 6 should be a new execution without an 'origin-task-id'."
