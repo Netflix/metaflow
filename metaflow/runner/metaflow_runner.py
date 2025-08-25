@@ -262,6 +262,10 @@ class Runner(metaclass=RunnerMeta):
         directory is used.
     file_read_timeout : int, default 3600
         The timeout until which we try to read the runner attribute file (in seconds).
+    extend_existing_env : bool, default True
+        If True, the environment variables from the current process are extended
+        with the ones specified in `env`. If False, the environment variables
+        specified in `env` will be used as the only environment variables
     **kwargs : Any
         Additional arguments that you would pass to `python myflow.py` before
         the `run` command.
@@ -275,6 +279,7 @@ class Runner(metaclass=RunnerMeta):
         env: Optional[Dict[str, str]] = None,
         cwd: Optional[str] = None,
         file_read_timeout: int = 3600,
+        extend_existing_env: bool = True,
         **kwargs
     ):
         # these imports are required here and not at the top
@@ -311,8 +316,7 @@ class Runner(metaclass=RunnerMeta):
             self.flow_file = flow_file
 
         self.show_output = show_output
-
-        self.env_vars = os.environ.copy()
+        self.env_vars = os.environ.copy() if extend_existing_env else {}
         self.env_vars.update(env or {})
         if profile:
             self.env_vars["METAFLOW_PROFILE"] = profile
