@@ -66,41 +66,29 @@ def test_artifacts_module_join_step(
         assert spin_task["my_output"].data == [-1]
 
 
-def test_skip_decorators(complex_dag_run):
-    print(f"Running test for skip decorator in ComplexDAGFlow: {complex_dag_run}")
-    step_name = "step_m"
-    task = complex_dag_run[step_name].task
-    flow_path = os.path.join(FLOWS_DIR, "complex_dag_flow.py")
+def test_skip_decorators(simple_config_run):
+    """Test that skip_decorators bypasses the timeout decorator."""
+    step_name = "start"
+    task = simple_config_run[step_name].task
+    flow_path = os.path.join(FLOWS_DIR, "simple_config_flow.py")
 
-    # Check if sklearn is available in the outer environment
-    is_sklearn = True
-    try:
-        import sklearn
-    except ImportError:
-        is_sklearn = False
-
-    if is_sklearn:
-        # We verify that the sklearn version is the same as the one in the outside environment
-        with Runner(flow_path, environment="conda").spin(
+    # Test 1: With decorator (should timeout)
+    with pytest.raises(Exception):
+        with Runner(
+            flow_path, cwd=FLOWS_DIR, config_value=[("config", {"timeout": 2})]
+        ).spin(
             task.pathspec,
-            skip_decorators=True,
-        ) as spin:
-            print("-" * 50)
-            print(
-                f"Running test for step: {step_name} with task pathspec: {task.pathspec}"
-            )
-            spin_task = spin.task
-            import sklearn
+        ):
+            pass
 
-            expected_version = sklearn.__version__
-            assert (
-                spin_task["sklearn_version"].data == expected_version
-            ), f"Expected sklearn version {expected_version} but got {spin_task['sklearn_version']}"
-    else:
-        # We assert that an exception is raised when trying to run the step with skip_decorators=True
-        with pytest.raises(Exception):
-            with Runner(flow_path, environment="conda").spin(
-                task.pathspec,
-                skip_decorators=True,
-            ):
-                pass
+    # Test 2: Without decorator (should succeed despite 5 seconds sleep)
+    with Runner(
+        flow_path, cwd=FLOWS_DIR, config_value=[("config", {"timeout": 2})]
+    ).spin(
+        task.pathspec,
+        skip_decorators=True,
+    ) as spin:
+        print(f"Running test for step: {step_name} with skip_decorators=True")
+        # Should complete successfully even though sleep(5) > timeout(2)
+        spin_task = spin.task
+        assert spin_task.finished

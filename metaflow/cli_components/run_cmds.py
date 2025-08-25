@@ -427,6 +427,7 @@ def run(
 
 @parameters.add_custom_parameters(deploy_mode=True)
 @click.command(help="Spins up a task for a given step from a previous run locally.")
+@tracing.cli("cli/spin")
 @click.argument("pathspec")
 @click.option(
     "--skip-decorators/--no-skip-decorators",
@@ -513,7 +514,7 @@ def spin(
     orig_task_metadata_root = datastore_root.rsplit("/", 1)[0]
     print(f"Spin: datastore_root = {datastore_root}")
     print(f"Spin: orig_task_metadata_root = {orig_task_metadata_root}")
-    print(f"Metadata type: {obj.metadata.__class__.TYPE}")
+    # print(f"Metadata type: {obj.metadata.__class__.TYPE}")
     from_start("Spin: going to execute")
     spin_runtime.execute()
     from_start("Spin: after spin runtime execute")
@@ -527,7 +528,8 @@ def spin(
                     "run_id": spin_runtime.run_id,
                     "flow_name": obj.flow.name,
                     # Store metadata in a format that can be used by the Runner API
-                    "metadata": f"{obj.metadata.__class__.TYPE}@{orig_task_metadata_root}",
+                    # "metadata": f"{obj.metadata.__class__.TYPE}@{orig_task_metadata_root}",
+                    "metadata": f"spin@{orig_task_metadata_root}",
                 },
                 f,
             )

@@ -9,7 +9,7 @@ class TimeoutConfigFlow(FlowSpec):
     @step
     def start(self):
         print(f"timing out after {self.config.timeout} seconds")
-        time.sleep(1)
+        time.sleep(5)
         print("success")
         self.next(self.end)
 

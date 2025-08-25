@@ -21,8 +21,7 @@ if sys.platform == "darwin":
 
 # Path to the local directory to store artifacts for 'local' datastore.
 DATASTORE_LOCAL_DIR = ".metaflow"
-DATASTORE_SPIN_LOCAL_DIR = ".metaflow"
-# DATASTORE_SPIN_LOCAL_DIR = ".spin_metaflow"
+DATASTORE_SPIN_LOCAL_DIR = ".spin_metaflow"
 
 # Local configuration file (in .metaflow) containing overrides per-project
 LOCAL_CONFIG_FILE = "config.json"
@@ -54,7 +53,16 @@ DEFAULT_FROM_DEPLOYMENT_IMPL = from_conf(
 ###
 SPIN_ALLOWED_DECORATORS = from_conf(
     "SPIN_ALLOWED_DECORATORS",
-    ["conda", "pypi", "conda_base", "pypi_base", "environment", "project", "timeout"],
+    [
+        "conda",
+        "pypi",
+        "conda_base",
+        "pypi_base",
+        "environment",
+        "project",
+        "timeout",
+        "conda_env_internal",
+    ],
 )
 
 ###
