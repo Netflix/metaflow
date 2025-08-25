@@ -17,7 +17,7 @@ from ..system import _system_logger
 # from ..client.core import Run
 
 from ..tagging_util import validate_tags
-from ..util import get_latest_run_id, write_latest_run_id
+from ..util import get_latest_run_id, write_latest_run_id, parse_spin_pathspec
 
 
 def before_run(obj, tags, decospecs, skip_decorators=False):
@@ -427,13 +427,7 @@ def run(
 
 @parameters.add_custom_parameters(deploy_mode=True)
 @click.command(help="Spins up a task for a given step from a previous run locally.")
-@click.argument("step-name")
-@click.option(
-    "--spin-pathspec",
-    default=None,
-    type=str,
-    help="Use specified task pathspec from a previous run to spin up the step.",
-)
+@click.argument("pathspec")
 @click.option(
     "--skip-decorators/--no-skip-decorators",
     is_flag=True,
@@ -471,8 +465,7 @@ def run(
 @click.pass_obj
 def spin(
     obj,
-    step_name,
-    spin_pathspec=None,
+    pathspec,
     persist=True,
     artifacts_module=None,
     skip_decorators=False,
@@ -481,7 +474,9 @@ def spin(
     runner_attribute_file=None,
     **kwargs,
 ):
-    from_start(f"I am just before before_run for spin of {step_name}")
+    # Parse the pathspec argument to extract step name and full pathspec
+    step_name, parsed_pathspec = parse_spin_pathspec(pathspec, obj.flow.name)
+
     before_run(obj, [], [], skip_decorators)
     obj.echo(f"Spinning up step *{step_name}* locally for flow *{obj.flow.name}*")
     obj.flow._set_constants(obj.graph, kwargs, obj.config_options)
@@ -505,7 +500,7 @@ def spin(
         obj.monitor,
         step_func,
         step_name,
-        spin_pathspec,
+        parsed_pathspec,
         skip_decorators,
         artifacts_module,
         persist,
@@ -513,10 +508,12 @@ def spin(
     )
     write_latest_run_id(obj, spin_runtime.run_id)
     write_file(run_id_file, spin_runtime.run_id)
-    # datastore_root is os.path.join(DATASTORE_SYSROOT_SPIN, DATASTORE_LOCAL_DIR)
     # We only need the root for the metadata, i.e. the portion before DATASTORE_LOCAL_DIR
     datastore_root = spin_runtime._flow_datastore._storage_impl.datastore_root
     orig_task_metadata_root = datastore_root.rsplit("/", 1)[0]
+    print(f"Spin: datastore_root = {datastore_root}")
+    print(f"Spin: orig_task_metadata_root = {orig_task_metadata_root}")
+    print(f"Metadata type: {obj.metadata.__class__.TYPE}")
     from_start("Spin: going to execute")
     spin_runtime.execute()
     from_start("Spin: after spin runtime execute")

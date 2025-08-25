@@ -506,14 +506,14 @@ class Runner(metaclass=RunnerMeta):
         )
         return ExecutingTask(self, command_obj, task_object)
 
-    def spin(self, step_name, **kwargs):
+    def spin(self, pathspec, **kwargs):
         """
         Blocking spin execution of the run.
         This method will wait until the spun run has completed execution.
         Parameters
         ----------
-        step_name : str
-            The name of the step to spin.
+        pathspec : str
+            The pathspec of the step/task to spin.
         **kwargs : Any
             Additional arguments that you would pass to `python ./myflow.py` after
             the `spin` command.
@@ -523,11 +523,19 @@ class Runner(metaclass=RunnerMeta):
             ExecutingTask containing the results of the spun task.
         """
         with temporary_fifo() as (attribute_file_path, attribute_file_fd):
-            command = self.api(**self.top_level_kwargs).spin(
-                step_name=step_name,
-                runner_attribute_file=attribute_file_path,
-                **kwargs,
-            )
+            if CLICK_API_PROCESS_CONFIG:
+                with with_dir(self.cwd):
+                    command = self.api(**self.top_level_kwargs).spin(
+                        pathspec=pathspec,
+                        runner_attribute_file=attribute_file_path,
+                        **kwargs,
+                    )
+            else:
+                command = self.api(**self.top_level_kwargs).spin(
+                    pathspec=pathspec,
+                    runner_attribute_file=attribute_file_path,
+                    **kwargs,
+                )
 
             pid = self.spm.run_command(
                 [sys.executable, *command],
@@ -652,7 +660,7 @@ class Runner(metaclass=RunnerMeta):
 
             return await self.__async_get_executing_run(attribute_file_fd, command_obj)
 
-    async def async_spin(self, step_name, spin_pathspec, **kwargs) -> ExecutingTask:
+    async def async_spin(self, pathspec, **kwargs) -> ExecutingTask:
         """
         Non-blocking spin execution of the run.
         This method will return as soon as the spun task has launched.
@@ -661,8 +669,8 @@ class Runner(metaclass=RunnerMeta):
 
         Parameters
         ----------
-        step_name : str
-            The name of the step to spin.
+        pathspec : str
+            The pathspec of the step/task to spin.
         **kwargs : Any
             Additional arguments that you would pass to `python ./myflow.py` after
             the `spin` command.
@@ -673,11 +681,19 @@ class Runner(metaclass=RunnerMeta):
             ExecutingTask representing the spun task that was started.
         """
         with temporary_fifo() as (attribute_file_path, attribute_file_fd):
-            command = self.api(**self.top_level_kwargs).spin(
-                step_name=step_name,
-                runner_attribute_file=attribute_file_path,
-                **kwargs,
-            )
+            if CLICK_API_PROCESS_CONFIG:
+                with with_dir(self.cwd):
+                    command = self.api(**self.top_level_kwargs).spin(
+                        pathspec=pathspec,
+                        runner_attribute_file=attribute_file_path,
+                        **kwargs,
+                    )
+            else:
+                command = self.api(**self.top_level_kwargs).spin(
+                    pathspec=pathspec,
+                    runner_attribute_file=attribute_file_path,
+                    **kwargs,
+                )
 
             pid = await self.spm.async_run_command(
                 [sys.executable, *command],
