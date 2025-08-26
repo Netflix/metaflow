@@ -4,6 +4,7 @@ import copy
 import random
 import time
 import hashlib
+import re
 
 try:
     unicode
@@ -104,11 +105,17 @@ class BatchJob(object):
             )
             secondary_commands = self.payload["containerOverrides"]["command"][-1]
             # other tasks do not have control- prefix, and have the split id appended to the task -id
-            secondary_commands = secondary_commands.replace(
-                self._task_id,
-                self._task_id.replace("control-", "")
-                + "-node-$AWS_BATCH_JOB_NODE_INDEX",
-            )
+            # Fix: Only replace task ID in specific arguments, not in environment variables
+            
+            # Replace task ID in --task-id argument
+            task_id_pattern = r'--task-id\s+' + re.escape(self._task_id)
+            replacement_task_id = self._task_id.replace("control-", "") + "-node-$AWS_BATCH_JOB_NODE_INDEX"
+            secondary_commands = re.sub(task_id_pattern, f'--task-id {replacement_task_id}', secondary_commands)
+            
+            # Replace task ID in MF_PATHSPEC environment variable (pathspec format: flow_name/run_id/step_name/task_id)
+            pathspec_pattern = r'(MF_PATHSPEC=[^/]+/[^/]+/[^/]+/)' + re.escape(self._task_id) + r'(\s|$|;)'
+            pathspec_replacement = r'\g<1>' + replacement_task_id + r'\g<2>'
+            secondary_commands = re.sub(pathspec_pattern, pathspec_replacement, secondary_commands)
             secondary_commands = secondary_commands.replace(
                 "ubf_control",
                 "ubf_task",
