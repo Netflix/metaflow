@@ -121,8 +121,10 @@ class MetaflowTask(object):
                 r = w.post_step(orig_step_func.name, self.flow, raised_exception)
             except Exception as ex:
                 r = ex
-            if r is None or isinstance(r, Exception):
+            if r is None:
                 raised_exception = None
+            elif isinstance(r, Exception):
+                raised_exception = r
             elif isinstance(r, tuple):
                 if len(r) == 2:
                     raised_exception, fake_next_call_args = r
