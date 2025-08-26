@@ -12,7 +12,7 @@ from metaflow.metaflow_config import DATASTORE_LOCAL_DIR
 from metaflow.mflog import TASK_LOG_SOURCE
 from metaflow.unbounded_foreach import UBF_CONTROL, UBF_TASK
 from .batch import Batch, BatchKilledException
-from metaflow.tagging_util import validate_tags, validate_aws_tag
+from ..aws_utils import validate_aws_tag
 
 
 @click.group()
@@ -48,7 +48,7 @@ def _execute_cmd(func, flow_name, run_id, user, my_runs, echo):
     func(flow_name, run_id, user, echo)
 
 
-@batch.command(help="List unfinished AWS Batch tasks of this flow")
+@batch.command("list", help="List unfinished AWS Batch tasks of this flow")
 @click.option(
     "--my-runs",
     default=False,
@@ -62,7 +62,7 @@ def _execute_cmd(func, flow_name, run_id, user, my_runs, echo):
     help="List unfinished tasks corresponding to the run id.",
 )
 @click.pass_context
-def list(ctx, run_id, user, my_runs):
+def _list(ctx, run_id, user, my_runs):
     batch = Batch(ctx.obj.metadata, ctx.obj.environment)
     _execute_cmd(
         batch.list_jobs, ctx.obj.flow.name, run_id, user, my_runs, ctx.obj.echo
@@ -287,14 +287,12 @@ def step(
     env = {"METAFLOW_FLOW_FILENAME": os.path.basename(sys.argv[0])}
 
     if aws_batch_tags is not None:
-        if not isinstance(aws_batch_tags, list[str]):
-            raise CommandException("aws_batch_tags must be list[str]")
-        aws_batch_tags_list = [
-            {"key": item.split("=")[0], "value": item.split("=")[1]}
-            for item in aws_batch_tags.items()
-        ]
-        for tag in aws_batch_tags_list:
-            validate_aws_tag(tag)
+        # We do not need to validate these again,
+        # as they come supplied by the batch decorator which already performed validation.
+        batch_tags = {}
+        for item in list(aws_batch_tags):
+            key, value = item.split("=")
+            batch_tags[key] = value
 
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
@@ -360,7 +358,7 @@ def step(
                 host_volumes=host_volumes,
                 efs_volumes=efs_volumes,
                 use_tmpfs=use_tmpfs,
-                aws_batch_tags=aws_batch_tags,
+                aws_batch_tags=batch_tags,
                 tmpfs_tempdir=tmpfs_tempdir,
                 tmpfs_size=tmpfs_size,
                 tmpfs_path=tmpfs_path,

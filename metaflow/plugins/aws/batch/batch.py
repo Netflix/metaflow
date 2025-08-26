@@ -32,7 +32,6 @@ from metaflow.mflog import (
 )
 from metaflow.plugins.aws.aws_utils import sanitize_batch_tag
 from metaflow.plugins.datatools.s3.s3tail import S3Tail
-from metaflow.tagging_util import validate_tags, validate_aws_tag
 
 from .batch_client import BatchClient
 
@@ -200,7 +199,6 @@ class Batch(object):
         efs_volumes=None,
         use_tmpfs=None,
         aws_batch_tags=None,
-        cli_aws_batch_tags=None,
         tmpfs_tempdir=None,
         tmpfs_size=None,
         tmpfs_path=None,
@@ -346,14 +344,10 @@ class Batch(object):
                 if key in attrs:
                     k, v = sanitize_batch_tag(key, attrs.get(key))
                     job.tag(k, v)
- 
-            if cli_aws_batch_tags is not None:
-                for tag in cli_aws_batch_tags:
-                    job.tag(tag['key'], tag['value'])
 
             if aws_batch_tags is not None:
-                for tag in aws_batch_tags:
-                    job.tag(tag['key'], tag['value'])
+                for key, value in aws_batch_tags.items():
+                    job.tag(key, value)
 
         return job
 

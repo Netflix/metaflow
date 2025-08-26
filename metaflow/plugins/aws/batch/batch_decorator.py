@@ -30,9 +30,9 @@ from ..aws_utils import (
     compute_resource_attributes,
     get_docker_registry,
     get_ec2_instance_metadata,
+    validate_aws_tag,
 )
 from .batch import BatchException
-from metaflow.tagging_util import validate_aws_tag
 
 
 class BatchDecorator(StepDecorator):
@@ -125,7 +125,6 @@ class BatchDecorator(StepDecorator):
         "efs_volumes": None,
         "use_tmpfs": False,
         "aws_batch_tags": None,
-        "aws_batch_tags_list": None,
         "tmpfs_tempdir": True,
         "tmpfs_size": None,
         "tmpfs_path": "/metaflow_temp",
@@ -194,12 +193,6 @@ class BatchDecorator(StepDecorator):
             raise BatchException(
                 "BATCH_DEFAULT_TAGS environment variable must be Dict[str, str]"
             )
-            
-        #if self.attributes["aws_batch_tags"] is None:
-        #    self.attributes["aws_batch_tags"] = BATCH_DEFAULT_TAGS
-
-        print(f"BATCH_DEFAULT_TAGS: {BATCH_DEFAULT_TAGS}")
-        print(f'aws_batch_tags: {self.attributes["aws_batch_tags"]}')
 
         if self.attributes["aws_batch_tags"] is not None:
             if not isinstance(self.attributes["aws_batch_tags"], dict) and not all(
@@ -210,21 +203,11 @@ class BatchDecorator(StepDecorator):
         else:
             self.attributes["aws_batch_tags"] = {}
 
-    
-        if BATCH_DEFAULT_TAGS is not {}:
+        if BATCH_DEFAULT_TAGS:
             self.attributes["aws_batch_tags"] = {
                 **BATCH_DEFAULT_TAGS,
                 **self.attributes["aws_batch_tags"],
             }
-
-        
-        if self.attributes["aws_batch_tags"] is not None:
-            decorator_aws_tags_list = [
-                {"key": key, "value": val}
-                for key, val in self.attributes["aws_batch_tags"].items()
-            ]
-            print(f'Generating aws compatible list. Old aws_batch_tags: {self.attributes["aws_batch_tags"]}, new generated list: {decorator_aws_tags_list}')
-            self.attributes["aws_batch_tags_list"] = decorator_aws_tags_list
 
         # clean up the alias attribute so it is not passed on.
         self.attributes.pop("trainium", None)
@@ -259,9 +242,9 @@ class BatchDecorator(StepDecorator):
             raise BatchException("'tmpfs_path' needs to be an absolute path")
 
         # Validate Batch tags
-        if self.attributes["aws_batch_tags_list"]:
-            for tag in self.attributes["aws_batch_tags_list"]:
-                validate_aws_tag(tag)
+        if self.attributes["aws_batch_tags"]:
+            for key, val in self.attributes["aws_batch_tags"].items():
+                validate_aws_tag(key, val)
 
     def runtime_init(self, flow, graph, package, run_id):
         # Set some more internal state.
@@ -287,14 +270,17 @@ class BatchDecorator(StepDecorator):
             cli_args.command_args.append(self.package_metadata)
             cli_args.command_args.append(self.package_sha)
             cli_args.command_args.append(self.package_url)
-            cli_args.command_options.update(self.attributes)
-            #for k, v in self.attributes.items():
-            #    # Some attributes need to be serialized for the CLI
-            #    if k in ["aws_batch_tags"]:
-            #        cli_args.command_options[k] = json.dumps(v)
-            #    else:
-            #        cli_args.command_options[k] = v
+            # skip certain keys as CLI arguments
+            _skip_keys = ["aws_batch_tags"]
+            cli_args.command_options.update(
+                {k: v for k, v in self.attributes.items() if k not in _skip_keys}
+            )
             cli_args.command_options["run-time-limit"] = self.run_time_limit
+
+            # Pass the supplied AWS batch tags to the step CLI cmd
+            cli_args.command_options["aws-batch-tag"] = [
+                "%s=%s" % (k, v) for k, v in self.attributes["aws_batch_tags"].items()
+            ]
             if not R.use_r():
                 cli_args.entrypoint[0] = sys.executable
 
