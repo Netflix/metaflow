@@ -196,13 +196,22 @@ def sanitize_batch_tag(key, value):
     return _key, _value
 
 
-def validate_aws_tag(key, value):
+def validate_aws_tag(key: str, value: str):
     PERMITTED = r"[A-Za-z0-9\s\+\-\=\.\_\:\/\@]"
+
+    AWS_PREFIX = r"^aws\:"  # case-insensitive.
+    if re.match(AWS_PREFIX, key, re.IGNORECASE) or re.match(
+        AWS_PREFIX, value, re.IGNORECASE
+    ):
+        raise MetaflowException(
+            "'aws:' is not an allowed prefix for either tag keys or values"
+        )
+
     if len(key) > 128:
         raise MetaflowException(
             "Tag key *%s* is too long. Maximum allowed tag key length is 128." % key
         )
-    if len(value) > 128:
+    if len(value) > 256:
         raise MetaflowException(
             "Tag value *%s* is too long. Maximum allowed tag value length is 256."
             % value
