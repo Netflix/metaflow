@@ -100,10 +100,11 @@ def step_functions(obj, name=None):
 )
 @click.option(
     "--aws-batch-tag",
-    "aws_batch_tag",
+    "aws_batch_tags",
     multiple=True,
     default=None,
-    help="AWS tags.")
+    help="AWS Batch tags.",
+)
 @click.option(
     "--namespace",
     "user_namespace",
@@ -150,7 +151,7 @@ def step_functions(obj, name=None):
 def create(
     obj,
     tags=None,
-    aws_batch_tag=None,
+    aws_batch_tags=None,
     user_namespace=None,
     only_json=False,
     authorize=None,
@@ -204,7 +205,7 @@ def create(
         token,
         obj.state_machine_name,
         tags,
-        aws_batch_tag,
+        aws_batch_tags,
         user_namespace,
         max_workers,
         workflow_timeout,
@@ -358,22 +359,24 @@ def make_flow(
             [obj.package.blob], len_hint=1
         )[0]
 
-    
     if aws_batch_tags is not None:
         if not all(isinstance(item, str) for item in aws_batch_tags):
-            raise MetaflowException("AWS Step Functions --aws-batch-tags all items in list must be strings")
+            raise MetaflowException(
+                "AWS Step Functions --aws-batch-tags all items in list must be strings"
+            )
         for item in aws_batch_tags:
-            if len(item.split('=')) != 2:
-                raise MetaflowException("AWS Step Functions --aws-batch-tags strings must be in format 'key=value'")
+            if len(item.split("=")) != 2:
+                raise MetaflowException(
+                    "AWS Step Functions --aws-batch-tags strings must be in format 'key=value'"
+                )
         aws_batch_tags_list = [
-            {'key': item.split('=')[0],
-                'value': item.split('=')[1]} for item in aws_batch_tags
+            {"key": item.split("=")[0], "value": item.split("=")[1]}
+            for item in aws_batch_tags
         ]
         for tag in aws_batch_tags_list:
             validate_aws_tag(tag)
-    else: aws_batch_tags_list = None
-            
-
+    else:
+        aws_batch_tags_list = None
 
     return StepFunctions(
         name,

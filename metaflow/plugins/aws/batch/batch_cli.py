@@ -47,6 +47,7 @@ def _execute_cmd(func, flow_name, run_id, user, my_runs, echo):
 
     func(flow_name, run_id, user, echo)
 
+
 @batch.command(help="List unfinished AWS Batch tasks of this flow")
 @click.option(
     "--my-runs",
@@ -147,7 +148,13 @@ def kill(ctx, run_id, user, my_runs):
     help="Activate designated number of elastic fabric adapter devices. "
     "EFA driver must be installed and instance type compatible with EFA",
 )
-@click.option("--aws-batch-tags", multiple=True, default=None, help="AWS tags. Format: key=value, multiple allowed")
+@click.option(
+    "--aws-batch-tag",
+    "aws_batch_tags",
+    multiple=True,
+    default=None,
+    help="AWS tags. Format: key=value, multiple allowed",
+)
 @click.option("--use-tmpfs", is_flag=True, help="tmpfs requirement for AWS Batch.")
 @click.option("--tmpfs-tempdir", is_flag=True, help="tmpfs requirement for AWS Batch.")
 @click.option("--tmpfs-size", help="tmpfs requirement for AWS Batch.")
@@ -279,17 +286,15 @@ def step(
 
     env = {"METAFLOW_FLOW_FILENAME": os.path.basename(sys.argv[0])}
 
-
     if aws_batch_tags is not None:
         if not isinstance(aws_batch_tags, list[str]):
             raise CommandException("aws_batch_tags must be list[str]")
         aws_batch_tags_list = [
-            {'key': item.split('=')[0],
-                'value': item.split('=')[1]} for item in aws_batch_tags.items()
+            {"key": item.split("=")[0], "value": item.split("=")[1]}
+            for item in aws_batch_tags.items()
         ]
         for tag in aws_batch_tags_list:
             validate_aws_tag(tag)
-                
 
     env_deco = [deco for deco in node.decorators if deco.name == "environment"]
     if env_deco:
