@@ -271,6 +271,9 @@ class ConfigValue(collections.abc.Mapping, dict):
             v = obj
         return v
 
+    def __reduce__(self):
+        return (self.__class__, (self.to_dict(),))
+
 
 class DelayEvaluator(collections.abc.Mapping):
     """
@@ -484,7 +487,6 @@ class Config(Parameter, collections.abc.Mapping):
         parser: Optional[Union[str, Callable[[str], Dict[Any, Any]]]] = None,
         **kwargs: Dict[str, str]
     ):
-
         if default is not None and default_value is not None:
             raise MetaflowException(
                 "For config '%s', you can only specify default or default_value, not both"
