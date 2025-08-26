@@ -161,10 +161,6 @@ AZURE_CLIENT_PROVIDERS_DESC = [
     ("azure-default", ".azure.azure_credential.AzureDefaultClientProvider")
 ]
 
-ARTIFACT_SERIALIZERS_DESC = [
-    ("pickle", ".datastores.serializers.pickle_serializer.PickleSerializer"),
-]
-
 DEPLOYER_IMPL_PROVIDERS_DESC = [
     ("argo-workflows", ".argo.argo_workflows_deployer.ArgoWorkflowsDeployer"),
     (
@@ -179,6 +175,15 @@ TL_PLUGINS_DESC = [
     ("pyproject_toml_parser", ".pypi.parsers.pyproject_toml_parser"),
     ("conda_environment_yml_parser", ".pypi.parsers.conda_environment_yml_parser"),
 ]
+
+# Serializer finders are always loaded. They will be called in the order in which extensions
+# are loaded and so later serializer finders can override earlier ones. We therefore
+# just need a list of serializer finders. We also don't need to use strings since
+# the finders themselves are always loaded -- it's the serializers that will be loaded
+# on demand.
+# NOTE: It is important to keep the serializer finders as light-weight as possible and
+# lazy load as much as possible since they are *always* loaded.
+SERIALIZER_FINDERS = []
 
 process_plugins(globals())
 
@@ -216,8 +221,6 @@ AWS_CLIENT_PROVIDERS = resolve_plugins("aws_client_provider")
 SECRETS_PROVIDERS = resolve_plugins("secrets_provider")
 AZURE_CLIENT_PROVIDERS = resolve_plugins("azure_client_provider")
 GCP_CLIENT_PROVIDERS = resolve_plugins("gcp_client_provider")
-
-ARTIFACT_SERIALIZERS = resolve_plugins("artifact_serializer")
 
 if sys.version_info >= (3, 7):
     DEPLOYER_IMPL_PROVIDERS = resolve_plugins("deployer_impl_provider")
@@ -273,6 +276,5 @@ merge_lists(CARDS, MF_EXTERNAL_CARDS, "type")
 
 
 def _import_tl_plugins(globals_dict):
-
     for name, p in TL_PLUGINS.items():
         globals_dict[name] = p

@@ -23,6 +23,9 @@ def process_plugins(module_globals):
             module_globals, plugin_category
         )
 
+    # Set the base module from which serializers are coming
+    for s in globals()["SERIALIZER_FINDERS"]:
+        s.FROM_EXTENSION = "metaflow"
     try:
         modules_to_import = get_modules("plugins")
         # This is like multiload_all but we load globals independently since we just care
@@ -38,6 +41,14 @@ def process_plugins(module_globals):
                 elif n.startswith("ENABLED_") and n[8:].lower() in _plugin_categories:
                     # Extensions override the ENABLED_ setting.
                     globals()[n] = o
+                elif n == "SERIALIZER_FINDERS":
+                    for s in o:
+                        s.FROM_EXTENSION = m.package_name
+                    _ext_debug(
+                        "Adding serializer finders from %s: %s"
+                        % (m.package_name, str([s.__name__ for s in o]))
+                    )
+                    globals()["SERIALIZER_FINDERS"].extend(o)
 
             _resolve_relative_paths(m.module.__dict__)
             for plugin_category in _plugin_categories:
@@ -199,7 +210,7 @@ _plugin_categories = {
     ),
     "runner_cli": lambda x: x.name,
     "tl_plugin": None,
-    "artifact_serializer": lambda x: x.TYPE,
+    "serializer": lambda x: x.TYPE,
 }
 
 
