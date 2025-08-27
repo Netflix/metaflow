@@ -1375,6 +1375,7 @@ def sanitize_for_argo(text):
         .replace("_", "")
         .replace("@", "")
         .replace("+", "")
+        .replace("-.", ".")
         .lower()
     )
 
