@@ -349,7 +349,10 @@ def card(ctx):
     )
     metadata(setting_metadata)
     # set the card root to the datastore according to the configuration.
-    root_pth = CardDatastore.get_storage_root(ctx.obj.flow_datastore._storage_impl.TYPE)
+    is_spin = ctx.obj.metadata.TYPE == "spin"
+    root_pth = CardDatastore.get_storage_root(
+        ctx.obj.flow_datastore._storage_impl.TYPE, is_spin
+    )
     if root_pth is not None:
         ctx.obj.flow_datastore._storage_impl.datastore_root = root_pth
 

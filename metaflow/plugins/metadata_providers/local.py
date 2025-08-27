@@ -18,6 +18,7 @@ from metaflow.tagging_util import MAX_USER_TAG_SET_SIZE, validate_tags
 
 class LocalMetadataProvider(MetadataProvider):
     TYPE = "local"
+    LOCAL_DIR = DATASTORE_LOCAL_DIR
 
     def __init__(self, environment, flow, event_logger, monitor):
         super(LocalMetadataProvider, self).__init__(
@@ -28,12 +29,12 @@ class LocalMetadataProvider(MetadataProvider):
     def compute_info(cls, val):
         from metaflow.plugins.datastores.local_storage import LocalStorage
 
-        v = os.path.realpath(os.path.join(val, DATASTORE_LOCAL_DIR))
+        v = os.path.realpath(os.path.join(val, cls.LOCAL_DIR))
         if os.path.isdir(v):
             LocalStorage.datastore_root = v
             return val
         raise ValueError(
-            "Could not find directory %s in directory %s" % (DATASTORE_LOCAL_DIR, val)
+            "Could not find directory %s in directory %s" % (cls.LOCAL_DIR, val)
         )
 
     @classmethod
@@ -47,9 +48,7 @@ class LocalMetadataProvider(MetadataProvider):
             print_clean, create_on_absent=False
         )
         if v is None:
-            return (
-                "<No %s directory found in current working tree>" % DATASTORE_LOCAL_DIR
-            )
+            return "<No %s directory found in current working tree>" % cls.LOCAL_DIR
         return os.path.dirname(v)
 
     def version(self):
