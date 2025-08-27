@@ -7,31 +7,32 @@ import shlex
 import time
 
 from metaflow import util
+from metaflow.plugins.datatools.s3.s3tail import S3Tail
+from metaflow.plugins.aws.aws_utils import sanitize_batch_tag
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     OTEL_ENDPOINT,
-    AWS_SECRETS_MANAGER_DEFAULT_REGION,
-    BATCH_DEFAULT_TAGS,
+    SERVICE_INTERNAL_URL,
+    DATATOOLS_S3ROOT,
+    DATASTORE_SYSROOT_S3,
+    DEFAULT_METADATA,
+    SERVICE_HEADERS,
     BATCH_EMIT_TAGS,
     CARD_S3ROOT,
-    DATASTORE_SYSROOT_S3,
-    DATATOOLS_S3ROOT,
-    DEFAULT_METADATA,
-    DEFAULT_SECRETS_BACKEND_TYPE,
     S3_ENDPOINT_URL,
+    DEFAULT_SECRETS_BACKEND_TYPE,
+    AWS_SECRETS_MANAGER_DEFAULT_REGION,
     S3_SERVER_SIDE_ENCRYPTION,
-    SERVICE_HEADERS,
-    SERVICE_INTERNAL_URL,
 )
+
 from metaflow.metaflow_config_funcs import config_values
+
 from metaflow.mflog import (
-    BASH_SAVE_LOGS,
-    bash_capture_logs,
     export_mflog_env_vars,
+    bash_capture_logs,
     tail_logs,
+    BASH_SAVE_LOGS,
 )
-from metaflow.plugins.aws.aws_utils import sanitize_batch_tag
-from metaflow.plugins.datatools.s3.s3tail import S3Tail
 
 from .batch_client import BatchClient
 
@@ -71,7 +72,7 @@ class Batch(object):
             datastore_type="s3",
             stdout_path=STDOUT_PATH,
             stderr_path=STDERR_PATH,
-            **task_spec,
+            **task_spec
         )
         init_cmds = environment.get_package_commands(
             code_package_url, "s3", code_package_metadata

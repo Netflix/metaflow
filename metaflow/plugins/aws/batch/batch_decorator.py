@@ -1,14 +1,9 @@
-import json
 import os
 import platform
 import sys
 import time
-import json
-
-import requests
 
 from metaflow import R, current
-from metaflow import metaflow_config
 from metaflow.decorators import StepDecorator
 from metaflow.metadata_provider import MetaDatum
 from metaflow.metadata_provider.util import sync_local_metadata_to_datastore
