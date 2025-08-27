@@ -136,8 +136,7 @@ def step_functions(obj, name=None):
     "--compress-state-machine/--no-compress-state-machine",
     is_flag=True,
     default=SFN_COMPRESS_STATE_MACHINE,
-    help="Upload large commands to S3 instead of embedding them in job payload "
-    "to avoid 8K AWS limit. Commands will be downloaded at runtime.",
+    help="Compress AWS Step Functions state machine to fit within the 8K limit.",
 )
 @click.option(
     "--deployer-attribute-file",

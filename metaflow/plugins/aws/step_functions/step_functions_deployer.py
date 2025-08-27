@@ -77,8 +77,7 @@ class StepFunctionsDeployer(DeployerImpl):
             Use AWS Step Functions Distributed Map instead of Inline Map for defining foreach
             tasks in Amazon State Language.
         compress_state_machine : bool, optional, default False
-            Upload large commands to S3 instead of embedding them in job payload
-            to avoid 8K AWS limit. Commands will be downloaded at runtime.
+            Compress AWS Step Functions state machine to fit within the 8K limit.
 
         deployer_attribute_file : str, optional, default None
             Write the workflow name to the specified file. Used internally for Metaflow's Deployer API.
