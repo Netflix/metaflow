@@ -19,6 +19,8 @@ from metaflow.util import get_username, to_bytes, to_unicode, version_parse
 
 from .production_token import load_token, new_token, store_token
 from .step_functions import StepFunctions
+from metaflow.tagging_util import validate_tags
+from ..aws_utils import validate_aws_tag
 
 VALID_NAME = re.compile(r"[^a-zA-Z0-9_\-\.]")
 
@@ -98,6 +100,13 @@ def step_functions(obj, name=None):
     "times to attach multiple tags.",
 )
 @click.option(
+    "--aws-batch-tag",
+    "aws_batch_tags",
+    multiple=True,
+    default=None,
+    help="AWS Batch tags.",
+)
+@click.option(
     "--namespace",
     "user_namespace",
     default=None,
@@ -143,6 +152,7 @@ def step_functions(obj, name=None):
 def create(
     obj,
     tags=None,
+    aws_batch_tags=None,
     user_namespace=None,
     only_json=False,
     authorize=None,
@@ -196,6 +206,7 @@ def create(
         token,
         obj.state_machine_name,
         tags,
+        aws_batch_tags,
         user_namespace,
         max_workers,
         workflow_timeout,
@@ -315,6 +326,7 @@ def make_flow(
     token,
     name,
     tags,
+    aws_batch_tags,
     namespace,
     max_workers,
     workflow_timeout,
@@ -348,6 +360,15 @@ def make_flow(
             [obj.package.blob], len_hint=1
         )[0]
 
+    if aws_batch_tags is not None:
+        batch_tags = {}
+        for item in list(aws_batch_tags):
+            key, value = item.split("=")
+            # These are fresh AWS tags provided by the user through the CLI,
+            # so we must validate them.
+            validate_aws_tag(key, value)
+            batch_tags[key] = value
+
     return StepFunctions(
         name,
         obj.graph,
@@ -362,6 +383,7 @@ def make_flow(
         obj.event_logger,
         obj.monitor,
         tags=tags,
+        aws_batch_tags=batch_tags,
         namespace=namespace,
         max_workers=max_workers,
         username=get_username(),

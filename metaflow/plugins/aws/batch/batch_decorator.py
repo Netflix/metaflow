@@ -10,6 +10,7 @@ from metaflow.metadata_provider.util import sync_local_metadata_to_datastore
 from metaflow.metaflow_config import (
     BATCH_CONTAINER_IMAGE,
     BATCH_CONTAINER_REGISTRY,
+    BATCH_DEFAULT_TAGS,
     BATCH_JOB_QUEUE,
     DATASTORE_LOCAL_DIR,
     ECS_FARGATE_EXECUTION_ROLE,
@@ -24,6 +25,7 @@ from ..aws_utils import (
     compute_resource_attributes,
     get_docker_registry,
     get_ec2_instance_metadata,
+    validate_aws_tag,
 )
 from .batch import BatchException
 
@@ -68,6 +70,9 @@ class BatchDecorator(StepDecorator):
         A swappiness value of 0 causes swapping not to happen unless absolutely
         necessary. A swappiness value of 100 causes pages to be swapped very
         aggressively. Accepted values are whole numbers between 0 and 100.
+    aws_batch_tags: Dict[str, str], optional, default None
+        Sets arbitrary AWS tags on the AWS Batch compute environment.
+        Set as string key-value pairs.
     use_tmpfs : bool, default False
         This enables an explicit tmpfs mount for this step. Note that tmpfs is
         not available on Fargate compute environments
@@ -114,6 +119,7 @@ class BatchDecorator(StepDecorator):
         "host_volumes": None,
         "efs_volumes": None,
         "use_tmpfs": False,
+        "aws_batch_tags": None,
         "tmpfs_tempdir": True,
         "tmpfs_size": None,
         "tmpfs_path": "/metaflow_temp",
@@ -175,6 +181,29 @@ class BatchDecorator(StepDecorator):
         if self.attributes["trainium"] is not None:
             self.attributes["inferentia"] = self.attributes["trainium"]
 
+        if not isinstance(BATCH_DEFAULT_TAGS, dict) and not all(
+            isinstance(k, str) and isinstance(v, str)
+            for k, v in BATCH_DEFAULT_TAGS.items()
+        ):
+            raise BatchException(
+                "BATCH_DEFAULT_TAGS environment variable must be Dict[str, str]"
+            )
+
+        if self.attributes["aws_batch_tags"] is not None:
+            if not isinstance(self.attributes["aws_batch_tags"], dict) and not all(
+                isinstance(k, str) and isinstance(v, str)
+                for k, v in self.attributes["aws_batch_tags"].items()
+            ):
+                raise BatchException("aws_batch_tags must be Dict[str, str]")
+        else:
+            self.attributes["aws_batch_tags"] = {}
+
+        if BATCH_DEFAULT_TAGS:
+            self.attributes["aws_batch_tags"] = {
+                **BATCH_DEFAULT_TAGS,
+                **self.attributes["aws_batch_tags"],
+            }
+
         # clean up the alias attribute so it is not passed on.
         self.attributes.pop("trainium", None)
 
@@ -207,6 +236,11 @@ class BatchDecorator(StepDecorator):
         if self.attributes["tmpfs_path"] and self.attributes["tmpfs_path"][0] != "/":
             raise BatchException("'tmpfs_path' needs to be an absolute path")
 
+        # Validate Batch tags
+        if self.attributes["aws_batch_tags"]:
+            for key, val in self.attributes["aws_batch_tags"].items():
+                validate_aws_tag(key, val)
+
     def runtime_init(self, flow, graph, package, run_id):
         # Set some more internal state.
         self.flow = flow
@@ -231,8 +265,17 @@ class BatchDecorator(StepDecorator):
             cli_args.command_args.append(self.package_metadata)
             cli_args.command_args.append(self.package_sha)
             cli_args.command_args.append(self.package_url)
-            cli_args.command_options.update(self.attributes)
+            # skip certain keys as CLI arguments
+            _skip_keys = ["aws_batch_tags"]
+            cli_args.command_options.update(
+                {k: v for k, v in self.attributes.items() if k not in _skip_keys}
+            )
             cli_args.command_options["run-time-limit"] = self.run_time_limit
+
+            # Pass the supplied AWS batch tags to the step CLI cmd
+            cli_args.command_options["aws-batch-tag"] = [
+                "%s=%s" % (k, v) for k, v in self.attributes["aws_batch_tags"].items()
+            ]
             if not R.use_r():
                 cli_args.entrypoint[0] = sys.executable
 
