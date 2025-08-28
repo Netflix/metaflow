@@ -1369,7 +1369,7 @@ def sanitize_for_argo(text):
     Sanitizes a string so it does not contain characters that are not permitted in
     Argo Workflow resource names.
     """
-    return (
+    sanitized = (
         re.compile(r"^[^A-Za-z0-9]+")
         .sub("", text)
         .replace("_", "")
@@ -1377,6 +1377,12 @@ def sanitize_for_argo(text):
         .replace("+", "")
         .lower()
     )
+    # This is added in order to get sanitized and truncated project branch names to adhere to RFC 1123 subdomain requirements
+    # f.ex. after truncation a project flow name might be project.branch-cut-short-.flowname
+    # sanitize around the . separators by removing any non-alphanumeric characters
+    sanitized = re.compile(r"[^a-z0-9]*\.[^a-z0-9]*").sub(".", sanitized)
+
+    return sanitized
 
 
 def remap_status(status):

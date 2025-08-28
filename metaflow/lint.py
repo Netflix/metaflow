@@ -416,3 +416,25 @@ def check_nested_foreach(graph):
         if node.type == "foreach":
             if any(graph[p].type == "foreach" for p in node.split_parents):
                 raise LintWarn(msg.format(node), node.func_lineno, node.source_file)
+
+
+@linter.ensure_static_graph
+@linter.check
+def check_ambiguous_joins(graph):
+    for node in graph:
+        if node.type == "join":
+            problematic_parents = [
+                p_name
+                for p_name in node.in_funcs
+                if graph[p_name].type == "split-switch"
+            ]
+            if problematic_parents:
+                msg = (
+                    "A conditional path cannot lead directly to a join step.\n"
+                    "In your conditional step(s) {parents}, one or more of the possible paths transition directly to the join step {join_name}.\n"
+                    "As a workaround, please introduce an intermediate, unconditional step on that specific path before joining."
+                ).format(
+                    parents=", ".join("*%s*" % p for p in problematic_parents),
+                    join_name="*%s*" % node.name,
+                )
+                raise LintWarn(msg, node.func_lineno, node.source_file)
