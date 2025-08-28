@@ -864,7 +864,7 @@ class StepFunctions(object):
 
         # Create the batch job
         batch_job = (
-            Batch(self.metadata, self.environment)
+            Batch(self.metadata, self.environment, self.flow_datastore)
             .create_job(
                 step_name=node.name,
                 step_cli=step_cli,
@@ -897,43 +897,10 @@ class StepFunctions(object):
                 ephemeral_storage=resources["ephemeral_storage"],
                 log_driver=resources["log_driver"],
                 log_options=resources["log_options"],
+                offload_command_to_s3=self.compress_state_machine,
             )
             .attempts(total_retries + 1)
         )
-
-        # If S3 upload is enabled, we need to modify the command after it's created
-        if self.compress_state_machine:
-            from metaflow.plugins.aws.aws_utils import parse_s3_full_path
-            import shlex
-
-            # Get the command that was created
-            command = batch_job.payload["containerOverrides"]["command"]
-            command_str = " ".join(command)
-            # Upload the command to S3 during deployment
-            try:
-                command_bytes = command_str.encode("utf-8")
-                result_paths = self.flow_datastore.save_data(
-                    [command_bytes], len_hint=1
-                )
-                s3_path, _key = result_paths[0]
-
-                bucket, s3_object = parse_s3_full_path(s3_path)
-                download_script = "{python} -c '{script}'".format(
-                    python=self.environment._python(),
-                    script='import boto3, os; ep=os.getenv(\\"METAFLOW_S3_ENDPOINT_URL\\"); boto3.client(\\"s3\\", **({\\"endpoint_url\\":ep} if ep else {})).download_file(\\"%s\\", \\"%s\\", \\"/tmp/step_command.sh\\")'
-                    % (bucket, s3_object),
-                )
-                download_cmd = (
-                    f"{self.environment._get_install_dependencies_cmd('s3')} && "  # required for boto3 due to the original dependencies cmd getting packaged, and not being downloaded in time.
-                    f"{download_script} && "
-                    f"chmod +x /tmp/step_command.sh && "
-                    f"bash /tmp/step_command.sh"
-                )
-                new_cmd = shlex.split('bash -c "%s"' % download_cmd)
-                batch_job.payload["containerOverrides"]["command"] = new_cmd
-            except Exception as e:
-                print(f"Warning: Failed to upload command to S3: {e}")
-                print("Falling back to inline command")
 
         return batch_job
 
