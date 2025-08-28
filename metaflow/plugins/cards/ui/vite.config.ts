@@ -9,7 +9,7 @@ export default defineConfig({
     assetsDir: "public",
     outDir: "../card_modules",
     emptyOutDir: false,
-    minify: false,
+    minify: true,
     lib: {
       entry: resolve(__dirname, "src/main.ts"),
       name: "Outerbounds Cards",
