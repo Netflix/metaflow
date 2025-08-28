@@ -266,15 +266,26 @@ def step(
             retry_deco[0].attributes.get("minutes_between_retries", 1)
         )
 
-    # Set batch attributes
+    # Set batch attributes - use modified task_id for multinode to ensure MF_PATHSPEC has placeholder
+    task_spec_task_id = (
+        step_kwargs["task_id"] if num_parallel > 1 else kwargs["task_id"]
+    )
     task_spec = {
+        "flow_name": ctx.obj.flow.name,
+        "step_name": step_name,
+        "run_id": kwargs["run_id"],
+        "task_id": task_spec_task_id,
+        "retry_count": str(retry_count),
+    }
+    # Keep attrs clean with original task_id for metadata
+    main_task_spec = {
         "flow_name": ctx.obj.flow.name,
         "step_name": step_name,
         "run_id": kwargs["run_id"],
         "task_id": kwargs["task_id"],
         "retry_count": str(retry_count),
     }
-    attrs = {"metaflow.%s" % k: v for k, v in task_spec.items()}
+    attrs = {"metaflow.%s" % k: v for k, v in main_task_spec.items()}
     attrs["metaflow.user"] = util.get_username()
     attrs["metaflow.version"] = ctx.obj.environment.get_environment_info()[
         "metaflow_version"
