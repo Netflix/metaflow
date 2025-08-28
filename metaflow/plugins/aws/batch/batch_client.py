@@ -107,9 +107,8 @@ class BatchJob(object):
             secondary_commands = self.payload["containerOverrides"]["command"][-1]
             # For secondary nodes: remove "control-" prefix and replace placeholders
             secondary_commands = (
-                secondary_commands.replace(
-                    "control-[NODE-INDEX]", "-node-$AWS_BATCH_JOB_NODE_INDEX"
-                )
+                secondary_commands.replace("control-", "")
+                .replace("[NODE-INDEX]", "-node-$AWS_BATCH_JOB_NODE_INDEX")
                 .replace("ubf_control", "ubf_task")
                 .replace("[multinode-args]", "--split-index $AWS_BATCH_JOB_NODE_INDEX")
             )
