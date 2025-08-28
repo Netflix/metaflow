@@ -244,6 +244,8 @@ def step(
     if num_parallel and num_parallel > 1:
         # For multinode, we need to add a placeholder that can be mutated by the caller
         step_args += " [multinode-args]"
+        # Add task ID placeholder for secondary nodes
+        step_args += f" --task-id {kwargs['task_id']}[NODE-INDEX]"
     step_cli = "{entrypoint} {top_args} step {step} {step_args}".format(
         entrypoint=entrypoint,
         top_args=top_args,
