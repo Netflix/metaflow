@@ -1382,9 +1382,6 @@ def sanitize_for_argo(text):
     # sanitize around the . separators by removing any non-alphanumeric characters
     sanitized = re.compile(r"[^a-z0-9]*\.[^a-z0-9]*").sub(".", sanitized)
 
-    # sanitize the beginning and end of the string by removing any non-alphanumeric characters
-    sanitized = re.compile(r"^[^a-z0-9]*").sub("", sanitized)
-    sanitized = re.compile(r"[^a-z0-9]*$").sub("", sanitized)
     return sanitized
 
 
