@@ -74,8 +74,8 @@ class ArgoWorkflowsException(MetaflowException):
     headline = "Argo Workflows error"
 
 
-class ArgoWorkflowsCleanupException(MetaflowException):
-    headline = "Argo Workflows clean up error"
+class ArgoWorkflowsSensorCleanupException(MetaflowException):
+    headline = "Argo Workflows sensor clean up error"
 
 
 class ArgoWorkflowsSchedulingException(MetaflowException):
@@ -228,7 +228,7 @@ class ArgoWorkflows(object):
                 ):
                     client.delete_sensor(old_sensor_name, old_sensor_namespace)
         except Exception as e:
-            raise ArgoWorkflowsCleanupException(str(e))
+            raise ArgoWorkflowsSensorCleanupException(str(e))
 
     @staticmethod
     def _sanitize(name):
