@@ -28,7 +28,7 @@ class BasicConfigTest(MetaflowTest):
         "silly_config": {
             "required": True,
             "parser": "silly_parser",
-            "default": "'silly.txt'",
+            "default": "'basic_config_silly.txt'",
         },
         "config2": {},
         # Test using a function to get the value

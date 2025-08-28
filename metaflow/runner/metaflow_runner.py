@@ -8,8 +8,6 @@ from typing import Dict, Iterator, Optional, Tuple
 
 from metaflow import Run
 
-from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
-
 from metaflow.plugins import get_runner_cli
 
 from .utils import (
@@ -377,12 +375,7 @@ class Runner(metaclass=RunnerMeta):
             ExecutingRun containing the results of the run.
         """
         with temporary_fifo() as (attribute_file_path, attribute_file_fd):
-            if CLICK_API_PROCESS_CONFIG:
-                with with_dir(self.cwd):
-                    command = self.api(**self.top_level_kwargs).run(
-                        runner_attribute_file=attribute_file_path, **kwargs
-                    )
-            else:
+            with with_dir(self.cwd):
                 command = self.api(**self.top_level_kwargs).run(
                     runner_attribute_file=attribute_file_path, **kwargs
                 )
@@ -414,12 +407,7 @@ class Runner(metaclass=RunnerMeta):
             ExecutingRun containing the results of the resumed run.
         """
         with temporary_fifo() as (attribute_file_path, attribute_file_fd):
-            if CLICK_API_PROCESS_CONFIG:
-                with with_dir(self.cwd):
-                    command = self.api(**self.top_level_kwargs).resume(
-                        runner_attribute_file=attribute_file_path, **kwargs
-                    )
-            else:
+            with with_dir(self.cwd):
                 command = self.api(**self.top_level_kwargs).resume(
                     runner_attribute_file=attribute_file_path, **kwargs
                 )
@@ -453,12 +441,7 @@ class Runner(metaclass=RunnerMeta):
             ExecutingRun representing the run that was started.
         """
         with temporary_fifo() as (attribute_file_path, attribute_file_fd):
-            if CLICK_API_PROCESS_CONFIG:
-                with with_dir(self.cwd):
-                    command = self.api(**self.top_level_kwargs).run(
-                        runner_attribute_file=attribute_file_path, **kwargs
-                    )
-            else:
+            with with_dir(self.cwd):
                 command = self.api(**self.top_level_kwargs).run(
                     runner_attribute_file=attribute_file_path, **kwargs
                 )
@@ -491,12 +474,7 @@ class Runner(metaclass=RunnerMeta):
             ExecutingRun representing the resumed run that was started.
         """
         with temporary_fifo() as (attribute_file_path, attribute_file_fd):
-            if CLICK_API_PROCESS_CONFIG:
-                with with_dir(self.cwd):
-                    command = self.api(**self.top_level_kwargs).resume(
-                        runner_attribute_file=attribute_file_path, **kwargs
-                    )
-            else:
+            with with_dir(self.cwd):
                 command = self.api(**self.top_level_kwargs).resume(
                     runner_attribute_file=attribute_file_path, **kwargs
                 )
