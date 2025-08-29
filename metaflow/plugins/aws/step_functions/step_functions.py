@@ -57,6 +57,7 @@ class StepFunctions(object):
         workflow_timeout=None,
         is_project=False,
         use_distributed_map=False,
+        compress_state_machine=False,
     ):
         self.name = name
         self.graph = graph
@@ -80,6 +81,9 @@ class StepFunctions(object):
 
         # https://aws.amazon.com/blogs/aws/step-functions-distributed-map-a-serverless-solution-for-large-scale-parallel-data-processing/
         self.use_distributed_map = use_distributed_map
+
+        # S3 command upload configuration
+        self.compress_state_machine = compress_state_machine
 
         self._client = StepFunctionsClient()
         self._workflow = self._compile()
@@ -858,7 +862,7 @@ class StepFunctions(object):
         # merge batch tags supplied through step-fuctions CLI and ones defined in decorator
         batch_tags = {**self.aws_batch_tags, **resources["aws_batch_tags"]}
         return (
-            Batch(self.metadata, self.environment)
+            Batch(self.metadata, self.environment, self.flow_datastore)
             .create_job(
                 step_name=node.name,
                 step_cli=self._step_cli(
@@ -894,6 +898,7 @@ class StepFunctions(object):
                 ephemeral_storage=resources["ephemeral_storage"],
                 log_driver=resources["log_driver"],
                 log_options=resources["log_options"],
+                offload_command_to_s3=self.compress_state_machine,
             )
             .attempts(total_retries + 1)
         )
