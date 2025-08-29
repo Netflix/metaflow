@@ -60,7 +60,7 @@ def list(obj, archive=False):
 @click.pass_obj
 def save(obj, path):
     with open(path, "wb") as f:
-        f.write(obj.package.blob())
+        f.write(obj.package.blob)
     obj.echo(
         "Code package saved in *%s* with metadata: %s"
         % (path, obj.package.package_metadata),

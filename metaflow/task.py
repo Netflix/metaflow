@@ -117,11 +117,21 @@ class MetaflowTask(object):
 
         # We back out of the stack of generators
         for w in reversed(wrappers_stack):
-            r = w.post_step(orig_step_func.name, self.flow, raised_exception)
-            if r is None or isinstance(r, Exception):
+            try:
+                r = w.post_step(orig_step_func.name, self.flow, raised_exception)
+            except Exception as ex:
+                r = ex
+            if r is None:
                 raised_exception = None
+            elif isinstance(r, Exception):
+                raised_exception = r
             elif isinstance(r, tuple):
-                raised_exception, fake_next_call_args = r
+                if len(r) == 2:
+                    raised_exception, fake_next_call_args = r
+                else:
+                    # The last argument is an exception to be re-raised. Used in
+                    # user_step_decorator's post_step
+                    raise r[2]
             else:
                 raise RuntimeError(
                     "Invalid return value from a UserStepDecorator. Expected an"
@@ -239,6 +249,7 @@ class MetaflowTask(object):
                 # Prefetch 'foreach' related artifacts to improve time taken by
                 # _init_foreach.
                 prefetch_data_artifacts = [
+                    "_iteration_stack",
                     "_foreach_stack",
                     "_foreach_num_splits",
                     "_foreach_var",
@@ -374,6 +385,56 @@ class MetaflowTask(object):
         # case 4) - propagate in the foreach nest
         elif "_foreach_stack" in inputs[0]:
             self.flow._foreach_stack = inputs[0]["_foreach_stack"]
+
+    def _init_iteration(self, step_name, inputs, is_recursive_step):
+        # We track the iteration "stack" for loops. At this time, we
+        # only support one type of "looping" which is a recursive step but
+        # this can generalize to arbitrary well-scoped loops in the future.
+
+        # _iteration_stack will contain the iteration count for each loop
+        # level. Currently, there will be only no elements (no loops) or
+        # a single element (a single recursive step).
+
+        # We just need to determine the rules to add a new looping level,
+        # increment the looping level or pop the looping level. In our
+        # current support for only recursive steps, this is pretty straightforward:
+        # 1) if is_recursive_step:
+        #    - we are entering a loop -- we are either entering for the first time
+        #      or we are continuing the loop. Note that a recursive step CANNOT
+        #      be a join step so there is always a single input
+        #    1a) If inputs[0]["_iteration_stack"] contains an element, we are looping
+        #      so we increment the count
+        #    1b) If inputs[0]["_iteration_stack"] is empty, this is the first time we
+        #      are entering the loop so we set the iteration count to 0
+        # 2) if it is not a recursive step, we need to determine if this is the step
+        #    *after* the recursive step. The easiest way to determine that is to
+        #    look at all inputs (there can be multiple in case of a join) and pop
+        #    _iteration_stack if it is set. However, since we know that non recursive
+        #    steps are *never* part of an iteration, we can simplify and just set it
+        #    to [] without even checking anything. We will have to revisit this if/when
+        #    more complex loop structures are supported.
+
+        # Note that just like _foreach_stack, we need to set _iteration_stack to *something*
+        # so that it doesn't get clobbered weirdly by merge_artifacts.
+
+        if is_recursive_step:
+            # Case 1)
+            if len(inputs) != 1:
+                raise MetaflowInternalError(
+                    "Step *%s* is a recursive step but got multiple inputs." % step_name
+                )
+            inp = inputs[0]
+            if "_iteration_stack" not in inp or not inp["_iteration_stack"]:
+                # Case 1b)
+                self.flow._iteration_stack = [0]
+            else:
+                # Case 1a)
+                stack = inp["_iteration_stack"]
+                stack[-1] += 1
+                self.flow._iteration_stack = stack
+        else:
+            # Case 2)
+            self.flow._iteration_stack = []
 
     def _clone_flow(self, datastore):
         x = self.flow.__class__(use_cli=False)
@@ -562,6 +623,12 @@ class MetaflowTask(object):
 
             # 3. initialize foreach state
             self._init_foreach(step_name, join_type, inputs, split_index)
+
+            # 4. initialize the iteration state
+            is_recursive_step = (
+                node.type == "split-switch" and step_name in node.out_funcs
+            )
+            self._init_iteration(step_name, inputs, is_recursive_step)
 
             # Add foreach stack to metadata of the task
 

@@ -15,6 +15,8 @@ class BasicTagTest(MetaflowTest):
         "foreach_in_switch",
         "switch_in_branch",
         "switch_in_foreach",
+        "recursive_switch",
+        "recursive_switch_inside_foreach",
     ]
     HEADER = "@project(name='basic_tag')"
 

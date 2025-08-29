@@ -175,6 +175,8 @@ def check_for_acyclicity(graph):
 
     def check_path(node, seen):
         for n in node.out_funcs:
+            if node.type == "split-switch" and n == node.name:
+                continue
             if n in seen:
                 path = "->".join(seen + [n])
                 raise LintWarn(
@@ -241,6 +243,8 @@ def check_split_join_balance(graph):
         elif node.type == "split-switch":
             # For a switch, continue traversal down each path with the same stack
             for n in node.out_funcs:
+                if node.type == "split-switch" and n == node.name:
+                    continue
                 traverse(graph[n], split_stack)
             return
         elif node.type == "end":
@@ -293,6 +297,8 @@ def check_split_join_balance(graph):
             new_stack = split_stack
 
         for n in node.out_funcs:
+            if node.type == "split-switch" and n == node.name:
+                continue
             traverse(graph[n], new_stack)
 
     traverse(graph["start"], [])
@@ -410,3 +416,25 @@ def check_nested_foreach(graph):
         if node.type == "foreach":
             if any(graph[p].type == "foreach" for p in node.split_parents):
                 raise LintWarn(msg.format(node), node.func_lineno, node.source_file)
+
+
+@linter.ensure_static_graph
+@linter.check
+def check_ambiguous_joins(graph):
+    for node in graph:
+        if node.type == "join":
+            problematic_parents = [
+                p_name
+                for p_name in node.in_funcs
+                if graph[p_name].type == "split-switch"
+            ]
+            if problematic_parents:
+                msg = (
+                    "A conditional path cannot lead directly to a join step.\n"
+                    "In your conditional step(s) {parents}, one or more of the possible paths transition directly to the join step {join_name}.\n"
+                    "As a workaround, please introduce an intermediate, unconditional step on that specific path before joining."
+                ).format(
+                    parents=", ".join("*%s*" % p for p in problematic_parents),
+                    join_name="*%s*" % node.name,
+                )
+                raise LintWarn(msg, node.func_lineno, node.source_file)

@@ -27,6 +27,8 @@ class SecretsDecoratorTest(MetaflowTest):
         "foreach_in_switch",
         "switch_in_branch",
         "switch_in_foreach",
+        "recursive_switch",
+        "recursive_switch_inside_foreach",
     ]
 
     @tag("secrets(sources=%s)" % repr(INLINE_SECRETS_VARS))

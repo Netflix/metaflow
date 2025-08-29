@@ -658,8 +658,14 @@ def user_step_decorator(*args, **kwargs):
                         self._generator.send(None)
                 except StopIteration as e:
                     to_return = e.value
+                except Exception as e:
+                    return e
                 else:
-                    raise MetaflowException(" %s should only yield once" % self)
+                    return (
+                        None,
+                        None,
+                        MetaflowException(" %s should only yield once" % self),
+                    )
                 return to_return
 
         return WrapClass
