@@ -903,8 +903,6 @@ class StepFunctions(object):
             .attempts(total_retries + 1)
         )
 
-        return batch_job
-
     def _get_retries(self, node):
         max_user_code_retries = 0
         max_error_retries = 0
