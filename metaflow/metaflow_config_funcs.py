@@ -40,7 +40,7 @@ def init_local_config():
     # check in DATASTORE_SYSROOT_LOCAL but only up the current getcwd() path. This also
     # prevents nasty circular dependencies :)
 
-    from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, LOCAL_CONFIG_FILE
+    from .constants import DATASTORE_LOCAL_DIR, LOCAL_CONFIG_FILE
 
     current_path = os.getcwd()
     check_dir = os.path.join(current_path, DATASTORE_LOCAL_DIR)

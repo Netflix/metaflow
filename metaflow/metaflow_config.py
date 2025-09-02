@@ -1,7 +1,9 @@
 
+
 import os
 import sys
 import types
+from .constants import DATASTORE_LOCAL_DIR, LOCAL_CONFIG_FILE
 
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config_funcs import from_conf, get_validate_choice_fn
