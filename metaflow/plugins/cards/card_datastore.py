@@ -1,6 +1,4 @@
-""" 
-
-"""
+""" """
 
 from collections import namedtuple
 from io import BytesIO

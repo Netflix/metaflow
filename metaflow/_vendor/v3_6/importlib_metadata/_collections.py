@@ -18,13 +18,13 @@ class FreezableDefaultDict(collections.defaultdict):
     """
 
     def __missing__(self, key):
-        return getattr(self, '_frozen', super().__missing__)(key)
+        return getattr(self, "_frozen", super().__missing__)(key)
 
     def freeze(self):
         self._frozen = lambda key: self.default_factory()
 
 
-class Pair(collections.namedtuple('Pair', 'name value')):
+class Pair(collections.namedtuple("Pair", "name value")):
     @classmethod
     def parse(cls, text):
         return cls(*map(str.strip, text.split("=", 1)))

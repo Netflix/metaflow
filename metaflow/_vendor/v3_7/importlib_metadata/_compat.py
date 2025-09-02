@@ -2,7 +2,7 @@ import sys
 import platform
 
 
-__all__ = ['install', 'NullFinder', 'Protocol']
+__all__ = ["install", "NullFinder", "Protocol"]
 
 
 try:
@@ -35,8 +35,8 @@ def disable_stdlib_finder():
 
     def matches(finder):
         return getattr(
-            finder, '__module__', None
-        ) == '_frozen_importlib_external' and hasattr(finder, 'find_distributions')
+            finder, "__module__", None
+        ) == "_frozen_importlib_external" and hasattr(finder, "find_distributions")
 
     for finder in filter(matches, sys.meta_path):  # pragma: nocover
         del finder.find_distributions
@@ -67,5 +67,5 @@ def pypy_partial(val):
 
     Workaround for #327.
     """
-    is_pypy = platform.python_implementation() == 'PyPy'
+    is_pypy = platform.python_implementation() == "PyPy"
     return val + is_pypy

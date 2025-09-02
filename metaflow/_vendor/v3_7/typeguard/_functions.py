@@ -32,8 +32,7 @@ def check_type(
     forward_ref_policy: ForwardRefPolicy = ...,
     typecheck_fail_callback: TypeCheckFailCallback | None = ...,
     collection_check_strategy: CollectionCheckStrategy = ...,
-) -> T:
-    ...
+) -> T: ...
 
 
 @overload
@@ -44,8 +43,7 @@ def check_type(
     forward_ref_policy: ForwardRefPolicy = ...,
     typecheck_fail_callback: TypeCheckFailCallback | None = ...,
     collection_check_strategy: CollectionCheckStrategy = ...,
-) -> Any:
-    ...
+) -> Any: ...
 
 
 def check_type(
@@ -53,7 +51,7 @@ def check_type(
     expected_type: Any,
     *,
     forward_ref_policy: ForwardRefPolicy = TypeCheckConfiguration().forward_ref_policy,
-    typecheck_fail_callback: (TypeCheckFailCallback | None) = (
+    typecheck_fail_callback: TypeCheckFailCallback | None = (
         TypeCheckConfiguration().typecheck_fail_callback
     ),
     collection_check_strategy: CollectionCheckStrategy = (
