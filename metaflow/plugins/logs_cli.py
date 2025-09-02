@@ -173,7 +173,10 @@ def show(
 
     if ds_list:
 
+        from metaflow.metaflow_config import DISABLE_LOGGING
         def echo_unicode(line, **kwargs):
+            if DISABLE_LOGGING:
+                return
             click.secho(line.decode("UTF-8", errors="replace"), **kwargs)
 
         # old style logs are non mflog-style logs

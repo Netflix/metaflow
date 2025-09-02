@@ -23,6 +23,7 @@ from .metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_MONITOR,
     DEFAULT_PACKAGE_SUFFIXES,
+    DISABLE_LOGGING,
 )
 from .metaflow_current import current
 from metaflow.system import _system_monitor, _system_logger
@@ -54,6 +55,8 @@ def echo_dev_null(*args, **kwargs):
 
 
 def echo_always(line, **kwargs):
+    if DISABLE_LOGGING:
+        return
     kwargs["err"] = kwargs.get("err", True)
     if kwargs.pop("indent", None):
         line = "\n".join(INDENT + x for x in line.splitlines())
@@ -94,6 +97,8 @@ def echo_always(line, **kwargs):
 
 
 def logger(body="", system_msg=False, head="", bad=False, timestamp=True, nl=True):
+    if DISABLE_LOGGING:
+        return
     if timestamp:
         if timestamp is True:
             dt = datetime.now()

@@ -1,3 +1,5 @@
+# Option to disable all Metaflow internal logging/status output
+DISABLE_LOGGING = from_conf("DISABLE_LOGGING", False)
 import os
 import sys
 import types
