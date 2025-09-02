@@ -924,6 +924,7 @@ class ArgoWorkflows(object):
     # Visit every node and record information on conditional step structure
     def _parse_conditional_branches(self):
         self.conditional_nodes = set()
+        self.conditional_skip_nodes = set()
         self.conditional_join_nodes = set()
         self.matching_conditional_join_dict = {}
         self.recursive_nodes = set()
@@ -1006,19 +1007,31 @@ class ArgoWorkflows(object):
                         last_split_switch
                     ].out_funcs
                     # p needs to be in at least one conditional_branch for it to be closed.
-                    if all(
-                        any(
-                            p in node_conditional_branches.get(in_func, [])
-                            for in_func in conditional_in_funcs
-                        )
+                    print("DEBUG NODE ", node.name)
+                    print("cond_branches", node_conditional_branches)
+                    print("cond_in_funcs", conditional_in_funcs)
+                    print("last_conditional_split_nodes", last_conditional_split_nodes)
+                    closes_branches = all(
+                        (
+                            any(
+                                p in node_conditional_branches.get(in_func, [])
+                                for in_func in conditional_in_funcs
+                            )
+                            if p != node.name
+                            else True
+                        )  # need to account for a switch case skipping completely, not having a conditional-branch of its own.
                         for p in last_conditional_split_nodes
-                    ):
+                    )
+                    if closes_branches:
                         closed_conditional_parents.append(last_split_switch)
 
                         self.conditional_join_nodes.add(node.name)
                         self.matching_conditional_join_dict[last_split_switch] = (
                             node.name
                         )
+
+                        if node.name in last_conditional_split_nodes:
+                            self.conditional_skip_nodes.add(node.name)
 
                 # Did we close all conditionals? Then this branch and all its children are not conditional anymore (unless a new conditional branch is encountered).
                 if not [
@@ -1033,9 +1046,27 @@ class ArgoWorkflows(object):
                         if p in self.conditional_nodes:
                             self.conditional_nodes.remove(p)
                         node_conditional_parents[p] = []
+        print(
+            "conditional_nodes: ",
+            self.conditional_nodes,
+            "\ncond_skip_nodes: ",
+            self.conditional_skip_nodes,
+            "\nconditional_join_nodes: ",
+            self.conditional_join_nodes,
+            "\nmathching_cond_joins: ",
+            self.matching_conditional_join_dict,
+            "\nrecursive_nodes: ",
+            self.recursive_nodes,
+        )
 
     def _is_conditional_node(self, node):
-        return node.name in self.conditional_nodes
+        return (
+            node.name in self.conditional_nodes
+            or node.name in self.conditional_skip_nodes
+        )
+
+    def _is_conditional_skip_node(self, node):
+        return node.name in self.conditional_skip_nodes
 
     def _is_conditional_join_node(self, node):
         return node.name in self.conditional_join_nodes
@@ -1230,6 +1261,14 @@ class ArgoWorkflows(object):
                     for in_func in node.in_funcs
                     if not self._is_conditional_node(self.graph[in_func])
                 ]
+                if self._is_conditional_skip_node(node):
+                    # skip nodes need unique condition handling
+                    conditional_deps = [
+                        "%s.Succeeded" % self._sanitize(in_func)
+                        for in_func in node.in_funcs
+                    ]
+                    required_deps = []
+
                 both_conditions = required_deps and conditional_deps
 
                 depends_str = "{required}{_and}{conditional}".format(
@@ -1247,15 +1286,40 @@ class ArgoWorkflows(object):
                 )
 
                 # Add conditional if this is the first step in a conditional branch
-                if (
-                    self._is_conditional_node(node)
-                    and self.graph[node.in_funcs[0]].type == "split-switch"
-                ):
-                    in_func = node.in_funcs[0]
-                    dag_task.when(
-                        "{{tasks.%s.outputs.parameters.switch-step}}==%s"
-                        % (self._sanitize(in_func), node.name)
+                switch_in_funcs = [
+                    in_func
+                    for in_func in node.in_funcs
+                    if self.graph[in_func].type == "split-switch"
+                ]
+                if self._is_conditional_node(node) and switch_in_funcs:
+                    conditional_when = "||".join(
+                        [
+                            "{{tasks.%s.outputs.parameters.switch-step}}==%s"
+                            % (self._sanitize(switch_in_func), node.name)
+                            for switch_in_func in switch_in_funcs
+                        ]
                     )
+
+                    non_switch_in_funcs = [
+                        in_func
+                        for in_func in node.in_funcs
+                        if in_func not in switch_in_funcs
+                    ]
+                    status_when = ""
+                    if non_switch_in_funcs:
+                        status_when = "||".join(
+                            [
+                                "{{%s.status}}=='Succeeded'" % in_func
+                                for in_func in non_switch_in_funcs
+                            ]
+                        )
+
+                    total_when = (
+                        status_when + "||" + conditional_when
+                        if status_when
+                        else conditional_when
+                    )
+                    dag_task.when(total_when)
 
             dag_tasks.append(dag_task)
             # End the workflow if we have reached the end of the flow
