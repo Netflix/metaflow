@@ -177,6 +177,7 @@ def show(
             from metaflow.metaflow_config import DISABLE_LOGGING
         except Exception:
             DISABLE_LOGGING = False
+
         def echo_unicode(line, **kwargs):
             if DISABLE_LOGGING:
                 return

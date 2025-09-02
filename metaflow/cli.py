@@ -61,6 +61,7 @@ def echo_always(line, **kwargs):
         return
     if kwargs.pop("wrap", False):
         import textwrap
+
         indent_str = INDENT if kwargs.get("indent", None) else ""
         effective_width = 80 - len(indent_str)
         wrapped = textwrap.wrap(line, width=effective_width, break_long_words=False)

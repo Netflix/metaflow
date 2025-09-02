@@ -21,6 +21,7 @@ def echo_dev_null(*args, **kwargs):
 
 def echo_always(line, **kwargs):
     from metaflow.metaflow_config import DISABLE_LOGGING
+
     if DISABLE_LOGGING:
         return
     click.secho(line, **kwargs)
