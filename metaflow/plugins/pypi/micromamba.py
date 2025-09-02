@@ -2,6 +2,7 @@ import functools
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import time
@@ -30,7 +31,7 @@ _double_equal_match = re.compile("==(?=[<=>!~])")
 
 
 class Micromamba(object):
-    def __init__(self, logger=None):
+    def __init__(self, logger=None, force_rebuild=False):
         # micromamba is a tiny version of the mamba package manager and comes with
         # metaflow specific performance enhancements.
 
@@ -59,6 +60,8 @@ class Micromamba(object):
         # We keep a mutex as environments are resolved in parallel,
         # which causes a race condition in case micromamba needs to be installed first.
         self.install_mutex = Lock()
+
+        self.force_rebuild = force_rebuild
 
     @property
     def bin(self) -> str:
@@ -152,6 +155,11 @@ class Micromamba(object):
             keyword="metaflow",  # indicates metaflow generated environment
             id=id_,
         )
+        # If we are forcing a rebuild of the environment, we make sure to remove existing files beforehand.
+        # This is to ensure that no irrelevant packages get bundled relative to the resolved environment.
+        # NOTE: download always happens before create, so we want to do the cleanup here instead.
+        if self.force_rebuild:
+            shutil.rmtree(self.path_to_environment(id_, platform), ignore_errors=True)
 
         # cheap check
         if os.path.exists(f"{prefix}/fake.done"):

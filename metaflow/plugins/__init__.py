@@ -69,6 +69,7 @@ FLOW_DECORATORS_DESC = [
     ("trigger_on_finish", ".events_decorator.TriggerOnFinishDecorator"),
     ("pypi_base", ".pypi.pypi_decorator.PyPIFlowDecorator"),
     ("conda_base", ".pypi.conda_decorator.CondaFlowDecorator"),
+    ("exit_hook", ".exit_hook.exit_hook_decorator.ExitHookDecorator"),
 ]
 
 # Add environments here
@@ -240,6 +241,7 @@ from .cards.card_modules.test_cards import (
     TestTimeoutCard,
     TestRefreshCard,
     TestRefreshComponentCard,
+    TestImageCard,
 )
 
 CARDS = [
@@ -258,6 +260,7 @@ CARDS = [
     DefaultCardJSON,
     TestRefreshCard,
     TestRefreshComponentCard,
+    TestImageCard,
 ]
 merge_lists(CARDS, MF_EXTERNAL_CARDS, "type")
 

@@ -8,10 +8,12 @@ from .. import decorators, namespace, parameters, tracing
 from ..exception import CommandException
 from ..graph import FlowGraph
 from ..metaflow_current import current
-from ..metaflow_config import DEFAULT_DECOSPECS
+from ..metaflow_config import DEFAULT_DECOSPECS, FEAT_ALWAYS_UPLOAD_CODE_PACKAGE
 from ..package import MetaflowPackage
 from ..runtime import NativeRuntime
 from ..system import _system_logger
+
+# from ..client.core import Run
 
 from ..tagging_util import validate_tags
 from ..util import get_latest_run_id, write_latest_run_id
@@ -45,7 +47,7 @@ def before_run(obj, tags, decospecs):
         decorators._attach_decorators(obj.flow, all_decospecs)
         decorators._init(obj.flow)
         # Regenerate graph if we attached more decorators
-        obj.flow.__class__._init_attrs()
+        obj.flow.__class__._init_graph()
         obj.graph = obj.flow._graph
 
     obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)
@@ -54,6 +56,8 @@ def before_run(obj, tags, decospecs):
     decorators._init_step_decorators(
         obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
     )
+    # Re-read graph since it may have been modified by mutators
+    obj.graph = obj.flow._graph
 
     obj.metadata.add_sticky_tags(tags=tags)
 
@@ -61,7 +65,11 @@ def before_run(obj, tags, decospecs):
     # We explicitly avoid doing this in `start` since it is invoked for every
     # step in the run.
     obj.package = MetaflowPackage(
-        obj.flow, obj.environment, obj.echo, obj.package_suffixes
+        obj.flow,
+        obj.environment,
+        obj.echo,
+        suffixes=obj.package_suffixes,
+        flow_datastore=obj.flow_datastore if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE else None,
     )
 
 
@@ -224,6 +232,19 @@ def resume(
                     step_to_rerun, ",".join(list(obj.graph.nodes.keys()))
                 )
             )
+
+        ## TODO: instead of checking execution path here, can add a warning later
+        ## instead of throwing an error. This is for resuming a step which was not
+        ## taken inside a branch i.e. not present in the execution path.
+
+        # origin_run = Run(f"{obj.flow.name}/{origin_run_id}", _namespace_check=False)
+        # executed_steps = {step.path_components[-1] for step in origin_run}
+        # if step_to_rerun not in executed_steps:
+        #     raise CommandException(
+        #         f"Cannot resume from step '{step_to_rerun}'. This step was not "
+        #         f"part of the original execution path for run '{origin_run_id}'."
+        #     )
+
         steps_to_rerun = {step_to_rerun}
 
     if run_id:

@@ -5,6 +5,8 @@ import json
 import sys
 import os
 from metaflow import current
+from typing import Callable, Tuple, Dict
+
 
 ASYNC_TIMEOUT = 30
 
@@ -44,8 +46,18 @@ class CardProcessManager:
 
 
 class CardCreator:
-    def __init__(self, top_level_options):
+    def __init__(
+        self,
+        top_level_options,
+        should_save_metadata_lambda: Callable[[str], Tuple[bool, Dict]],
+    ):
+        # should_save_metadata_lambda is a lambda that provides a flag to indicate if
+        # card metadata should be written to the metadata store.
+        # It gets called only once when the card is created inside the subprocess.
+        # The intent is that this is a stateful lambda that will ensure that we only end
+        # up writing to the metadata store once.
         self._top_level_options = top_level_options
+        self._should_save_metadata = should_save_metadata_lambda
 
     def create(
         self,
@@ -62,6 +74,8 @@ class CardCreator:
         # Setting `final` will affect the Reload token set during the card refresh
         # data creation along with synchronous execution of subprocess.
         # Setting `sync` will only cause synchronous execution of subprocess.
+        save_metadata = False
+        metadata_dict = {}
         if mode != "render" and not runtime_card:
             # silently ignore runtime updates for cards that don't support them
             return
@@ -71,6 +85,8 @@ class CardCreator:
             component_strings = []
         else:
             component_strings = current.card._serialize_components(card_uuid)
+            # Since the mode is a render, we can check if we need to write to the metadata store.
+            save_metadata, metadata_dict = self._should_save_metadata(card_uuid)
         data = current.card._get_latest_data(card_uuid, final=final, mode=mode)
         runspec = "/".join([current.run_id, current.step_name, current.task_id])
         self._run_cards_subprocess(
@@ -85,6 +101,8 @@ class CardCreator:
             data,
             final=final,
             sync=sync,
+            save_metadata=save_metadata,
+            metadata_dict=metadata_dict,
         )
 
     def _run_cards_subprocess(
@@ -100,6 +118,8 @@ class CardCreator:
         data=None,
         final=False,
         sync=False,
+        save_metadata=False,
+        metadata_dict=None,
     ):
         components_file = data_file = None
         wait = final or sync
@@ -155,6 +175,9 @@ class CardCreator:
 
         if data_file is not None:
             cmd += ["--data-file", data_file.name]
+
+        if save_metadata:
+            cmd += ["--save-metadata", json.dumps(metadata_dict)]
 
         response, fail = self._run_command(
             cmd,

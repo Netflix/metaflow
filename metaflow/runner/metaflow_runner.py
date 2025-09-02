@@ -1,4 +1,5 @@
 import importlib
+import inspect
 import os
 import sys
 import json
@@ -200,8 +201,22 @@ class RunnerMeta(type):
             def f(self, *args, **kwargs):
                 return runner_subcommand(self, *args, **kwargs)
 
-            f.__doc__ = runner_subcommand.__doc__ or ""
+            f.__doc__ = runner_subcommand.__init__.__doc__ or ""
             f.__name__ = subcommand_name
+            sig = inspect.signature(runner_subcommand)
+            # We take all the same parameters except replace the first with
+            # simple "self"
+            new_parameters = {}
+            for name, param in sig.parameters.items():
+                if new_parameters:
+                    new_parameters[name] = param
+                else:
+                    new_parameters["self"] = inspect.Parameter(
+                        "self", inspect.Parameter.POSITIONAL_OR_KEYWORD
+                    )
+            f.__signature__ = inspect.Signature(
+                list(new_parameters.values()), return_annotation=runner_subcommand
+            )
 
             return f
 

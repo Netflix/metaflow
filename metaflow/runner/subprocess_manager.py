@@ -9,6 +9,8 @@ import tempfile
 import threading
 from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
+from metaflow.packaging_sys import MetaflowCodeContent
+from metaflow.util import get_metaflow_root
 from .utils import check_process_exited
 
 
@@ -150,6 +152,19 @@ class SubprocessManager(object):
         int
             The process ID of the subprocess.
         """
+        env = env or {}
+        installed_root = os.environ.get("METAFLOW_EXTRACTED_ROOT", get_metaflow_root())
+
+        for k, v in MetaflowCodeContent.get_env_vars_for_packaged_metaflow(
+            installed_root
+        ).items():
+            if k.endswith(":"):
+                # Override
+                env[k[:-1]] = v
+            elif k in env:
+                env[k] = "%s:%s" % (v, env[k])
+            else:
+                env[k] = v
 
         command_obj = CommandManager(command, env, cwd)
         pid = command_obj.run(show_output=show_output)
@@ -181,6 +196,11 @@ class SubprocessManager(object):
         int
             The process ID of the subprocess.
         """
+        env = env or {}
+        if "PYTHONPATH" in env:
+            env["PYTHONPATH"] = "%s:%s" % (get_metaflow_root(), env["PYTHONPATH"])
+        else:
+            env["PYTHONPATH"] = get_metaflow_root()
 
         command_obj = CommandManager(command, env, cwd)
         pid = await command_obj.async_run()

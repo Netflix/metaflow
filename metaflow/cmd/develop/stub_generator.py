@@ -7,7 +7,6 @@ import pathlib
 import re
 import time
 import typing
-
 from datetime import datetime
 from io import StringIO
 from types import ModuleType
@@ -335,6 +334,8 @@ class StubGenerator:
 
         # Imports that are needed at the top of the file
         self._imports = set()  # type: Set[str]
+
+        self._sub_module_imports = set()  # type: Set[Tuple[str, str]]``
         # Typing imports (behind if TYPE_CHECKING) that are needed at the top of the file
         self._typing_imports = set()  # type: Set[str]
         # Typevars that are defined
@@ -488,9 +489,6 @@ class StubGenerator:
                 self._imports.add(name)
 
         def _add_to_typing_check(name, is_module=False):
-            # if name != self._current_module_name:
-            #    self._typing_imports.add(name)
-            #
             if name == "None":
                 return
             if is_module:
@@ -503,6 +501,24 @@ class StubGenerator:
                     # We don't add things that are just one name -- probably things within
                     # the current file
                     self._typing_imports.add(splits[0])
+
+        def _format_qualified_class_name(cls: type) -> str:
+            """Helper to format a class with its qualified module name"""
+            # Special case for NoneType - return None
+            if cls.__name__ == "NoneType":
+                return "None"
+
+            module = inspect.getmodule(cls)
+            if (
+                module
+                and module.__name__ != "builtins"
+                and module.__name__ != "__main__"
+            ):
+                module_name = self._get_module_name_alias(module.__name__)
+                _add_to_typing_check(module_name, is_module=True)
+                return f"{module_name}.{cls.__name__}"
+            else:
+                return cls.__name__
 
         if isinstance(element, str):
             # Special case for self referential things (particularly in a class)
@@ -557,19 +573,15 @@ class StubGenerator:
                 return element.__name__
         elif isinstance(element, type(Ellipsis)):
             return "..."
-        # elif (
-        #    isinstance(element, typing._GenericAlias)
-        #    and hasattr(element, "_name")
-        #    and element._name in ("List", "Tuple", "Dict", "Set")
-        # ):
-        #    # 3.7 has these as _GenericAlias but they don't behave like the ones in 3.10
-        #    _add_to_import("typing")
-        #    return str(element)
         elif isinstance(element, typing._GenericAlias):
             # We need to check things recursively in __args__ if it exists
             args_str = []
             for arg in getattr(element, "__args__", []):
-                args_str.append(self._get_element_name_with_module(arg))
+                # Special handling for class objects in type arguments
+                if isinstance(arg, type):
+                    args_str.append(_format_qualified_class_name(arg))
+                else:
+                    args_str.append(self._get_element_name_with_module(arg))
 
             _add_to_import("typing")
             if element._name:
@@ -584,12 +596,15 @@ class StubGenerator:
                         args_str = [call_args, args_str[-1]]
                 return "typing.%s[%s]" % (element._name, ", ".join(args_str))
             else:
-                return "%s[%s]" % (element.__origin__, ", ".join(args_str))
+                # Handle the case where we have a generic type without a _name
+                origin = element.__origin__
+                if isinstance(origin, type):
+                    origin_str = _format_qualified_class_name(origin)
+                else:
+                    origin_str = str(origin)
+                return "%s[%s]" % (origin_str, ", ".join(args_str))
         elif isinstance(element, ForwardRef):
             f_arg = self._get_module_name_alias(element.__forward_arg__)
-            # if f_arg in ("Run", "Task"):  # HACK -- forward references in current.py
-            #    _add_to_import("metaflow")
-            #    f_arg = "metaflow.%s" % f_arg
             _add_to_typing_check(f_arg)
             return '"%s"' % f_arg
         elif inspect.getmodule(element) == inspect.getmodule(typing):
@@ -628,6 +643,21 @@ class StubGenerator:
                 self._deployer_injected_methods.setdefault(clazz_type, {})[
                     "deployer"
                 ] = (self._current_module_name + "." + name)
+
+        # Handle TypedDict gracefully for Python 3.7 compatibility
+        # _TypedDictMeta is not available in Python 3.7
+        typed_dict_meta = getattr(typing, "_TypedDictMeta", None)
+        if typed_dict_meta is not None and isinstance(clazz, typed_dict_meta):
+            self._sub_module_imports.add(("typing", "TypedDict"))
+            total_flag = getattr(clazz, "__total__", False)
+            buff = StringIO()
+            # Emit the TypedDict base and total flag
+            buff.write(f"class {name}(TypedDict, total={total_flag}):\n")
+            # Write out each field from __annotations__
+            for field_name, field_type in clazz.__annotations__.items():
+                ann = self._get_element_name_with_module(field_type)
+                buff.write(f"{TAB}{field_name}: {ann}\n")
+            return buff.getvalue()
 
         buff = StringIO()
         # Class prototype
@@ -973,7 +1003,6 @@ class StubGenerator:
         ]
 
         docs = split_docs(raw_doc, section_boundaries)
-
         parameters, no_arg_version = parse_params_from_doc(docs["param_doc"])
 
         if docs["add_to_current_doc"]:
@@ -1501,6 +1530,8 @@ class StubGenerator:
                     f.write("import " + module + "\n")
                     if module == "typing":
                         imported_typing = True
+                for module, sub_module in self._sub_module_imports:
+                    f.write(f"from {module} import {sub_module}\n")
                 if self._typing_imports:
                     if not imported_typing:
                         f.write("import typing\n")

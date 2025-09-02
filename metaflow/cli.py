@@ -1,11 +1,13 @@
 import functools
 import inspect
+import os
 import sys
 import traceback
 from datetime import datetime
 
 import metaflow.tracing as tracing
 from metaflow._vendor import click
+from metaflow.system import _system_logger, _system_monitor
 
 from . import decorators, lint, metaflow_version, parameters, plugins
 from .cli_args import cli_args
@@ -26,8 +28,8 @@ from .metaflow_config import (
     DISABLE_LOGGING,
 )
 from .metaflow_current import current
-from metaflow.system import _system_monitor, _system_logger
 from .metaflow_environment import MetaflowEnvironment
+from .packaging_sys import MetaflowCodeContent
 from .plugins import (
     DATASTORES,
     ENVIRONMENTS,
@@ -37,9 +39,9 @@ from .plugins import (
 )
 from .pylint_wrapper import PyLint
 from .R import metaflow_r_version, use_r
-from .util import get_latest_run_id, resolve_identity
 from .user_configs.config_options import LocalFileInput, config_options
 from .user_configs.config_parameters import ConfigValue
+from .util import get_latest_run_id, resolve_identity
 
 ERASE_TO_EOL = "\033[K"
 HIGHLIGHT = "red"
@@ -164,8 +166,13 @@ def check(obj, warnings=False):
 def show(obj):
     echo_always("\n%s" % obj.graph.doc)
     for node_name in obj.graph.sorted_nodes:
+        echo_always("")
         node = obj.graph[node_name]
-        echo_always("\nStep *%s*" % node.name, err=False)
+        for deco in node.decorators:
+            echo_always("@%s" % deco.name, err=False)
+        for deco in node.wrappers:
+            echo_always("@%s" % deco.decorator_name, err=False)
+        echo_always("Step *%s*" % node.name, err=False)
         echo_always(node.doc if node.doc else "?", indent=True, err=False)
         if node.type != "end":
             echo_always(
@@ -255,6 +262,14 @@ def version(obj):
     type=click.Choice(["local"] + [m.TYPE for m in ENVIRONMENTS]),
     help="Execution environment type",
 )
+@click.option(
+    "--force-rebuild-environments/--no-force-rebuild-environments",
+    is_flag=True,
+    default=False,
+    hidden=True,
+    type=bool,
+    help="Explicitly rebuild the execution environments",
+)
 # See comment for --quiet
 @click.option(
     "--datastore",
@@ -313,6 +328,7 @@ def start(
     quiet=False,
     metadata=None,
     environment=None,
+    force_rebuild_environments=False,
     datastore=None,
     datastore_root=None,
     decospecs=None,
@@ -338,6 +354,11 @@ def start(
     echo("Metaflow %s" % version, fg="magenta", bold=True, nl=False)
     echo(" executing *%s*" % ctx.obj.flow.name, fg="magenta", nl=False)
     echo(" for *%s*" % resolve_identity(), fg="magenta")
+
+    # Check if we need to setup the distribution finder (if running )
+    dist_info = MetaflowCodeContent.get_distribution_finder()
+    if dist_info:
+        sys.meta_path.append(dist_info)
 
     # Setup the context
     cli_args._set_top_kwargs(ctx.params)
@@ -439,6 +460,10 @@ def start(
         # be raised. For resume, since we ignore those options, we ignore the error.
         raise ctx.obj.delayed_config_exception
 
+    # Init all values in the flow mutators and then process them
+    for decorator in ctx.obj.flow._flow_state.get(_FlowState.FLOW_MUTATORS, []):
+        decorator.external_init()
+
     new_cls = ctx.obj.flow._process_config_decorators(config_options)
     if new_cls:
         ctx.obj.flow = new_cls(use_cli=False)
@@ -448,6 +473,8 @@ def start(
     ctx.obj.environment = [
         e for e in ENVIRONMENTS + [MetaflowEnvironment] if e.TYPE == environment
     ][0](ctx.obj.flow)
+    # set force rebuild flag for environments that support it.
+    ctx.obj.environment._force_rebuild = force_rebuild_environments
     ctx.obj.environment.validate_environment(ctx.obj.logger, datastore)
 
     ctx.obj.event_logger = LOGGING_SIDECARS[event_logger](
@@ -509,7 +536,7 @@ def start(
         ctx.obj.echo,
         ctx.obj.flow_datastore,
         {
-            k: ConfigValue(v)
+            k: ConfigValue(v) if v is not None else None
             for k, v in ctx.obj.flow.__class__._flow_state.get(
                 _FlowState.CONFIGS, {}
             ).items()
@@ -537,7 +564,7 @@ def start(
             decorators._attach_decorators(ctx.obj.flow, all_decospecs)
             decorators._init(ctx.obj.flow)
             # Regenerate graph if we attached more decorators
-            ctx.obj.flow.__class__._init_attrs()
+            ctx.obj.flow.__class__._init_graph()
             ctx.obj.graph = ctx.obj.flow._graph
 
         decorators._init_step_decorators(
@@ -547,6 +574,9 @@ def start(
             ctx.obj.flow_datastore,
             ctx.obj.logger,
         )
+
+        # Check the graph again (mutators may have changed it)
+        ctx.obj.graph = ctx.obj.flow._graph
 
         # TODO (savin): Enable lazy instantiation of package
         ctx.obj.package = None

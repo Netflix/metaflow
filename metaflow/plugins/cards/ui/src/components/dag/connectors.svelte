@@ -1,11 +1,10 @@
 <!-- Draws all the connectors between Steps in a DAG -->
 <script lang="ts">
-  import type { Boxes, Dag } from "../../types";
+  import type { DagStructure } from "../../types";
   import { convertPixelsToRem } from "../../utils";
   import Connector from "./connector.svelte";
 
-  export let steps: Dag;
-  export let boxes: Boxes;
+  export let dagStructure: DagStructure;
   export let container: HTMLElement;
 
   interface ConnectorData {
@@ -16,30 +15,34 @@
   }
 
   let connectors: ConnectorData[] = [];
-
+  
   $: {
     connectors = [];
-    const containerBox = container.getBoundingClientRect();
-    const top = containerBox.top;
-    const left = containerBox.left;
-
-    boxes &&
-      Object.keys(steps).forEach((stepName) => {
-        const currentStep = steps[stepName];
-        const currentBox = boxes[stepName].getBoundingClientRect();
-
-        // for each next step, calculate the position of the connector from this step
-        currentStep.next?.forEach((nextStep) => {
-          const nextBox = boxes[nextStep].getBoundingClientRect();
+    if (container) {
+      const containerBox = container.getBoundingClientRect();
+      const top = containerBox.top;
+      const left = containerBox.left;
+      
+      Object.values(dagStructure).forEach((nodeData) => {
+        const nodeRect = nodeData.node.getBoundingClientRect();
+        nodeData.connections?.forEach((str) => {
+          const connectionNode = dagStructure[str]
+          if (!connectionNode) {
+            console.warn("Connection node not found:", str);
+            return;
+          }
+          const connectionRect = connectionNode.node.getBoundingClientRect();
           const newConnectorData: ConnectorData = {
-            top: currentBox.bottom - top,
-            left: currentBox.left - left + currentBox.width / 2,
-            bottom: nextBox.top - top,
-            right: nextBox.left - left + nextBox.width / 2,
+            top: nodeRect.bottom - top,
+            left: nodeRect.left - left + nodeRect.width / 2,
+            bottom: connectionRect.top - top,
+            right: connectionRect.left - left + connectionRect.width / 2,
           };
           connectors = [...connectors, newConnectorData];
         });
       });
+    }
+
   }
 </script>
 

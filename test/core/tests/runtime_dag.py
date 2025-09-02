@@ -8,6 +8,16 @@ class RuntimeDagTest(MetaflowTest):
     """
 
     PRIORITY = 1
+    SKIP_GRAPHS = [
+        "simple_switch",
+        "nested_switch",
+        "branch_in_switch",
+        "foreach_in_switch",
+        "switch_in_branch",
+        "switch_in_foreach",
+        "recursive_switch",
+        "recursive_switch_inside_foreach",
+    ]
 
     @steps(0, ["start"])
     def step_start(self):
@@ -59,7 +69,14 @@ class RuntimeDagTest(MetaflowTest):
                 for name, value in type(task1).__dict__.items()
                 if isinstance(value, property)
                 if name
-                not in ["parent_tasks", "child_tasks", "metadata", "data", "artifacts"]
+                not in [
+                    "parent_tasks",
+                    "child_tasks",
+                    "metadata",
+                    "data",
+                    "artifacts",
+                    "code",
+                ]
             ]
 
             for prop_name in properties:

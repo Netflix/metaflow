@@ -17,6 +17,7 @@ from metaflow.debug import debug
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import get_pinned_conda_libs
 from metaflow.metaflow_environment import MetaflowEnvironment
+from metaflow.packaging_sys import ContentType
 
 from . import MAGIC_FILE, _datastore_packageroot
 from .utils import conda_platform
@@ -32,8 +33,10 @@ class CondaEnvironmentException(MetaflowException):
 class CondaEnvironment(MetaflowEnvironment):
     TYPE = "conda"
     _filecache = None
+    _force_rebuild = False
 
     def __init__(self, flow):
+        super().__init__(flow)
         self.flow = flow
 
     def set_local_root(self, local_root):
@@ -71,7 +74,7 @@ class CondaEnvironment(MetaflowEnvironment):
         self.logger = make_thread_safe(logger)
 
         # TODO: Wire up logging
-        micromamba = Micromamba(self.logger)
+        micromamba = Micromamba(self.logger, self._force_rebuild)
         self.solvers = {"conda": micromamba, "pypi": Pip(micromamba, self.logger)}
 
     def init_environment(self, echo, only_steps=None):
@@ -107,7 +110,10 @@ class CondaEnvironment(MetaflowEnvironment):
             return (
                 id_,
                 (
-                    self.read_from_environment_manifest([id_, platform, type_])
+                    (
+                        not self._force_rebuild
+                        and self.read_from_environment_manifest([id_, platform, type_])
+                    )
                     or self.write_to_environment_manifest(
                         [id_, platform, type_],
                         self.solvers[type_].solve(id_, **environment),
@@ -153,7 +159,7 @@ class CondaEnvironment(MetaflowEnvironment):
             _meta = copy.deepcopy(local_packages)
             for id_, packages, _, _ in results:
                 for package in packages:
-                    if package.get("path"):
+                    if package.get("path") and not self._force_rebuild:
                         # Cache only those packages that manifest is unaware of
                         local_packages.pop(package["url"], None)
                     else:
@@ -186,7 +192,7 @@ class CondaEnvironment(MetaflowEnvironment):
             storage.save_bytes(
                 list_of_path_and_filehandle,
                 len_hint=len(list_of_path_and_filehandle),
-                # overwrite=True,
+                overwrite=self._force_rebuild,
             )
             for id_, packages, _, platform in results:
                 if id_ in dirty:
@@ -331,7 +337,7 @@ class CondaEnvironment(MetaflowEnvironment):
                     environment[decorator.name] = {
                         k: copy.deepcopy(decorator.attributes[k])
                         for k in decorator.attributes
-                        if k != "disabled"
+                        if k not in ("disabled", "libraries")
                     }
                 else:
                     return {}
@@ -470,7 +476,9 @@ class CondaEnvironment(MetaflowEnvironment):
         files = []
         manifest = self.get_environment_manifest_path()
         if os.path.exists(manifest):
-            files.append((manifest, os.path.basename(manifest)))
+            files.append(
+                (manifest, os.path.basename(manifest), ContentType.OTHER_CONTENT)
+            )
         return files
 
     def bootstrap_commands(self, step_name, datastore_type):

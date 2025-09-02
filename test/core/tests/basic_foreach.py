@@ -3,6 +3,16 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps
 
 class BasicForeachTest(MetaflowTest):
     PRIORITY = 0
+    SKIP_GRAPHS = [
+        "simple_switch",
+        "nested_switch",
+        "branch_in_switch",
+        "foreach_in_switch",
+        "switch_in_branch",
+        "switch_in_foreach",
+        "recursive_switch",
+        "recursive_switch_inside_foreach",
+    ]
 
     @steps(0, ["foreach-split"], required=True)
     def split(self):

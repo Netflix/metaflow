@@ -104,7 +104,13 @@ from .flowspec import FlowSpec
 from .parameters import Parameter, JSONTypeClass, JSONType
 
 from .user_configs.config_parameters import Config, ConfigValue, config_expr
-from .user_configs.config_decorators import CustomFlowDecorator, CustomStepDecorator
+from .user_decorators.user_step_decorator import (
+    UserStepDecorator,
+    StepMutator,
+    user_step_decorator,
+    USER_SKIP_STEP,
+)
+from .user_decorators.user_flow_decorator import FlowMutator
 
 # data layer
 # For historical reasons, we make metaflow.plugins.datatools accessible as

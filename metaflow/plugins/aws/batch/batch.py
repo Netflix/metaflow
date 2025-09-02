@@ -59,14 +59,24 @@ class Batch(object):
         self._client = BatchClient()
         atexit.register(lambda: self.job.kill() if hasattr(self, "job") else None)
 
-    def _command(self, environment, code_package_url, step_name, step_cmds, task_spec):
+    def _command(
+        self,
+        environment,
+        code_package_metadata,
+        code_package_url,
+        step_name,
+        step_cmds,
+        task_spec,
+    ):
         mflog_expr = export_mflog_env_vars(
             datastore_type="s3",
             stdout_path=STDOUT_PATH,
             stderr_path=STDERR_PATH,
             **task_spec
         )
-        init_cmds = environment.get_package_commands(code_package_url, "s3")
+        init_cmds = environment.get_package_commands(
+            code_package_url, "s3", code_package_metadata
+        )
         init_expr = " && ".join(init_cmds)
         step_expr = bash_capture_logs(
             " && ".join(environment.bootstrap_commands(step_name, "s3") + step_cmds)
@@ -167,6 +177,7 @@ class Batch(object):
         step_name,
         step_cli,
         task_spec,
+        code_package_metadata,
         code_package_sha,
         code_package_url,
         code_package_ds,
@@ -188,6 +199,7 @@ class Batch(object):
         host_volumes=None,
         efs_volumes=None,
         use_tmpfs=None,
+        aws_batch_tags=None,
         tmpfs_tempdir=None,
         tmpfs_size=None,
         tmpfs_path=None,
@@ -210,7 +222,12 @@ class Batch(object):
             .job_queue(queue)
             .command(
                 self._command(
-                    self.environment, code_package_url, step_name, [step_cli], task_spec
+                    self.environment,
+                    code_package_metadata,
+                    code_package_url,
+                    step_name,
+                    [step_cli],
+                    task_spec,
                 )
             )
             .image(image)
@@ -249,6 +266,7 @@ class Batch(object):
             )
             .task_id(attrs.get("metaflow.task_id"))
             .environment_variable("AWS_DEFAULT_REGION", self._client.region())
+            .environment_variable("METAFLOW_CODE_METADATA", code_package_metadata)
             .environment_variable("METAFLOW_CODE_SHA", code_package_sha)
             .environment_variable("METAFLOW_CODE_URL", code_package_url)
             .environment_variable("METAFLOW_CODE_DS", code_package_ds)
@@ -327,6 +345,11 @@ class Batch(object):
                 if key in attrs:
                     k, v = sanitize_batch_tag(key, attrs.get(key))
                     job.tag(k, v)
+
+            if aws_batch_tags is not None:
+                for key, value in aws_batch_tags.items():
+                    job.tag(key, value)
+
         return job
 
     def launch_job(
@@ -334,6 +357,7 @@ class Batch(object):
         step_name,
         step_cli,
         task_spec,
+        code_package_metadata,
         code_package_sha,
         code_package_url,
         code_package_ds,
@@ -353,6 +377,7 @@ class Batch(object):
         host_volumes=None,
         efs_volumes=None,
         use_tmpfs=None,
+        aws_batch_tags=None,
         tmpfs_tempdir=None,
         tmpfs_size=None,
         tmpfs_path=None,
@@ -374,6 +399,7 @@ class Batch(object):
             step_name,
             step_cli,
             task_spec,
+            code_package_metadata,
             code_package_sha,
             code_package_url,
             code_package_ds,
@@ -395,6 +421,7 @@ class Batch(object):
             host_volumes=host_volumes,
             efs_volumes=efs_volumes,
             use_tmpfs=use_tmpfs,
+            aws_batch_tags=aws_batch_tags,
             tmpfs_tempdir=tmpfs_tempdir,
             tmpfs_size=tmpfs_size,
             tmpfs_path=tmpfs_path,

@@ -7,7 +7,7 @@ import reprlib
 from enum import Enum
 from itertools import islice
 from types import FunctionType, MethodType
-from typing import TYPE_CHECKING, Any, Callable, Generator, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple
 
 from . import cmd_with_io, parameters
 from .debug import debug
@@ -23,13 +23,14 @@ from .extension_support import extension_info
 
 from .graph import FlowGraph
 from .unbounded_foreach import UnboundedForeachInput
-from .user_configs.config_decorators import (
-    ConfigValue,
-    CustomFlowDecorator,
-    CustomStepDecorator,
-    MutableFlow,
-    MutableStep,
-)
+from .user_configs.config_parameters import ConfigValue
+
+from .user_decorators.mutable_flow import MutableFlow
+from .user_decorators.mutable_step import MutableStep
+from .user_decorators.user_flow_decorator import FlowMutator
+from .user_decorators.user_step_decorator import StepMutator
+
+
 from .util import to_pod
 from .metaflow_config import INCLUDE_FOREACH_STACK, MAXIMUM_FOREACH_VALUE_CHARS
 
@@ -77,8 +78,12 @@ class ParallelUBF(UnboundedForeachInput):
 
 class _FlowState(Enum):
     CONFIGS = 1
-    CONFIG_DECORATORS = 2
+    FLOW_MUTATORS = 2
     CACHED_PARAMETERS = 3
+    SET_CONFIG_PARAMETERS = (
+        4  # These are Parameters that now have a ConfigValue (converted)
+    )
+    # but we need to remember them.
 
 
 class FlowSpecMeta(type):
@@ -87,6 +92,9 @@ class FlowSpecMeta(type):
         if name == "FlowSpec":
             return
 
+        cls._init_attrs()
+
+    def _init_attrs(cls):
         from .decorators import (
             DuplicateFlowDecoratorException,
         )  # Prevent circular import
@@ -102,6 +110,12 @@ class FlowSpecMeta(type):
 
         # Keys are _FlowState enum values
         cls._flow_state = {}
+
+        # Keep track if configs have been processed -- this is particularly applicable
+        # for the Runner/Deployer where calling multiple APIs on the same flow could
+        # cause the configs to be processed multiple times. For a given flow, once
+        # the configs have been processed, we do not process them again.
+        cls._configs_processed = False
 
         # We inherit stuff from our parent classes as well -- we need to be careful
         # in terms of the order; we will follow the MRO with the following rules:
@@ -121,16 +135,21 @@ class FlowSpecMeta(type):
                         raise DuplicateFlowDecoratorException(deco_name)
                     cls._flow_decorators.setdefault(deco_name, []).extend(deco)
 
-                # Take care of configs and config decorators
-                base_configs = base._flow_state.get(_FlowState.CONFIG_DECORATORS)
+                # Take care of configs and flow mutators
+                base_configs = base._flow_state.get(_FlowState.CONFIGS)
                 if base_configs:
-                    cls._flow_state.setdefault(_FlowState.CONFIG_DECORATORS, []).extend(
+                    cls._flow_state.setdefault(_FlowState.CONFIGS, {}).update(
                         base_configs
                     )
+                base_mutators = base._flow_state.get(_FlowState.FLOW_MUTATORS)
+                if base_mutators:
+                    cls._flow_state.setdefault(_FlowState.FLOW_MUTATORS, []).extend(
+                        base_mutators
+                    )
 
-        cls._init_attrs()
+        cls._init_graph()
 
-    def _init_attrs(cls):
+    def _init_graph(cls):
         # Graph and steps are specific to the class -- store here so we can access
         # in class method _process_config_decorators
         cls._graph = FlowGraph(cls)
@@ -224,26 +243,32 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
     @classmethod
     def _process_config_decorators(cls, config_options, process_configs=True):
+        if cls._configs_processed:
+            debug.userconf_exec("Mutating step/flow decorators already processed")
+            return None
+        cls._configs_processed = True
 
         # Fast path for no user configurations
         if not process_configs or (
-            not cls._flow_state.get(_FlowState.CONFIG_DECORATORS)
+            not cls._flow_state.get(_FlowState.FLOW_MUTATORS)
             and all(len(step.config_decorators) == 0 for step in cls._steps)
         ):
             # Process parameters to allow them to also use config values easily
             for var, param in cls._get_parameters():
-                if param.IS_CONFIG_PARAMETER:
+                if isinstance(param, ConfigValue) or param.IS_CONFIG_PARAMETER:
                     continue
                 param.init(not process_configs)
             return None
 
         debug.userconf_exec("Processing mutating step/flow decorators")
         # We need to convert all the user configurations from DelayedEvaluationParameters
-        # to actual values so they can be used as is in the config decorators.
+        # to actual values so they can be used as is in the mutators.
 
-        # We then reset them to be proper configs so they can be re-evaluated in
-        # _set_constants
-        to_reset_configs = []
+        # We, however, need to make sure _get_parameters still works properly so
+        # we store what was a config and has been set to a specific value.
+        # This is safe to do for now because all other uses of _get_parameters typically
+        # do not rely on the variable itself but just the parameter.
+        to_save_configs = []
         cls._check_parameters(config_parameters=True)
         for var, param in cls._get_parameters():
             if not param.IS_CONFIG_PARAMETER:
@@ -255,77 +280,78 @@ class FlowSpec(metaclass=FlowSpecMeta):
             # We store the value as well so that in _set_constants, we don't try
             # to recompute (no guarantee that it is stable)
             param._store_value(val)
-            to_reset_configs.append((var, param))
+            to_save_configs.append((var, param))
             debug.userconf_exec("Setting config %s to %s" % (var, str(val)))
             setattr(cls, var, val)
 
-        # Reset cached parameters since we have replaced configs already with ConfigValue
-        # so they are not parameters anymore to be re-evaluated when we do _get_parameters
-        if _FlowState.CACHED_PARAMETERS in cls._flow_state:
-            del cls._flow_state[_FlowState.CACHED_PARAMETERS]
+        cls._flow_state[_FlowState.SET_CONFIG_PARAMETERS] = to_save_configs
+        # Run all the decorators. We first run the flow-level decorators
+        # and then the step level ones to maintain a consistent order with how
+        # other decorators are run.
 
-        # Run all the decorators. Step decorators are directly in the step and
-        # we will run those first and *then* we run all the flow level decorators
-        for step in cls._steps:
-            for deco in step.config_decorators:
-                if isinstance(deco, CustomStepDecorator):
-                    debug.userconf_exec(
-                        "Evaluating step level decorator %s for %s"
-                        % (deco.__class__.__name__, step.name)
-                    )
-                    deco.evaluate(MutableStep(cls, step))
-                else:
-                    raise MetaflowInternalError(
-                        "A non CustomFlowDecorator found in step custom decorators"
-                    )
-            if step.config_decorators:
-                # We remove all mention of the custom step decorator
-                setattr(cls, step.name, step)
-
-        mutable_flow = MutableFlow(cls)
-        for deco in cls._flow_state.get(_FlowState.CONFIG_DECORATORS, []):
-            if isinstance(deco, CustomFlowDecorator):
+        for deco in cls._flow_state.get(_FlowState.FLOW_MUTATORS, []):
+            if isinstance(deco, FlowMutator):
+                inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
+                mutable_flow = MutableFlow(
+                    cls,
+                    pre_mutate=True,
+                    statically_defined=deco.statically_defined,
+                    inserted_by=inserted_by_value,
+                )
                 # Sanity check to make sure we are applying the decorator to the right
                 # class
                 if not deco._flow_cls == cls and not issubclass(cls, deco._flow_cls):
                     raise MetaflowInternalError(
-                        "CustomFlowDecorator registered on the wrong flow -- "
+                        "FlowMutator registered on the wrong flow -- "
                         "expected %s but got %s"
                         % (deco._flow_cls.__name__, cls.__name__)
                     )
                 debug.userconf_exec(
                     "Evaluating flow level decorator %s" % deco.__class__.__name__
                 )
-                deco.evaluate(mutable_flow)
+                deco.pre_mutate(mutable_flow)
                 # We reset cached_parameters on the very off chance that the user added
                 # more configurations based on the configuration
                 if _FlowState.CACHED_PARAMETERS in cls._flow_state:
                     del cls._flow_state[_FlowState.CACHED_PARAMETERS]
             else:
                 raise MetaflowInternalError(
-                    "A non CustomFlowDecorator found in flow custom decorators"
+                    "A non FlowMutator found in flow custom decorators"
                 )
+
+        for step in cls._steps:
+            for deco in step.config_decorators:
+                if isinstance(deco, StepMutator):
+                    inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
+                    debug.userconf_exec(
+                        "Evaluating step level decorator %s for %s"
+                        % (deco.__class__.__name__, step.name)
+                    )
+                    deco.pre_mutate(
+                        MutableStep(
+                            cls,
+                            step,
+                            pre_mutate=True,
+                            statically_defined=deco.statically_defined,
+                            inserted_by=inserted_by_value,
+                        )
+                    )
+                else:
+                    raise MetaflowInternalError(
+                        "A non StepMutator found in step custom decorators"
+                    )
 
         # Process parameters to allow them to also use config values easily
         for var, param in cls._get_parameters():
             if param.IS_CONFIG_PARAMETER:
                 continue
             param.init()
-        # Reset all configs that were already present in the class.
-        # TODO: This means that users can't override configs directly. Not sure if this
-        # is a pattern we want to support
-        for var, param in to_reset_configs:
-            setattr(cls, var, param)
-
-        # Reset cached parameters again since we added back the config parameters
-        if _FlowState.CACHED_PARAMETERS in cls._flow_state:
-            del cls._flow_state[_FlowState.CACHED_PARAMETERS]
 
         # Set the current flow class we are in (the one we just created)
         parameters.replace_flow_context(cls)
 
         # Re-calculate class level attributes after modifying the class
-        cls._init_attrs()
+        cls._init_graph()
         return cls
 
     def _set_constants(self, graph, kwargs, config_options):
@@ -390,9 +416,19 @@ class FlowSpec(metaclass=FlowSpecMeta):
                     "name": deco.name,
                     "attributes": to_pod(deco.attributes),
                     "statically_defined": deco.statically_defined,
+                    "inserted_by": deco.inserted_by,
                 }
                 for deco in flow_decorators(self)
                 if not deco.name.startswith("_")
+            ]
+            + [
+                {
+                    "name": deco.__class__.__name__,
+                    "attributes": {},
+                    "statically_defined": deco.statically_defined,
+                    "inserted_by": deco.inserted_by,
+                }
+                for deco in self._flow_state.get(_FlowState.FLOW_MUTATORS, [])
             ],
             "extensions": extension_info(),
         }
@@ -401,11 +437,19 @@ class FlowSpec(metaclass=FlowSpecMeta):
     @classmethod
     def _get_parameters(cls):
         cached = cls._flow_state.get(_FlowState.CACHED_PARAMETERS)
+        returned = set()
         if cached is not None:
+            for set_config in cls._flow_state.get(_FlowState.SET_CONFIG_PARAMETERS, []):
+                returned.add(set_config[0])
+                yield set_config[0], set_config[1]
             for var in cached:
-                yield var, getattr(cls, var)
+                if var not in returned:
+                    yield var, getattr(cls, var)
             return
         build_list = []
+        for set_config in cls._flow_state.get(_FlowState.SET_CONFIG_PARAMETERS, []):
+            returned.add(set_config[0])
+            yield set_config[0], set_config[1]
         for var in dir(cls):
             if var[0] == "_" or var in cls._NON_PARAMETERS:
                 continue
@@ -413,7 +457,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
                 val = getattr(cls, var)
             except:
                 continue
-            if isinstance(val, Parameter):
+            if isinstance(val, Parameter) and var not in returned:
                 build_list.append(var)
                 yield var, val
         cls._flow_state[_FlowState.CACHED_PARAMETERS] = build_list
@@ -768,6 +812,15 @@ class FlowSpec(metaclass=FlowSpecMeta):
           evaluates to an iterator. A task will be launched for each value in the iterator and
           each task will execute the code specified by the step `foreach_step`.
 
+        - Switch statement:
+          ```
+          self.next({"case1": self.step_a, "case2": self.step_b}, condition='condition_variable')
+          ```
+          In this situation, `step_a` and `step_b` are methods in the current class decorated
+          with the `@step` decorator and `condition_variable` is a variable name in the current
+          class. The value of the condition variable determines which step to execute. If the
+          value doesn't match any of the dictionary keys, a RuntimeError is raised.
+
         Parameters
         ----------
         dsts : Callable[..., None]
@@ -783,6 +836,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
         foreach = kwargs.pop("foreach", None)
         num_parallel = kwargs.pop("num_parallel", None)
+        condition = kwargs.pop("condition", None)
         if kwargs:
             kw = next(iter(kwargs))
             msg = (
@@ -796,6 +850,86 @@ class FlowSpec(metaclass=FlowSpecMeta):
             msg = (
                 "Multiple self.next() calls detected in step *{step}*. "
                 "Call self.next() only once.".format(step=step)
+            )
+            raise InvalidNextException(msg)
+
+        # check: switch case using condition
+        if condition is not None:
+            if len(dsts) != 1 or not isinstance(dsts[0], dict) or not dsts[0]:
+                msg = (
+                    "Step *{step}* has an invalid self.next() transition. "
+                    "When using 'condition', the transition must be to a single, "
+                    "non-empty dictionary mapping condition values to step methods.".format(
+                        step=step
+                    )
+                )
+                raise InvalidNextException(msg)
+
+            if not isinstance(condition, basestring):
+                msg = (
+                    "Step *{step}* has an invalid self.next() transition. "
+                    "The argument to 'condition' must be a string.".format(step=step)
+                )
+                raise InvalidNextException(msg)
+
+            if foreach is not None or num_parallel is not None:
+                msg = (
+                    "Step *{step}* has an invalid self.next() transition. "
+                    "Switch statements cannot be combined with foreach or num_parallel.".format(
+                        step=step
+                    )
+                )
+                raise InvalidNextException(msg)
+
+            switch_cases = dsts[0]
+
+            # Validate that condition variable exists
+            try:
+                condition_value = getattr(self, condition)
+            except AttributeError:
+                msg = (
+                    "Condition variable *self.{var}* in step *{step}* "
+                    "does not exist. Make sure you set self.{var} in this step.".format(
+                        step=step, var=condition
+                    )
+                )
+                raise InvalidNextException(msg)
+
+            if condition_value not in switch_cases:
+                available_cases = list(switch_cases.keys())
+                raise RuntimeError(
+                    f"Switch condition variable '{condition}' has value '{condition_value}' "
+                    f"which is not in the available cases: {available_cases}"
+                )
+
+            # Get the chosen step and set transition directly
+            chosen_step_func = switch_cases[condition_value]
+
+            # Validate that the chosen step exists
+            try:
+                name = chosen_step_func.__func__.__name__
+            except:
+                msg = (
+                    "Step *{step}* specifies a switch transition that is not a function. "
+                    "Make sure the value in the dictionary is a method "
+                    "of the Flow class.".format(step=step)
+                )
+                raise InvalidNextException(msg)
+            if not hasattr(self, name):
+                msg = (
+                    "Step *{step}* specifies a switch transition to an "
+                    "unknown step, *{name}*.".format(step=step, name=name)
+                )
+                raise InvalidNextException(msg)
+
+            self._transition = ([name], None)
+            return
+
+        # Check for an invalid transition: a dictionary used without a 'condition' parameter.
+        if len(dsts) == 1 and isinstance(dsts[0], dict):
+            msg = (
+                "Step *{step}* has an invalid self.next() transition. "
+                "Dictionary argument requires 'condition' parameter.".format(step=step)
             )
             raise InvalidNextException(msg)
 
@@ -889,7 +1023,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
             self._foreach_var = foreach
 
         # check: non-keyword transitions are valid
-        if foreach is None:
+        if foreach is None and condition is None:
             if len(dsts) < 1:
                 msg = (
                     "Step *{step}* has an invalid self.next() transition. "

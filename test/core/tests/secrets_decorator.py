@@ -20,6 +20,17 @@ class SecretsDecoratorTest(MetaflowTest):
     Test that checks that the timeout decorator works as intended.
     """
 
+    SKIP_GRAPHS = [
+        "simple_switch",
+        "nested_switch",
+        "branch_in_switch",
+        "foreach_in_switch",
+        "switch_in_branch",
+        "switch_in_foreach",
+        "recursive_switch",
+        "recursive_switch_inside_foreach",
+    ]
+
     @tag("secrets(sources=%s)" % repr(INLINE_SECRETS_VARS))
     @steps(1, ["all"])
     def step_all(self):

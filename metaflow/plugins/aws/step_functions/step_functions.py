@@ -40,6 +40,7 @@ class StepFunctions(object):
         name,
         graph,
         flow,
+        code_package_metadata,
         code_package_sha,
         code_package_url,
         production_token,
@@ -49,6 +50,7 @@ class StepFunctions(object):
         event_logger,
         monitor,
         tags=None,
+        aws_batch_tags=None,
         namespace=None,
         username=None,
         max_workers=None,
@@ -59,6 +61,7 @@ class StepFunctions(object):
         self.name = name
         self.graph = graph
         self.flow = flow
+        self.code_package_metadata = code_package_metadata
         self.code_package_sha = code_package_sha
         self.code_package_url = code_package_url
         self.production_token = production_token
@@ -68,6 +71,7 @@ class StepFunctions(object):
         self.event_logger = event_logger
         self.monitor = monitor
         self.tags = tags
+        self.aws_batch_tags = aws_batch_tags or {}
         self.namespace = namespace
         self.username = username
         self.max_workers = max_workers
@@ -192,6 +196,7 @@ class StepFunctions(object):
                 "on AWS Step Functions. Please "
                 "deploy your flow first." % name
             )
+
         # Dump parameters into `Parameters` input field.
         input = json.dumps({"Parameters": json.dumps(parameters)})
         # AWS Step Functions limits input to be 32KiB, but AWS Batch
@@ -301,11 +306,23 @@ class StepFunctions(object):
                 "to AWS Step Functions is not supported currently."
             )
 
+        if self.flow._flow_decorators.get("exit_hook"):
+            raise StepFunctionsException(
+                "Deploying flows with the @exit_hook decorator "
+                "to AWS Step Functions is not currently supported."
+            )
+
         # Visit every node of the flow and recursively build the state machine.
         def _visit(node, workflow, exit_node=None):
             if node.parallel_foreach:
                 raise StepFunctionsException(
                     "Deploying flows with @parallel decorator(s) "
+                    "to AWS Step Functions is not supported currently."
+                )
+
+            if node.type == "split-switch":
+                raise StepFunctionsException(
+                    "Deploying flows with switch statement "
                     "to AWS Step Functions is not supported currently."
                 )
 
@@ -838,7 +855,8 @@ class StepFunctions(object):
             # AWS_BATCH_JOB_ATTEMPT as the job counter.
             "retry_count": "$((AWS_BATCH_JOB_ATTEMPT-1))",
         }
-
+        # merge batch tags supplied through step-fuctions CLI and ones defined in decorator
+        batch_tags = {**self.aws_batch_tags, **resources["aws_batch_tags"]}
         return (
             Batch(self.metadata, self.environment)
             .create_job(
@@ -847,6 +865,7 @@ class StepFunctions(object):
                     node, input_paths, self.code_package_url, user_code_retries
                 ),
                 task_spec=task_spec,
+                code_package_metadata=self.code_package_metadata,
                 code_package_sha=self.code_package_sha,
                 code_package_url=self.code_package_url,
                 code_package_ds=self.flow_datastore.TYPE,
@@ -863,6 +882,7 @@ class StepFunctions(object):
                 swappiness=resources["swappiness"],
                 efa=resources["efa"],
                 use_tmpfs=resources["use_tmpfs"],
+                aws_batch_tags=batch_tags,
                 tmpfs_tempdir=resources["tmpfs_tempdir"],
                 tmpfs_size=resources["tmpfs_size"],
                 tmpfs_path=resources["tmpfs_path"],
@@ -907,7 +927,7 @@ class StepFunctions(object):
             "with": [
                 decorator.make_decorator_spec()
                 for decorator in node.decorators
-                if not decorator.statically_defined
+                if not decorator.statically_defined and decorator.inserted_by is None
             ]
         }
         # FlowDecorators can define their own top-level options. They are

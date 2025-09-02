@@ -20,12 +20,15 @@ def transform_flow_graph(step_info):
             return "split"
         elif node_type == "split-parallel" or node_type == "split-foreach":
             return "foreach"
+        elif node_type == "split-switch":
+            return "switch"
         return "unknown"  # Should never happen
 
     graph_dict = {}
     for stepname in step_info:
-        graph_dict[stepname] = {
-            "type": node_to_type(step_info[stepname]["type"]),
+        node_type = node_to_type(step_info[stepname]["type"])
+        node_info = {
+            "type": node_type,
             "box_next": step_info[stepname]["type"] not in ("linear", "join"),
             "box_ends": (
                 None
@@ -35,6 +38,15 @@ def transform_flow_graph(step_info):
             "next": step_info[stepname]["next"],
             "doc": step_info[stepname]["doc"],
         }
+
+        if node_type == "switch":
+            if "condition" in step_info[stepname]:
+                node_info["condition"] = step_info[stepname]["condition"]
+            if "switch_cases" in step_info[stepname]:
+                node_info["switch_cases"] = step_info[stepname]["switch_cases"]
+
+        graph_dict[stepname] = node_info
+
     return graph_dict
 
 
@@ -418,6 +430,7 @@ class TaskInfoComponent(MetaflowCardComponent):
             "Task Finished On": task_data_dict["finished_at"],
             # Remove Microseconds from timedelta
             "Tags": ", ".join(tags),
+            "Attempt": self._task.current_attempt,
         }
         if not self.runtime:
             task_metadata_dict["Task Duration"] = str(
