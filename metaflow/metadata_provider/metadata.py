@@ -632,7 +632,12 @@ class MetadataProvider(object):
 
     def _get_git_info_as_dict(self):
         git_info = {}
-        env = self._environment.get_environment_info()
+        # NOTE: For flows executing remotely, we want to read from the INFO file of the code package that contains
+        # information on the original environment that deployed the flow.
+        # Otherwise git related info will be missing, as the repository is not part of the codepackage.
+        from metaflow.packaging_sys import MetaflowCodeContent
+
+        env = MetaflowCodeContent.get_info() or self._environment.get_environment_info()
         for key in [
             "repo_url",
             "branch_name",
