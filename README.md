@@ -1,13 +1,3 @@
-## Suppressing Metaflow Internal Logging
-
-If you want to capture only your own logs (e.g., for structured logging with Splunk) and suppress all Metaflow internal status/logging output, set the environment variable:
-
-```sh
-export METAFLOW_DISABLE_LOGGING=1
-```
-
-This will disable all status and info messages emitted by Metaflow (including those using `click.secho`). Only your own logger output will appear in stdout/stderr. This is useful for integrating with log collectors that expect pure JSON or other structured output.
-
 ![Metaflow_Logo_Horizontal_FullColor_Ribbon_Dark_RGB](https://user-images.githubusercontent.com/763451/89453116-96a57e00-d713-11ea-9fa6-82b29d4d6eff.png)
 
 # Metaflow
