@@ -9,57 +9,14 @@ from metaflow.exception import MetaflowException
 from metaflow.plugins.argo.argo_client import ArgoClient
 from metaflow.metaflow_config import KUBERNETES_NAMESPACE
 from metaflow.plugins.argo.argo_workflows import ArgoWorkflows
-from metaflow.runner.deployer import Deployer, DeployedFlow, TriggeredRun
+from metaflow.runner.deployer import (
+    Deployer,
+    DeployedFlow,
+    TriggeredRun,
+    generate_fake_flow_file_contents,
+)
 
 from metaflow.runner.utils import get_lower_level_group, handle_timeout, temporary_fifo
-
-
-def generate_fake_flow_file_contents(
-    flow_name: str, param_info: dict, project_name: Optional[str] = None
-):
-    params_code = ""
-    for _, param_details in param_info.items():
-        param_python_var_name = param_details["python_var_name"]
-        param_name = param_details["name"]
-        param_type = param_details["type"]
-        param_help = param_details["description"]
-        param_required = param_details["is_required"]
-
-        if param_type == "JSON":
-            params_code += (
-                f"    {param_python_var_name} = Parameter('{param_name}', "
-                f"type=JSONType, help='''{param_help}''', required={param_required})\n"
-            )
-        elif param_type == "FilePath":
-            is_text = param_details.get("is_text", True)
-            encoding = param_details.get("encoding", "utf-8")
-            params_code += (
-                f"    {param_python_var_name} = IncludeFile('{param_name}', "
-                f"is_text={is_text}, encoding='{encoding}', help='''{param_help}''', "
-                f"required={param_required})\n"
-            )
-        else:
-            params_code += (
-                f"    {param_python_var_name} = Parameter('{param_name}', "
-                f"type={param_type}, help='''{param_help}''', required={param_required})\n"
-            )
-
-    project_decorator = f"@project(name='{project_name}')\n" if project_name else ""
-
-    contents = f"""\
-from metaflow import FlowSpec, Parameter, IncludeFile, JSONType, step, project
-{project_decorator}class {flow_name}(FlowSpec):
-{params_code}
-    @step
-    def start(self):
-        self.next(self.end)
-    @step
-    def end(self):
-        pass
-if __name__ == '__main__':
-    {flow_name}()
-"""
-    return contents
 
 
 class ArgoWorkflowsTriggeredRun(TriggeredRun):
@@ -247,6 +204,38 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
     TYPE: ClassVar[Optional[str]] = "argo-workflows"
 
     @classmethod
+    def list_deployed_flows(cls, flow_name: Optional[str] = None):
+        """
+        List all deployed Argo Workflow templates.
+
+        Parameters
+        ----------
+        flow_name : str, optional, default None
+            If specified, only list deployed flows for this specific flow name.
+            If None, list all deployed flows.
+
+        Yields
+        ------
+        ArgoWorkflowsDeployedFlow
+            `ArgoWorkflowsDeployedFlow` objects representing deployed
+            workflow templates on Argo Workflows.
+        """
+        from metaflow.plugins.argo.argo_workflows import ArgoWorkflows
+
+        # When flow_name is None, use all=True to get all templates
+        # When flow_name is specified, use all=False to filter by flow_name
+        all_templates = flow_name is None
+        for template_name in ArgoWorkflows.list_templates(
+            flow_name=flow_name, all=all_templates
+        ):
+            try:
+                deployed_flow = cls.from_deployment(template_name)
+                yield deployed_flow
+            except Exception:
+                # Skip templates that can't be converted to DeployedFlow objects
+                continue
+
+    @classmethod
     def from_deployment(cls, identifier: str, metadata: Optional[str] = None):
         """
         Retrieves a `ArgoWorkflowsDeployedFlow` object from an identifier and optional
@@ -320,6 +309,43 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
                 d.metadata = metadata
 
         return cls(deployer=d)
+
+    @classmethod
+    def get_triggered_run(
+        cls, identifier: str, run_id: str, metadata: Optional[str] = None
+    ):
+        """
+        Retrieves a `ArgoWorkflowsTriggeredRun` object from an identifier, a run id and
+        optional metadata.
+
+        Parameters
+        ----------
+        identifier : str
+            Deployer specific identifier for the workflow to retrieve
+        run_id : str
+            Run ID for the which to fetch the triggered run object
+        metadata : str, optional, default None
+            Optional deployer specific metadata.
+
+        Returns
+        -------
+        ArgoWorkflowsTriggeredRun
+            A `ArgoWorkflowsTriggeredRun` object representing the
+            triggered run on argo workflows.
+        """
+        deployed_flow_obj = cls.from_deployment(identifier, metadata)
+        return ArgoWorkflowsTriggeredRun(
+            deployer=deployed_flow_obj.deployer,
+            content=json.dumps(
+                {
+                    "metadata": deployed_flow_obj.deployer.metadata,
+                    "pathspec": "/".join(
+                        (deployed_flow_obj.deployer.flow_name, run_id)
+                    ),
+                    "name": run_id,
+                }
+            ),
+        )
 
     @property
     def production_token(self) -> Optional[str]:

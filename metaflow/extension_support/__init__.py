@@ -12,7 +12,7 @@ from importlib.abc import MetaPathFinder, Loader
 from itertools import chain
 from pathlib import Path
 
-from metaflow.info_file import read_info_file
+from metaflow.meta_files import read_info_file
 
 
 #
@@ -205,13 +205,18 @@ def package_mfext_all():
     # the packaged metaflow_extensions directory "self-contained" so that
     # python doesn't go and search other parts of the system for more
     # metaflow_extensions.
-    yield os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "_empty_file.py"
-    ), os.path.join(EXT_PKG, "__init__.py")
+    if _all_packages:
+        yield os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "_empty_file.py"
+        ), os.path.join(EXT_PKG, "__init__.py")
 
     for p in _all_packages:
         for path_tuple in package_mfext_package(p):
             yield path_tuple
+
+
+def package_mfext_all_descriptions():
+    return _all_packages
 
 
 def load_globals(module, dst_globals, extra_indent=False):
@@ -808,13 +813,16 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
                                 "    Extends '%s' with config '%s'"
                                 % (_extension_points[idx], config_module)
                             )
-            mf_pkg_list.append(package_name)
-            mf_ext_packages[package_name] = {
-                "root_paths": [package_path],
-                "meta_module": meta_module,
-                "files": files_to_include,
-                "version": "_local_",
-            }
+            if files_to_include:
+                mf_pkg_list.append(package_name)
+                mf_ext_packages[package_name] = {
+                    "root_paths": [package_path],
+                    "meta_module": meta_module,
+                    "files": files_to_include,
+                    "version": "_local_",
+                }
+            else:
+                _ext_debug("Skipping package as no files found (empty dir?)")
 
     # Sanity check that we only have one package per configuration file.
     # This prevents multiple packages from providing the same named configuration

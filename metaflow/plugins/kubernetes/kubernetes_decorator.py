@@ -11,6 +11,7 @@ from metaflow.metadata_provider import MetaDatum
 from metaflow.metadata_provider.util import sync_local_metadata_to_datastore
 from metaflow.metaflow_config import (
     DATASTORE_LOCAL_DIR,
+    FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
     KUBERNETES_CONTAINER_IMAGE,
     KUBERNETES_CONTAINER_REGISTRY,
     KUBERNETES_CPU,
@@ -18,6 +19,7 @@ from metaflow.metaflow_config import (
     KUBERNETES_FETCH_EC2_METADATA,
     KUBERNETES_GPU_VENDOR,
     KUBERNETES_IMAGE_PULL_POLICY,
+    KUBERNETES_IMAGE_PULL_SECRETS,
     KUBERNETES_MEMORY,
     KUBERNETES_LABELS,
     KUBERNETES_ANNOTATIONS,
@@ -72,6 +74,10 @@ class KubernetesDecorator(StepDecorator):
         not, a default Docker image mapping to the current version of Python is used.
     image_pull_policy: str, default KUBERNETES_IMAGE_PULL_POLICY
         If given, the imagePullPolicy to be applied to the Docker image of the step.
+    image_pull_secrets: List[str], default []
+        The default is extracted from METAFLOW_KUBERNETES_IMAGE_PULL_SECRETS.
+        Kubernetes image pull secrets to use when pulling container images
+        in Kubernetes.
     service_account : str, default METAFLOW_KUBERNETES_SERVICE_ACCOUNT
         Kubernetes service account to use when launching pod in Kubernetes.
     secrets : List[str], optional, default None
@@ -90,7 +96,7 @@ class KubernetesDecorator(StepDecorator):
         the scheduled node should not have GPUs.
     gpu_vendor : str, default KUBERNETES_GPU_VENDOR
         The vendor of the GPUs to be used for this step.
-    tolerations : List[str], default []
+    tolerations : List[Dict[str,str]], default []
         The default is extracted from METAFLOW_KUBERNETES_TOLERATIONS.
         Kubernetes tolerations to use when launching pod in Kubernetes.
     labels: Dict[str, str], default: METAFLOW_KUBERNETES_LABELS
@@ -139,6 +145,7 @@ class KubernetesDecorator(StepDecorator):
         "disk": "10240",
         "image": None,
         "image_pull_policy": None,
+        "image_pull_secrets": None,  # e.g., ["regcred"]
         "service_account": None,
         "secrets": None,  # e.g., mysecret
         "node_selector": None,  # e.g., kubernetes.io/os=linux
@@ -162,6 +169,7 @@ class KubernetesDecorator(StepDecorator):
         "qos": KUBERNETES_QOS,
         "security_context": None,
     }
+    package_metadata = None
     package_url = None
     package_sha = None
     run_time_limit = None
@@ -171,8 +179,6 @@ class KubernetesDecorator(StepDecorator):
     target_platform = KUBERNETES_CONDA_ARCH or "linux-64"
 
     def init(self):
-        super(KubernetesDecorator, self).init()
-
         if not self.attributes["namespace"]:
             self.attributes["namespace"] = KUBERNETES_NAMESPACE
         if not self.attributes["service_account"]:
@@ -192,6 +198,10 @@ class KubernetesDecorator(StepDecorator):
             )
         if not self.attributes["image_pull_policy"] and KUBERNETES_IMAGE_PULL_POLICY:
             self.attributes["image_pull_policy"] = KUBERNETES_IMAGE_PULL_POLICY
+        if not self.attributes["image_pull_secrets"] and KUBERNETES_IMAGE_PULL_SECRETS:
+            self.attributes["image_pull_secrets"] = json.loads(
+                KUBERNETES_IMAGE_PULL_SECRETS
+            )
 
         if isinstance(self.attributes["node_selector"], str):
             self.attributes["node_selector"] = parse_kube_keyvalue_list(
@@ -461,6 +471,7 @@ class KubernetesDecorator(StepDecorator):
             # to execute on Kubernetes anymore. We can execute possible fallback
             # code locally.
             cli_args.commands = ["kubernetes", "step"]
+            cli_args.command_args.append(self.package_metadata)
             cli_args.command_args.append(self.package_sha)
             cli_args.command_args.append(self.package_url)
 
@@ -479,6 +490,7 @@ class KubernetesDecorator(StepDecorator):
                         for key, val in v.items()
                     ]
                 elif k in [
+                    "image_pull_secrets",
                     "tolerations",
                     "persistent_volume_claims",
                     "labels",
@@ -631,9 +643,16 @@ class KubernetesDecorator(StepDecorator):
     @classmethod
     def _save_package_once(cls, flow_datastore, package):
         if cls.package_url is None:
-            cls.package_url, cls.package_sha = flow_datastore.save_data(
-                [package.blob], len_hint=1
-            )[0]
+            if not FEAT_ALWAYS_UPLOAD_CODE_PACKAGE:
+                cls.package_url, cls.package_sha = flow_datastore.save_data(
+                    [package.blob], len_hint=1
+                )[0]
+                cls.package_metadata = package.package_metadata
+            else:
+                # Blocks until the package is uploaded
+                cls.package_url = package.package_url()
+                cls.package_sha = package.package_sha()
+                cls.package_metadata = package.package_metadata
 
 
 # TODO: Unify this method with the multi-node setup in @batch

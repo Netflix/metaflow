@@ -99,7 +99,6 @@ class TaskDataStore(object):
         mode="r",
         allow_not_done=False,
     ):
-
         self._storage_impl = flow_datastore._storage_impl
         self.TYPE = self._storage_impl.TYPE
         self._ca_store = flow_datastore.ca_store
@@ -223,6 +222,9 @@ class TaskDataStore(object):
     @property
     def pathspec_index(self):
         idxstr = ",".join(map(str, (f.index for f in self["_foreach_stack"])))
+        if "_iteration_stack" in self:
+            itrstr = ",".join(map(str, (f for f in self["_iteration_stack"])))
+            return "%s/%s[%s][%s]" % (self._run_id, self._step_name, idxstr, itrstr)
         return "%s/%s[%s]" % (self._run_id, self._step_name, idxstr)
 
     @property

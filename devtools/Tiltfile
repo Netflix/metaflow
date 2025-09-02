@@ -224,6 +224,19 @@ if "argo-workflows" in enabled_components:
         ]
     )
 
+    # This fixes issue described in: https://github.com/argoproj/argo-workflows/issues/10340
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'v1',
+        'kind': 'Secret',
+        'metadata': {
+            'name': 'default.service-account-token',
+            'annotations': {
+                'kubernetes.io/service-account.name': 'default'
+            }
+        },
+        'type': 'kubernetes.io/service-account-token'
+    }))
+
     k8s_yaml(encode_yaml({
         'apiVersion': 'rbac.authorization.k8s.io/v1',
         'kind': 'Role',
@@ -231,11 +244,23 @@ if "argo-workflows" in enabled_components:
             'name': 'argo-workflowtaskresults-role',
             'namespace': 'default'
         },
-        'rules': [{
+        'rules': [
+            {
             'apiGroups': ['argoproj.io'],
             'resources': ['workflowtaskresults'],
             'verbs': ['create', 'patch', 'get', 'list']
-        }]
+            },
+            {
+            'apiGroups': ['argoproj.io'],
+            'resources': ['workflowtasksets'],
+            'verbs': ['watch', 'list']
+            },
+            {
+            'apiGroups': ['argoproj.io'],
+            'resources': ['workflowtasksets/status'],
+            'verbs': ['patch']
+            },
+        ]
     }))
 
     k8s_yaml(encode_yaml({
@@ -568,7 +593,7 @@ if "ui" in enabled_components:
             'uiBackend.metaflowDatastoreSysRootS3=s3://metaflow-test',
             'uiBackend.metaflowS3EndpointURL=http://minio.default.svc.cluster.local:9000',
             'uiBackend.image.name=public.ecr.aws/outerbounds/metaflow_metadata_service',
-            'uiBackend.image.tag=2.4.13-2-g70af4ed',
+            'uiBackend.image.tag=2.5.0',
             'uiBackend.env[0].name=AWS_ACCESS_KEY_ID',
             'uiBackend.env[0].value=rootuser',
             'uiBackend.env[1].name=AWS_SECRET_ACCESS_KEY',
@@ -578,7 +603,7 @@ if "ui" in enabled_components:
             'uiBackend.resources.requests.memory=256Mi',
             'uiStatic.metaflowUIBackendURL=http://localhost:8083/api',
             'uiStatic.image.name=public.ecr.aws/outerbounds/metaflow_ui',
-            'uiStatic.image.tag=v1.3.13-5-g5dd049e',
+            'uiStatic.image.tag=v1.3.14',
             'uiStatic.resources.requests.cpu=25m',
             'uiStatic.resources.requests.memory=64Mi',
             'uiStatic.resources.limits.cpu=50m',

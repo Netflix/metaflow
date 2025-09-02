@@ -41,6 +41,7 @@ def kubernetes():
 )
 @tracing.cli("kubernetes/step")
 @click.argument("step-name")
+@click.argument("code-package-metadata")
 @click.argument("code-package-sha")
 @click.argument("code-package-url")
 @click.option(
@@ -52,6 +53,12 @@ def kubernetes():
     "--image-pull-policy",
     default=None,
     help="Optional Docker Image Pull Policy for Kubernetes pod.",
+)
+@click.option(
+    "--image-pull-secrets",
+    default=None,
+    type=JSONTypeClass(),
+    multiple=False,
 )
 @click.option(
     "--service-account",
@@ -155,11 +162,13 @@ def kubernetes():
 def step(
     ctx,
     step_name,
+    code_package_metadata,
     code_package_sha,
     code_package_url,
     executable=None,
     image=None,
     image_pull_policy=None,
+    image_pull_secrets=None,
     service_account=None,
     secrets=None,
     node_selector=None,
@@ -297,12 +306,14 @@ def step(
                 task_id=task_id,
                 attempt=str(retry_count),
                 user=util.get_username(),
+                code_package_metadata=code_package_metadata,
                 code_package_sha=code_package_sha,
                 code_package_url=code_package_url,
                 code_package_ds=ctx.obj.flow_datastore.TYPE,
                 step_cli=step_cli,
                 docker_image=image,
                 docker_image_pull_policy=image_pull_policy,
+                image_pull_secrets=image_pull_secrets,
                 service_account=service_account,
                 secrets=secrets,
                 node_selector=node_selector,

@@ -257,10 +257,11 @@ shell: setup-tilt
 		echo "🔎 Using $$user_shell for interactive session."; \
 		echo "🐍 If you installed Metaflow in a virtual environment, activate it now."; \
 		if [ -f "$(DEVTOOLS_DIR)/aws_config" ]; then \
-			env METAFLOW_HOME="$(DEVTOOLS_DIR)" \
+			env -u AWS_PROFILE \
+				-u AWS_SHARED_CREDENTIALS_FILE \
+				METAFLOW_HOME="$(DEVTOOLS_DIR)" \
 				METAFLOW_PROFILE=local \
 				AWS_CONFIG_FILE="$(DEVTOOLS_DIR)/aws_config" \
-				AWS_SHARED_CREDENTIALS_FILE= \
 				"$$user_shell" -i; \
 		else \
 			env METAFLOW_HOME="$(DEVTOOLS_DIR)" \

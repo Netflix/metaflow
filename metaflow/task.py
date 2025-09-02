@@ -6,6 +6,7 @@ import os
 import time
 import traceback
 
+
 from types import MethodType, FunctionType
 
 from metaflow.sidecar import Message, MessageTypes
@@ -24,6 +25,7 @@ from .unbounded_foreach import UBF_CONTROL
 from .util import all_equal, get_username, resolve_identity, unicode_type
 from .clone_util import clone_task_helper
 from .metaflow_current import current
+from metaflow.user_configs.config_parameters import ConfigValue
 from metaflow.system import _system_logger, _system_monitor
 from metaflow.tracing import get_trace_id
 from metaflow.tuple_util import ForeachFrame
@@ -57,11 +59,122 @@ class MetaflowTask(object):
         self.monitor = monitor
         self.ubf_context = ubf_context
 
-    def _exec_step_function(self, step_function, input_obj=None):
-        if input_obj is None:
-            step_function()
-        else:
-            step_function(input_obj)
+    def _exec_step_function(self, step_function, orig_step_func, input_obj=None):
+        wrappers_stack = []
+        wrapped_func = None
+
+        # Will set to non-Falsy if we need to fake calling `self.next`
+        # This is used when skipping the step.
+        # If a dictionary, it will
+        # contain the arguments to pass to `self.next`. If
+        # True, it means we are using whatever the usual
+        # arguments to `self.next` are for this step.
+        fake_next_call_args = False
+        raised_exception = None
+        had_raised_exception = False
+
+        # If we have wrappers w1, w2 and w3, we need to execute
+        #  - w3_pre
+        #  - w2_pre
+        #  - w1_pre
+        #  - step_function
+        #  - w1_post
+        #  - w2_post
+        #  - w3_post
+        # in that order. We do this by maintaining a stack of generators.
+        # Note that if any of the pre functions returns a function, we execute that
+        # instead of the rest of the inside part. This is useful if you want to create
+        # no-op function for example.
+        for w in reversed(orig_step_func.wrappers):
+            wrapped_func = w.pre_step(orig_step_func.name, self.flow, input_obj)
+            wrappers_stack.append(w)
+            if w.skip_step:
+                # We are not going to run anything so we will have to fake calling
+                # next.
+                fake_next_call_args = w.skip_step
+                break
+            if wrapped_func:
+                break  # We have nothing left to do since we now execute the
+                # wrapped function
+            # Else, we continue down the list of wrappers
+        try:
+            # fake_next_call is used here to also indicate that the step was skipped
+            # so we do not execute anything.
+            if not fake_next_call_args:
+                if input_obj is None:
+                    if wrapped_func:
+                        fake_next_call_args = wrapped_func(self.flow)
+                    else:
+                        step_function()
+                else:
+                    if wrapped_func:
+                        fake_next_call_args = wrapped_func(self.flow, input_obj)
+                    else:
+                        step_function(input_obj)
+        except Exception as ex:
+            raised_exception = ex
+            had_raised_exception = True
+
+        # We back out of the stack of generators
+        for w in reversed(wrappers_stack):
+            try:
+                r = w.post_step(orig_step_func.name, self.flow, raised_exception)
+            except Exception as ex:
+                r = ex
+            if r is None:
+                raised_exception = None
+            elif isinstance(r, Exception):
+                raised_exception = r
+            elif isinstance(r, tuple):
+                if len(r) == 2:
+                    raised_exception, fake_next_call_args = r
+                else:
+                    # The last argument is an exception to be re-raised. Used in
+                    # user_step_decorator's post_step
+                    raise r[2]
+            else:
+                raise RuntimeError(
+                    "Invalid return value from a UserStepDecorator. Expected an"
+                    "exception or an exception and arguments for self.next, got: %s" % r
+                )
+        if raised_exception:
+            # We have an exception that we need to propagate
+            raise raised_exception
+
+        if fake_next_call_args or had_raised_exception:
+            # We want to override the next call or we caught an exception (in which
+            # case the regular step code didn't call self.next). In this case,
+            # we need to set the transition variables
+            # properly. We call the next function as needed
+            # We also do this in case we want to gobble the exception.
+            graph_node = self.flow._graph[orig_step_func.name]
+            out_funcs = [getattr(self.flow, f) for f in graph_node.out_funcs]
+            if out_funcs:
+                if isinstance(fake_next_call_args, dict) and fake_next_call_args:
+                    # Not an empty dictionary -- we use this as arguments for the next
+                    # call
+                    self.flow.next(*out_funcs, **fake_next_call_args)
+                elif (
+                    fake_next_call_args == True
+                    or fake_next_call_args == {}
+                    or had_raised_exception
+                ):
+                    # We need to extract things from the self.next. This is not possible
+                    # in the case where there was a num_parallel.
+                    if graph_node.parallel_foreach:
+                        raise RuntimeError(
+                            "Skipping a parallel foreach step without providing "
+                            "the arguments to the self.next call is not supported. "
+                        )
+                    if graph_node.foreach_param:
+                        self.flow.next(*out_funcs, foreach=graph_node.foreach_param)
+                    else:
+                        self.flow.next(*out_funcs)
+                else:
+                    raise RuntimeError(
+                        "Invalid value passed to self.next; expected "
+                        " bool of a dictionary; got: %s" % fake_next_call_args
+                    )
 
     def _init_parameters(self, parameter_ds, passdown=True):
         cls = self.flow.__class__
@@ -136,6 +249,7 @@ class MetaflowTask(object):
                 # Prefetch 'foreach' related artifacts to improve time taken by
                 # _init_foreach.
                 prefetch_data_artifacts = [
+                    "_iteration_stack",
                     "_foreach_stack",
                     "_foreach_num_splits",
                     "_foreach_var",
@@ -271,6 +385,56 @@ class MetaflowTask(object):
         # case 4) - propagate in the foreach nest
         elif "_foreach_stack" in inputs[0]:
             self.flow._foreach_stack = inputs[0]["_foreach_stack"]
+
+    def _init_iteration(self, step_name, inputs, is_recursive_step):
+        # We track the iteration "stack" for loops. At this time, we
+        # only support one type of "looping" which is a recursive step but
+        # this can generalize to arbitrary well-scoped loops in the future.
+
+        # _iteration_stack will contain the iteration count for each loop
+        # level. Currently, there will be only no elements (no loops) or
+        # a single element (a single recursive step).
+
+        # We just need to determine the rules to add a new looping level,
+        # increment the looping level or pop the looping level. In our
+        # current support for only recursive steps, this is pretty straightforward:
+        # 1) if is_recursive_step:
+        #    - we are entering a loop -- we are either entering for the first time
+        #      or we are continuing the loop. Note that a recursive step CANNOT
+        #      be a join step so there is always a single input
+        #    1a) If inputs[0]["_iteration_stack"] contains an element, we are looping
+        #      so we increment the count
+        #    1b) If inputs[0]["_iteration_stack"] is empty, this is the first time we
+        #      are entering the loop so we set the iteration count to 0
+        # 2) if it is not a recursive step, we need to determine if this is the step
+        #    *after* the recursive step. The easiest way to determine that is to
+        #    look at all inputs (there can be multiple in case of a join) and pop
+        #    _iteration_stack if it is set. However, since we know that non recursive
+        #    steps are *never* part of an iteration, we can simplify and just set it
+        #    to [] without even checking anything. We will have to revisit this if/when
+        #    more complex loop structures are supported.
+
+        # Note that just like _foreach_stack, we need to set _iteration_stack to *something*
+        # so that it doesn't get clobbered weirdly by merge_artifacts.
+
+        if is_recursive_step:
+            # Case 1)
+            if len(inputs) != 1:
+                raise MetaflowInternalError(
+                    "Step *%s* is a recursive step but got multiple inputs." % step_name
+                )
+            inp = inputs[0]
+            if "_iteration_stack" not in inp or not inp["_iteration_stack"]:
+                # Case 1b)
+                self.flow._iteration_stack = [0]
+            else:
+                # Case 1a)
+                stack = inp["_iteration_stack"]
+                stack[-1] += 1
+                self.flow._iteration_stack = stack
+        else:
+            # Case 2)
+            self.flow._iteration_stack = []
 
     def _clone_flow(self, datastore):
         x = self.flow.__class__(use_cli=False)
@@ -460,6 +624,12 @@ class MetaflowTask(object):
             # 3. initialize foreach state
             self._init_foreach(step_name, join_type, inputs, split_index)
 
+            # 4. initialize the iteration state
+            is_recursive_step = (
+                node.type == "split-switch" and step_name in node.out_funcs
+            )
+            self._init_iteration(step_name, inputs, is_recursive_step)
+
             # Add foreach stack to metadata of the task
 
             foreach_stack = (
@@ -538,6 +708,9 @@ class MetaflowTask(object):
         output.save_metadata(
             {
                 "task_begin": {
+                    "code_package_metadata": os.environ.get(
+                        "METAFLOW_CODE_METADATA", ""
+                    ),
                     "code_package_sha": os.environ.get("METAFLOW_CODE_SHA"),
                     "code_package_ds": os.environ.get("METAFLOW_CODE_DS"),
                     "code_package_url": os.environ.get("METAFLOW_CODE_URL"),
@@ -587,14 +760,20 @@ class MetaflowTask(object):
                 if join_type:
                     # Join step:
 
-                    # Ensure that we have the right number of inputs. The
-                    # foreach case is checked above.
-                    if join_type != "foreach" and len(inputs) != len(node.in_funcs):
-                        raise MetaflowDataMissing(
-                            "Join *%s* expected %d "
-                            "inputs but only %d inputs "
-                            "were found" % (step_name, len(node.in_funcs), len(inputs))
-                        )
+                    # Ensure that we have the right number of inputs.
+                    if join_type != "foreach":
+                        # Find the corresponding split node from the graph.
+                        split_node = self.flow._graph[node.split_parents[-1]]
+                        # The number of expected inputs is the number of branches
+                        # from that split -- we can't use in_funcs because there may
+                        # be more due to split-switch branches that all converge here.
+                        expected_inputs = len(split_node.out_funcs)
+
+                        if len(inputs) != expected_inputs:
+                            raise MetaflowDataMissing(
+                                "Join *%s* expected %d inputs but only %d inputs "
+                                "were found" % (step_name, expected_inputs, len(inputs))
+                            )
 
                     # Multiple input contexts are passed in as an argument
                     # to the step function.
@@ -651,6 +830,7 @@ class MetaflowTask(object):
                         inputs,
                     )
 
+                orig_step_func = step_func
                 for deco in decorators:
                     # decorators can actually decorate the step function,
                     # or they can replace it altogether. This functionality
@@ -667,9 +847,9 @@ class MetaflowTask(object):
                     )
 
                 if join_type:
-                    self._exec_step_function(step_func, input_obj)
+                    self._exec_step_function(step_func, orig_step_func, input_obj)
                 else:
-                    self._exec_step_function(step_func)
+                    self._exec_step_function(step_func, orig_step_func)
 
                 for deco in decorators:
                     deco.task_post_step(

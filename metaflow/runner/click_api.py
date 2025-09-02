@@ -43,10 +43,10 @@ from metaflow._vendor.click.types import (
 )
 from metaflow.decorators import add_decorator_options
 from metaflow.exception import MetaflowException
+from metaflow.flowspec import _FlowState
 from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
 from metaflow.parameters import JSONTypeClass, flow_context
-from metaflow.user_configs.config_decorators import CustomFlowDecorator
 from metaflow.user_configs.config_options import (
     ConfigValue,
     ConvertDictOrStr,
@@ -55,6 +55,7 @@ from metaflow.user_configs.config_options import (
     MultipleTuple,
     config_options_with_config_input,
 )
+from metaflow.user_decorators.user_flow_decorator import FlowMutator
 
 # Define a recursive type alias for JSON
 JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
@@ -171,7 +172,6 @@ def _lazy_load_command(
     _self,
     name: str,
 ):
-
     # Context is not used in get_command so we can pass None. Since we pin click,
     # this won't change from under us.
 
@@ -264,12 +264,12 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
             loaded_modules[flow_file] = module
 
         classes = inspect.getmembers(
-            module, lambda x: inspect.isclass(x) or isinstance(x, CustomFlowDecorator)
+            module, lambda x: inspect.isclass(x) or isinstance(x, FlowMutator)
         )
         flow_cls = None
 
         for _, kls in classes:
-            if isinstance(kls, CustomFlowDecorator):
+            if isinstance(kls, FlowMutator):
                 kls = kls._flow_cls
             if (
                 kls is not FlowSpec
@@ -512,10 +512,15 @@ class MetaflowAPI(object):
 
         # At this point, we are like in start() in cli.py -- we obtained the
         # properly processed config_options which we can now use to process
-        # the config decorators (including CustomStep/FlowDecorators)
+        # the config decorators (including StepMutator/FlowMutator)
         # Note that if CLICK_API_PROCESS_CONFIG is False, we still do this because
         # it will init all parameters (config_options will be None)
         # We ignore any errors if we don't check the configs in the click API.
+
+        # Init all values in the flow mutators and then process them
+        for decorator in self._flow_cls._flow_state.get(_FlowState.FLOW_MUTATORS, []):
+            decorator.external_init()
+
         new_cls = self._flow_cls._process_config_decorators(
             config_options, process_configs=CLICK_API_PROCESS_CONFIG
         )
@@ -541,14 +546,16 @@ def extract_all_params(cmd_obj: Union[click.Command, click.Group]):
 
     for each_param in cmd_obj.params:
         if isinstance(each_param, click.Argument):
-            arg_params_sigs[each_param.name], annotations[each_param.name] = (
-                get_inspect_param_obj(each_param, inspect.Parameter.POSITIONAL_ONLY)
-            )
+            (
+                arg_params_sigs[each_param.name],
+                annotations[each_param.name],
+            ) = get_inspect_param_obj(each_param, inspect.Parameter.POSITIONAL_ONLY)
             arg_parameters[each_param.name] = each_param
         elif isinstance(each_param, click.Option):
-            opt_params_sigs[each_param.name], annotations[each_param.name] = (
-                get_inspect_param_obj(each_param, inspect.Parameter.KEYWORD_ONLY)
-            )
+            (
+                opt_params_sigs[each_param.name],
+                annotations[each_param.name],
+            ) = get_inspect_param_obj(each_param, inspect.Parameter.KEYWORD_ONLY)
             opt_parameters[each_param.name] = each_param
 
         defaults[each_param.name] = each_param.default
@@ -658,6 +665,7 @@ if __name__ == "__main__":
         .kubernetes()
         .step(
             step_name="process",
+            code_package_metadata="some_version",
             code_package_sha="some_sha",
             code_package_url="some_url",
         )

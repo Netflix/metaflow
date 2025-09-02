@@ -52,10 +52,12 @@ export type PathSpecObject = {
 
 export type Dag = Record<string, DagStep>;
 
+// TODO: add support for switch-split
 export type StepType =
   | "linear"
   | "foreach"
   | "split-and"
+  | "switch"
   | "join"
   | "start"
   | "end";
@@ -72,7 +74,20 @@ export interface DagStep {
   successful_tasks?: number;
   failed?: boolean;
   num_failed?: number;
+  condition?: string;
+  switch_cases?: Record<string, string>;
+  pathToStep?: string;
+  connections?: string[];
 }
+
+export type DagStructure = {
+  [key: string]: {
+    stepName: string;
+    pathToStep: string;
+    connections: string[];
+    node: HTMLElement;
+  };
+};
 
 /* -------------------------------- RESPONSE -------------------------------- */
 

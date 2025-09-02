@@ -15,16 +15,19 @@ import tempfile
 import time
 import subprocess
 from datetime import datetime
+from enum import Enum
 from io import BytesIO
+from itertools import chain
 from functools import partial
 from concurrent import futures
 
+from typing import Dict, Tuple
 from metaflow.datastore.exceptions import DataException
 from contextlib import contextmanager
 
 from . import get_namespace
 from .metadata_provider import MetaDatum
-from .metaflow_config import MAX_ATTEMPTS, UI_URL
+from .metaflow_config import FEAT_ALWAYS_UPLOAD_CODE_PACKAGE, MAX_ATTEMPTS, UI_URL
 from .exception import (
     MetaflowException,
     MetaflowInternalError,
@@ -59,12 +62,21 @@ PROGRESS_INTERVAL = 300  # s
 # leveraging the TaskDataStoreSet.
 PREFETCH_DATA_ARTIFACTS = [
     "_foreach_stack",
+    "_iteration_stack",
     "_task_ok",
     "_transition",
     "_control_mapper_tasks",
     "_control_task_is_mapper_zero",
 ]
 RESUME_POLL_SECONDS = 60
+
+
+class LoopBehavior(Enum):
+    NONE = "none"
+    ENTERING = "entering"
+    EXITING = "exiting"
+    LOOPING = "looping"
+
 
 # Runtime must use logsource=RUNTIME_LOG_SOURCE for all loglines that it
 # formats according to mflog. See a comment in mflog.__init__
@@ -95,6 +107,7 @@ class NativeRuntime(object):
         max_num_splits=MAX_NUM_SPLITS,
         max_log_size=MAX_LOG_SIZE,
         resume_identifier=None,
+        skip_decorator_hooks=False,
     ):
         if run_id is None:
             self._run_id = metadata.new_run_id()
@@ -107,6 +120,7 @@ class NativeRuntime(object):
         self._flow_datastore = flow_datastore
         self._metadata = metadata
         self._environment = environment
+        self._package = package
         self._logger = logger
         self._max_workers = max_workers
         self._active_tasks = dict()  # Key: step name;
@@ -128,6 +142,7 @@ class NativeRuntime(object):
         self._ran_or_scheduled_task_index = set()
         self._reentrant = reentrant
         self._run_url = None
+        self._skip_decorator_hooks = skip_decorator_hooks
 
         # If steps_to_rerun is specified, we will not clone them in resume mode.
         self._steps_to_rerun = steps_to_rerun or {}
@@ -179,9 +194,10 @@ class NativeRuntime(object):
         # finished.
         self._control_num_splits = {}  # control_task -> num_splits mapping
 
-        for step in flow:
-            for deco in step.decorators:
-                deco.runtime_init(flow, graph, package, self._run_id)
+        if not self._skip_decorator_hooks:
+            for step in flow:
+                for deco in step.decorators:
+                    deco.runtime_init(flow, graph, package, self._run_id)
 
     def _new_task(self, step, input_paths=None, **kwargs):
         if input_paths is None:
@@ -192,7 +208,7 @@ class NativeRuntime(object):
         if step in self._steps_to_rerun:
             may_clone = False
 
-        if step == "_parameters":
+        if step == "_parameters" or self._skip_decorator_hooks:
             decos = []
         else:
             decos = getattr(self._flow, step).decorators
@@ -285,6 +301,7 @@ class NativeRuntime(object):
         pathspec_index,
         cloned_task_pathspec_index,
         finished_tuple,
+        iteration_tuple,
         ubf_context,
         generate_task_obj,
         verbose=False,
@@ -329,7 +346,7 @@ class NativeRuntime(object):
                 self._metadata,
                 origin_ds_set=self._origin_ds_set,
             )
-            self._finished[(step_name, finished_tuple)] = task_pathspec
+            self._finished[(step_name, finished_tuple, iteration_tuple)] = task_pathspec
             self._is_cloned[task_pathspec] = True
         except Exception as e:
             self._logger(
@@ -410,6 +427,7 @@ class NativeRuntime(object):
                 finished_tuple = tuple(
                     [s._replace(value=0) for s in task_ds.get("_foreach_stack", ())]
                 )
+                iteration_tuple = tuple(task_ds.get("_iteration_stack", ()))
                 cloned_task_pathspec_index = pathspec_index.split("/")[1]
                 if task_ds.get("_control_task_is_mapper_zero", False):
                     # Replace None with index 0 for control task as it is part of the
@@ -435,6 +453,7 @@ class NativeRuntime(object):
                         pathspec_index,
                         cloned_task_pathspec_index,
                         finished_tuple,
+                        iteration_tuple,
                         is_ubf_mapper_task,
                         ubf_context,
                     )
@@ -449,6 +468,7 @@ class NativeRuntime(object):
                     pathspec_index,
                     cloned_task_pathspec_index,
                     finished_tuple,
+                    iteration_tuple,
                     ubf_context=ubf_context,
                     generate_task_obj=generate_task_obj and (not is_ubf_mapper_task),
                     verbose=verbose,
@@ -459,6 +479,7 @@ class NativeRuntime(object):
                     pathspec_index,
                     cloned_task_pathspec_index,
                     finished_tuple,
+                    iteration_tuple,
                     is_ubf_mapper_task,
                     ubf_context,
                 ) in inputs
@@ -479,6 +500,7 @@ class NativeRuntime(object):
                 self._queue_push("start", {"input_paths": [self._params_task.path]})
             else:
                 self._queue_push("start", {})
+
         progress_tstamp = time.time()
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as config_file:
             # Configurations are passed through a file to avoid overloading the
@@ -499,7 +521,74 @@ class NativeRuntime(object):
                 ):
                     # 1. are any of the current workers finished?
                     if self._cloned_tasks:
-                        finished_tasks = self._cloned_tasks
+                        finished_tasks = []
+
+                        # For loops (right now just recursive steps), we need to find
+                        # the exact frontier because if we queue all "successors" to all
+                        # the finished iterations, we would incorrectly launch multiple
+                        # successors. We therefore have to strip out all non-last
+                        # iterations *per* foreach branch.
+                        idx_per_finished_id = (
+                            {}
+                        )  # type: Dict[Tuple[str, Tuple[int, ...], Tuple[int, Tuple[int, ...]]]]
+                        for task in self._cloned_tasks:
+                            step_name, foreach_stack, iteration_stack = task.finished_id
+                            existing_task_idx = idx_per_finished_id.get(
+                                (step_name, foreach_stack), None
+                            )
+                            if existing_task_idx is not None:
+                                len_diff = len(iteration_stack) - len(
+                                    existing_task_idx[1]
+                                )
+                                # In this case, we need to keep only the latest iteration
+                                if (
+                                    len_diff == 0
+                                    and iteration_stack > existing_task_idx[1]
+                                ) or len_diff == -1:
+                                    # We remove the one we currently have and replace
+                                    # by this one. The second option means that we are
+                                    # adding the finished iteration marker.
+                                    existing_task = finished_tasks[existing_task_idx[0]]
+                                    # These are the first two lines of _queue_tasks
+                                    # We still consider the tasks finished so we need
+                                    # to update state to be clean.
+                                    self._finished[existing_task.finished_id] = (
+                                        existing_task.path
+                                    )
+                                    self._is_cloned[existing_task.path] = (
+                                        existing_task.is_cloned
+                                    )
+
+                                    finished_tasks[existing_task_idx[0]] = task
+                                    idx_per_finished_id[(step_name, foreach_stack)] = (
+                                        existing_task_idx[0],
+                                        iteration_stack,
+                                    )
+                                elif (
+                                    len_diff == 0
+                                    and iteration_stack < existing_task_idx[1]
+                                ) or len_diff == 1:
+                                    # The second option is when we have already marked
+                                    # the end of the iteration in self._finished and
+                                    # are now seeing a previous iteration.
+                                    # We just mark the task as finished but we don't
+                                    # put it in the finished_tasks list to pass to
+                                    # the _queue_tasks function
+                                    self._finished[task.finished_id] = task.path
+                                    self._is_cloned[task.path] = task.is_cloned
+                                else:
+                                    raise MetaflowInternalError(
+                                        "Unexpected recursive cloned tasks -- "
+                                        "this is a bug, please report it."
+                                    )
+                            else:
+                                # New entry
+                                finished_tasks.append(task)
+                                idx_per_finished_id[(step_name, foreach_stack)] = (
+                                    len(finished_tasks) - 1,
+                                    iteration_stack,
+                                )
+
                         # reset the list of cloned tasks and let poll_workers handle
                         # the remaining transition
                         self._cloned_tasks = []
@@ -566,12 +655,14 @@ class NativeRuntime(object):
                 raise
             finally:
                 # on finish clean tasks
-                for step in self._flow:
-                    for deco in step.decorators:
-                        deco.runtime_finished(exception)
+                if not self._skip_decorator_hooks:
+                    for step in self._flow:
+                        for deco in step.decorators:
+                            deco.runtime_finished(exception)
+                self._run_exit_hooks()
 
         # assert that end was executed and it was successful
-        if ("end", ()) in self._finished:
+        if ("end", (), ()) in self._finished:
             if self._run_url:
                 self._logger(
                     "Done! See the run in the UI at %s" % self._run_url,
@@ -590,6 +681,50 @@ class NativeRuntime(object):
             raise MetaflowInternalError(
                 "The *end* step was not successful by the end of flow."
             )
+
+    def _run_exit_hooks(self):
+        try:
+            exit_hook_decos = self._flow._flow_decorators.get("exit_hook", [])
+            if not exit_hook_decos:
+                return
+
+            successful = ("end", (), ()) in self._finished or self._clone_only
+            pathspec = f"{self._graph.name}/{self._run_id}"
+            flow_file = self._environment.get_environment_info()["script"]
+
+            def _call(fn_name):
+                try:
+                    result = (
+                        subprocess.check_output(
+                            args=[
+                                sys.executable,
+                                "-m",
+                                "metaflow.plugins.exit_hook.exit_hook_script",
+                                flow_file,
+                                fn_name,
+                                pathspec,
+                            ],
+                            env=os.environ,
+                        )
+                        .decode()
+                        .strip()
+                    )
+                    print(result)
+                except subprocess.CalledProcessError as e:
+                    print(f"[exit_hook] Hook '{fn_name}' failed with error: {e}")
+                except Exception as e:
+                    print(f"[exit_hook] Unexpected error in hook '{fn_name}': {e}")
+
+            # Call all exit hook functions regardless of individual failures
+            for fn_name in [
+                name
+                for deco in exit_hook_decos
+                for name in (deco.success_hooks if successful else deco.error_hooks)
+            ]:
+                _call(fn_name)
+
+        except Exception as ex:
+            pass  # do not fail due to exit hooks for whatever reason.
 
     def _killall(self):
         # If we are here, all children have received a signal and are shutting down.
@@ -621,30 +756,60 @@ class NativeRuntime(object):
 
     # Given the current task information (task_index), the type of transition,
     # and the split index, return the new task index.
-    def _translate_index(self, task, next_step, type, split_index=None):
-
-        match = re.match(r"^(.+)\[(.*)\]$", task.task_index)
+    def _translate_index(
+        self, task, next_step, type, split_index=None, loop_mode=LoopBehavior.NONE
+    ):
+        match = re.match(r"^(.+)\[(.*)\]\[(.*)\]$", task.task_index)
         if match:
-            _, foreach_index = match.groups()
+            _, foreach_index, iteration_index = match.groups()
             # Convert foreach_index to a list of integers
             if len(foreach_index) > 0:
                 foreach_index = foreach_index.split(",")
             else:
                 foreach_index = []
+            # Ditto for iteration_index
+            if len(iteration_index) > 0:
+                iteration_index = iteration_index.split(",")
+            else:
+                iteration_index = []
         else:
             raise ValueError(
-                "Index not in the format of {run_id}/{step_name}[{foreach_index}]"
+                "Index not in the format of {run_id}/{step_name}[{foreach_index}][{iteration_index}]"
             )
+        if loop_mode == LoopBehavior.NONE:
+            # Check if we are entering a looping construct. Right now, only recursive
+            # steps are looping constructs
+            next_step_node = self._graph[next_step]
+            if (
+                next_step_node.type == "split-switch"
+                and next_step in next_step_node.out_funcs
+            ):
+                loop_mode = LoopBehavior.ENTERING
+
+        # Update iteration_index
+        if loop_mode == LoopBehavior.ENTERING:
+            # We are entering a loop, so we add a new iteration level
+            iteration_index.append("0")
+        elif loop_mode == LoopBehavior.EXITING:
+            iteration_index = iteration_index[:-1]
+        elif loop_mode == LoopBehavior.LOOPING:
+            if len(iteration_index) == 0:
+                raise MetaflowInternalError(
+                    "In looping mode but there is no iteration index"
+                )
+            iteration_index[-1] = str(int(iteration_index[-1]) + 1)
+        iteration_index = ",".join(iteration_index)
+
         if type == "linear":
-            return "%s[%s]" % (next_step, ",".join(foreach_index))
+            return "%s[%s][%s]" % (next_step, ",".join(foreach_index), iteration_index)
         elif type == "join":
             indices = []
             if len(foreach_index) > 0:
                 indices = foreach_index[:-1]
-            return "%s[%s]" % (next_step, ",".join(indices))
+            return "%s[%s][%s]" % (next_step, ",".join(indices), iteration_index)
         elif type == "split":
             foreach_index.append(str(split_index))
-            return "%s[%s]" % (next_step, ",".join(foreach_index))
+            return "%s[%s][%s]" % (next_step, ",".join(foreach_index), iteration_index)
 
     # Store the parameters needed for task creation, so that pushing on items
     # onto the run_queue is an inexpensive operation.
@@ -728,17 +893,19 @@ class NativeRuntime(object):
                 # tasks is incorrect and contains the pathspec of the *cloned* run
                 # but we don't use it for anything. We could look to clean it up though
                 if not task.is_cloned:
-                    _, foreach_stack = task.finished_id
+                    _, foreach_stack, iteration_stack = task.finished_id
                     top = foreach_stack[-1]
                     bottom = list(foreach_stack[:-1])
                     for i in range(num_splits):
                         s = tuple(bottom + [top._replace(index=i)])
-                        self._finished[(task.step, s)] = mapper_tasks[i]
+                        self._finished[(task.step, s, iteration_stack)] = mapper_tasks[
+                            i
+                        ]
                         self._is_cloned[mapper_tasks[i]] = False
 
             # Find and check status of control task and retrieve its pathspec
             # for retrieving unbounded foreach cardinality.
-            _, foreach_stack = task.finished_id
+            _, foreach_stack, iteration_stack = task.finished_id
             top = foreach_stack[-1]
             bottom = list(foreach_stack[:-1])
             s = tuple(bottom + [top._replace(index=None)])
@@ -747,7 +914,7 @@ class NativeRuntime(object):
             # it will have index=0 instead of index=None.
             if task.results.get("_control_task_is_mapper_zero", False):
                 s = tuple(bottom + [top._replace(index=0)])
-            control_path = self._finished.get((task.step, s))
+            control_path = self._finished.get((task.step, s, iteration_stack))
             if control_path:
                 # Control task was successful.
                 # Additionally check the state of (sibling) mapper tasks as well
@@ -756,7 +923,9 @@ class NativeRuntime(object):
                 required_tasks = []
                 for i in range(num_splits):
                     s = tuple(bottom + [top._replace(index=i)])
-                    required_tasks.append(self._finished.get((task.step, s)))
+                    required_tasks.append(
+                        self._finished.get((task.step, s, iteration_stack))
+                    )
 
                 if all(required_tasks):
                     index = self._translate_index(task, next_step, "join")
@@ -769,10 +938,12 @@ class NativeRuntime(object):
         else:
             # matching_split is the split-parent of the finished task
             matching_split = self._graph[self._graph[next_step].split_parents[-1]]
-            _, foreach_stack = task.finished_id
-            index = ""
+            _, foreach_stack, iteration_stack = task.finished_id
+
+            direct_parents = set(self._graph[next_step].in_funcs)
+
+            # next step is a foreach join
             if matching_split.type == "foreach":
-                # next step is a foreach join
 
                 def siblings(foreach_stack):
                     top = foreach_stack[-1]
@@ -781,28 +952,55 @@ class NativeRuntime(object):
                         yield tuple(bottom + [top._replace(index=index)])
 
                 # required tasks are all split-siblings of the finished task
-                required_tasks = [
-                    self._finished.get((task.step, s)) for s in siblings(foreach_stack)
-                ]
+                required_tasks = list(
+                    filter(
+                        lambda x: x is not None,
+                        [
+                            self._finished.get((p, s, iteration_stack))
+                            for p in direct_parents
+                            for s in siblings(foreach_stack)
+                        ],
+                    )
+                )
+                required_count = task.finished_id[1][-1].num_splits
                 join_type = "foreach"
                 index = self._translate_index(task, next_step, "join")
             else:
                 # next step is a split
-                # required tasks are all branches joined by the next step
-                required_tasks = [
-                    self._finished.get((step, foreach_stack))
-                    for step in self._graph[next_step].in_funcs
-                ]
+                required_tasks = list(
+                    filter(
+                        lambda x: x is not None,
+                        [
+                            self._finished.get((p, foreach_stack, iteration_stack))
+                            for p in direct_parents
+                        ],
+                    )
+                )
+
+                required_count = len(matching_split.out_funcs)
                 join_type = "linear"
                 index = self._translate_index(task, next_step, "linear")
-
-            if all(required_tasks):
-                # all tasks to be joined are ready. Schedule the next join step.
+            if len(required_tasks) == required_count:
+                # We have all the required previous tasks to schedule a join
                 self._queue_push(
                     next_step,
                     {"input_paths": required_tasks, "join_type": join_type},
                     index,
                 )
+
+    def _queue_task_switch(self, task, next_steps, is_recursive):
+        chosen_step = next_steps[0]
+
+        loop_mode = LoopBehavior.NONE
+        if is_recursive:
+            if chosen_step != task.step:
+                # We are exiting a loop
+                loop_mode = LoopBehavior.EXITING
+            else:
+                # We are staying in the loop
+                loop_mode = LoopBehavior.LOOPING
+        index = self._translate_index(task, chosen_step, "linear", None, loop_mode)
+        self._queue_push(chosen_step, {"input_paths": [task.path]}, index)
 
     def _queue_task_foreach(self, task, next_steps):
         # CHECK: this condition should be enforced by the linter but
@@ -880,7 +1078,39 @@ class NativeRuntime(object):
                 next_steps = []
                 foreach = None
             expected = self._graph[task.step].out_funcs
-            if next_steps != expected:
+
+            if self._graph[task.step].type == "split-switch":
+                is_recursive = task.step in self._graph[task.step].out_funcs
+                if len(next_steps) != 1:
+                    msg = (
+                        "Switch step *{step}* should transition to exactly "
+                        "one step at runtime, but got: {actual}"
+                    )
+                    raise MetaflowInternalError(
+                        msg.format(step=task.step, actual=", ".join(next_steps))
+                    )
+                if next_steps[0] not in expected:
+                    msg = (
+                        "Switch step *{step}* transitioned to unexpected "
+                        "step *{actual}*. Expected one of: {expected}"
+                    )
+                    raise MetaflowInternalError(
+                        msg.format(
+                            step=task.step,
+                            actual=next_steps[0],
+                            expected=", ".join(expected),
+                        )
+                    )
+                # When exiting a recursive loop, we mark that the loop itself has
+                # finished by adding a special entry in self._finished which has
+                # an iteration stack that is shorter (ie: we are out of the loop) so
+                # that we can then find it when looking at successor tasks to launch.
+                if is_recursive and next_steps[0] != task.step:
+                    step_name, finished_tuple, iteration_tuple = task.finished_id
+                    self._finished[
+                        (step_name, finished_tuple, iteration_tuple[:-1])
+                    ] = task.path
+            elif next_steps != expected:
                 msg = (
                     "Based on static analysis of the code, step *{step}* "
                     "was expected to transition to step(s) *{expected}*. "
@@ -904,6 +1134,9 @@ class NativeRuntime(object):
             elif foreach:
                 # Next step is a foreach child
                 self._queue_task_foreach(task, next_steps)
+            elif self._graph[task.step].type == "split-switch":
+                # Current step is switch - queue the chosen step
+                self._queue_task_switch(task, next_steps, is_recursive)
             else:
                 # Next steps are normal linear steps
                 for step in next_steps:
@@ -960,6 +1193,22 @@ class NativeRuntime(object):
             # Initialize the task (which can be expensive using remote datastores)
             # before launching the worker so that cost is amortized over time, instead
             # of doing it during _queue_push.
+            if (
+                FEAT_ALWAYS_UPLOAD_CODE_PACKAGE
+                and "METAFLOW_CODE_SHA" not in os.environ
+            ):
+                # We check if the code package is uploaded and, if so, we set the
+                # environment variables that will cause the metadata service to
+                # register the code package with the task created in _new_task below
+                code_sha = self._package.package_sha(timeout=0.01)
+                if code_sha:
+                    os.environ["METAFLOW_CODE_SHA"] = code_sha
+                    os.environ["METAFLOW_CODE_URL"] = self._package.package_url()
+                    os.environ["METAFLOW_CODE_DS"] = self._flow_datastore.TYPE
+                    os.environ["METAFLOW_CODE_METADATA"] = (
+                        self._package.package_metadata
+                    )
+
             task = self._new_task(step, **task_kwargs)
             self._launch_worker(task)
 
@@ -1428,13 +1677,13 @@ class Task(object):
     @property
     def finished_id(self):
         # note: id is not available before the task has finished.
-        # Index already identifies the task within the foreach,
-        # we will remove foreach value so that it is easier to
+        # Index already identifies the task within the foreach and loop.
+        # We will remove foreach value so that it is easier to
         # identify siblings within a foreach.
         foreach_stack_tuple = tuple(
             [s._replace(value=0) for s in self.results["_foreach_stack"]]
         )
-        return (self.step, foreach_stack_tuple)
+        return (self.step, foreach_stack_tuple, tuple(self.results["_iteration_stack"]))
 
     @property
     def is_cloned(self):
@@ -1511,6 +1760,7 @@ class CLIArgs(object):
     def __init__(self, task):
         self.task = task
         self.entrypoint = list(task.entrypoint)
+        step_obj = getattr(self.task.flow, self.task.step)
         self.top_level_options = {
             "quiet": True,
             "metadata": self.task.metadata_type,
@@ -1522,8 +1772,12 @@ class CLIArgs(object):
             "datastore-root": self.task.datastore_sysroot,
             "with": [
                 deco.make_decorator_spec()
-                for deco in self.task.decos
-                if not deco.statically_defined
+                for deco in chain(
+                    self.task.decos,
+                    step_obj.wrappers,
+                    step_obj.config_decorators,
+                )
+                if not deco.statically_defined and deco.inserted_by is None
             ],
         }
 

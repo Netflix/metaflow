@@ -11,7 +11,7 @@ import subprocess
 from os import path, name, environ, listdir
 
 from metaflow.extension_support import update_package_info
-from metaflow.info_file import CURRENT_DIRECTORY, read_info_file
+from metaflow.meta_files import read_info_file
 
 
 # True/False correspond to the value `public`` in get_version
@@ -133,6 +133,16 @@ def read_info_version():
     return None
 
 
+def make_public_version(version_string):
+    """
+    Takes a complex version string and returns a public, PEP 440-compliant version.
+    It removes local version identifiers (+...) and development markers (-...).
+    """
+    base_version = version_string.split("+", 1)[0]
+    public_version = base_version.split("-", 1)[0]
+    return public_version
+
+
 def get_version(public=False):
     """Tracks the version number.
 
@@ -170,6 +180,11 @@ def get_version(public=False):
     )  # Version info is cached in INFO file; includes extension info
 
     if version:
+        # If we have a version from the INFO file, use it directly.
+        # However, if we are asked for a public version, we parse it to make sure
+        # that no local information is included.
+        if public:
+            version = make_public_version(version)
         _version_cache[public] = version
         return version
 

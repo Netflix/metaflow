@@ -7,6 +7,7 @@ from metaflow import JSONType, current, decorators, parameters
 from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
 from metaflow.metaflow_config import (
+    FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
     SERVICE_VERSION_CHECK,
     SFN_STATE_MACHINE_PREFIX,
     UI_URL,
@@ -18,6 +19,8 @@ from metaflow.util import get_username, to_bytes, to_unicode, version_parse
 
 from .production_token import load_token, new_token, store_token
 from .step_functions import StepFunctions
+from metaflow.tagging_util import validate_tags
+from ..aws_utils import validate_aws_tag
 
 VALID_NAME = re.compile(r"[^a-zA-Z0-9_\-\.]")
 
@@ -97,6 +100,13 @@ def step_functions(obj, name=None):
     "times to attach multiple tags.",
 )
 @click.option(
+    "--aws-batch-tag",
+    "aws_batch_tags",
+    multiple=True,
+    default=None,
+    help="AWS Batch tags.",
+)
+@click.option(
     "--namespace",
     "user_namespace",
     default=None,
@@ -142,6 +152,7 @@ def step_functions(obj, name=None):
 def create(
     obj,
     tags=None,
+    aws_batch_tags=None,
     user_namespace=None,
     only_json=False,
     authorize=None,
@@ -195,6 +206,7 @@ def create(
         token,
         obj.state_machine_name,
         tags,
+        aws_batch_tags,
         user_namespace,
         max_workers,
         workflow_timeout,
@@ -314,6 +326,7 @@ def make_flow(
     token,
     name,
     tags,
+    aws_batch_tags,
     namespace,
     max_workers,
     workflow_timeout,
@@ -329,18 +342,38 @@ def make_flow(
     decorators._init_step_decorators(
         obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
     )
+    obj.graph = obj.flow._graph
 
     obj.package = MetaflowPackage(
-        obj.flow, obj.environment, obj.echo, obj.package_suffixes
+        obj.flow,
+        obj.environment,
+        obj.echo,
+        suffixes=obj.package_suffixes,
+        flow_datastore=obj.flow_datastore if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE else None,
     )
-    package_url, package_sha = obj.flow_datastore.save_data(
-        [obj.package.blob], len_hint=1
-    )[0]
+    # This blocks until the package is created
+    if FEAT_ALWAYS_UPLOAD_CODE_PACKAGE:
+        package_url = obj.package.package_url()
+        package_sha = obj.package.package_sha()
+    else:
+        package_url, package_sha = obj.flow_datastore.save_data(
+            [obj.package.blob], len_hint=1
+        )[0]
+
+    if aws_batch_tags is not None:
+        batch_tags = {}
+        for item in list(aws_batch_tags):
+            key, value = item.split("=")
+            # These are fresh AWS tags provided by the user through the CLI,
+            # so we must validate them.
+            validate_aws_tag(key, value)
+            batch_tags[key] = value
 
     return StepFunctions(
         name,
         obj.graph,
         obj.flow,
+        obj.package.package_metadata,
         package_sha,
         package_url,
         token,
@@ -350,6 +383,7 @@ def make_flow(
         obj.event_logger,
         obj.monitor,
         tags=tags,
+        aws_batch_tags=batch_tags,
         namespace=namespace,
         max_workers=max_workers,
         username=get_username(),

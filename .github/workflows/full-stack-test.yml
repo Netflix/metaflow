@@ -35,7 +35,7 @@ jobs:
           # and then drop into a shell. We feed commands via a heredoc:
           cat <<EOF | metaflow-dev shell
           echo "Environment is ready; running flow now..."
-          python metaflow/tutorials/00-helloworld/helloworld.py --environment=pypi run --with kubernetes
+          python metaflow/tutorials/00-helloworld/helloworld.py --environment=pypi run --with kubernetes --with card
           EOF
 
       - name: Tear down environment

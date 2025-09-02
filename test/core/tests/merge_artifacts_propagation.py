@@ -8,6 +8,16 @@ class MergeArtifactsPropagationTest(MetaflowTest):
     # only matches with the small-foreach graph whereas the other test is
     # more generic.
     PRIORITY = 1
+    SKIP_GRAPHS = [
+        "simple_switch",
+        "nested_switch",
+        "branch_in_switch",
+        "foreach_in_switch",
+        "switch_in_branch",
+        "switch_in_foreach",
+        "recursive_switch",
+        "recursive_switch_inside_foreach",
+    ]
 
     @steps(0, ["start"])
     def start(self):
