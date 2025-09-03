@@ -1,5 +1,6 @@
 import json
 
+from metaflow.metaflow_config import ARGO_EVENTS_SENSOR_NAMESPACE
 from metaflow.exception import MetaflowException
 from metaflow.plugins.kubernetes.kubernetes_client import KubernetesClient
 
@@ -377,12 +378,15 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def register_sensor(self, name, sensor=None):
+    def register_sensor(
+        self, name, sensor=None, sensor_namespace=ARGO_EVENTS_SENSOR_NAMESPACE
+    ):
         if sensor is None:
             sensor = {}
         # Unfortunately, Kubernetes client does not handle optimistic
         # concurrency control by itself unlike kubectl
         client = self._client.get()
+
         if not sensor:
             sensor["metadata"] = {}
 
@@ -392,7 +396,7 @@ class ArgoClient(object):
             ] = client.CustomObjectsApi().get_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
-                namespace=self._namespace,
+                namespace=sensor_namespace,
                 plural="sensors",
                 name=name,
             )[
@@ -407,7 +411,7 @@ class ArgoClient(object):
                     return client.CustomObjectsApi().create_namespaced_custom_object(
                         group=self._group,
                         version=self._version,
-                        namespace=self._namespace,
+                        namespace=sensor_namespace,
                         plural="sensors",
                         body=sensor,
                     )
@@ -425,7 +429,7 @@ class ArgoClient(object):
             return client.CustomObjectsApi().replace_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
-                namespace=self._namespace,
+                namespace=sensor_namespace,
                 plural="sensors",
                 body=sensor,
                 name=name,
@@ -435,7 +439,7 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def delete_sensor(self, name):
+    def delete_sensor(self, name, sensor_namespace):
         """
         Issues an API call for deleting a sensor
 
@@ -447,7 +451,7 @@ class ArgoClient(object):
             return client.CustomObjectsApi().delete_namespaced_custom_object(
                 group=self._group,
                 version=self._version,
-                namespace=self._namespace,
+                namespace=sensor_namespace,
                 plural="sensors",
                 name=name,
             )

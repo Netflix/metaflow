@@ -10,6 +10,7 @@ from metaflow.metaflow_config import (
     FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
     SERVICE_VERSION_CHECK,
     SFN_STATE_MACHINE_PREFIX,
+    SFN_COMPRESS_STATE_MACHINE,
     UI_URL,
 )
 from metaflow.package import MetaflowPackage
@@ -141,6 +142,12 @@ def step_functions(obj, name=None):
     "defining foreach tasks in Amazon State Language.",
 )
 @click.option(
+    "--compress-state-machine/--no-compress-state-machine",
+    is_flag=True,
+    default=SFN_COMPRESS_STATE_MACHINE,
+    help="Compress AWS Step Functions state machine to fit within the 8K limit.",
+)
+@click.option(
     "--deployer-attribute-file",
     default=None,
     show_default=True,
@@ -162,6 +169,7 @@ def create(
     workflow_timeout=None,
     log_execution_history=False,
     use_distributed_map=False,
+    compress_state_machine=False,
     deployer_attribute_file=None,
 ):
     for node in obj.graph:
@@ -212,6 +220,7 @@ def create(
         workflow_timeout,
         obj.is_project,
         use_distributed_map,
+        compress_state_machine,
     )
 
     if only_json:
@@ -332,6 +341,7 @@ def make_flow(
     workflow_timeout,
     is_project,
     use_distributed_map,
+    compress_state_machine=False,
 ):
     if obj.flow_datastore.TYPE != "s3":
         raise MetaflowException("AWS Step Functions requires --datastore=s3.")
@@ -390,6 +400,7 @@ def make_flow(
         workflow_timeout=workflow_timeout,
         is_project=is_project,
         use_distributed_map=use_distributed_map,
+        compress_state_machine=compress_state_machine,
     )
 
 

@@ -344,6 +344,8 @@ SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH = from_conf(
         else None
     ),
 )
+# Toggle for step command being part of the Step Function payload, or if it should be offloaded to S3
+SFN_COMPRESS_STATE_MACHINE = from_conf("SFN_COMPRESS_STATE_MACHINE", False)
 ###
 # Kubernetes configuration
 ###
@@ -409,6 +411,9 @@ ARGO_EVENTS_INTERNAL_WEBHOOK_URL = from_conf(
     "ARGO_EVENTS_INTERNAL_WEBHOOK_URL", ARGO_EVENTS_WEBHOOK_URL
 )
 ARGO_EVENTS_WEBHOOK_AUTH = from_conf("ARGO_EVENTS_WEBHOOK_AUTH", "none")
+ARGO_EVENTS_SENSOR_NAMESPACE = from_conf(
+    "ARGO_EVENTS_SENSOR_NAMESPACE", KUBERNETES_NAMESPACE
+)
 
 ARGO_WORKFLOWS_UI_URL = from_conf("ARGO_WORKFLOWS_UI_URL")
 
