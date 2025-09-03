@@ -19,6 +19,7 @@ from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT_BUS,
     ARGO_EVENTS_EVENT_SOURCE,
     ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
+    ARGO_EVENTS_SENSOR_NAMESPACE,
     ARGO_EVENTS_SERVICE_ACCOUNT,
     ARGO_EVENTS_WEBHOOK_AUTH,
     ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT,
@@ -71,6 +72,10 @@ from metaflow.util import resolve_identity
 
 class ArgoWorkflowsException(MetaflowException):
     headline = "Argo Workflows error"
+
+
+class ArgoWorkflowsSensorCleanupException(MetaflowException):
+    headline = "Argo Workflows sensor clean up error"
 
 
 class ArgoWorkflowsSchedulingException(MetaflowException):
@@ -186,6 +191,7 @@ class ArgoWorkflows(object):
         return str(self._workflow_template)
 
     def deploy(self):
+        self.cleanup_previous_sensors()
         try:
             # Register workflow template.
             ArgoClient(namespace=KUBERNETES_NAMESPACE).register_workflow_template(
@@ -193,6 +199,37 @@ class ArgoWorkflows(object):
             )
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
+
+    def cleanup_previous_sensors(self):
+        try:
+            client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+            # Check for existing deployment and do cleanup
+            old_template = client.get_workflow_template(self.name)
+            if not old_template:
+                return None
+            # Clean up old sensors
+            old_sensor_namespace = old_template["metadata"]["annotations"].get(
+                "metaflow/sensor_namespace"
+            )
+
+            if old_sensor_namespace is None:
+                # This workflow was created before sensor annotations
+                # and may have a sensor in the default namespace
+                # we will delete it and it'll get recreated if need be
+                old_sensor_name = ArgoWorkflows._sensor_name(self.name)
+                client.delete_sensor(old_sensor_name, client._namespace)
+            else:
+                # delete old sensor only if it was somewhere else, otherwise it'll get replaced
+                old_sensor_name = old_template["metadata"]["annotations"][
+                    "metaflow/sensor_name"
+                ]
+                if (
+                    not self._sensor
+                    or old_sensor_namespace != ARGO_EVENTS_SENSOR_NAMESPACE
+                ):
+                    client.delete_sensor(old_sensor_name, old_sensor_namespace)
+        except Exception as e:
+            raise ArgoWorkflowsSensorCleanupException(str(e))
 
     @staticmethod
     def _sanitize(name):
@@ -221,6 +258,17 @@ class ArgoWorkflows(object):
     def delete(name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
+        workflow_template = client.get_workflow_template(name)
+        sensor_name = ArgoWorkflows._sensor_name(
+            workflow_template["metadata"]["annotations"].get(
+                "metaflow/sensor_name", name
+            )
+        )
+        # if below is missing then it was deployed before custom sensor namespaces
+        sensor_namespace = workflow_template["metadata"]["annotations"].get(
+            "metaflow/sensor_namespace", KUBERNETES_NAMESPACE
+        )
+
         # Always try to delete the schedule. Failure in deleting the schedule should not
         # be treated as an error, due to any of the following reasons
         # - there might not have been a schedule, or it was deleted by some other means
@@ -230,7 +278,7 @@ class ArgoWorkflows(object):
 
         # The workflow might have sensors attached to it, which consume actual resources.
         # Try to delete these as well.
-        sensor_deleted = client.delete_sensor(ArgoWorkflows._sensor_name(name))
+        sensor_deleted = client.delete_sensor(sensor_name, sensor_namespace)
 
         # After cleaning up related resources, delete the workflow in question.
         # Failure in deleting is treated as critical and will be made visible to the user
@@ -399,11 +447,10 @@ class ArgoWorkflows(object):
             # Metaflow will overwrite any existing sensor.
             sensor_name = ArgoWorkflows._sensor_name(self.name)
             if self._sensor:
-                argo_client.register_sensor(sensor_name, self._sensor.to_json())
-            else:
-                # Since sensors occupy real resources, delete existing sensor if needed
-                # Deregister sensors that might have existed before this deployment
-                argo_client.delete_sensor(sensor_name)
+                # The new sensor will go into the sensor namespace specified
+                ArgoClient(namespace=ARGO_EVENTS_SENSOR_NAMESPACE).register_sensor(
+                    sensor_name, self._sensor.to_json(), ARGO_EVENTS_SENSOR_NAMESPACE
+                )
         except Exception as e:
             raise ArgoWorkflowsSchedulingException(str(e))
 
@@ -730,6 +777,7 @@ class ArgoWorkflows(object):
         # references to them within the DAGTask.
 
         annotations = {}
+
         if self._schedule is not None:
             # timezone is an optional field and json dumps on None will result in null
             # hence configuring it to an empty string
@@ -752,7 +800,9 @@ class ArgoWorkflows(object):
                             {key: trigger.get(key) for key in ["name", "type"]}
                             for trigger in self.triggers
                         ]
-                    )
+                    ),
+                    "metaflow/sensor_name": ArgoWorkflows._sensor_name(self.name),
+                    "metaflow/sensor_namespace": ARGO_EVENTS_SENSOR_NAMESPACE,
                 }
             )
         if self.notify_on_error:
@@ -3521,7 +3571,7 @@ class ArgoWorkflows(object):
                 # Sensor metadata.
                 ObjectMeta()
                 .name(ArgoWorkflows._sensor_name(self.name))
-                .namespace(KUBERNETES_NAMESPACE)
+                .namespace(ARGO_EVENTS_SENSOR_NAMESPACE)
                 .labels(self._base_labels)
                 .label("app.kubernetes.io/name", "metaflow-sensor")
                 .annotations(self._base_annotations)
