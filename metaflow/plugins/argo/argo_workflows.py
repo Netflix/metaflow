@@ -1007,10 +1007,6 @@ class ArgoWorkflows(object):
                         last_split_switch
                     ].out_funcs
                     # p needs to be in at least one conditional_branch for it to be closed.
-                    print("DEBUG NODE ", node.name)
-                    print("cond_branches", node_conditional_branches)
-                    print("cond_in_funcs", conditional_in_funcs)
-                    print("last_conditional_split_nodes", last_conditional_split_nodes)
                     closes_branches = all(
                         (
                             any(
@@ -1046,18 +1042,6 @@ class ArgoWorkflows(object):
                         if p in self.conditional_nodes:
                             self.conditional_nodes.remove(p)
                         node_conditional_parents[p] = []
-        print(
-            "conditional_nodes: ",
-            self.conditional_nodes,
-            "\ncond_skip_nodes: ",
-            self.conditional_skip_nodes,
-            "\nconditional_join_nodes: ",
-            self.conditional_join_nodes,
-            "\nmathching_cond_joins: ",
-            self.matching_conditional_join_dict,
-            "\nrecursive_nodes: ",
-            self.recursive_nodes,
-        )
 
     def _is_conditional_node(self, node):
         return (
