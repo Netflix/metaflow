@@ -1309,13 +1309,14 @@ class ArgoWorkflows(object):
                     if non_switch_in_funcs:
                         status_when = "||".join(
                             [
-                                "{{%s.status}}=='Succeeded'" % in_func
+                                "{{tasks.%s.status}}==Succeeded"
+                                % self._sanitize(in_func)
                                 for in_func in non_switch_in_funcs
                             ]
                         )
 
                     total_when = (
-                        status_when + "||" + conditional_when
+                        f"({status_when}) || ({conditional_when})"
                         if status_when
                         else conditional_when
                     )
