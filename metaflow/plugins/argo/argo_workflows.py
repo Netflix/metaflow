@@ -1934,16 +1934,17 @@ class ArgoWorkflows(object):
             ):
                 # we need to pass in the set of conditional in_funcs to the pathspec generating script as in the case of split-switch skipping cases,
                 # non-conditional input-paths need to be ignored in favour of conditional ones when they have executed.
-                conditional_in_funcs = ",".join(
+                skippable_input_steps = ",".join(
                     [
                         in_func
                         for in_func in node.in_funcs
                         if self._is_conditional_node(self.graph[in_func])
+                        and self.graph[in_func].type == "split-switch"
                     ]
                 )
                 input_paths = (
                     "$(python -m metaflow.plugins.argo.conditional_input_paths %s %s)"
-                    % (input_paths, conditional_in_funcs)
+                    % (input_paths, skippable_input_steps)
                 )
             elif (
                 node.type == "join"
