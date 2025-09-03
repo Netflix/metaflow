@@ -344,6 +344,8 @@ SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH = from_conf(
         else None
     ),
 )
+# Toggle for step command being part of the Step Function payload, or if it should be offloaded to S3
+SFN_COMPRESS_STATE_MACHINE = from_conf("SFN_COMPRESS_STATE_MACHINE", False)
 ###
 # Kubernetes configuration
 ###
