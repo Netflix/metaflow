@@ -72,7 +72,11 @@ jobs:
 
     - name: Install R ${{ matrix.ver }} system dependencies
       if: matrix.os == 'ubuntu-22.04'
-      run: sudo apt-get update; sudo apt-get install -y libcurl4-openssl-dev qpdf libgit2-dev libharfbuzz-dev libfribidi-dev
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libcurl4-openssl-dev qpdf libgit2-dev libharfbuzz-dev libfribidi-dev \
+          libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev libwebp-dev pkg-config
 
     - name: Install R ${{ matrix.ver }} Rlang dependencies
       run: |
