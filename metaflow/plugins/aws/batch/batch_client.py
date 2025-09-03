@@ -96,6 +96,8 @@ class BatchJob(object):
             commands = self.payload["containerOverrides"]["command"][-1]
             # add split-index as this worker is also an ubf_task
             commands = commands.replace("[multinode-args]", "--split-index 0")
+            # For main node, remove the placeholder since it keeps the original task ID
+            commands = commands.replace("[NODE-INDEX]", "")
             main_task_override["command"][-1] = commands
 
             # secondary tasks
@@ -103,18 +105,12 @@ class BatchJob(object):
                 self.payload["containerOverrides"]
             )
             secondary_commands = self.payload["containerOverrides"]["command"][-1]
-            # other tasks do not have control- prefix, and have the split id appended to the task -id
-            secondary_commands = secondary_commands.replace(
-                self._task_id,
-                self._task_id.replace("control-", "")
-                + "-node-$AWS_BATCH_JOB_NODE_INDEX",
-            )
-            secondary_commands = secondary_commands.replace(
-                "ubf_control",
-                "ubf_task",
-            )
-            secondary_commands = secondary_commands.replace(
-                "[multinode-args]", "--split-index $AWS_BATCH_JOB_NODE_INDEX"
+            # For secondary nodes: remove "control-" prefix and replace placeholders
+            secondary_commands = (
+                secondary_commands.replace("control-", "")
+                .replace("[NODE-INDEX]", "-node-$AWS_BATCH_JOB_NODE_INDEX")
+                .replace("ubf_control", "ubf_task")
+                .replace("[multinode-args]", "--split-index $AWS_BATCH_JOB_NODE_INDEX")
             )
 
             secondary_task_container_override["command"][-1] = secondary_commands
