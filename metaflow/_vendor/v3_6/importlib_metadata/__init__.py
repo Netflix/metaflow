@@ -33,18 +33,18 @@ from typing import List, Mapping, Optional, Union
 
 
 __all__ = [
-    'Distribution',
-    'DistributionFinder',
-    'PackageMetadata',
-    'PackageNotFoundError',
-    'distribution',
-    'distributions',
-    'entry_points',
-    'files',
-    'metadata',
-    'packages_distributions',
-    'requires',
-    'version',
+    "Distribution",
+    "DistributionFinder",
+    "PackageMetadata",
+    "PackageNotFoundError",
+    "distribution",
+    "distributions",
+    "entry_points",
+    "files",
+    "metadata",
+    "packages_distributions",
+    "requires",
+    "version",
 ]
 
 
@@ -114,15 +114,15 @@ class Sectioned:
         lines = filter(filter_, map(str.strip, text.splitlines()))
         name = None
         for value in lines:
-            section_match = value.startswith('[') and value.endswith(']')
+            section_match = value.startswith("[") and value.endswith("]")
             if section_match:
-                name = value.strip('[]')
+                name = value.strip("[]")
                 continue
             yield Pair(name, value)
 
     @staticmethod
     def valid(line):
-        return line and not line.startswith('#')
+        return line and not line.startswith("#")
 
 
 class DeprecatedTuple:
@@ -160,9 +160,9 @@ class EntryPoint(DeprecatedTuple):
     """
 
     pattern = re.compile(
-        r'(?P<module>[\w.]+)\s*'
-        r'(:\s*(?P<attr>[\w.]+))?\s*'
-        r'(?P<extras>\[.*\])?\s*$'
+        r"(?P<module>[\w.]+)\s*"
+        r"(:\s*(?P<attr>[\w.]+))?\s*"
+        r"(?P<extras>\[.*\])?\s*$"
     )
     """
     A regular expression describing the syntax for an entry point,
@@ -180,7 +180,7 @@ class EntryPoint(DeprecatedTuple):
     following the attr, and following any extras.
     """
 
-    dist: Optional['Distribution'] = None
+    dist: Optional["Distribution"] = None
 
     def __init__(self, name, value, group):
         vars(self).update(name=name, value=value, group=group)
@@ -191,24 +191,24 @@ class EntryPoint(DeprecatedTuple):
         return the named object.
         """
         match = self.pattern.match(self.value)
-        module = import_module(match.group('module'))
-        attrs = filter(None, (match.group('attr') or '').split('.'))
+        module = import_module(match.group("module"))
+        attrs = filter(None, (match.group("attr") or "").split("."))
         return functools.reduce(getattr, attrs, module)
 
     @property
     def module(self):
         match = self.pattern.match(self.value)
-        return match.group('module')
+        return match.group("module")
 
     @property
     def attr(self):
         match = self.pattern.match(self.value)
-        return match.group('attr')
+        return match.group("attr")
 
     @property
     def extras(self):
         match = self.pattern.match(self.value)
-        return list(re.finditer(r'\w+', match.group('extras') or ''))
+        return list(re.finditer(r"\w+", match.group("extras") or ""))
 
     def _for(self, dist):
         vars(self).update(dist=dist)
@@ -243,8 +243,8 @@ class EntryPoint(DeprecatedTuple):
 
     def __repr__(self):
         return (
-            f'EntryPoint(name={self.name!r}, value={self.value!r}, '
-            f'group={self.group!r})'
+            f"EntryPoint(name={self.name!r}, value={self.value!r}, "
+            f"group={self.group!r})"
         )
 
     def __hash__(self):
@@ -298,16 +298,16 @@ class DeprecatedList(list):
         return wrapped
 
     for method_name in [
-        '__setitem__',
-        '__delitem__',
-        'append',
-        'reverse',
-        'extend',
-        'pop',
-        'remove',
-        '__iadd__',
-        'insert',
-        'sort',
+        "__setitem__",
+        "__delitem__",
+        "append",
+        "reverse",
+        "extend",
+        "pop",
+        "remove",
+        "__iadd__",
+        "insert",
+        "sort",
     ]:
         locals()[method_name] = _wrap_deprecated_method(method_name)
 
@@ -382,7 +382,7 @@ class EntryPoints(DeprecatedList):
     def _from_text(text):
         return (
             EntryPoint(name=item.value.name, value=item.value.value, group=item.name)
-            for item in Sectioned.section_pairs(text or '')
+            for item in Sectioned.section_pairs(text or "")
         )
 
 
@@ -449,7 +449,7 @@ class SelectableGroups(Deprecated, dict):
 
     @classmethod
     def load(cls, eps):
-        by_group = operator.attrgetter('group')
+        by_group = operator.attrgetter("group")
         ordered = sorted(eps, key=by_group)
         grouped = itertools.groupby(ordered, by_group)
         return cls((group, EntryPoints(eps)) for group, eps in grouped)
@@ -484,12 +484,12 @@ class SelectableGroups(Deprecated, dict):
 class PackagePath(pathlib.PurePosixPath):
     """A reference to a path in a package"""
 
-    def read_text(self, encoding='utf-8'):
+    def read_text(self, encoding="utf-8"):
         with self.locate().open(encoding=encoding) as stream:
             return stream.read()
 
     def read_binary(self):
-        with self.locate().open('rb') as stream:
+        with self.locate().open("rb") as stream:
             return stream.read()
 
     def locate(self):
@@ -499,10 +499,10 @@ class PackagePath(pathlib.PurePosixPath):
 
 class FileHash:
     def __init__(self, spec):
-        self.mode, _, self.value = spec.partition('=')
+        self.mode, _, self.value = spec.partition("=")
 
     def __repr__(self):
-        return f'<FileHash mode: {self.mode} value: {self.value}>'
+        return f"<FileHash mode: {self.mode} value: {self.value}>"
 
 
 class Distribution:
@@ -551,7 +551,7 @@ class Distribution:
         :context: A ``DistributionFinder.Context`` object.
         :return: Iterable of Distribution objects for all packages.
         """
-        context = kwargs.pop('context', None)
+        context = kwargs.pop("context", None)
         if context and kwargs:
             raise ValueError("cannot accept context and kwargs")
         context = context or DistributionFinder.Context(**kwargs)
@@ -572,12 +572,12 @@ class Distribution:
     def _discover_resolvers():
         """Search the meta_path for resolvers."""
         declared = (
-            getattr(finder, 'find_distributions', None) for finder in sys.meta_path
+            getattr(finder, "find_distributions", None) for finder in sys.meta_path
         )
         return filter(None, declared)
 
     @classmethod
-    def _local(cls, root='.'):
+    def _local(cls, root="."):
         from pep517 import build, meta
 
         system = build.compat_system(root)
@@ -596,19 +596,19 @@ class Distribution:
         metadata.  See PEP 566 for details.
         """
         text = (
-            self.read_text('METADATA')
-            or self.read_text('PKG-INFO')
+            self.read_text("METADATA")
+            or self.read_text("PKG-INFO")
             # This last clause is here to support old egg-info files.  Its
             # effect is to just end up using the PathDistribution's self._path
             # (which points to the egg-info file) attribute unchanged.
-            or self.read_text('')
+            or self.read_text("")
         )
         return _adapters.Message(email.message_from_string(text))
 
     @property
     def name(self):
         """Return the 'Name' metadata for the distribution package."""
-        return self.metadata['Name']
+        return self.metadata["Name"]
 
     @property
     def _normalized_name(self):
@@ -618,11 +618,11 @@ class Distribution:
     @property
     def version(self):
         """Return the 'Version' metadata for the distribution package."""
-        return self.metadata['Version']
+        return self.metadata["Version"]
 
     @property
     def entry_points(self):
-        return EntryPoints._from_text_for(self.read_text('entry_points.txt'), self)
+        return EntryPoints._from_text_for(self.read_text("entry_points.txt"), self)
 
     @property
     def files(self):
@@ -653,7 +653,7 @@ class Distribution:
         """
         Read the lines of RECORD
         """
-        text = self.read_text('RECORD')
+        text = self.read_text("RECORD")
         return text and text.splitlines()
 
     def _read_files_egginfo(self):
@@ -661,7 +661,7 @@ class Distribution:
         SOURCES.txt might contain literal commas, so wrap each line
         in quotes.
         """
-        text = self.read_text('SOURCES.txt')
+        text = self.read_text("SOURCES.txt")
         return text and map('"{}"'.format, text.splitlines())
 
     @property
@@ -671,10 +671,10 @@ class Distribution:
         return reqs and list(reqs)
 
     def _read_dist_info_reqs(self):
-        return self.metadata.get_all('Requires-Dist')
+        return self.metadata.get_all("Requires-Dist")
 
     def _read_egg_info_reqs(self):
-        source = self.read_text('requires.txt')
+        source = self.read_text("requires.txt")
         return source and self._deps_from_requires_text(source)
 
     @classmethod
@@ -697,12 +697,12 @@ class Distribution:
             return name and f'extra == "{name}"'
 
         def quoted_marker(section):
-            section = section or ''
-            extra, sep, markers = section.partition(':')
+            section = section or ""
+            extra, sep, markers = section.partition(":")
             if extra and markers:
-                markers = f'({markers})'
+                markers = f"({markers})"
             conditions = list(filter(None, [markers, make_condition(extra)]))
-            return '; ' + ' and '.join(conditions) if conditions else ''
+            return "; " + " and ".join(conditions) if conditions else ""
 
         def url_req_space(req):
             """
@@ -710,7 +710,7 @@ class Distribution:
             Ref python/importlib_metadata#357.
             """
             # '@' is uniquely indicative of a url_req.
-            return ' ' * ('@' in req)
+            return " " * ("@" in req)
 
         for section in sections:
             space = url_req_space(section.value)
@@ -752,7 +752,7 @@ class DistributionFinder(MetaPathFinder):
             Typically refers to Python installed package paths such as
             "site-packages" directories and defaults to ``sys.path``.
             """
-            return vars(self).get('path', sys.path)
+            return vars(self).get("path", sys.path)
 
     @abc.abstractmethod
     def find_distributions(self, context=Context()):
@@ -786,7 +786,7 @@ class FastPath:
 
     def children(self):
         with suppress(Exception):
-            return os.listdir(self.root or '.')
+            return os.listdir(self.root or ".")
         with suppress(Exception):
             return self.zip_children()
         return []
@@ -868,7 +868,7 @@ class Prepared:
         """
         PEP 503 normalization plus dashes as underscores.
         """
-        return re.sub(r"[-_.]+", "-", name).lower().replace('-', '_')
+        return re.sub(r"[-_.]+", "-", name).lower().replace("-", "_")
 
     @staticmethod
     def legacy_normalize(name):
@@ -876,7 +876,7 @@ class Prepared:
         Normalize the package name as found in the convention in
         older packaging tools versions and specs.
         """
-        return name.lower().replace('-', '_')
+        return name.lower().replace("-", "_")
 
     def __bool__(self):
         return bool(self.name)
@@ -930,7 +930,7 @@ class PathDistribution(Distribution):
             NotADirectoryError,
             PermissionError,
         ):
-            return self._path.joinpath(filename).read_text(encoding='utf-8')
+            return self._path.joinpath(filename).read_text(encoding="utf-8")
 
     read_text.__doc__ = Distribution.read_text.__doc__
 
@@ -948,9 +948,9 @@ class PathDistribution(Distribution):
 
     def _name_from_stem(self, stem):
         name, ext = os.path.splitext(stem)
-        if ext not in ('.dist-info', '.egg-info'):
+        if ext not in (".dist-info", ".egg-info"):
             return
-        name, sep, rest = stem.partition('-')
+        name, sep, rest = stem.partition("-")
         return name
 
 
@@ -1007,7 +1007,7 @@ def entry_points(**params) -> Union[EntryPoints, SelectableGroups]:
 
     :return: EntryPoints or SelectableGroups for all installed packages.
     """
-    norm_name = operator.attrgetter('_normalized_name')
+    norm_name = operator.attrgetter("_normalized_name")
     unique = functools.partial(unique_everseen, key=norm_name)
     eps = itertools.chain.from_iterable(
         dist.entry_points for dist in unique(distributions())
@@ -1047,17 +1047,17 @@ def packages_distributions() -> Mapping[str, List[str]]:
     pkg_to_dist = collections.defaultdict(list)
     for dist in distributions():
         for pkg in _top_level_declared(dist) or _top_level_inferred(dist):
-            pkg_to_dist[pkg].append(dist.metadata['Name'])
+            pkg_to_dist[pkg].append(dist.metadata["Name"])
     return dict(pkg_to_dist)
 
 
 def _top_level_declared(dist):
-    return (dist.read_text('top_level.txt') or '').split()
+    return (dist.read_text("top_level.txt") or "").split()
 
 
 def _top_level_inferred(dist):
     return {
-        f.parts[0] if len(f.parts) > 1 else f.with_suffix('').name
+        f.parts[0] if len(f.parts) > 1 else f.with_suffix("").name
         for f in always_iterable(dist.files)
         if f.suffix == ".py"
     }

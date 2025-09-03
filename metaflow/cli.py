@@ -25,6 +25,7 @@ from .metaflow_config import (
     DEFAULT_METADATA,
     DEFAULT_MONITOR,
     DEFAULT_PACKAGE_SUFFIXES,
+    DISABLE_LOGGING,
 )
 from .metaflow_current import current
 from .metaflow_environment import MetaflowEnvironment
@@ -56,6 +57,8 @@ def echo_dev_null(*args, **kwargs):
 
 
 def echo_always(line, **kwargs):
+    if DISABLE_LOGGING:
+        return
     if kwargs.pop("wrap", False):
         import textwrap
 
@@ -105,6 +108,8 @@ def echo_always(line, **kwargs):
 
 
 def logger(body="", system_msg=False, head="", bad=False, timestamp=True, nl=True):
+    if DISABLE_LOGGING:
+        return
     if timestamp:
         if timestamp is True:
             dt = datetime.now()
