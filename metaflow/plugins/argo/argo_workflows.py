@@ -1093,6 +1093,14 @@ class ArgoWorkflows(object):
     def _is_conditional_join_node(self, node):
         return node.name in self.conditional_join_nodes
 
+    def _has_many_conditional_in_funcs(self, node):
+        cond_in_funcs = [
+            in_func
+            for in_func in node.in_funcs
+            if self._is_conditional_node(self.graph[in_func])
+        ]
+        return len(cond_in_funcs) > 1 and len(cond_in_funcs) == len(node.in_funcs)
+
     def _is_recursive_node(self, node):
         return node.name in self.recursive_nodes
 
@@ -1786,7 +1794,9 @@ class ArgoWorkflows(object):
                 input_paths_expr = (
                     "export INPUT_PATHS={{inputs.parameters.input-paths}}"
                 )
-                if self._is_conditional_join_node(node):
+                if self._is_conditional_join_node(
+                    node
+                ) or self._has_many_conditional_in_funcs(node):
                     # NOTE: Argo template expressions that fail to resolve, output the expression itself as a value.
                     # With conditional steps, some of the input-paths are therefore 'broken' due to containing a nil expression
                     # e.g. "{{ tasks['A'].outputs.parameters.task-id }}" when task A never executed.
@@ -1966,7 +1976,10 @@ class ArgoWorkflows(object):
                 )
                 input_paths = "%s/_parameters/%s" % (run_id, task_id_params)
             # Only for static joins and conditional_joins
-            elif self._is_conditional_join_node(node) and not (
+            elif (
+                self._is_conditional_join_node(node)
+                or self._has_many_conditional_in_funcs(node)
+            ) and not (
                 node.type == "join"
                 and self.graph[node.split_parents[-1]].type == "foreach"
             ):
@@ -1976,8 +1989,7 @@ class ArgoWorkflows(object):
                     [
                         in_func
                         for in_func in node.in_funcs
-                        if self._is_conditional_node(self.graph[in_func])
-                        and self.graph[in_func].type == "split-switch"
+                        if self.graph[in_func].type == "split-switch"
                     ]
                 )
                 input_paths = (
@@ -1989,7 +2001,7 @@ class ArgoWorkflows(object):
                 and self.graph[node.split_parents[-1]].type == "foreach"
             ):
                 # foreach-joins straight out of conditional branches are not yet supported
-                if self._is_conditional_join_node(node):
+                if self._is_conditional_join_node(node) and len(node.in_funcs) > 1:
                     raise ArgoWorkflowsException(
                         "Conditional steps inside a foreach that transition directly into a join step are not currently supported.\n"
                         "As a workaround, add a common step after the conditional steps %s "
