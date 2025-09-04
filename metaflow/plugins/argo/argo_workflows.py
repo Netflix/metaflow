@@ -941,7 +941,10 @@ class ArgoWorkflows(object):
 
             if node.type == "split-switch":
                 conditional_branch = conditional_branch + [node.name]
-                node_conditional_branches[node.name] = conditional_branch
+                c_br = node_conditional_branches.get(node.name, [])
+                node_conditional_branches[node.name] = c_br + [
+                    b for b in conditional_branch if b not in c_br
+                ]
 
                 conditional_parents = (
                     [node.name]
@@ -959,21 +962,37 @@ class ArgoWorkflows(object):
             if conditional_parents and not node.type == "split-switch":
                 node_conditional_parents[node.name] = conditional_parents
                 conditional_branch = conditional_branch + [node.name]
-                node_conditional_branches[node.name] = conditional_branch
+                c_br = node_conditional_branches.get(node.name, [])
+                node_conditional_branches[node.name] = c_br + [
+                    b for b in conditional_branch if b not in c_br
+                ]
 
                 self.conditional_nodes.add(node.name)
 
             if conditional_branch and conditional_parents:
                 for n in node.out_funcs:
                     child = self.graph[n]
-                    if n not in seen:
-                        _visit(
-                            child, seen + [n], conditional_branch, conditional_parents
-                        )
+                    if child.name == node.name:
+                        continue
+                    # if n not in seen:
+                    _visit(child, seen + [n], conditional_branch, conditional_parents)
 
         # First we visit all nodes to determine conditional parents and branches
         for n in self.graph:
             _visit(n, [], [])
+
+        # helper to clean up conditional info for all children of a node, until a new split-switch is encountered.
+        def _cleanup_conditional_status(node_name, seen):
+            if self.graph[node_name].type == "split-switch":
+                # stop recursive cleanup if we hit a new split-switch
+                return
+            if node_name in self.conditional_nodes:
+                self.conditional_nodes.remove(node_name)
+            node_conditional_parents[node_name] = []
+            node_conditional_branches[node_name] = []
+            for p in self.graph[node_name].out_funcs:
+                if p not in seen:
+                    _cleanup_conditional_status(p, seen + [p])
 
         # Then we traverse again in order to determine conditional join nodes, and matching conditional join info
         for node in self.graph:
@@ -1006,11 +1025,6 @@ class ArgoWorkflows(object):
                     last_conditional_split_nodes = self.graph[
                         last_split_switch
                     ].out_funcs
-                    print("DEBUG NODE ", node.name)
-                    print("cond_branches", node_conditional_branches)
-                    print("cond_in_funcs", conditional_in_funcs)
-                    print("last_conditional_split_nodes", last_conditional_split_nodes)
-
                     # NOTE: How do we define a conditional join step?
                     # The idea here is that we check if the conditional branches(e.g. chains of conditional steps leading to) of all the in_funcs
                     # manage to tick off every step name that follows a split-switch
@@ -1065,25 +1079,7 @@ class ArgoWorkflows(object):
                     for p in node_conditional_parents.get(node.name, [])
                     if p not in closed_conditional_parents
                 ]:
-                    if node.name in self.conditional_nodes:
-                        self.conditional_nodes.remove(node.name)
-                    node_conditional_parents[node.name] = []
-                    for p in node.out_funcs:
-                        if p in self.conditional_nodes:
-                            self.conditional_nodes.remove(p)
-                        node_conditional_parents[p] = []
-        print(
-            "conditional_nodes: ",
-            self.conditional_nodes,
-            "\ncond_skip_nodes: ",
-            self.conditional_skip_nodes,
-            "\nconditional_join_nodes: ",
-            self.conditional_join_nodes,
-            "\nmathching_cond_joins: ",
-            self.matching_conditional_join_dict,
-            "\nrecursive_nodes: ",
-            self.recursive_nodes,
-        )
+                    _cleanup_conditional_status(node.name, [])
 
     def _is_conditional_node(self, node):
         return (
