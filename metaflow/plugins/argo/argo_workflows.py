@@ -1006,17 +1006,47 @@ class ArgoWorkflows(object):
                     last_conditional_split_nodes = self.graph[
                         last_split_switch
                     ].out_funcs
-                    # p needs to be in at least one conditional_branch for it to be closed.
+                    print("DEBUG NODE ", node.name)
+                    print("cond_branches", node_conditional_branches)
+                    print("cond_in_funcs", conditional_in_funcs)
+                    print("last_conditional_split_nodes", last_conditional_split_nodes)
+
+                    # NOTE: How do we define a conditional join step?
+                    # The idea here is that we check if the conditional branches(e.g. chains of conditional steps leading to) of all the in_funcs
+                    # manage to tick off every step name that follows a split-switch
+                    # For example, consider the following structure
+                    # switch_step -> A, B, C
+                    # A -> A2 -> A3 -> A4 -> B2
+                    # B -> B2 -> B3 -> C3
+                    # C -> C2 -> C3 -> end
+                    #
+                    # if we look at the in_funcs for C3, they are (C2, B3)
+                    # B3 closes off branches started by A and B
+                    # C3 closes off branches started by C
+                    # therefore C3 is a conditional join step for the 'switch_step'
+                    # NOTE: Then what about a skip step?
+                    # some switch cases might not introduce any distinct steps of their own, opting to instead skip ahead to a later common step.
+                    # Example:
+                    # switch_step -> A, B, C
+                    # A -> A1 -> B2 -> C
+                    # B -> B1 -> B2 -> C
+                    #
+                    # In this case, C is a skip step as it does not add any conditional branching of its own.
+                    # C is also a conditional join, as it closes all branches started by 'switch_step'
+
                     closes_branches = all(
                         (
+                            # branch_root_node_name needs to be in at least one conditional_branch for it to be closed.
                             any(
-                                p in node_conditional_branches.get(in_func, [])
+                                branch_root_node_name
+                                in node_conditional_branches.get(in_func, [])
                                 for in_func in conditional_in_funcs
                             )
-                            if p != node.name
+                            # need to account for a switch case skipping completely, not having a conditional-branch of its own.
+                            if branch_root_node_name != node.name
                             else True
-                        )  # need to account for a switch case skipping completely, not having a conditional-branch of its own.
-                        for p in last_conditional_split_nodes
+                        )
+                        for branch_root_node_name in last_conditional_split_nodes
                     )
                     if closes_branches:
                         closed_conditional_parents.append(last_split_switch)
@@ -1042,6 +1072,18 @@ class ArgoWorkflows(object):
                         if p in self.conditional_nodes:
                             self.conditional_nodes.remove(p)
                         node_conditional_parents[p] = []
+        print(
+            "conditional_nodes: ",
+            self.conditional_nodes,
+            "\ncond_skip_nodes: ",
+            self.conditional_skip_nodes,
+            "\nconditional_join_nodes: ",
+            self.conditional_join_nodes,
+            "\nmathching_cond_joins: ",
+            self.matching_conditional_join_dict,
+            "\nrecursive_nodes: ",
+            self.recursive_nodes,
+        )
 
     def _is_conditional_node(self, node):
         return (
