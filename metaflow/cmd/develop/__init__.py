@@ -6,7 +6,9 @@ from metaflow._vendor import click
 
 class CommandObj:
     def __init__(self):
-        pass
+        self.quiet = None
+        self.echo = None
+        self.echo_always = None
 
 
 @click.group()

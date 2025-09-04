@@ -67,7 +67,7 @@ METAFLOW_CONFIG = None
 
 METAFLOW_LOCAL_CONFIG = None
 
-_all_configs = {}
+_all_configs: dict[str, ConfigValue] = {}
 
 
 def config_values(include=0):

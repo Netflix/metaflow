@@ -23,7 +23,7 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
 
         @wraps(function)
         def wrapper(*args, **kwargs):
-            from kubernetes import client
+            from kubernetes import client  # type: ignore[import-not-found]
 
             deadline = time.time() + deadline_seconds
             retry_number = 0
@@ -326,7 +326,7 @@ class RunningJobSet(object):
             # Killing the control pod will trigger the jobset to mark everything as failed.
             # Since jobsets have a successPolicy set to `All` which ensures that everything has
             # to succeed for the jobset to succeed.
-            from kubernetes.stream import stream
+            from kubernetes.stream import stream  # type: ignore[import-not-found]
 
             control_pod = self._fetch_pod()
             stream(

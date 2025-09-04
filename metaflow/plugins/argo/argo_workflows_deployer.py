@@ -1,4 +1,4 @@
-from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING, Type
+from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING, Type, cast
 
 from metaflow.runner.deployer_impl import DeployerImpl
 
@@ -100,7 +100,7 @@ class ArgoWorkflowsDeployer(DeployerImpl):
         # Prevent circular import
         from .argo_workflows_deployer_objects import ArgoWorkflowsDeployedFlow
 
-        return self._create(ArgoWorkflowsDeployedFlow, **kwargs)
+        return cast("ArgoWorkflowsDeployedFlow", self._create(ArgoWorkflowsDeployedFlow, **kwargs))
 
 
 _addl_stubgen_modules = ["metaflow.plugins.argo.argo_workflows_deployer_objects"]

@@ -7,7 +7,7 @@ sys.path.append(
     os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "test_lib_impl"))
 )
 
-import test_lib as lib
+import test_lib as lib  # type: ignore[import-not-found]
 
 EXPORTED_CLASSES = {
     ("test_lib", "test_lib.alias"): {

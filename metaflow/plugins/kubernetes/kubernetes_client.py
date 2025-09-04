@@ -19,7 +19,7 @@ class KubernetesClient(object):
     def __init__(self):
         try:
             # Kubernetes is a soft dependency.
-            from kubernetes import client, config
+            from kubernetes import client, config  # type: ignore[import-not-found]
         except (NameError, ImportError):
             raise KubernetesClientException(
                 "Could not import module 'kubernetes'.\n\nInstall Kubernetes "
@@ -33,7 +33,7 @@ class KubernetesClient(object):
         self._namespace = KUBERNETES_NAMESPACE
 
     def _refresh_client(self):
-        from kubernetes import client, config
+        from kubernetes import client, config  # type: ignore[import-not-found]
 
         if os.getenv("KUBECONFIG"):
             # There are cases where we're running inside a pod, but can't use
@@ -115,7 +115,7 @@ class KubernetesClient(object):
         return list(results)
 
     def kill_pods(self, flow_name, run_id, user, echo):
-        from kubernetes.stream import stream
+        from kubernetes.stream import stream  # type: ignore[import-not-found]
 
         api_instance = self._client.CoreV1Api()
         job_api = self._client.BatchV1Api()

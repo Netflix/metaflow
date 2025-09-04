@@ -1,14 +1,31 @@
 import re
 import json
+from typing import Dict, Any, List, Optional, TypedDict, Union
 
 from metaflow import current
-from metaflow.decorators import FlowDecorator
+from metaflow.decorators import FlowDecorator, DecoratorAttributes
 from metaflow.exception import MetaflowException
 from metaflow.util import is_stringish
 from metaflow.parameters import DeployTimeField, deploy_time_eval
 
 # TODO: Support dynamic parameter mapping through a context object that exposes
 #       flow name and user name similar to parameter context
+
+
+# Type for trigger decorator configuration
+class TriggerDecoratorDefaults(TypedDict):
+    """Default configuration for trigger decorator."""
+    event: Optional[Union[str, Dict[str, Any]]]  # Single event dependency
+    events: List[Union[str, Dict[str, Any]]]  # Multiple event dependencies
+    options: Dict[str, Any]  # Backend-specific configuration
+
+
+# Type for trigger_on_finish decorator configuration  
+class TriggerOnFinishDecoratorDefaults(TypedDict):
+    """Default configuration for trigger_on_finish decorator."""
+    flow: Optional[str]  # Single upstream flow dependency
+    flows: List[Union[str, Dict[str, str]]]  # Multiple upstream flow dependencies
+    options: Dict[str, Any]  # Backend-specific configuration
 
 
 class TriggerDecorator(FlowDecorator):
@@ -64,7 +81,7 @@ class TriggerDecorator(FlowDecorator):
     """
 
     name = "trigger"
-    defaults = {
+    defaults: DecoratorAttributes = {
         "event": None,
         "events": [],
         "options": {},
@@ -370,7 +387,7 @@ class TriggerOnFinishDecorator(FlowDecorator):
             help="Specify run pathspec for testing @trigger_on_finish locally.",
         ),
     }
-    defaults = {
+    defaults: DecoratorAttributes = {
         "flow": None,  # flow_name or project_flow_name
         "flows": [],  # flow_names or project_flow_names
         "options": {},

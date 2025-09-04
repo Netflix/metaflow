@@ -6,7 +6,7 @@ import time
 import hashlib
 
 try:
-    unicode
+    unicode  # type: ignore[used-before-def]
 except NameError:
     unicode = str
     basestring = str

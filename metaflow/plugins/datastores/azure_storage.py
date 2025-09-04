@@ -137,7 +137,7 @@ class _AzureRootClient(object):
                     "metaflow_user_attributes": json.dumps(metadata),
                 }
             blob = self.get_blob_client(path)
-            from azure.core.exceptions import ResourceExistsError
+            from azure.core.exceptions import ResourceExistsError  # type: ignore[import-not-found]
 
             with open(tmpfile, "rb") as byte_stream:
                 try:

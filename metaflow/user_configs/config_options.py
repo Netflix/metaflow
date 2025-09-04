@@ -32,13 +32,16 @@ def _load_config_values(info_file: Optional[str] = None) -> Optional[Dict[Any, A
                 config_content = json.load(f)
         except IOError:
             return None
-    if config_content:
-        return config_content.get("user_configs", {})
+    if config_content and isinstance(config_content, dict):
+        user_configs = config_content.get("user_configs")
+        if isinstance(user_configs, dict):
+            return user_configs
+        return {}
     return None
 
 
 class ConvertPath(click.Path):
-    name = "ConvertPath"
+    name: str = "ConvertPath"  # type: ignore[assignment]
 
     def convert(self, value, param, ctx):
         if isinstance(value, str) and value.startswith(_CONVERT_PREFIX):
@@ -70,7 +73,7 @@ class ConvertPath(click.Path):
 
 
 class ConvertDictOrStr(click.ParamType):
-    name = "ConvertDictOrStr"
+    name: str = "ConvertDictOrStr"  # type: ignore[assignment]
 
     def convert(self, value, param, ctx):
         is_default = False
@@ -149,8 +152,8 @@ class ConfigInput:
         self._req_configs = set(req_configs)
         self._defaults = defaults
         self._parsers = parsers
-        self._path_values = None
-        self._value_values = None
+        self._path_values: Optional[Dict[str, str]] = None
+        self._value_values: Optional[Dict[str, str]] = None
 
     @staticmethod
     def make_key_name(name: str) -> str:
@@ -249,13 +252,13 @@ class ConfigInput:
         # would cause an issue -- we can ignore those as the kv. values should trump
         # everything else.
         # NOTE: These are all *non default* keys
-        all_keys = set(self._value_values).union(self._path_values)
+        all_keys = set(self._value_values or {}).union(self._path_values or {})
 
         if all_keys and click_obj:
             click_obj.has_cl_config_options = True
         # Make sure we have at least some non default keys (we need some if we have
         # all kv)
-        has_all_kv = all_keys and all(
+        has_all_kv = all_keys and self._value_values is not None and all(
             self._value_values.get(k, "").startswith(_CONVERT_PREFIX + "kv.")
             for k in all_keys
         )
@@ -266,8 +269,8 @@ class ConfigInput:
         if not has_all_kv:
             # Check that the user didn't provide *both* a path and a value. Again, these
             # are only user-provided (not defaults)
-            common_keys = set(self._value_values or []).intersection(
-                [k for k, v in self._path_values.items()] or []
+            common_keys: set[str] = set(self._value_values or []).intersection(
+                [k for k, v in (self._path_values.items() if self._path_values else [])] or []
             )
             if common_keys:
                 exc = click.UsageError(
@@ -279,8 +282,8 @@ class ConfigInput:
                     return None
                 raise exc
 
-            all_values = dict(self._path_values)
-            all_values.update(self._value_values)
+            all_values = dict(self._path_values or {})
+            all_values.update(self._value_values or {})
 
             debug.userconf_exec("All config values: %s" % str(all_values))
 
@@ -317,14 +320,14 @@ class ConfigInput:
                         merged_configs[n] = ConvertDictOrStr.convert_value(val, True)
         else:
             debug.userconf_exec("Fast path due to pre-processed values")
-            merged_configs = self._value_values
+            merged_configs = self._value_values or {}
 
         if click_obj:
             click_obj.has_config_options = True
 
         debug.userconf_exec("Configs merged with defaults: %s" % str(merged_configs))
 
-        missing_configs = set()
+        missing_configs: set[str] = set()
         no_file = []
         no_default_file = []
         msgs = []
@@ -334,10 +337,10 @@ class ConfigInput:
                 to_return[name] = None
                 flow_cls._flow_state[_FlowState.CONFIGS][name] = None
                 continue
-            if val.startswith(_CONVERTED_NO_FILE):
+            if isinstance(val, str) and val.startswith(_CONVERTED_NO_FILE):
                 no_file.append(name)
                 continue
-            if val.startswith(_CONVERTED_DEFAULT_NO_FILE):
+            if isinstance(val, str) and val.startswith(_CONVERTED_DEFAULT_NO_FILE):
                 no_default_file.append(name)
                 continue
 
@@ -443,7 +446,7 @@ class LocalFileInput(click.Path):
     # values. This is set immediately upon processing the --local-config-file
     # option and will therefore then be available when processing any of the other
     # --config options (which will call ConfigInput.process_configs)
-    name = "LocalFileInput"
+    name: str = "LocalFileInput"  # type: ignore[assignment]
 
     def convert(self, value, param, ctx):
         v = super().convert(value, param, ctx)

@@ -43,7 +43,7 @@ from .kubernetes import KubernetesException
 from .kube_utils import validate_kube_labels, parse_kube_keyvalue_list
 
 try:
-    unicode
+    unicode  # type: ignore[used-before-def]
 except NameError:
     unicode = str
     basestring = str
@@ -216,7 +216,7 @@ class KubernetesDecorator(StepDecorator):
 
         if self.attributes["tolerations"]:
             try:
-                from kubernetes.client import V1Toleration
+                from kubernetes.client import V1Toleration  # type: ignore[import-not-found]
 
                 for toleration in self.attributes["tolerations"]:
                     try:
@@ -436,7 +436,7 @@ class KubernetesDecorator(StepDecorator):
     def package_init(self, flow, step_name, environment):
         try:
             # Kubernetes is a soft dependency.
-            from kubernetes import client, config
+            from kubernetes import client, config  # type: ignore[import-not-found]
         except (NameError, ImportError):
             raise KubernetesException(
                 "Could not import module 'kubernetes'.\n\nInstall Kubernetes "

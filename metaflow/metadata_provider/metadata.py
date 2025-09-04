@@ -77,7 +77,7 @@ class ObjectOrder:
 
 @with_metaclass(MetadataProviderMeta)
 class MetadataProvider(object):
-    TYPE = None
+    TYPE: str | None = None
 
     @classmethod
     def metadata_str(cls):

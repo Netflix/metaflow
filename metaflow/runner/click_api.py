@@ -6,7 +6,7 @@ _py_ver = sys.version_info[:2]
 if _py_ver >= (3, 8):
     from metaflow._vendor.typeguard import TypeCheckError, check_type
 elif _py_ver >= (3, 7):
-    from metaflow._vendor.v3_7.typeguard import TypeCheckError, check_type
+    from metaflow._vendor.v3_7.typeguard import TypeCheckError, check_type  # type: ignore[assignment,no-redef]
 else:
     raise RuntimeError(
         """
@@ -22,7 +22,8 @@ import itertools
 import uuid
 import json
 from collections import OrderedDict
-from typing import Any, Callable, Dict, List, Optional, Type
+from typing import Any, Callable, Dict, List, Optional, Type, TypedDict, cast
+from types import ModuleType
 from typing import OrderedDict as TOrderedDict
 from typing import Tuple as TTuple
 from typing import Union
@@ -78,16 +79,28 @@ click_to_python_types = {
 }
 
 
+# Type for method parameter validation results
+class MethodParamsDict(TypedDict):
+    """Result structure from method parameter validation.
+    
+    Contains parsed and validated arguments, options, and defaults
+    for CLI command execution.
+    """
+    args: Dict[str, Any]  # Command arguments (positional)
+    options: Dict[str, Any]  # Command options (flags/named parameters)
+    defaults: TOrderedDict[str, Union[str, int, bool, None]]  # Default values
+
+
 def _method_sanity_check(
     possible_arg_params: TOrderedDict[str, click.Argument],
     possible_opt_params: TOrderedDict[str, click.Option],
-    annotations: TOrderedDict[str, Any],
-    defaults: TOrderedDict[str, Any],
+    annotations: TOrderedDict[str, type],
+    defaults: TOrderedDict[str, Union[str, int, bool, None]],
     **kwargs
-) -> Dict[str, Any]:
-    method_params = {"args": {}, "options": {}, "defaults": defaults}
+) -> MethodParamsDict:
+    method_params: MethodParamsDict = {"args": {}, "options": {}, "defaults": defaults}
 
-    possible_params = OrderedDict()
+    possible_params: TOrderedDict[str, Union[click.Parameter, click.Argument, click.Option]] = OrderedDict()
     possible_params.update(possible_arg_params)
     possible_params.update(possible_opt_params)
 
@@ -178,7 +191,7 @@ def _lazy_load_command(
     if isinstance(flow_parameters, str):
         # Resolve flow_parameters -- for start, this is a function which we
         # need to call to figure out the actual parameters (may be changed by configs)
-        flow_parameters = getattr(_self, flow_parameters)()
+        flow_parameters = cast(List[Parameter], getattr(_self, flow_parameters)())
     cmd_obj = cli_collection.get_command(None, name)
     if cmd_obj:
         if isinstance(cmd_obj, click.Group):
@@ -196,7 +209,7 @@ def _lazy_load_command(
         raise AttributeError()
 
 
-def get_annotation(param: click.Parameter) -> TTuple[Type, bool]:
+def get_annotation(param: click.Parameter) -> TTuple[Any, bool]:
     py_type = click_to_python_types[type(param.type)]
     if param.nargs == -1:
         # This is the equivalent of *args effectively
@@ -205,17 +218,17 @@ def get_annotation(param: click.Parameter) -> TTuple[Type, bool]:
         return py_type, True
     if not param.required:
         if param.multiple or param.nargs > 1:
-            return Optional[Union[List[py_type], TTuple[py_type]]], False
+            return Optional[Union[List[Any], TTuple[Any]]], False  # type: ignore[valid-type]
         else:
-            return Optional[py_type], False
+            return Optional[Any], False  # type: ignore[valid-type]
     else:
         if param.multiple or param.nargs > 1:
-            return Union[List[py_type], TTuple[py_type]], False
+            return Union[List[Any], TTuple[Any]], False  # type: ignore[valid-type]
         else:
             return py_type, False
 
 
-def get_inspect_param_obj(p: Union[click.Argument, click.Option], kind: str):
+def get_inspect_param_obj(p: Union[click.Argument, click.Option], kind: inspect._ParameterKind):
     annotation, is_vararg = get_annotation(p)
     return (
         inspect.Parameter(
@@ -225,15 +238,15 @@ def get_inspect_param_obj(p: Union[click.Argument, click.Option], kind: str):
             annotation=annotation,
         ),
         (
-            Optional[Union[TTuple[annotation], List[annotation]]]
+            Optional[Union[TTuple[Any], List[Any]]]  # type: ignore[valid-type]
             if is_vararg
-            else annotation
+            else Any  # type: ignore[valid-type]
         ),
     )
 
 
 # Cache to store already loaded modules
-loaded_modules = {}
+loaded_modules: Dict[str, ModuleType] = {}
 
 
 def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
@@ -258,6 +271,8 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
         else:
             # Load the module if it's not already loaded
             spec = importlib.util.spec_from_file_location(module_name, flow_file)
+            if spec is None or spec.loader is None:
+                raise ValueError(f"Could not load module spec for {flow_file}")
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             # Cache the loaded module
@@ -326,6 +341,7 @@ class MetaflowAPI(object):
                 cli_collection
             )
             cli_collection = add_decorator_options(cli_collection)
+            cli_collection = cast(click.Group, cli_collection)
 
         def getattr_wrapper(_self, name):
             # Functools.partial do not automatically bind self (no __get__)
@@ -374,7 +390,7 @@ class MetaflowAPI(object):
         m = _method
         m.__name__ = cli_collection.name
         m.__doc__ = getattr(cli_collection, "help", None)
-        m.__signature__ = inspect.signature(_method).replace(
+        m.__signature__ = inspect.signature(_method).replace(  # type: ignore[attr-defined]
             parameters=params_sigs.values()
         )
         m.__annotations__ = annotations
@@ -603,7 +619,7 @@ def extract_group(cmd_obj: click.Group, flow_parameters: List[Parameter]) -> Cal
     m = _method
     m.__name__ = cmd_obj.name
     m.__doc__ = getattr(cmd_obj, "help", None)
-    m.__signature__ = inspect.signature(_method).replace(
+    m.__signature__ = inspect.signature(_method).replace(  # type: ignore[attr-defined]
         parameters=params_sigs.values()
     )
     m.__annotations__ = annotations
@@ -637,7 +653,7 @@ def extract_command(
     m = _method
     m.__name__ = cmd_obj.name
     m.__doc__ = getattr(cmd_obj, "help", None)
-    m.__signature__ = inspect.signature(_method).replace(
+    m.__signature__ = inspect.signature(_method).replace(  # type: ignore[attr-defined]
         parameters=params_sigs.values()
     )
     m.__annotations__ = annotations

@@ -219,7 +219,7 @@ class AzureKeyVaultSecretsProvider(SecretsProvider):
         if len(secret_data) > 1:
             secret_version = secret_data[1]
 
-        from azure.keyvault.secrets import SecretClient
+        from azure.keyvault.secrets import SecretClient  # type: ignore[import-not-found]
 
         client = SecretClient(vault_url=az_vault_url, credential=az_credentials)
 

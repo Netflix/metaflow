@@ -1,6 +1,6 @@
 from io import BytesIO
 
-from google.cloud.exceptions import NotFound, ClientError
+from google.cloud.exceptions import NotFound, ClientError  # type: ignore[import-untyped]
 
 from metaflow.exception import MetaflowException
 

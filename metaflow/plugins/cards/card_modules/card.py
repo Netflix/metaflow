@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 import uuid
 
 if TYPE_CHECKING:
@@ -56,7 +56,7 @@ class MetaflowCard(object):
     # card content matches
     RELOAD_POLICY_TOKEN = "[METAFLOW_RELOAD_TOKEN]"
 
-    type = None
+    type: Optional[str] = None
 
     ALLOW_USER_COMPONENTS = False
     RUNTIME_UPDATABLE = False
@@ -95,7 +95,7 @@ class MetaflowCard(object):
         str
             Card contents as an HTML string.
         """
-        return NotImplementedError()
+        raise NotImplementedError()
 
     # FIXME document
     def render_runtime(self, task, data):

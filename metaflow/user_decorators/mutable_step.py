@@ -61,7 +61,7 @@ class MutableStep:
             )
 
     @property
-    def flow(self) -> "metaflow.user_decorator.mutable_flow.MutableFlow":
+    def flow(self) -> "metaflow.user_decorators.mutable_flow.MutableFlow":
         """
         The flow that contains this step
 
@@ -95,7 +95,7 @@ class MutableStep:
             A tuple containing the decorator name, it's fully qualified name,
             a list of positional arguments, and a dictionary of keyword arguments.
         """
-        for deco in self._my_step.decorators:
+        for deco in getattr(self._my_step, "decorators", []):
             # 3.7 does not support yield foo, *bar syntax so we
             # work around
             r = [
@@ -109,7 +109,7 @@ class MutableStep:
             r.extend(deco.get_args_kwargs())
             yield tuple(r)
 
-        for deco in self._my_step.wrappers:
+        for deco in getattr(self._my_step, "wrappers", []):
             r = [
                 UserStepDecoratorBase.get_decorator_name(deco.__class__),
                 deco.decorator_name,
@@ -117,7 +117,7 @@ class MutableStep:
             r.extend(deco.get_args_kwargs())
             yield tuple(r)
 
-        for deco in self._my_step.config_decorators:
+        for deco in getattr(self._my_step, "config_decorators", []):
             r = [
                 UserStepDecoratorBase.get_decorator_name(deco.__class__),
                 deco.decorator_name,
@@ -303,10 +303,10 @@ class MutableStep:
                 )
             debug.userconf_exec(
                 "Mutable step adding decorator %s to step %s"
-                % (deco_type, self._my_step.name)
+                % (deco_type, getattr(self._my_step, "name", "<unnamed>"))
             )
 
-            d = deco_type(*deco_args, **deco_kwargs)
+            d: Any = deco_type(*deco_args, **deco_kwargs)
             # add_or_raise properly registers the decorator
             d.add_or_raise(
                 self._my_step, self._statically_defined, duplicates, self._inserted_by
@@ -325,7 +325,7 @@ class MutableStep:
 
         deco_type = deco_type.args[0]
         _add_step_decorator(
-            deco_type(
+            deco_type(  # type: ignore[operator]
                 attributes=deco_kwargs,
                 statically_defined=self._statically_defined,
                 inserted_by=self._inserted_by,
@@ -365,11 +365,16 @@ class MutableStep:
         do_all = deco_args is None and deco_kwargs is None
         did_remove = False
         canonical_deco_type = UserStepDecoratorBase.get_decorator_by_name(deco_name)
-        if issubclass(canonical_deco_type, UserStepDecoratorBase):
+        if canonical_deco_type is not None and isinstance(canonical_deco_type, type) and issubclass(canonical_deco_type, UserStepDecoratorBase):
             for attr in ["config_decorators", "wrappers"]:
                 new_deco_list = []
-                for deco in getattr(self._my_step, attr):
-                    if deco.decorator_name == canonical_deco_type.decorator_name:
+                for deco in getattr(self._my_step, attr, []):
+                    if (
+                        hasattr(deco, "decorator_name")
+                        and hasattr(canonical_deco_type, "decorator_name")
+                        and getattr(deco, "decorator_name", None)
+                        == getattr(canonical_deco_type, "decorator_name", None)
+                    ):
                         if do_all:
                             continue  # We remove all decorators with this name
                         if deco.get_args_kwargs() == (
@@ -385,7 +390,10 @@ class MutableStep:
                             did_remove = True
                             debug.userconf_exec(
                                 "Mutable step removing user step decorator '%s' from step '%s'"
-                                % (deco.decorator_name, self._my_step.name)
+                                % (
+                                    deco.decorator_name,
+                                    getattr(self._my_step, "name", "<unnamed>"),
+                                )
                             )
                         else:
                             new_deco_list.append(deco)
@@ -396,7 +404,7 @@ class MutableStep:
         if did_remove:
             return True
         new_deco_list = []
-        for deco in self._my_step.decorators:
+        for deco in getattr(self._my_step, "decorators", []):
             if deco.name == deco_name:
                 if do_all:
                     continue  # We remove all decorators with this name
@@ -405,20 +413,21 @@ class MutableStep:
                     did_remove = True
                     debug.userconf_exec(
                         "Mutable step removing step decorator '%s' from step '%s'"
-                        % (deco.name, self._my_step.name)
+                        % (deco.name, getattr(self._my_step, "name", "<unnamed>"))
                     )
                 else:
                     new_deco_list.append(deco)
             else:
                 new_deco_list.append(deco)
 
-        self._my_step.decorators = new_deco_list
+        if hasattr(self._my_step, "decorators"):
+            self._my_step.decorators = new_deco_list
 
         if did_remove:
             return True
 
         debug.userconf_exec(
             "Mutable step did not find decorator '%s' to remove from step '%s'"
-            % (deco_name, self._my_step.name)
+            % (deco_name, getattr(self._my_step, "name", "<unnamed>"))
         )
         return False

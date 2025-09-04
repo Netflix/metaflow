@@ -45,7 +45,7 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
         # Make a copy since sys.modules could be modified while we load other
         # modules. See https://github.com/Netflix/metaflow/issues/2489
         all_modules = dict(sys.modules)
-        modules = filter(lambda x: criteria(x[1]), all_modules.items())
+        modules = list(filter(lambda x: criteria(x[1]), all_modules.items()))
         # Ensure that we see the parent modules first
         modules = sorted(modules, key=lambda x: x[0])
         if modules:
@@ -137,7 +137,7 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
         Generator[Tuple[str, str], None, None]
             Path on the filesystem and the name in the archive
         """
-        yield from self._content(content_types, generate_value=False)
+        yield from self._content(content_types, generate_value=False)  # type: ignore[misc]
 
     def contents(
         self, content_types: Optional[int] = None
@@ -169,14 +169,14 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
         str
             A human-readable string representation of the content of this MetaflowCodeContent
         """
-        all_user_step_decorators = {}
+        all_user_step_decorators: Dict[str, List[str]] = {}
         for k, v in UserStepDecoratorMeta.all_decorators().items():
             all_user_step_decorators.setdefault(
                 getattr(v, "_original_module", v.__module__), []
             ).append(k)
 
-        all_user_flow_decorators = {}
-        for k, v in FlowMutatorMeta.all_decorators().items():
+        all_user_flow_decorators: Dict[str, List[str]] = {}
+        for k, v in FlowMutatorMeta.all_decorators().items():  # type: ignore[assignment]
             all_user_flow_decorators.setdefault(
                 getattr(v, "_original_module", v.__module__), []
             ).append(k)
@@ -333,6 +333,42 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
             self._other_dir, file_name.lstrip("/")
         )
 
+    def get_archive_filename(self, file_name: str, content_type: ContentType) -> Optional[str]:  # type: ignore[override]
+        """
+        Get the archive filename for a given file name and content type.
+        
+        Parameters
+        ----------
+        file_name : str
+            The original file name
+        content_type : ContentType
+            The type of content
+            
+        Returns
+        -------
+        Optional[str]
+            The path within the archive where the file is stored, or None if not found
+        """
+        if content_type == ContentType.CODE_CONTENT:
+            # Look in regular code files and cached metaflow files
+            for file_path, archive_name in self._files.items():
+                if os.path.basename(file_path) == file_name or file_path == file_name:
+                    return archive_name
+            for file_path, archive_name in self._cached_metaflow_files:
+                if os.path.basename(file_path) == file_name or file_path == file_name:
+                    return archive_name
+        elif content_type == ContentType.MODULE_CONTENT:
+            # Look in module files
+            for file_path, archive_name in self._files_from_modules.items():
+                if os.path.basename(file_path) == file_name or file_path == file_name:
+                    return archive_name
+        elif content_type == ContentType.OTHER_CONTENT:
+            # Look in other files
+            for file_path, archive_name in self._other_files.items():
+                if os.path.basename(file_path) == file_name or file_path == file_name:
+                    return archive_name
+        return None
+
     def _content(
         self, content_types: Optional[int] = None, generate_value: bool = False
     ) -> Generator[Tuple[Union[str, bytes], str], None, None]:
@@ -443,7 +479,7 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
                     if file.parts[len(prefix_parts)] == "__init__.py":
                         has_init = True
                     yield str(
-                        dist.locate_file(file).resolve().as_posix()
+                        dist.locate_file(file).resolve().as_posix()  # type: ignore[attr-defined]
                     ), os.path.join(self._code_dir, *prefix_parts, *file.parts[1:])
 
         # Now if there are more paths left in paths, it means there is a non-distribution
@@ -461,13 +497,13 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
                 has_init = True
             else:
                 for root, _, files in os.walk(path):
-                    for file in files:
-                        if any(file.endswith(x) for x in EXT_EXCLUDE_SUFFIXES):
+                    for filename in files:
+                        if any(filename.endswith(x) for x in EXT_EXCLUDE_SUFFIXES):
                             continue
-                        rel_path = os.path.relpath(os.path.join(root, file), path)
+                        rel_path = os.path.relpath(os.path.join(root, filename), path)
                         if rel_path == "__init__.py":
                             has_init = True
-                        yield os.path.join(root, file), os.path.join(
+                        yield os.path.join(root, filename), os.path.join(
                             self._code_dir,
                             name,
                             rel_path,

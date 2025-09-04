@@ -6,6 +6,7 @@ from metaflow.plugins.azure.azure_utils import (
 from metaflow.plugins.azure.azure_credential import (
     create_cacheable_azure_credential,
 )
+from typing import Any
 
 import os
 import threading
@@ -20,7 +21,7 @@ class _ClientCache(object):
     EACH REUSE ITS OWN long-lived BlobServiceClient object.
     """
 
-    _cache = dict()
+    _cache: dict[str, Any] = dict()
 
     def __init__(self):
         raise RuntimeError("_ClientCache may not be instantiated!")
@@ -160,7 +161,7 @@ def _create_blob_service_client(
     max_chunk_get_size=None,
     connection_data_block_size=None,
 ):
-    from azure.storage.blob import BlobServiceClient
+    from azure.storage.blob import BlobServiceClient  # type: ignore[import-not-found]
 
     return BlobServiceClient(
         blob_service_endpoint,

@@ -26,10 +26,10 @@ class Boto3ClientProvider(object):
         import requests
 
         try:
-            import boto3
-            import botocore
-            from botocore.exceptions import ClientError
-            from botocore.config import Config
+            import boto3  # type: ignore[import-untyped]
+            import botocore  # type: ignore[import-untyped]
+            from botocore.exceptions import ClientError  # type: ignore[import-untyped]
+            from botocore.config import Config  # type: ignore[import-untyped]
         except (NameError, ImportError):
             raise MetaflowException(
                 "Could not import module 'boto3'. Install boto3 first."

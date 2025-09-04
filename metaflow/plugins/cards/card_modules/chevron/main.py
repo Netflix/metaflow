@@ -4,11 +4,15 @@ import io
 import sys
 
 try:
-    from .renderer import render
-    from .metadata import version
+    from .renderer import render as chevron_render
+    from .metadata import version as chevron_version
 except (ValueError, SystemError):  # python 2
-    from renderer import render
-    from metadata import version
+    from renderer import render as chevron_render  # type: ignore[import-not-found,no-redef]
+    from metadata import version as chevron_version  # type: ignore[import-not-found,no-redef]
+
+# Export with original names for compatibility
+render = chevron_render
+version = chevron_version
 
 
 def main(template, data=None, **kwargs):
@@ -24,12 +28,12 @@ def main(template, data=None, **kwargs):
         args = {"template": template_file, "data": data}
 
         args.update(kwargs)
-        return render(**args)
+        return chevron_render(**args)
 
 
 def _load_data(file, yaml_loader):
     try:
-        import yaml
+        import yaml  # type: ignore[import-untyped]
 
         loader = getattr(yaml, yaml_loader)  # not tested
         return yaml.load(file, Loader=loader)  # not tested
@@ -58,7 +62,7 @@ def cli_main():
 
     parser = argparse.ArgumentParser(description=__doc__)
 
-    parser.add_argument("-v", "--version", action="version", version=version)
+    parser.add_argument("-v", "--version", action="version", version=chevron_version)
 
     parser.add_argument("template", help="The mustache file", type=is_file_or_pipe)
 

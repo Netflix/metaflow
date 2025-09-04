@@ -223,10 +223,11 @@ class MutableFlow:
             Returns True if the parameter was removed
         """
         if not self._pre_mutate:
+            assert self._inserted_by is not None  # Checked in __init__
             raise MetaflowException(
                 "Removing parameter '%s' from %s is only allowed in the `pre_mutate` "
                 "method and not the `mutate` method"
-                % (parameter_name, " from ".join(self._inserted_by))
+                % (parameter_name, self._inserted_by)
             )
         from metaflow.flowspec import _FlowState
 
@@ -314,7 +315,15 @@ class MutableFlow:
                 "Adding flow-decorator '%s' from %s is only allowed in the `pre_mutate` "
                 "method and not the `mutate` method"
                 % (
-                    deco_type if isinstance(deco_type, str) else deco_type.name,
+                    (
+                        deco_type
+                        if isinstance(deco_type, str)
+                        else getattr(
+                            deco_type,
+                            "name",
+                            getattr(getattr(deco_type, "func", deco_type), "__name__", str(deco_type)),
+                        )
+                    ),
                     self._inserted_by,
                 )
             )
@@ -406,7 +415,7 @@ class MutableFlow:
 
         deco_type = deco_type.args[0]
         _add_flow_decorator(
-            deco_type(
+            deco_type(  # type: ignore[operator]
                 attributes=deco_kwargs,
                 statically_defined=self._statically_defined,
                 inserted_by=self._inserted_by,

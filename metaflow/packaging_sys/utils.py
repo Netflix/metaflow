@@ -39,7 +39,7 @@ def walk_without_cycles(
 
     skip_dirs = set(default_skip_dirs + (exclude_dirs or []))
     for x in _recurse(top_root, skip_dirs):
-        skip_dirs = default_skip_dirs
+        skip_dirs = set(default_skip_dirs)
         yield x
 
 

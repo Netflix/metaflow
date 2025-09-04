@@ -3,7 +3,7 @@ import json
 import re
 import types
 
-from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, TYPE_CHECKING, Type, Union, cast
 
 from metaflow.debug import debug
 from metaflow.exception import MetaflowException
@@ -20,13 +20,13 @@ if TYPE_CHECKING:
     import metaflow.flowspec
     import metaflow.user_decorators.mutable_step
 
-USER_SKIP_STEP = {}
+USER_SKIP_STEP: dict[str, Any] = {}
 
 
 class UserStepDecoratorMeta(type):
     _all_registered_decorators = ClassPath_Trie()
-    _do_not_register = set()
-    _import_modules = set()
+    _do_not_register: set[str] = set()
+    _import_modules: set[str] = set()
 
     def __new__(mcs, name, bases, namespace, **_kwargs):
         cls = super().__new__(mcs, name, bases, namespace)
@@ -72,7 +72,7 @@ class UserStepDecoratorMeta(type):
         )
 
     @classmethod
-    def all_decorators(mcs) -> Dict[str, "UserStepDecoratorMeta"]:
+    def all_decorators(mcs) -> Dict[str, type]:
         """
         Get all registered decorators using the minimally unique classpath name
 
@@ -87,7 +87,7 @@ class UserStepDecoratorMeta(type):
     @classmethod
     def get_decorator_by_name(
         mcs, decorator_name: str
-    ) -> Optional[Union["UserStepDecoratorBase", "metaflow.decorators.Decorator"]]:
+    ) -> Optional[Type["UserStepDecoratorBase"]]:
         """
         Get a decorator by its name.
 
@@ -132,9 +132,10 @@ class UserStepDecoratorMeta(type):
 
 
 class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
-    _step_field = None
+    _step_field: Optional[str] = None
     _allowed_args = False
     _allowed_kwargs = False
+    decorator_name: str  # Set by metaclass
 
     def __init__(self, *args, **kwargs):
         arg = None
@@ -218,7 +219,10 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
             # This means that somehow the initialization did not happen properly
             # so this may have been applied to a non step
             raise MetaflowException("%s can only be applied to a step function" % self)
-        return self._my_step
+        return cast(Union[
+            Callable[["metaflow.decorators.FlowSpecDerived"], None],
+            Callable[["metaflow.decorators.FlowSpecDerived", Any], None],
+        ], self._my_step)
 
     def add_or_raise(
         self,
@@ -231,6 +235,11 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
         inserted_by: Optional[str] = None,
     ):
         from metaflow.user_decorators.mutable_step import MutableStep
+
+        if self._step_field is None:
+            raise RuntimeError(
+                f"_step_field is not set for decorator {self.decorator_name}"
+            )
 
         existing_deco = [
             d
@@ -253,6 +262,7 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
                 "Overriding decorator %s on step %s from %s"
                 % (self, step.__name__, inserted_by)
             )
+            assert self._step_field is not None  # Already checked above
             setattr(
                 step,
                 self._step_field,
@@ -305,7 +315,7 @@ class UserStepDecoratorBase(metaclass=UserStepDecoratorMeta):
     ) -> Tuple[List[Any], Dict[str, Any]]:
         if len(deco_spec) == 0:
             return [], {}
-        args = []
+        args: list[Any] = []
         kwargs = {}
         for a in re.split(r""",(?=[\s\w]+=)""", deco_spec):
             name, val = a.split("=", 1)

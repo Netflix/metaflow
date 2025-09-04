@@ -30,12 +30,13 @@ class StepFunctionsTriggeredRun(TriggeredRun):
         _, run_id = self.pathspec.split("/")
 
         # every subclass needs to have `self.deployer_kwargs`
+        assert self.deployer.TYPE is not None  # Validated in deployer __init__
         command = get_lower_level_group(
             self.deployer.api,
             self.deployer.top_level_kwargs,
             self.deployer.TYPE,
             self.deployer.deployer_kwargs,
-        ).terminate(run_id=run_id, **kwargs)
+        ).terminate(run_id=run_id, **kwargs)  # type: ignore[attr-defined]
 
         pid = self.deployer.spm.run_command(
             [sys.executable, *command],
@@ -45,8 +46,12 @@ class StepFunctionsTriggeredRun(TriggeredRun):
         )
 
         command_obj = self.deployer.spm.get(pid)
-        command_obj.sync_wait()
-        return command_obj.process.returncode == 0
+        if command_obj is not None:
+            command_obj.sync_wait()
+            return (
+                command_obj.process is not None and command_obj.process.returncode == 0
+            )
+        return False
 
 
 class StepFunctionsDeployedFlow(DeployedFlow):
@@ -189,12 +194,13 @@ class StepFunctionsDeployedFlow(DeployedFlow):
         bool
             True if the command was successful, False otherwise.
         """
+        assert self.deployer.TYPE is not None  # Validated in deployer __init__
         command = get_lower_level_group(
             self.deployer.api,
             self.deployer.top_level_kwargs,
             self.deployer.TYPE,
             self.deployer.deployer_kwargs,
-        ).delete(**kwargs)
+        ).delete(**kwargs)  # type: ignore[attr-defined]
 
         pid = self.deployer.spm.run_command(
             [sys.executable, *command],
@@ -204,8 +210,12 @@ class StepFunctionsDeployedFlow(DeployedFlow):
         )
 
         command_obj = self.deployer.spm.get(pid)
-        command_obj.sync_wait()
-        return command_obj.process.returncode == 0
+        if command_obj is not None:
+            command_obj.sync_wait()
+            return (
+                command_obj.process is not None and command_obj.process.returncode == 0
+            )
+        return False
 
     def trigger(self, **kwargs) -> StepFunctionsTriggeredRun:
         """
@@ -229,12 +239,13 @@ class StepFunctionsDeployedFlow(DeployedFlow):
         """
         with temporary_fifo() as (attribute_file_path, attribute_file_fd):
             # every subclass needs to have `self.deployer_kwargs`
+            assert self.deployer.TYPE is not None  # Validated in deployer __init__
             command = get_lower_level_group(
                 self.deployer.api,
                 self.deployer.top_level_kwargs,
                 self.deployer.TYPE,
                 self.deployer.deployer_kwargs,
-            ).trigger(deployer_attribute_file=attribute_file_path, **kwargs)
+            ).trigger(deployer_attribute_file=attribute_file_path, **kwargs)  # type: ignore[attr-defined]
 
             pid = self.deployer.spm.run_command(
                 [sys.executable, *command],
@@ -244,15 +255,21 @@ class StepFunctionsDeployedFlow(DeployedFlow):
             )
 
             command_obj = self.deployer.spm.get(pid)
+            if command_obj is None:
+                raise RuntimeError(f"Failed to get command object for pid {pid}")
             content = handle_timeout(
                 attribute_file_fd, command_obj, self.deployer.file_read_timeout
             )
 
-            command_obj.sync_wait()
-            if command_obj.process.returncode == 0:
-                return StepFunctionsTriggeredRun(
-                    deployer=self.deployer, content=content
-                )
+            if command_obj is not None:
+                command_obj.sync_wait()
+                if (
+                    command_obj.process is not None
+                    and command_obj.process.returncode == 0
+                ):
+                    return StepFunctionsTriggeredRun(
+                        deployer=self.deployer, content=content
+                    )
 
         raise Exception(
             "Error triggering %s on %s for %s"

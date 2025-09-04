@@ -10,7 +10,7 @@ import subprocess
 from io import RawIOBase, BufferedIOBase
 from itertools import chain, starmap
 from tempfile import mkdtemp, NamedTemporaryFile
-from typing import Dict, Iterable, List, Optional, Tuple, Union, TYPE_CHECKING
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union, TYPE_CHECKING
 
 from metaflow import FlowSpec
 from metaflow.metaflow_current import current
@@ -37,7 +37,7 @@ import metaflow.tracing as tracing
 
 try:
     # python2
-    from urlparse import urlparse
+    from urlparse import urlparse  # type: ignore[import-not-found]
 except:
     # python3
     from urllib.parse import urlparse
@@ -52,12 +52,31 @@ from .s3util import (
 
 if TYPE_CHECKING:
     import metaflow
+    from typing import NamedTuple
+    
+    class RangeInfo(NamedTuple):
+        total_size: int
+        request_offset: int = 0
+        request_length: int = -1
+    
+    class S3GetObject(NamedTuple):
+        key: str
+        url: str
+        path: str
+        downloaded: bool = False
+        saved: bool = False
+    
+    class S3PutObject(NamedTuple):
+        key: str
+        url: str
+        path: str
+        uploaded: bool = False
 
 
 def _check_and_init_s3_deps():
     try:
-        import boto3
-        from boto3.s3.transfer import TransferConfig
+        import boto3  # type: ignore[import-untyped]
+        from boto3.s3.transfer import TransferConfig  # type: ignore[import-untyped]
     except (ImportError, ModuleNotFoundError):
         raise MetaflowException("You need to install 'boto3' in order to use S3.")
 
@@ -85,12 +104,12 @@ def ensure_unicode(x):
 
 PutValue = Union[RawIOBase, BufferedIOBase, str, bytes]
 
-S3GetObject = namedtuple_with_defaults(
+S3GetObject = namedtuple_with_defaults(  # type: ignore[misc]
     "S3GetObject", [("key", str), ("offset", int), ("length", int)]
 )
-S3GetObject.__module__ = __name__
+S3GetObject.__module__ = __name__  # type: ignore[misc]
 
-S3PutObject = namedtuple_with_defaults(
+S3PutObject = namedtuple_with_defaults(  # type: ignore[misc]
     "S3PutObject",
     [
         ("key", str),
@@ -102,14 +121,14 @@ S3PutObject = namedtuple_with_defaults(
     ],
     defaults=(None, None, None, None, None),
 )
-S3PutObject.__module__ = __name__
+S3PutObject.__module__ = __name__  # type: ignore[misc]
 
-RangeInfo = namedtuple_with_defaults(
+RangeInfo = namedtuple_with_defaults(  # type: ignore[misc]
     "RangeInfo",
     [("total_size", int), ("request_offset", int), ("request_length", int)],
     defaults=(0, -1),
 )
-RangeInfo.__module__ = __name__
+RangeInfo.__module__ = __name__  # type: ignore[misc]
 
 RANGE_MATCH = re.compile(r"bytes (?P<start>[0-9]+)-(?P<end>[0-9]+)/(?P<total>[0-9]+)")
 
@@ -155,7 +174,7 @@ class S3Object(object):
         self,
         prefix: str,
         url: str,
-        path: str,
+        path: Optional[str],
         size: Optional[int] = None,
         content_type: Optional[str] = None,
         metadata: Optional[Dict[str, str]] = None,
@@ -177,6 +196,7 @@ class S3Object(object):
         if metadata is not None and "metaflow-user-attributes" in metadata:
             self._metadata = json.loads(metadata["metaflow-user-attributes"])
 
+        self._range_info: Optional[RangeInfo]
         if range_info and (
             range_info.request_length is None or range_info.request_length < 0
         ):
@@ -186,7 +206,7 @@ class S3Object(object):
         else:
             self._range_info = range_info
 
-        if path:
+        if path and self._path:
             self._size = os.stat(self._path).st_size
 
         if prefix is None or prefix == url:
@@ -238,7 +258,7 @@ class S3Object(object):
         return self._url
 
     @property
-    def prefix(self) -> str:
+    def prefix(self) -> Optional[str]:
         """
         Prefix requested that matches this object.
 
@@ -250,7 +270,7 @@ class S3Object(object):
         return self._prefix
 
     @property
-    def key(self) -> str:
+    def key(self) -> Optional[str]:
         """
         Key corresponds to the key given to the get call that produced
         this object.
@@ -294,6 +314,7 @@ class S3Object(object):
         if self._path:
             with open(self._path, "rb") as f:
                 return f.read()
+        return None
 
     @property
     def text(self) -> Optional[str]:
@@ -308,8 +329,9 @@ class S3Object(object):
         str
             Contents of the object as text.
         """
-        if self._path:
+        if self._path and self.blob is not None:
             return self.blob.decode("utf-8", errors="replace")
+        return None
 
     @property
     def size(self) -> Optional[int]:
@@ -516,6 +538,8 @@ class S3(object):
     def get_root_from_config(cls, echo, create_on_absent=True):
         return DATATOOLS_S3ROOT
 
+    _s3root: Optional[str]
+    
     @check_s3_deps
     def __init__(
         self,
@@ -540,16 +564,27 @@ class S3(object):
                 prefix = parsed.path
             if isinstance(run, FlowSpec):
                 if current.is_running_flow:
-                    prefix = os.path.join(prefix, current.flow_name, current.run_id)
+                    prefix = os.path.join(
+                        prefix or "", 
+                        current.flow_name or "", 
+                        current.run_id or ""
+                    )
                 else:
                     raise MetaflowS3URLException(
                         "Initializing S3 with a FlowSpec outside of a running "
                         "flow is not supported."
                     )
             else:
-                prefix = os.path.join(prefix, run.parent.id, run.id)
+                if run.parent is not None:
+                    prefix = os.path.join(
+                        prefix or "", 
+                        run.parent.id or "", 
+                        run.id or ""
+                    )
+                else:
+                    prefix = os.path.join(prefix or "", run.id or "")
 
-            self._s3root = "s3://%s" % os.path.join(bucket, prefix.strip("/"))
+            self._s3root = "s3://%s" % os.path.join(bucket or "", (prefix or "").strip("/"))
         elif s3root:
             # 2. use an explicit S3 prefix
             parsed = urlparse(to_unicode(s3root))
@@ -797,7 +832,7 @@ class S3(object):
                 raise
         if info_results:
             return S3Object(
-                self._s3root,
+                self._s3root or "",
                 url,
                 path=None,
                 size=info_results["size"],
@@ -806,7 +841,7 @@ class S3(object):
                 last_modified=info_results["last_modified"],
                 encryption=info_results["encryption"],
             )
-        return S3Object(self._s3root, url, None)
+        return S3Object(self._s3root or "", url, None)
 
     def info_many(
         self, keys: Iterable[str], return_missing: bool = False
@@ -964,7 +999,7 @@ class S3(object):
                 raise
         if addl_info:
             return S3Object(
-                self._s3root,
+                self._s3root or "",
                 url,
                 path,
                 content_type=addl_info["content_type"],
@@ -973,7 +1008,7 @@ class S3(object):
                 range_info=addl_info["range_result"],
                 last_modified=addl_info["last_modified"],
             )
-        return S3Object(self._s3root, url, path)
+        return S3Object(self._s3root or "", url, path)
 
     def get_many(
         self,
@@ -1051,16 +1086,16 @@ class S3(object):
         return list(starmap(S3Object, _get()))
 
     def get_recursive(
-        self, keys: Iterable[str], return_info: bool = False
+        self, keys: Iterable[Optional[str]], return_info: bool = False
     ) -> List[S3Object]:
         """
         Get many objects from S3 recursively in parallel.
 
         Parameters
         ----------
-        keys : Iterable[str]
+        keys : Iterable[Optional[str]]
             Prefixes to download recursively. Each prefix can be an S3 url or a path suffix
-            which define the root prefix under which all objects are downloaded.
+            which define the root prefix under which all objects are downloaded. None represents the root prefix.
         return_info : bool, default False
             If set to True, fetch the content-type and user metadata associated
             with the object.
@@ -1167,28 +1202,26 @@ class S3(object):
         if isinstance(obj, (RawIOBase, BufferedIOBase)):
             if not obj.readable() or not obj.seekable():
                 raise MetaflowS3InvalidObject(
-                    "Object corresponding to the key '%s' is not readable or seekable"
-                    % key
+                    f"Object corresponding to the key '{key}' is not readable or seekable"
                 )
             blob = obj
         else:
             if not is_stringish(obj):
                 raise MetaflowS3InvalidObject(
-                    "Object corresponding to the key '%s' is not a string "
-                    "or a bytes object." % key
+                    f"Object corresponding to the key '{key}' is not a string or a bytes object."
                 )
             blob = to_fileobj(obj)
         # We override the close functionality to prevent closing of the
         # file if it is used multiple times when uploading (since upload_fileobj
         # will/may close it on failure)
         real_close = blob.close
-        blob.close = lambda: None
+        blob.close = lambda: None  # type: ignore[method-assign]
 
         url = self._url(key)
         # NOTE: S3 allows fragments as part of object names, e.g. /dataset #1/data.txt
         # Without allow_fragments=False the parsed src.path for an object name with fragments is incomplete.
         src = urlparse(url, allow_fragments=False)
-        extra_args = None
+        extra_args: Optional[Dict[str, Any]] = None
         if content_type or metadata or self._encryption:
             extra_args = {}
             if content_type:

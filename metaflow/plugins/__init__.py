@@ -22,7 +22,7 @@ CLIS_DESC = [
 
 # Add additional commands to the runner here
 # These will be accessed using Runner().<command>()
-RUNNER_CLIS_DESC = []
+RUNNER_CLIS_DESC: list[tuple[str, str]] = []
 
 
 from .test_unbounded_foreach_decorator import InternalTestUnboundedForeachInput

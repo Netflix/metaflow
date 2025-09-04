@@ -10,7 +10,7 @@ import subprocess
 from typing import Dict, List, Optional, Tuple, Union
 
 # Cache for git information to avoid repeated subprocess calls
-_git_info_cache = None
+_git_info_cache: Optional[Dict[str, Union[str, bool, None]]] = None
 
 __all__ = ("get_repository_info",)
 
@@ -45,7 +45,7 @@ def _get_repo_url(path: Union[str, os.PathLike]) -> Optional[str]:
     stdout, returncode, _failed = _call_git(
         ["config", "--get", "remote.origin.url"], path
     )
-    if returncode == 0:
+    if returncode == 0 and stdout is not None:
         url = stdout
         # Convert SSH URLs to HTTPS for clickable links
         if url.startswith("git@"):
@@ -88,7 +88,7 @@ def _has_uncommitted_changes(path: Union[str, os.PathLike]) -> Optional[bool]:
     return returncode != 0
 
 
-def get_repository_info(path: Union[str, os.PathLike]) -> Dict[str, Union[str, bool]]:
+def get_repository_info(path: Union[str, os.PathLike]) -> Dict[str, Union[str, bool, None]]:
     """Get git repository information for a path
 
     Returns:

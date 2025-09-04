@@ -2,7 +2,7 @@ import re
 import sys
 
 try:
-    from StringIO import StringIO
+    from StringIO import StringIO  # type: ignore[import-not-found]
 except:
     from io import StringIO
 

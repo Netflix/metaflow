@@ -3,7 +3,7 @@ import json
 import os
 import sys
 
-from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING, Type, List
+from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING, Type, List, cast
 
 from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
 
@@ -91,11 +91,11 @@ class DeployerImpl(object):
         self.env_vars = os.environ.copy()
         self.env_vars.update(self.env or {})
         if self.profile:
-            self.env_vars["METAFLOW_PROFILE"] = profile
+            self.env_vars["METAFLOW_PROFILE"] = self.profile
 
         self.spm = SubprocessManager()
         self.top_level_kwargs = kwargs
-        self.api = MetaflowAPI.from_cli(self.flow_file, start)
+        self.api = cast(MetaflowAPI, MetaflowAPI.from_cli(self.flow_file, start))
 
     @property
     def to_reload(self) -> List[str]:
@@ -156,13 +156,15 @@ class DeployerImpl(object):
                 # that may be located in paths relative to the directory the user
                 # wants to run in
                 with with_dir(self.cwd):
+                    assert self.TYPE is not None  # Validated in __init__
                     command = get_lower_level_group(
                         self.api, self.top_level_kwargs, self.TYPE, self.deployer_kwargs
-                    ).create(deployer_attribute_file=attribute_file_path, **kwargs)
+                    ).create(deployer_attribute_file=attribute_file_path, **kwargs)  # type: ignore[attr-defined]
             else:
+                assert self.TYPE is not None  # Validated in __init__
                 command = get_lower_level_group(
                     self.api, self.top_level_kwargs, self.TYPE, self.deployer_kwargs
-                ).create(deployer_attribute_file=attribute_file_path, **kwargs)
+                ).create(deployer_attribute_file=attribute_file_path, **kwargs)  # type: ignore[attr-defined]
 
             pid = self.spm.run_command(
                 [sys.executable, *command],
@@ -172,6 +174,8 @@ class DeployerImpl(object):
             )
 
             command_obj = self.spm.get(pid)
+            if command_obj is None:
+                raise RuntimeError(f"Failed to get command object for pid {pid}")
             content = handle_timeout(
                 attribute_file_fd, command_obj, self.file_read_timeout
             )
@@ -182,9 +186,13 @@ class DeployerImpl(object):
             # Additional info is used to pass additional deployer specific information.
             # It is used in non-OSS deployers (extensions).
             self.additional_info = content.get("additional_info", {})
-            command_obj.sync_wait()
-            if command_obj.process.returncode == 0:
-                return create_class(deployer=self)
+            if command_obj is not None:
+                command_obj.sync_wait()
+                if (
+                    command_obj.process is not None
+                    and command_obj.process.returncode == 0
+                ):
+                    return create_class(deployer=self)
 
         raise RuntimeError("Error deploying %s to %s" % (self.flow_file, self.TYPE))
 

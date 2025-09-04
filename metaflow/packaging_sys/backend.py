@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 from io import BytesIO
-from typing import Any, IO, List, Optional, Union
+from typing import Any, Dict, IO, List, Optional, Union, Type
 
 
 class PackagingBackend(ABC):
-    _mappings = {}
+    _mappings: Dict[str, Type["PackagingBackend"]] = {}
     type = "none"
 
     def __init_subclass__(cls, **kwargs):
@@ -14,7 +14,7 @@ class PackagingBackend(ABC):
         cls._mappings[cls.type] = cls
 
     @classmethod
-    def get_backend(cls, name: str) -> "PackagingBackend":
+    def get_backend(cls, name: str) -> Type["PackagingBackend"]:
         if name not in cls._mappings:
             raise ValueError(f"PackagingBackend {name} not found")
         return cls._mappings[name]

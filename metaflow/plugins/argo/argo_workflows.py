@@ -7,7 +7,7 @@ import sys
 from collections import defaultdict
 from hashlib import sha1
 from math import inf
-from typing import List
+from typing import List, Optional
 
 from metaflow import JSONType, current
 from metaflow.decorators import flow_decorators
@@ -113,7 +113,7 @@ class ArgoWorkflows(object):
         notify_pager_duty_integration_key=None,
         notify_incident_io_api_key=None,
         incident_io_alert_source_config_id=None,
-        incident_io_metadata: List[str] = None,
+        incident_io_metadata: Optional[List[str]] = None,
         enable_heartbeat_daemon=True,
         enable_error_msg_capture=False,
     ):
@@ -289,7 +289,7 @@ class ArgoWorkflows(object):
         return True
 
     @staticmethod
-    def parse_incident_io_metadata(metadata: List[str] = None):
+    def parse_incident_io_metadata(metadata: Optional[List[str]] = None):
         "parse key value pairs into a dict for incident.io metadata if given"
         parsed_metadata = None
         if metadata is not None:
@@ -1652,7 +1652,7 @@ class ArgoWorkflows(object):
             # Kubernetes is a soft dependency for generating Argo objects.
             # We can very well remove this dependency for Argo with the downside of
             # adding a bunch more json bloat classes (looking at you... V1Container)
-            from kubernetes import client as kubernetes_sdk
+            from kubernetes import client as kubernetes_sdk  # type: ignore[import-not-found]
         except (NameError, ImportError):
             raise MetaflowException(
                 "Could not import Python package 'kubernetes'. Install kubernetes "
@@ -3508,7 +3508,7 @@ class ArgoWorkflows(object):
             # Kubernetes is a soft dependency for generating Argo objects.
             # We can very well remove this dependency for Argo with the downside of
             # adding a bunch more json bloat classes (looking at you... V1Container)
-            from kubernetes import client as kubernetes_sdk
+            from kubernetes import client as kubernetes_sdk  # type: ignore[import-not-found]
         except (NameError, ImportError):
             raise MetaflowException(
                 "Could not import Python package 'kubernetes'. Install kubernetes "

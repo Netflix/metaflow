@@ -1,4 +1,11 @@
-from metaflow.decorators import StepDecorator
+from typing import Dict, Any, TypedDict
+from metaflow.decorators import StepDecorator, DecoratorAttributes
+
+
+# Type for environment decorator configuration
+class EnvironmentDecoratorDefaults(TypedDict):
+    """Default configuration for environment decorator."""
+    vars: Dict[str, str]  # Environment variables to set
 
 
 class EnvironmentDecorator(StepDecorator):
@@ -12,7 +19,7 @@ class EnvironmentDecorator(StepDecorator):
     """
 
     name = "environment"
-    defaults = {"vars": {}}
+    defaults: DecoratorAttributes = {"vars": {}}
 
     def runtime_step_cli(
         self, cli_args, retry_count, max_user_code_retries, ubf_context

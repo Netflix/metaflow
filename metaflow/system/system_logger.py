@@ -1,6 +1,9 @@
 import os
 import sys
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional, Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import metaflow.event_logger
 
 
 class SystemLogger(object):
@@ -75,11 +78,12 @@ class SystemLogger(object):
         payload : Optional[Any], default None
             Payload of the event. Contains the event data.
         """
-        self.logger.log(
-            {
-                "level": level,
-                "module": module,
-                "name": name,
-                "payload": payload if payload is not None else {},
-            }
-        )
+        if self.logger is not None:
+            self.logger.log(
+                {
+                    "level": level,
+                    "module": module,
+                    "name": name,
+                    "payload": payload if payload is not None else {},
+                }
+            )

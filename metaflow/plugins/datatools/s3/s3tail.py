@@ -3,7 +3,7 @@ from .s3util import aws_retry, get_s3_client
 
 try:
     # python2
-    from urlparse import urlparse
+    from urlparse import urlparse  # type: ignore[import-not-found]
 except:
     # python3
     from urllib.parse import urlparse

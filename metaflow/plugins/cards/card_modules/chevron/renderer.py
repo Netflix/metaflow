@@ -3,14 +3,12 @@
 import io
 from os import linesep, path
 
+from collections.abc import Sequence, Iterator, Callable
+
 try:
-    from collections.abc import Sequence, Iterator, Callable
-except ImportError:  # python 2
-    from collections import Sequence, Iterator, Callable
-try:
-    from .tokenizer import tokenize
+    from .tokenizer import tokenize as chevron_tokenize
 except (ValueError, SystemError):  # python 2
-    from tokenizer import tokenize
+    from tokenizer import tokenize as chevron_tokenize  # type: ignore[import-not-found,no-redef]
 
 
 import sys
@@ -128,7 +126,7 @@ def _get_partial(name, partials_dict, partials_path, partials_ext):
 #
 # The main rendering function
 #
-g_token_cache = {}
+g_token_cache: dict[str, list[tuple[str, str]]] = {}
 
 
 def render(
@@ -208,7 +206,7 @@ def render(
             tokens = (token for token in g_token_cache[template])
         else:
             # Otherwise make a generator
-            tokens = tokenize(template, def_ldel, def_rdel)
+            tokens = chevron_tokenize(template, def_ldel, def_rdel)
 
     output = unicode("", "utf-8")
 

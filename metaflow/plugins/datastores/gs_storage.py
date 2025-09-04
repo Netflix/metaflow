@@ -117,7 +117,7 @@ class _GSRootClient(object):
                     return
             if metadata is not None:
                 blob.metadata = {"metaflow-user-attributes": json.dumps(metadata)}
-            from google.cloud.storage.retry import DEFAULT_RETRY
+            from google.cloud.storage.retry import DEFAULT_RETRY  # type: ignore[import-untyped]
 
             blob.upload_from_filename(
                 tmpfile, retry=DEFAULT_RETRY, timeout=(14400, 60)
@@ -130,7 +130,7 @@ class _GSRootClient(object):
         tmp_filename = os.path.join(tmpdir, str(uuid.uuid4()))
         blob = self.get_blob_client(key)
         metaflow_user_attributes = None
-        import google.api_core.exceptions
+        import google.api_core.exceptions  # type: ignore[import-untyped]
 
         try:
             blob.reload()
@@ -193,7 +193,7 @@ class GSStorage(DataStoreStorage):
         raise NotImplementedError()
 
     def size_file(self, path):
-        import google.api_core.exceptions
+        import google.api_core.exceptions  # type: ignore[import-untyped]
 
         try:
             blob = self.root_client.get_blob_client(path)

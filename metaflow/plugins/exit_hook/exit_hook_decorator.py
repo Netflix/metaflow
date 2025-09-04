@@ -1,12 +1,21 @@
-from metaflow.decorators import FlowDecorator
+from typing import Dict, Any, List, TypedDict, Union
+from metaflow.decorators import FlowDecorator, DecoratorAttributes
 from metaflow.exception import MetaflowException
+
+
+# Type for exit hook decorator configuration
+class ExitHookDecoratorDefaults(TypedDict):
+    """Default configuration for exit hook decorator."""
+    on_success: List[str]  # List of success hooks
+    on_error: List[str]  # List of error hooks
+    options: Dict[str, Union[str, int, bool]]  # Hook options
 
 
 class ExitHookDecorator(FlowDecorator):
     name = "exit_hook"
     allow_multiple = True
 
-    defaults = {
+    defaults: DecoratorAttributes = {
         "on_success": [],
         "on_error": [],
         "options": {},

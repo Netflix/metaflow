@@ -155,7 +155,7 @@ class Table(UserComponent):
         headers = headers or []
         header_bool, data_bool = TableComponent.validate(headers, data)
         self._headers = []
-        self._data = [[]]
+        self._data: list[list[Union[str, MetaflowCardComponent]]] = [[]]
         if header_bool:
             self._headers = headers
         if data_bool:
@@ -299,7 +299,7 @@ class Image(UserComponent):
             return None
         if cls._PIL_MODULE is None:
             try:
-                import PIL
+                import PIL  # type: ignore[import-untyped]
             except ImportError:
                 cls._PIL_MODULE = "NOT_PRESENT"
                 return None
@@ -312,7 +312,7 @@ class Image(UserComponent):
             return None
         if cls._PLT_MODULE is None:
             try:
-                import matplotlib.pyplot as pyplt
+                import matplotlib.pyplot as pyplt  # type: ignore[import-not-found]
             except ImportError:
                 cls._PLT_MODULE = "NOT_PRESENT"
                 return None
@@ -856,7 +856,7 @@ class PythonCode(UserComponent):
         code_string: Optional[str] = None,
     ):
         if code_func is not None:
-            self._code_string = inspect.getsource(code_func)
+            self._code_string: Optional[str] = inspect.getsource(code_func)
         else:
             self._code_string = code_string
 

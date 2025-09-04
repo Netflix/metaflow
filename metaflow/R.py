@@ -2,11 +2,12 @@ import os
 import sys
 from importlib import util as imp_util, machinery as imp_machinery
 from tempfile import NamedTemporaryFile
+from typing import Callable, Any
 
 from . import parameters
 from .util import to_bytes
 
-R_FUNCTIONS = {}
+R_FUNCTIONS: dict[str, Callable[..., Any]] = {}
 R_PACKAGE_PATHS = None
 RDS_FILE_PATH = None
 R_CONTAINER_IMAGE = None
@@ -85,6 +86,10 @@ def load_module_from_path(module_name: str, path: str):
     """
     loader = imp_machinery.SourceFileLoader(module_name, path)
     spec = imp_util.spec_from_loader(loader.name, loader)
+    if spec is None:
+        raise RuntimeError(
+            f"Failed to create module spec for {module_name} from {path}"
+        )
     module = imp_util.module_from_spec(spec)
     loader.exec_module(module)
     # Required in order to be able to import the module by name later.

@@ -11,8 +11,8 @@ def _get_cache_key():
 def _get_gs_storage_client_default():
     cache_key = _get_cache_key()
     if cache_key not in _client_cache:
-        from google.cloud import storage
-        import google.auth
+        from google.cloud import storage  # type: ignore[import-untyped]
+        import google.auth  # type: ignore[import-untyped]
 
         credentials, project_id = google.auth.default(scopes=storage.Client.SCOPE)
         _client_cache[cache_key] = storage.Client(
@@ -30,7 +30,7 @@ class GcpDefaultClientProvider(object):
 
     @staticmethod
     def get_credentials(scopes, *args, **kwargs):
-        import google.auth
+        import google.auth  # type: ignore[import-untyped]
 
         return google.auth.default(scopes=scopes)
 

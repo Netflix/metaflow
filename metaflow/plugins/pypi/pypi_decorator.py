@@ -1,5 +1,14 @@
-from metaflow.decorators import FlowDecorator, StepDecorator
+from typing import Dict, Any, Optional, TypedDict, Union
+from metaflow.decorators import FlowDecorator, StepDecorator, DecoratorAttributes
 from metaflow.metaflow_environment import InvalidEnvironmentException
+
+
+# Type for PyPI decorator configuration
+class PyPIDecoratorDefaults(TypedDict, total=False):
+    """Default configuration for PyPI decorators."""
+    packages: Dict[str, str]  # Package specifications (name -> version)
+    python: Optional[str]  # Python version specification
+    disabled: Optional[Union[bool, str]]  # Whether PyPI is disabled
 
 
 class PyPIStepDecorator(StepDecorator):
@@ -22,7 +31,11 @@ class PyPIStepDecorator(StepDecorator):
     """
 
     name = "pypi"
-    defaults = {"packages": {}, "python": None, "disabled": None}  # wheels
+    defaults: DecoratorAttributes = {
+        "packages": {},
+        "python": None,
+        "disabled": None,
+    }  # wheels
 
     def __init__(self, attributes=None, statically_defined=False, inserted_by=None):
         self._attributes_with_user_values = (
@@ -126,7 +139,7 @@ class PyPIFlowDecorator(FlowDecorator):
     """
 
     name = "pypi_base"
-    defaults = {"packages": {}, "python": None, "disabled": None}
+    defaults: DecoratorAttributes = {"packages": {}, "python": None, "disabled": None}
 
     def __init__(self, attributes=None, statically_defined=False, inserted_by=None):
         self._attributes_with_user_values = (

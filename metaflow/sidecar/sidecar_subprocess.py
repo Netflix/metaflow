@@ -20,8 +20,9 @@ MESSAGE_WRITE_TIMEOUT_IN_MS = 1000
 NULL_SIDECAR_PREFIX = "nullSidecar"
 
 # for python 2 compatibility
+from typing import Type
 try:
-    blockingError = BlockingIOError
+    blockingError: Type[Exception] = BlockingIOError
 except:
     blockingError = OSError
 
@@ -55,7 +56,7 @@ class NullPoller(object):
 
 class SidecarSubProcess(object):
     def __init__(self, worker_type):
-        # type: (str, dict) -> None
+        # type: (str) -> None
         self._worker_type = worker_type
 
         # Sub-process launched and poller used

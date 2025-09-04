@@ -5,6 +5,7 @@
 import os
 import subprocess
 import sys
+from typing import Any
 from metaflow.cli_args import cli_args
 from metaflow.decorators import StepDecorator
 from metaflow.exception import MetaflowException
@@ -54,7 +55,7 @@ class InternalTestUnboundedForeachInput(UnboundedForeachInput):
 
 class InternalTestUnboundedForeachDecorator(StepDecorator):
     name = "unbounded_test_foreach_internal"
-    results_dict = {}
+    results_dict: dict[str, Any] = {}
 
     def __init__(self, attributes=None, statically_defined=False, inserted_by=None):
         super(InternalTestUnboundedForeachDecorator, self).__init__(

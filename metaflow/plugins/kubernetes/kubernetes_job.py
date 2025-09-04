@@ -27,7 +27,7 @@ def k8s_retry(deadline_seconds=60, max_backoff=32):
 
         @wraps(function)
         def wrapper(*args, **kwargs):
-            from kubernetes import client
+            from kubernetes import client  # type: ignore[import-not-found]
 
             deadline = time.time() + deadline_seconds
             retry_number = 0
@@ -505,7 +505,7 @@ class RunningJob(object):
         if not self.is_done:
             if self.is_running:
                 # Case 1.
-                from kubernetes.stream import stream
+                from kubernetes.stream import stream  # type: ignore[import-not-found]
 
                 api_instance = client.CoreV1Api
                 try:

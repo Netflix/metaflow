@@ -4,7 +4,7 @@ import time
 
 import requests
 
-from typing import List
+from typing import List, Dict, Any
 from metaflow.exception import (
     MetaflowException,
     MetaflowInternalError,
@@ -354,7 +354,7 @@ class ServiceMetadataProvider(MetadataProvider):
         List[str]
             List of task pathspecs that satisfy the query
         """
-        query_params = {}
+        query_params: Dict[str, Any] = {}
 
         if pattern == ".*":
             # we do not need to filter tasks at all if pattern allows 'any'
@@ -370,7 +370,7 @@ class ServiceMetadataProvider(MetadataProvider):
 
         try:
             resp, _ = cls._request(None, url, "GET")
-        except Exception as e:
+        except ServiceException as e:
             if e.http_code == 404:
                 # filter_tasks_by_metadata endpoint does not exist in the version of metadata service
                 # deployed currently. Raise a more informative error message.

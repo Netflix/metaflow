@@ -1,9 +1,10 @@
 import os
 import traceback
+from types import ModuleType
 from .card import MetaflowCard, MetaflowCardComponent
 from metaflow.extension_support import get_modules, EXT_PKG, _ext_debug
 
-_CARD_MODULES = []
+_CARD_MODULES: list[ModuleType] = []
 
 
 def iter_namespace(ns_pkg):

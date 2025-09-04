@@ -15,8 +15,8 @@ if TYPE_CHECKING:
 
 class FlowMutatorMeta(type):
     _all_registered_decorators = ClassPath_Trie()
-    _do_not_register = set()
-    _import_modules = set()
+    _do_not_register: set[str] = set()
+    _import_modules: set[str] = set()
 
     def __new__(mcs, name, bases, namespace):
         cls = super().__new__(mcs, name, bases, namespace)
@@ -52,7 +52,7 @@ class FlowMutatorMeta(type):
         return cls
 
     @classmethod
-    def all_decorators(mcs) -> Dict[str, "FlowMutatorMeta"]:
+    def all_decorators(mcs) -> Dict[str, type]:
         mcs._check_init()
         return mcs._all_registered_decorators.get_unique_prefixes()
 
@@ -62,7 +62,7 @@ class FlowMutatorMeta(type):
     @classmethod
     def get_decorator_by_name(
         mcs, decorator_name: str
-    ) -> Optional[Union["FlowDecoratorMeta", "metaflow.decorators.Decorator"]]:
+    ) -> Optional[Union["FlowMutatorMeta", "metaflow.decorators.Decorator"]]:
         """
         Get a decorator by its name.
 
@@ -77,7 +77,9 @@ class FlowMutatorMeta(type):
             The decorator class if found, None otherwise.
         """
         mcs._check_init()
-        return mcs._all_registered_decorators.unique_prefix_value(decorator_name)
+        from typing import cast
+        result = mcs._all_registered_decorators.unique_prefix_value(decorator_name)
+        return cast(Optional[Union["FlowMutatorMeta", "metaflow.decorators.Decorator"]], result)
 
     @classmethod
     def get_decorator_name(mcs, decorator_type: type) -> Optional[str]:
@@ -169,6 +171,10 @@ class FlowMutator(metaclass=FlowMutatorMeta):
         if flow_spec:
             if isinstance(flow_spec, FlowMutator):
                 flow_spec = flow_spec._flow_cls
+                if flow_spec is None:
+                    raise MetaflowException(
+                        "FlowMutator does not have a valid flow class"
+                    )
             return self._set_flow_cls(flow_spec)
         elif not self._flow_cls:
             # This means that somehow the initialization did not happen properly

@@ -1,4 +1,5 @@
 from collections import namedtuple
+from typing import Dict, Any, TypedDict
 from metaflow.decorators import StepDecorator
 from metaflow.unbounded_foreach import UBF_CONTROL, CONTROL_TASK_TAG
 from metaflow.exception import MetaflowException
@@ -33,7 +34,7 @@ class ParallelDecorator(StepDecorator):
     """
 
     name = "parallel"
-    defaults = {}
+    defaults: Dict[str, Any] = {}  # Empty configuration - no specific structure needed
     IS_PARALLEL = True
 
     def __init__(self, attributes=None, statically_defined=False, inserted_by=None):

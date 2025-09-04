@@ -9,7 +9,7 @@ from types import ModuleType
 from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING, Type, cast
 
 from ..debug import debug
-from ..packaging_sys import ContentType, MetaflowCodeContent
+from ..packaging_sys import ContentType, MetaflowCodeContent, InfoDict, ConfigDict
 from ..packaging_sys.backend import PackagingBackend
 from ..packaging_sys.tar_backend import TarPackagingBackend
 from ..packaging_sys.v1 import MetaflowCodeContentV1
@@ -67,7 +67,9 @@ class MetaflowPackage(object):
 
         # Content of the package (and settings on how to create it)
         if suffixes is not None:
-            self._suffixes = list(set().union(suffixes, DEFAULT_SUFFIXES_LIST))
+            self._suffixes: Optional[List[str]] = list(
+                set().union(suffixes, DEFAULT_SUFFIXES_LIST)
+            )
         else:
             self._suffixes = None
 
@@ -96,7 +98,7 @@ class MetaflowPackage(object):
             self._mfcontent = MetaflowCodeContentV1(criteria=_module_selector)
 
         else:
-            self._mfcontent = mfcontent
+            self._mfcontent = cast(MetaflowCodeContentV1, mfcontent)
         # We exclude the environment when packaging as this will be packaged separately.
         # This comes into play primarily if packaging from a node already running packaged
         # code.
@@ -111,9 +113,8 @@ class MetaflowPackage(object):
         )
 
         if self._suffixes is not None and user_code_filter is not None:
-            self._user_code_filter = lambda x, f1=suffix_filter(
-                self._suffixes
-            ), f2=user_code_filter: f1(x) and f2(x)
+            suffix_func = suffix_filter(self._suffixes)
+            self._user_code_filter = lambda x: suffix_func(x) and user_code_filter(x)
             self._filter_type = "suffixes and user filter"
         elif self._suffixes is not None:
             self._user_code_filter = suffix_filter(self._suffixes)
@@ -143,10 +144,10 @@ class MetaflowPackage(object):
     # DO pkg.blob. Ideally, this goes away and blob_with_timeout becomes
     # the main method (called blob).
     @property
-    def blob(self) -> BytesIO:
+    def blob(self) -> Optional[bytes]:
         return self.blob_with_timeout()
 
-    def blob_with_timeout(self, timeout: Optional[float] = None) -> BytesIO:
+    def blob_with_timeout(self, timeout: Optional[float] = None) -> Optional[bytes]:
         if self._blob is None:
             self._create_thread.join(timeout)
             if self._is_package_available is not None:
@@ -190,7 +191,7 @@ class MetaflowPackage(object):
         )
 
     @classmethod
-    def get_backend(cls, pkg_metadata: str) -> PackagingBackend:
+    def get_backend(cls, pkg_metadata: str) -> Type[PackagingBackend]:
         """
         Method to get the backend type from the package metadata.
 
@@ -294,7 +295,7 @@ class MetaflowPackage(object):
             return backend.cls_get_member(opened_archive, name)
 
     @classmethod
-    def cls_get_info(cls, pkg_metadata, archive: BytesIO) -> Optional[Dict[str, str]]:
+    def cls_get_info(cls, pkg_metadata, archive: BytesIO) -> Optional[InfoDict]:
         """
         Method to get the info of the package from the archive.
         Parameters
@@ -315,7 +316,7 @@ class MetaflowPackage(object):
     @classmethod
     def cls_get_config(
         cls, pkg_metadata: str, archive: BytesIO
-    ) -> Optional[Dict[str, str]]:
+    ) -> Optional[ConfigDict]:
         """
         Method to get the config of the package from the archive.
 
@@ -383,7 +384,7 @@ class MetaflowPackage(object):
         # Human-readable content of the package
         blob = self.blob_with_timeout(timeout=timeout)  # Ensure the package is created
         lines = [
-            f"Package size: {self._format_size(len(blob))}",
+            f"Package size: {self._format_size(len(blob) if blob else 0)}",
             f"Number of files: {sum(1 for _ in self.path_tuples())}",
             self._mfcontent.show(),
         ]

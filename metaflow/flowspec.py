@@ -36,7 +36,7 @@ from .metaflow_config import INCLUDE_FOREACH_STACK, MAXIMUM_FOREACH_VALUE_CHARS
 
 # For Python 3 compatibility
 try:
-    basestring
+    basestring  # type: ignore[used-before-def]
 except NameError:
     basestring = str
 
@@ -513,6 +513,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
         """
         if self._foreach_stack:
             return self._foreach_stack[-1].index
+        return None
 
     @property
     def input(self) -> Optional[Any]:
@@ -687,7 +688,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
             msg = "`exclude` and `include` are mutually exclusive in merge_artifacts"
             raise MetaflowException(msg)
 
-        to_merge = {}
+        to_merge: dict[str, Tuple[Any, str]] = {}
         unresolved = []
         for inp in inputs:
             # available_vars is the list of variables from inp that should be considered
@@ -855,7 +856,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
         # check: switch case using condition
         if condition is not None:
-            if len(dsts) != 1 or not isinstance(dsts[0], dict) or not dsts[0]:
+            if len(dsts) != 1 or not isinstance(dsts[0], dict) or not dsts[0]:  # type: ignore[truthy-function]
                 msg = (
                     "Step *{step}* has an invalid self.next() transition. "
                     "When using 'condition', the transition must be to a single, "
@@ -937,7 +938,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
         funcs = []
         for i, dst in enumerate(dsts):
             try:
-                name = dst.__func__.__name__
+                name = dst.__func__.__name__  # type: ignore[attr-defined]
             except:
                 msg = (
                     "In step *{step}* the {arg}. argument in self.next() is "

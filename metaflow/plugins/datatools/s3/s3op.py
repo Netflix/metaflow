@@ -16,13 +16,13 @@ from tempfile import NamedTemporaryFile
 from multiprocessing import Process, Queue
 from itertools import starmap, chain, islice
 
-from boto3.exceptions import RetriesExceededError, S3UploadFailedError
-from boto3.s3.transfer import TransferConfig
-from botocore.exceptions import ClientError, SSLError
+from boto3.exceptions import RetriesExceededError, S3UploadFailedError  # type: ignore[import-untyped]
+from boto3.s3.transfer import TransferConfig  # type: ignore[import-untyped]
+from botocore.exceptions import ClientError, SSLError  # type: ignore[import-untyped]
 
 try:
     # python2
-    from urlparse import urlparse
+    from urlparse import urlparse  # type: ignore[import-not-found]
 except:
     # python3
     from urllib.parse import urlparse
@@ -273,7 +273,7 @@ def worker(result_file_name, queue, mode, s3config):
                         except RetriesExceededError as e:
                             tmp.close()
                             os.unlink(tmp.name)
-                            err = convert_to_client_error(e)
+                            err = convert_to_client_error(e)  # type: ignore[misc]
                             handle_client_error(err, idx, result_file)
                             continue
                         except OSError as e:
@@ -354,7 +354,7 @@ def worker(result_file_name, queue, mode, s3config):
                                 handle_client_error(err, idx, result_file)
                                 continue
                             except S3UploadFailedError as e:
-                                err = convert_to_client_error(e)
+                                err = convert_to_client_error(e)  # type: ignore[misc]
                                 handle_client_error(err, idx, result_file)
                                 continue
                         except (SSLError, Exception) as e:

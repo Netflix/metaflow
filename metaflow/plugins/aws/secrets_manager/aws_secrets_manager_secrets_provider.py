@@ -71,7 +71,7 @@ class AwsSecretsManagerSecretsProvider(SecretsProvider):
         :return: Dictionary of environment variables. All keys and values are strings.
         """
 
-        import botocore
+        import botocore  # type: ignore[import-untyped]
         from metaflow.plugins.aws.aws_client import get_aws_client
 
         effective_aws_region = None

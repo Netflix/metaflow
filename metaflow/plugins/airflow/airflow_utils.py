@@ -70,7 +70,7 @@ def create_absolute_version_number(version):
 
 
 def _validate_dynamic_mapping_compatibility():
-    from airflow.version import version
+    from airflow.version import version  # type: ignore[import-not-found]
 
     af_ver = create_absolute_version_number(version)
     if af_ver is None or af_ver < create_absolute_version_number(
@@ -84,7 +84,7 @@ def _validate_dynamic_mapping_compatibility():
 
 def get_kubernetes_provider_version():
     try:
-        from airflow.providers.cncf.kubernetes.get_provider_info import (
+        from airflow.providers.cncf.kubernetes.get_provider_info import (  # type: ignore[import-not-found]
             get_provider_info,
         )
     except ImportError as e:
@@ -98,7 +98,7 @@ def get_kubernetes_provider_version():
 
 
 def _validate_minimum_airflow_version():
-    from airflow.version import version
+    from airflow.version import version  # type: ignore[import-not-found]
 
     af_ver = create_absolute_version_number(version)
     if af_ver is None or af_ver < create_absolute_version_number(
@@ -128,7 +128,7 @@ def datetimeparse(isotimestamp):
 
 def get_xcom_arg_class():
     try:
-        from airflow import XComArg
+        from airflow import XComArg  # type: ignore[import-not-found]
     except ImportError:
         return None
     return XComArg
@@ -310,9 +310,9 @@ class AirflowDAGArgs(object):
 
 
 def _kubernetes_pod_operator_args(operator_args):
-    from kubernetes import client
+    from kubernetes import client  # type: ignore[import-not-found]
 
-    from airflow.kubernetes.secret import Secret
+    from airflow.kubernetes.secret import Secret  # type: ignore[import-not-found]
 
     # Set dynamic env variables like run-id, task-id etc from here.
     secrets = [
@@ -410,12 +410,12 @@ def _get_sensor(name):
         # 12 Jan 4:00 PM PDT then "DagB"(current DAG)'s task sensor will try to
         # look for a "DagA" that got executed at 12 Jan 4:00 PM PDT **exactly**.
         # They also support a `execution_timeout` argument to
-        from airflow.sensors.external_task_sensor import ExternalTaskSensor
+        from airflow.sensors.external_task_sensor import ExternalTaskSensor  # type: ignore[import-not-found]
 
         return ExternalTaskSensor
     elif name == SensorNames.S3_SENSOR:
         try:
-            from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+            from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor  # type: ignore[import-not-found]
         except ImportError:
             raise AirflowSensorNotFound(
                 "This DAG requires a `S3KeySensor`. "
@@ -427,12 +427,12 @@ def _get_sensor(name):
 
 def get_metaflow_kubernetes_operator():
     try:
-        from airflow.contrib.operators.kubernetes_pod_operator import (
+        from airflow.contrib.operators.kubernetes_pod_operator import (  # type: ignore[import-not-found]
             KubernetesPodOperator,
         )
     except ImportError:
         try:
-            from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import (
+            from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import (  # type: ignore[import-not-found]
                 KubernetesPodOperator,
             )
         except ImportError as e:
@@ -657,7 +657,7 @@ class Workflow(object):
         return cls.from_dict(data)
 
     def _construct_params(self):
-        from airflow.models.param import Param
+        from airflow.models.param import Param  # type: ignore[import-not-found]
 
         if self.metaflow_params is None:
             return {}
@@ -669,7 +669,7 @@ class Workflow(object):
         return param_dict
 
     def compile(self):
-        from airflow import DAG
+        from airflow import DAG  # type: ignore[import-not-found]
 
         # Airflow 2.0.0 cannot import this, so we have to do it this way.
         # `XComArg` is needed for dynamic task mapping and if the airflow installation is of the right

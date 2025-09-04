@@ -75,7 +75,10 @@ class TarPackagingBackend(PackagingBackend):
     def cls_get_member(cls, archive: tarfile.TarFile, name: str) -> Optional[bytes]:
         try:
             member = archive.getmember(name)
-            return archive.extractfile(member).read()
+            extracted_file = archive.extractfile(member)
+            if extracted_file is not None:
+                return extracted_file.read()
+            return None
         except KeyError:
             return None
 

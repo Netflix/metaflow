@@ -90,8 +90,14 @@ def type_var_to_str(t: TypeVar) -> str:
     )
 
 
-def new_type_to_str(t: typing.NewType) -> str:
-    return 'typing.NewType("%s", %s)' % (t.__name__, t.__supertype__.__name__)
+def new_type_to_str(t: typing.Union[type, typing.NewType]) -> str:
+    # Handle regular types
+    if hasattr(t, "__name__") and not hasattr(t, "__supertype__"):
+        return getattr(t, "__name__", "UnknownType")
+    # Handle NewType
+    name = getattr(t, "__name__", "UnknownNewType")
+    supertype_name = getattr(getattr(t, "__supertype__", None), "__name__", "Any")
+    return 'typing.NewType("%s", %s)' % (name, supertype_name)
 
 
 def descend_object(object: str, options: Iterable[str]):
@@ -177,7 +183,7 @@ def parse_add_to_docs(
     prop = None
     return_type = None
     property_indent = None
-    doc = []
+    doc: List[str] = []
     add_to_docs = dict()  # type: Dict[str, Union[str, Tuple[inspect.Signature, str]]]
 
     def _add():
@@ -324,7 +330,7 @@ class StubGenerator:
         # Contains information to add to the Current object (injected by decorators)
         self._addl_current = (
             dict()
-        )  # type: Dict[str, Dict[str, Tuple[inspect.Signature, str]]]
+        )  # type: Dict[str, Union[Tuple[inspect.Signature, str], str]]
 
         self._reset()
 
@@ -335,7 +341,7 @@ class StubGenerator:
         # Imports that are needed at the top of the file
         self._imports = set()  # type: Set[str]
 
-        self._sub_module_imports = set()  # type: Set[Tuple[str, str]]``
+        self._sub_module_imports = set()  # type: Set[Tuple[str, str]]
         # Typing imports (behind if TYPE_CHECKING) that are needed at the top of the file
         self._typing_imports = set()  # type: Set[str]
         # Typevars that are defined
@@ -573,7 +579,7 @@ class StubGenerator:
                 return element.__name__
         elif isinstance(element, type(Ellipsis)):
             return "..."
-        elif isinstance(element, typing._GenericAlias):
+        elif hasattr(typing, '_GenericAlias') and isinstance(element, typing._GenericAlias):
             # We need to check things recursively in __args__ if it exists
             args_str = []
             for arg in getattr(element, "__args__", []):
@@ -715,7 +721,7 @@ class StubGenerator:
                     ):
                         # This is a method that was injected. It has docs but we need
                         # to parse it to generate the proper signature
-                        func_doc = inspect.cleandoc(element.__doc__)
+                        func_doc = inspect.cleandoc(element.__doc__ or "")
                         docs = split_docs(
                             func_doc,
                             [
@@ -763,7 +769,7 @@ class StubGenerator:
                     ):
                         # We simply update the signature to list the return
                         # type as a union of all possible deployers
-                        func_doc = inspect.cleandoc(element.__doc__)
+                        func_doc = inspect.cleandoc(element.__doc__ or "")
                         docs = split_docs(
                             func_doc,
                             [
@@ -786,15 +792,21 @@ class StubGenerator:
                         def _create_multi_type(*l):
                             return typing.Union[l]
 
-                        all_types = [
-                            v["from_deployment"][0]
-                            for v in self._deployer_injected_methods.values()
-                        ]
+                        all_types = []
+                        for v in self._deployer_injected_methods.values():
+                            if "from_deployment" in v:
+                                deployment_val = v["from_deployment"]
+                                if isinstance(deployment_val, tuple):
+                                    all_types.append(deployment_val[0])
+                                else:
+                                    all_types.append(deployment_val)
 
                         if len(all_types) > 1:
                             return_type = _create_multi_type(*all_types)
+                        elif len(all_types) == 1:
+                            return_type = all_types[0]
                         else:
-                            return_type = all_types[0] if len(all_types) else None
+                            return_type = "None"
 
                         buff.write(
                             self._generate_function_stub(
@@ -893,7 +905,7 @@ class StubGenerator:
                                 "from_deployment"
                             ] = (
                                 self._current_module_name + "." + name,
-                                element.__doc__,
+                                element.__doc__ or "",
                             )
                         buff.write(
                             self._generate_function_stub(
@@ -922,13 +934,12 @@ class StubGenerator:
         if clazz == Current:
             # Multiple decorators can add the same object (trigger and trigger_on_finish)
             # as examples so we sort it out.
-            resulting_dict = (
-                dict()
-            )  # type Dict[str, List[inspect.Signature, str, List[str]]]
+            resulting_dict: Dict[str, List[Any]] = dict()
             for deco_name, addl_current in self._addl_current.items():
-                for name, (sign, doc) in addl_current.items():
-                    r = resulting_dict.setdefault(name, [sign, doc, []])
-                    r[2].append("@%s" % deco_name)
+                if isinstance(addl_current, dict):
+                    for name, (sign, doc) in addl_current.items():
+                        r = resulting_dict.setdefault(name, [sign, doc, []])
+                        r[2].append("@%s" % deco_name)
             for name, (sign, doc, decos) in resulting_dict.items():
                 buff.write(
                     self._generate_function_stub(
@@ -1006,7 +1017,9 @@ class StubGenerator:
         parameters, no_arg_version = parse_params_from_doc(docs["param_doc"])
 
         if docs["add_to_current_doc"]:
-            self._addl_current[name] = parse_add_to_docs(docs["add_to_current_doc"])
+            parsed_docs = parse_add_to_docs(docs["add_to_current_doc"])
+            for key, value in parsed_docs.items():
+                self._addl_current[f"{name}_{key}"] = value
 
         result = []
         if no_arg_version:

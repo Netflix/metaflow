@@ -383,7 +383,7 @@ class TaskToDict:
 
         # We explicitly cast the `index_column` object to an `Index` or `MultiIndex` having JSON-castable values.
         if index_column.__class__.__name__ == "MultiIndex":
-            from pandas import MultiIndex
+            from pandas import MultiIndex  # type: ignore[import-untyped]
 
             cols = [
                 self._parse_pandas_column(

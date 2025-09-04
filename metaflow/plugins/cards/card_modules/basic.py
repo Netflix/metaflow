@@ -5,6 +5,7 @@ from .card import MetaflowCard, MetaflowCardComponent, with_default_component_id
 from .convert_to_native_type import TaskToDict
 import uuid
 import inspect
+from typing import Optional
 
 ABS_DIR_PATH = os.path.dirname(os.path.abspath(__file__))
 RENDER_TEMPLATE_PATH = os.path.join(ABS_DIR_PATH, "base.html")
@@ -65,7 +66,7 @@ class DefaultComponent(MetaflowCardComponent):
     The `type` attribute in a `DefaultComponent` corresponds to the type of component in the Javascript framework.
     """
 
-    type = None
+    type: Optional[str] = None
 
     def __init__(self, title=None, subtitle=None):
         self._title = title

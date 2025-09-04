@@ -174,7 +174,7 @@ class ContainerHook(Hook):
         self,
         name: str,
         container: Dict,
-        service_account_name: str = None,
+        service_account_name: Optional[str] = None,
         on_success: bool = False,
         on_error: bool = False,
     ):

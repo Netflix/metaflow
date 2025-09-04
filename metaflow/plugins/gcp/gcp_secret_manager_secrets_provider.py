@@ -66,10 +66,10 @@ class GcpSecretManagerSecretsProvider(SecretsProvider):
         :param options: unused
         :return: dict of environment variables. All keys and values are strings.
         """
-        from google.cloud.secretmanager_v1.services.secret_manager_service import (
+        from google.cloud.secretmanager_v1.services.secret_manager_service import (  # type: ignore[import-untyped]
             SecretManagerServiceClient,
         )
-        from google.cloud.secretmanager_v1.services.secret_manager_service.transports import (
+        from google.cloud.secretmanager_v1.services.secret_manager_service.transports import (  # type: ignore[import-untyped]
             SecretManagerServiceTransport,
         )
 

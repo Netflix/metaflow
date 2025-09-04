@@ -5,7 +5,7 @@ import json
 import sys
 import os
 from metaflow import current
-from typing import Callable, Tuple, Dict
+from typing import Any, Callable, Tuple, Dict
 
 
 ASYNC_TIMEOUT = 30
@@ -17,7 +17,7 @@ class CardProcessManager:
 
     """
 
-    async_card_processes = {
+    async_card_processes: Dict[str, Dict[str, Any]] = {
         # "carduuid": {
         #     "proc": subprocess.Popen,
         #     "started": time.time()

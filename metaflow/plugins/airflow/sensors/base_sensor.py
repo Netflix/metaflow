@@ -1,4 +1,5 @@
 import uuid
+from typing import Optional
 from metaflow.decorators import FlowDecorator, flow_decorators
 from ..exception import AirflowException
 from ..airflow_utils import AirflowTask, id_creator, TASK_ID_HASH_LEN
@@ -22,7 +23,7 @@ class AirflowSensorDecorator(FlowDecorator):
         description=None,
     )
 
-    operator_type = None
+    operator_type: Optional[str] = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

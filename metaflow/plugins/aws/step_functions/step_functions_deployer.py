@@ -1,4 +1,4 @@
-from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING, Type
+from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING, Type, cast
 
 from metaflow.runner.deployer_impl import DeployerImpl
 
@@ -86,7 +86,7 @@ class StepFunctionsDeployer(DeployerImpl):
         """
         from .step_functions_deployer_objects import StepFunctionsDeployedFlow
 
-        return self._create(StepFunctionsDeployedFlow, **kwargs)
+        return cast("StepFunctionsDeployedFlow", self._create(StepFunctionsDeployedFlow, **kwargs))
 
 
 _addl_stubgen_modules = [

@@ -9,7 +9,7 @@ from metaflow.datastore.datastore_storage import CloseAfterUse, DataStoreStorage
 
 try:
     # python2
-    from urlparse import urlparse
+    from urlparse import urlparse  # type: ignore[import-not-found]
 except:
     # python3
     from urllib.parse import urlparse

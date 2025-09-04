@@ -3,10 +3,13 @@ import traceback
 
 try:
     # Import from client
-    from .data_transferer import DataTransferer
+    from .data_transferer import DataTransferer as BaseDataTransferer
 except ImportError:
     # Import from server
-    from data_transferer import DataTransferer
+    from data_transferer import DataTransferer as BaseDataTransferer  # type: ignore[import-not-found,no-redef]
+
+# Export with original name for compatibility
+DataTransferer = BaseDataTransferer
 
 
 # This file is heavily inspired from the RPYC project

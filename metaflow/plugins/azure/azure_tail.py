@@ -1,6 +1,6 @@
 from io import BytesIO
 
-from azure.core.exceptions import ResourceNotFoundError, HttpResponseError
+from azure.core.exceptions import ResourceNotFoundError, HttpResponseError  # type: ignore[import-not-found]
 
 from metaflow.exception import MetaflowException
 

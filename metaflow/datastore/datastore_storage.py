@@ -1,5 +1,6 @@
 from collections import namedtuple
 import re
+from typing import Optional
 
 from .exceptions import DataException
 
@@ -34,7 +35,7 @@ class DataStoreStorage(object):
     class itself is not meant to be initialized.
     """
 
-    TYPE = None
+    TYPE: Optional[str] = None
     datastore_root = None
     path_rexp = None
 

@@ -109,7 +109,7 @@ def run_op(
 
 
 def run_op_diff_runs(
-    source_run_pathspec: str, target_run_pathspec: str, **op_args: Mapping[str, Any]
+    source_run_pathspec: str, target_run_pathspec: str, **op_args: Any
 ) -> Optional[List[str]]:
     source_tmp = None
     target_tmp = None

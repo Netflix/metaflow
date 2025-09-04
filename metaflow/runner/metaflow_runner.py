@@ -4,7 +4,7 @@ import os
 import sys
 import json
 
-from typing import Dict, Iterator, Optional, Tuple
+from typing import AsyncIterator, Dict, Iterator, Optional, Tuple
 
 from metaflow import Run
 
@@ -103,7 +103,7 @@ class ExecutingRun(object):
         Optional[int]
             The return code of the underlying subprocess.
         """
-        return self.command_obj.process.returncode
+        return self.command_obj.process.returncode if self.command_obj.process else None
 
     @property
     def status(self) -> str:
@@ -124,9 +124,9 @@ class ExecutingRun(object):
         """
         if self.command_obj.timeout:
             return "timeout"
-        elif self.command_obj.process.returncode is None:
+        elif self.command_obj.process is None or self.command_obj.process.returncode is None:
             return "running"
-        elif self.command_obj.process.returncode != 0:
+        elif self.command_obj.process and self.command_obj.process.returncode != 0:
             return "failed"
         else:
             return "successful"
@@ -143,9 +143,10 @@ class ExecutingRun(object):
         str
             The current snapshot of stdout.
         """
-        with open(
-            self.command_obj.log_files.get("stdout"), "r", encoding="utf-8"
-        ) as fp:
+        stdout_file = self.command_obj.log_files.get("stdout")
+        if stdout_file is None:
+            return ""
+        with open(stdout_file, "r", encoding="utf-8") as fp:
             return fp.read()
 
     @property
@@ -160,14 +161,15 @@ class ExecutingRun(object):
         str
             The current snapshot of stderr.
         """
-        with open(
-            self.command_obj.log_files.get("stderr"), "r", encoding="utf-8"
-        ) as fp:
+        stderr_file = self.command_obj.log_files.get("stderr")
+        if stderr_file is None:
+            return ""
+        with open(stderr_file, "r", encoding="utf-8") as fp:
             return fp.read()
 
     async def stream_log(
         self, stream: str, position: Optional[int] = None
-    ) -> Iterator[Tuple[int, str]]:
+    ) -> AsyncIterator[Tuple[int, str]]:
         """
         Asynchronous iterator to stream logs from the subprocess line by line.
 

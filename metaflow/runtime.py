@@ -1250,7 +1250,7 @@ class NativeRuntime(object):
 
 
 class Task(object):
-    clone_pathspec_mapping = {}
+    clone_pathspec_mapping: Dict[str, str] = {}
 
     def __init__(
         self,

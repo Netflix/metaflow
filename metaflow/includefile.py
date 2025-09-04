@@ -95,7 +95,7 @@ class IncludedFile(object):
 
 
 class FilePathClass(click.ParamType):
-    name = "FilePath"
+    name: str = "FilePath"  # type: ignore[assignment]
 
     def __init__(self, is_text, encoding):
         self._is_text = is_text
@@ -270,15 +270,22 @@ class IncludeFile(Parameter):
         is_text: Optional[bool] = None,
         encoding: Optional[str] = None,
         help: Optional[str] = None,
-        **kwargs: Dict[str, str]
+        **kwargs: Dict[str, Any]
     ):
-        self._includefile_overrides = {}
+        self._includefile_overrides: Dict[str, Any] = {}
         if is_text is not None:
             self._includefile_overrides["is_text"] = is_text
         if encoding is not None:
             self._includefile_overrides["encoding"] = encoding
         # NOTA: Right now, there is an issue where these can't be overridden by config
         # in all circumstances. Ignoring for now.
+        # Extract and pass supported Parameter kwargs
+        param_kwargs: Dict[str, Any] = {}
+        if 'default' in kwargs:
+            param_kwargs['default'] = kwargs['default']
+        if 'show_default' in kwargs:
+            param_kwargs['show_default'] = kwargs['show_default']
+            
         super(IncludeFile, self).__init__(
             name,
             required=required,
@@ -287,7 +294,7 @@ class IncludeFile(Parameter):
                 self._includefile_overrides.get("is_text", True),
                 self._includefile_overrides.get("encoding", "utf-8"),
             ),
-            **kwargs,
+            **param_kwargs,
         )
 
     def init(self, ignore_errors=False):

@@ -89,7 +89,11 @@ if __name__ == "__main__":
         stdout=subprocess.PIPE,
     )
 
-    fds = {p1.stdout.fileno(): ("p1", p1.stdout), p2.stdout.fileno(): ("p2", p2.stdout)}
+    fds = {}
+    if p1.stdout is not None:
+        fds[p1.stdout.fileno()] = ("p1", p1.stdout)
+    if p2.stdout is not None:
+        fds[p2.stdout.fileno()] = ("p2", p2.stdout)
 
     poll = make_poll()
     print("poller is %s" % poll)
@@ -101,7 +105,8 @@ if __name__ == "__main__":
     while n > 0:
         for event in poll.poll(0.5):
             name, fileobj = fds[event.fd]
-            print("[%s] %s" % (name, fileobj.readline().strip()))
+            if fileobj is not None:
+                print("[%s] %s" % (name, fileobj.readline().strip().decode('utf-8', errors='replace')))
             if event.is_terminated:
                 print("[%s] terminated" % name)
                 poll.remove(event.fd)

@@ -3,11 +3,21 @@ import platform
 import re
 import sys
 import tempfile
+from typing import Dict, Any, Optional, TypedDict, Union
 
-from metaflow.decorators import FlowDecorator, StepDecorator
+from metaflow.decorators import FlowDecorator, StepDecorator, DecoratorAttributes
 from metaflow.metadata_provider import MetaDatum
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.packaging_sys import ContentType
+
+
+# Type for conda decorator configuration
+class CondaDecoratorDefaults(TypedDict, total=False):
+    """Default configuration for conda decorators."""
+    packages: Dict[str, Union[str, int, bool]]  # Package specifications
+    libraries: Dict[str, Union[str, int, bool]]  # Deprecated package specifications
+    python: Optional[str]  # Python version specification
+    disabled: Optional[Union[bool, str]]  # Whether conda is disabled
 
 
 class CondaStepDecorator(StepDecorator):
@@ -34,7 +44,7 @@ class CondaStepDecorator(StepDecorator):
     """
 
     name = "conda"
-    defaults = {
+    defaults: DecoratorAttributes = {
         "packages": {},
         "libraries": {},  # Deprecated! Use packages going forward
         "python": None,

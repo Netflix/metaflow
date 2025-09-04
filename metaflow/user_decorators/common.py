@@ -1,4 +1,4 @@
-from typing import Dict, Optional, List, Tuple
+from typing import Dict, Optional, List, Tuple, Union
 
 
 class _TrieNode:
@@ -9,8 +9,8 @@ class _TrieNode:
         self.component = component
         self.children = {}  # type: Dict[str, "_TrieNode"]
         self.total_children = 0
-        self.value = None
-        self.end_value = None
+        self.value: Optional[type] = None
+        self.end_value: Optional[type] = None
 
     def traverse(self, value: type) -> Optional["_TrieNode"]:
         if self.total_children == 0:
@@ -18,6 +18,7 @@ class _TrieNode:
         else:
             self.end_value = None
         self.total_children += 1
+        return None
 
     def remove_child(self, child_name: str) -> bool:
         if child_name in self.children:
@@ -106,7 +107,7 @@ class ClassPath_Trie:
         node = self._value_to_node.get(value, None)
         if node is None:
             return None
-        components = []
+        components: List[str] = []
         while node:
             if node.end_value == value:
                 components = []

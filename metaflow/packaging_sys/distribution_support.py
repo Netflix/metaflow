@@ -128,7 +128,7 @@ class PackagedDistribution(metadata.Distribution):
 
     # Returns a metadata.SimplePath but not always present in importlib.metadata libs so
     # skipping return type.
-    def locate_file(self, path: Union[str, os.PathLike]):
+    def locate_file(self, path: Union[str, os.PathLike]) -> Path:
         return self._root / path
 
 

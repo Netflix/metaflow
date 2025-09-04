@@ -18,6 +18,9 @@ from typing import (
     Union,
 )
 
+# Type alias for JSON-serializable values in config
+JsonValue = Union[str, int, float, bool, None, Dict[str, 'JsonValue'], List['JsonValue']]
+
 
 from ..exception import MetaflowException
 
@@ -63,7 +66,7 @@ def dump_config_values(flow: "FlowSpec"):
     return {}
 
 
-class ConfigValue(collections.abc.Mapping, dict):
+class ConfigValue(dict, collections.abc.Mapping):
     """
     ConfigValue is a thin wrapper around an arbitrarily nested dictionary-like
     configuration object. It allows you to access elements of this nested structure
@@ -81,14 +84,14 @@ class ConfigValue(collections.abc.Mapping, dict):
     # We inherit from dict to allow the isinstanceof check to work easily and also
     # to provide a simple json dumps functionality.
 
-    def __init__(self, data: Union["ConfigValue", Dict[str, Any]]):
+    def __init__(self, data: Union["ConfigValue", Dict[str, JsonValue]]):
         self._data = {k: self._construct(v) for k, v in data.items()}
 
         # Enable json dumps
         dict.__init__(self, self._data)
 
     @classmethod
-    def fromkeys(cls, iterable: Iterable, value: Any = None) -> "ConfigValue":
+    def fromkeys(cls, iterable: Iterable, value: Any = None) -> "ConfigValue":  # Override dict.fromkeys
         """
         Creates a new ConfigValue object from the given iterable and value.
 
@@ -96,7 +99,7 @@ class ConfigValue(collections.abc.Mapping, dict):
         ----------
         iterable : Iterable
             Iterable to create the ConfigValue from.
-        value : Any, optional
+        value : JsonValue, optional
             Value to set for each key in the iterable.
 
         Returns
@@ -106,13 +109,13 @@ class ConfigValue(collections.abc.Mapping, dict):
         """
         return cls(dict.fromkeys(iterable, value))
 
-    def to_dict(self) -> Dict[Any, Any]:
+    def to_dict(self) -> Dict[str, JsonValue]:
         """
         Returns a dictionary representation of this configuration object.
 
         Returns
         -------
-        Dict[Any, Any]
+        Dict[str, JsonValue]
             Dictionary equivalent of this configuration object.
         """
         return self._to_dict(self._data)
@@ -250,6 +253,7 @@ class ConfigValue(collections.abc.Mapping, dict):
     def _construct(cls, obj: Any) -> Any:
         # Internal method to construct a ConfigValue so that all mappings internally
         # are also converted to ConfigValue
+        v: Any
         if isinstance(obj, ConfigValue):
             v = obj
         elif isinstance(obj, collections.abc.Mapping):
@@ -263,6 +267,7 @@ class ConfigValue(collections.abc.Mapping, dict):
     @classmethod
     def _to_dict(cls, obj: Any) -> Any:
         # Internal method to convert all nested mappings to dicts
+        v: Any
         if isinstance(obj, collections.abc.Mapping):
             v = {k: cls._to_dict(v) for k, v in obj.items()}
         elif isinstance(obj, (list, tuple, set)):
@@ -294,7 +299,7 @@ class DelayEvaluator(collections.abc.Mapping):
         if ID_PATTERN.match(self._config_expr):
             # This is a variable only so allow things like config_expr("config").var
             self._is_var_only = True
-            self._access = []
+            self._access: Optional[list[str]] = []
         else:
             self._is_var_only = False
             self._access = None
@@ -419,7 +424,10 @@ def config_expr(expr: str) -> DelayEvaluator:
     """
     # Get globals where the expression is defined so that the user can use
     # something like `config_expr("my_func()")` in the expression.
-    parent_globals = inspect.currentframe().f_back.f_globals
+    current_frame = inspect.currentframe()
+    parent_globals = {}
+    if current_frame is not None and current_frame.f_back is not None:
+        parent_globals = current_frame.f_back.f_globals
     return DelayEvaluator(expr, saved_globals=parent_globals)
 
 
@@ -485,7 +493,7 @@ class Config(Parameter, collections.abc.Mapping):
         help: Optional[str] = None,
         required: Optional[bool] = None,
         parser: Optional[Union[str, Callable[[str], Dict[Any, Any]]]] = None,
-        **kwargs: Dict[str, str]
+        **kwargs: Dict[str, Any]
     ):
         if default is not None and default_value is not None:
             raise MetaflowException(
@@ -493,18 +501,22 @@ class Config(Parameter, collections.abc.Mapping):
                 % name
             )
         self._default_is_file = default is not None
-        kwargs["default"] = default if default is not None else default_value
+        default_value_to_use = default if default is not None else default_value
+
+        # Handle JSON serialization for string defaults
+        if isinstance(default_value_to_use, str):
+            kwargs["default"] = json.dumps(default_value_to_use)  # type: ignore[assignment]
+        elif default_value_to_use is not None:
+            kwargs["default"] = default_value_to_use  # type: ignore[assignment]
+
         super(Config, self).__init__(
-            name, required=required, help=help, type=str, **kwargs
+            name, default=None, type=str, help=help, required=required, show_default=None, **kwargs
         )
         super(Config, self).init()
-
-        if isinstance(kwargs.get("default", None), str):
-            kwargs["default"] = json.dumps(kwargs["default"])
         self.parser = parser
         self._computed_value = None
 
-        self._delayed_evaluator = None
+        self._delayed_evaluator: Optional[DelayEvaluator] = None
 
     def load_parameter(self, v):
         if v is None:

@@ -22,8 +22,8 @@ def parse_gs_full_path(gs_uri):
 
 def _check_and_init_gs_deps():
     try:
-        from google.cloud import storage
-        import google.auth
+        from google.cloud import storage  # type: ignore[import-untyped]
+        import google.auth  # type: ignore[import-untyped]
     except ImportError:
         raise MetaflowGSPackageError()
 

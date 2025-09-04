@@ -2,7 +2,10 @@ import os
 import sys
 from ..debug import debug
 from contextlib import contextmanager
-from typing import Optional, Union, Dict, Any
+from typing import Optional, Union, Dict, Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import metaflow.monitor
 
 
 class SystemMonitor(object):
@@ -74,7 +77,10 @@ class SystemMonitor(object):
         None
         """
         # Delegating the context management to the monitor's measure method
-        with self.monitor.measure(name):
+        if self.monitor is not None:
+            with self.monitor.measure(name):
+                yield
+        else:
             yield
 
     @contextmanager
@@ -92,7 +98,10 @@ class SystemMonitor(object):
         None
         """
         # Delegating the context management to the monitor's count method
-        with self.monitor.count(name):
+        if self.monitor is not None:
+            with self.monitor.count(name):
+                yield
+        else:
             yield
 
     def gauge(self, gauge: "metaflow.monitor.Gauge"):
@@ -105,4 +114,5 @@ class SystemMonitor(object):
             The gauge to log.
 
         """
-        self.monitor.gauge(gauge)
+        if self.monitor is not None:
+            self.monitor.gauge(gauge)

@@ -97,7 +97,7 @@ def with_metaclass(meta, *bases):
     return type.__new__(metaclass, "temporary_class", (), {})
 
 
-class Stub(with_metaclass(StubMetaClass, object)):
+class Stub(with_metaclass(StubMetaClass, object)):  # type: ignore[misc]
     """
     Local reference to a remote object.
 

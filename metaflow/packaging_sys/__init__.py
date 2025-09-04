@@ -12,8 +12,19 @@ from typing import (
     TYPE_CHECKING,
     Tuple,
     Type,
+    TypedDict,
     Union,
 )
+
+# Type alias for JSON-serializable data structures used in INFO and CONFIG files
+JsonValue = Union[str, int, float, bool, None, Dict[str, 'JsonValue'], List['JsonValue']]
+InfoDict = Dict[str, JsonValue]
+ConfigDict = Dict[str, JsonValue]
+
+
+# Type for MetaflowCode content information stored in .mf_install marker files
+# This is the same as InfoDict but with known required fields documented
+MfContentInfo = InfoDict
 
 from metaflow.packaging_sys.distribution_support import PackagedDistributionFinder
 
@@ -26,7 +37,7 @@ from ..util import get_metaflow_root
 MFCONTENT_MARKER = ".mf_install"
 
 if TYPE_CHECKING:
-    import metaflow.extension_support.metadata
+    import metaflow.extension_support.metadata  # type: ignore[import-not-found]
 
 
 class ContentType(IntEnum):
@@ -59,19 +70,21 @@ class MetaflowCodeContent:
     the Metaflow code package (non user) to do.
     """
 
-    _cached_mfcontent_info = {}
+    _cached_mfcontent_info: dict[Union[int, str], Optional[MfContentInfo]] = {}
 
-    _mappings = {}
+    _mappings: dict[Union[str, int], Type["MetaflowCodeContent"]] = {}
+
+    _version_id: int
 
     @classmethod
-    def get_info(cls) -> Optional[Dict[str, Any]]:
+    def get_info(cls) -> Optional[MfContentInfo]:
         """
         Get the content of the special INFO file on the local filesystem after
         the code package has been expanded.
 
         Returns
         -------
-        Optional[Dict[str, Any]]
+        Optional[MfContentInfo]
             The content of the INFO file -- None if there is no such file.
         """
         mfcontent_info = cls._extract_mfcontent_info()
@@ -79,14 +92,14 @@ class MetaflowCodeContent:
         return handling_cls.get_info_impl(mfcontent_info)
 
     @classmethod
-    def get_config(cls) -> Optional[Dict[str, Any]]:
+    def get_config(cls) -> Optional[ConfigDict]:
         """
         Get the content of the special CONFIG file on the local filesystem after
         the code package has been expanded.
 
         Returns
         -------
-        Optional[Dict[str, Any]]
+        Optional[ConfigDict]
             The content of the CONFIG file -- None if there is no such file.
         """
         mfcontent_info = cls._extract_mfcontent_info()
@@ -145,13 +158,13 @@ class MetaflowCodeContent:
         cls,
         archive: Any,
         packaging_backend: Type[PackagingBackend] = TarPackagingBackend,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[InfoDict]:
         """
         Get the content of the special INFO file in the archive.
 
         Returns
         -------
-        Optional[Dict[str, Any]]
+        Optional[InfoDict]
             The content of the INFO file -- None if there is no such file.
         """
         mfcontent_info = cls._extract_archive_mfcontent_info(archive, packaging_backend)
@@ -165,13 +178,13 @@ class MetaflowCodeContent:
         cls,
         archive: Any,
         packaging_backend: Type[PackagingBackend] = TarPackagingBackend,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[InfoDict]:
         """
         Get the content of the special CONFIG file in the archive.
 
         Returns
         -------
-        Optional[Dict[str, Any]]
+        Optional[InfoDict]
             The content of the CONFIG file -- None if there is no such file.
         """
         mfcontent_info = cls._extract_archive_mfcontent_info(archive, packaging_backend)
@@ -284,20 +297,20 @@ class MetaflowCodeContent:
     # happen with as few imports as possible to prevent circular dependencies.
     @classmethod
     def get_info_impl(
-        cls, mfcontent_info: Optional[Dict[str, Any]]
-    ) -> Optional[Dict[str, Any]]:
+        cls, mfcontent_info: Optional[MfContentInfo]
+    ) -> Optional[InfoDict]:
         raise NotImplementedError("get_info_impl not implemented")
 
     @classmethod
     def get_config_impl(
-        cls, mfcontent_info: Optional[Dict[str, Any]]
-    ) -> Optional[Dict[str, Any]]:
+        cls, mfcontent_info: Optional[MfContentInfo]
+    ) -> Optional[InfoDict]:
         raise NotImplementedError("get_config_impl not implemented")
 
     @classmethod
     def get_filename_impl(
         cls,
-        mfcontent_info: Optional[Dict[str, Any]],
+        mfcontent_info: Optional[MfContentInfo],
         filename: str,
         content_type: ContentType,
     ) -> Optional[str]:
@@ -305,32 +318,32 @@ class MetaflowCodeContent:
 
     @classmethod
     def get_distribution_finder_impl(
-        cls, mfcontent_info: Optional[Dict[str, Any]]
+        cls, mfcontent_info: Optional[MfContentInfo]
     ) -> Optional["metaflow.extension_support.metadata.DistributionFinder"]:
         raise NotImplementedError("get_distribution_finder_impl not implemented")
 
     @classmethod
     def get_archive_info_impl(
         cls,
-        mfcontent_info: Optional[Dict[str, Any]],
+        mfcontent_info: Optional[MfContentInfo],
         archive: Any,
         packaging_backend: Type[PackagingBackend] = TarPackagingBackend,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[InfoDict]:
         raise NotImplementedError("get_archive_info_impl not implemented")
 
     @classmethod
     def get_archive_config_impl(
         cls,
-        mfcontent_info: Optional[Dict[str, Any]],
+        mfcontent_info: Optional[MfContentInfo],
         archive: Any,
         packaging_backend: Type[PackagingBackend] = TarPackagingBackend,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[InfoDict]:
         raise NotImplementedError("get_archive_config_impl not implemented")
 
     @classmethod
     def get_archive_filename_impl(
         cls,
-        mfcontent_info: Optional[Dict[str, Any]],
+        mfcontent_info: Optional[MfContentInfo],
         archive: Any,
         filename: str,
         content_type: ContentType,
@@ -341,7 +354,7 @@ class MetaflowCodeContent:
     @classmethod
     def get_archive_content_members_impl(
         cls,
-        mfcontent_info: Optional[Dict[str, Any]],
+        mfcontent_info: Optional[MfContentInfo],
         archive: Any,
         content_types: Optional[int] = None,
         packaging_backend: Type[PackagingBackend] = TarPackagingBackend,
@@ -429,24 +442,24 @@ class MetaflowCodeContent:
         """
         raise NotImplementedError("show not implemented")
 
-    def add_info(self, info: Dict[str, Any]) -> None:
+    def add_info(self, info: InfoDict) -> None:
         """
         Add the content of the INFO file to the Metaflow content
 
         Parameters
         ----------
-        info: Dict[str, Any]
+        info: InfoDict
             The content of the INFO file
         """
         raise NotImplementedError("add_info not implemented")
 
-    def add_config(self, config: Dict[str, Any]) -> None:
+    def add_config(self, config: ConfigDict) -> None:
         """
         Add the content of the CONFIG file to the Metaflow content
 
         Parameters
         ----------
-        config: Dict[str, Any]
+        config: ConfigDict
             The content of the CONFIG file
         """
         raise NotImplementedError("add_config not implemented")
@@ -490,13 +503,16 @@ class MetaflowCodeContent:
 
     @classmethod
     def _get_mfcontent_class(
-        cls, info: Optional[Dict[str, Any]]
+        cls, info: Optional[MfContentInfo]
     ) -> Type["MetaflowCodeContent"]:
         if info is None:
             return MetaflowCodeContentV0
         if "version" not in info:
             raise ValueError("Invalid package -- missing version in info: %s" % info)
-        version = info["version"]
+        version_value = info["version"]
+        if not isinstance(version_value, (int, str)):
+            raise ValueError(f"Invalid version type in info: {type(version_value)}")
+        version = int(version_value)
         if version not in cls._mappings:
             raise ValueError(
                 "Invalid package -- unknown version %s in info: %s" % (version, info)
@@ -509,11 +525,11 @@ class MetaflowCodeContent:
         cls,
         archive: Any,
         packaging_backend: Type[PackagingBackend] = TarPackagingBackend,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[MfContentInfo]:
         if id(archive) in cls._cached_mfcontent_info:
             return cls._cached_mfcontent_info[id(archive)]
 
-        mfcontent_info = None  # type: Optional[Dict[str, Any]]
+        mfcontent_info = None  # type: Optional[MfContentInfo]
         # Here we need to extract the information from the archive
         if packaging_backend.cls_has_member(archive, MFCONTENT_MARKER):
             # The MFCONTENT_MARKER file is present in the archive
@@ -527,12 +543,12 @@ class MetaflowCodeContent:
     @classmethod
     def _extract_mfcontent_info(
         cls, target_dir: Optional[str] = None
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[MfContentInfo]:
         target_dir = target_dir or "_local"
         if target_dir in cls._cached_mfcontent_info:
             return cls._cached_mfcontent_info[target_dir]
 
-        mfcontent_info = None  # type: Optional[Dict[str, Any]]
+        mfcontent_info = None  # type: Optional[MfContentInfo]
         if target_dir == "_local":
             root = os.environ.get("METAFLOW_EXTRACTED_ROOT", get_metaflow_root())
         else:
@@ -554,8 +570,8 @@ class MetaflowCodeContent:
 class MetaflowCodeContentV0(MetaflowCodeContent, version_id=0):
     @classmethod
     def get_info_impl(
-        cls, mfcontent_info: Optional[Dict[str, Any]]
-    ) -> Optional[Dict[str, Any]]:
+        cls, mfcontent_info: Optional[MfContentInfo]
+    ) -> Optional[InfoDict]:
         path_to_file = os.path.join(get_metaflow_root(), "INFO")
         if os.path.isfile(path_to_file):
             with open(path_to_file, "r", encoding="utf-8") as f:
@@ -564,8 +580,8 @@ class MetaflowCodeContentV0(MetaflowCodeContent, version_id=0):
 
     @classmethod
     def get_config_impl(
-        cls, mfcontent_info: Optional[Dict[str, Any]]
-    ) -> Optional[Dict[str, Any]]:
+        cls, mfcontent_info: Optional[MfContentInfo]
+    ) -> Optional[InfoDict]:
         path_to_file = os.path.join(get_metaflow_root(), "CONFIG")
         if os.path.isfile(path_to_file):
             with open(path_to_file, "r", encoding="utf-8") as f:
@@ -575,7 +591,7 @@ class MetaflowCodeContentV0(MetaflowCodeContent, version_id=0):
     @classmethod
     def get_filename_impl(
         cls,
-        mfcontent_info: Optional[Dict[str, Any]],
+        mfcontent_info: Optional[MfContentInfo],
         filename: str,
         content_type: ContentType,
     ) -> Optional[str]:
@@ -589,17 +605,17 @@ class MetaflowCodeContentV0(MetaflowCodeContent, version_id=0):
 
     @classmethod
     def get_distribution_finder_impl(
-        cls, mfcontent_info: Optional[Dict[str, Any]]
+        cls, mfcontent_info: Optional[MfContentInfo]
     ) -> Optional["metaflow.extension_support.metadata.DistributionFinder"]:
         return None
 
     @classmethod
     def get_archive_info_impl(
         cls,
-        mfcontent_info: Optional[Dict[str, Any]],
+        mfcontent_info: Optional[MfContentInfo],
         archive: Any,
         packaging_backend: Type[PackagingBackend] = TarPackagingBackend,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[InfoDict]:
         info_content = packaging_backend.cls_get_member(archive, "INFO")
         if info_content:
             return json.loads(info_content)
@@ -608,10 +624,10 @@ class MetaflowCodeContentV0(MetaflowCodeContent, version_id=0):
     @classmethod
     def get_archive_config_impl(
         cls,
-        mfcontent_info: Optional[Dict[str, Any]],
+        mfcontent_info: Optional[MfContentInfo],
         archive: Any,
         packaging_backend: Type[PackagingBackend] = TarPackagingBackend,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[InfoDict]:
         info_content = packaging_backend.cls_get_member(archive, "CONFIG")
         if info_content:
             return json.loads(info_content)
@@ -620,12 +636,12 @@ class MetaflowCodeContentV0(MetaflowCodeContent, version_id=0):
     @classmethod
     def get_archive_filename_impl(
         cls,
-        mfcontent_info: Optional[Dict[str, Any]],
+        mfcontent_info: Optional[MfContentInfo],
         archive: Any,
         filename: str,
         content_type: ContentType,
         packaging_backend: Type[PackagingBackend] = TarPackagingBackend,
-    ) -> str:
+    ) -> Optional[str]:
         if packaging_backend.cls_has_member(archive, filename):
             # The file is present in the archive
             return filename
@@ -634,7 +650,7 @@ class MetaflowCodeContentV0(MetaflowCodeContent, version_id=0):
     @classmethod
     def get_archive_content_members_impl(
         cls,
-        mfcontent_info: Optional[Dict[str, Any]],
+        mfcontent_info: Optional[MfContentInfo],
         archive: Any,
         content_types: Optional[int] = None,
         packaging_backend: Type[PackagingBackend] = TarPackagingBackend,
@@ -653,19 +669,22 @@ class MetaflowCodeContentV0(MetaflowCodeContent, version_id=0):
             # Used in nflx-metaflow-extensions
             "condav2-1.cnd": ContentType.OTHER_CONTENT.value,
         }
-        to_return = []
-        for member in packaging_backend.cls_list_members(archive):
+        to_return: List[Any] = []
+        members = packaging_backend.cls_list_members(archive)
+        if members is None:
+            return to_return
+        for member in members:
             filename = packaging_backend.cls_member_name(member)
             added = False
             for prefix, classification in known_prefixes.items():
                 if (
                     prefix[-1] == "/" and filename.startswith(prefix)
                 ) or prefix == filename:
-                    if content_types & classification:
+                    if content_types is not None and content_types & classification:
                         to_return.append(member)
                         added = True
                         break
-            if not added and content_types & ContentType.USER_CONTENT.value:
+            if not added and content_types is not None and content_types & ContentType.USER_CONTENT.value:
                 # Everything else is user content
                 to_return.append(member)
         return to_return
@@ -711,7 +730,7 @@ class MetaflowCodeContentV1Base(MetaflowCodeContent, version_id=1):
 
     @classmethod
     def _get_otherfile_path(
-        cls, mfcontent_info: Optional[Dict[str, Any]], filename: str, in_archive: bool
+        cls, mfcontent_info: Optional[MfContentInfo], filename: str, in_archive: bool
     ) -> str:
         if in_archive:
             return os.path.join(cls._other_dir, filename)
@@ -719,7 +738,7 @@ class MetaflowCodeContentV1Base(MetaflowCodeContent, version_id=1):
 
     @classmethod
     def _get_codefile_path(
-        cls, mfcontent_info: Optional[Dict[str, Any]], filename: str, in_archive: bool
+        cls, mfcontent_info: Optional[MfContentInfo], filename: str, in_archive: bool
     ) -> str:
         if in_archive:
             return os.path.join(cls._code_dir, filename)
@@ -727,8 +746,8 @@ class MetaflowCodeContentV1Base(MetaflowCodeContent, version_id=1):
 
     @classmethod
     def get_info_impl(
-        cls, mfcontent_info: Optional[Dict[str, Any]]
-    ) -> Optional[Dict[str, Any]]:
+        cls, mfcontent_info: Optional[MfContentInfo]
+    ) -> Optional[InfoDict]:
         path_to_file = cls._get_otherfile_path(
             mfcontent_info, cls._info_file, in_archive=False
         )
@@ -739,8 +758,8 @@ class MetaflowCodeContentV1Base(MetaflowCodeContent, version_id=1):
 
     @classmethod
     def get_config_impl(
-        cls, mfcontent_info: Optional[Dict[str, Any]]
-    ) -> Optional[Dict[str, Any]]:
+        cls, mfcontent_info: Optional[MfContentInfo]
+    ) -> Optional[InfoDict]:
         path_to_file = cls._get_otherfile_path(
             mfcontent_info, cls._config_file, in_archive=False
         )
@@ -752,7 +771,7 @@ class MetaflowCodeContentV1Base(MetaflowCodeContent, version_id=1):
     @classmethod
     def get_filename_impl(
         cls,
-        mfcontent_info: Optional[Dict[str, Any]],
+        mfcontent_info: Optional[MfContentInfo],
         filename: str,
         content_type: ContentType,
     ) -> Optional[str]:
@@ -774,7 +793,7 @@ class MetaflowCodeContentV1Base(MetaflowCodeContent, version_id=1):
 
     @classmethod
     def get_distribution_finder_impl(
-        cls, mfcontent_info: Optional[Dict[str, Any]]
+        cls, mfcontent_info: Optional[MfContentInfo]
     ) -> Optional["metaflow.extension_support.metadata.DistributionFinder"]:
         path_to_file = cls._get_otherfile_path(
             mfcontent_info, cls._dist_info_file, in_archive=False
@@ -787,10 +806,10 @@ class MetaflowCodeContentV1Base(MetaflowCodeContent, version_id=1):
     @classmethod
     def get_archive_info_impl(
         cls,
-        mfcontent_info: Optional[Dict[str, Any]],
+        mfcontent_info: Optional[MfContentInfo],
         archive: Any,
         packaging_backend: Type[PackagingBackend] = TarPackagingBackend,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[InfoDict]:
         info_file = packaging_backend.cls_get_member(
             archive,
             cls._get_otherfile_path(mfcontent_info, cls._info_file, in_archive=True),
@@ -802,10 +821,10 @@ class MetaflowCodeContentV1Base(MetaflowCodeContent, version_id=1):
     @classmethod
     def get_archive_config_impl(
         cls,
-        mfcontent_info: Optional[Dict[str, Any]],
+        mfcontent_info: Optional[MfContentInfo],
         archive: Any,
         packaging_backend: Type[PackagingBackend] = TarPackagingBackend,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Optional[InfoDict]:
         config_file = packaging_backend.cls_get_member(
             archive,
             cls._get_otherfile_path(mfcontent_info, cls._config_file, in_archive=True),
@@ -817,12 +836,12 @@ class MetaflowCodeContentV1Base(MetaflowCodeContent, version_id=1):
     @classmethod
     def get_archive_filename_impl(
         cls,
-        mfcontent_info: Optional[Dict[str, Any]],
+        mfcontent_info: Optional[MfContentInfo],
         archive: Any,
         filename: str,
         content_type: ContentType,
         packaging_backend: Type[PackagingBackend] = TarPackagingBackend,
-    ) -> str:
+    ) -> Optional[str]:
         if content_type == ContentType.CODE_CONTENT:
             path_to_file = cls._get_codefile_path(
                 mfcontent_info, filename, in_archive=False
@@ -843,34 +862,38 @@ class MetaflowCodeContentV1Base(MetaflowCodeContent, version_id=1):
     @classmethod
     def get_archive_content_members_impl(
         cls,
-        mfcontent_info: Optional[Dict[str, Any]],
+        mfcontent_info: Optional[MfContentInfo],
         archive: Any,
         content_types: Optional[int] = None,
         packaging_backend: Type[PackagingBackend] = TarPackagingBackend,
     ) -> List[Any]:
-        to_return = []
-        module_content = set(mfcontent_info.get("module_files", []))
-        for member in packaging_backend.cls_list_members(archive):
+        to_return: List[Any] = []
+        module_files = mfcontent_info.get("module_files", []) if mfcontent_info is not None else []
+        module_content = set(module_files) if isinstance(module_files, list) else set()
+        members = packaging_backend.cls_list_members(archive)
+        if members is None:
+            return to_return
+        for member in members:
             filename = packaging_backend.cls_member_name(member)
             if filename.startswith(cls._other_dir) and (
-                content_types & ContentType.OTHER_CONTENT.value
+                content_types is not None and content_types & ContentType.OTHER_CONTENT.value
             ):
                 to_return.append(member)
             elif filename.startswith(cls._code_dir):
                 # Special case for marker which is a other content even if in code.
                 if filename == MFCONTENT_MARKER:
-                    if content_types & ContentType.OTHER_CONTENT.value:
+                    if content_types is not None and content_types & ContentType.OTHER_CONTENT.value:
                         to_return.append(member)
                     else:
                         continue
                 # Here it is either module or code
                 if os.path.join(cls._code_dir, filename) in module_content:
-                    if content_types & ContentType.MODULE_CONTENT.value:
+                    if content_types is not None and content_types & ContentType.MODULE_CONTENT.value:
                         to_return.append(member)
-                elif content_types & ContentType.CODE_CONTENT.value:
+                elif content_types is not None and content_types & ContentType.CODE_CONTENT.value:
                     to_return.append(member)
             else:
-                if content_types & ContentType.USER_CONTENT.value:
+                if content_types is not None and content_types & ContentType.USER_CONTENT.value:
                     # Everything else is user content
                     to_return.append(member)
         return to_return

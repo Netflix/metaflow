@@ -3,7 +3,11 @@ import json
 import re
 
 from functools import partial
-from typing import Any, Callable, Dict, List, NewType, Tuple, TypeVar, Union, overload
+from typing import Any, Callable, Dict, List, NewType, Optional, Tuple, TypeVar, Union, overload
+
+# Type alias for decorator attribute values
+DecoratorAttributeValue = Union[str, int, bool, None, List[str], List[Any], Dict[str, Union[str, int, bool]], Dict[str, Any]]
+DecoratorAttributes = Dict[str, DecoratorAttributeValue]
 
 from .flowspec import FlowSpec, _FlowState
 from .exception import (
@@ -118,7 +122,7 @@ class Decorator(object):
     """
 
     name = "NONAME"
-    defaults = {}
+    defaults: DecoratorAttributes = {}
     # `allow_multiple` allows setting many decorators of the same type to a step/flow.
     allow_multiple = False
 
@@ -214,13 +218,13 @@ class Decorator(object):
         else:
             return self.name
 
-    def get_args_kwargs(self) -> Tuple[List[Any], Dict[str, Any]]:
+    def get_args_kwargs(self) -> Tuple[List[DecoratorAttributeValue], DecoratorAttributes]:
         """
         Get the arguments and keyword arguments of the decorator.
 
         Returns
         -------
-        Tuple[List[Any], Dict[str, Any]]
+        Tuple[List[DecoratorAttributeValue], DecoratorAttributes]
             A tuple containing a list of arguments and a dictionary of keyword arguments.
         """
         return [], dict(self.attributes)
@@ -237,7 +241,7 @@ class Decorator(object):
 
 
 class FlowDecorator(Decorator):
-    options = {}
+    options: DecoratorAttributes = {}
 
     def __init__(self, *args, **kwargs):
         super(FlowDecorator, self).__init__(*args, **kwargs)
@@ -613,7 +617,7 @@ def extract_flow_decorator_from_decospec(decospec: str):
     deco_cls = FlowMutatorMeta.get_decorator_by_name(deconame)
     if deco_cls is not None:
         return (
-            deco_cls.parse_decorator_spec(splits[1] if len(splits) > 1 else ""),
+            deco_cls.parse_decorator_spec(splits[1] if len(splits) > 1 else ""),  # type: ignore[union-attr]
             len(splits) > 1,
         )
     else:
@@ -852,11 +856,11 @@ def step(
     Union[Callable[[FlowSpecDerived, StepFlag], None], Callable[[FlowSpecDerived, Any, StepFlag], None]]
         Function that is a Metaflow Step
     """
-    f.is_step = True
-    f.decorators = []
-    f.config_decorators = []
-    f.wrappers = []
-    f.name = f.__name__
+    setattr(f, "is_step", True)
+    setattr(f, "decorators", [])
+    setattr(f, "config_decorators", [])
+    setattr(f, "wrappers", [])
+    setattr(f, "name", f.__name__)
     return f
 
 

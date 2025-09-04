@@ -44,7 +44,7 @@ def _create_otel_exporter():
 
 
 def _create_zipkin_exporter():
-    from opentelemetry.exporter.zipkin.proto.http import ZipkinExporter
+    from opentelemetry.exporter.zipkin.proto.http import ZipkinExporter  # type: ignore[import-not-found]
 
     return ZipkinExporter(endpoint=ZIPKIN_ENDPOINT)
 

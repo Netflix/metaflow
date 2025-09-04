@@ -2,7 +2,7 @@ import json
 import os
 import re
 import tempfile
-from typing import Tuple, Dict
+from typing import Tuple, Dict, Any
 
 from metaflow.decorators import StepDecorator
 from metaflow.metadata_provider import MetaDatum
@@ -75,7 +75,7 @@ class CardDecorator(StepDecorator):
             The or one of the cards attached to this step.
     """
 
-    _GLOBAL_CARD_INFO = {}
+    _GLOBAL_CARD_INFO: Dict[str, Any] = {}
 
     name = "card"
     defaults = {
@@ -91,11 +91,11 @@ class CardDecorator(StepDecorator):
     }
     allow_multiple = True
 
-    total_decos_on_step = {}
+    total_decos_on_step: Dict[str, int] = {}
 
     step_counter = 0
 
-    _called_once = {}
+    _called_once: Dict[str, bool] = {}
 
     card_creator = None
 

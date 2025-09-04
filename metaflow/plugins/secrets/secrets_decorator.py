@@ -1,7 +1,8 @@
 import os
+from typing import Dict, Any, List, Optional, TypedDict, Union
 
 from metaflow.exception import MetaflowException
-from metaflow.decorators import StepDecorator
+from metaflow.decorators import StepDecorator, DecoratorAttributes
 from metaflow.metaflow_config import DEFAULT_SECRETS_ROLE
 from metaflow.plugins.secrets.secrets_spec import SecretSpec
 from metaflow.plugins.secrets.utils import (
@@ -11,6 +12,13 @@ from metaflow.plugins.secrets.utils import (
     validate_env_vars_vs_existing_env,
 )
 from metaflow.unbounded_foreach import UBF_TASK
+
+
+# Type for secrets decorator configuration
+class SecretsDecoratorDefaults(TypedDict):
+    """Default configuration for secrets decorator."""
+    sources: List[Union[str, Dict[str, Any]]]  # List of secret specs
+    role: Optional[str]  # Role to use for fetching secrets
 
 
 class SecretsDecorator(StepDecorator):
@@ -27,7 +35,7 @@ class SecretsDecorator(StepDecorator):
     """
 
     name = "secrets"
-    defaults = {
+    defaults: DecoratorAttributes = {
         "sources": [],
         "role": None,
     }

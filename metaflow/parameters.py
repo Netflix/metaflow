@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 try:
     # Python2
-    strtype = basestring
+    strtype = basestring  # type: ignore[name-defined]
 except NameError:
     # Python3
     strtype = str
@@ -87,7 +87,7 @@ def replace_flow_context(flow_cls):
 
 
 class JSONTypeClass(click.ParamType):
-    name = "JSON"
+    name: str = "JSON"  # type: ignore[assignment]
 
     def convert(self, value, param, ctx):
         if not isinstance(value, strtype):
@@ -342,7 +342,7 @@ class Parameter(object):
             ]
         ] = None,
         type: Optional[
-            Union[Type[str], Type[float], Type[int], Type[bool], JSONTypeClass]
+            Union[Type[str], Type[float], Type[int], Type[bool], JSONTypeClass, click.ParamType]
         ] = None,
         help: Optional[str] = None,
         required: Optional[bool] = None,

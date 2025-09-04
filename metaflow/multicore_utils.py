@@ -21,7 +21,7 @@ from typing import (
 
 try:
     # Python 2
-    import cPickle as pickle
+    import cPickle as pickle  # type: ignore[import-not-found]
 except:
     # Python 3
     import pickle
@@ -91,9 +91,9 @@ def parallel_imap_unordered(
 
     Parameters
     ----------
-    func : Callable[[Any], Any]
+    func : Callable[[_A], _R]
         Function taking a single argument and returning a result
-    iterable : Iterable[Any]
+    iterable : Iterable[_A]
         Iterable over arguments to pass to fun
     max_parallel int, optional, default None
         Maximum parallelism. If not specified, it uses the number of CPUs
@@ -102,7 +102,7 @@ def parallel_imap_unordered(
 
     Yields
     ------
-    Any
+    _R
         One result from calling func on one argument
     """
     if max_parallel is None:
@@ -149,9 +149,9 @@ def parallel_map(
 
     Parameters
     ----------
-    func : Callable[[Any], Any]
+    func : Callable[[_A], _R]
         Function taking a single argument and returning a result
-    iterable : Iterable[Any]
+    iterable : Iterable[_A]
         Iterable over arguments to pass to fun
     max_parallel int, optional, default None
         Maximum parallelism. If not specified, it uses the number of CPUs
@@ -160,7 +160,7 @@ def parallel_map(
 
     Returns
     -------
-    List[Any]
+    List[_R]
         Results. The items in the list are in the same order as the items
         in `iterable`.
     """

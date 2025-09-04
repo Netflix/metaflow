@@ -1,5 +1,6 @@
 import os
 import json
+from typing import Dict, Any, Optional
 from http.server import BaseHTTPRequestHandler
 from threading import Thread
 from multiprocessing import Pipe
@@ -13,7 +14,7 @@ except ImportError:
     from socketserver import ThreadingMixIn
     from http.server import HTTPServer
 
-    class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+    class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):  # type: ignore[no-redef]
         daemon_threads = True
 
 
@@ -30,7 +31,7 @@ VIEWER_PATH = os.path.join(
 
 CARD_VIEWER_HTML = open(VIEWER_PATH).read()
 
-TASK_CACHE = {}
+TASK_CACHE: Dict[str, Any] = {}
 
 _ClickLogger = None
 
@@ -51,9 +52,10 @@ class RunWatcher(Thread):
 
         self._watch_file = self._initialize_watch_file()
         if self._watch_file is None:
-            _ClickLogger(
-                "Warning: Could not initialize watch file location.", fg="yellow"
-            )
+            if _ClickLogger is not None:
+                _ClickLogger(
+                    "Warning: Could not initialize watch file location.", fg="yellow"
+                )
 
         self._current_run_id = self.get_run_id()
 
@@ -83,9 +85,10 @@ class RunWatcher(Thread):
             with open(self._watch_file, "r") as f:
                 return f.read().strip()
         except (IOError, OSError) as e:
-            _ClickLogger(
-                "Warning: Could not read run ID from watch file: %s" % e, fg="yellow"
-            )
+            if _ClickLogger is not None:
+                _ClickLogger(
+                    "Warning: Could not read run ID from watch file: %s" % e, fg="yellow"
+                )
             return None
 
     def watch(self):
@@ -200,9 +203,9 @@ def cards_for_run(
 
 class CardViewerRoutes(BaseHTTPRequestHandler):
 
-    card_options: CardServerOptions = None
+    card_options: Optional[CardServerOptions] = None
 
-    run_watcher: RunWatcher = None
+    run_watcher: Optional[RunWatcher] = None
 
     def do_GET(self):
         try:
@@ -226,11 +229,12 @@ class CardViewerRoutes(BaseHTTPRequestHandler):
                 "RunID changed in the background to %s"
                 % self.card_options.run_object.pathspec
             )
-            _ClickLogger(
-                "RunID changed in the background to %s"
-                % self.card_options.run_object.pathspec,
-                fg="blue",
-            )
+            if _ClickLogger is not None:
+                _ClickLogger(
+                    "RunID changed in the background to %s"
+                    % self.card_options.run_object.pathspec,
+                    fg="blue",
+                )
 
         if self.card_options.run_object is None:
             self._response(
@@ -379,8 +383,8 @@ def create_card_server(card_options: CardServerOptions, port, ctx_obj):
     )
     # Disable logging if not in debug mode
     if not _is_debug_mode():
-        CardViewerRoutes.log_request = lambda *args, **kwargs: None
-        CardViewerRoutes.log_message = lambda *args, **kwargs: None
+        CardViewerRoutes.log_request = lambda *args, **kwargs: None  # type: ignore[method-assign]
+        CardViewerRoutes.log_message = lambda *args, **kwargs: None  # type: ignore[method-assign]
 
     server = ThreadingHTTPServer(server_addr, CardViewerRoutes)
     server.serve_forever()

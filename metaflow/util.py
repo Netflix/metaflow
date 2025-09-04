@@ -8,13 +8,14 @@ from functools import wraps
 from io import BytesIO
 from itertools import takewhile
 import re
+from typing import Type
 
 
 try:
     # python2
-    unicode_type = unicode
-    bytes_type = str
-    from urllib import quote, unquote
+    unicode_type: Type = unicode  # type: ignore[name-defined]
+    bytes_type: Type = str
+    from urllib import quote, unquote  # type: ignore[attr-defined]
 
     # unquote_bytes should be a function that takes a urlencoded byte
     # string, encoded in UTF-8, url-decodes it and returns it as a
@@ -37,12 +38,14 @@ try:
             return self.path
 
     from pipes import quote as _quote
-except NameError:
+except (NameError, ImportError):
     # python3
-    unicode_type = str
-    bytes_type = bytes
+    unicode_type: Type[str] = str  # type: ignore[no-redef]
+    bytes_type: Type[bytes] = bytes  # type: ignore[no-redef]
     from urllib.parse import quote, unquote
-    from pathlib import Path
+    from pathlib import Path as PathlibPath
+
+    Path: Type = PathlibPath  # type: ignore[no-redef]
 
     def unquote_bytes(x):
         return unquote(to_unicode(x))

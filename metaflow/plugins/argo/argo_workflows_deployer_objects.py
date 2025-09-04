@@ -2,7 +2,7 @@ import sys
 import json
 import time
 import tempfile
-from typing import ClassVar, Optional
+from typing import Any, ClassVar, Dict, Optional
 
 from metaflow.client.core import get_metadata
 from metaflow.exception import MetaflowException
@@ -41,12 +41,13 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
         _, run_id = self.pathspec.split("/")
 
         # every subclass needs to have `self.deployer_kwargs`
+        assert self.deployer.TYPE is not None  # Validated in deployer __init__
         command = get_lower_level_group(
             self.deployer.api,
             self.deployer.top_level_kwargs,
             self.deployer.TYPE,
             self.deployer.deployer_kwargs,
-        ).suspend(run_id=run_id, **kwargs)
+        ).suspend(run_id=run_id, **kwargs)  # type: ignore[attr-defined]
 
         pid = self.deployer.spm.run_command(
             [sys.executable, *command],
@@ -56,8 +57,12 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
         )
 
         command_obj = self.deployer.spm.get(pid)
-        command_obj.sync_wait()
-        return command_obj.process.returncode == 0
+        if command_obj is not None:
+            command_obj.sync_wait()
+            return (
+                command_obj.process is not None and command_obj.process.returncode == 0
+            )
+        return False
 
     def unsuspend(self, **kwargs) -> bool:
         """
@@ -76,12 +81,13 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
         _, run_id = self.pathspec.split("/")
 
         # every subclass needs to have `self.deployer_kwargs`
+        assert self.deployer.TYPE is not None  # Validated in deployer __init__
         command = get_lower_level_group(
             self.deployer.api,
             self.deployer.top_level_kwargs,
             self.deployer.TYPE,
             self.deployer.deployer_kwargs,
-        ).unsuspend(run_id=run_id, **kwargs)
+        ).unsuspend(run_id=run_id, **kwargs)  # type: ignore[attr-defined]
 
         pid = self.deployer.spm.run_command(
             [sys.executable, *command],
@@ -91,8 +97,12 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
         )
 
         command_obj = self.deployer.spm.get(pid)
-        command_obj.sync_wait()
-        return command_obj.process.returncode == 0
+        if command_obj is not None:
+            command_obj.sync_wait()
+            return (
+                command_obj.process is not None and command_obj.process.returncode == 0
+            )
+        return False
 
     def terminate(self, **kwargs) -> bool:
         """
@@ -111,12 +121,13 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
         _, run_id = self.pathspec.split("/")
 
         # every subclass needs to have `self.deployer_kwargs`
+        assert self.deployer.TYPE is not None  # Validated in deployer __init__
         command = get_lower_level_group(
             self.deployer.api,
             self.deployer.top_level_kwargs,
             self.deployer.TYPE,
             self.deployer.deployer_kwargs,
-        ).terminate(run_id=run_id, **kwargs)
+        ).terminate(run_id=run_id, **kwargs)  # type: ignore[attr-defined]
 
         pid = self.deployer.spm.run_command(
             [sys.executable, *command],
@@ -126,8 +137,12 @@ class ArgoWorkflowsTriggeredRun(TriggeredRun):
         )
 
         command_obj = self.deployer.spm.get(pid)
-        command_obj.sync_wait()
-        return command_obj.process.returncode == 0
+        if command_obj is not None:
+            command_obj.sync_wait()
+            return (
+                command_obj.process is not None and command_obj.process.returncode == 0
+            )
+        return False
 
     def wait_for_completion(
         self, check_interval: int = 5, timeout: Optional[int] = None
@@ -272,7 +287,7 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
         branch_name = metadata_annotations.get("metaflow/branch_name", None)
         project_name = metadata_annotations.get("metaflow/project_name", None)
 
-        project_kwargs = {}
+        project_kwargs = {}  # type: Dict[str, Any]
         if branch_name is not None:
             if branch_name.startswith("prod."):
                 project_kwargs["production"] = True
@@ -295,11 +310,11 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
                     fake_flow_file.name,
                     env={"METAFLOW_USER": username},
                     **project_kwargs,
-                ).argo_workflows()
+                ).argo_workflows()  # type: ignore[attr-defined]
             else:
                 d = Deployer(
                     fake_flow_file.name, env={"METAFLOW_USER": username}
-                ).argo_workflows(name=identifier)
+                ).argo_workflows(name=identifier)  # type: ignore[attr-defined]
 
             d.name = identifier
             d.flow_name = flow_name
@@ -379,12 +394,13 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
         bool
             True if the command was successful, False otherwise.
         """
+        assert self.deployer.TYPE is not None  # Validated in deployer __init__
         command = get_lower_level_group(
             self.deployer.api,
             self.deployer.top_level_kwargs,
             self.deployer.TYPE,
             self.deployer.deployer_kwargs,
-        ).delete(**kwargs)
+        ).delete(**kwargs)  # type: ignore[attr-defined]
 
         pid = self.deployer.spm.run_command(
             [sys.executable, *command],
@@ -394,8 +410,12 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
         )
 
         command_obj = self.deployer.spm.get(pid)
-        command_obj.sync_wait()
-        return command_obj.process.returncode == 0
+        if command_obj is not None:
+            command_obj.sync_wait()
+            return (
+                command_obj.process is not None and command_obj.process.returncode == 0
+            )
+        return False
 
     def trigger(self, **kwargs) -> ArgoWorkflowsTriggeredRun:
         """
@@ -419,12 +439,13 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
         """
         with temporary_fifo() as (attribute_file_path, attribute_file_fd):
             # every subclass needs to have `self.deployer_kwargs`
+            assert self.deployer.TYPE is not None  # Validated in deployer __init__
             command = get_lower_level_group(
                 self.deployer.api,
                 self.deployer.top_level_kwargs,
                 self.deployer.TYPE,
                 self.deployer.deployer_kwargs,
-            ).trigger(deployer_attribute_file=attribute_file_path, **kwargs)
+            ).trigger(deployer_attribute_file=attribute_file_path, **kwargs)  # type: ignore[attr-defined]
 
             pid = self.deployer.spm.run_command(
                 [sys.executable, *command],
@@ -434,14 +455,20 @@ class ArgoWorkflowsDeployedFlow(DeployedFlow):
             )
 
             command_obj = self.deployer.spm.get(pid)
+            if command_obj is None:
+                raise RuntimeError(f"Failed to get command object for pid {pid}")
             content = handle_timeout(
                 attribute_file_fd, command_obj, self.deployer.file_read_timeout
             )
-            command_obj.sync_wait()
-            if command_obj.process.returncode == 0:
-                return ArgoWorkflowsTriggeredRun(
-                    deployer=self.deployer, content=content
-                )
+            if command_obj is not None:
+                command_obj.sync_wait()
+                if (
+                    command_obj.process is not None
+                    and command_obj.process.returncode == 0
+                ):
+                    return ArgoWorkflowsTriggeredRun(
+                        deployer=self.deployer, content=content
+                    )
 
         raise Exception(
             "Error triggering %s on %s for %s"

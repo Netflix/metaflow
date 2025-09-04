@@ -6,7 +6,7 @@ import tempfile
 import select
 from contextlib import contextmanager
 from subprocess import CalledProcessError
-from typing import Any, Dict, TYPE_CHECKING, ContextManager, Tuple
+from typing import Any, Dict, TYPE_CHECKING, ContextManager, Tuple, Generator
 
 if TYPE_CHECKING:
     import tempfile
@@ -44,6 +44,8 @@ def format_flowfile(cell):
 def check_process_exited(
     command_obj: "metaflow.runner.subprocess_manager.CommandManager",
 ) -> bool:
+    if command_obj.process is None:
+        return True
     if isinstance(command_obj.process, asyncio.subprocess.Process):
         return command_obj.process.returncode is not None
     else:
@@ -51,7 +53,7 @@ def check_process_exited(
 
 
 @contextmanager
-def temporary_fifo() -> ContextManager[Tuple[str, int]]:
+def temporary_fifo() -> Generator[Tuple[str, int], None, None]:
     """
     Create and open the read side of a temporary FIFO in a non-blocking mode.
 
@@ -77,7 +79,7 @@ def read_from_fifo_when_ready(
     fifo_fd: int,
     command_obj: "metaflow.runner.subprocess_manager.CommandManager",
     encoding: str = "utf-8",
-    timeout: int = 3600,
+    timeout: float = 3600,
 ) -> str:
     """
     Read the content from the FIFO file descriptor when it is ready.
@@ -90,7 +92,7 @@ def read_from_fifo_when_ready(
         Command manager object that handles the write side of the FIFO.
     encoding : str, optional
         Encoding to use while reading the file, by default "utf-8".
-    timeout : int, optional
+    timeout : float, optional
         Timeout for reading the file in seconds, by default 3600.
 
     Returns
@@ -111,9 +113,9 @@ def read_from_fifo_when_ready(
     poll.register(fifo_fd, select.POLLIN)
     max_timeout = 3  # Wait for 10 * 3 = 30 ms after last write
     while True:
-        if check_process_exited(command_obj) and command_obj.process.returncode != 0:
+        if check_process_exited(command_obj) and command_obj.process is not None and command_obj.process.returncode != 0:
             raise CalledProcessError(
-                command_obj.process.returncode, command_obj.command
+                command_obj.process.returncode or 1, command_obj.command
             )
 
         if timeout < 0:
@@ -155,7 +157,8 @@ def read_from_fifo_when_ready(
             # and written to.
 
     if not content and check_process_exited(command_obj):
-        raise CalledProcessError(command_obj.process.returncode, command_obj.command)
+        returncode = command_obj.process.returncode if command_obj.process is not None else 1
+        raise CalledProcessError(returncode or 1, command_obj.command)
 
     return content.decode(encoding)
 
@@ -164,7 +167,7 @@ async def async_read_from_fifo_when_ready(
     fifo_fd: int,
     command_obj: "metaflow.runner.subprocess_manager.CommandManager",
     encoding: str = "utf-8",
-    timeout: int = 3600,
+    timeout: float = 3600,
 ) -> str:
     """
     Read the content from the FIFO file descriptor when it is ready.
@@ -177,7 +180,7 @@ async def async_read_from_fifo_when_ready(
         Command manager object that handles the write side of the FIFO.
     encoding : str, optional
         Encoding to use while reading the file, by default "utf-8".
-    timeout : int, optional
+    timeout : float, optional
         Timeout for reading the file in seconds, by default 3600.
 
     Returns
@@ -316,7 +319,7 @@ def get_lower_level_group(
     ValueError
         If the `_type` is None.
     """
-    sub_command_obj = getattr(api(**top_level_kwargs), sub_command)
+    sub_command_obj = getattr(api(**top_level_kwargs), sub_command)  # type: ignore[operator]
 
     if sub_command_obj is None:
         raise ValueError(f"Sub-command '{sub_command}' not found in API '{api.name}'")

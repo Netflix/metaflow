@@ -10,7 +10,7 @@ class AzureDefaultClientProvider(object):
 
         We need this because credentials will be part of the cache key in _ClientCache.
         """
-        from azure.identity import DefaultAzureCredential
+        from azure.identity import DefaultAzureCredential  # type: ignore[import-not-found]
 
         class CacheableDefaultAzureCredential(DefaultAzureCredential):
             def __init__(self, *args, **kwargs):

@@ -16,9 +16,9 @@ _py_ver = sys.version_info[:2]
 if _py_ver >= (3, 8):
     from importlib import metadata
 elif _py_ver >= (3, 7):
-    from metaflow._vendor.v3_7 import importlib_metadata as metadata
+    from metaflow._vendor.v3_7 import importlib_metadata as metadata  # type: ignore[no-redef]
 else:
-    from metaflow._vendor.v3_6 import importlib_metadata as metadata
+    from metaflow._vendor.v3_6 import importlib_metadata as metadata  # type: ignore[no-redef]
 
 
 @develop.group(short_help="Stubs management")
@@ -249,7 +249,7 @@ def get_mf_version(public: bool = False) -> Tuple[str, Optional[str]]:
     return split_version(get_version(public))
 
 
-def get_stubs_version(stubs_root_path: Optional[str]) -> Tuple[str, Optional[str]]:
+def get_stubs_version(stubs_root_path: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
     if stubs_root_path is None:
         # The stubs are NOT an integrated part of metaflow
         return None, None
@@ -324,7 +324,7 @@ def get_packages_for_stubs() -> Tuple[List[Tuple[str, str]], List[str]]:
 
     for dist in interesting_dists:
         # This is a package we care about
-        root_path = dist.locate_file("metaflow-stubs").as_posix()
+        root_path = dist.locate_file("metaflow-stubs").as_posix()  # type: ignore[attr-defined]
         dist_list.append((dist.metadata["Name"], root_path))
         all_paths.discard(root_path)
     return dist_list, list(all_paths)

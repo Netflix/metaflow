@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 import threading
-from typing import Callable, Dict, Iterator, List, Optional, Tuple
+from typing import AsyncIterator, Callable, Dict, Iterator, List, Optional, Tuple, Union
 
 from metaflow.packaging_sys import MetaflowCodeContent
 from metaflow.util import get_metaflow_root
@@ -259,9 +259,11 @@ class CommandManager(object):
         self.env = env if env is not None else os.environ.copy()
         self.cwd = cwd or os.getcwd()
 
-        self.process = None
-        self.stdout_thread = None
-        self.stderr_thread = None
+        self.process: Optional[
+            Union[subprocess.Popen[str], asyncio.subprocess.Process]
+        ] = None
+        self.stdout_thread: Optional[threading.Thread] = None
+        self.stderr_thread: Optional[threading.Thread] = None
         self.run_called: bool = False
         self.timeout: bool = False
         self.log_files: Dict[str, str] = {}
@@ -291,18 +293,24 @@ class CommandManager(object):
             be one of `stdout` or `stderr`.
         """
 
-        if not self.run_called:
+        if not self.run_called or self.process is None:
             raise RuntimeError("No command run yet to wait for...")
 
         if timeout is None:
             if stream is None:
-                await self.process.wait()
+                if isinstance(self.process, asyncio.subprocess.Process):
+                    await self.process.wait()
+                else:
+                    raise RuntimeError("Expected async process in async_wait")
             else:
                 await self.emit_logs(stream)
         else:
             try:
                 if stream is None:
-                    await asyncio.wait_for(self.process.wait(), timeout)
+                    if isinstance(self.process, asyncio.subprocess.Process):
+                        await asyncio.wait_for(self.process.wait(), timeout)
+                    else:
+                        raise RuntimeError("Expected async process in async_wait")
                 else:
                     await asyncio.wait_for(self.emit_logs(stream), timeout)
             except asyncio.TimeoutError:
@@ -434,7 +442,7 @@ class CommandManager(object):
         position: Optional[int] = None,
         timeout_per_line: Optional[float] = None,
         log_write_delay: float = 0.01,
-    ) -> Iterator[Tuple[int, str]]:
+    ) -> AsyncIterator[Tuple[int, str]]:
         """
         Stream logs from the subprocess line by line.
 
@@ -485,23 +493,15 @@ class CommandManager(object):
                 # This is not a problem, but improves readability.
                 await asyncio.sleep(log_write_delay)
 
-                try:
-                    if timeout_per_line is None:
-                        line = f.readline()
-                    else:
-                        line = await asyncio.wait_for(f.readline(), timeout_per_line)
-                except asyncio.TimeoutError as e:
-                    raise LogReadTimeoutError(
-                        "Timeout while reading a line from the log file for the "
-                        "stream: %s" % stream
-                    ) from e
+                # For regular files, timeout_per_line doesn't apply since readline() is synchronous
+                line = f.readline()
 
                 # when we encounter an empty line
                 if not line:
                     # either the process has terminated, in which case we want to break
                     # and stop the reading process of the log file since no more logs
                     # will be written to it
-                    if self.process.returncode is not None:
+                    if self.process is not None and self.process.returncode is not None:
                         break
                     # or the process is still running and more logs could be written to
                     # the file, in which case we continue reading the log file

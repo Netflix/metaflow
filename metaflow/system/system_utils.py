@@ -1,4 +1,9 @@
-from typing import Union
+from typing import Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import metaflow.flowspec
+    import metaflow.sidecar
+    import metaflow.metaflow_environment
 
 
 class DummyFlow(object):
@@ -8,7 +13,7 @@ class DummyFlow(object):
 
 # This function is used to initialize the environment outside a flow.
 def init_environment_outside_flow(
-    flow: Union["metaflow.flowspec.FlowSpec", "metaflow.sidecar.DummyFlow"]
+    flow: Union["metaflow.flowspec.FlowSpec", DummyFlow]
 ) -> "metaflow.metaflow_environment.MetaflowEnvironment":
     from metaflow.plugins import ENVIRONMENTS
     from metaflow.metaflow_config import DEFAULT_ENVIRONMENT

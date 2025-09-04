@@ -17,8 +17,8 @@ def _check_and_init_azure_deps():
 
         warnings.filterwarnings("ignore")
 
-        import azure.storage.blob
-        import azure.identity
+        import azure.storage.blob  # type: ignore[import-not-found]
+        import azure.identity  # type: ignore[import-not-found]
 
         # cut down on crazy logging from azure.identity.
         # TODO but what if folks want to debug on occasion?
@@ -108,7 +108,7 @@ def process_exception(e):
         # Reraise it raw for visibility, it's a bug and is catastrophic anyway.
         raise
 
-    from azure.core.exceptions import (
+    from azure.core.exceptions import (  # type: ignore[import-not-found]
         ClientAuthenticationError,
         ResourceNotFoundError,
         ResourceExistsError,
@@ -141,7 +141,7 @@ def handle_exceptions(func):
 
 @check_azure_deps
 def create_static_token_credential(token_):
-    from azure.core.credentials import TokenCredential
+    from azure.core.credentials import TokenCredential  # type: ignore[import-not-found]
 
     class StaticTokenCredential(TokenCredential):
         # We initialize with a fixed token (_cached_token).

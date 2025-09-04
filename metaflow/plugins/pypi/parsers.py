@@ -1,4 +1,5 @@
 # this file can be overridden by extensions as is (e.g. metaflow-nflx-extensions)
+from typing import Dict, Any
 from metaflow.exception import MetaflowException
 
 
@@ -40,7 +41,7 @@ def requirements_txt_parser(content: str):
     import re
     from metaflow._vendor.packaging.requirements import Requirement, InvalidRequirement
 
-    parsed = {"packages": {}, "python": None}
+    parsed: Dict[str, Any] = {"packages": {}, "python": None}
 
     inline_comment_pattern = re.compile(r"\s+#.*$")
     for line in content.splitlines():
@@ -120,7 +121,7 @@ def pyproject_toml_parser(content: str):
         multiple Python constraints are specified.
     """
     try:
-        import tomllib as toml  # Python 3.11+
+        import tomllib as toml  # type: ignore[import-not-found]  # Python 3.11+
     except ImportError:
         try:
             import tomli as toml  # Python < 3.11 (requires "tomli" package)
@@ -136,7 +137,7 @@ def pyproject_toml_parser(content: str):
     requirements = project.get("dependencies", [])
     requires_python = project.get("requires-python")
 
-    parsed = {"packages": {}, "python": None}
+    parsed: Dict[str, Any] = {"packages": {}, "python": None}
 
     if requires_python is not None:
         # If present, store verbatim; note that PEP 621 does not necessarily

@@ -119,7 +119,8 @@ class ArgoWorkflowsInternalDecorator(StepDecorator):
                     file.write(uuid.uuid4().hex[:6])
 
             with open("/mnt/out/splits", "w") as file:
-                json.dump(list(range(flow._foreach_num_splits)), file)
+                num_splits = flow._foreach_num_splits or 0
+                json.dump(list(range(num_splits)), file)
             with open("/mnt/out/split_cardinality", "w") as file:
                 json.dump(flow._foreach_num_splits, file)
 
