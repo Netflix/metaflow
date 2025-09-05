@@ -1070,9 +1070,6 @@ class ArgoWorkflows(object):
                             node.name
                         )
 
-                        if node.name in last_conditional_split_nodes:
-                            self.conditional_skip_nodes.add(node.name)
-
                 # Did we close all conditionals? Then this branch and all its children are not conditional anymore (unless a new conditional branch is encountered).
                 if not [
                     p
@@ -1088,12 +1085,26 @@ class ArgoWorkflows(object):
         )
 
     def _is_conditional_skip_node(self, node):
-        return node.name in self.conditional_skip_nodes
+        return (
+            self._is_conditional_node(node)
+            and any(
+                self.graph[in_func].type == "split-switch" for in_func in node.in_funcs
+            )
+            and len(
+                [
+                    in_func
+                    for in_func in node.in_funcs
+                    if self._is_conditional_node(self.graph[in_func])
+                    or self.graph[in_func].type == "split-switch"
+                ]
+            )
+            > 1
+        )
 
     def _is_conditional_join_node(self, node):
         return node.name in self.conditional_join_nodes
 
-    def _has_many_conditional_in_funcs(self, node):
+    def _many_in_funcs_all_conditional(self, node):
         cond_in_funcs = [
             in_func
             for in_func in node.in_funcs
@@ -1291,7 +1302,9 @@ class ArgoWorkflows(object):
                     for in_func in node.in_funcs
                     if not self._is_conditional_node(self.graph[in_func])
                 ]
-                if self._is_conditional_skip_node(node):
+                if self._is_conditional_skip_node(
+                    node
+                ) or self._many_in_funcs_all_conditional(node):
                     # skip nodes need unique condition handling
                     conditional_deps = [
                         "%s.Succeeded" % self._sanitize(in_func)
@@ -1794,9 +1807,11 @@ class ArgoWorkflows(object):
                 input_paths_expr = (
                     "export INPUT_PATHS={{inputs.parameters.input-paths}}"
                 )
-                if self._is_conditional_join_node(
-                    node
-                ) or self._has_many_conditional_in_funcs(node):
+                if (
+                    self._is_conditional_join_node(node)
+                    or self._many_in_funcs_all_conditional(node)
+                    or self._is_conditional_skip_node(node)
+                ):
                     # NOTE: Argo template expressions that fail to resolve, output the expression itself as a value.
                     # With conditional steps, some of the input-paths are therefore 'broken' due to containing a nil expression
                     # e.g. "{{ tasks['A'].outputs.parameters.task-id }}" when task A never executed.
@@ -1978,7 +1993,8 @@ class ArgoWorkflows(object):
             # Only for static joins and conditional_joins
             elif (
                 self._is_conditional_join_node(node)
-                or self._has_many_conditional_in_funcs(node)
+                or self._many_in_funcs_all_conditional(node)
+                or self._is_conditional_skip_node(node)
             ) and not (
                 node.type == "join"
                 and self.graph[node.split_parents[-1]].type == "foreach"
