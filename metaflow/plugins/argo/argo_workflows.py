@@ -924,7 +924,6 @@ class ArgoWorkflows(object):
     # Visit every node and record information on conditional step structure
     def _parse_conditional_branches(self):
         self.conditional_nodes = set()
-        self.conditional_skip_nodes = set()
         self.conditional_join_nodes = set()
         self.matching_conditional_join_dict = {}
         self.recursive_nodes = set()
@@ -1079,10 +1078,7 @@ class ArgoWorkflows(object):
                     _cleanup_conditional_status(node.name, [])
 
     def _is_conditional_node(self, node):
-        return (
-            node.name in self.conditional_nodes
-            or node.name in self.conditional_skip_nodes
-        )
+        return node.name in self.conditional_nodes
 
     def _is_conditional_skip_node(self, node):
         return (
