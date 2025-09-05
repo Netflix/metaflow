@@ -1296,11 +1296,13 @@ class ArgoWorkflows(object):
                     "%s.Succeeded" % self._sanitize(in_func)
                     for in_func in node.in_funcs
                     if self._is_conditional_node(self.graph[in_func])
+                    or self.graph[in_func].type == "split-switch"
                 ]
                 required_deps = [
                     "%s.Succeeded" % self._sanitize(in_func)
                     for in_func in node.in_funcs
                     if not self._is_conditional_node(self.graph[in_func])
+                    and self.graph[in_func].type != "split-switch"
                 ]
                 if self._is_conditional_skip_node(
                     node
@@ -1334,7 +1336,11 @@ class ArgoWorkflows(object):
                     for in_func in node.in_funcs
                     if self.graph[in_func].type == "split-switch"
                 ]
-                if self._is_conditional_node(node) and switch_in_funcs:
+                if (
+                    self._is_conditional_node(node)
+                    or self._is_conditional_skip_node(node)
+                    or self._is_conditional_join_node(node)
+                ) and switch_in_funcs:
                     conditional_when = "||".join(
                         [
                             "{{tasks.%s.outputs.parameters.switch-step}}==%s"
