@@ -303,7 +303,7 @@ class MetaflowObject(object):
             # distinguish between "attempt will happen" and "no such
             # attempt exists".
 
-        if pathspec:
+        if pathspec and _object is None:
             ids = pathspec.split("/")
 
             if self._NAME == "flow" and len(ids) != 1:
