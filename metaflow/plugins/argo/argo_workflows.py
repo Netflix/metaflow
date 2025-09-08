@@ -931,7 +931,7 @@ class ArgoWorkflows(object):
         node_conditional_parents = {}
         node_conditional_branches = {}
 
-        def _visit(node, seen, conditional_branch, conditional_parents=None):
+        def _visit(node, conditional_branch, conditional_parents=None):
             if not node.type == "split-switch" and not (
                 conditional_branch and conditional_parents
             ):
@@ -973,12 +973,11 @@ class ArgoWorkflows(object):
                     child = self.graph[n]
                     if child.name == node.name:
                         continue
-                    # if n not in seen:
-                    _visit(child, seen + [n], conditional_branch, conditional_parents)
+                    _visit(child, conditional_branch, conditional_parents)
 
         # First we visit all nodes to determine conditional parents and branches
         for n in self.graph:
-            _visit(n, [], [])
+            _visit(n, [])
 
         # helper to clean up conditional info for all children of a node, until a new split-switch is encountered.
         def _cleanup_conditional_status(node_name, seen):
