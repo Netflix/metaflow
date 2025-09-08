@@ -981,7 +981,7 @@ class ArgoWorkflows(object):
         node_conditional_parents = {}
         node_conditional_branches = {}
 
-        def _visit(node, seen, conditional_branch, conditional_parents=None):
+        def _visit(node, conditional_branch, conditional_parents=None):
             if not node.type == "split-switch" and not (
                 conditional_branch and conditional_parents
             ):
@@ -990,7 +990,10 @@ class ArgoWorkflows(object):
 
             if node.type == "split-switch":
                 conditional_branch = conditional_branch + [node.name]
-                node_conditional_branches[node.name] = conditional_branch
+                c_br = node_conditional_branches.get(node.name, [])
+                node_conditional_branches[node.name] = c_br + [
+                    b for b in conditional_branch if b not in c_br
+                ]
 
                 conditional_parents = (
                     [node.name]
@@ -1008,21 +1011,36 @@ class ArgoWorkflows(object):
             if conditional_parents and not node.type == "split-switch":
                 node_conditional_parents[node.name] = conditional_parents
                 conditional_branch = conditional_branch + [node.name]
-                node_conditional_branches[node.name] = conditional_branch
+                c_br = node_conditional_branches.get(node.name, [])
+                node_conditional_branches[node.name] = c_br + [
+                    b for b in conditional_branch if b not in c_br
+                ]
 
                 self.conditional_nodes.add(node.name)
 
             if conditional_branch and conditional_parents:
                 for n in node.out_funcs:
                     child = self.graph[n]
-                    if n not in seen:
-                        _visit(
-                            child, seen + [n], conditional_branch, conditional_parents
-                        )
+                    if child.name == node.name:
+                        continue
+                    _visit(child, conditional_branch, conditional_parents)
 
         # First we visit all nodes to determine conditional parents and branches
         for n in self.graph:
-            _visit(n, [], [])
+            _visit(n, [])
+
+        # helper to clean up conditional info for all children of a node, until a new split-switch is encountered.
+        def _cleanup_conditional_status(node_name, seen):
+            if self.graph[node_name].type == "split-switch":
+                # stop recursive cleanup if we hit a new split-switch
+                return
+            if node_name in self.conditional_nodes:
+                self.conditional_nodes.remove(node_name)
+            node_conditional_parents[node_name] = []
+            node_conditional_branches[node_name] = []
+            for p in self.graph[node_name].out_funcs:
+                if p not in seen:
+                    _cleanup_conditional_status(p, seen + [p])
 
         # Then we traverse again in order to determine conditional join nodes, and matching conditional join info
         for node in self.graph:
@@ -1055,14 +1073,44 @@ class ArgoWorkflows(object):
                     last_conditional_split_nodes = self.graph[
                         last_split_switch
                     ].out_funcs
-                    # p needs to be in at least one conditional_branch for it to be closed.
-                    if all(
-                        any(
-                            p in node_conditional_branches.get(in_func, [])
-                            for in_func in conditional_in_funcs
+                    # NOTE: How do we define a conditional join step?
+                    # The idea here is that we check if the conditional branches(e.g. chains of conditional steps leading to) of all the in_funcs
+                    # manage to tick off every step name that follows a split-switch
+                    # For example, consider the following structure
+                    # switch_step -> A, B, C
+                    # A -> A2 -> A3 -> A4 -> B2
+                    # B -> B2 -> B3 -> C3
+                    # C -> C2 -> C3 -> end
+                    #
+                    # if we look at the in_funcs for C3, they are (C2, B3)
+                    # B3 closes off branches started by A and B
+                    # C3 closes off branches started by C
+                    # therefore C3 is a conditional join step for the 'switch_step'
+                    # NOTE: Then what about a skip step?
+                    # some switch cases might not introduce any distinct steps of their own, opting to instead skip ahead to a later common step.
+                    # Example:
+                    # switch_step -> A, B, C
+                    # A -> A1 -> B2 -> C
+                    # B -> B1 -> B2 -> C
+                    #
+                    # In this case, C is a skip step as it does not add any conditional branching of its own.
+                    # C is also a conditional join, as it closes all branches started by 'switch_step'
+
+                    closes_branches = all(
+                        (
+                            # branch_root_node_name needs to be in at least one conditional_branch for it to be closed.
+                            any(
+                                branch_root_node_name
+                                in node_conditional_branches.get(in_func, [])
+                                for in_func in conditional_in_funcs
+                            )
+                            # need to account for a switch case skipping completely, not having a conditional-branch of its own.
+                            if branch_root_node_name != node.name
+                            else True
                         )
-                        for p in last_conditional_split_nodes
-                    ):
+                        for branch_root_node_name in last_conditional_split_nodes
+                    )
+                    if closes_branches:
                         closed_conditional_parents.append(last_split_switch)
 
                         self.conditional_join_nodes.add(node.name)
@@ -1076,25 +1124,45 @@ class ArgoWorkflows(object):
                     for p in node_conditional_parents.get(node.name, [])
                     if p not in closed_conditional_parents
                 ]:
-                    if node.name in self.conditional_nodes:
-                        self.conditional_nodes.remove(node.name)
-                    node_conditional_parents[node.name] = []
-                    for p in node.out_funcs:
-                        if p in self.conditional_nodes:
-                            self.conditional_nodes.remove(p)
-                        node_conditional_parents[p] = []
+                    _cleanup_conditional_status(node.name, [])
 
     def _is_conditional_node(self, node):
         return node.name in self.conditional_nodes
 
+    def _is_conditional_skip_node(self, node):
+        return (
+            self._is_conditional_node(node)
+            and any(
+                self.graph[in_func].type == "split-switch" for in_func in node.in_funcs
+            )
+            and len(
+                [
+                    in_func
+                    for in_func in node.in_funcs
+                    if self._is_conditional_node(self.graph[in_func])
+                    or self.graph[in_func].type == "split-switch"
+                ]
+            )
+            > 1
+        )
+
     def _is_conditional_join_node(self, node):
         return node.name in self.conditional_join_nodes
+
+    def _many_in_funcs_all_conditional(self, node):
+        cond_in_funcs = [
+            in_func
+            for in_func in node.in_funcs
+            if self._is_conditional_node(self.graph[in_func])
+        ]
+        return len(cond_in_funcs) > 1 and len(cond_in_funcs) == len(node.in_funcs)
 
     def _is_recursive_node(self, node):
         return node.name in self.recursive_nodes
 
     def _matching_conditional_join(self, node):
-        return self.matching_conditional_join_dict.get(node.name, None)
+        # If no earlier conditional join step is found during parsing, then 'end' is always one.
+        return self.matching_conditional_join_dict.get(node.name, "end")
 
     # Visit every node and yield the uber DAGTemplate(s).
     def _dag_templates(self):
@@ -1274,12 +1342,24 @@ class ArgoWorkflows(object):
                     "%s.Succeeded" % self._sanitize(in_func)
                     for in_func in node.in_funcs
                     if self._is_conditional_node(self.graph[in_func])
+                    or self.graph[in_func].type == "split-switch"
                 ]
                 required_deps = [
                     "%s.Succeeded" % self._sanitize(in_func)
                     for in_func in node.in_funcs
                     if not self._is_conditional_node(self.graph[in_func])
+                    and self.graph[in_func].type != "split-switch"
                 ]
+                if self._is_conditional_skip_node(
+                    node
+                ) or self._many_in_funcs_all_conditional(node):
+                    # skip nodes need unique condition handling
+                    conditional_deps = [
+                        "%s.Succeeded" % self._sanitize(in_func)
+                        for in_func in node.in_funcs
+                    ]
+                    required_deps = []
+
                 both_conditions = required_deps and conditional_deps
 
                 depends_str = "{required}{_and}{conditional}".format(
@@ -1297,15 +1377,45 @@ class ArgoWorkflows(object):
                 )
 
                 # Add conditional if this is the first step in a conditional branch
+                switch_in_funcs = [
+                    in_func
+                    for in_func in node.in_funcs
+                    if self.graph[in_func].type == "split-switch"
+                ]
                 if (
                     self._is_conditional_node(node)
-                    and self.graph[node.in_funcs[0]].type == "split-switch"
-                ):
-                    in_func = node.in_funcs[0]
-                    dag_task.when(
-                        "{{tasks.%s.outputs.parameters.switch-step}}==%s"
-                        % (self._sanitize(in_func), node.name)
+                    or self._is_conditional_skip_node(node)
+                    or self._is_conditional_join_node(node)
+                ) and switch_in_funcs:
+                    conditional_when = "||".join(
+                        [
+                            "{{tasks.%s.outputs.parameters.switch-step}}==%s"
+                            % (self._sanitize(switch_in_func), node.name)
+                            for switch_in_func in switch_in_funcs
+                        ]
                     )
+
+                    non_switch_in_funcs = [
+                        in_func
+                        for in_func in node.in_funcs
+                        if in_func not in switch_in_funcs
+                    ]
+                    status_when = ""
+                    if non_switch_in_funcs:
+                        status_when = "||".join(
+                            [
+                                "{{tasks.%s.status}}==Succeeded"
+                                % self._sanitize(in_func)
+                                for in_func in non_switch_in_funcs
+                            ]
+                        )
+
+                    total_when = (
+                        f"({status_when}) || ({conditional_when})"
+                        if status_when
+                        else conditional_when
+                    )
+                    dag_task.when(total_when)
 
             dag_tasks.append(dag_task)
             # End the workflow if we have reached the end of the flow
@@ -1749,7 +1859,11 @@ class ArgoWorkflows(object):
                 input_paths_expr = (
                     "export INPUT_PATHS={{inputs.parameters.input-paths}}"
                 )
-                if self._is_conditional_join_node(node):
+                if (
+                    self._is_conditional_join_node(node)
+                    or self._many_in_funcs_all_conditional(node)
+                    or self._is_conditional_skip_node(node)
+                ):
                     # NOTE: Argo template expressions that fail to resolve, output the expression itself as a value.
                     # With conditional steps, some of the input-paths are therefore 'broken' due to containing a nil expression
                     # e.g. "{{ tasks['A'].outputs.parameters.task-id }}" when task A never executed.
@@ -1929,20 +2043,33 @@ class ArgoWorkflows(object):
                 )
                 input_paths = "%s/_parameters/%s" % (run_id, task_id_params)
             # Only for static joins and conditional_joins
-            elif self._is_conditional_join_node(node) and not (
+            elif (
+                self._is_conditional_join_node(node)
+                or self._many_in_funcs_all_conditional(node)
+                or self._is_conditional_skip_node(node)
+            ) and not (
                 node.type == "join"
                 and self.graph[node.split_parents[-1]].type == "foreach"
             ):
+                # we need to pass in the set of conditional in_funcs to the pathspec generating script as in the case of split-switch skipping cases,
+                # non-conditional input-paths need to be ignored in favour of conditional ones when they have executed.
+                skippable_input_steps = ",".join(
+                    [
+                        in_func
+                        for in_func in node.in_funcs
+                        if self.graph[in_func].type == "split-switch"
+                    ]
+                )
                 input_paths = (
-                    "$(python -m metaflow.plugins.argo.conditional_input_paths %s)"
-                    % input_paths
+                    "$(python -m metaflow.plugins.argo.conditional_input_paths %s %s)"
+                    % (input_paths, skippable_input_steps)
                 )
             elif (
                 node.type == "join"
                 and self.graph[node.split_parents[-1]].type == "foreach"
             ):
                 # foreach-joins straight out of conditional branches are not yet supported
-                if self._is_conditional_join_node(node):
+                if self._is_conditional_join_node(node) and len(node.in_funcs) > 1:
                     raise ArgoWorkflowsException(
                         "Conditional steps inside a foreach that transition directly into a join step are not currently supported.\n"
                         "As a workaround, add a common step after the conditional steps %s "
