@@ -252,7 +252,7 @@ One important feature of the `current.card` object is that it will not fail. Eve
 Once the `@step` completes execution, every `@card` decorator will call `current.card._serialize` (`CardComponentCollector._serialize`) to get a JSON serializable list of `str`/`dict` objects. The `_serialize` function internally calls all [component's](#metaflowcardcomponent) `render` function. This list is `json.dump`ed to a `tempfile` and passed to the `card create` subprocess where the `MetaflowCard` can use them in the final output. 
 
 ### Creating Custom Installable Cards 
-Custom cards can be installed with the help of the `metaflow_extensions` namespace package. Every `metaflow_extensions` module having custom cards should follow the below directory structure. . You can see an example cookie-cutter card over [here](https://github.com/outerbounds/metaflow-card-html).
+Custom cards can be installed with the help of the `metaflow_extensions` namespace package. Every `metaflow_extensions` module having custom cards should follow the below directory structure. You can see an example cookie-cutter card over [here](https://github.com/outerbounds/metaflow-card-html).
 ```
 your_package/ # the name of this dir doesn't matter
 ├ setup.py
@@ -261,7 +261,7 @@ your_package/ # the name of this dir doesn't matter
 │      └ plugins/ # NO __init__.py file, This is a namespace package. 
 │        └ cards/ # NO __init__.py file, This is a namespace package. 
 │           └ my_card_module/  # Name of card_module
-│               └ __init__.py. # This is the __init__.py is required to recoginize `my_card_module` as a package
+│               └ __init__.py. # This is the __init__.py is required to recognize `my_card_module` as a package
 │               └ somerandomfile.py. # Some file as a part of the package. 
 .
 ```
@@ -295,7 +295,7 @@ class MyCustomCard(BlankCard):
     type = 'my_custom_card'
     
     def render(self, task):
-        art_com [
+        art_com = [
             Table(
                 [[Artifact(k.data,k.id)] for k in task]
             ).render()
