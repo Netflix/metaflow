@@ -1112,7 +1112,8 @@ class ArgoWorkflows(object):
         return node.name in self.recursive_nodes
 
     def _matching_conditional_join(self, node):
-        return self.matching_conditional_join_dict.get(node.name, None)
+        # If no earlier conditional join step is found during parsing, then 'end' is always one.
+        return self.matching_conditional_join_dict.get(node.name, "end")
 
     # Visit every node and yield the uber DAGTemplate(s).
     def _dag_templates(self):
