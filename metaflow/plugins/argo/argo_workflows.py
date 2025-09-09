@@ -258,14 +258,17 @@ class ArgoWorkflows(object):
     def delete(name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
-        workflow_template = client.get_workflow_template(name)
+        # the workflow template might not exist, but we still want to try clean up associated sensors and schedules.
+        workflow_template = client.get_workflow_template(name) or {}
+        workflow_annotations = workflow_template.get("metadata", {}).get(
+            "annotations", {}
+        )
+
         sensor_name = ArgoWorkflows._sensor_name(
-            workflow_template["metadata"]["annotations"].get(
-                "metaflow/sensor_name", name
-            )
+            workflow_annotations.get("metaflow/sensor_name", name)
         )
         # if below is missing then it was deployed before custom sensor namespaces
-        sensor_namespace = workflow_template["metadata"]["annotations"].get(
+        sensor_namespace = workflow_annotations.get(
             "metaflow/sensor_namespace", KUBERNETES_NAMESPACE
         )
 
