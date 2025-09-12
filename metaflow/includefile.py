@@ -10,6 +10,7 @@ from hashlib import sha1
 from typing import Any, Callable, Dict, Optional
 
 from metaflow._vendor import click
+from metaflow._vendor import yaml
 
 from .exception import MetaflowException
 from .parameters import (
@@ -359,6 +360,75 @@ class IncludeFile(Parameter):
                 return d
 
         return do_eval
+
+
+class IncludeYAMLFile(IncludeFile):
+    """
+    Includes a local YAML file as a parameter for the flow.
+
+    `IncludeYAMLFile` behaves like `IncludeFile` except that it automatically parses the YAML
+    content and returns a Python dictionary/list structure. The file contents are parsed using
+    PyYAML and saved as a read-only artifact which is available in all steps of the flow.
+
+    Parameters
+    ----------
+    name : str
+        User-visible parameter name.
+    default : Union[str, Callable[ParameterContext, str]]
+        Default path to a local YAML file. A function
+        implies that the parameter corresponds to a *deploy-time parameter*.
+    required : bool, optional, default None
+        Require that the user specified a value for the parameter.
+        `required=True` implies that the `default` is not used. A value of None is
+        equivalent to False
+    help : str, optional
+        Help text to show in `run --help`.
+    show_default : bool, default True
+        If True, show the default value in the help text. A value of None is equivalent
+        to True.
+    safe_load : bool, default True
+        If True, use yaml.safe_load() for parsing. If False, use yaml.load() with FullLoader.
+        Using safe_load=True is recommended for security reasons.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        required: Optional[bool] = None,
+        help: Optional[str] = None,
+        safe_load: bool = True,
+        **kwargs: Dict[str, str]
+    ):
+        self._safe_load = safe_load
+        # Force is_text=True and encoding='utf-8' for YAML files
+        super(IncludeYAMLFile, self).__init__(
+            name,
+            required=required,
+            is_text=True,
+            encoding="utf-8",
+            help=help,
+            **kwargs,
+        )
+
+    def load_parameter(self, v):
+        if v is None:
+            return v
+
+        # Get the raw YAML content from the parent class
+        yaml_content = v.decode(self.name, var_type="Parameter")
+
+        # Parse the YAML content
+        try:
+            if self._safe_load:
+                parsed_data = yaml.safe_load(yaml_content)
+            else:
+                parsed_data = yaml.load(yaml_content, Loader=yaml.FullLoader)
+            return parsed_data
+        except yaml.YAMLError as e:
+            raise MetaflowException(
+                "Failed to parse YAML content in parameter '%s': %s"
+                % (self.name, str(e))
+            )
 
 
 class UploaderV1:
