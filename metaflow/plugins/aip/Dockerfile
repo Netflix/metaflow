@@ -42,7 +42,7 @@ ENV POETRY_VIRTUALENVS_CREATE=False
 
 RUN pip install --upgrade --force-reinstall \
     -i https://artifactory.zgtools.net/artifactory/api/pypi/analytics-python/simple \
-    awscli click requests boto3 pytest pytest-xdist zillow-kfp kfp-server-api
+    awscli click requests boto3 pytest pytest-xdist pytest-cov==6.2.1 zillow-kfp kfp-server-api
 
 # Create Z_USER with UID=1000 and in the 'users' group
 ARG Z_USER="zservice"
