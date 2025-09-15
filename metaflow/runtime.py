@@ -760,6 +760,7 @@ class NativeRuntime(object):
         self, task, next_step, type, split_index=None, loop_mode=LoopBehavior.NONE
     ):
         match = re.match(r"^(.+)\[(.*)\]\[(.*)\]$", task.task_index)
+        old_match = re.match(r"^(.+)\[(.*)\]$", task.task_index)
         if match:
             _, foreach_index, iteration_index = match.groups()
             # Convert foreach_index to a list of integers
@@ -772,6 +773,15 @@ class NativeRuntime(object):
                 iteration_index = iteration_index.split(",")
             else:
                 iteration_index = []
+        elif old_match:
+            _, foreach_index = old_match.groups()
+            # Convert foreach_index to a list of integers
+            if len(foreach_index) > 0:
+                foreach_index = foreach_index.split(",")
+            else:
+                foreach_index = []
+            # Legacy case fallback. No iteration index exists for these runs.
+            iteration_index = []
         else:
             raise ValueError(
                 "Index not in the format of {run_id}/{step_name}[{foreach_index}][{iteration_index}]"
