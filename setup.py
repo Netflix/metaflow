@@ -41,6 +41,6 @@ setup(
     tests_require=["coverage"],
     extras_require={
         # Use an extras here as there is no "extras_tests_require" functionality :(
-        "aip-tests": ["pytest", "pytest-xdist", "pytest-cov", "subprocess-tee"],
+        "aip-tests": ["pytest", "pytest-xdist", "pytest-cov==6.2.1", "subprocess-tee"],
     },
 )
