@@ -1693,7 +1693,7 @@ class Task(object):
         foreach_stack_tuple = tuple(
             [s._replace(value=0) for s in self.results["_foreach_stack"]]
         )
-        # _iteration_stack requires a fallback, as it does not exist for runs before v2.18
+        # _iteration_stack requires a fallback, as it does not exist for runs before v2.17.4
         iteration_stack_tuple = tuple(self.results.get("_iteration_stack", []))
         return (self.step, foreach_stack_tuple, iteration_stack_tuple)
 
