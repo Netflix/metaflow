@@ -136,7 +136,7 @@ class TriggerDecorator(FlowDecorator):
 
         Parameters
         ----------
-        Parameters : Union[callable, List[Union[str, Tuple[str, str]]], Dict[str, str]]
+        Parameters : Union[Dict[str, str], List[Union[str, Tuple[str, str]]], Callable]
             Parameters to process
 
         event_name : Union[str, callable]
@@ -144,7 +144,7 @@ class TriggerDecorator(FlowDecorator):
 
         Returns
         -------
-        Union[Dict[Union[str, callable], Union[str, callable]], Callable]
+        Union[Dict[str, str], Callable]
             Processed parameters
 
         Raises
@@ -154,7 +154,6 @@ class TriggerDecorator(FlowDecorator):
         """
         new_param_values = {}
         if isinstance(parameters, list):
-            new_param_list = []
             for mapping in parameters:
                 if is_stringish(mapping):
                     # param_name
@@ -165,7 +164,7 @@ class TriggerDecorator(FlowDecorator):
                     if not is_stringish(param_name) or not is_stringish(field_name):
                         raise MetaflowException(
                             f"The *parameters* attribute for event {event_name} is invalid. "
-                            "Only strings and tuples of size 2 are allowed."
+                            "It should be a list/tuple of strings and lists/tuples of size 2."
                         )
                     new_param_values[param_name] = field_name
                 else:
@@ -174,12 +173,11 @@ class TriggerDecorator(FlowDecorator):
                         "It should be a list/tuple of strings and lists/tuples of size 2"
                     )
         elif isinstance(parameters, dict):
-            # {Union[func, param_name]: Union[func, param_name]}
             for key, value in parameters.items():
                 if not is_stringish(key) or not is_stringish(value):
                     raise MetaflowException(
                         f"The *parameters* attribute for event {event_name} is invalid. "
-                        "It should be a dictionary of strings."
+                        "It should be a dictionary of string keys and string values."
                     )
                 new_param_values[key] = value
         elif callable(parameters) and not isinstance(parameters, DeployTimeField):
