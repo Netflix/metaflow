@@ -13,6 +13,7 @@ help:
 	@echo ""
 	@echo "Environment variables:"
 	@echo "  MINIKUBE_ENABLE_GPU=auto|true|false  - Control GPU support (default: auto)"
+	@echo "  MINIKUBE_GPU_FLAG=auto|gpus|devices|<custom>  - GPU flag format (default: auto)"
 
 HELM_VERSION := v3.14.0
 MINIKUBE_VERSION := v1.32.0
@@ -35,6 +36,7 @@ MINIKUBE_CPUS ?= 4
 MINIKUBE_MEMORY ?= 6144
 MINIKUBE_DISK_SIZE ?= 20g
 MINIKUBE_ENABLE_GPU ?= auto
+MINIKUBE_GPU_FLAG ?= auto
 
 ifeq ($(shell uname), Darwin)
 	minikube_os = darwin
@@ -56,17 +58,40 @@ endif
 ifeq ($(MINIKUBE_ENABLE_GPU), auto)
 	# Auto-detect GPU availability
 	ifeq ($(shell command -v nvidia-smi >/dev/null 2>&1 && echo "nvidia"), nvidia)
-		gpu_flags = --gpus all
+		gpu_detected = true
 	else ifeq ($(shell command -v rocm-smi >/dev/null 2>&1 && echo "amd"), amd)
-		gpu_flags = --gpus all
+		gpu_detected = true
 	else
-		gpu_flags =
+		gpu_detected = false
 	endif
 else ifeq ($(MINIKUBE_ENABLE_GPU), true)
 	# Force enable GPU support
-	gpu_flags = --gpus all
+	gpu_detected = true
 else
 	# Explicitly disabled
+	gpu_detected = false
+endif
+
+# Determine GPU flags based on detection and user preference
+ifeq ($(gpu_detected), true)
+	ifeq ($(MINIKUBE_GPU_FLAG), auto)
+		# Default to --devices for NVIDIA (more compatible), --gpus for others
+		ifeq ($(shell command -v nvidia-smi >/dev/null 2>&1 && echo "nvidia"), nvidia)
+			gpu_flags = --devices nvidia.com/gpu=all
+		else
+			gpu_flags = --gpus all
+		endif
+	else ifeq ($(MINIKUBE_GPU_FLAG), gpus)
+		# Explicitly use --gpus all format
+		gpu_flags = --gpus all
+	else ifeq ($(MINIKUBE_GPU_FLAG), devices)
+		# Explicitly use --devices format (NVIDIA only)
+		gpu_flags = --devices nvidia.com/gpu=all
+	else
+		# User provided custom GPU flag
+		gpu_flags = $(MINIKUBE_GPU_FLAG)
+	endif
+else
 	gpu_flags =
 endif
 
