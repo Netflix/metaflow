@@ -60,6 +60,15 @@ class Pip(object):
         else:
             self.logger = lambda *args, **kwargs: None  # No-op logger if not provided
 
+    def _get_resolved_python_version(self, prefix):
+        try:
+            result = self.micromamba._call(["list", "--prefix", prefix, "--json"])
+            for package in result:
+                if package.get("name") == "python":
+                    return package["version"]
+        except Exception:
+            return None
+
     def solve(self, id_, packages, python, platform):
         prefix = self.micromamba.path_to_environment(id_)
         if prefix is None:
@@ -67,13 +76,19 @@ class Pip(object):
             msg += "for id {id}".format(id=id_)
             raise PipException(msg)
 
+        resolved_python = self._get_resolved_python_version(prefix)
+        if not resolved_python:
+            raise PipException(
+                "Could not determine Python version from conda environment"
+            )
+
         debug.conda_exec("Solving packages for PyPI environment %s" % id_)
         with tempfile.TemporaryDirectory() as tmp_dir:
             report = "{tmp_dir}/report.json".format(tmp_dir=tmp_dir)
             implementations, platforms, abis = zip(
                 *[
                     (tag.interpreter, tag.platform, tag.abi)
-                    for tag in pip_tags(python, platform)
+                    for tag in pip_tags(resolved_python, platform)
                 ]
             )
             custom_index_url, extra_index_urls = self.indices(prefix)
@@ -142,6 +157,13 @@ class Pip(object):
 
     def download(self, id_, packages, python, platform):
         prefix = self.micromamba.path_to_environment(id_)
+
+        resolved_python = self._get_resolved_python_version(prefix)
+        if not resolved_python:
+            raise PipException(
+                "Could not determine Python version from conda environment"
+            )
+
         metadata_file = METADATA_FILE.format(prefix=prefix)
         # download packages only if they haven't ever been downloaded before
         if os.path.isfile(metadata_file):
@@ -192,7 +214,11 @@ class Pip(object):
                     if os.path.isfile(os.path.join(path, f)) and f.endswith(".whl")
                 ]
                 if (
-                    len(set(pip_tags(python, platform)).intersection(wheel_tags(wheel)))
+                    len(
+                        set(pip_tags(resolved_python, platform)).intersection(
+                            wheel_tags(wheel)
+                        )
+                    )
                     == 0
                 ):
                     raise PipException(
@@ -211,7 +237,7 @@ class Pip(object):
         implementations, platforms, abis = zip(
             *[
                 (tag.interpreter, tag.platform, tag.abi)
-                for tag in pip_tags(python, platform)
+                for tag in pip_tags(resolved_python, platform)
             ]
         )
 
