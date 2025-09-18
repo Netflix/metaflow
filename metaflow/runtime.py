@@ -748,6 +748,19 @@ class NativeRuntime(object):
                 bad=True,
             )
             for worker in live_workers:
+                self._metadata.register_metadata(
+                    worker.task.run_id,
+                    worker.task.step,
+                    worker.task.task_id,
+                    [
+                        MetaDatum(
+                            field="task_fail_reason",
+                            value="killed",
+                            type="metaflow.task_fail_reason",
+                            tags=["attempt_id:{0}".format(worker.task.retries)],
+                        )
+                    ],
+                )
                 worker.kill()
         self._logger("Flushing logs...", system_msg=True, bad=True)
         # give killed workers a chance to flush their logs to datastore
