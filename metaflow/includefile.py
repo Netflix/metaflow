@@ -285,7 +285,7 @@ class IncludeFile(Parameter):
             self._includefile_overrides["is_text"] = is_text
         if encoding is not None:
             self._includefile_overrides["encoding"] = encoding
-        self.parser = parser
+        self._parser = parser
         # NOTA: Right now, there is an issue where these can't be overridden by config
         # in all circumstances. Ignoring for now.
         super(IncludeFile, self).__init__(
@@ -349,14 +349,14 @@ class IncludeFile(Parameter):
         # Get the raw content from the file
         content = v.decode(self.name, var_type="Parameter")
         # If a parser is specified, use it to parse the content
-        if self.parser is not None:
+        if self._parser is not None:
             try:
-                return ConfigInput._call_parser(self.parser, content)
+                return ConfigInput._call_parser(self._parser, content)
             except Exception as e:
                 raise MetaflowException(
                     "Failed to parse content in parameter '%s' using parser: %s"
                     % (self.name, str(e))
-                )
+                ) from e
 
         return content
 
