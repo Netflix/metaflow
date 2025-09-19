@@ -50,6 +50,7 @@ import metaflow.tracing as tracing
 from metaflow.metaflow_config import (
     S3_WORKER_COUNT,
 )
+from metaflow.exception import MetaflowException
 
 DOWNLOAD_FILE_THRESHOLD = 2 * TransferConfig().multipart_threshold
 DOWNLOAD_MAX_CHUNK = 2 * 1024 * 1024 * 1024 - 1
@@ -287,6 +288,11 @@ def worker(result_file_name, queue, mode, s3config):
                                 result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
                             result_file.flush()
                             continue
+                    except MetaflowException:
+                        # Re-raise Metaflow exceptions (including TimeoutException)
+                        tmp.close()
+                        os.unlink(tmp.name)
+                        raise
                     except (SSLError, Exception) as e:
                         tmp.close()
                         os.unlink(tmp.name)
@@ -357,6 +363,9 @@ def worker(result_file_name, queue, mode, s3config):
                                 err = convert_to_client_error(e)
                                 handle_client_error(err, idx, result_file)
                                 continue
+                        except MetaflowException:
+                            # Re-raise Metaflow exceptions (including TimeoutException)
+                            raise
                         except (SSLError, Exception) as e:
                             # assume anything else is transient
                             result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
@@ -385,6 +394,10 @@ def convert_to_client_error(e):
 
 
 def handle_client_error(err, idx, result_file):
+    # Handle all MetaflowExceptions as fatal
+    if isinstance(err, MetaflowException):
+        raise err
+
     error_code = normalize_client_error(err)
     if error_code == 404:
         result_file.write("%d %d\n" % (idx, -ERROR_URL_NOT_FOUND))
