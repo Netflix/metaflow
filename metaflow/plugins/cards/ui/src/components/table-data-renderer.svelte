@@ -11,6 +11,7 @@
   import Markdown from "./markdown.svelte";
   import Text from "./text.svelte";
   import ProgressBar from "./progress-bar.svelte";
+  import ValueBox from "./value-box.svelte";
   import PythonCode from "./python-code.svelte";
 
   export let componentData: types.TableDataCell;
@@ -25,6 +26,7 @@
     markdown: Markdown,
     progressBar: ProgressBar,
     text: Text,
+    valueBox: ValueBox,
     vegaChart: VegaChart,
     pythonCode: PythonCode,
   };
