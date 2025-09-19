@@ -33,3 +33,7 @@ stubs/version.py
 
 # devtools
 .devtools
+
+# Colima environment files
+.env.colima
+activate-colima.sh
