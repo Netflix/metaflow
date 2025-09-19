@@ -269,12 +269,50 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
         # If the module is a single file, we handle this here by looking at __file__
         # which will point to the single file. If it is an actual module, __path__
         # will contain the path(s) to the module
+        if hasattr(module, "__file__") and module.__file__:
+            root_paths = [Path(module.__file__).resolve().as_posix()]
+        else:
+            root_paths = []
+            seen_path_values = set()
+            new_paths = module.__spec__.submodule_search_locations
+            while new_paths:
+                paths = new_paths
+                new_paths = []
+                for p in paths:
+                    if p in seen_path_values:
+                        continue
+                    if os.path.isdir(p):
+                        root_paths.append(Path(p).resolve().as_posix())
+                    elif p in sys.path_importer_cache:
+                        # We have a path hook that we likely need to call to get the actual path
+                        addl_spec = sys.path_importer_cache[p].find_spec(name)
+                        if (
+                            addl_spec is not None
+                            and addl_spec.submodule_search_locations
+                        ):
+                            new_paths.extend(addl_spec.submodule_search_locations)
+                    else:
+                        # This may not be as required since it is likely the importer cache has
+                        # everything already but just in case, we will also go through the
+                        # path hooks and see if we find another one
+                        for path_hook in sys.path_hooks:
+                            try:
+                                finder = path_hook(p)
+                                addl_spec = finder.find_spec(name)
+                                if (
+                                    addl_spec is not None
+                                    and addl_spec.submodule_search_locations
+                                ):
+                                    new_paths.extend(
+                                        addl_spec.submodule_search_locations
+                                    )
+                                    break
+                            except ImportError:
+                                continue
+                    seen_path_values.add(p)
         self._modules[name] = _ModuleInfo(
             name,
-            set(
-                Path(p).resolve().as_posix()
-                for p in getattr(module, "__path__", [module.__file__])
-            ),
+            set(root_paths),
             module,
             False,  # This is not a Metaflow module (added by the user manually)
         )
@@ -425,7 +463,7 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
                         "expected (got '%s' when expected one of %s)"
                         % (dist.metadata["Name"], name, dist_root, paths)
                     )
-                paths.discard(dist_root)
+                has_file_in_root = False
                 if dist_name not in self._distmetainfo:
                     # Possible that a distribution contributes to multiple modules
                     self._distmetainfo[dist_name] = {
@@ -438,13 +476,20 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
                 for file in dist.files or []:
                     # Skip files that do not belong to this module (distribution may
                     # provide multiple modules)
-                    if file.parts[: len(prefix_parts)] != prefix_parts:
+                    if (
+                        file.parts[: len(prefix_parts)] != prefix_parts
+                        or file.suffix == ".pth"
+                        or str(file).startswith("__editable__")
+                    ):
                         continue
                     if file.parts[len(prefix_parts)] == "__init__.py":
                         has_init = True
+                    has_file_in_root = True
                     yield str(
                         dist.locate_file(file).resolve().as_posix()
                     ), os.path.join(self._code_dir, *prefix_parts, *file.parts[1:])
+                if has_file_in_root:
+                    paths.discard(dist_root)
 
         # Now if there are more paths left in paths, it means there is a non-distribution
         # component to this package which we also include.
