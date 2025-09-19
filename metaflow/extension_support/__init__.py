@@ -412,7 +412,7 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
 
     # Temporary variables to support the loop below and make sure we loop through all
     # the paths in the submodule_search_locations including calling the path hooks.
-    # We coudl skip calling things on the path hooks since the module was just imported
+    # We could skip calling things on the path hooks since the module was just imported
     # by importlib so the values are probably already in submodule_search_locations but
     # there may be cases where we need to call multiple times. This also allows us to tie
     # the finders (ie: the path hooks) back to the distribution since they share a name.
@@ -544,7 +544,7 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
                             "Package '%s' defines more than one meta configuration: "
                             "'%s' and '%s' (at least)"
                             % (
-                                dist_name,
+                                state["name"],
                                 state["meta_module"],
                                 potential_meta_module,
                             )
@@ -968,8 +968,9 @@ def _filter_files_package(pkg):
             #  - if include_suffixes, only include those suffixes
             #  - if *not* include_suffixes but exclude_suffixes, include everything *except*
             #    files ending with that suffix
+            new_files, new_full_path_files = [], []
+
             if filter_function:
-                new_files, new_full_path_files = [], []
                 for short_file, full_file in zip(pkg["files"], pkg["full_path_files"]):
                     try:
                         if filter_function(os.path.join(EXT_PKG, short_file)):
