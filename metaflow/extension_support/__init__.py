@@ -11,6 +11,7 @@ from collections import defaultdict, namedtuple
 from importlib.abc import MetaPathFinder, Loader
 from itertools import chain
 from pathlib import Path
+from typing import Any, Dict
 
 from metaflow.meta_files import read_info_file
 
@@ -82,6 +83,7 @@ EXT_CONFIG_REGEXP = re.compile(r"^mfextinit_[a-zA-Z0-9_-]+\.py$")
 EXT_META_REGEXP = re.compile(r"^mfextmeta_[a-zA-Z0-9_-]+\.py$")
 REQ_NAME = re.compile(r"^(([a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9])|[a-zA-Z0-9]).*$")
 EXT_EXCLUDE_SUFFIXES = [".pyc"]
+FINDER_TRANS = str.maketrans(".-", "__")
 
 # To get verbose messages, set METAFLOW_DEBUG_EXT to 1
 DEBUG_EXT = os.environ.get("METAFLOW_DEBUG_EXT", False)
@@ -127,7 +129,6 @@ def dump_module_info(all_packages=None, pkgs_per_extension_point=None):
     if pkgs_per_extension_point is None:
         pkgs_per_extension_point = _pkgs_per_extension_point
 
-    _filter_files_all(all_packages)
     sanitized_all_packages = dict()
     # Strip out root_paths (we don't need it and no need to expose user's dir structure)
     for k, v in all_packages.items():
@@ -135,6 +136,7 @@ def dump_module_info(all_packages=None, pkgs_per_extension_point=None):
             "root_paths": None,
             "meta_module": v["meta_module"],
             "files": v["files"],
+            "full_path_files": None,
             "version": v["version"],
             "package_version": v.get("package_version", "<unk>"),
             "extension_name": v.get("extension_name", "<unk>"),
@@ -187,17 +189,25 @@ def package_mfext_package(package_name):
 
     _ext_debug("Packaging '%s'" % package_name)
     pkg_info = _all_packages.get(package_name, None)
-    _filter_files_package(pkg_info)
+
     if pkg_info and pkg_info.get("root_paths", None):
-        single_path = len(pkg_info["root_paths"]) == 1
-        for p in pkg_info["root_paths"]:
-            root_path = to_unicode(p)
-            for f in pkg_info["files"]:
-                f_unicode = to_unicode(f)
-                fp = os.path.join(root_path, f_unicode)
-                if single_path or os.path.isfile(fp):
-                    _ext_debug("    Adding '%s'" % fp)
-                    yield fp, os.path.join(EXT_PKG, f_unicode)
+        if pkg_info["full_path_files"]:
+            # Case for initial packaging
+            for f, short_name in zip(pkg_info["full_path_files"], pkg_info["files"]):
+                f_unicode = os.path.join(EXT_PKG, to_unicode(short_name))
+                _ext_debug("    Adding '%s' as '%s'" % (f, f_unicode))
+                yield f, f_unicode
+        else:
+            # When re-packaging (ie: packaging Metaflow from a Metaflow run):
+            single_path = len(pkg_info["root_paths"]) == 1
+            for p in pkg_info["root_paths"]:
+                root_path = to_unicode(p)
+                for f in pkg_info["files"]:
+                    f_unicode = to_unicode(f)
+                    fp = os.path.join(root_path, f_unicode)
+                    if single_path or os.path.isfile(fp):
+                        _ext_debug("    Adding '%s'" % fp)
+                        yield fp, os.path.join(EXT_PKG, f_unicode)
 
 
 def package_mfext_all():
@@ -211,8 +221,7 @@ def package_mfext_all():
         ), os.path.join(EXT_PKG, "__init__.py")
 
     for p in _all_packages:
-        for path_tuple in package_mfext_package(p):
-            yield path_tuple
+        yield from package_mfext_package(p)
 
 
 def package_mfext_all_descriptions():
@@ -395,7 +404,80 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
     # At this point, we look at all the paths and create a set. As we find distributions
     # that match it, we will remove from the set and then will be left with any
     # PYTHONPATH "packages"
-    all_paths = set(Path(p).resolve().as_posix() for p in extensions_module.__path__)
+    all_paths = set()
+    # Records which finders provided which paths if applicable
+    # This is then later used to determine which paths belong
+    # to which distribution
+    finders_to_paths = dict()
+
+    # Temporary variables to support the loop below and make sure we loop through all
+    # the paths in the submodule_search_locations including calling the path hooks.
+    # We coudl skip calling things on the path hooks since the module was just imported
+    # by importlib so the values are probably already in submodule_search_locations but
+    # there may be cases where we need to call multiple times. This also allows us to tie
+    # the finders (ie: the path hooks) back to the distribution since they share a name.
+    # This is useful in knowing which paths we consider as belonging to a distribution so
+    # we know which order to load it in.
+    seen_path_values = set()
+    new_paths = extensions_module.__spec__.submodule_search_locations
+    _ext_debug("Found initial paths: %s" % str(new_paths))
+    while new_paths:
+        paths = new_paths
+        new_paths = []
+        for p in paths:
+            if p in seen_path_values:
+                continue
+            if os.path.isdir(p):
+                all_paths.add(Path(p).resolve().as_posix())
+            elif p in sys.path_importer_cache:
+                # We have a path hook that we likely need to call to get the actual path
+                addl_spec = sys.path_importer_cache[p].find_spec(EXT_PKG)
+                if addl_spec is not None and addl_spec.submodule_search_locations:
+                    new_paths.extend(addl_spec.submodule_search_locations)
+                    # Remove .__path_hook__ and add .py to match the name of the file
+                    # installed by the distribution
+                    finder_name = p[:-14].translate(FINDER_TRANS) + ".py"
+                    new_dirs = [
+                        d
+                        for d in addl_spec.submodule_search_locations
+                        if os.path.isdir(d)
+                    ]
+                    _ext_debug(
+                        "Finder %s added directories %s"
+                        % (finder_name, ", ".join(new_dirs))
+                    )
+                    finders_to_paths.setdefault(finder_name, []).extend(new_dirs)
+            else:
+                # This may not be as required since it is likely the importer cache has
+                # everything already but just in case, we will also go through the
+                # path hooks and see if we find another one
+                for path_hook in sys.path_hooks:
+                    try:
+                        finder = path_hook(p)
+                        addl_spec = finder.find_spec(EXT_PKG)
+                        if (
+                            addl_spec is not None
+                            and addl_spec.submodule_search_locations
+                        ):
+                            finder_name = p[:-14].translate(FINDER_TRANS) + ".py"
+                            new_dirs = [
+                                d
+                                for d in addl_spec.submodule_search_locations
+                                if os.path.isdir(d)
+                            ]
+                            _ext_debug(
+                                "Finder (through hooks) %s added directories %s"
+                                % (finder_name, ", ".join(new_dirs))
+                            )
+                            finders_to_paths.setdefault(finder_name, []).extend(
+                                new_dirs
+                            )
+                            new_paths.extend(addl_spec.submodule_search_locations)
+                            break
+                    except ImportError:
+                        continue
+            seen_path_values.add(p)
+
     _ext_debug("Found packages present at %s" % str(all_paths))
     if restrict_to_directories:
         _ext_debug(
@@ -437,18 +519,146 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
     # Same as config_to_pkg for meta files
     meta_to_pkg = defaultdict(list)
 
+    # The file passed to process_file has EXT_PKG as the first component
+    # root_dir also has EXT_PKG as the last component
+    def process_file(state: Dict[str, Any], root_dir: str, file: str):
+        parts = file.split("/")
+
+        if len(parts) > 1 and parts[0] == EXT_PKG:
+            # Check for top-level files (ie: meta file which specifies how to package
+            # the extension and __init__.py file)
+            if len(parts) == 2:
+                # Ensure that we don't have a __init__.py to force this package to
+                # be a NS package
+                if parts[1] == "__init__.py":
+                    raise RuntimeError(
+                        "Package '%s' providing '%s' is not an implicit namespace "
+                        "package as required" % (state["name"], EXT_PKG)
+                    )
+                # Check for any metadata; we can only have one metadata per
+                # distribution at most
+                if EXT_META_REGEXP.match(parts[1]) is not None:
+                    potential_meta_module = ".".join([EXT_PKG, parts[1][:-3]])
+                    if state["meta_module"]:
+                        raise RuntimeError(
+                            "Package '%s' defines more than one meta configuration: "
+                            "'%s' and '%s' (at least)"
+                            % (
+                                dist_name,
+                                state["meta_module"],
+                                potential_meta_module,
+                            )
+                        )
+                    state["meta_module"] = potential_meta_module
+                    _ext_debug(
+                        "Found meta '%s' for '%s'"
+                        % (state["meta_module"], state["name"])
+                    )
+                    meta_to_pkg[state["meta_module"]].append(state["name"])
+
+            # Record the file as a candidate for inclusion when packaging if
+            # needed
+            if not any(parts[-1].endswith(suffix) for suffix in EXT_EXCLUDE_SUFFIXES):
+                # Strip out metaflow_extensions from the file
+                state["files"].append(os.path.join(*parts[1:]))
+                state["full_path_files"].append(os.path.join(root_dir, *parts[1:]))
+
+            if parts[1] in init_ext_points:
+                # This is most likely a problem as we need an intermediate
+                # "identifier"
+                raise RuntimeError(
+                    "Package '%s' should conform to '%s.X.%s' and not '%s.%s' where "
+                    "X is your organization's name for example"
+                    % (
+                        state["name"],
+                        EXT_PKG,
+                        parts[1],
+                        EXT_PKG,
+                        parts[1],
+                    )
+                )
+
+        if len(parts) > 3 and parts[0] == EXT_PKG:
+            # We go over _extension_points *in order* to make sure we get more
+            # specific paths first
+
+            # To give useful errors in case multiple top-level packages in
+            # one package
+            dist_full_name = "%s[%s]" % (state["name"], parts[1])
+            for idx, ext_list in enumerate(list_ext_points):
+                if (
+                    len(parts) > len(ext_list) + 2
+                    and parts[2 : 2 + len(ext_list)] == ext_list
+                ):
+                    # Check if this is an "init" file
+                    config_module = None
+
+                    if len(parts) == len(ext_list) + 3 and (
+                        EXT_CONFIG_REGEXP.match(parts[-1]) is not None
+                        or parts[-1] == "__init__.py"
+                    ):
+                        parts[-1] = parts[-1][:-3]  # Remove the .py
+                        config_module = ".".join(parts)
+
+                        config_to_pkg[config_module].append(dist_full_name)
+                    cur_pkg = (
+                        extension_points_to_pkg[_extension_points[idx]]
+                        .setdefault(state["name"], {})
+                        .get(parts[1])
+                    )
+                    if cur_pkg is not None:
+                        if (
+                            config_module is not None
+                            and cur_pkg.config_module is not None
+                        ):
+                            raise RuntimeError(
+                                "Package '%s' defines more than one "
+                                "configuration file for '%s': '%s' and '%s'"
+                                % (
+                                    dist_full_name,
+                                    _extension_points[idx],
+                                    config_module,
+                                    cur_pkg.config_module,
+                                )
+                            )
+                        if config_module is not None:
+                            _ext_debug(
+                                "    Top-level '%s' found config file '%s'"
+                                % (parts[1], config_module)
+                            )
+                            extension_points_to_pkg[_extension_points[idx]][
+                                state["name"]
+                            ][parts[1]] = MFExtPackage(
+                                package_name=state["name"],
+                                tl_package=parts[1],
+                                config_module=config_module,
+                            )
+                    else:
+                        _ext_debug(
+                            "    Top-level '%s' extends '%s' with config '%s'"
+                            % (parts[1], _extension_points[idx], config_module)
+                        )
+                        extension_points_to_pkg[_extension_points[idx]][state["name"]][
+                            parts[1]
+                        ] = MFExtPackage(
+                            package_name=state["name"],
+                            tl_package=parts[1],
+                            config_module=config_module,
+                        )
+                    break
+
     # 1st step: look for distributions (the common case)
     for dist in metadata.distributions():
         if any(
             [pkg == EXT_PKG for pkg in (dist.read_text("top_level.txt") or "").split()]
         ):
-            # In all cases (whether duplicate package or not), we remove the package
-            # from the list of locations to look in.
-            # This is not 100% accurate because it is possible that at the same
-            # location there is a package and a non-package, but this is extremely
-            # unlikely so we are going to ignore this case.
+            # Note that locate_file does not actually make sure the file exists. It just
+            # appends whatever you pass in to locate_file to the folder containing the
+            # metadata for the distribution. We will therefore check if we are actually
+            # seeing files in that directory using has_file_in_dist_root.
             dist_root = dist.locate_file(EXT_PKG).resolve().as_posix()
-            all_paths.discard(dist_root)
+            all_roots = []
+            has_file_in_dist_root = False
             dist_name = dist.metadata["Name"]
             dist_version = dist.metadata["Version"]
             if restrict_to_directories:
@@ -468,144 +678,88 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
                 )
                 continue
             _ext_debug(
-                "Found extension package '%s' at '%s'..." % (dist_name, dist_root)
+                "Found extension package '%s' at presumptive path '%s'..."
+                % (dist_name, dist_root)
             )
 
-            files_to_include = []
-            meta_module = None
-
+            state = {
+                "name": dist_name,
+                "files": [],
+                "full_path_files": [],
+                "meta_module": None,  # Meta information about the package (if applicable)
+            }
+            addl_dirs = []
             # At this point, we check to see what extension points this package
             # contributes to. This is to enable multiple namespace packages to contribute
             # to the same extension point (for example, you may have multiple packages
             # that have plugins)
             for f in dist.files:
-                parts = list(f.parts)
+                if f.suffix == ".pth":
+                    # This is a directory we need to walk to find the files
+                    d = f.read_text().strip()
+                    if os.path.isdir(d):
+                        _ext_debug("    Found additional directory '%s' from .pth" % d)
+                        addl_dirs.append(d)
+                elif str(f).startswith("__editable__"):
+                    # This is a finder file because we already checked for .pth
+                    _ext_debug(
+                        "    Added additional directories from finder '%s': %s"
+                        % (str(f), ", ".join(finders_to_paths.get(str(f), [])))
+                    )
+                    addl_dirs.extend(finders_to_paths.get(str(f), []))
+                elif f.parts[0] == EXT_PKG:
+                    has_file_in_dist_root = True
+                    process_file(state, dist_root, str(f))
+                else:
+                    # We ignore the file
+                    continue
 
-                if len(parts) > 1 and parts[0] == EXT_PKG:
-                    # Ensure that we don't have a __init__.py to force this package to
-                    # be a NS package
-                    if parts[1] == "__init__.py":
-                        raise RuntimeError(
-                            "Package '%s' providing '%s' is not an implicit namespace "
-                            "package as required" % (dist_name, EXT_PKG)
-                        )
-
-                    # Record the file as a candidate for inclusion when packaging if
-                    # needed
-                    if not any(
-                        parts[-1].endswith(suffix) for suffix in EXT_EXCLUDE_SUFFIXES
-                    ):
-                        files_to_include.append(os.path.join(*parts[1:]))
-
-                    if parts[1] in init_ext_points:
-                        # This is most likely a problem as we need an intermediate
-                        # "identifier"
-                        raise RuntimeError(
-                            "Package '%s' should conform to '%s.X.%s' and not '%s.%s' where "
-                            "X is your organization's name for example"
-                            % (
-                                dist_name,
-                                EXT_PKG,
-                                parts[1],
-                                EXT_PKG,
-                                parts[1],
-                            )
-                        )
-
-                    # Check for any metadata; we can only have one metadata per
-                    # distribution at most
-                    if EXT_META_REGEXP.match(parts[1]) is not None:
-                        potential_meta_module = ".".join([EXT_PKG, parts[1][:-3]])
-                        if meta_module:
-                            raise RuntimeError(
-                                "Package '%s' defines more than one meta configuration: "
-                                "'%s' and '%s' (at least)"
-                                % (
-                                    dist_name,
-                                    meta_module,
-                                    potential_meta_module,
-                                )
-                            )
-                        meta_module = potential_meta_module
+            if has_file_in_dist_root:
+                all_roots.append(dist_root)
+                all_paths.discard(dist_root)
+            # Now walk any additional directory for this distribution as well
+            for addl_dir in addl_dirs:
+                if restrict_to_directories:
+                    parent_dirs = list(
+                        p.as_posix() for p in Path(addl_dir).resolve().parents
+                    )
+                    if all(p not in parent_dirs for p in restrict_to_directories):
                         _ext_debug(
-                            "Found meta '%s' for '%s'" % (meta_module, dist_full_name)
+                            "Ignoring package at %s as it is not in the considered "
+                            "directories" % addl_dir
                         )
-                        meta_to_pkg[meta_module].append(dist_full_name)
-
-                if len(parts) > 3 and parts[0] == EXT_PKG:
-                    # We go over _extension_points *in order* to make sure we get more
-                    # specific paths first
-
-                    # To give useful errors in case multiple top-level packages in
-                    # one package
-                    dist_full_name = "%s[%s]" % (dist_name, parts[1])
-                    for idx, ext_list in enumerate(list_ext_points):
-                        if (
-                            len(parts) > len(ext_list) + 2
-                            and parts[2 : 2 + len(ext_list)] == ext_list
-                        ):
-                            # Check if this is an "init" file
-                            config_module = None
-
-                            if len(parts) == len(ext_list) + 3 and (
-                                EXT_CONFIG_REGEXP.match(parts[-1]) is not None
-                                or parts[-1] == "__init__.py"
-                            ):
-                                parts[-1] = parts[-1][:-3]  # Remove the .py
-                                config_module = ".".join(parts)
-
-                                config_to_pkg[config_module].append(dist_full_name)
-                            cur_pkg = (
-                                extension_points_to_pkg[_extension_points[idx]]
-                                .setdefault(dist_name, {})
-                                .get(parts[1])
-                            )
-                            if cur_pkg is not None:
-                                if (
-                                    config_module is not None
-                                    and cur_pkg.config_module is not None
-                                ):
-                                    raise RuntimeError(
-                                        "Package '%s' defines more than one "
-                                        "configuration file for '%s': '%s' and '%s'"
-                                        % (
-                                            dist_full_name,
-                                            _extension_points[idx],
-                                            config_module,
-                                            cur_pkg.config_module,
-                                        )
-                                    )
-                                if config_module is not None:
-                                    _ext_debug(
-                                        "    Top-level '%s' found config file '%s'"
-                                        % (parts[1], config_module)
-                                    )
-                                    extension_points_to_pkg[_extension_points[idx]][
-                                        dist_name
-                                    ][parts[1]] = MFExtPackage(
-                                        package_name=dist_name,
-                                        tl_package=parts[1],
-                                        config_module=config_module,
-                                    )
-                            else:
-                                _ext_debug(
-                                    "    Top-level '%s' extends '%s' with config '%s'"
-                                    % (parts[1], _extension_points[idx], config_module)
-                                )
-                                extension_points_to_pkg[_extension_points[idx]][
-                                    dist_name
-                                ][parts[1]] = MFExtPackage(
-                                    package_name=dist_name,
-                                    tl_package=parts[1],
-                                    config_module=config_module,
-                                )
-                            break
+                        continue
+                base_depth = len(addl_dir.split("/"))
+                # .pth files give addl_dirs that don't have EXT_PKG at the end but
+                # finders do so check this
+                if addl_dir.split("/")[-1] == EXT_PKG:
+                    base_depth -= 1
+                else:
+                    addl_dir = os.path.join(addl_dir, EXT_PKG)
+                all_roots.append(addl_dir)
+                all_paths.discard(addl_dir)
+                _ext_debug("    Walking additional directory '%s'" % addl_dir)
+                for root, _, files in os.walk(addl_dir):
+                    relative_root = "/".join(root.split("/")[base_depth:])
+                    for f in files:
+                        process_file(state, addl_dir, os.path.join(relative_root, f))
             mf_ext_packages[dist_name] = {
-                "root_paths": [dist_root],
-                "meta_module": meta_module,
-                "files": files_to_include,
+                "root_paths": all_roots,
+                "meta_module": state["meta_module"],
+                "full_path_files": state["full_path_files"],
+                "files": state["files"],
                 "version": dist_version,
             }
+            if addl_dirs:
+                # If we have additional directories, this means that we may need to filter
+                # the files based on the meta information about the module since we
+                # walked down the directories instead of relying simply on files that
+                # were packaged with the distribution. We do this now so we don't have to
+                # do it multiple times later for packaging. This is only useful if the
+                # distribution does not completely specify the files that need to be
+                # installed. In the case where the distribution completely specifies the
+                # files, we ignore the meta module
+                _filter_files_package(mf_ext_packages[dist_name])
     # At this point, we have all the packages that contribute to EXT_PKG,
     # we now check to see if there is an order to respect based on dependencies. We will
     # return an ordered list that respects that order and is ordered alphabetically in
@@ -666,9 +820,7 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
     all_paths_list.sort()
 
     # This block of code is the equivalent of the one above for distributions except
-    # for PYTHONPATH packages. The functionality is identical, but it looks a little
-    # different because we construct the file list instead of having it nicely provided
-    # to us.
+    # for PYTHONPATH packages.
     package_name_to_path = dict()
     if len(all_paths_list) > 0:
         _ext_debug("Non installed packages present at %s" % str(all_paths))
@@ -695,132 +847,29 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
             )
             package_name_to_path[package_name] = package_path
             base_depth = len(package_path.split("/"))
-            files_to_include = []
-            meta_module = None
-            for root, dirs, files in os.walk(package_path):
-                parts = root.split("/")
-                cur_depth = len(parts)
-                # relative_root strips out metaflow_extensions
-                relative_root = "/".join(parts[base_depth:])
-                relative_module = ".".join(parts[base_depth - 1 :])
-                files_to_include.extend(
-                    [
-                        "/".join([relative_root, f]) if relative_root else f
-                        for f in files
-                        if not any(
-                            [f.endswith(suffix) for suffix in EXT_EXCLUDE_SUFFIXES]
-                        )
-                    ]
-                )
-                if cur_depth == base_depth:
-                    if "__init__.py" in files:
-                        raise RuntimeError(
-                            "'%s' at '%s' is not an implicit namespace package as required"
-                            % (EXT_PKG, root)
-                        )
-                    for d in dirs:
-                        if d in init_ext_points:
-                            raise RuntimeError(
-                                "Package at '%s' should conform to' %s.X.%s' and not "
-                                "'%s.%s' where X is your organization's name for example"
-                                % (root, EXT_PKG, d, EXT_PKG, d)
-                            )
-                    # Check for meta files for this package
-                    meta_files = [
-                        x for x in map(EXT_META_REGEXP.match, files) if x is not None
-                    ]
-                    if meta_files:
-                        # We should have one meta file at most
-                        if len(meta_files) > 1:
-                            raise RuntimeError(
-                                "Package at '%s' defines more than one meta file: %s"
-                                % (
-                                    package_path,
-                                    ", and ".join(
-                                        ["'%s'" % x.group(0) for x in meta_files]
-                                    ),
-                                )
-                            )
-                        else:
-                            meta_module = ".".join(
-                                [relative_module, meta_files[0].group(0)[:-3]]
-                            )
+            state = {
+                "name": package_name,
+                "files": [],
+                "full_path_files": [],
+                "meta_module": None,
+            }
 
-                elif cur_depth > base_depth + 1:
-                    # We want at least a top-level name and something under
-                    tl_name = parts[base_depth]
-                    tl_fullname = "%s[%s]" % (package_path, tl_name)
-                    prefix_match = parts[base_depth + 1 :]
-                    for idx, ext_list in enumerate(list_ext_points):
-                        if prefix_match == ext_list:
-                            # We check to see if this is an actual extension point
-                            # or if we just have a directory on the way to another
-                            # extension point. To do this, we check to see if we have
-                            # any files or directories that are *not* directly another
-                            # extension point
-                            skip_extension = len(files) == 0
-                            if skip_extension:
-                                next_dir_idx = len(list_ext_points[idx])
-                                ok_subdirs = [
-                                    list_ext_points[j][next_dir_idx]
-                                    for j in range(0, idx)
-                                    if len(list_ext_points[j]) > next_dir_idx
-                                ]
-                                skip_extension = set(dirs).issubset(set(ok_subdirs))
+            for root, _, files in os.walk(package_path):
+                relative_root = "/".join(root.split("/")[base_depth - 1 :])
+                for f in files:
+                    process_file(state, package_path, os.path.join(relative_root, f))
 
-                            if skip_extension:
-                                _ext_debug(
-                                    "    Skipping '%s' as no files/directory of interest"
-                                    % _extension_points[idx]
-                                )
-                                continue
-
-                            # Check for any "init" files
-                            init_files = [
-                                x.group(0)
-                                for x in map(EXT_CONFIG_REGEXP.match, files)
-                                if x is not None
-                            ]
-                            if "__init__.py" in files:
-                                init_files.append("__init__.py")
-
-                            config_module = None
-                            if len(init_files) > 1:
-                                raise RuntimeError(
-                                    "Package at '%s' defines more than one configuration "
-                                    "file for '%s': %s"
-                                    % (
-                                        tl_fullname,
-                                        ".".join(prefix_match),
-                                        ", and ".join(["'%s'" % x for x in init_files]),
-                                    )
-                                )
-                            elif len(init_files) == 1:
-                                config_module = ".".join(
-                                    [relative_module, init_files[0][:-3]]
-                                )
-                                config_to_pkg[config_module].append(tl_fullname)
-
-                            d = extension_points_to_pkg[_extension_points[idx]][
-                                package_name
-                            ] = dict()
-                            d[tl_name] = MFExtPackage(
-                                package_name=package_name,
-                                tl_package=tl_name,
-                                config_module=config_module,
-                            )
-                            _ext_debug(
-                                "    Extends '%s' with config '%s'"
-                                % (_extension_points[idx], config_module)
-                            )
-            if files_to_include:
+            if state["files"]:
                 mf_pkg_list.append(package_name)
                 mf_ext_packages[package_name] = {
                     "root_paths": [package_path],
-                    "meta_module": meta_module,
-                    "files": files_to_include,
+                    "meta_module": state["meta_module"],
+                    "full_path_files": state["full_path_files"],
+                    "files": state["files"],
                     "version": "_local_",
                 }
+                # Always filter here since we don't have any distribution information
+                _filter_files_package(mf_ext_packages[package_name])
             else:
                 _ext_debug("Skipping package as no files found (empty dir?)")
 
@@ -879,9 +928,6 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
     return mf_ext_packages, extension_points_to_pkg
 
 
-_all_packages, _pkgs_per_extension_point = _get_extension_packages()
-
-
 def _attempt_load_module(module_name):
     try:
         extension_module = importlib.import_module(module_name)
@@ -903,6 +949,59 @@ def _attempt_load_module(module_name):
         return None
     else:
         return extension_module
+
+
+def _filter_files_package(pkg):
+    if pkg and pkg["root_paths"] and pkg["meta_module"]:
+        meta_module = _attempt_load_module(pkg["meta_module"])
+        if meta_module:
+            filter_function = meta_module.__dict__.get("filter_function")
+            include_suffixes = meta_module.__dict__.get("include_suffixes")
+            exclude_suffixes = meta_module.__dict__.get("exclude_suffixes")
+
+            # Behavior is as follows:
+            #  - if nothing specified, include all files (so do nothing here)
+            #  - if filter_function specified, call that function on the list of files
+            #    and only include the files where the function returns True. Note that
+            #    the function will always be passed a value that starts with
+            #    metaflow_extensions/...
+            #  - if include_suffixes, only include those suffixes
+            #  - if *not* include_suffixes but exclude_suffixes, include everything *except*
+            #    files ending with that suffix
+            if filter_function:
+                new_files, new_full_path_files = [], []
+                for short_file, full_file in zip(pkg["files"], pkg["full_path_files"]):
+                    try:
+                        if filter_function(os.path.join(EXT_PKG, short_file)):
+                            new_files.append(short_file)
+                            new_full_path_files.append(full_file)
+                    except Exception as e:
+                        _ext_debug(
+                            "        Exception '%s' when calling filter_function on "
+                            "'%s', ignoring file" % (e, short_file)
+                        )
+            elif include_suffixes:
+                for short_file, full_file in zip(pkg["files"], pkg["full_path_files"]):
+                    if any(
+                        [short_file.endswith(suffix) for suffix in include_suffixes]
+                    ):
+                        new_files.append(short_file)
+                        new_full_path_files.append(full_file)
+            elif exclude_suffixes:
+                for short_file, full_file in zip(pkg["files"], pkg["full_path_files"]):
+                    if not any(
+                        [short_file.endswith(suffix) for suffix in exclude_suffixes]
+                    ):
+                        new_files.append(short_file)
+                        new_full_path_files.append(full_file)
+            else:
+                new_files = pkg["files"]
+                new_full_path_files = pkg["full_path_files"]
+            pkg["files"] = new_files
+            pkg["full_path_files"] = new_full_path_files
+
+
+_all_packages, _pkgs_per_extension_point = _get_extension_packages()
 
 
 def _get_extension_config(distribution_name, tl_pkg, extension_point, config_module):
@@ -953,40 +1052,6 @@ def _get_extension_config(distribution_name, tl_pkg, extension_point, config_mod
             package_name=distribution_name, tl_package=tl_pkg, module=extension_module
         )
     return None
-
-
-def _filter_files_package(pkg):
-    if pkg and pkg["root_paths"] and pkg["meta_module"]:
-        meta_module = _attempt_load_module(pkg["meta_module"])
-        if meta_module:
-            include_suffixes = meta_module.__dict__.get("include_suffixes")
-            exclude_suffixes = meta_module.__dict__.get("exclude_suffixes")
-
-            # Behavior is as follows:
-            #  - if nothing specified, include all files (so do nothing here)
-            #  - if include_suffixes, only include those suffixes
-            #  - if *not* include_suffixes but exclude_suffixes, include everything *except*
-            #    files ending with that suffix
-            if include_suffixes:
-                new_files = [
-                    f
-                    for f in pkg["files"]
-                    if any([f.endswith(suffix) for suffix in include_suffixes])
-                ]
-            elif exclude_suffixes:
-                new_files = [
-                    f
-                    for f in pkg["files"]
-                    if not any([f.endswith(suffix) for suffix in exclude_suffixes])
-                ]
-            else:
-                new_files = pkg["files"]
-            pkg["files"] = new_files
-
-
-def _filter_files_all(all_packages):
-    for p in all_packages.values():
-        _filter_files_package(p)
 
 
 class _AliasLoader(Loader):
