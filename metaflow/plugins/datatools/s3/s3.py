@@ -1385,6 +1385,9 @@ class S3(object):
             except OSError as e:
                 if e.errno == errno.ENOSPC:
                     raise MetaflowS3InsufficientDiskSpace(str(e))
+            except MetaflowException as ex:
+                # Re-raise Metaflow exceptions (including TimeoutException)
+                raise
             except Exception as ex:
                 error = str(ex)
             if tmp:
