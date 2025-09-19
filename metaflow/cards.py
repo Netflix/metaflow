@@ -8,6 +8,7 @@ from metaflow.plugins.cards.card_modules.components import (
     Markdown,
     VegaChart,
     ProgressBar,
+    ValueBox,
     PythonCode,
 )
 from metaflow.plugins.cards.card_modules.basic import (
