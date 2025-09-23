@@ -4,6 +4,7 @@ import copy
 import random
 import time
 import hashlib
+import os
 
 try:
     unicode
@@ -19,7 +20,34 @@ class BatchClient(object):
     def __init__(self):
         from ..aws_client import get_aws_client
 
-        self._client = get_aws_client("batch")
+        # Prefer the task role by default when running inside AWS Batch containers
+        # by temporarily removing higher-precedence env credentials for this process.
+        # This avoids AMI-injected AWS_* env vars from overriding the task role.
+        # Outside of Batch, we leave env vars untouched unless explicitly opted-in.
+        if "AWS_BATCH_JOB_ID" in os.environ:
+            _aws_env_keys = [
+                "AWS_ACCESS_KEY_ID",
+                "AWS_SECRET_ACCESS_KEY",
+                "AWS_SESSION_TOKEN",
+                "AWS_PROFILE",
+                "AWS_DEFAULT_PROFILE",
+            ]
+            _present = [k for k in _aws_env_keys if k in os.environ]
+            print(
+                "[Metaflow] AWS credential-related env vars present before Batch client init:",
+                _present,
+            )
+            _saved_env = {
+                k: os.environ.pop(k) for k in _aws_env_keys if k in os.environ
+            }
+            try:
+                self._client = get_aws_client("batch")
+            finally:
+                # Restore prior env for the rest of the process
+                for k, v in _saved_env.items():
+                    os.environ[k] = v
+        else:
+            self._client = get_aws_client("batch")
 
     def active_job_queues(self):
         paginator = self._client.get_paginator("describe_job_queues")
@@ -404,6 +432,14 @@ class BatchJob(object):
 
         self.num_parallel = num_parallel or 0
         if self.num_parallel >= 1:
+            # Set the ulimit of number of open files to 65536. This is because we cannot set it easily once worker processes start on Batch.
+            # job_definition["containerProperties"]["linuxParameters"]["ulimits"] = [
+            #     {
+            #         "name": "nofile",
+            #         "softLimit": 65536,
+            #         "hardLimit": 65536,
+            #     }
+            # ]
             job_definition["type"] = "multinode"
             job_definition["nodeProperties"] = {
                 "numNodes": self.num_parallel,

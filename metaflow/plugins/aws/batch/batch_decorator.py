@@ -421,6 +421,89 @@ class BatchDecorator(StepDecorator):
         TIMEOUT = 600
         last_completion_timeout = time.time() + TIMEOUT
         print("Waiting for batch secondary tasks to finish")
+
+        # Prefer Batch API when metadata is local (nodes can't share local metadata files).
+        # If metadata isn't bound yet but we are on Batch, also prefer Batch API.
+        md = getattr(self, "metadata", None)
+        if md is not None and md.TYPE == "local":
+            return self._wait_for_mapper_tasks_batch_api(
+                flow, step_name, last_completion_timeout
+            )
+        if md is None and "AWS_BATCH_JOB_ID" in os.environ:
+            return self._wait_for_mapper_tasks_batch_api(
+                flow, step_name, last_completion_timeout
+            )
+        return self._wait_for_mapper_tasks_metadata(
+            flow, step_name, last_completion_timeout
+        )
+
+    def _wait_for_mapper_tasks_batch_api(
+        self, flow, step_name, last_completion_timeout
+    ):
+        """
+        Poll the shared datastore (S3) for DONE markers for each mapper task.
+        This avoids relying on a metadata service or local metadata files.
+        """
+        from metaflow.datastore.task_datastore import TaskDataStore
+
+        pathspecs = getattr(flow, "_control_mapper_tasks", [])
+        total = len(pathspecs)
+        if total == 0:
+            print("No mapper tasks discovered for datastore wait; returning")
+            return True
+
+        print("Waiting for mapper DONE markers in datastore for %d tasks" % total)
+        poll_sleep = 3.0
+        while last_completion_timeout > time.time():
+            time.sleep(poll_sleep)
+            completed = 0
+            for ps in pathspecs:
+                try:
+                    parts = ps.split("/")
+                    if len(parts) == 3:
+                        run_id, step, task_id = parts
+                    else:
+                        # Fallback in case of unexpected format
+                        run_id, step, task_id = self.run_id, step_name, parts[-1]
+                    tds = TaskDataStore(
+                        self.flow_datastore,
+                        run_id,
+                        step,
+                        task_id,
+                        mode="r",
+                        allow_not_done=True,
+                    )
+                    if tds.has_metadata(TaskDataStore.METADATA_DONE_SUFFIX):
+                        completed += 1
+                except Exception as e:
+                    if os.environ.get("METAFLOW_DEBUG_BATCH_POLL") in (
+                        "1",
+                        "true",
+                        "True",
+                    ):
+                        print("Datastore wait: error checking %s: %s" % (ps, e))
+                    continue
+            if completed == total:
+                print("All mapper tasks have written DONE markers to datastore")
+                return True
+            print(
+                "Waiting for mapper DONE markers. Finished: %d/%d" % (completed, total)
+            )
+            poll_sleep = min(poll_sleep * 1.25, 10.0)
+
+        raise Exception(
+            "Batch secondary workers did not finish in %s seconds (datastore wait)"
+            % (time.time() - (last_completion_timeout - 600))
+        )
+
+    def _wait_for_mapper_tasks_metadata(self, flow, step_name, last_completion_timeout):
+        """
+        Polls Metaflow metadata (Step client) for task completion.
+        Works with service-backed metadata providers but can fail with local metadata
+        in multi-node setups due to isolated per-node filesystems.
+        """
+        from metaflow import Step
+
         while last_completion_timeout > time.time():
             time.sleep(2)
             try:
@@ -441,7 +524,8 @@ class BatchDecorator(StepDecorator):
             except Exception:
                 pass
         raise Exception(
-            "Batch secondary workers did not finish in %s seconds" % TIMEOUT
+            "Batch secondary workers did not finish in %s seconds"
+            % (time.time() - (last_completion_timeout - 600))
         )
 
     @classmethod

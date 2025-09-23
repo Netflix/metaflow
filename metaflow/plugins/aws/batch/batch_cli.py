@@ -252,7 +252,9 @@ def step(
     num_parallel = num_parallel or 0
     step_kwargs = kwargs.copy()
     if num_parallel and num_parallel > 1:
-        step_kwargs["task_id"] = f"{kwargs['task_id']}[NODE-INDEX]"
+        # Pass task_id via an env var so shell can expand node index at runtime.
+        # Using a value starting with '$' prevents quoting in dict_to_cli_options.
+        step_kwargs["task_id"] = "$MF_TASK_ID_BASE[NODE-INDEX]"
 
     step_args = " ".join(util.dict_to_cli_options(step_kwargs))
     if num_parallel and num_parallel > 1:
@@ -317,6 +319,11 @@ def step(
     # Add the environment variables related to the input-paths argument
     if split_vars:
         env.update(split_vars)
+
+    # For multinode, provide the base task id to be expanded in the container
+    if num_parallel and num_parallel > 1:
+        # Ensure we don't carry a possible 'control-' prefix into worker IDs
+        env["MF_TASK_ID_BASE"] = str(kwargs["task_id"]).replace("control-", "")
 
     if retry_count:
         ctx.obj.echo_always(
