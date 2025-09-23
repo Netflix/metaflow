@@ -14,6 +14,7 @@
   import Table from "./table.svelte";
   import Text from "./text.svelte";
   import Title from "./title.svelte";
+  import ValueBox from "./value-box.svelte";
   import VegaChart from "./vega-chart.svelte";
   import PythonCode from "./python-code.svelte";
 
@@ -33,6 +34,7 @@
     table: Table,
     text: Text,
     title: Title,
+    valueBox: ValueBox,
     vegaChart: VegaChart,
     pythonCode: PythonCode,
   };

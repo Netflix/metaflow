@@ -34,6 +34,7 @@ export type TableDataCell =
   | MarkdownComponent
   | ProgressBarComponent
   | TextComponent
+  | ValueBoxComponent
   | VegaChartComponent
   | PythonCodeComponent;
 
@@ -201,6 +202,16 @@ export interface PythonCodeComponent {
   data: string;
 }
 
+export interface ValueBoxComponent {
+  type: "valueBox";
+  id?: string;
+  title?: string;
+  value: string | number;
+  subtitle?: string;
+  theme?: string; // CSS class for styling
+  change_indicator?: string; // e.g., "Up 30% VS PREVIOUS 30 DAYS"
+}
+
 export interface MarkdownComponent {
   type: "markdown";
   id?: string;
@@ -229,5 +240,6 @@ export type CardComponent =
   | TableComponent
   | TextComponent
   | TitleComponent
+  | ValueBoxComponent
   | VegaChartComponent
   | PythonCodeComponent;
