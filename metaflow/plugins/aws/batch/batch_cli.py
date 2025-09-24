@@ -294,7 +294,7 @@ def step(
                     value_from = s.get("value_from")
                     if isinstance(name, str) and isinstance(value_from, str):
                         container_secrets.append(
-                            {"name": name, "valueFrom": value_from}
+                            {"name": name, "value_from": value_from}
                         )
         except Exception:
             # best-effort only; ignore malformed entries silently to avoid breaking launches
