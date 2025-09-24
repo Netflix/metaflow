@@ -207,7 +207,7 @@ class BatchJob(object):
                 if not isinstance(item, dict):
                     continue
                 name = item.get("name")
-                value_from = item.get("value_from") or item.get("valueFrom")
+                value_from = item.get("value_from")
                 if isinstance(name, str) and isinstance(value_from, str):
                     norm.append({"name": name, "valueFrom": value_from})
             if norm:
