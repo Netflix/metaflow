@@ -162,6 +162,7 @@ class BatchJob(object):
         ephemeral_storage,
         log_driver,
         log_options,
+        container_secrets=None,
     ):
         # identify platform from any compute environment associated with the
         # queue
@@ -198,6 +199,19 @@ class BatchJob(object):
             # ECS tasks.
             "propagateTags": True,
         }
+
+        # Inject ECS secrets for container-start environment variables, if provided.
+        if container_secrets:
+            norm = []
+            for item in container_secrets:
+                if not isinstance(item, dict):
+                    continue
+                name = item.get("name")
+                value_from = item.get("value_from") or item.get("valueFrom")
+                if isinstance(name, str) and isinstance(value_from, str):
+                    norm.append({"name": name, "valueFrom": value_from})
+            if norm:
+                job_definition["containerProperties"]["secrets"] = norm
 
         log_options_dict = {}
         if log_options:
@@ -480,6 +494,7 @@ class BatchJob(object):
         ephemeral_storage,
         log_driver,
         log_options,
+        container_secrets=None,
     ):
         self.payload["jobDefinition"] = self._register_job_definition(
             image,
@@ -502,6 +517,7 @@ class BatchJob(object):
             ephemeral_storage,
             log_driver,
             log_options,
+            container_secrets,
         )
         return self
 

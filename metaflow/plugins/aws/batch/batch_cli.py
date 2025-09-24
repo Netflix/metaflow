@@ -281,6 +281,25 @@ def step(
     if env_deco:
         env.update(env_deco[0].attributes["vars"])
 
+    # Collect ECS-style container secrets from @secrets decorator, if any.
+    # These entries have shape: {"name": <ENV>, "value_from": <SecretsManager ARN>} (snake_case input),
+    # and will be injected at container startup by AWS Batch/ECS via job definition.
+    container_secrets = []
+    secrets_deco = [deco for deco in node.decorators if deco.name == "secrets"]
+    if secrets_deco:
+        try:
+            for s in secrets_deco[0].attributes.get("sources", []) or []:
+                if isinstance(s, dict):
+                    name = s.get("name")
+                    value_from = s.get("value_from")
+                    if isinstance(name, str) and isinstance(value_from, str):
+                        container_secrets.append(
+                            {"name": name, "valueFrom": value_from}
+                        )
+        except Exception:
+            # best-effort only; ignore malformed entries silently to avoid breaking launches
+            pass
+
     # Add the environment variables related to the input-paths argument
     if split_vars:
         env.update(split_vars)
@@ -348,6 +367,7 @@ def step(
                 log_driver=log_driver,
                 log_options=log_options,
                 num_parallel=num_parallel,
+                container_secrets=container_secrets,
             )
     except Exception:
         traceback.print_exc()
