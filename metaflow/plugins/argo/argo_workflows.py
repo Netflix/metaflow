@@ -19,6 +19,7 @@ from metaflow.metaflow_config import (
     ARGO_EVENTS_EVENT_BUS,
     ARGO_EVENTS_EVENT_SOURCE,
     ARGO_EVENTS_INTERNAL_WEBHOOK_URL,
+    ARGO_EVENTS_SENSOR_NAMESPACE,
     ARGO_EVENTS_SERVICE_ACCOUNT,
     ARGO_EVENTS_WEBHOOK_AUTH,
     ARGO_WORKFLOWS_CAPTURE_ERROR_SCRIPT,
@@ -71,6 +72,10 @@ from metaflow.util import resolve_identity
 
 class ArgoWorkflowsException(MetaflowException):
     headline = "Argo Workflows error"
+
+
+class ArgoWorkflowsSensorCleanupException(MetaflowException):
+    headline = "Argo Workflows sensor clean up error"
 
 
 class ArgoWorkflowsSchedulingException(MetaflowException):
@@ -186,6 +191,7 @@ class ArgoWorkflows(object):
         return str(self._workflow_template)
 
     def deploy(self):
+        self.cleanup_previous_sensors()
         try:
             # Register workflow template.
             ArgoClient(namespace=KUBERNETES_NAMESPACE).register_workflow_template(
@@ -193,6 +199,37 @@ class ArgoWorkflows(object):
             )
         except Exception as e:
             raise ArgoWorkflowsException(str(e))
+
+    def cleanup_previous_sensors(self):
+        try:
+            client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
+            # Check for existing deployment and do cleanup
+            old_template = client.get_workflow_template(self.name)
+            if not old_template:
+                return None
+            # Clean up old sensors
+            old_sensor_namespace = old_template["metadata"]["annotations"].get(
+                "metaflow/sensor_namespace"
+            )
+
+            if old_sensor_namespace is None:
+                # This workflow was created before sensor annotations
+                # and may have a sensor in the default namespace
+                # we will delete it and it'll get recreated if need be
+                old_sensor_name = ArgoWorkflows._sensor_name(self.name)
+                client.delete_sensor(old_sensor_name, client._namespace)
+            else:
+                # delete old sensor only if it was somewhere else, otherwise it'll get replaced
+                old_sensor_name = old_template["metadata"]["annotations"][
+                    "metaflow/sensor_name"
+                ]
+                if (
+                    not self._sensor
+                    or old_sensor_namespace != ARGO_EVENTS_SENSOR_NAMESPACE
+                ):
+                    client.delete_sensor(old_sensor_name, old_sensor_namespace)
+        except Exception as e:
+            raise ArgoWorkflowsSensorCleanupException(str(e))
 
     @staticmethod
     def _sanitize(name):
@@ -221,6 +258,20 @@ class ArgoWorkflows(object):
     def delete(name):
         client = ArgoClient(namespace=KUBERNETES_NAMESPACE)
 
+        # the workflow template might not exist, but we still want to try clean up associated sensors and schedules.
+        workflow_template = client.get_workflow_template(name) or {}
+        workflow_annotations = workflow_template.get("metadata", {}).get(
+            "annotations", {}
+        )
+
+        sensor_name = ArgoWorkflows._sensor_name(
+            workflow_annotations.get("metaflow/sensor_name", name)
+        )
+        # if below is missing then it was deployed before custom sensor namespaces
+        sensor_namespace = workflow_annotations.get(
+            "metaflow/sensor_namespace", KUBERNETES_NAMESPACE
+        )
+
         # Always try to delete the schedule. Failure in deleting the schedule should not
         # be treated as an error, due to any of the following reasons
         # - there might not have been a schedule, or it was deleted by some other means
@@ -230,7 +281,7 @@ class ArgoWorkflows(object):
 
         # The workflow might have sensors attached to it, which consume actual resources.
         # Try to delete these as well.
-        sensor_deleted = client.delete_sensor(ArgoWorkflows._sensor_name(name))
+        sensor_deleted = client.delete_sensor(sensor_name, sensor_namespace)
 
         # After cleaning up related resources, delete the workflow in question.
         # Failure in deleting is treated as critical and will be made visible to the user
@@ -399,11 +450,10 @@ class ArgoWorkflows(object):
             # Metaflow will overwrite any existing sensor.
             sensor_name = ArgoWorkflows._sensor_name(self.name)
             if self._sensor:
-                argo_client.register_sensor(sensor_name, self._sensor.to_json())
-            else:
-                # Since sensors occupy real resources, delete existing sensor if needed
-                # Deregister sensors that might have existed before this deployment
-                argo_client.delete_sensor(sensor_name)
+                # The new sensor will go into the sensor namespace specified
+                ArgoClient(namespace=ARGO_EVENTS_SENSOR_NAMESPACE).register_sensor(
+                    sensor_name, self._sensor.to_json(), ARGO_EVENTS_SENSOR_NAMESPACE
+                )
         except Exception as e:
             raise ArgoWorkflowsSchedulingException(str(e))
 
@@ -730,6 +780,7 @@ class ArgoWorkflows(object):
         # references to them within the DAGTask.
 
         annotations = {}
+
         if self._schedule is not None:
             # timezone is an optional field and json dumps on None will result in null
             # hence configuring it to an empty string
@@ -752,7 +803,9 @@ class ArgoWorkflows(object):
                             {key: trigger.get(key) for key in ["name", "type"]}
                             for trigger in self.triggers
                         ]
-                    )
+                    ),
+                    "metaflow/sensor_name": ArgoWorkflows._sensor_name(self.name),
+                    "metaflow/sensor_namespace": ARGO_EVENTS_SENSOR_NAMESPACE,
                 }
             )
         if self.notify_on_error:
@@ -931,7 +984,7 @@ class ArgoWorkflows(object):
         node_conditional_parents = {}
         node_conditional_branches = {}
 
-        def _visit(node, seen, conditional_branch, conditional_parents=None):
+        def _visit(node, conditional_branch, conditional_parents=None):
             if not node.type == "split-switch" and not (
                 conditional_branch and conditional_parents
             ):
@@ -940,7 +993,10 @@ class ArgoWorkflows(object):
 
             if node.type == "split-switch":
                 conditional_branch = conditional_branch + [node.name]
-                node_conditional_branches[node.name] = conditional_branch
+                c_br = node_conditional_branches.get(node.name, [])
+                node_conditional_branches[node.name] = c_br + [
+                    b for b in conditional_branch if b not in c_br
+                ]
 
                 conditional_parents = (
                     [node.name]
@@ -958,21 +1014,36 @@ class ArgoWorkflows(object):
             if conditional_parents and not node.type == "split-switch":
                 node_conditional_parents[node.name] = conditional_parents
                 conditional_branch = conditional_branch + [node.name]
-                node_conditional_branches[node.name] = conditional_branch
+                c_br = node_conditional_branches.get(node.name, [])
+                node_conditional_branches[node.name] = c_br + [
+                    b for b in conditional_branch if b not in c_br
+                ]
 
                 self.conditional_nodes.add(node.name)
 
             if conditional_branch and conditional_parents:
                 for n in node.out_funcs:
                     child = self.graph[n]
-                    if n not in seen:
-                        _visit(
-                            child, seen + [n], conditional_branch, conditional_parents
-                        )
+                    if child.name == node.name:
+                        continue
+                    _visit(child, conditional_branch, conditional_parents)
 
         # First we visit all nodes to determine conditional parents and branches
         for n in self.graph:
-            _visit(n, [], [])
+            _visit(n, [])
+
+        # helper to clean up conditional info for all children of a node, until a new split-switch is encountered.
+        def _cleanup_conditional_status(node_name, seen):
+            if self.graph[node_name].type == "split-switch":
+                # stop recursive cleanup if we hit a new split-switch
+                return
+            if node_name in self.conditional_nodes:
+                self.conditional_nodes.remove(node_name)
+            node_conditional_parents[node_name] = []
+            node_conditional_branches[node_name] = []
+            for p in self.graph[node_name].out_funcs:
+                if p not in seen:
+                    _cleanup_conditional_status(p, seen + [p])
 
         # Then we traverse again in order to determine conditional join nodes, and matching conditional join info
         for node in self.graph:
@@ -1005,14 +1076,44 @@ class ArgoWorkflows(object):
                     last_conditional_split_nodes = self.graph[
                         last_split_switch
                     ].out_funcs
-                    # p needs to be in at least one conditional_branch for it to be closed.
-                    if all(
-                        any(
-                            p in node_conditional_branches.get(in_func, [])
-                            for in_func in conditional_in_funcs
+                    # NOTE: How do we define a conditional join step?
+                    # The idea here is that we check if the conditional branches(e.g. chains of conditional steps leading to) of all the in_funcs
+                    # manage to tick off every step name that follows a split-switch
+                    # For example, consider the following structure
+                    # switch_step -> A, B, C
+                    # A -> A2 -> A3 -> A4 -> B2
+                    # B -> B2 -> B3 -> C3
+                    # C -> C2 -> C3 -> end
+                    #
+                    # if we look at the in_funcs for C3, they are (C2, B3)
+                    # B3 closes off branches started by A and B
+                    # C3 closes off branches started by C
+                    # therefore C3 is a conditional join step for the 'switch_step'
+                    # NOTE: Then what about a skip step?
+                    # some switch cases might not introduce any distinct steps of their own, opting to instead skip ahead to a later common step.
+                    # Example:
+                    # switch_step -> A, B, C
+                    # A -> A1 -> B2 -> C
+                    # B -> B1 -> B2 -> C
+                    #
+                    # In this case, C is a skip step as it does not add any conditional branching of its own.
+                    # C is also a conditional join, as it closes all branches started by 'switch_step'
+
+                    closes_branches = all(
+                        (
+                            # branch_root_node_name needs to be in at least one conditional_branch for it to be closed.
+                            any(
+                                branch_root_node_name
+                                in node_conditional_branches.get(in_func, [])
+                                for in_func in conditional_in_funcs
+                            )
+                            # need to account for a switch case skipping completely, not having a conditional-branch of its own.
+                            if branch_root_node_name != node.name
+                            else True
                         )
-                        for p in last_conditional_split_nodes
-                    ):
+                        for branch_root_node_name in last_conditional_split_nodes
+                    )
+                    if closes_branches:
                         closed_conditional_parents.append(last_split_switch)
 
                         self.conditional_join_nodes.add(node.name)
@@ -1026,25 +1127,45 @@ class ArgoWorkflows(object):
                     for p in node_conditional_parents.get(node.name, [])
                     if p not in closed_conditional_parents
                 ]:
-                    if node.name in self.conditional_nodes:
-                        self.conditional_nodes.remove(node.name)
-                    node_conditional_parents[node.name] = []
-                    for p in node.out_funcs:
-                        if p in self.conditional_nodes:
-                            self.conditional_nodes.remove(p)
-                        node_conditional_parents[p] = []
+                    _cleanup_conditional_status(node.name, [])
 
     def _is_conditional_node(self, node):
         return node.name in self.conditional_nodes
 
+    def _is_conditional_skip_node(self, node):
+        return (
+            self._is_conditional_node(node)
+            and any(
+                self.graph[in_func].type == "split-switch" for in_func in node.in_funcs
+            )
+            and len(
+                [
+                    in_func
+                    for in_func in node.in_funcs
+                    if self._is_conditional_node(self.graph[in_func])
+                    or self.graph[in_func].type == "split-switch"
+                ]
+            )
+            > 1
+        )
+
     def _is_conditional_join_node(self, node):
         return node.name in self.conditional_join_nodes
+
+    def _many_in_funcs_all_conditional(self, node):
+        cond_in_funcs = [
+            in_func
+            for in_func in node.in_funcs
+            if self._is_conditional_node(self.graph[in_func])
+        ]
+        return len(cond_in_funcs) > 1 and len(cond_in_funcs) == len(node.in_funcs)
 
     def _is_recursive_node(self, node):
         return node.name in self.recursive_nodes
 
     def _matching_conditional_join(self, node):
-        return self.matching_conditional_join_dict.get(node.name, None)
+        # If no earlier conditional join step is found during parsing, then 'end' is always one.
+        return self.matching_conditional_join_dict.get(node.name, "end")
 
     # Visit every node and yield the uber DAGTemplate(s).
     def _dag_templates(self):
@@ -1224,12 +1345,24 @@ class ArgoWorkflows(object):
                     "%s.Succeeded" % self._sanitize(in_func)
                     for in_func in node.in_funcs
                     if self._is_conditional_node(self.graph[in_func])
+                    or self.graph[in_func].type == "split-switch"
                 ]
                 required_deps = [
                     "%s.Succeeded" % self._sanitize(in_func)
                     for in_func in node.in_funcs
                     if not self._is_conditional_node(self.graph[in_func])
+                    and self.graph[in_func].type != "split-switch"
                 ]
+                if self._is_conditional_skip_node(
+                    node
+                ) or self._many_in_funcs_all_conditional(node):
+                    # skip nodes need unique condition handling
+                    conditional_deps = [
+                        "%s.Succeeded" % self._sanitize(in_func)
+                        for in_func in node.in_funcs
+                    ]
+                    required_deps = []
+
                 both_conditions = required_deps and conditional_deps
 
                 depends_str = "{required}{_and}{conditional}".format(
@@ -1247,15 +1380,45 @@ class ArgoWorkflows(object):
                 )
 
                 # Add conditional if this is the first step in a conditional branch
+                switch_in_funcs = [
+                    in_func
+                    for in_func in node.in_funcs
+                    if self.graph[in_func].type == "split-switch"
+                ]
                 if (
                     self._is_conditional_node(node)
-                    and self.graph[node.in_funcs[0]].type == "split-switch"
-                ):
-                    in_func = node.in_funcs[0]
-                    dag_task.when(
-                        "{{tasks.%s.outputs.parameters.switch-step}}==%s"
-                        % (self._sanitize(in_func), node.name)
+                    or self._is_conditional_skip_node(node)
+                    or self._is_conditional_join_node(node)
+                ) and switch_in_funcs:
+                    conditional_when = "||".join(
+                        [
+                            "{{tasks.%s.outputs.parameters.switch-step}}==%s"
+                            % (self._sanitize(switch_in_func), node.name)
+                            for switch_in_func in switch_in_funcs
+                        ]
                     )
+
+                    non_switch_in_funcs = [
+                        in_func
+                        for in_func in node.in_funcs
+                        if in_func not in switch_in_funcs
+                    ]
+                    status_when = ""
+                    if non_switch_in_funcs:
+                        status_when = "||".join(
+                            [
+                                "{{tasks.%s.status}}==Succeeded"
+                                % self._sanitize(in_func)
+                                for in_func in non_switch_in_funcs
+                            ]
+                        )
+
+                    total_when = (
+                        f"({status_when}) || ({conditional_when})"
+                        if status_when
+                        else conditional_when
+                    )
+                    dag_task.when(total_when)
 
             dag_tasks.append(dag_task)
             # End the workflow if we have reached the end of the flow
@@ -1699,7 +1862,11 @@ class ArgoWorkflows(object):
                 input_paths_expr = (
                     "export INPUT_PATHS={{inputs.parameters.input-paths}}"
                 )
-                if self._is_conditional_join_node(node):
+                if (
+                    self._is_conditional_join_node(node)
+                    or self._many_in_funcs_all_conditional(node)
+                    or self._is_conditional_skip_node(node)
+                ):
                     # NOTE: Argo template expressions that fail to resolve, output the expression itself as a value.
                     # With conditional steps, some of the input-paths are therefore 'broken' due to containing a nil expression
                     # e.g. "{{ tasks['A'].outputs.parameters.task-id }}" when task A never executed.
@@ -1879,20 +2046,33 @@ class ArgoWorkflows(object):
                 )
                 input_paths = "%s/_parameters/%s" % (run_id, task_id_params)
             # Only for static joins and conditional_joins
-            elif self._is_conditional_join_node(node) and not (
+            elif (
+                self._is_conditional_join_node(node)
+                or self._many_in_funcs_all_conditional(node)
+                or self._is_conditional_skip_node(node)
+            ) and not (
                 node.type == "join"
                 and self.graph[node.split_parents[-1]].type == "foreach"
             ):
+                # we need to pass in the set of conditional in_funcs to the pathspec generating script as in the case of split-switch skipping cases,
+                # non-conditional input-paths need to be ignored in favour of conditional ones when they have executed.
+                skippable_input_steps = ",".join(
+                    [
+                        in_func
+                        for in_func in node.in_funcs
+                        if self.graph[in_func].type == "split-switch"
+                    ]
+                )
                 input_paths = (
-                    "$(python -m metaflow.plugins.argo.conditional_input_paths %s)"
-                    % input_paths
+                    "$(python -m metaflow.plugins.argo.conditional_input_paths %s %s)"
+                    % (input_paths, skippable_input_steps)
                 )
             elif (
                 node.type == "join"
                 and self.graph[node.split_parents[-1]].type == "foreach"
             ):
                 # foreach-joins straight out of conditional branches are not yet supported
-                if self._is_conditional_join_node(node):
+                if self._is_conditional_join_node(node) and len(node.in_funcs) > 1:
                     raise ArgoWorkflowsException(
                         "Conditional steps inside a foreach that transition directly into a join step are not currently supported.\n"
                         "As a workaround, add a common step after the conditional steps %s "
@@ -3521,7 +3701,7 @@ class ArgoWorkflows(object):
                 # Sensor metadata.
                 ObjectMeta()
                 .name(ArgoWorkflows._sensor_name(self.name))
-                .namespace(KUBERNETES_NAMESPACE)
+                .namespace(ARGO_EVENTS_SENSOR_NAMESPACE)
                 .labels(self._base_labels)
                 .label("app.kubernetes.io/name", "metaflow-sensor")
                 .annotations(self._base_annotations)

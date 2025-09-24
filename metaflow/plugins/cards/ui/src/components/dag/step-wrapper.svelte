@@ -43,7 +43,11 @@
         if (nextStep === 'end') {
           connections.push("end");
         } else {
-          connections.push(fullStepPath + "/" + nextStep)
+          if (nextStep === stepName) {
+            connections.push(fullStepPath)
+          } else {
+            connections.push(fullStepPath + "/" + nextStep)
+          }
         }
       }
     }
@@ -85,7 +89,9 @@
       <div class="gap" />
       <div class="childwrapper">
         {#each currentStep.next as nextStepName}
-          {#if steps[nextStepName].type !== 'join' && nextStepName !== 'end'}
+          {#if nextStepName === stepName}
+            <!-- noop -->
+          {:else if steps[nextStepName].type !== 'join' && nextStepName !== 'end'}
             <svelte:self
               {steps}
               stepName={nextStepName}

@@ -760,6 +760,7 @@ class NativeRuntime(object):
         self, task, next_step, type, split_index=None, loop_mode=LoopBehavior.NONE
     ):
         match = re.match(r"^(.+)\[(.*)\]\[(.*)\]$", task.task_index)
+        old_match = re.match(r"^(.+)\[(.*)\]$", task.task_index)
         if match:
             _, foreach_index, iteration_index = match.groups()
             # Convert foreach_index to a list of integers
@@ -772,6 +773,15 @@ class NativeRuntime(object):
                 iteration_index = iteration_index.split(",")
             else:
                 iteration_index = []
+        elif old_match:
+            _, foreach_index = old_match.groups()
+            # Convert foreach_index to a list of integers
+            if len(foreach_index) > 0:
+                foreach_index = foreach_index.split(",")
+            else:
+                foreach_index = []
+            # Legacy case fallback. No iteration index exists for these runs.
+            iteration_index = []
         else:
             raise ValueError(
                 "Index not in the format of {run_id}/{step_name}[{foreach_index}][{iteration_index}]"
@@ -1683,7 +1693,9 @@ class Task(object):
         foreach_stack_tuple = tuple(
             [s._replace(value=0) for s in self.results["_foreach_stack"]]
         )
-        return (self.step, foreach_stack_tuple, tuple(self.results["_iteration_stack"]))
+        # _iteration_stack requires a fallback, as it does not exist for runs before v2.17.4
+        iteration_stack_tuple = tuple(self.results.get("_iteration_stack", []))
+        return (self.step, foreach_stack_tuple, iteration_stack_tuple)
 
     @property
     def is_cloned(self):

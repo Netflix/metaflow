@@ -18,6 +18,7 @@ SERVICE_OPTIONS=(
     "ui"
     "argo-workflows"
     "argo-events"
+    "jobset"
 )
 
 gum style "$LOGO" \

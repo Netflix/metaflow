@@ -753,6 +753,234 @@ class ProgressBar(UserComponent):
         return data
 
 
+class ValueBox(UserComponent):
+    """
+    A Value Box component for displaying key metrics with styling and change indicators.
+
+    Inspired by Shiny's value box component, this displays a primary value with optional
+    title, subtitle, theme, and change indicators.
+
+    Example:
+    ```
+    # Basic value box
+    value_box = ValueBox(
+        title="Revenue",
+        value="$1.2M",
+        subtitle="Monthly Revenue",
+        change_indicator="Up 15% from last month"
+    )
+    current.card.append(value_box)
+
+    # Themed value box
+    value_box = ValueBox(
+        title="Total Savings",
+        value=50000,
+        theme="success",
+        change_indicator="Up 30% from last month"
+    )
+    current.card.append(value_box)
+
+    # Updatable value box for real-time metrics
+    metrics_box = ValueBox(
+        title="Processing Progress",
+        value=0,
+        subtitle="Items processed"
+    )
+    current.card.append(metrics_box)
+
+    for i in range(1000):
+        metrics_box.update(value=i, change_indicator=f"Rate: {i*2}/sec")
+    ```
+
+    Parameters
+    ----------
+    title : str, optional
+        The title/label for the value box (usually displayed above the value).
+        Must be 200 characters or less.
+    value : Union[str, int, float]
+        The main value to display prominently. Required parameter.
+    subtitle : str, optional
+        Additional descriptive text displayed below the title.
+        Must be 300 characters or less.
+    theme : str, optional
+        CSS class name for styling the value box. Supported themes: 'default', 'success',
+        'warning', 'danger', 'bg-gradient-indigo-purple'. Custom themes must be valid CSS class names.
+    change_indicator : str, optional
+        Text indicating change or additional context (e.g., "Up 30% VS PREVIOUS 30 DAYS").
+        Must be 200 characters or less.
+    """
+
+    type = "valueBox"
+
+    REALTIME_UPDATABLE = True
+
+    # Valid built-in themes
+    VALID_THEMES = {
+        "default",
+        "success",
+        "warning",
+        "danger",
+        "bg-gradient-indigo-purple",
+    }
+
+    def __init__(
+        self,
+        title: Optional[str] = None,
+        value: Union[str, int, float] = "",
+        subtitle: Optional[str] = None,
+        theme: Optional[str] = None,
+        change_indicator: Optional[str] = None,
+    ):
+        # Validate inputs
+        self._validate_title(title)
+        self._validate_value(value)
+        self._validate_subtitle(subtitle)
+        self._validate_theme(theme)
+        self._validate_change_indicator(change_indicator)
+
+        self._title = title
+        self._value = value
+        self._subtitle = subtitle
+        self._theme = theme
+        self._change_indicator = change_indicator
+
+    def update(
+        self,
+        title: Optional[str] = None,
+        value: Optional[Union[str, int, float]] = None,
+        subtitle: Optional[str] = None,
+        theme: Optional[str] = None,
+        change_indicator: Optional[str] = None,
+    ):
+        """
+        Update the value box with new data.
+
+        Parameters
+        ----------
+        title : str, optional
+            New title for the value box.
+        value : Union[str, int, float], optional
+            New value to display.
+        subtitle : str, optional
+            New subtitle text.
+        theme : str, optional
+            New theme/styling class.
+        change_indicator : str, optional
+            New change indicator text.
+        """
+        if title is not None:
+            self._validate_title(title)
+            self._title = title
+        if value is not None:
+            self._validate_value(value)
+            self._value = value
+        if subtitle is not None:
+            self._validate_subtitle(subtitle)
+            self._subtitle = subtitle
+        if theme is not None:
+            self._validate_theme(theme)
+            self._theme = theme
+        if change_indicator is not None:
+            self._validate_change_indicator(change_indicator)
+            self._change_indicator = change_indicator
+
+    def _validate_title(self, title: Optional[str]) -> None:
+        """Validate title parameter."""
+        if title is not None:
+            if not isinstance(title, str):
+                raise TypeError(f"Title must be a string, got {type(title).__name__}")
+            if len(title) > 200:
+                raise ValueError(
+                    f"Title must be 200 characters or less, got {len(title)} characters"
+                )
+            if not title.strip():
+                raise ValueError("Title cannot be empty or whitespace only")
+
+    def _validate_value(self, value: Union[str, int, float]) -> None:
+        """Validate value parameter."""
+        if value is None:
+            raise ValueError("Value is required and cannot be None")
+        if not isinstance(value, (str, int, float)):
+            raise TypeError(
+                f"Value must be str, int, or float, got {type(value).__name__}"
+            )
+        if isinstance(value, str):
+            if len(value) > 100:
+                raise ValueError(
+                    f"String value must be 100 characters or less, got {len(value)} characters"
+                )
+            if not value.strip():
+                raise ValueError("String value cannot be empty or whitespace only")
+        if isinstance(value, (int, float)):
+            if not (-1e15 <= value <= 1e15):
+                raise ValueError(
+                    f"Numeric value must be between -1e15 and 1e15, got {value}"
+                )
+
+    def _validate_subtitle(self, subtitle: Optional[str]) -> None:
+        """Validate subtitle parameter."""
+        if subtitle is not None:
+            if not isinstance(subtitle, str):
+                raise TypeError(
+                    f"Subtitle must be a string, got {type(subtitle).__name__}"
+                )
+            if len(subtitle) > 300:
+                raise ValueError(
+                    f"Subtitle must be 300 characters or less, got {len(subtitle)} characters"
+                )
+            if not subtitle.strip():
+                raise ValueError("Subtitle cannot be empty or whitespace only")
+
+    def _validate_theme(self, theme: Optional[str]) -> None:
+        """Validate theme parameter."""
+        if theme is not None:
+            if not isinstance(theme, str):
+                raise TypeError(f"Theme must be a string, got {type(theme).__name__}")
+            if not theme.strip():
+                raise ValueError("Theme cannot be empty or whitespace only")
+            # Allow custom themes but warn if not in valid set
+            if theme not in self.VALID_THEMES:
+                import re
+
+                # Basic CSS class name validation
+                if not re.match(r"^[a-zA-Z][a-zA-Z0-9_-]*$", theme):
+                    raise ValueError(
+                        f"Theme must be a valid CSS class name, got '{theme}'"
+                    )
+
+    def _validate_change_indicator(self, change_indicator: Optional[str]) -> None:
+        """Validate change_indicator parameter."""
+        if change_indicator is not None:
+            if not isinstance(change_indicator, str):
+                raise TypeError(
+                    f"Change indicator must be a string, got {type(change_indicator).__name__}"
+                )
+            if len(change_indicator) > 200:
+                raise ValueError(
+                    f"Change indicator must be 200 characters or less, got {len(change_indicator)} characters"
+                )
+            if not change_indicator.strip():
+                raise ValueError("Change indicator cannot be empty or whitespace only")
+
+    @with_default_component_id
+    @render_safely
+    def render(self):
+        data = {
+            "type": self.type,
+            "id": self.component_id,
+            "value": self._value,
+        }
+        if self._title is not None:
+            data["title"] = self._title
+        if self._subtitle is not None:
+            data["subtitle"] = self._subtitle
+        if self._theme is not None:
+            data["theme"] = self._theme
+        if self._change_indicator is not None:
+            data["change_indicator"] = self._change_indicator
+        return data
+
+
 class VegaChart(UserComponent):
     type = "vegaChart"
 

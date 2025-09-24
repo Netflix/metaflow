@@ -107,7 +107,7 @@ used or copied elsewhere prior to termination of the `with` scope.
 The content addressed store also handles content as bytes but performs two
 additional operations:
  - de-duplicates data based on the content of the data (in other words, two
-   identical blobs of data will only be stored once
+   identical blobs of data will only be stored once)
  - transforms the data prior to storing; we currently only compress the data but
    other operations are possible.
    
@@ -188,7 +188,7 @@ determines internally.
 The `FlowDataStore` class doesn't do much except give access to `TaskDataStore`
 (in effect, it creates the `TaskDataStore` objects to use) and also allows
 files to be stored in the `ContentAddressedStore` directly. This is used to
-store, for example, code packages. File stored using the `save_data` method
+store, for example, code packages. Files stored using the `save_data` method
 are stored in `raw` format (as in, they are not further compressed). They will,
 however, still be de-duped.
 

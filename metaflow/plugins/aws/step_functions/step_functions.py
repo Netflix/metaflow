@@ -50,12 +50,14 @@ class StepFunctions(object):
         event_logger,
         monitor,
         tags=None,
+        aws_batch_tags=None,
         namespace=None,
         username=None,
         max_workers=None,
         workflow_timeout=None,
         is_project=False,
         use_distributed_map=False,
+        compress_state_machine=False,
     ):
         self.name = name
         self.graph = graph
@@ -70,6 +72,7 @@ class StepFunctions(object):
         self.event_logger = event_logger
         self.monitor = monitor
         self.tags = tags
+        self.aws_batch_tags = aws_batch_tags or {}
         self.namespace = namespace
         self.username = username
         self.max_workers = max_workers
@@ -78,6 +81,9 @@ class StepFunctions(object):
 
         # https://aws.amazon.com/blogs/aws/step-functions-distributed-map-a-serverless-solution-for-large-scale-parallel-data-processing/
         self.use_distributed_map = use_distributed_map
+
+        # S3 command upload configuration
+        self.compress_state_machine = compress_state_machine
 
         self._client = StepFunctionsClient()
         self._workflow = self._compile()
@@ -194,6 +200,7 @@ class StepFunctions(object):
                 "on AWS Step Functions. Please "
                 "deploy your flow first." % name
             )
+
         # Dump parameters into `Parameters` input field.
         input = json.dumps({"Parameters": json.dumps(parameters)})
         # AWS Step Functions limits input to be 32KiB, but AWS Batch
@@ -852,9 +859,10 @@ class StepFunctions(object):
             # AWS_BATCH_JOB_ATTEMPT as the job counter.
             "retry_count": "$((AWS_BATCH_JOB_ATTEMPT-1))",
         }
-
+        # merge batch tags supplied through step-fuctions CLI and ones defined in decorator
+        batch_tags = {**self.aws_batch_tags, **resources["aws_batch_tags"]}
         return (
-            Batch(self.metadata, self.environment)
+            Batch(self.metadata, self.environment, self.flow_datastore)
             .create_job(
                 step_name=node.name,
                 step_cli=self._step_cli(
@@ -878,6 +886,7 @@ class StepFunctions(object):
                 swappiness=resources["swappiness"],
                 efa=resources["efa"],
                 use_tmpfs=resources["use_tmpfs"],
+                aws_batch_tags=batch_tags,
                 tmpfs_tempdir=resources["tmpfs_tempdir"],
                 tmpfs_size=resources["tmpfs_size"],
                 tmpfs_path=resources["tmpfs_path"],
@@ -889,6 +898,7 @@ class StepFunctions(object):
                 ephemeral_storage=resources["ephemeral_storage"],
                 log_driver=resources["log_driver"],
                 log_options=resources["log_options"],
+                offload_command_to_s3=self.compress_state_machine,
             )
             .attempts(total_retries + 1)
         )

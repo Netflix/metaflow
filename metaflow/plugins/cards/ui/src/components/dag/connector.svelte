@@ -13,6 +13,7 @@
   let width: number;
   let height: number;
   let straightLine = false;
+  let isLoop = false;
 
   $: {
     shouldFlip = right - left < 0;
@@ -35,6 +36,12 @@
       width = Math.abs(right - left);
     }
     height = bottom - top;
+    
+    if (height < 0) {
+      isLoop = true;
+      height = 5.5;
+      width = 10.25;
+    }
   }
 </script>
 
@@ -43,7 +50,9 @@
   class:flip={shouldFlip}
   style="top: {top}rem; left: {left}rem; width: {width}rem; height: {height}rem;"
 >
-  {#if straightLine}
+  {#if isLoop}
+    <div class="path loop" />
+  {:else if straightLine}
     <div class="path straightLine" />
   {:else}
     <div class="path topLeft" />
@@ -78,6 +87,17 @@
     left: 0;
     right: 0;
     border-left: var(--strokeWidth) solid var(--strokeColor);
+  }
+
+  .loop {
+    position: absolute;
+    top: -50%;
+    left: 0;
+    width: 100%;
+    height: 100%;
+
+    border-radius: var(--borderRadius);
+    border: var(--strokeWidth) solid var(--strokeColor);
   }
 
   .topLeft {

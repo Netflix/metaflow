@@ -10,6 +10,7 @@ from metaflow.metaflow_config import (
     FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
     SERVICE_VERSION_CHECK,
     SFN_STATE_MACHINE_PREFIX,
+    SFN_COMPRESS_STATE_MACHINE,
     UI_URL,
 )
 from metaflow.package import MetaflowPackage
@@ -19,6 +20,8 @@ from metaflow.util import get_username, to_bytes, to_unicode, version_parse
 
 from .production_token import load_token, new_token, store_token
 from .step_functions import StepFunctions
+from metaflow.tagging_util import validate_tags
+from ..aws_utils import validate_aws_tag
 
 VALID_NAME = re.compile(r"[^a-zA-Z0-9_\-\.]")
 
@@ -98,6 +101,13 @@ def step_functions(obj, name=None):
     "times to attach multiple tags.",
 )
 @click.option(
+    "--aws-batch-tag",
+    "aws_batch_tags",
+    multiple=True,
+    default=None,
+    help="AWS Batch tags.",
+)
+@click.option(
     "--namespace",
     "user_namespace",
     default=None,
@@ -132,6 +142,12 @@ def step_functions(obj, name=None):
     "defining foreach tasks in Amazon State Language.",
 )
 @click.option(
+    "--compress-state-machine/--no-compress-state-machine",
+    is_flag=True,
+    default=SFN_COMPRESS_STATE_MACHINE,
+    help="Compress AWS Step Functions state machine to fit within the 8K limit.",
+)
+@click.option(
     "--deployer-attribute-file",
     default=None,
     show_default=True,
@@ -143,6 +159,7 @@ def step_functions(obj, name=None):
 def create(
     obj,
     tags=None,
+    aws_batch_tags=None,
     user_namespace=None,
     only_json=False,
     authorize=None,
@@ -152,6 +169,7 @@ def create(
     workflow_timeout=None,
     log_execution_history=False,
     use_distributed_map=False,
+    compress_state_machine=False,
     deployer_attribute_file=None,
 ):
     for node in obj.graph:
@@ -196,11 +214,13 @@ def create(
         token,
         obj.state_machine_name,
         tags,
+        aws_batch_tags,
         user_namespace,
         max_workers,
         workflow_timeout,
         obj.is_project,
         use_distributed_map,
+        compress_state_machine,
     )
 
     if only_json:
@@ -315,11 +335,13 @@ def make_flow(
     token,
     name,
     tags,
+    aws_batch_tags,
     namespace,
     max_workers,
     workflow_timeout,
     is_project,
     use_distributed_map,
+    compress_state_machine=False,
 ):
     if obj.flow_datastore.TYPE != "s3":
         raise MetaflowException("AWS Step Functions requires --datastore=s3.")
@@ -348,6 +370,15 @@ def make_flow(
             [obj.package.blob], len_hint=1
         )[0]
 
+    if aws_batch_tags is not None:
+        batch_tags = {}
+        for item in list(aws_batch_tags):
+            key, value = item.split("=")
+            # These are fresh AWS tags provided by the user through the CLI,
+            # so we must validate them.
+            validate_aws_tag(key, value)
+            batch_tags[key] = value
+
     return StepFunctions(
         name,
         obj.graph,
@@ -362,12 +393,14 @@ def make_flow(
         obj.event_logger,
         obj.monitor,
         tags=tags,
+        aws_batch_tags=batch_tags,
         namespace=namespace,
         max_workers=max_workers,
         username=get_username(),
         workflow_timeout=workflow_timeout,
         is_project=is_project,
         use_distributed_map=use_distributed_map,
+        compress_state_machine=compress_state_machine,
     )
 
 

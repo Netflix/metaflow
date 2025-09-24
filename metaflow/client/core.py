@@ -303,7 +303,7 @@ class MetaflowObject(object):
             # distinguish between "attempt will happen" and "no such
             # attempt exists".
 
-        if pathspec:
+        if pathspec and _object is None:
             ids = pathspec.split("/")
 
             if self._NAME == "flow" and len(ids) != 1:
@@ -839,6 +839,7 @@ class MetaflowCode(object):
             self._code_obj.seek(0)
         else:
             raise MetaflowInternalError("Code package metadata is invalid.")
+        self._tarball = None
 
     @property
     def path(self) -> str:
@@ -886,10 +887,13 @@ class MetaflowCode(object):
         TarFile
             TarFile for everything in this code package
         """
+        # We only return one tarball because the different TarFile objects share
+        # a common bytes buffer (self._code_obj).
+        if self._tarball is not None:
+            return self._tarball
         if self._backend.type == "tgz":
-            to_return = self._backend.cls_open(self._code_obj)
-            self._code_obj.seek(0)
-            return to_return
+            self._tarball = self._backend.cls_open(self._code_obj)
+            return self._tarball
         raise RuntimeError("Archive is not a tarball")
 
     def extract(self) -> TemporaryDirectory:
@@ -922,10 +926,14 @@ class MetaflowCode(object):
             this object is garbage collected.
         """
         tmp = TemporaryDirectory()
+        # We save the position we are in _code_obj -- in case tarball is using it at
+        # the same time -- so we can reset it to not perturb tarball.
+        pos = self._code_obj.tell()
+        self._code_obj.seek(0)
         MetaflowPackage.cls_extract_into(
             self._code_metadata, self._code_obj, tmp.name, ContentType.USER_CONTENT
         )
-        self._code_obj.seek(0)
+        self._code_obj.seek(pos)
         return tmp
 
     @property

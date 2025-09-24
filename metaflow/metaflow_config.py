@@ -314,6 +314,8 @@ SERVICE_INTERNAL_URL = from_conf("SERVICE_INTERNAL_URL", SERVICE_URL)
 # in all Metaflow deployments. Hopefully, some day we can flip the
 # default to True.
 BATCH_EMIT_TAGS = from_conf("BATCH_EMIT_TAGS", False)
+# Default tags to add to AWS Batch jobs. These are in addition to the defaults set when BATCH_EMIT_TAGS is true.
+BATCH_DEFAULT_TAGS = from_conf("BATCH_DEFAULT_TAGS", {})
 
 ###
 # AWS Step Functions configuration
@@ -342,6 +344,8 @@ SFN_S3_DISTRIBUTED_MAP_OUTPUT_PATH = from_conf(
         else None
     ),
 )
+# Toggle for step command being part of the Step Function payload, or if it should be offloaded to S3
+SFN_COMPRESS_STATE_MACHINE = from_conf("SFN_COMPRESS_STATE_MACHINE", False)
 ###
 # Kubernetes configuration
 ###
@@ -407,6 +411,9 @@ ARGO_EVENTS_INTERNAL_WEBHOOK_URL = from_conf(
     "ARGO_EVENTS_INTERNAL_WEBHOOK_URL", ARGO_EVENTS_WEBHOOK_URL
 )
 ARGO_EVENTS_WEBHOOK_AUTH = from_conf("ARGO_EVENTS_WEBHOOK_AUTH", "none")
+ARGO_EVENTS_SENSOR_NAMESPACE = from_conf(
+    "ARGO_EVENTS_SENSOR_NAMESPACE", KUBERNETES_NAMESPACE
+)
 
 ARGO_WORKFLOWS_UI_URL = from_conf("ARGO_WORKFLOWS_UI_URL")
 
