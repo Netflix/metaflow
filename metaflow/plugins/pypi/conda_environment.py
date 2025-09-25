@@ -15,7 +15,7 @@ from urllib.parse import unquote, urlparse
 
 from metaflow.debug import debug
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import get_pinned_conda_libs
+from metaflow.metaflow_config import get_pinned_conda_libs, get_pinned_pypi_only_libs
 from metaflow.metaflow_environment import MetaflowEnvironment
 from metaflow.packaging_sys import ContentType
 
@@ -351,7 +351,7 @@ class CondaEnvironment(MetaflowEnvironment):
         # TODO: Introduce support for `--telemetry` as a follow up.
         # Certain packages are required for metaflow runtime to function correctly.
         # Ensure these packages are available both in Conda channels and PyPI
-        # repostories.
+        # repositories.
         pinned_packages = get_pinned_conda_libs(env_python, self.datastore_type)
 
         # PyPI dependencies are prioritized over Conda dependencies.
@@ -359,6 +359,17 @@ class CondaEnvironment(MetaflowEnvironment):
             **pinned_packages,
             **environment.get("pypi", environment["conda"])["packages"],
         }
+
+        # Add PyPI-only packages if we're using PyPI
+        if "pypi" in environment:
+            pypi_only_packages = get_pinned_pypi_only_libs(
+                env_python, self.datastore_type
+            )
+            environment["pypi"]["packages"] = {
+                **pypi_only_packages,
+                **environment["pypi"]["packages"],  # User packages override
+            }
+
         # Disallow specifying both @conda and @pypi together for now. Mixing Conda
         # and PyPI packages comes with a lot of operational pain that we can handle
         # as follow-up work in the future.

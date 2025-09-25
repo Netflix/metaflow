@@ -548,6 +548,7 @@ CLICK_API_PROCESS_CONFIG = from_conf("CLICK_API_PROCESS_CONFIG", False)
 
 # PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution
 # and are needed within a conda environment
+# NOTE: These packages should be available on both conda and pypi
 def get_pinned_conda_libs(python_version, datastore_type):
     pins = {
         "requests": ">=2.21.0",
@@ -571,6 +572,17 @@ def get_pinned_conda_libs(python_version, datastore_type):
             msg="conda lib pins for datastore %s are undefined" % (datastore_type,)
         )
     return pins
+
+
+# PINNED_PYPI_ONLY_LIBS are libraries that can only be installed via PyPI
+# (not conda). These are typically internal/proprietary packages.
+# Only used in metaflow extensions for now.
+def get_pinned_pypi_only_libs(python_version, datastore_type):
+    """
+    Return libraries that should only be installed via PyPI (not conda).
+    These are typically internal/proprietary packages.
+    """
+    return {}
 
 
 # Check if there are extensions to Metaflow to load and override everything
@@ -602,6 +614,19 @@ try:
                     return d1
 
                 globals()[n] = _new_get_pinned_conda_libs
+            elif n == "get_pinned_pypi_only_libs":
+
+                def _new_get_pinned_pypi_only_libs(
+                    python_version, datastore_type, f1=globals()[n], f2=o
+                ):
+                    d1 = f1(python_version, datastore_type)
+                    d2 = f2(python_version, datastore_type)
+                    for k, v in d2.items():
+                        d1[k] = v if k not in d1 else ",".join([d1[k], v])
+                    return d1
+
+                globals()[n] = _new_get_pinned_pypi_only_libs
+
             elif n == "TOGGLE_DECOSPECS":
                 if any([x.startswith("-") for x in o]):
                     raise ValueError("Removing decospecs is not currently supported")
@@ -624,6 +649,7 @@ finally:
         "ext_modules",
         "get_modules",
         "_new_get_pinned_conda_libs",
+        "_new_get_pinned_pypi_only_libs",
         "d1",
         "d2",
         "k",
