@@ -71,7 +71,9 @@ class RuntimeDagTest(MetaflowTest):
                 if name
                 not in [
                     "parent_tasks",
+                    "parent_task_pathspecs",
                     "child_tasks",
+                    "child_task_pathspecs",
                     "metadata",
                     "data",
                     "artifacts",
