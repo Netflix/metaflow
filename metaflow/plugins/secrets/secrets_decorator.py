@@ -80,12 +80,6 @@ class SecretsDecorator(StepDecorator):
                     SecretSpec.secret_spec_from_str(secret_spec_str_or_dict, role=role)
                 )
             elif isinstance(secret_spec_str_or_dict, dict):
-                # If the dict is an ECS-style container-start secret spec, skip runtime fetching.
-                # These entries will be wired into the AWS Batch job definition as ECS secrets.
-                if "name" in secret_spec_str_or_dict and (
-                    "value_from" in secret_spec_str_or_dict
-                ):
-                    continue
                 secret_specs.append(
                     SecretSpec.secret_spec_from_dict(secret_spec_str_or_dict, role=role)
                 )
