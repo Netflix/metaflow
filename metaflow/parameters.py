@@ -495,6 +495,10 @@ def add_custom_parameters(deploy_mode=False):
     # deploy_mode determines whether deploy-time functions should or should
     # not be evaluated for this command
     def wrapper(cmd):
+        # Save the original params once, if they haven't been saved before.
+        if not hasattr(cmd, "original_params"):
+            cmd.original_params = list(cmd.params)
+
         cmd.has_flow_params = True
         # Iterate over parameters in reverse order so cmd.params lists options
         # in the order they are defined in the FlowSpec subclass
