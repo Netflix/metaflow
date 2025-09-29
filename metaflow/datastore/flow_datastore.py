@@ -1,5 +1,6 @@
 import itertools
 import json
+from typing import Optional
 
 from .. import metaflow_config
 
@@ -66,6 +67,14 @@ class FlowDataStore(object):
     @property
     def datastore_root(self):
         return self._storage_impl.datastore_root
+
+    def get_latest_done_attempt(self, run_id, step_name, task_id) -> Optional[int]:
+        t_datastores = self.get_task_datastores(
+            pathspecs=[f"{run_id}/{step_name}/{task_id}"], include_prior=True
+        )
+        return max(
+            [t.attempt for t in t_datastores], default=None
+        )  # returns default, if this was a first attempt.
 
     def get_task_datastores(
         self,
