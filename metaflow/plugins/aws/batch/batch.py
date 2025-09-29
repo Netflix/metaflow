@@ -470,6 +470,7 @@ class Batch(object):
             log_driver=log_driver,
             log_options=log_options,
         )
+        print(f'Batch.launch_job job creation response: {job}')
         self.num_parallel = num_parallel
         self.job = job.execute()
 
