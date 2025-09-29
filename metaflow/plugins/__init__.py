@@ -176,6 +176,15 @@ TL_PLUGINS_DESC = [
     ("conda_environment_yml_parser", ".pypi.parsers.conda_environment_yml_parser"),
 ]
 
+# Serializer finders are always loaded. They will be called in the order in which extensions
+# are loaded and so later serializer finders can override earlier ones. We therefore
+# just need a list of serializer finders. We also don't need to use strings since
+# the finders themselves are always loaded -- it's the serializers that will be loaded
+# on demand.
+# NOTE: It is important to keep the serializer finders as light-weight as possible and
+# lazy load as much as possible since they are *always* loaded.
+SERIALIZER_FINDERS = []
+
 process_plugins(globals())
 
 
@@ -267,6 +276,5 @@ merge_lists(CARDS, MF_EXTERNAL_CARDS, "type")
 
 
 def _import_tl_plugins(globals_dict):
-
     for name, p in TL_PLUGINS.items():
         globals_dict[name] = p

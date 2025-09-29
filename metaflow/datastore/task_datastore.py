@@ -1,4 +1,5 @@
 from collections import defaultdict
+from hashlib import sha1
 import json
 import pickle
 import sys
@@ -8,13 +9,18 @@ from functools import wraps
 from io import BufferedIOBase, FileIO, RawIOBase
 from types import MethodType, FunctionType
 
+from typing import cast, Dict, TYPE_CHECKING
+
 from .. import metaflow_config
 from ..exception import MetaflowInternalError
 from ..metadata_provider import DataArtifact, MetaDatum
 from ..parameters import Parameter
 from ..util import Path, is_stringish, to_fileobj
 
+from .artifacts import ArtifactSerializer, SerializationMetadata
+
 from .exceptions import DataException, UnpicklableArtifactException
+
 
 _included_file_type = "<class 'metaflow.includefile.IncludedFile'>"
 
@@ -99,6 +105,9 @@ class TaskDataStore(object):
         mode="r",
         allow_not_done=False,
     ):
+        # Late import to prevent circular deps
+        from metaflow.plugins import ARTIFACT_SERIALIZERS
+
         self._storage_impl = flow_datastore._storage_impl
         self.TYPE = self._storage_impl.TYPE
         self._ca_store = flow_datastore.ca_store
@@ -114,12 +123,24 @@ class TaskDataStore(object):
         self._metadata = flow_datastore.metadata
         self._parent = flow_datastore
 
-        # The GZIP encodings are for backward compatibility
-        self._encodings = {"pickle-v2", "gzip+pickle-v2"}
-        ver = sys.version_info[0] * 10 + sys.version_info[1]
-        if ver >= 36:
-            self._encodings.add("pickle-v4")
-            self._encodings.add("gzip+pickle-v4")
+        self._serializers = {
+            s.TYPE: s for s in ARTIFACT_SERIALIZERS
+        }  # type: Dict[str, ArtifactSerializer]
+
+        self._serializers.update(ArtifactSerializer)
+
+        # TODO:
+        # This is a hack -- we need a way to specify the order of serializers. A few ideas:
+        # Have a few options in an ORDER variable:
+        #  - override: would be searched first -- no order between them
+        #  - standard: would be searched after all overrides
+        #  - default: would be searched last -- basically things that can serialize
+        #    everything. May not make sense to have more than one.
+        #
+        # Ideally, the setting of ORDER for each serializer could also be configurable.
+        self._serializers_order = [
+            k for k in self._serializers.keys() if k != "pickle"
+        ] + ["pickle"]
 
         self._is_done_set = False
 
@@ -128,8 +149,15 @@ class TaskDataStore(object):
             self._objects = {}
             self._info = {}
         elif self._mode == "r":
-            if data_metadata is not None:
-                # We already loaded the data metadata so just use that
+            if data_metadata is not None and not any(
+                vv.startswith(":virtual:")
+                for v in data_metadata.get("objects", {}).values()
+                for vv in (v if isinstance(v, list) else [v])
+            ):
+                # We already loaded the data metadata so just use that; note that if any
+                # of the SHAs are marked as virtual, it means we have to fetch the data
+                # from the storage backend as it is incomplete to fully deserialize the
+                # object.
                 self._objects = data_metadata.get("objects", {})
                 self._info = data_metadata.get("info", {})
             else:
@@ -276,43 +304,42 @@ class TaskDataStore(object):
         """
         artifact_names = []
 
-        def pickle_iter():
+        def serialize_iter():
             for name, obj in artifacts_iter:
-                encode_type = "gzip+pickle-v4"
-                if encode_type in self._encodings:
-                    try:
-                        blob = pickle.dumps(obj, protocol=4)
-                    except TypeError as e:
-                        raise UnpicklableArtifactException(name) from e
-                else:
-                    try:
-                        blob = pickle.dumps(obj, protocol=2)
-                        encode_type = "gzip+pickle-v2"
-                    except (SystemError, OverflowError) as e:
-                        raise DataException(
-                            "Artifact *%s* is very large (over 2GB). "
-                            "You need to use Python 3.6 or newer if you want to "
-                            "serialize large objects." % name
-                        ) from e
-                    except TypeError as e:
-                        raise UnpicklableArtifactException(name) from e
-
+                serializer = None
+                if serializer is None:
+                    # Find serializers to use using the serializer order
+                    for s in self._serializers_order:
+                        if self._serializers[s].can_serialize(obj):
+                            serializer = self._serializers[s]
+                            break
+                    if serializer is None:
+                        raise MetaflowInternalError("No default serializer found")
+                serialized_blobs, metadata = serializer.serialize(obj)
                 self._info[name] = {
-                    "size": len(blob),
-                    "type": str(type(obj)),
-                    "encoding": encode_type,
+                    "size": metadata.size,
+                    "type": metadata.type,
+                    "encoding": metadata.encoding,
+                    "serializer_info": metadata.serializer_info,
                 }
+                self._objects[name] = []
+                for idx, blob in enumerate(serialized_blobs):
+                    if blob.do_save_blob:
+                        artifact_names.append((name, idx))
+                        self._objects[name].append(None)
+                        yield (blob.value, blob.compress_method)
+                    else:
+                        self._objects[name].append(blob.value)
 
-                artifact_names.append(name)
-                yield blob
-
-        # Use the content-addressed store to store all artifacts
-        save_result = self._ca_store.save_blobs(pickle_iter(), len_hint=len_hint)
-        for name, result in zip(artifact_names, save_result):
-            self._objects[name] = result.key
+        # Use the content-addressed store to store all artifacts. Length hint is an
+        # undercount in case artifacts have more than one blob to save but this still
+        # remains a hint.
+        save_result = self._ca_store.save_blobs(serialize_iter(), len_hint=len_hint)
+        for (name, idx), result in zip(artifact_names, save_result):
+            self._objects[name][idx] = result.key
 
     @require_mode(None)
-    def load_artifacts(self, names):
+    def load_artifacts(self, names, load_context=None):
         """
         Mirror function to save_artifacts
 
@@ -332,6 +359,9 @@ class TaskDataStore(object):
         names : List[string]
             List of artifacts to retrieve
 
+        load_context : Any
+            TODO: This is the load context. We need to figure out what to put in there
+
         Returns
         -------
         Iterator[(string, object)] :
@@ -343,32 +373,42 @@ class TaskDataStore(object):
                 "load artifacts" % self._path
             )
         to_load = defaultdict(list)
+        load_info_per_name = {}
         for name in names:
             info = self._info.get(name)
-            # We use gzip+pickle-v2 as this is the oldest/most compatible.
-            # This datastore will always include the proper encoding version so
-            # this is just to be able to read very old artifacts
-            if info:
-                encode_type = info.get("encoding", "gzip+pickle-v2")
-            else:
-                encode_type = "gzip+pickle-v2"
-            if encode_type not in self._encodings:
+            metadata = SerializationMetadata(
+                type=info.get("type", "object"),
+                size=info.get("size", 0),
+                encoding=info.get("encoding", "gzip+pickle-v2"),
+                serializer_info=info.get("serializer_info", {}),
+            )
+            # Find a serializer that can deserialize this object
+            deser = None
+            for s in self._serializers_order:
+                if self._serializers[s].can_deserialize(metadata):
+                    deser = self._serializers[s]
+                    break
+            if deser is None:
                 raise DataException(
-                    "Python 3.6 or later is required to load artifact '%s'" % name
+                    "No deserializer found for artifact '%s' with metadata '%s'"
+                    % (name, metadata)
                 )
-            else:
-                to_load[self._objects[name]].append(name)
-        # At this point, we load what we don't have from the CAS
-        # We assume that if we have one "old" style artifact, all of them are
-        # like that which is an easy assumption to make since artifacts are all
-        # stored by the same implementation of the datastore for a given task.
+            blobs = self._objects[name]
+            blobs = blobs if isinstance(blobs, list) else [blobs]
+            # Keep track of the deserializer, the number of blobs we have seen and the
+            # number of blobs we need
+            load_info_per_name[name] = [deser, metadata, [None] * len(blobs), 0]
+            for idx, k in enumerate(blobs):
+                to_load[k].append((name, idx))
         for key, blob in self._ca_store.load_blobs(to_load.keys()):
             names = to_load[key]
-            for name in names:
-                # We unpickle everytime to have fully distinct objects (the user
-                # would not expect two artifacts with different names to actually
-                # be aliases of one another)
-                yield name, pickle.loads(blob)
+            for name, idx in names:
+                info = load_info_per_name[name]
+                info[2][idx] = blob
+                info[3] += 1
+                if info[3] == len(info[2]):
+                    yield name, info[0].deserialize(info[2], info[1], load_context)
+                    del load_info_per_name[name]
 
     @require_mode("r")
     def get_artifact_sizes(self, names):
@@ -620,16 +660,37 @@ class TaskDataStore(object):
                     )
                 ],
             )
+            # When the client uses the metadata service to fetch artifacts, it
+            # uses the information stored in the metadata to "reconstruct" a partial
+            # view of self._info and self._objects. This will, however, not work in two
+            # cases:
+            #  - there are multiple blobs for the artifact (the database can only store
+            #    a limited number of them so right now keeping it to one)
+            #  - there is serialization information that may be required when deserializing
+            # In both these cases, we mark the sha as "virtual" which will tell
+            # the constructor for the task_datastore to fetch the info/objects value
+            # from the storage backend instead of relying on the reconstructed view from
+            # the metadata service.
             artifacts = [
                 DataArtifact(
                     name=var,
                     ds_type=self.TYPE,
                     ds_root=self._storage_impl.datastore_root,
                     url=None,
-                    sha=sha,
+                    sha=(
+                        shas[0]
+                        if len(shas) == 1 and not self._info[var]["serializer_info"]
+                        else ":virtual:"
+                        + sha1(
+                            b" ".join([s.encode("utf-8") for s in shas])
+                            + json.dumps(self._info[var]["serializer_info"]).encode(
+                                "utf-8"
+                            )
+                        ).hexdigest()
+                    ),
                     type=self._info[var]["encoding"],
                 )
-                for var, sha in self._objects.items()
+                for var, shas in self._objects.items()
             ]
 
             self._metadata.register_data_artifacts(
@@ -663,9 +724,9 @@ class TaskDataStore(object):
         # propagate parameters between datastores without actually loading the
         # parameters as well as for merge_artifacts
         for var in variables:
-            sha = origin._objects.get(var)
-            if sha:
-                self._objects[var] = sha
+            shas = origin._objects.get(var)
+            if shas:
+                self._objects[var] = shas
                 self._info[var] = origin._info[var]
 
     @only_if_not_done
@@ -864,7 +925,8 @@ class TaskDataStore(object):
 
     @require_mode(None)
     def __getitem__(self, name):
-        _, obj = next(self.load_artifacts([name]))
+        # Extract load context
+        _, obj = next(self.load_artifacts([name], load_context=None))
         return obj
 
     @require_mode("r")

@@ -16,6 +16,7 @@ from metaflow.meta_files import read_info_file
 
 # True/False correspond to the value `public`` in get_version
 _version_cache = {True: None, False: None}
+_base_version_cache = {True: None, False: None}
 
 __all__ = ("get_version",)
 
@@ -143,6 +144,64 @@ def make_public_version(version_string):
     return public_version
 
 
+def get_base_version(public=False):
+    """Get the base version of Metaflow without any extension information
+
+    public: bool
+        When True, this function returns a *public* version specification which
+        doesn't include any local information (dirtiness or hash). See
+        https://packaging.python.org/en/latest/specifications/version-specifiers/#version-scheme
+
+    We first check the INFO file to see if we recorded a version of Metaflow. If there
+    is none, we check if we are in a GIT repository and if so, form the version
+    from that.
+
+    Otherwise, we return the version of Metaflow that was installed.
+
+    """
+
+    global _base_version_cache
+
+    # To get the version we do the following:
+    #  - Check if we have a cached version. If so, return that
+    #  - Then check if we have an INFO file present. If so, use that as it is
+    #    the most reliable way to get the version. In particular, when running remotely,
+    #    metaflow is installed in a directory and if any extension is using distutils to
+    #    determine its version, this would return None and querying the version directly
+    #    from the extension would fail to produce the correct result
+    #  - Then if we are in the GIT repository and if so, use the git describe
+    #  - If we don't have an INFO file, we look at the version information that is
+    #    populated by metaflow and the extensions.
+
+    if _base_version_cache[public] is not None:
+        return _base_version_cache[public]
+
+    version = (
+        read_info_version()
+    )  # Version info is cached in INFO file; includes extension info
+
+    if version:
+        # If we have a version from the INFO file, use it directly.
+        # However, if we are asked for a public version, we parse it to make sure
+        # that no local information is included.
+        if public:
+            version = make_public_version(version)
+        _base_version_cache[public] = version
+        return version
+
+    # Get the version for Metaflow, favor the GIT version
+    import metaflow
+
+    version = format_git_describe(
+        call_git_describe(file_to_check=metaflow.__file__), public=public
+    )
+    if version is None:
+        version = metaflow.__version__
+
+    _base_version_cache[public] = version
+    return version
+
+
 def get_version(public=False):
     """Tracks the version number.
 
@@ -175,27 +234,7 @@ def get_version(public=False):
     if _version_cache[public] is not None:
         return _version_cache[public]
 
-    version = (
-        read_info_version()
-    )  # Version info is cached in INFO file; includes extension info
-
-    if version:
-        # If we have a version from the INFO file, use it directly.
-        # However, if we are asked for a public version, we parse it to make sure
-        # that no local information is included.
-        if public:
-            version = make_public_version(version)
-        _version_cache[public] = version
-        return version
-
-    # Get the version for Metaflow, favor the GIT version
-    import metaflow
-
-    version = format_git_describe(
-        call_git_describe(file_to_check=metaflow.__file__), public=public
-    )
-    if version is None:
-        version = metaflow.__version__
+    version = get_base_version(public=public)
 
     # Look for extensions and compute their versions. Properly formed extensions have
     # a toplevel file which will contain a __mf_extensions__ value and a __version__

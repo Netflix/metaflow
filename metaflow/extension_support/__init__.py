@@ -178,6 +178,10 @@ def update_package_info(pkg_to_update=None, package_name=None, **kwargs):
     return pkg
 
 
+def get_package_by_name(package_name):
+    return _all_packages.get(package_name, None)
+
+
 def get_aliased_modules():
     return _aliased_modules
 

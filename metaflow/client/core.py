@@ -1058,13 +1058,13 @@ class DataArtifact(MetaflowObject):
         """
         Unique identifier for this artifact.
 
-        This is a unique hash of the artifact (historically SHA1 hash)
-
         Returns
         -------
         str
             Hash of this artifact
         """
+        if self._object["sha"].startswith(":virtual:"):
+            return self._object["sha"][9:]
         return self._object["sha"]
 
     @property
