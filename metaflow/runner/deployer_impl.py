@@ -5,8 +5,6 @@ import sys
 
 from typing import Any, ClassVar, Dict, Optional, TYPE_CHECKING, Type, List
 
-from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
-
 from .subprocess_manager import SubprocessManager
 from .utils import get_lower_level_group, handle_timeout, temporary_fifo, with_dir
 
@@ -150,16 +148,10 @@ class DeployerImpl(object):
     ) -> "metaflow.runner.deployer.DeployedFlow":
         with temporary_fifo() as (attribute_file_path, attribute_file_fd):
             # every subclass needs to have `self.deployer_kwargs`
-            # TODO: Get rid of CLICK_API_PROCESS_CONFIG in the near future
-            if CLICK_API_PROCESS_CONFIG:
-                # We need to run this in the cwd because configs depend on files
-                # that may be located in paths relative to the directory the user
-                # wants to run in
-                with with_dir(self.cwd):
-                    command = get_lower_level_group(
-                        self.api, self.top_level_kwargs, self.TYPE, self.deployer_kwargs
-                    ).create(deployer_attribute_file=attribute_file_path, **kwargs)
-            else:
+            # We need to run this in the cwd because configs depend on files
+            # that may be located in paths relative to the directory the user
+            # wants to run in
+            with with_dir(self.cwd):
                 command = get_lower_level_group(
                     self.api, self.top_level_kwargs, self.TYPE, self.deployer_kwargs
                 ).create(deployer_attribute_file=attribute_file_path, **kwargs)
