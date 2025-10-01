@@ -723,9 +723,21 @@ def generate_local_path(url, range="whole", suffix=None):
     quoted = url_quote(url)
     fname = quoted.split(b"/")[-1].replace(b".", b"_").replace(b"-", b"_")
     sha = sha1(quoted).hexdigest()
+
+    # Truncate fname to ensure the final filename doesn't exceed filesystem limits.
+    # Most filesystems have a 255 character limit. The structure is:
+    # <40-char-sha>-<fname>-<range>[-<suffix>]
+    # We need to leave room for: sha (40) + hyphens (2-3) + range (~10) + suffix (~10)
+    # This leaves roughly 190 characters for fname. We use 150 to be safe.
+    fname_decoded = fname.decode("utf-8")
+    max_fname_len = 150
+    if len(fname_decoded) > max_fname_len:
+        # Truncate and add an ellipsis to indicate truncation
+        fname_decoded = fname_decoded[:max_fname_len] + "..."
+
     if suffix:
-        return "-".join((sha, fname.decode("utf-8"), range, suffix))
-    return "-".join((sha, fname.decode("utf-8"), range))
+        return "-".join((sha, fname_decoded, range, suffix))
+    return "-".join((sha, fname_decoded, range))
 
 
 def parallel_op(op, lst, num_workers):
@@ -862,7 +874,7 @@ def lst(
     urllist = []
     to_iterate, _ = _populate_prefixes(prefixes, inputs)
     for _, prefix, url, _ in to_iterate:
-        src = urlparse(url)
+        src = urlparse(url, allow_fragments=False)
         url = S3Url(
             url=url,
             bucket=src.netloc,
@@ -968,7 +980,7 @@ def put(
                 yield input_line_idx, local, url, content_type, metadata, encryption
 
     def _make_url(idx, local, user_url, content_type, metadata, encryption):
-        src = urlparse(user_url)
+        src = urlparse(user_url, allow_fragments=False)
         url = S3Url(
             url=user_url,
             bucket=src.netloc,
@@ -1060,6 +1072,23 @@ def _populate_prefixes(prefixes, inputs):
     if inputs:
         with open(inputs, mode="rb") as f:
             for idx, l in enumerate(f, start=len(prefixes)):
+                # Try parsing as JSON first (new format for transient retries)
+                try:
+                    r = json.loads(l.decode("utf-8").strip())
+                    is_transient_retry = True
+                    prefixes.append(
+                        (
+                            r["idx"],
+                            r["prefix"],
+                            r["url"],
+                            r["range"] if r["range"] != "<norange>" else None,
+                        )
+                    )
+                    continue
+                except (json.JSONDecodeError, KeyError, ValueError):
+                    # Fall back to space-separated format
+                    pass
+
                 s = l.split(b" ")
                 if len(s) == 1:
                     url = url_unquote(s[0].strip())
@@ -1141,7 +1170,7 @@ def get(
     urllist = []
     to_iterate, is_transient_retry = _populate_prefixes(prefixes, inputs)
     for idx, prefix, url, r in to_iterate:
-        src = urlparse(url)
+        src = urlparse(url, allow_fragments=False)
         url = S3Url(
             url=url,
             bucket=src.netloc,
@@ -1224,21 +1253,15 @@ def get(
                 break
             out_lines.append(format_result_line(url.idx, url.url) + "\n")
         elif sz == -ERROR_TRANSIENT:
-            retry_lines.append(
-                " ".join(
-                    [
-                        str(url.idx),
-                        url_quote(url.prefix).decode(encoding="utf-8"),
-                        url_quote(url.url).decode(encoding="utf-8"),
-                        (
-                            url_quote(url.range).decode(encoding="utf-8")
-                            if url.range
-                            else "<norange>"
-                        ),
-                    ]
-                )
-                + "\n"
-            )
+            retry_data = {
+                "idx": url.idx,
+                "prefix": url.prefix,
+                "url": url.url,
+                "range": url.range if url.range else "<norange>",
+            }
+            if transient_error_type:
+                retry_data["transient_error_type"] = transient_error_type
+            retry_lines.append(json.dumps(retry_data) + "\n")
             # First time around, we output something to indicate the total length
             if not is_transient_retry:
                 out_lines.append("%d %s\n" % (url.idx, TRANSIENT_RETRY_LINE_CONTENT))
@@ -1290,7 +1313,7 @@ def info(
     urllist = []
     to_iterate, is_transient_retry = _populate_prefixes(prefixes, inputs)
     for idx, prefix, url, _ in to_iterate:
-        src = urlparse(url)
+        src = urlparse(url, allow_fragments=False)
         url = S3Url(
             url=url,
             bucket=src.netloc,
