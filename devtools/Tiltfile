@@ -184,6 +184,8 @@ if "postgresql" in enabled_components:
             'auth.username=metaflow',
             'auth.password=metaflow123',
             'auth.database=metaflow',
+            'image.repository=bitnamilegacy/postgresql',
+            'image.tag=15.3.0-debian-11-r7',
             'primary.persistence.enabled=false',
             'primary.resources.requests.memory=128Mi',
             'primary.resources.requests.cpu=50m',
