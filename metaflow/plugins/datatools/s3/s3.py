@@ -18,6 +18,7 @@ from metaflow.metaflow_config import (
     DATATOOLS_S3ROOT,
     S3_RETRY_COUNT,
     S3_TRANSIENT_RETRY_COUNT,
+    S3_LOG_TRANSIENT_RETRIES,
     S3_SERVER_SIDE_ENCRYPTION,
     S3_WORKER_COUNT,
     TEMPDIR,
@@ -1774,18 +1775,19 @@ class S3(object):
                     except (json.JSONDecodeError, IndexError, KeyError):
                         pass
 
-                print(
-                    "Transient S3 failure (attempt #%d) -- total success: %d, "
-                    "last attempt %d/%d -- remaining: %d%s"
-                    % (
-                        transient_retry_count,
-                        total_ok_count,
-                        last_ok_count,
-                        last_ok_count + last_retry_count,
-                        len(pending_retries),
-                        error_info,
+                if S3_LOG_TRANSIENT_RETRIES:
+                    print(
+                        "Transient S3 failure (attempt #%d) -- total success: %d, "
+                        "last attempt %d/%d -- remaining: %d%s"
+                        % (
+                            transient_retry_count,
+                            total_ok_count,
+                            last_ok_count,
+                            last_ok_count + last_retry_count,
+                            len(pending_retries),
+                            error_info,
+                        )
                     )
-                )
                 if inject_failures == 0:
                     # Don't sleep when we are "faking" the failures
                     self._jitter_sleep(transient_retry_count)
