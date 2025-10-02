@@ -959,3 +959,56 @@ def test_put_files(
         ) as s3:
             s3objs = s3.get_many(key for key, blob in shuffled_blobs)
             assert {s3obj.key for s3obj in s3objs} == {key for key, _ in shuffled_blobs}
+
+
+@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+def test_list_recursive_sibling_prefix_filtering(inject_failure_rate):
+    test_prefix = f"test_log_filtering_{uuid4().hex[:8]}"
+    base_s3root = s3_data.S3ROOT
+
+    test_files = [
+        f"{test_prefix}/log/test.txt",
+        f"{test_prefix}/log_other/other.txt",
+        f"{test_prefix}/something/other.txt",
+    ]
+
+    with S3(s3root=base_s3root) as s3_setup:
+        for file_path in test_files:
+            s3_setup.put(file_path, f"test content for {file_path}")
+
+    with S3(
+        s3root=f"{base_s3root}/{test_prefix}/log/",
+        inject_failure_rate=inject_failure_rate,
+    ) as s3:
+        objects = s3.list_recursive()
+
+        found_relative_paths = []
+        for obj in objects:
+            # Get path relative to our test prefix
+            relative_path = obj.url.replace(f"{base_s3root}/{test_prefix}/", "")
+            found_relative_paths.append(relative_path)
+
+        expected_under_log = ["log/test.txt"]
+
+        invalid_paths = [
+            path
+            for path in found_relative_paths
+            if path.startswith(("log_other/", "something/"))
+        ]
+
+        assert len(invalid_paths) == 0, (
+            f"list_recursive incorrectly included sibling directories: {invalid_paths}. "
+            f"When listing under 'log/', only files under log/ should be returned."
+        )
+
+        assert set(found_relative_paths) == set(expected_under_log), (
+            f"Expected files under log/: {expected_under_log}, "
+            f"but got: {found_relative_paths}"
+        )
+
+        assert len(objects) == 1, f"Expected 1 object under log/, got {len(objects)}"
+
+        assert objects[0].exists, "Object should exist"
+        assert objects[0].url.endswith(
+            "/log/test.txt"
+        ), f"Expected object to end with '/log/test.txt', got: {objects[0].url}"
