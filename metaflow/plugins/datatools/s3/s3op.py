@@ -1072,41 +1072,23 @@ def _populate_prefixes(prefixes, inputs):
     if inputs:
         with open(inputs, mode="rb") as f:
             for idx, l in enumerate(f, start=len(prefixes)):
-                # Try parsing as JSON first (new format for transient retries)
-                try:
-                    r = json.loads(l.decode("utf-8").strip())
-                    is_transient_retry = True
-                    prefixes.append(
-                        (
-                            r["idx"],
-                            r["prefix"],
-                            r["url"],
-                            r["range"] if r["range"] != "<norange>" else None,
-                        )
-                    )
-                    continue
-                except (json.JSONDecodeError, KeyError, ValueError):
-                    # Fall back to space-separated format
-                    pass
-
                 s = l.split(b" ")
                 if len(s) == 1:
+                    # User input format: <url>
                     url = url_unquote(s[0].strip())
                     prefixes.append((idx, url, url, None))
                 elif len(s) == 2:
+                    # User input format: <url> <range>
                     url = url_unquote(s[0].strip())
                     prefixes.append((idx, url, url, url_unquote(s[1].strip())))
-                else:
+                elif len(s) in (4, 5):
+                    # Retry format: <idx> <prefix> <url> <range> [<transient_error_type>]
+                    # The transient_error_type (5th field) is optional and only used for logging.
+                    # Lines with other field counts (e.g., 3) are silently ignored as invalid.
                     is_transient_retry = True
-                    if len(s) == 3:
-                        prefix = url = url_unquote(s[1].strip())
-                        range_info = url_unquote(s[2].strip())
-                    else:
-                        # Special case when we have both prefix and URL -- this is
-                        # used in recursive gets for example
-                        prefix = url_unquote(s[1].strip())
-                        url = url_unquote(s[2].strip())
-                        range_info = url_unquote(s[3].strip())
+                    prefix = url_unquote(s[1].strip())
+                    url = url_unquote(s[2].strip())
+                    range_info = url_unquote(s[3].strip())
                     if range_info == "<norange>":
                         range_info = None
                     prefixes.append(
@@ -1253,15 +1235,19 @@ def get(
                 break
             out_lines.append(format_result_line(url.idx, url.url) + "\n")
         elif sz == -ERROR_TRANSIENT:
-            retry_data = {
-                "idx": url.idx,
-                "prefix": url.prefix,
-                "url": url.url,
-                "range": url.range if url.range else "<norange>",
-            }
+            retry_line_parts = [
+                str(url.idx),
+                url_quote(url.prefix).decode(encoding="utf-8"),
+                url_quote(url.url).decode(encoding="utf-8"),
+                (
+                    url_quote(url.range).decode(encoding="utf-8")
+                    if url.range
+                    else "<norange>"
+                ),
+            ]
             if transient_error_type:
-                retry_data["transient_error_type"] = transient_error_type
-            retry_lines.append(json.dumps(retry_data) + "\n")
+                retry_line_parts.append(transient_error_type)
+            retry_lines.append(" ".join(retry_line_parts) + "\n")
             # First time around, we output something to indicate the total length
             if not is_transient_retry:
                 out_lines.append("%d %s\n" % (url.idx, TRANSIENT_RETRY_LINE_CONTENT))
