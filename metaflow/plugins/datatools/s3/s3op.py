@@ -1326,10 +1326,15 @@ def info(
                 format_result_line(url.idx, url.prefix, url.url, url.local) + "\n"
             )
         else:
-            retry_lines.append(
-                "%d %s <norange>\n"
-                % (url.idx, url_quote(url.url).decode(encoding="utf-8"))
-            )
+            retry_line_parts = [
+                str(url.idx),
+                url_quote(url.prefix).decode(encoding="utf-8"),
+                url_quote(url.url).decode(encoding="utf-8"),
+                "<norange>",
+            ]
+            if transient_error_type:
+                retry_line_parts.append(transient_error_type)
+            retry_lines.append(" ".join(retry_line_parts) + "\n")
             if not is_transient_retry:
                 out_lines.append("%d %s\n" % (url.idx, TRANSIENT_RETRY_LINE_CONTENT))
 
