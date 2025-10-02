@@ -207,6 +207,15 @@ def default_namespace() -> str:
     return get_namespace()
 
 
+def inspect_spin(datastore_root):
+    """
+    Set metadata provider to spin metadata so that users can inspect spin
+    steps, tasks, and artifacts.
+    """
+    metadata_str = f"spin@{datastore_root}"
+    metadata(metadata_str)
+
+
 MetaflowArtifacts = NamedTuple
 
 

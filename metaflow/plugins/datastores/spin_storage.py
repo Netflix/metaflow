@@ -8,5 +8,5 @@ from metaflow.plugins.datastores.local_storage import LocalStorage
 class SpinStorage(LocalStorage):
     TYPE = "spin"
     METADATA_DIR = "_meta"
-    DATASTORE_DIR = DATASTORE_SPIN_LOCAL_DIR  # ".spin_metaflow"
+    DATASTORE_DIR = DATASTORE_SPIN_LOCAL_DIR  # ".metaflow_spin"
     SYSROOT_VAR = DATASTORE_SYSROOT_SPIN

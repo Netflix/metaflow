@@ -21,7 +21,7 @@ if sys.platform == "darwin":
 
 # Path to the local directory to store artifacts for 'local' datastore.
 DATASTORE_LOCAL_DIR = ".metaflow"
-DATASTORE_SPIN_LOCAL_DIR = ".spin_metaflow"
+DATASTORE_SPIN_LOCAL_DIR = ".metaflow_spin"
 
 # Local configuration file (in .metaflow) containing overrides per-project
 LOCAL_CONFIG_FILE = "config.json"

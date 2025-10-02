@@ -2145,12 +2145,13 @@ class CLIArgs(object):
             "max-user-code-retries": self.task.user_code_retries,
             "namespace": get_namespace() or "",
             "orig-flow-datastore": self.orig_flow_datastore,
-            "spin-pathspec": self.spin_pathspec,
             "artifacts-module": self.artifacts_module,
             "skip-decorators": self.skip_decorators,
         }
         if self.persist:
             self.command_options["persist"] = True
+        else:
+            self.command_options["no-persist"] = True
         self.env = {}
 
     def get_args(self):

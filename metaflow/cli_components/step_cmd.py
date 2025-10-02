@@ -203,12 +203,6 @@ def step(
     help="Original datastore for the flow from which a task is being spun",
 )
 @click.option(
-    "--spin-pathspec",
-    default=None,
-    show_default=True,
-    help="Task Pathspec to be used in the spun step.",
-)
-@click.option(
     "--input-paths",
     help="A comma-separated list of pathspecs specifying inputs for this step.",
 )
@@ -266,7 +260,6 @@ def spin_step(
     run_id=None,
     task_id=None,
     orig_flow_datastore=None,
-    spin_pathspec=None,
     input_paths=None,
     split_index=None,
     retry_count=None,

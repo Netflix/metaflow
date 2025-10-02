@@ -496,9 +496,13 @@ class TaskInfoComponent(MetaflowCardComponent):
             )
 
         # ignore the name as a parameter
-        param_ids = [
-            p.id for p in self._task.parent.parent["_parameters"].task if p.id != "name"
-        ]
+        if "_parameters" not in self._task.parent.parent:
+            # In case of spin steps, there is no _parameters task
+            param_ids = []
+        else:
+            param_ids = [
+                p.id for p in self._task.parent.parent["_parameters"].task if p.id != "name"
+            ]
         if len(param_ids) > 0:
             # Extract parameter from the Parameter Task. That is less brittle.
             parameter_data = TaskToDict(

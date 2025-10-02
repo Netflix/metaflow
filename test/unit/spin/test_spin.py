@@ -127,3 +127,39 @@ def test_card_flow(simple_card_run):
 
         res = get_cards(spin_task, follow_resumed=False)
         print(res)
+
+def test_inspect_spin_client_access(simple_parameter_run):
+    """Test accessing spin artifacts using inspect_spin client directly."""
+    from metaflow import inspect_spin, Task
+    import tempfile
+
+    step_name = "start"
+    task = simple_parameter_run[step_name].task
+    flow_path = os.path.join(FLOWS_DIR, "simple_parameter_flow.py")
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Run spin to generate artifacts
+        with Runner(flow_path, cwd=FLOWS_DIR).spin(
+            task.pathspec,
+        ) as spin:
+            spin_task = spin.task
+            spin_pathspec = spin_task.pathspec
+            assert spin_task['a'] is not None
+            assert spin_task['b'] is not None
+
+        assert spin_pathspec is not None
+
+        # Set metadata provider to spin
+        inspect_spin(FLOWS_DIR)
+        client_task = Task(spin_pathspec, _namespace_check=False)
+
+        # Verify task is accessible
+        assert client_task is not None
+
+        # Verify artifacts
+        assert hasattr(client_task, 'artifacts')
+
+        # Verify artifact data
+        assert client_task.artifacts.a.data == 10
+        assert client_task.artifacts.b.data == 20
+        assert client_task.artifacts.alpha.data == 0.05

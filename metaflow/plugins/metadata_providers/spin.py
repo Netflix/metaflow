@@ -4,7 +4,7 @@ from metaflow.metaflow_config import DATASTORE_SPIN_LOCAL_DIR
 
 class SpinMetadataProvider(LocalMetadataProvider):
     TYPE = "spin"
-    DATASTORE_DIR = DATASTORE_SPIN_LOCAL_DIR  # ".spin_metaflow"
+    DATASTORE_DIR = DATASTORE_SPIN_LOCAL_DIR  # ".metaflow_spin"
 
     @classmethod
     def _get_storage_class(cls):
