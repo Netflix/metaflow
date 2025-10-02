@@ -1,5 +1,6 @@
 import itertools
 import json
+from abc import ABC, abstractmethod
 
 from .. import metaflow_config
 
@@ -376,9 +377,11 @@ class FlowDataStore(object):
             yield key, blob
 
 
-class MetadataCache(object):
+class MetadataCache(ABC):
+    @abstractmethod
     def load_metadata(self, run_id, step_name, task_id, attempt):
-        pass
+        raise NotImplementedError()
 
+    @abstractmethod
     def store_metadata(self, run_id, step_name, task_id, attempt, metadata_dict):
-        pass
+        raise NotImplementedError()

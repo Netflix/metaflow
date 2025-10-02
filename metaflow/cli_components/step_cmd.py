@@ -122,7 +122,7 @@ def step(
     if ubf_context == "none":
         ubf_context = None
     if opt_namespace is not None:
-        namespace(opt_namespace or None)
+        namespace(opt_namespace)
 
     func = None
     try:
@@ -198,7 +198,6 @@ def step(
 )
 @click.option(
     "--orig-flow-datastore",
-    default=None,
     show_default=True,
     help="Original datastore for the flow from which a task is being spun",
 )
@@ -257,9 +256,9 @@ def step(
 def spin_step(
     ctx,
     step_name,
+    orig_flow_datastore,
     run_id=None,
     task_id=None,
-    orig_flow_datastore=None,
     input_paths=None,
     split_index=None,
     retry_count=None,
@@ -277,7 +276,7 @@ def spin_step(
         echo = echo_always
 
     if opt_namespace is not None:
-        namespace(opt_namespace or None)
+        namespace(opt_namespace)
 
     input_paths = decompress_list(input_paths) if input_paths else []
 

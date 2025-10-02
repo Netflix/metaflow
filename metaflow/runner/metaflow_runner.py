@@ -6,7 +6,7 @@ import json
 
 from typing import Dict, Iterator, Optional, Tuple
 
-from metaflow import Run
+from metaflow import Run, Task
 
 from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
 
@@ -50,7 +50,7 @@ class ExecutingProcess(object):
     def __init__(self, runner: "Runner", command_obj: CommandManager) -> None:
         """
         Create a new ExecutingRun -- this should not be done by the user directly but
-        instead user Runner.run()
+        instead use Runner.run()
 
         Parameters
         ----------
@@ -64,7 +64,7 @@ class ExecutingProcess(object):
         self.runner = runner
         self.command_obj = command_obj
 
-    def __enter__(self) -> "ExecutingRun":
+    def __enter__(self) -> "ExecutingProcess":
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -72,7 +72,7 @@ class ExecutingProcess(object):
 
     async def wait(
         self, timeout: Optional[float] = None, stream: Optional[str] = None
-    ) -> "ExecutingRun":
+    ) -> "ExecutingProcess":
         """
         Wait for this run to finish, optionally with a timeout
         and optionally streaming its output.
@@ -91,7 +91,7 @@ class ExecutingProcess(object):
 
         Returns
         -------
-        ExecutingRun
+        ExecutingProcess
             This object, allowing you to chain calls.
         """
         await self.command_obj.wait(timeout, stream)
@@ -215,11 +215,11 @@ class ExecutingTask(ExecutingProcess):
     """
 
     def __init__(
-        self, runner: "Runner", command_obj: CommandManager, task_obj: "metaflow.Task"
+        self, runner: "Runner", command_obj: CommandManager, task_obj: Task
     ) -> None:
         """
         Create a new ExecutingTask -- this should not be done by the user directly but
-        instead user Runner.spin()
+        instead use Runner.spin()
         Parameters
         ----------
         runner : Runner
@@ -254,7 +254,7 @@ class ExecutingRun(ExecutingProcess):
     ) -> None:
         """
         Create a new ExecutingRun -- this should not be done by the user directly but
-        instead user Runner.run()
+        instead use Runner.run()
         Parameters
         ----------
         runner : Runner
@@ -482,7 +482,6 @@ class Runner(metaclass=RunnerMeta):
 
         # Set the correct metadata from the runner_attribute file corresponding to this run.
         metadata_for_flow = content.get("metadata")
-        from metaflow import Task
 
         task_object = Task(
             pathspec, _namespace_check=False, _current_metadata=metadata_for_flow
@@ -499,14 +498,12 @@ class Runner(metaclass=RunnerMeta):
         # Set the correct metadata from the runner_attribute file corresponding to this run.
         metadata_for_flow = content.get("metadata")
 
-        from metaflow import Task
-
         task_object = Task(
             pathspec, _namespace_check=False, _current_metadata=metadata_for_flow
         )
         return ExecutingTask(self, command_obj, task_object)
 
-    def spin(self, pathspec, **kwargs):
+    def spin(self, pathspec, **kwargs) -> ExecutingTask:
         """
         Blocking spin execution of the run.
         This method will wait until the spun run has completed execution.
