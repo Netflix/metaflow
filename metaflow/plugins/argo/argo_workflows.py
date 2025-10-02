@@ -1423,11 +1423,7 @@ class ArgoWorkflows(object):
             dag_tasks.append(dag_task)
             # End the workflow if we have reached the end of the flow
             if node.type == "end":
-                return [
-                    Template(self.flow.name).dag(
-                        DAGTemplate().fail_fast().tasks(dag_tasks)
-                    )
-                ] + templates, dag_tasks
+                return templates, dag_tasks
             # For split nodes traverse all the children
             if node.type == "split":
                 for n in node.out_funcs:
@@ -1550,7 +1546,6 @@ class ArgoWorkflows(object):
                         parent_foreach,
                         seen,
                     )
-
                 return _visit(
                     self.graph[self._matching_conditional_join(node)],
                     exit_node,
@@ -1806,7 +1801,11 @@ class ArgoWorkflows(object):
             for daemon_template in self._daemon_templates()
         ]
 
-        templates, _ = _visit(node=self.graph["start"], dag_tasks=daemon_tasks)
+        templates, dag_tasks = _visit(node=self.graph["start"], dag_tasks=daemon_tasks)
+        # Add the DAG template only after fully traversing the graph so we are guaranteed to have all the dag_tasks collected.
+        templates.append(
+            Template(self.flow.name).dag(DAGTemplate().fail_fast().tasks(dag_tasks))
+        )
         return templates
 
     # Visit every node and yield ContainerTemplates.
