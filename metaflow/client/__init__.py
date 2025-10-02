@@ -6,6 +6,7 @@ from .core import (
     metadata,
     get_metadata,
     default_metadata,
+    inspect_spin,
     Metaflow,
     Flow,
     Run,

@@ -17,13 +17,19 @@ def pytest_addoption(parser):
 
 
 def create_flow_fixture(flow_name, flow_file, run_params=None, runner_params=None):
-    """Factory function to create flow fixtures with common logic.
+    """
+    Factory function to create flow fixtures with common logic.
 
-    Args:
-        flow_name: Name of the flow class
-        flow_file: Python file containing the flow
-        run_params: Parameters to pass to .run() method
-        runner_params: Parameters to pass to Runner() constructor
+    Parameters
+    -----------
+    flow_name: str
+        Name of the flow class
+    flow_file: str
+        Python file containing the flow
+    run_params: dict, optional
+        Parameters to pass to .run() method
+    runner_params: dict, optional
+        Parameters to pass to Runner()
     """
 
     def flow_fixture(request):
@@ -63,7 +69,7 @@ simple_parameter_run = pytest.fixture(scope="session")(
 
 simple_card_run = pytest.fixture(scope="session")(
     create_flow_fixture(
-        "SimpleCardFlow", "simple_card_flow.py", run_params={"alpha": 0.05}
+        "SimpleCardFlow", "simple_card_flow.py",
     )
 )
 

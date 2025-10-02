@@ -692,10 +692,7 @@ def _should_skip_decorator_for_spin(
     # Run decorator hooks for spin steps only if they are in the whitelist
     if deco.name not in SPIN_ALLOWED_DECORATORS:
         logger(
-            f"[Warning] {decorator_type} '{deco.name}' is not supported in spin steps. "
-            f"Supported decorators are: [{', '.join(SPIN_ALLOWED_DECORATORS)}]. "
-            f"Skipping this decorator as it is not in the whitelist.\n"
-            f"Alternatively, you can use the --skip-decorators flag to skip running all decorators in spin steps.",
+            f"[Warning] Ignoring {decorator_type} '{deco.name}' as it is not supported in spin steps.",
             system_msg=True,
             timestamp=False,
             bad=True,

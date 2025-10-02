@@ -526,7 +526,6 @@ def spin(
                     "flow_name": obj.flow.name,
                     # Store metadata in a format that can be used by the Runner API
                     "metadata": f"{obj.metadata.__class__.TYPE}@{orig_task_metadata_root}",
-                    # "metadata": f"spin@{orig_task_metadata_root}",
                 },
                 f,
             )
