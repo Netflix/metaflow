@@ -6,6 +6,7 @@ import time
 
 from functools import wraps
 from io import BufferedIOBase, FileIO, RawIOBase
+from typing import List
 from types import MethodType, FunctionType
 
 from .. import metaflow_config
@@ -259,7 +260,7 @@ class TaskDataStore(object):
 
     @only_if_not_done
     @require_mode("w")
-    def transfer_artifacts(self, other_datastore, names=None):
+    def transfer_artifacts(self, other_datastore : "TaskDataStore", names : List[str] =None):
         """
         Copies the blobs from other_datastore to this datastore if the datastore roots
         are different.
@@ -271,7 +272,7 @@ class TaskDataStore(object):
         ----------
         other_datastore : TaskDataStore
             Other datastore from which to copy artifacts from
-        names : List[string], optional, default None
+        names : List[str], optional, default None
             If provided, only transfer the artifacts with these names. If None,
             transfer all artifacts from the other datastore.
         """

@@ -633,7 +633,7 @@ class MetaflowTask(object):
         decorators = step_func.decorators
         if self.orig_flow_datastore:
             # We filter only the whitelisted decorators in case of spin step.
-            decorators = [
+            decorators = [] if not whitelist_decorators else [
                 deco for deco in decorators if deco.name in whitelist_decorators
             ]
         from_start("MetaflowTask: decorators initialized")

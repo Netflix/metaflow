@@ -451,7 +451,7 @@ def run(
     default=True,
     show_default=True,
     help="Whether to persist the artifacts in the spun step. If set to False, "
-    "the artifacts will notbe persisted and will not be available in the spun step's "
+    "the artifacts will not be persisted and will not be available in the spun step's "
     "datastore.",
 )
 @click.option(

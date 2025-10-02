@@ -606,9 +606,11 @@ def read_artifacts_module(file_path: str) -> Dict[str, Any]:
         If the file cannot be read or does not contain the ARTIFACTS variable.
     """
     import importlib.util
+    import os
 
     try:
-        spec = importlib.util.spec_from_file_location("artifacts_module", file_path)
+        module_name = os.path.splitext(os.path.basename(file_path))[0]
+        spec = importlib.util.spec_from_file_location(module_name, file_path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         variables = vars(module)
