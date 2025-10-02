@@ -1255,7 +1255,8 @@ class Task(MetaflowObject):
         # Get the parent steps
         steps = self._get_previous_steps(graph_info, step_name)
         node_type = graph_info["steps"][step_name]["type"]
-        current_path = metadata_dict.get("foreach-execution-path")
+        metadata_key = "foreach-execution-path"
+        current_path = metadata_dict.get(metadata_key)
 
         if len(steps) > 1:
             # Static join - use exact path matching
@@ -1290,7 +1291,6 @@ class Task(MetaflowObject):
                             target_depth = current_depth - 1
                         pattern = ",".join(current_path.split(",")[:target_depth])
 
-        metadata_key = "foreach-execution-path"
         for pathspec in self._get_matching_pathspecs(steps, metadata_key, pattern):
             yield pathspec
 
@@ -1312,7 +1312,8 @@ class Task(MetaflowObject):
         steps = graph_info["steps"][step_name]["next"]
 
         node_type = graph_info["steps"][step_name]["type"]
-        current_path = self.metadata_dict.get("foreach-execution-path")
+        metadata_key = "foreach-execution-path"
+        current_path = metadata_dict.get(metadata_key)
 
         if len(steps) > 1:
             # Static split - use exact path matching
@@ -1354,7 +1355,6 @@ class Task(MetaflowObject):
                             target_depth = current_depth - 1
                         pattern = ",".join(current_path.split(",")[:target_depth])
 
-        metadata_key = "foreach-execution-path"
         for pathspec in self._get_matching_pathspecs(steps, metadata_key, pattern):
             yield pathspec
 
