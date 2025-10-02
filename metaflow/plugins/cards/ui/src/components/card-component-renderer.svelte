@@ -17,6 +17,9 @@
   import ValueBox from "./value-box.svelte";
   import VegaChart from "./vega-chart.svelte";
   import PythonCode from "./python-code.svelte";
+  import EventsTimeline from "./events-timeline.svelte";
+  import JSONViewer from "./json-viewer.svelte";
+  import YAMLViewer from "./yaml-viewer.svelte";
 
   export let componentData: types.CardComponent;
 
@@ -37,6 +40,9 @@
     valueBox: ValueBox,
     vegaChart: VegaChart,
     pythonCode: PythonCode,
+    eventsTimeline: EventsTimeline,
+    jsonViewer: JSONViewer,
+    yamlViewer: YAMLViewer,
   };
 
   let component = typesMap?.[componentData.type];

@@ -36,7 +36,8 @@ export type TableDataCell =
   | TextComponent
   | ValueBoxComponent
   | VegaChartComponent
-  | PythonCodeComponent;
+  | PythonCodeComponent
+  | EventsTimelineComponent;
 
 export type TableColumns = string[];
 export type TableData = TableDataCell[][];
@@ -225,6 +226,58 @@ export interface VegaChartComponent {
   data: Record<string, unknown>;
   options?: EmbedOptions;
 }
+
+export interface EventsTimelineComponent {
+  type: "eventsTimeline";
+  id?: string;
+  title?: string;
+  events: EventsTimelineEvent[];
+  config: {
+    show_stats: boolean;
+    show_relative_time: boolean;
+    max_events: number;
+  };
+  stats?: EventsTimelineStats;
+}
+
+export interface EventsTimelineEvent {
+  metadata: Record<string, any>;
+  payloads: Record<string, CardComponent>;
+  event_id: string;
+  received_at: number;
+  style_theme?: string;
+  priority?: string;
+}
+
+export interface EventsTimelineStats {
+  total_events: number;
+  displayed_events: number;
+  last_update?: number;
+  first_event?: number;
+  events_per_minute?: number;
+  total_runtime_seconds?: number;
+  finished: boolean;
+}
+
+export interface JSONViewerComponent {
+  type: "jsonViewer";
+  id?: string;
+  json_string: string;
+  collapsible: boolean;
+  show_copy_button: boolean;
+  max_height?: string;
+  title: string;
+}
+
+export interface YAMLViewerComponent {
+  type: "yamlViewer";
+  id?: string;
+  yaml_string: string;
+  collapsible: boolean;
+  show_copy_button: boolean;
+  max_height?: string;
+  title: string;
+}
 // wrap all component options into a Component type
 export type CardComponent =
   | ArtifactsComponent
@@ -242,4 +295,7 @@ export type CardComponent =
   | TitleComponent
   | ValueBoxComponent
   | VegaChartComponent
-  | PythonCodeComponent;
+  | PythonCodeComponent
+  | EventsTimelineComponent
+  | JSONViewerComponent
+  | YAMLViewerComponent;
