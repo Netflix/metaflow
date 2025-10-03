@@ -21,6 +21,7 @@ if sys.platform == "darwin":
 
 # Path to the local directory to store artifacts for 'local' datastore.
 DATASTORE_LOCAL_DIR = ".metaflow"
+DATASTORE_SPIN_LOCAL_DIR = ".metaflow_spin"
 
 # Local configuration file (in .metaflow) containing overrides per-project
 LOCAL_CONFIG_FILE = "config.json"
@@ -48,6 +49,24 @@ DEFAULT_FROM_DEPLOYMENT_IMPL = from_conf(
 )
 
 ###
+# Spin configuration
+###
+SPIN_ALLOWED_DECORATORS = from_conf(
+    "SPIN_ALLOWED_DECORATORS",
+    [
+        "conda",
+        "pypi",
+        "conda_base",
+        "pypi_base",
+        "environment",
+        "project",
+        "timeout",
+        "conda_env_internal",
+        "card",
+    ],
+)
+
+###
 # User configuration
 ###
 USER = from_conf("USER")
@@ -57,6 +76,7 @@ USER = from_conf("USER")
 # Datastore configuration
 ###
 DATASTORE_SYSROOT_LOCAL = from_conf("DATASTORE_SYSROOT_LOCAL")
+DATASTORE_SYSROOT_SPIN = from_conf("DATASTORE_SYSROOT_SPIN")
 # S3 bucket and prefix to store artifacts for 's3' datastore.
 DATASTORE_SYSROOT_S3 = from_conf("DATASTORE_SYSROOT_S3")
 # Azure Blob Storage container and blob prefix
@@ -460,6 +480,10 @@ ESCAPE_HATCH_WARNING = from_conf("ESCAPE_HATCH_WARNING", True)
 # Features
 ###
 FEAT_ALWAYS_UPLOAD_CODE_PACKAGE = from_conf("FEAT_ALWAYS_UPLOAD_CODE_PACKAGE", False)
+###
+# Profile
+###
+PROFILE_FROM_START = from_conf("PROFILE_FROM_START", False)
 ###
 # Debug configuration
 ###
