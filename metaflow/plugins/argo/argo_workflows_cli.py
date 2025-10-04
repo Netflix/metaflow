@@ -231,15 +231,13 @@ def argo_workflows(obj, name=None):
     "--workflow-title",
     default=None,
     type=str,
-    help="Custom title for the workflow displayed in Argo Workflows UI. "
-    "Supports markdown formatting.",
+    help="Custom title for the workflow displayed in Argo Workflows UI. Defaults to `project_flow_name`. Supports markdown formatting.",
 )
 @click.option(
     "--workflow-description",
     default=None,
     type=str,
-    help="Custom description for the workflow displayed in Argo Workflows UI. "
-    "Supports markdown formatting and multi-line text.",
+    help="Custom description for the workflow displayed in Argo Workflows UI. Defaults to the flow's docstring if available. Supports markdown formatting and multi-line text.",
 )
 @click.pass_obj
 def create(
