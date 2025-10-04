@@ -582,10 +582,15 @@ class LazyOpen(BufferedIOBase):
             import requests
 
             self.requests = requests
-        # TODO: Stream it in chunks?
         response = self.requests.get(self.url, stream=True)
         response.raise_for_status()
-        return response.content
+        # Stream the content in chunks to reduce memory usage
+        # Use 8KB chunks as a reasonable default
+        buffer = io.BytesIO()
+        for chunk in response.iter_content(chunk_size=8192):
+            if chunk:  # filter out keep-alive new chunks
+                buffer.write(chunk)
+        return buffer.getvalue()
 
     def readable(self):
         return "r" in self.mode
