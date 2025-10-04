@@ -434,14 +434,23 @@ class ArgoWorkflows(object):
                     "metaflow/project_flow_name": current.project_flow_name,
                 }
             )
-        
-        # Add Argo Workflows title and description annotations if provided
+
+        # Add Argo Workflows title and description annotations
         # https://argo-workflows.readthedocs.io/en/latest/title-and-description/
-        if self.workflow_title:
-            annotations["workflows.argoproj.io/title"] = self.workflow_title
-        if self.workflow_description:
-            annotations["workflows.argoproj.io/description"] = self.workflow_description
-        
+        # Use CLI-provided values or auto-populate from metadata
+        title = (
+            self.workflow_title.strip() if self.workflow_title else None
+        ) or current.get("project_flow_name") or self.flow.name
+
+        description = (
+            self.workflow_description.strip() if self.workflow_description else None
+        ) or (self.flow.__doc__.strip() if self.flow.__doc__ else None)
+
+        if title:
+            annotations["workflows.argoproj.io/title"] = title
+        if description:
+            annotations["workflows.argoproj.io/description"] = description
+
         return annotations
 
     def _get_schedule(self):
