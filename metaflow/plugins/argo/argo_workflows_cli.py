@@ -227,6 +227,20 @@ def argo_workflows(obj, name=None):
     show_default=True,
     help="Capture stack trace of first failed task in exit hook.",
 )
+@click.option(
+    "--workflow-title",
+    default=None,
+    type=str,
+    help="Custom title for the workflow displayed in Argo Workflows UI. "
+    "Supports markdown formatting.",
+)
+@click.option(
+    "--workflow-description",
+    default=None,
+    type=str,
+    help="Custom description for the workflow displayed in Argo Workflows UI. "
+    "Supports markdown formatting and multi-line text.",
+)
 @click.pass_obj
 def create(
     obj,
@@ -248,6 +262,8 @@ def create(
     incident_io_alert_source_config_id=None,
     incident_io_metadata=None,
     enable_heartbeat_daemon=True,
+    workflow_title=None,
+    workflow_description=None,
     deployer_attribute_file=None,
     enable_error_msg_capture=False,
 ):
@@ -312,6 +328,8 @@ def create(
         incident_io_metadata,
         enable_heartbeat_daemon,
         enable_error_msg_capture,
+        workflow_title,
+        workflow_description,
     )
 
     if only_json:
@@ -658,6 +676,8 @@ def make_flow(
     incident_io_metadata,
     enable_heartbeat_daemon,
     enable_error_msg_capture,
+    workflow_title,
+    workflow_description,
 ):
     # TODO: Make this check less specific to Amazon S3 as we introduce
     #       support for more cloud object stores.
@@ -750,6 +770,8 @@ def make_flow(
         incident_io_metadata=incident_io_metadata,
         enable_heartbeat_daemon=enable_heartbeat_daemon,
         enable_error_msg_capture=enable_error_msg_capture,
+        workflow_title=workflow_title,
+        workflow_description=workflow_description,
     )
 
 

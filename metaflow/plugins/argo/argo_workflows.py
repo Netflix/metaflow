@@ -121,6 +121,8 @@ class ArgoWorkflows(object):
         incident_io_metadata: List[str] = None,
         enable_heartbeat_daemon=True,
         enable_error_msg_capture=False,
+        workflow_title=None,
+        workflow_description=None,
     ):
         # Some high-level notes -
         #
@@ -177,6 +179,8 @@ class ArgoWorkflows(object):
         )
         self.enable_heartbeat_daemon = enable_heartbeat_daemon
         self.enable_error_msg_capture = enable_error_msg_capture
+        self.workflow_title = workflow_title
+        self.workflow_description = workflow_description
         self.parameters = self._process_parameters()
         self.config_parameters = self._process_config_parameters()
         self.triggers, self.trigger_options = self._process_triggers()
@@ -430,6 +434,14 @@ class ArgoWorkflows(object):
                     "metaflow/project_flow_name": current.project_flow_name,
                 }
             )
+        
+        # Add Argo Workflows title and description annotations if provided
+        # https://argo-workflows.readthedocs.io/en/latest/title-and-description/
+        if self.workflow_title:
+            annotations["workflows.argoproj.io/title"] = self.workflow_title
+        if self.workflow_description:
+            annotations["workflows.argoproj.io/description"] = self.workflow_description
+        
         return annotations
 
     def _get_schedule(self):
