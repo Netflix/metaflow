@@ -10,7 +10,7 @@ TypeResolvedObject = namedtuple("TypeResolvedObject", ["data", "is_image", "is_t
 TIME_FORMAT = "%Y-%m-%d %I:%M:%S %p"
 # Maximum artifact size to render in cards: 200MB (in bytes)
 # Artifacts larger than this will be skipped during card rendering to avoid memory issues
-MAX_ARTIFACT_SIZE = 200 * 1024 * 1024  # 200 MB = 209715200 bytes
+MAX_ARTIFACT_SIZE = 256 * 1024 * 1024  # 256 MB = 268435456 bytes
 
 
 def _get_object_size(obj, seen=None):
