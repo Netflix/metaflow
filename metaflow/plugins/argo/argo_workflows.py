@@ -439,8 +439,10 @@ class ArgoWorkflows(object):
         # https://argo-workflows.readthedocs.io/en/latest/title-and-description/
         # Use CLI-provided values or auto-populate from metadata
         title = (
-            self.workflow_title.strip() if self.workflow_title else None
-        ) or current.get("project_flow_name") or self.flow.name
+            (self.workflow_title.strip() if self.workflow_title else None)
+            or current.get("project_flow_name")
+            or self.flow.name
+        )
 
         description = (
             self.workflow_description.strip() if self.workflow_description else None
