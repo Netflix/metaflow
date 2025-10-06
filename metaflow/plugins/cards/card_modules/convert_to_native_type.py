@@ -8,7 +8,9 @@ TypeResolvedObject = namedtuple("TypeResolvedObject", ["data", "is_image", "is_t
 
 
 TIME_FORMAT = "%Y-%m-%d %I:%M:%S %p"
-MAX_ARTIFACT_SIZE = 1  # in 1 MB
+# Maximum artifact size to render in cards: 200MB (in bytes)
+# Artifacts larger than this will be skipped during card rendering to avoid memory issues
+MAX_ARTIFACT_SIZE = 200 * 1024 * 1024  # 200 MB = 209715200 bytes
 
 
 def _get_object_size(obj, seen=None):
@@ -44,7 +46,7 @@ def _full_classname(obj):
 
 
 class TaskToDict:
-    def __init__(self, only_repr=False, runtime=False):
+    def __init__(self, only_repr=False, runtime=False, max_artifact_size=None):
         # this dictionary holds all the supported functions
         import reprlib
         import pprint
@@ -61,6 +63,10 @@ class TaskToDict:
         self._repr = r
         self._runtime = runtime
         self._only_repr = only_repr
+        # Use the global MAX_ARTIFACT_SIZE constant if not specified
+        self._max_artifact_size = (
+            max_artifact_size if max_artifact_size is not None else MAX_ARTIFACT_SIZE
+        )
         self._supported_types = {
             "tuple": self._parse_tuple,
             "NoneType": self._parse_nonetype,
@@ -110,6 +116,19 @@ class TaskToDict:
         task_data_dict = {}
         type_inferred_objects = {"images": {}, "tables": {}}
         for data in task:
+            # Check if artifact size exceeds the maximum allowed size
+            if data.size > self._max_artifact_size:
+                # Skip artifacts that are too large
+                task_data_dict[data.id] = dict(
+                    type="skipped",
+                    data=f"<artifact too large: {data.size} bytes, max: {self._max_artifact_size} bytes>",
+                    large_object=True,
+                    supported_type=False,
+                    only_repr=self._only_repr,
+                    name=data.id,
+                )
+                continue
+
             try:
                 data_object = data.data
                 task_data_dict[data.id] = self._convert_to_native_type(data_object)
@@ -241,7 +260,8 @@ class TaskToDict:
             supported_type = True
             type_parsing_func = self._supported_types[obj_type_name]
             data_obj = type_parsing_func(data_object)
-            if _get_object_size(data_obj) * 1e-6 > MAX_ARTIFACT_SIZE:
+            # Secondary check: if the in-memory object size exceeds our limit, use repr instead
+            if _get_object_size(data_obj) > self._max_artifact_size:
                 data_obj = rep.repr(data_obj)
                 large_object = True
         else:

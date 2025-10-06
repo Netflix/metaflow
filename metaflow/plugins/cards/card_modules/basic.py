@@ -2,7 +2,7 @@ import base64
 import json
 import os
 from .card import MetaflowCard, MetaflowCardComponent, with_default_component_id
-from .convert_to_native_type import TaskToDict
+from .convert_to_native_type import TaskToDict, MAX_ARTIFACT_SIZE
 import uuid
 import inspect
 
@@ -376,9 +376,14 @@ class TaskInfoComponent(MetaflowCardComponent):
         components=[],
         runtime=False,
         flow=None,
+        max_artifact_size=None,
     ):
         self._task = task
         self._only_repr = only_repr
+        # Use the global MAX_ARTIFACT_SIZE constant if not specified
+        self._max_artifact_size = (
+            max_artifact_size if max_artifact_size is not None else MAX_ARTIFACT_SIZE
+        )
         self._graph = graph
         self._components = components
         self._page_title = page_title
@@ -394,9 +399,9 @@ class TaskInfoComponent(MetaflowCardComponent):
             a dictionary of form:
                 dict(metadata = {},components= [])
         """
-        task_data_dict = TaskToDict(only_repr=self._only_repr)(
-            self._task, graph=self._graph
-        )
+        task_data_dict = TaskToDict(
+            only_repr=self._only_repr, max_artifact_size=self._max_artifact_size
+        )(self._task, graph=self._graph)
         # ignore the name as an artifact
         if "name" in task_data_dict["data"]:
             del task_data_dict["data"]["name"]
@@ -693,10 +698,14 @@ class DefaultCard(MetaflowCard):
         **kwargs
     ):
         self._only_repr = True
+        # Default max artifact size uses the global MAX_ARTIFACT_SIZE constant (200MB)
+        self._max_artifact_size = MAX_ARTIFACT_SIZE
         self._graph = None if graph is None else transform_flow_graph(graph)
         self._flow = flow
         if "only_repr" in options:
             self._only_repr = options["only_repr"]
+        if "max_artifact_size" in options:
+            self._max_artifact_size = options["max_artifact_size"]
         self._components = components
 
     def render(self, task, runtime=False):
@@ -710,6 +719,7 @@ class DefaultCard(MetaflowCard):
             components=self._components,
             runtime=runtime,
             flow=self._flow,
+            max_artifact_size=self._max_artifact_size,
         ).render()
         pt = self._get_mustache()
         data_dict = dict(
