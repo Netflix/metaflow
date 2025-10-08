@@ -26,7 +26,8 @@ def parse_workflow_failures():
 def group_failures_by_template(failures):
     groups = {}
     for failure in failures:
-        groups.setdefault(failure["templateName"], []).append(failure)
+        if "finishedAt" in failure and failure["finishedAt"] is not None:
+            groups.setdefault(failure["templateName"], []).append(failure)
     return groups
 
 
@@ -53,7 +54,7 @@ def determine_first_error():
     grouped_failures = group_failures_by_template(failures)
     for group in grouped_failures.values():
         group.sort(
-            key=lambda x: datetime.strptime(x["finishedAt"], "%Y-%m-%dT%H:%M:%SZ")
+            key=lambda g: datetime.strptime(g["finishedAt"], "%Y-%m-%dT%H:%M:%SZ")
         )
 
     earliest_group = grouped_failures[
