@@ -184,6 +184,7 @@ if "postgresql" in enabled_components:
             'auth.username=metaflow',
             'auth.password=metaflow123',
             'auth.database=metaflow',
+            'image.repository=bitnamilegacy/postgresql',
             'primary.persistence.enabled=false',
             'primary.resources.requests.memory=128Mi',
             'primary.resources.requests.cpu=50m',

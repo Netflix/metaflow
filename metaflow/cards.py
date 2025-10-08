@@ -10,6 +10,9 @@ from metaflow.plugins.cards.card_modules.components import (
     ProgressBar,
     ValueBox,
     PythonCode,
+    EventsTimeline,
+    JSONViewer,
+    YAMLViewer,
 )
 from metaflow.plugins.cards.card_modules.basic import (
     DefaultCard,
