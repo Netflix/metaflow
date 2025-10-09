@@ -10,6 +10,9 @@ help:
 	@echo "  down          - Stop and clean up the environment"
 	@echo "  all-up        - Start the development environment with all services"
 	@echo "  help          - Show this help message"
+	@echo ""
+	@echo "Environment variables:"
+	@echo "  MINIKUBE_ENABLE_GPU=auto|true|false  - Control GPU support (default: auto)"
 
 HELM_VERSION := v3.14.0
 MINIKUBE_VERSION := v1.32.0
@@ -31,6 +34,7 @@ MAKE_CMD := $(MAKE) -f "$(MKFILE_PATH)"
 MINIKUBE_CPUS ?= 4
 MINIKUBE_MEMORY ?= 6144
 MINIKUBE_DISK_SIZE ?= 20g
+MINIKUBE_ENABLE_GPU ?= auto
 
 ifeq ($(shell uname), Darwin)
 	minikube_os = darwin
@@ -46,6 +50,32 @@ ifeq ($(shell uname -m), x86_64)
 else
 	arch = arm64
 	tilt_arch = arm64
+endif
+
+# GPU detection for minikube
+ifeq ($(MINIKUBE_ENABLE_GPU), auto)
+	# Auto-detect GPU availability
+	ifeq ($(shell command -v nvidia-smi >/dev/null 2>&1 && echo "nvidia"), nvidia)
+		gpu_detected = true
+	else ifeq ($(shell command -v rocm-smi >/dev/null 2>&1 && echo "amd"), amd)
+		gpu_detected = true
+	else
+		gpu_detected = false
+	endif
+else ifeq ($(MINIKUBE_ENABLE_GPU), true)
+	# Force enable GPU support
+	gpu_detected = true
+else
+	# Explicitly disabled
+	gpu_detected = false
+endif
+
+# Determine GPU flags for minikube
+# Note: minikube supports `--gpus all` but does not accept `--devices ...`.
+ifeq ($(gpu_detected), true)
+	gpu_flags = --gpus all
+else
+	gpu_flags =
 endif
 
 # TODO: Move scripts to a folder
@@ -136,11 +166,13 @@ setup-minikube:
 	@echo "🔧 Setting up Minikube $(MINIKUBE_VERSION) cluster..."
 	@if ! $(MINIKUBE) status >/dev/null 2>&1; then \
 		echo "🚀 Starting new Minikube $(MINIKUBE_VERSION) cluster..."; \
+		if [ -n "$(gpu_flags)" ]; then echo "🎮 GPU support detected - enabling GPU passthrough"; else echo "💻 No GPU detected - starting without GPU support"; fi; \
 		$(MINIKUBE) start \
 			--cpus $(MINIKUBE_CPUS) \
 			--memory $(MINIKUBE_MEMORY) \
 			--disk-size $(MINIKUBE_DISK_SIZE) \
 			--driver docker \
+			$(gpu_flags) \
 		|| { echo "❌ Failed to start Minikube (check if Docker is running)"; exit 1; }; \
 		echo "🔌 Enabling metrics-server and dashboard (quietly)..."; \
 		$(MINIKUBE) addons enable metrics-server >/dev/null 2>&1; \
