@@ -283,7 +283,8 @@ def version_option(version=None, *param_decls, **attrs):
                 try:
                     import pkg_resources
                 except ImportError:
-                    pass
+                    print("pkg_resources not found; upgrade to importlib.resources instead")
+                    raise
                 else:
                     for dist in pkg_resources.working_set:
                         scripts = dist.get_entry_map().get("console_scripts") or {}

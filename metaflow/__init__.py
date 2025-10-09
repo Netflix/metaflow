@@ -187,10 +187,10 @@ for _n in [
         pass
 del globals()["_n"]
 
-import pkg_resources
+from importlib.metadata import version
 
 try:
-    __version__ = pkg_resources.get_distribution("metaflow").version
+    __version__ = version("metaflow")
 except:
     # this happens on remote environments since the job package
     # does not have a version

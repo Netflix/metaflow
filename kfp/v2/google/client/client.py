@@ -15,7 +15,10 @@
 
 import datetime
 import json
-import pkg_resources
+try:
+    import pkg_resources
+except:
+    print("pkg_resources not found; upgrade to importlib.resources instead")
 import re
 import subprocess
 import warnings
@@ -187,9 +190,14 @@ class AIPlatformClient(object):
         self._region = region
         self._parent = _PARENT_PATTERN.format(project_id, region)
 
-        discovery_doc_path = pkg_resources.resource_filename(
-            'kfp.v2.google.client',
-            'discovery/aiplatform_public_google_rest_v1beta1.json')
+
+        try:
+            discovery_doc_path = pkg_resources.resource_filename(
+                'kfp.v2.google.client',
+                'discovery/aiplatform_public_google_rest_v1beta1.json') 
+        except:
+            print("pkg_resources not found; upgrade to importlib.resources instead.")
+            raise
 
         with open(discovery_doc_path) as f:
             discovery_doc = f.read()
