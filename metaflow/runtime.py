@@ -199,35 +199,6 @@ class SpinRuntime(object):
         self._max_log_size = max_log_size
         self._encoding = sys.stdout.encoding or "UTF-8"
 
-        # If no artifacts module is provided, create a temporary one with parameter values
-        if not self._artifacts_module and hasattr(flow, "_get_parameters"):
-            import tempfile
-            import os
-
-            # Collect parameter values from the flow
-            param_artifacts = {}
-            for var, param in flow._get_parameters():
-                if hasattr(flow, var):
-                    value = getattr(flow, var)
-                    # Only add if it's an actual value, not the Parameter object
-                    if value is not None and not hasattr(value, "IS_PARAMETER"):
-                        param_artifacts[var] = value
-
-            # If we have parameter values, create a temp module
-            if param_artifacts:
-                with tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".py", delete=False
-                ) as f:
-                    f.write(
-                        "# Auto-generated artifacts module for spin step parameters\n"
-                    )
-                    f.write("ARTIFACTS = {\n")
-                    for key, value in param_artifacts.items():
-                        f.write(f"    {repr(key)}: {repr(value)},\n")
-                    f.write("}\n")
-                    self._artifacts_module = f.name
-                    self._temp_artifacts_file = f.name  # Store for cleanup later
-
         # Create a new run_id for the spin task
         self.run_id = self._metadata.new_run_id()
         for deco in self.whitelist_decorators:
@@ -323,14 +294,6 @@ class SpinRuntime(object):
             finally:
                 for deco in self.whitelist_decorators:
                     deco.runtime_finished(exception)
-                # Clean up temporary artifacts file if we created one
-                if hasattr(self, "_temp_artifacts_file"):
-                    import os
-
-                    try:
-                        os.unlink(self._temp_artifacts_file)
-                    except:
-                        pass
 
     def _launch_and_monitor_task(self):
         worker = Worker(
