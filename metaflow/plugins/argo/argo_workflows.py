@@ -609,7 +609,16 @@ class ArgoWorkflows(object):
             # the JSON equivalent of None to please argo-workflows. Unfortunately it
             # has the side effect of casting the parameter value to string null during
             # execution - which needs to be fixed imminently.
-            if not is_required or default_value is not None:
+            if default_value is None:
+                default_value = json.dumps(None)
+            elif param_type == "JSON":
+                if not isinstance(default_value, str):
+                    # once to serialize the default value if needed.
+                    default_value = json.dumps(default_value)
+                # adds outer quotes to param
+                default_value = json.dumps(default_value)
+            else:
+                # Make argo sensors happy
                 default_value = json.dumps(default_value)
 
             parameters[param.name] = dict(
@@ -941,11 +950,7 @@ class ArgoWorkflows(object):
                     Arguments().parameters(
                         [
                             Parameter(parameter["name"])
-                            .value(
-                                "'%s'" % parameter["value"]
-                                if parameter["type"] == "JSON"
-                                else parameter["value"]
-                            )
+                            .value(parameter["value"])
                             .description(parameter.get("description"))
                             # TODO: Better handle IncludeFile in Argo Workflows UI.
                             for parameter in self.parameters.values()
@@ -2054,8 +2059,8 @@ class ArgoWorkflows(object):
                         # {{foo.bar['param_name']}}.
                         # https://argoproj.github.io/argo-events/tutorials/02-parameterization/
                         # http://masterminds.github.io/sprig/strings.html
-                        "--%s={{workflow.parameters.%s}}"
-                        % (parameter["name"], parameter["name"])
+                        "--%s=\\\"$(python -m metaflow.plugins.argo.param_val {{=toBase64(workflow.parameters['%s'])}} %s)\\\""
+                        % (parameter["name"], parameter["name"], parameter["type"])
                         for parameter in self.parameters.values()
                     ]
                 )
@@ -3859,20 +3864,9 @@ class ArgoWorkflows(object):
                                                 # record the default values for
                                                 # the parameters - there doesn't seem
                                                 # to be any way for us to skip
-                                                value=(
-                                                    json.dumps(
-                                                        self.parameters[parameter_name][
-                                                            "value"
-                                                        ]
-                                                    )
-                                                    if self.parameters[parameter_name][
-                                                        "type"
-                                                    ]
-                                                    == "JSON"
-                                                    else self.parameters[
-                                                        parameter_name
-                                                    ]["value"]
-                                                ),
+                                                value=self.parameters[parameter_name][
+                                                    "value"
+                                                ],
                                             )
                                             .dest(
                                                 # this undocumented (mis?)feature in
