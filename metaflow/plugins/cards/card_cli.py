@@ -335,7 +335,6 @@ def list_many_cards(
 def cli():
     pass
 
-
 @cli.group(help="Commands related to @card decorator.")
 @click.pass_context
 def card(ctx):
@@ -343,7 +342,6 @@ def card(ctx):
     # Can work with the Metaflow client.
     # If we don't set the metadata here than the metaflow client picks the defaults when calling the `Task`/`Run` objects. These defaults can come from the `config.json` file or based on the `METAFLOW_PROFILE`
     from metaflow import metadata
-
     setting_metadata = "@".join(
         [ctx.obj.metadata.TYPE, ctx.obj.metadata.default_info()]
     )
