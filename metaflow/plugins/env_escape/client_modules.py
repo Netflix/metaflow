@@ -1,5 +1,6 @@
 import atexit
 import importlib
+import importlib.util
 import itertools
 import pickle
 import re
@@ -41,6 +42,8 @@ class _WrappedModule(object):
     def __getattr__(self, name):
         if name == "__loader__":
             return self._loader
+        if name == "__spec__":
+            return importlib.util.spec_from_loader(self._prefix, self._loader)
         if name in ("__name__", "__package__"):
             return self._prefix
         if name in ("__file__", "__path__"):
@@ -71,7 +74,8 @@ class _WrappedModule(object):
             # Try to see if this is a submodule that we can load
             m = None
             try:
-                m = self._loader.load_module(".".join([self._prefix, name]))
+                submodule_name = ".".join([self._prefix, name])
+                m = importlib.import_module(submodule_name)
             except ImportError:
                 pass
             if m is None:
@@ -117,7 +121,7 @@ class _WrappedModule(object):
 
 
 class ModuleImporter(object):
-    # This ModuleImporter implements the Importer Protocol defined in PEP 302
+    # This ModuleImporter implements the MetaPathFinder and Loader protocols (PEP 302/451)
     def __init__(
         self,
         python_executable,
@@ -135,84 +139,90 @@ class ModuleImporter(object):
         self._handled_modules = None
         self._aliases = {}
 
-    def find_module(self, fullname, path=None):
+    def find_spec(self, fullname, path=None, target=None):
         if self._handled_modules is not None:
             if get_canonical_name(fullname, self._aliases) in self._handled_modules:
-                return self
+                return importlib.util.spec_from_loader(fullname, self)
             return None
         if any([fullname.startswith(prefix) for prefix in self._module_prefixes]):
             # We potentially handle this
-            return self
+            return importlib.util.spec_from_loader(fullname, self)
         return None
 
-    def load_module(self, fullname):
-        if fullname in sys.modules:
-            return sys.modules[fullname]
-        if self._client is None:
-            if sys.version_info[0] < 3:
-                raise NotImplementedError(
-                    "Environment escape imports are not supported in Python 2"
-                )
-            # We initialize a client and query the modules we handle
-            # The max_pickle_version is the pickle version that the server (so
-            # the underlying interpreter we call into) supports; we determine
-            # what version the current environment support and take the minimum
-            # of those two
-            max_pickle_version = min(self._max_pickle_version, pickle.HIGHEST_PROTOCOL)
+    def create_module(self, spec):
+        # Return None to use default module creation
+        return None
 
-            self._client = Client(
-                self._module_prefixes,
-                self._python_executable,
-                self._pythonpath,
-                max_pickle_version,
-                self._config_dir,
-            )
-            atexit.register(_clean_client, self._client)
+    def exec_module(self, module):
+        fullname = module.__name__
 
-            # Get information about overrides and what the server knows about
-            exports = self._client.get_exports()
+        self._initialize_client()
 
-            prefixes = set()
-            export_classes = exports.get("classes", [])
-            export_functions = exports.get("functions", [])
-            export_values = exports.get("values", [])
-            export_exceptions = exports.get("exceptions", [])
-            self._aliases = exports.get("aliases", {})
-            for name in itertools.chain(
-                export_classes,
-                export_functions,
-                export_values,
-                (e[0] for e in export_exceptions),
-            ):
-                splits = name.rsplit(".", 1)
-                prefixes.add(splits[0])
-            # We will make sure that we create modules even for "empty" prefixes
-            # because packages are always loaded hierarchically so if we have
-            # something in `a.b.c` but nothing directly in `a`, we still need to
-            # create a module named `a`. There is probably a better way of doing this
-            all_prefixes = list(prefixes)
-            for prefix in all_prefixes:
-                parts = prefix.split(".")
-                cur = parts[0]
-                for i in range(1, len(parts)):
-                    prefixes.add(cur)
-                    cur = ".".join([cur, parts[i]])
-
-            # We now know all the modules that we can handle. We update
-            # handled_module and return the module if we have it or raise ImportError
-            self._handled_modules = {}
-            for prefix in prefixes:
-                self._handled_modules[prefix] = _WrappedModule(
-                    self, prefix, exports, self._client
-                )
         canonical_fullname = get_canonical_name(fullname, self._aliases)
-        # Modules are created canonically but we need to return something for any
-        # of the aliases.
-        module = self._handled_modules.get(canonical_fullname)
-        if module is None:
-            raise ImportError
-        sys.modules[fullname] = module
-        return module
+        # Modules are created canonically but we need to handle any of the aliases.
+        wrapped_module = self._handled_modules.get(canonical_fullname)
+        if wrapped_module is None:
+            raise ImportError(f"No module named '{fullname}'")
+
+        # Replace the standard module with the wrapped module in sys.modules
+        sys.modules[fullname] = wrapped_module
+
+    def _initialize_client(self):
+        if self._client is not None:
+            return
+
+        # We initialize a client and query the modules we handle
+        # The max_pickle_version is the pickle version that the server (so
+        # the underlying interpreter we call into) supports; we determine
+        # what version the current environment support and take the minimum
+        # of those two
+        max_pickle_version = min(self._max_pickle_version, pickle.HIGHEST_PROTOCOL)
+
+        self._client = Client(
+            self._module_prefixes,
+            self._python_executable,
+            self._pythonpath,
+            max_pickle_version,
+            self._config_dir,
+        )
+        atexit.register(_clean_client, self._client)
+
+        # Get information about overrides and what the server knows about
+        exports = self._client.get_exports()
+
+        prefixes = set()
+        export_classes = exports.get("classes", [])
+        export_functions = exports.get("functions", [])
+        export_values = exports.get("values", [])
+        export_exceptions = exports.get("exceptions", [])
+        self._aliases = exports.get("aliases", {})
+        for name in itertools.chain(
+            export_classes,
+            export_functions,
+            export_values,
+            (e[0] for e in export_exceptions),
+        ):
+            splits = name.rsplit(".", 1)
+            prefixes.add(splits[0])
+        # We will make sure that we create modules even for "empty" prefixes
+        # because packages are always loaded hierarchically so if we have
+        # something in `a.b.c` but nothing directly in `a`, we still need to
+        # create a module named `a`. There is probably a better way of doing this
+        all_prefixes = list(prefixes)
+        for prefix in all_prefixes:
+            parts = prefix.split(".")
+            cur = parts[0]
+            for i in range(1, len(parts)):
+                prefixes.add(cur)
+                cur = ".".join([cur, parts[i]])
+
+        # We now know all the modules that we can handle. We update
+        # handled_module and return the module if we have it or raise ImportError
+        self._handled_modules = {}
+        for prefix in prefixes:
+            self._handled_modules[prefix] = _WrappedModule(
+                self, prefix, exports, self._client
+            )
 
 
 def create_modules(python_executable, pythonpath, max_pickle_version, path, prefixes):
