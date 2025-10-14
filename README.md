@@ -45,6 +45,13 @@ For more details on Metaflow’s features and best practices, check out:
 
 If you need help, don’t hesitate to reach out on our [Slack community](http://slack.outerbounds.co/)!
 
+### Docker Runtime
+
+Metaflow development requires Docker. You can use either:
+- **Docker Desktop** (default)
+- **[Colima](docs/colima.md)** (open-source alternative for macOS)
+
+Check your Docker setup with: `make check-docker`
 
 ### Deploying infrastructure for Metaflow in your cloud
 <img src="./docs/multicloud.png" width="800px">
