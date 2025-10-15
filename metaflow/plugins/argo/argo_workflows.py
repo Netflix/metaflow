@@ -121,6 +121,8 @@ class ArgoWorkflows(object):
         incident_io_metadata: List[str] = None,
         enable_heartbeat_daemon=True,
         enable_error_msg_capture=False,
+        workflow_title=None,
+        workflow_description=None,
     ):
         # Some high-level notes -
         #
@@ -177,6 +179,8 @@ class ArgoWorkflows(object):
         )
         self.enable_heartbeat_daemon = enable_heartbeat_daemon
         self.enable_error_msg_capture = enable_error_msg_capture
+        self.workflow_title = workflow_title
+        self.workflow_description = workflow_description
         self.parameters = self._process_parameters()
         self.config_parameters = self._process_config_parameters()
         self.triggers, self.trigger_options = self._process_triggers()
@@ -430,6 +434,25 @@ class ArgoWorkflows(object):
                     "metaflow/project_flow_name": current.project_flow_name,
                 }
             )
+
+        # Add Argo Workflows title and description annotations
+        # https://argo-workflows.readthedocs.io/en/latest/title-and-description/
+        # Use CLI-provided values or auto-populate from metadata
+        title = (
+            (self.workflow_title.strip() if self.workflow_title else None)
+            or current.get("project_flow_name")
+            or self.flow.name
+        )
+
+        description = (
+            self.workflow_description.strip() if self.workflow_description else None
+        ) or (self.flow.__doc__.strip() if self.flow.__doc__ else None)
+
+        if title:
+            annotations["workflows.argoproj.io/title"] = title
+        if description:
+            annotations["workflows.argoproj.io/description"] = description
+
         return annotations
 
     def _get_schedule(self):
@@ -894,7 +917,16 @@ class ArgoWorkflows(object):
                     .annotations(
                         {
                             **annotations,
-                            **self._base_annotations,
+                            **{
+                                k: v
+                                for k, v in self._base_annotations.items()
+                                if k
+                                # Skip custom title/description for workflows as this makes it harder to find specific runs.
+                                not in [
+                                    "workflows.argoproj.io/title",
+                                    "workflows.argoproj.io/description",
+                                ]
+                            },
                             **{"metaflow/run_id": "argo-{{workflow.name}}"},
                         }
                     )
