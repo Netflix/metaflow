@@ -16,7 +16,7 @@ from ..exception import MetaflowException
 from ..metaflow_version import get_version
 from ..user_decorators.user_flow_decorator import FlowMutatorMeta
 from ..user_decorators.user_step_decorator import UserStepDecoratorMeta
-from ..util import get_metaflow_root
+from ..util import get_metaflow_root, walk_without_cycles
 from . import ContentType, MFCONTENT_MARKER, MetaflowCodeContentV1Base
 from .distribution_support import _ModuleInfo, modules_to_distributions
 from .utils import suffix_filter, walk
@@ -455,14 +455,6 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
                     % (dist_name, name)
                 )
                 dist_root = str(dist.locate_file(name))
-                if dist_root not in paths:
-                    # This is an error because it means that this distribution is
-                    # not contributing to the module.
-                    raise RuntimeError(
-                        "Distribution '%s' is not contributing to module '%s' as "
-                        "expected (got '%s' when expected one of %s)"
-                        % (dist.metadata["Name"], name, dist_root, paths)
-                    )
                 has_file_in_root = False
                 if dist_name not in self._distmetainfo:
                     # Possible that a distribution contributes to multiple modules
@@ -485,6 +477,16 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
                     if file.parts[len(prefix_parts)] == "__init__.py":
                         has_init = True
                     has_file_in_root = True
+                    # At this point, we know that we are seeing actual files in the
+                    # dist_root so we make sure it is as expected
+                    if dist_root not in paths:
+                        # This is an error because it means that this distribution is
+                        # not contributing to the module.
+                        raise RuntimeError(
+                            "Distribution '%s' is not contributing to module '%s' as "
+                            "expected (got '%s' when expected one of %s)"
+                            % (dist.metadata["Name"], name, dist_root, paths)
+                        )
                     yield str(
                         dist.locate_file(file).resolve().as_posix()
                     ), os.path.join(self._code_dir, *prefix_parts, *file.parts[1:])
@@ -505,7 +507,7 @@ class MetaflowCodeContentV1(MetaflowCodeContentV1Base):
                 )
                 has_init = True
             else:
-                for root, _, files in os.walk(path):
+                for root, _, files in walk_without_cycles(path):
                     for file in files:
                         if any(file.endswith(x) for x in EXT_EXCLUDE_SUFFIXES):
                             continue

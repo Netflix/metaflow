@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from metaflow.meta_files import read_info_file
+from metaflow.util import walk_without_cycles
 
 
 #
@@ -693,7 +694,7 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
             # contributes to. This is to enable multiple namespace packages to contribute
             # to the same extension point (for example, you may have multiple packages
             # that have plugins)
-            for f in dist.files:
+            for f in dist.files or []:
                 if f.suffix == ".pth":
                     # This is a directory we need to walk to find the files
                     d = f.read_text().strip()
@@ -739,7 +740,7 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
                 all_roots.append(addl_dir)
                 all_paths.discard(addl_dir)
                 _ext_debug("    Walking additional directory '%s'" % addl_dir)
-                for root, _, files in os.walk(addl_dir):
+                for root, _, files in walk_without_cycles(addl_dir):
                     relative_root = "/".join(root.split("/")[base_depth:])
                     for f in files:
                         process_file(state, addl_dir, os.path.join(relative_root, f))
@@ -854,7 +855,7 @@ def _get_extension_packages(ignore_info_file=False, restrict_to_directories=None
                 "meta_module": None,
             }
 
-            for root, _, files in os.walk(package_path):
+            for root, _, files in walk_without_cycles(package_path):
                 relative_root = "/".join(root.split("/")[base_depth - 1 :])
                 for f in files:
                     process_file(state, package_path, os.path.join(relative_root, f))
