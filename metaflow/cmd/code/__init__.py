@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from typing import Any, Callable, List, Mapping, Optional, cast
 
 from metaflow import Run
+from metaflow.util import walk_without_cycles
 from metaflow._vendor import click
 from metaflow.cli import echo_always
 
@@ -51,7 +52,7 @@ def perform_diff(
         target_dir = os.getcwd()
 
     diffs = []
-    for dirpath, dirnames, filenames in os.walk(source_dir, followlinks=True):
+    for dirpath, _, filenames in walk_without_cycles(source_dir):
         for fname in filenames:
             # NOTE: the paths below need to be set up carefully
             # for the `patch` command to work. Better not to touch

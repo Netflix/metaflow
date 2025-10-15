@@ -4,11 +4,12 @@ import sys
 import tempfile
 import zlib
 import base64
+import re
+
 from functools import wraps
 from io import BytesIO
 from itertools import takewhile
-import re
-
+from typing import Generator, List, Optional, Tuple
 
 try:
     # python2
@@ -471,3 +472,41 @@ def to_pod(value):
 
 
 from metaflow._vendor.packaging.version import parse as version_parse
+
+
+# this is os.walk(follow_symlinks=True) with cycle detection
+def walk_without_cycles(
+    top_root: str,
+    exclude_dirs: Optional[List[str]] = None,
+) -> Generator[Tuple[str, List[str], List[str]], None, None]:
+    seen = set()
+
+    default_skip_dirs = ["__pycache__"]
+
+    def _recurse(root, skip_dirs):
+        for parent, dirs, files in os.walk(root):
+            dirs[:] = [d for d in dirs if d not in skip_dirs]
+            for d in dirs:
+                path = os.path.join(parent, d)
+                if os.path.islink(path):
+                    # Breaking loops: never follow the same symlink twice
+                    #
+                    # NOTE: this also means that links to sibling links are
+                    # not followed. In this case:
+                    #
+                    #   x -> y
+                    #   y -> oo
+                    #   oo/real_file
+                    #
+                    # real_file is only included twice, not three times
+                    reallink = os.path.realpath(path)
+                    if reallink not in seen:
+                        seen.add(reallink)
+                        for x in _recurse(path, default_skip_dirs):
+                            yield x
+            yield parent, dirs, files
+
+    skip_dirs = set(default_skip_dirs + (exclude_dirs or []))
+    for x in _recurse(top_root, skip_dirs):
+        skip_dirs = default_skip_dirs
+        yield x
