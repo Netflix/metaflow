@@ -917,7 +917,16 @@ class ArgoWorkflows(object):
                     .annotations(
                         {
                             **annotations,
-                            **self._base_annotations,
+                            **{
+                                k: v
+                                for k, v in self._base_annotations.items()
+                                if k
+                                # Skip custom title/description for workflows as this makes it harder to find specific runs.
+                                not in [
+                                    "workflows.argoproj.io/title",
+                                    "workflows.argoproj.io/description",
+                                ]
+                            },
                             **{"metaflow/run_id": "argo-{{workflow.name}}"},
                         }
                     )
