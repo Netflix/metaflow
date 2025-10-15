@@ -109,7 +109,6 @@ def read_from_fifo_when_ready(
     content = bytearray()
     poll = select.poll()
     poll.register(fifo_fd, select.POLLIN)
-    max_timeout = 3  # Wait for 10 * 3 = 30 ms after last write
     while True:
         if check_process_exited(command_obj) and command_obj.process.returncode != 0:
             raise CalledProcessError(
@@ -137,15 +136,16 @@ def read_from_fifo_when_ready(
                 else:
                     # We had no events (just a timeout) and the read didn't return
                     # an exception so the file is still open; we continue waiting for data
-                    # Unfortunately, on MacOS, it seems that even *after* the file is
-                    # closed on the other end, we still don't get a BlockingIOError so
-                    # we hack our way and timeout if there is no write in 30ms which is
-                    # a relative eternity for file writes.
-                    if content:
-                        if max_timeout <= 0:
-                            break
-                        max_timeout -= 1
-                        continue
+                    # On some systems (notably MacOS), even after the file is closed on the
+                    # other end, we may not get a BlockingIOError or proper EOF signal.
+                    # Instead of using an arbitrary timeout, check if the writer process
+                    # has actually exited. If it has and we have content, we can safely
+                    # assume EOF. If the process is still running, continue waiting.
+                    if content and check_process_exited(command_obj):
+                        # Process has exited and we got an empty read with no poll events.
+                        # This is EOF - break out to return the content we've collected.
+                        break
+                    # else: process is still running, continue waiting for more data
         except BlockingIOError:
             has_blocking_error = True
             if content:
