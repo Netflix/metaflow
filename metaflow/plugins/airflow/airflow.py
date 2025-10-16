@@ -10,6 +10,7 @@ import metaflow.util as util
 from metaflow import current
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
+from metaflow.flowspec import FlowStateItems
 from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import (
     AIRFLOW_KUBERNETES_CONN_ID,
@@ -150,7 +151,7 @@ class Airflow(object):
     def _get_schedule(self):
         # Using the cron presets provided here :
         # https://airflow.apache.org/docs/apache-airflow/stable/dag-run.html?highlight=schedule%20interval#cron-presets
-        schedule = self.flow._flow_decorators.get("schedule")
+        schedule = self.flow._flow_state[FlowStateItems.FLOW_DECORATORS].get("schedule")
         if not schedule:
             return None
         schedule = schedule[0]
@@ -633,10 +634,11 @@ class Airflow(object):
         return cmds
 
     def _collect_flow_sensors(self):
+        flow_decos = self.flow._flow_state[FlowStateItems.FLOW_DECORATORS]
         decos_lists = [
-            self.flow._flow_decorators.get(s.name)
+            flow_decos.get(s.name)
             for s in SUPPORTED_SENSORS
-            if self.flow._flow_decorators.get(s.name) is not None
+            if flow_decos.get(s.name) is not None
         ]
         af_tasks = [deco.create_task() for decos in decos_lists for deco in decos]
         if len(af_tasks) > 0:
@@ -650,15 +652,14 @@ class Airflow(object):
         return False
 
     def compile(self):
-        if self.flow._flow_decorators.get("trigger") or self.flow._flow_decorators.get(
-            "trigger_on_finish"
-        ):
+        flow_decos = self.flow._flow_state[FlowStateItems.FLOW_DECORATORS]
+        if flow_decos.get("trigger") or flow_decos.get("trigger_on_finish"):
             raise AirflowException(
                 "Deploying flows with @trigger or @trigger_on_finish decorator(s) "
                 "to Airflow is not supported currently."
             )
 
-        if self.flow._flow_decorators.get("exit_hook"):
+        if flow_decos.get("exit_hook"):
             raise AirflowException(
                 "Deploying flows with the @exit_hook decorator "
                 "to Airflow is not currently supported."
