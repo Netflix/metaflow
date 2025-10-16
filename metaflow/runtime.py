@@ -46,7 +46,7 @@ from . import procpoll
 from .datastore import FlowDataStore, TaskDataStoreSet
 from .debug import debug
 from .decorators import flow_decorators
-from .flowspec import _FlowState
+from .flowspec import FlowStateItems
 from .mflog import mflog, RUNTIME_LOG_SOURCE
 from .util import to_unicode, compress_list, unicode_type, get_latest_task_pathspec
 from .clone_util import clone_task_helper
@@ -940,7 +940,8 @@ class NativeRuntime(object):
 
     def _run_exit_hooks(self):
         try:
-            exit_hook_decos = self._flow._flow_decorators.get("exit_hook", [])
+            flow_decos = self._flow._flow_state[FlowStateItems.FLOW_DECORATORS]
+            exit_hook_decos = flow_decos.get("exit_hook", [])
             if not exit_hook_decos:
                 return
 
@@ -2077,7 +2078,7 @@ class CLIArgs(object):
         # We also pass configuration options using the kv.<name> syntax which will cause
         # the configuration options to be loaded from the CONFIG file (or local-config-file
         # in the case of the local runtime)
-        configs = self.task.flow._flow_state.get(_FlowState.CONFIGS)
+        configs = self.task.flow._flow_state[FlowStateItems.CONFIGS]
         if configs:
             self.top_level_options["config-value"] = [
                 (k, ConfigInput.make_key_name(k)) for k in configs

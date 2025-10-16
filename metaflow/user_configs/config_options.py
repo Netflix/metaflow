@@ -186,7 +186,7 @@ class ConfigInput:
         click_obj: Optional[Any] = None,
     ):
         from ..cli import echo_always, echo_dev_null  # Prevent circular import
-        from ..flowspec import _FlowState  # Prevent circular import
+        from ..flowspec import FlowStateItems  # Prevent circular import
 
         flow_cls = getattr(current_flow, "flow_cls", None)
         if flow_cls is None:
@@ -260,7 +260,6 @@ class ConfigInput:
             for k in all_keys
         )
 
-        flow_cls._flow_state[_FlowState.CONFIGS] = {}
         to_return = {}
 
         if not has_all_kv:
@@ -332,7 +331,7 @@ class ConfigInput:
             if val is None:
                 missing_configs.add(name)
                 to_return[name] = None
-                flow_cls._flow_state[_FlowState.CONFIGS][name] = None
+                flow_cls._flow_state[FlowStateItems.CONFIGS][name] = None
                 continue
             if val.startswith(_CONVERTED_NO_FILE):
                 no_file.append(name)
@@ -356,7 +355,7 @@ class ConfigInput:
                         click_obj.delayed_config_exception = exc
                         return None
                     raise exc from e
-                flow_cls._flow_state[_FlowState.CONFIGS][name] = read_value
+                flow_cls._flow_state[FlowStateItems.CONFIGS][name] = read_value
                 to_return[name] = (
                     ConfigValue(read_value) if read_value is not None else None
                 )
@@ -373,7 +372,7 @@ class ConfigInput:
                         )
                         continue
                     # TODO: Support YAML
-                flow_cls._flow_state[_FlowState.CONFIGS][name] = read_value
+                flow_cls._flow_state[FlowStateItems.CONFIGS][name] = read_value
                 to_return[name] = (
                     ConfigValue(read_value) if read_value is not None else None
                 )

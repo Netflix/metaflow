@@ -55,9 +55,9 @@ UNPACK_KEY = "_unpacked_delayed_"
 
 
 def dump_config_values(flow: "FlowSpec"):
-    from ..flowspec import _FlowState  # Prevent circular import
+    from ..flowspec import FlowStateItems  # Prevent circular import
 
-    configs = flow._flow_state.get(_FlowState.CONFIGS)
+    configs = flow._flow_state[FlowStateItems.CONFIGS]
     if configs:
         return {"user_configs": configs}
     return {}
@@ -344,7 +344,7 @@ class DelayEvaluator(collections.abc.Mapping):
         return c
 
     def __call__(self, ctx=None, deploy_time=False):
-        from ..flowspec import _FlowState  # Prevent circular import
+        from ..flowspec import FlowStateItems  # Prevent circular import
 
         # Two additional arguments are only used by DeployTimeField which will call
         # this function with those two additional arguments. They are ignored.
@@ -380,7 +380,7 @@ class DelayEvaluator(collections.abc.Mapping):
                 self._globals or globals(),
                 {
                     k: ConfigValue(v) if v is not None else None
-                    for k, v in flow_cls._flow_state.get(_FlowState.CONFIGS, {}).items()
+                    for k, v in flow_cls._flow_state[FlowStateItems.CONFIGS].items()
                 },
             )
         except NameError as e:
