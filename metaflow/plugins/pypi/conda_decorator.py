@@ -5,7 +5,6 @@ import sys
 import tempfile
 
 from metaflow.decorators import FlowDecorator, StepDecorator
-from metaflow.flowspec import FlowStateItems
 from metaflow.metadata_provider import MetaDatum
 from metaflow.metaflow_environment import InvalidEnvironmentException
 from metaflow.packaging_sys import ContentType
@@ -83,9 +82,8 @@ class CondaStepDecorator(StepDecorator):
         self.datastore = flow_datastore
 
         # Support flow-level decorator.
-        flow_decos = self.flow._flow_state[FlowStateItems.FLOW_DECORATORS]
-        if "conda_base" in flow_decos:
-            conda_base = flow_decos["conda_base"][0]
+        if "conda_base" in self.flow._flow_decorators:
+            conda_base = self.flow._flow_decorators["conda_base"][0]
             super_attributes = conda_base.attributes
             self.attributes["packages"] = {
                 **super_attributes["packages"],
