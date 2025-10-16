@@ -8,7 +8,7 @@ from .. import decorators, namespace, parameters, tracing
 from ..exception import CommandException
 from ..graph import FlowGraph
 from ..metaflow_current import current
-from ..metaflow_config import DEFAULT_DECOSPECS, FEAT_ALWAYS_UPLOAD_CODE_PACKAGE
+from ..metaflow_config import DEFAULT_DECOSPECS, FEAT_ALWAYS_UPLOAD_CODE_PACKAGE, SPIN_PERSIST
 from ..metaflow_profile import from_start
 from ..package import MetaflowPackage
 from ..runtime import NativeRuntime, SpinRuntime
@@ -425,13 +425,15 @@ def run(
         runtime.execute()
 
 
-@parameters.add_custom_parameters(deploy_mode=True)
+# @parameters.add_custom_parameters(deploy_mode=True)
 @click.command(help="Spins up a task for a given step from a previous run locally.")
 @tracing.cli("cli/spin")
 @click.argument("pathspec")
 @click.option(
     "--skip-decorators/--no-skip-decorators",
     is_flag=True,
+    # Default False matches the saved_args check in cli.py for spin steps - skip_decorators
+    # only becomes True when explicitly passed, otherwise decorators are applied by default
     default=False,
     show_default=True,
     help="Skip decorators attached to the step or flow.",
@@ -448,7 +450,7 @@ def run(
 @click.option(
     "--persist/--no-persist",
     "persist",
-    default=True,
+    default=SPIN_PERSIST,
     show_default=True,
     help="Whether to persist the artifacts in the spun step. If set to False, "
     "the artifacts will not be persisted and will not be available in the spun step's "
@@ -480,7 +482,16 @@ def spin(
 
     before_run(obj, [], [], skip_decorators)
     obj.echo(f"Spinning up step *{step_name}* locally for flow *{obj.flow.name}*")
-    obj.flow._set_constants(obj.graph, kwargs, obj.config_options)
+    # For spin, flow parameters come from the original run, but _set_constants
+    # requires them in kwargs. Use parameter defaults as placeholders - they'll be
+    # overwritten when the spin step loads artifacts from the original run.
+    flow_param_defaults = {}
+    for var, param in obj.flow._get_parameters():
+        if not param.IS_CONFIG_PARAMETER:
+            default_value = param.kwargs.get("default")
+            # Use None for required parameters without defaults
+            flow_param_defaults[param.name.replace("-", "_").lower()] = default_value
+    obj.flow._set_constants(obj.graph, flow_param_defaults, obj.config_options)
     step_func = getattr(obj.flow, step_name, None)
     if step_func is None:
         raise CommandException(

@@ -33,6 +33,7 @@ from .metaflow_config import (
     MAX_ATTEMPTS,
     UI_URL,
     SPIN_ALLOWED_DECORATORS,
+    SPIN_DISALLOWED_DECORATORS,
 )
 from .metaflow_profile import from_start
 from .plugins import DATASTORES
@@ -201,6 +202,13 @@ class SpinRuntime(object):
 
         # Create a new run_id for the spin task
         self.run_id = self._metadata.new_run_id()
+        # Raise exception if we have a black listed decorator
+        for deco in self._step_func.decorators:
+            if deco.name in SPIN_DISALLOWED_DECORATORS:
+                raise MetaflowException(
+                    f"Spinning steps with @{deco.name} decorator is not supported."
+                )
+
         for deco in self.whitelist_decorators:
             deco.runtime_init(flow, graph, package, self.run_id)
         from_start("SpinRuntime: after init decorators")

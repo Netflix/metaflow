@@ -26,7 +26,7 @@ def run_step(flow_file, run, step_name, **tl_kwargs):
     flow_path = os.path.join(FLOWS_DIR, flow_file)
     print(f"FLOWS_DIR: {FLOWS_DIR}")
 
-    with Runner(flow_path, cwd=FLOWS_DIR, **tl_kwargs).spin(task.pathspec) as spin:
+    with Runner(flow_path, cwd=FLOWS_DIR, **tl_kwargs).spin(task.pathspec, persist=True) as spin:
         print("-" * 50)
         print(f"Running test for step: {step_name} with task pathspec: {task.pathspec}")
         assert_artifacts(task, spin.task)

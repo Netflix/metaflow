@@ -51,6 +51,7 @@ DEFAULT_FROM_DEPLOYMENT_IMPL = from_conf(
 ###
 # Spin configuration
 ###
+# Essentially a whitelist of decorators that are allowed in Spin steps
 SPIN_ALLOWED_DECORATORS = from_conf(
     "SPIN_ALLOWED_DECORATORS",
     [
@@ -65,6 +66,19 @@ SPIN_ALLOWED_DECORATORS = from_conf(
         "card",
     ],
 )
+
+# Essentially a blacklist of decorators that are not allowed in Spin steps
+# Note: decorators not in either SPIN_ALLOWED_DECORATORS or SPIN_DISALLOWED_DECORATORS
+# are simply ignored in Spin steps
+SPIN_DISALLOWED_DECORATORS = from_conf(
+    "SPIN_DISALLOWED_DECORATORS",
+    [
+        "parallel",
+    ],
+)
+
+# Default value for persist option in spin command
+SPIN_PERSIST = from_conf("SPIN_PERSIST", False)
 
 ###
 # User configuration

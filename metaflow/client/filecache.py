@@ -406,10 +406,10 @@ class FileCache(object):
 
 class TaskMetadataCache(MetadataCache):
     def __init__(self, filecache, ds_type, ds_root, flow_name):
+        self._filecache = filecache
         self._ds_type = ds_type
         self._ds_root = ds_root
         self._flow_name = flow_name
-        self._filecache = filecache
 
     def _path(self, run_id, step_name, task_id, attempt):
         if attempt is None:

@@ -118,14 +118,14 @@ class FlowDataStore(object):
             If True, returns all attempts up to and including attempt.
         mode : str, default "r"
             Mode to initialize the returned TaskDataStores in.
-        join_type : str, optional
+        join_type : str, optional, default None
             If specified, the join type for the task. This is used to determine
             the user specified artifacts for the task in case of a spin task.
-        orig_flow_datastore : MetadataProvider, optional
+        orig_flow_datastore : MetadataProvider, optional, default None
             The metadata provider in case of a spin task. If provided, the
             returned TaskDataStore will be a SpinTaskDatastore instead of a
             TaskDataStore.
-        spin_artifacts : Dict[str, Any], optional
+        spin_artifacts : Dict[str, Any], optional, default None
             Artifacts provided by user that can override the artifacts fetched via the
             spin pathspec.
 
@@ -277,7 +277,6 @@ class FlowDataStore(object):
                 data_metadata=data_metadata,
                 mode=mode,
                 allow_not_done=allow_not_done,
-                join_type=join_type,
                 persist=persist,
             )
 

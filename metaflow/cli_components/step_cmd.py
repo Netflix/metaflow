@@ -188,13 +188,13 @@ def step(
     "--run-id",
     default=None,
     required=True,
-    help="Run ID for the step that's about to be spun",
+    help="Original run ID for the step that will be spun",
 )
 @click.option(
     "--task-id",
     default=None,
     required=True,
-    help="Task ID for the step that's about to be spun",
+    help="Original Task ID for the step that will be spun",
 )
 @click.option(
     "--orig-flow-datastore",

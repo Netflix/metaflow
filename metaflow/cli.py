@@ -323,11 +323,11 @@ def version(obj):
     is_eager=True,
 )
 @click.option(
-    "--spin-mode",
-    is_flag=True,
-    default=False,
-    help="Enable spin mode for metaflow cli commands. Setting this flag will result "
-         "in using spin metadata and spin datastore for executions"
+    "--mode",
+    type=click.Choice(["spin"]),
+    default=None,
+    help="Execution mode for metaflow CLI commands. Use 'spin' to enable "
+         "spin metadata and spin datastore for executions"
 )
 @click.pass_context
 def start(
@@ -346,7 +346,7 @@ def start(
     local_config_file=None,
     config=None,
     config_value=None,
-    spin_mode=False,
+    mode=None,
     **deco_options
 ):
     if quiet:
@@ -379,7 +379,7 @@ def start(
     ctx.obj.check = functools.partial(_check, echo)
     ctx.obj.top_cli = cli
     ctx.obj.package_suffixes = package_suffixes.split(",")
-    ctx.obj.spin_mode = spin_mode
+    ctx.obj.spin_mode = (mode == "spin")
 
     ctx.obj.datastore_impl = [d for d in DATASTORES if d.TYPE == datastore][0]
 

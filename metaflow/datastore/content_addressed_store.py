@@ -38,7 +38,7 @@ class ContentAddressedStore(object):
     def set_blob_cache(self, blob_cache):
         self._blob_cache = blob_cache
 
-    def save_blobs(self, blob_iter, raw=False, len_hint=0, _is_transfer=False):
+    def save_blobs(self, blob_iter, raw=False, len_hint=0, is_transfer=False):
         """
         Saves blobs of data to the datastore
 
@@ -65,7 +65,7 @@ class ContentAddressedStore(object):
             Whether to save the bytes directly or process them, by default False
         len_hint : Hint of the number of blobs that will be produced by the
             iterator, by default 0
-        _is_transfer : bool, default False
+        is_transfer : bool, default False
             If True, this indicates we are saving blobs directly from the output of another
             content addressed store's
 
@@ -79,7 +79,7 @@ class ContentAddressedStore(object):
 
         def packing_iter():
             for blob in blob_iter:
-                if _is_transfer:
+                if is_transfer:
                     key, blob_data, meta = blob
                     path = self._storage_impl.path_join(self._prefix, key[:2], key)
                     # Transfer data is always raw/decompressed, so mark it as such
@@ -117,7 +117,7 @@ class ContentAddressedStore(object):
         self._storage_impl.save_bytes(packing_iter(), overwrite=True, len_hint=len_hint)
         return results
 
-    def load_blobs(self, keys, force_raw=False, _is_transfer=False):
+    def load_blobs(self, keys, force_raw=False, is_transfer=False):
         """
         Mirror function of save_blobs
 
@@ -132,15 +132,15 @@ class ContentAddressedStore(object):
             Support for backward compatibility with previous datastores. If
             True, this will force the key to be loaded as is (raw). By default,
             False
-        _is_transfer : bool, default False
+        is_transfer : bool, default False
             If True, this indicates we are loading blobs to transfer them directly
-            to another datastore. We will, in this case, also transfer the metdata
+            to another datastore. We will, in this case, also transfer the metadata
             and do minimal processing. This is for internal use only.
 
         Returns
         -------
         Returns an iterator of (string, bytes) tuples; the iterator may return keys
-        in a different order than were passed in. If _is_transfer is True, the tuple
+        in a different order than were passed in. If is_transfer is True, the tuple
         has three elements with the third one being the metadata.
         """
         load_paths = []
@@ -149,7 +149,7 @@ class ContentAddressedStore(object):
             if self._blob_cache:
                 blob = self._blob_cache.load_key(key)
             if blob is not None:
-                if _is_transfer:
+                if is_transfer:
                     # Cached blobs are decompressed/processed bytes regardless of original format
                     yield key, blob, {"cas_raw": False, "cas_version": 1}
                 else:
@@ -195,7 +195,7 @@ class ContentAddressedStore(object):
                 if self._blob_cache:
                     self._blob_cache.store_key(key, blob)
 
-                if _is_transfer:
+                if is_transfer:
                     yield key, blob, meta  # Preserve exact original metadata from storage
                 else:
                     yield key, blob

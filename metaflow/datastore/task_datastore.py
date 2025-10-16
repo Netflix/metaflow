@@ -6,7 +6,7 @@ import time
 
 from functools import wraps
 from io import BufferedIOBase, FileIO, RawIOBase
-from typing import List
+from typing import List, Optional
 from types import MethodType, FunctionType
 
 from .. import metaflow_config
@@ -260,7 +260,7 @@ class TaskDataStore(object):
 
     @only_if_not_done
     @require_mode("w")
-    def transfer_artifacts(self, other_datastore : "TaskDataStore", names : List[str] =None):
+    def transfer_artifacts(self, other_datastore : "TaskDataStore", names : Optional[List[str]] = None):
         """
         Copies the blobs from other_datastore to this datastore if the datastore roots
         are different.
@@ -316,11 +316,11 @@ class TaskDataStore(object):
 
         # Load blobs from other datastore in transfer mode
         transfer_blobs = other_datastore._ca_store.load_blobs(
-            missing_shas, _is_transfer=True
+            missing_shas, is_transfer=True
         )
 
         # Save blobs to local datastore in transfer mode
-        self._ca_store.save_blobs(transfer_blobs, _is_transfer=True)
+        self._ca_store.save_blobs(transfer_blobs, is_transfer=True)
 
     @only_if_not_done
     @require_mode("w")
