@@ -12,7 +12,6 @@ from typing import List
 from metaflow import JSONType, current
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
-from metaflow.flowspec import FlowStateItems
 from metaflow.graph import FlowGraph
 from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import (
@@ -457,7 +456,7 @@ class ArgoWorkflows(object):
         return annotations
 
     def _get_schedule(self):
-        schedule = self.flow._flow_state[FlowStateItems.FLOW_DECORATORS].get("schedule")
+        schedule = self.flow._flow_decorators.get("schedule")
         if schedule:
             # Remove the field "Year" if it exists
             schedule = schedule[0]
@@ -483,15 +482,14 @@ class ArgoWorkflows(object):
 
     def trigger_explanation(self):
         # Trigger explanation for cron workflows
-        flow_decos = self.flow._flow_state[FlowStateItems.FLOW_DECORATORS]
-        if flow_decos.get("schedule"):
+        if self.flow._flow_decorators.get("schedule"):
             return (
                 "This workflow triggers automatically via the CronWorkflow *%s*."
                 % self.name
             )
 
         # Trigger explanation for @trigger
-        elif flow_decos.get("trigger"):
+        elif self.flow._flow_decorators.get("trigger"):
             return (
                 "This workflow triggers automatically when the upstream %s "
                 "is/are published."
@@ -501,7 +499,7 @@ class ArgoWorkflows(object):
             )
 
         # Trigger explanation for @trigger_on_finish
-        elif flow_decos.get("trigger_on_finish"):
+        elif self.flow._flow_decorators.get("trigger_on_finish"):
             return (
                 "This workflow triggers automatically when the upstream %s succeed(s)"
                 % self.list_to_prose(
@@ -564,10 +562,7 @@ class ArgoWorkflows(object):
 
     def _process_parameters(self):
         parameters = {}
-        has_schedule = (
-            self.flow._flow_state[FlowStateItems.FLOW_DECORATORS].get("schedule")
-            is not None
-        )
+        has_schedule = self.flow._flow_decorators.get("schedule") is not None
         seen = set()
         for var, param in self.flow._get_parameters():
             # Throw an exception if the parameter is specified twice.
@@ -662,9 +657,10 @@ class ArgoWorkflows(object):
         # Impute triggers for Argo Workflow Template specified through @trigger and
         # @trigger_on_finish decorators
 
-        flow_decos = self.flow._flow_state[FlowStateItems.FLOW_DECORATORS]
         # Disallow usage of @trigger and @trigger_on_finish together for now.
-        if flow_decos.get("trigger") and flow_decos.get("trigger_on_finish"):
+        if self.flow._flow_decorators.get("trigger") and self.flow._flow_decorators.get(
+            "trigger_on_finish"
+        ):
             raise ArgoWorkflowsException(
                 "Argo Workflows doesn't support both *@trigger* and "
                 "*@trigger_on_finish* decorators concurrently yet. Use one or the "
@@ -674,7 +670,7 @@ class ArgoWorkflows(object):
         options = None
 
         # @trigger decorator
-        if flow_decos.get("trigger"):
+        if self.flow._flow_decorators.get("trigger"):
             # Parameters are not duplicated, and exist in the flow. Additionally,
             # convert them to lower case since Metaflow parameters are case
             # insensitive.
@@ -687,7 +683,7 @@ class ArgoWorkflows(object):
                     if not param.IS_CONFIG_PARAMETER
                 ]
             )
-            trigger_deco = flow_decos.get("trigger")[0]
+            trigger_deco = self.flow._flow_decorators.get("trigger")[0]
             trigger_deco.format_deploytime_value()
             for event in trigger_deco.triggers:
                 parameters = {}
@@ -719,17 +715,19 @@ class ArgoWorkflows(object):
                     parameters[key.lower()] = value
                 event["parameters"] = parameters
                 event["type"] = "event"
-            triggers.extend(flow_decos.get("trigger")[0].triggers)
+            triggers.extend(self.flow._flow_decorators.get("trigger")[0].triggers)
 
             # Set automatic parameter mapping iff only a single event dependency is
             # specified with no explicit parameter mapping.
             if len(triggers) == 1 and not triggers[0].get("parameters"):
                 triggers[0]["parameters"] = dict(zip(params, params))
-            options = flow_decos.get("trigger")[0].options
+            options = self.flow._flow_decorators.get("trigger")[0].options
 
         # @trigger_on_finish decorator
-        if flow_decos.get("trigger_on_finish"):
-            trigger_on_finish_deco = flow_decos.get("trigger_on_finish")[0]
+        if self.flow._flow_decorators.get("trigger_on_finish"):
+            trigger_on_finish_deco = self.flow._flow_decorators.get(
+                "trigger_on_finish"
+            )[0]
             trigger_on_finish_deco.format_deploytime_value()
             for event in trigger_on_finish_deco.triggers:
                 # Actual filters are deduced here since we don't have access to
@@ -768,7 +766,7 @@ class ArgoWorkflows(object):
                         "flow": event["flow"],
                     }
                 )
-            options = flow_decos.get("trigger_on_finish")[0].options
+            options = self.flow._flow_decorators.get("trigger_on_finish")[0].options
 
         for event in triggers:
             # Assign a sanitized name since we need this at many places to please
@@ -2847,9 +2845,7 @@ class ArgoWorkflows(object):
             hooks.append(self._pager_duty_change_template())
             hooks.append(self._incident_io_change_template())
 
-        exit_hook_decos = self.flow._flow_state[FlowStateItems.FLOW_DECORATORS].get(
-            "exit_hook", []
-        )
+        exit_hook_decos = self.flow._flow_decorators.get("exit_hook", [])
 
         for deco in exit_hook_decos:
             hooks.extend(self._lifecycle_hook_from_deco(deco))

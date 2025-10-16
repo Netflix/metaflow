@@ -7,7 +7,6 @@ from hashlib import sha1
 from metaflow import current, decorators
 from metaflow._vendor import click
 from metaflow.exception import MetaflowException, MetaflowInternalError
-from metaflow.flowspec import FlowStateItems
 from metaflow.metaflow_config import FEAT_ALWAYS_UPLOAD_CODE_PACKAGE
 from metaflow.package import MetaflowPackage
 from metaflow.plugins.aws.step_functions.production_token import (
@@ -418,7 +417,7 @@ def _validate_workflow(flow, graph, flow_datastore, metadata, workflow_timeout):
             )
         )
 
-    schedule = flow._flow_state[FlowStateItems.FLOW_DECORATORS].get("schedule")
+    schedule = flow._flow_decorators.get("schedule")
     if not schedule:
         return
 
