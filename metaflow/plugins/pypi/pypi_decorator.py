@@ -1,4 +1,5 @@
 from metaflow.decorators import FlowDecorator, StepDecorator
+from metaflow.flowspec import FlowStateItems
 from metaflow.metaflow_environment import InvalidEnvironmentException
 
 
@@ -40,8 +41,9 @@ class PyPIStepDecorator(StepDecorator):
         self.step = step
 
         # Support flow-level decorator
-        if "pypi_base" in self.flow._flow_decorators:
-            pypi_base = self.flow._flow_decorators["pypi_base"][0]
+        flow_decos = self.flow._flow_state[FlowStateItems.FLOW_DECORATORS]
+        if "pypi_base" in flow_decos:
+            pypi_base = flow_decos["pypi_base"][0]
             super_attributes = pypi_base.attributes
             self._attributes_with_user_values.update(
                 pypi_base._attributes_with_user_values
