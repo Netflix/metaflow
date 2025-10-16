@@ -326,6 +326,11 @@ class FlowSpec(metaclass=FlowSpecMeta):
             fname = fname[:-1]
         return os.path.basename(fname)
 
+    @property
+    def _flow_decorators(self):
+        # Backward compatible method to access flow decorators
+        return self._flow_state[FlowStateItems.FLOW_DECORATORS]
+
     @classmethod
     def _check_parameters(cls, config_parameters=False):
         seen = set()

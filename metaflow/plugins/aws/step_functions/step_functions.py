@@ -9,7 +9,6 @@ from collections import defaultdict
 from metaflow import R
 from metaflow.decorators import flow_decorators
 from metaflow.exception import MetaflowException
-from metaflow.flowspec import FlowStateItems
 from metaflow.metaflow_config import (
     EVENTS_SFN_ACCESS_IAM_ROLE,
     S3_ENDPOINT_URL,
@@ -303,14 +302,15 @@ class StepFunctions(object):
             raise StepFunctionsException(repr(e))
 
     def _compile(self):
-        flow_decos = self.flow._flow_state[FlowStateItems.FLOW_DECORATORS]
-        if flow_decos.get("trigger") or flow_decos.get("trigger_on_finish"):
+        if self.flow._flow_decorators.get("trigger") or self.flow._flow_decorators.get(
+            "trigger_on_finish"
+        ):
             raise StepFunctionsException(
                 "Deploying flows with @trigger or @trigger_on_finish decorator(s) "
                 "to AWS Step Functions is not supported currently."
             )
 
-        if flow_decos.get("exit_hook"):
+        if self.flow._flow_decorators.get("exit_hook"):
             raise StepFunctionsException(
                 "Deploying flows with the @exit_hook decorator "
                 "to AWS Step Functions is not currently supported."
@@ -484,8 +484,7 @@ class StepFunctions(object):
         return _visit(self.graph["start"], workflow)
 
     def _cron(self):
-        flow_decos = self.flow._flow_state[FlowStateItems.FLOW_DECORATORS]
-        schedule = flow_decos.get("schedule")
+        schedule = self.flow._flow_decorators.get("schedule")
         if schedule:
             schedule = schedule[0]
             if schedule.timezone is not None:
