@@ -53,6 +53,10 @@ from .s3util import (
 if TYPE_CHECKING:
     import metaflow
 
+# Compiled regex for normalizing consecutive slashes in S3 paths
+# Matches two or more consecutive slashes not preceded by a colon (to preserve s3://)
+_CONSECUTIVE_SLASHES_REGEX = re.compile(r"(?<!:)//+")
+
 
 def _check_and_init_s3_deps():
     try:
@@ -557,7 +561,9 @@ class S3(object):
                 raise MetaflowS3URLException(
                     "s3root needs to be an S3 URL prefixed with s3://."
                 )
-            self._s3root = s3root.rstrip("/")
+            # Normalize the path by collapsing consecutive slashes
+            normalized = _CONSECUTIVE_SLASHES_REGEX.sub("/", s3root)
+            self._s3root = normalized.rstrip("/")
         else:
             # 3. use the client only with full URLs
             self._s3root = None
