@@ -188,9 +188,9 @@ class FlowMutator(metaclass=FlowMutatorMeta):
     def _set_flow_cls(
         self, flow_spec: "metaflow.flowspec.FlowSpecMeta"
     ) -> "metaflow.flowspec.FlowSpecMeta":
-        from ..flowspec import _FlowState
+        from ..flowspec import FlowStateItems
 
-        flow_spec._flow_state.setdefault(_FlowState.FLOW_MUTATORS, []).append(self)
+        flow_spec._flow_state.self_data[FlowStateItems.FLOW_MUTATORS].append(self)
         self._flow_cls = flow_spec
         return flow_spec
 
