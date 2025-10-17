@@ -121,7 +121,27 @@ class _WrappedModule(object):
 
 
 class ModuleImporter(object):
-    # This ModuleImporter implements the MetaPathFinder and Loader protocols (PEP 302/451)
+    """
+    A custom import hook that proxies module imports to a different Python environment.
+
+    This class implements the MetaPathFinder and Loader protocols (PEP 451) to enable
+    "environment escape" - allowing the current Python process to import and use modules
+    from a different Python interpreter with potentially different versions or packages.
+
+    When a module is imported through this importer:
+    1. A client spawns a server process in the target Python environment
+    2. The module is loaded in the remote environment
+    3. A _WrappedModule proxy is returned that forwards all operations (function calls,
+       attribute access, etc.) to the remote environment via RPC
+    4. Data is serialized/deserialized using pickle for cross-environment communication
+
+    Args:
+        python_executable: Path to the Python interpreter for the remote environment
+        pythonpath: Python path to use in the remote environment
+        max_pickle_version: Maximum pickle protocol version supported by remote interpreter
+        config_dir: Directory containing configuration for the environment escape
+        module_prefixes: List of module name prefixes to handle
+    """
     def __init__(
         self,
         python_executable,
