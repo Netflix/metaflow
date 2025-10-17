@@ -142,6 +142,7 @@ class ModuleImporter(object):
         config_dir: Directory containing configuration for the environment escape
         module_prefixes: List of module name prefixes to handle
     """
+
     def __init__(
         self,
         python_executable,
@@ -171,7 +172,7 @@ class ModuleImporter(object):
 
     def create_module(self, spec):
         # Return the pre-created wrapped module for this spec
-        self._initialize_client() 
+        self._initialize_client()
 
         fullname = spec.name
         canonical_fullname = get_canonical_name(fullname, self._aliases)
@@ -182,7 +183,7 @@ class ModuleImporter(object):
         return wrapped_module
 
     def exec_module(self, module):
-        # No initialization needed since the wrapped module returned by 
+        # No initialization needed since the wrapped module returned by
         # create_module() is fully initialized
         pass
 
