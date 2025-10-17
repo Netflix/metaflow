@@ -347,7 +347,7 @@ class Parameter(object):
         help: Optional[str] = None,
         required: Optional[bool] = None,
         show_default: Optional[bool] = None,
-        **kwargs: Dict[str, Any]
+        **kwargs: Dict[str, Any],
     ):
         self.name = name
         self.kwargs = kwargs
