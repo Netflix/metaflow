@@ -1,7 +1,3 @@
-""" 
-
-"""
-
 from collections import namedtuple
 from io import BytesIO
 import os
@@ -67,20 +63,18 @@ class CardDatastore(object):
             result = CARD_LOCALROOT
             if result is None:
                 current_path = os.getcwd()
-                check_dir = os.path.join(current_path, DATASTORE_LOCAL_DIR, CARD_SUFFIX)
+                check_dir = os.path.join(current_path, DATASTORE_LOCAL_DIR)
                 check_dir = os.path.realpath(check_dir)
                 orig_path = check_dir
                 while not os.path.isdir(check_dir):
                     new_path = os.path.dirname(current_path)
                     if new_path == current_path:
-                        break  # We are no longer making upward progress
+                        # No longer making upward progress so we
+                        # return the top level path
+                        return os.path.join(orig_path, CARD_SUFFIX)
                     current_path = new_path
-                    check_dir = os.path.join(
-                        current_path, DATASTORE_LOCAL_DIR, CARD_SUFFIX
-                    )
-                result = orig_path
-
-            return result
+                    check_dir = os.path.join(current_path, DATASTORE_LOCAL_DIR)
+                return os.path.join(check_dir, CARD_SUFFIX)
         else:
             # Let's make it obvious we need to update this block for each new datastore backend...
             raise NotImplementedError(
