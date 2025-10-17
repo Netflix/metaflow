@@ -103,6 +103,7 @@ class NativeRuntime(object):
         clone_only=False,
         reentrant=False,
         steps_to_rerun=None,
+        step_only=False,
         max_workers=MAX_WORKERS,
         max_num_splits=MAX_NUM_SPLITS,
         max_log_size=MAX_LOG_SIZE,
@@ -145,14 +146,51 @@ class NativeRuntime(object):
         self._skip_decorator_hooks = skip_decorator_hooks
 
         # If steps_to_rerun is specified, we will not clone them in resume mode.
-        self._steps_to_rerun = steps_to_rerun or {}
+        self._steps_to_rerun = steps_to_rerun or set()
+        self._steps_can_clone = set()
+        self._steps_ran = set()
+        self._step_only = step_only
+        all_steps = set()
+        cannot_clone_steps = set(self._steps_to_rerun)
         # sorted_nodes are in topological order already, so we only need to
         # iterate through the nodes once to get a stable set of rerun steps.
+        # A few modes:
+        #  - no steps_to_rerun:
+        #    - not clone_only and not step_only: clone all previously executed steps and
+        #      continue execution.
+        #    - clone_only and not step_only: clone all steps that have previously executed
+        #      and stop
+        #    - not clone_only and step_only: NOT possible (requires a steps_to_rerun)
+        #    - clone_only and step_only: NOT possible (requires a steps_to_rerun)
+        #    => in all these cases, _steps_to_rerun is empty and so _steps_can_clone is
+        #      all_steps
+        #  - steps_to_rerun:
+        #    - not clone_only and not step_only: clone all previously executed steps *except*
+        #      any of the steps in steps_to_rerun and the subsequent steps. Continue execution.
+        #    => _steps_to_rerun contains the steps to rerun and all descendants. _steps_can_clone
+        #      contains all other steps
+        #    - clone_only and not step_only: clone all steps that have previously executed
+        #      up to (but not including) any of the steps in steps_to_rerun and
+        #      subsequent steps.
+        #    => same as above but steps_to_rerun is not used to run anything
+        #    - not clone_only and step_only: clone all steps that have previously executed
+        #      up to (but not including) any of the steps in steps_to_rerun and
+        #      subsequent steps. Execute *only* the steps in steps_to_rerun if possible
+        #      and stop.
+        #    - clone_only and step_only: NOT possible (if step_only is specified, we turn
+        #      off clone_only -- clone_only implies no further execution since task
+        #      objects will not be generated).
+        #    => _steps_to_rerun contains *only* the initially passed steps to run and
+        #      _steps_can_clone contains the same as in the other cases.
         for step_name in self._graph.sorted_nodes:
-            if step_name in self._steps_to_rerun:
+            all_steps.add(step_name)
+            if step_name in cannot_clone_steps:
                 out_funcs = self._graph[step_name].out_funcs or []
                 for next_step in out_funcs:
-                    self._steps_to_rerun.add(next_step)
+                    cannot_clone_steps.add(next_step)
+        self._steps_can_clone = all_steps - cannot_clone_steps
+        if not self._step_only:
+            self._steps_to_rerun = cannot_clone_steps
 
         self._origin_ds_set = None
         if clone_run_id:
@@ -399,7 +437,7 @@ class NativeRuntime(object):
             if (
                 task_ds["_task_ok"]
                 and step_name != "_parameters"
-                and (step_name not in self._steps_to_rerun)
+                and (step_name in self._steps_can_clone)
             ):
                 # "_unbounded_foreach" is a special flag to indicate that the transition
                 # is an unbounded foreach.
@@ -677,6 +715,19 @@ class NativeRuntime(object):
                 system_msg=True,
             )
             self._params_task.mark_resume_done()
+        elif self._step_only:
+            # Check that we ran all the steps in self._steps_to_rerun
+            steps_missing = self._steps_to_rerun - self._steps_ran
+            if steps_missing:
+                raise MetaflowInternalError(
+                    "The following steps were not executed: {0}".format(
+                        ", ".join(steps_missing)
+                    )
+                )
+            self._logger(
+                "Step-only resume complete -- all specified steps were executed!",
+                system_msg=True,
+            )
         else:
             raise MetaflowInternalError(
                 "The *end* step was not successful by the end of flow."
@@ -1073,6 +1124,8 @@ class NativeRuntime(object):
     def _queue_tasks(self, finished_tasks):
         # finished tasks include only successful tasks
         for task in finished_tasks:
+            step_name, _, _ = task.finished_id
+            self._steps_ran.add(step_name)
             self._finished[task.finished_id] = task.path
             self._is_cloned[task.path] = task.is_cloned
 
@@ -1137,6 +1190,15 @@ class NativeRuntime(object):
                     )
                 )
 
+            if self._step_only:
+                # We need to filter next_steps to only include steps that are in
+                # self._steps_to_rerun
+                next_steps = [
+                    step for step in next_steps if step in self._steps_to_rerun
+                ]
+                if not next_steps:
+                    # No steps to execute, so we can stop
+                    return
             # Different transition types require different treatment
             if any(self._graph[f].type == "join" for f in next_steps):
                 # Next step is a join
