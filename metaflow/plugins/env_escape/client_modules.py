@@ -150,22 +150,21 @@ class ModuleImporter(object):
         return None
 
     def create_module(self, spec):
-        # Return None to use default module creation
-        return None
+        # Return the pre-created wrapped module for this spec
+        self._initialize_client() 
 
-    def exec_module(self, module):
-        fullname = module.__name__
-
-        self._initialize_client()
-
+        fullname = spec.name
         canonical_fullname = get_canonical_name(fullname, self._aliases)
         # Modules are created canonically but we need to handle any of the aliases.
         wrapped_module = self._handled_modules.get(canonical_fullname)
         if wrapped_module is None:
             raise ImportError(f"No module named '{fullname}'")
+        return wrapped_module
 
-        # Replace the standard module with the wrapped module in sys.modules
-        sys.modules[fullname] = wrapped_module
+    def exec_module(self, module):
+        # No initialization needed since the wrapped module returned by 
+        # create_module() is fully initialized
+        pass
 
     def _initialize_client(self):
         if self._client is not None:
