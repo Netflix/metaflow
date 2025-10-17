@@ -413,7 +413,10 @@ class TaskMetadataCache(MetadataCache):
 
     def _path(self, run_id, step_name, task_id, attempt):
         if attempt is None:
-            return None
+            raise MetaflowException(
+                "Attempt number must be specified to use task metadata cache. Raise an issue "
+                "on Metaflow GitHub if you see this message.",
+            )
         cache_id = self._filecache.task_ds_id(
             self._ds_type,
             self._ds_root,
