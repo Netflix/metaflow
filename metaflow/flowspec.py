@@ -480,9 +480,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
             seen.add(var)
             if param.IS_CONFIG_PARAMETER:
                 # Use computed value if already evaluated, else get from config_options
-                val = param._computed_value or config_options.get(
-                    param.name.replace("-", "_").lower()
-                )
+                val = param._computed_value or config_options.get(param.name)
             else:
                 val = kwargs[param.name.replace("-", "_").lower()]
             # Support for delayed evaluation of parameters.
