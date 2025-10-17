@@ -331,7 +331,7 @@ class ConfigInput:
             if val is None:
                 missing_configs.add(name)
                 to_return[name] = None
-                flow_cls._flow_state[FlowStateItems.CONFIGS][name] = None
+                flow_cls._flow_state.self_data[FlowStateItems.CONFIGS][name] = None
                 continue
             if val.startswith(_CONVERTED_NO_FILE):
                 no_file.append(name)
@@ -355,7 +355,9 @@ class ConfigInput:
                         click_obj.delayed_config_exception = exc
                         return None
                     raise exc from e
-                flow_cls._flow_state[FlowStateItems.CONFIGS][name] = read_value
+                flow_cls._flow_state.self_data[FlowStateItems.CONFIGS][
+                    name
+                ] = read_value
                 to_return[name] = (
                     ConfigValue(read_value) if read_value is not None else None
                 )
@@ -372,7 +374,9 @@ class ConfigInput:
                         )
                         continue
                     # TODO: Support YAML
-                flow_cls._flow_state[FlowStateItems.CONFIGS][name] = read_value
+                flow_cls._flow_state.self_data[FlowStateItems.CONFIGS][
+                    name
+                ] = read_value
                 to_return[name] = (
                     ConfigValue(read_value) if read_value is not None else None
                 )
