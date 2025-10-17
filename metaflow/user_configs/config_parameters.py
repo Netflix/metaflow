@@ -518,7 +518,7 @@ class Config(Parameter, collections.abc.Mapping):
         self._delayed_evaluator = None
 
     def load_parameter(self, v):
-        return v if v is None or self._kwargs["plain"] else ConfigValue(v)
+        return v if v is None or self.kwargs["plain"] else ConfigValue(v)
 
     def _store_value(self, v: Any) -> None:
         self._computed_value = v
