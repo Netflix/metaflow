@@ -26,7 +26,6 @@ from metaflow.datastore.exceptions import DataException
 from contextlib import contextmanager
 
 from . import get_namespace
-from .metadata_provider import MetaDatum
 from .metaflow_config import FEAT_ALWAYS_UPLOAD_CODE_PACKAGE, MAX_ATTEMPTS, UI_URL
 from .exception import (
     MetaflowException,
@@ -44,7 +43,6 @@ from .clone_util import clone_task_helper
 from .unbounded_foreach import (
     CONTROL_TASK_TAG,
     UBF_CONTROL,
-    UBF_TASK,
 )
 
 from .user_configs.config_options import ConfigInput
@@ -103,7 +101,7 @@ class NativeRuntime(object):
         clone_only=False,
         reentrant=False,
         steps_to_rerun=None,
-        step_only=False,
+        until_steps=None,
         max_workers=MAX_WORKERS,
         max_num_splits=MAX_NUM_SPLITS,
         max_log_size=MAX_LOG_SIZE,
@@ -148,49 +146,31 @@ class NativeRuntime(object):
         # If steps_to_rerun is specified, we will not clone them in resume mode.
         self._steps_to_rerun = steps_to_rerun or set()
         self._steps_can_clone = set()
-        self._steps_ran = set()
-        self._step_only = step_only
+        self._steps_no_run = until_steps or set()
+
         all_steps = set()
-        cannot_clone_steps = set(self._steps_to_rerun)
-        # sorted_nodes are in topological order already, so we only need to
-        # iterate through the nodes once to get a stable set of rerun steps.
-        # A few modes:
-        #  - no steps_to_rerun:
-        #    - not clone_only and not step_only: clone all previously executed steps and
-        #      continue execution.
-        #    - clone_only and not step_only: clone all steps that have previously executed
-        #      and stop
-        #    - not clone_only and step_only: NOT possible (requires a steps_to_rerun)
-        #    - clone_only and step_only: NOT possible (requires a steps_to_rerun)
-        #    => in all these cases, _steps_to_rerun is empty and so _steps_can_clone is
-        #      all_steps
-        #  - steps_to_rerun:
-        #    - not clone_only and not step_only: clone all previously executed steps *except*
-        #      any of the steps in steps_to_rerun and the subsequent steps. Continue execution.
-        #    => _steps_to_rerun contains the steps to rerun and all descendants. _steps_can_clone
-        #      contains all other steps
-        #    - clone_only and not step_only: clone all steps that have previously executed
-        #      up to (but not including) any of the steps in steps_to_rerun and
-        #      subsequent steps.
-        #    => same as above but steps_to_rerun is not used to run anything
-        #    - not clone_only and step_only: clone all steps that have previously executed
-        #      up to (but not including) any of the steps in steps_to_rerun and
-        #      subsequent steps. Execute *only* the steps in steps_to_rerun if possible
-        #      and stop.
-        #    - clone_only and step_only: NOT possible (if step_only is specified, we turn
-        #      off clone_only -- clone_only implies no further execution since task
-        #      objects will not be generated).
-        #    => _steps_to_rerun contains *only* the initially passed steps to run and
-        #      _steps_can_clone contains the same as in the other cases.
+        # If clone_only is specified, we should have no until_steps and no steps_to_rerun
+        # so the computation below yields reruning all the steps that we previously
+        # executed.
+        # In the other cases, we will allow the cloning of steps up to but not
+        # inclusive of anything in steps_to_rerun and at the end, steps_to_rerun
+        # will contain all steps up to but not inclusive of anything in _steps_no_run.
         for step_name in self._graph.sorted_nodes:
             all_steps.add(step_name)
-            if step_name in cannot_clone_steps:
-                out_funcs = self._graph[step_name].out_funcs or []
+            out_funcs = self._graph[step_name].out_funcs or []
+            if step_name in self._steps_no_run:
                 for next_step in out_funcs:
-                    cannot_clone_steps.add(next_step)
-        self._steps_can_clone = all_steps - cannot_clone_steps
-        if not self._step_only:
-            self._steps_to_rerun = cannot_clone_steps
+                    self._steps_no_run.add(next_step)
+            elif step_name in self._steps_to_rerun:
+                for next_step in out_funcs:
+                    # We may add things that are in steps_no_run but
+                    # we will remove them later.
+                    self._steps_to_rerun.add(next_step)
+        self._steps_to_rerun = self._steps_to_rerun - self._steps_no_run
+        self._steps_can_clone = all_steps - self._steps_to_rerun - self._steps_no_run
+        print(f"steps_to_rerun: {self._steps_to_rerun}")
+        print(f"steps_no_run: {self._steps_no_run}")
+        print(f"steps_can_clone: {self._steps_can_clone}")
 
         self._origin_ds_set = None
         if clone_run_id:
@@ -715,17 +695,19 @@ class NativeRuntime(object):
                 system_msg=True,
             )
             self._params_task.mark_resume_done()
-        elif self._step_only:
-            # Check that we ran all the steps in self._steps_to_rerun
-            steps_missing = self._steps_to_rerun - self._steps_ran
-            if steps_missing:
-                raise MetaflowInternalError(
-                    "The following steps were not executed: {0}".format(
-                        ", ".join(steps_missing)
-                    )
-                )
+        elif self._steps_no_run:
+            # Ran a subset of the graph
+            count_cloned = -1  # Account for _parameters task
+            count_reexec = 0
+            for t in self._is_cloned.values():
+                if t:
+                    count_cloned += 1
+                else:
+                    count_reexec += 1
+
             self._logger(
-                "Step-only resume complete -- all specified steps were executed!",
+                f"Partial resume complete -- cloned {count_cloned} step(s) and "
+                f"executed {count_reexec} step(s)",
                 system_msg=True,
             )
         else:
@@ -1125,7 +1107,6 @@ class NativeRuntime(object):
         # finished tasks include only successful tasks
         for task in finished_tasks:
             step_name, _, _ = task.finished_id
-            self._steps_ran.add(step_name)
             self._finished[task.finished_id] = task.path
             self._is_cloned[task.path] = task.is_cloned
 
@@ -1190,11 +1171,11 @@ class NativeRuntime(object):
                     )
                 )
 
-            if self._step_only:
+            if self._steps_no_run:
                 # We need to filter next_steps to only include steps that are in
                 # self._steps_to_rerun
                 next_steps = [
-                    step for step in next_steps if step in self._steps_to_rerun
+                    step for step in next_steps if step not in self._steps_no_run
                 ]
                 if not next_steps:
                     # No steps to execute, so we can stop
