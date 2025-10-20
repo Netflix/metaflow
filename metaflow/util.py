@@ -278,14 +278,14 @@ def get_latest_task_pathspec(flow_name: str, step_name: str, run_id: str = None)
     from metaflow.exception import MetaflowNotFound
 
     if not run_id:
-        flow = Flow(flow_name, _namespace_check=False)
+        flow = Flow(flow_name)
         run = flow.latest_run
         if run is None:
             raise MetaflowNotFound(f"No run found for flow {flow_name}")
         run_id = run.id
 
     try:
-        task = Step(f"{flow_name}/{run_id}/{step_name}", _namespace_check=False).task
+        task = Step(f"{flow_name}/{run_id}/{step_name}").task
         return task
     except:
         raise MetaflowNotFound(f"No task found for step {step_name} in run {run_id}")

@@ -136,6 +136,7 @@ class SpinRuntime(object):
             if len(parts) == 4:
                 # Complete pathspec: flow/run/step/task_id
                 try:
+                    # If user provides whole pathspec, we do not need to check namespace
                     task = Task(spin_pathspec, _namespace_check=False)
                 except Exception:
                     raise MetaflowException(
