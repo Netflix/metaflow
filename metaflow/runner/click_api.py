@@ -351,8 +351,10 @@ class MetaflowAPI(object):
         class_dict = {
             "__module__": "metaflow",
             "_API_NAME": flow_file,
-            "_internal_getattr": functools.partial(
-                _lazy_load_command, cli_collection, "_compute_flow_parameters"
+            "_internal_getattr": staticmethod(
+                functools.partial(
+                    _lazy_load_command, cli_collection, "_compute_flow_parameters"
+                )
             ),
             "__getattr__": getattr_wrapper,
         }
