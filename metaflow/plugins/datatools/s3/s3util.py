@@ -1,6 +1,7 @@
 from __future__ import print_function
 from datetime import datetime
 import random
+import re
 import time
 import sys
 import os
@@ -18,6 +19,10 @@ TEST_S3_RETRY = "TEST_S3_RETRY" in os.environ
 
 TRANSIENT_RETRY_LINE_CONTENT = "<none>"
 TRANSIENT_RETRY_START_LINE = "### RETRY INPUTS ###"
+
+# Compiled regex for normalizing consecutive slashes in S3 paths
+# Matches two or more consecutive slashes not preceded by a colon (to preserve s3://)
+CONSECUTIVE_SLASHES_REGEX = re.compile(r"(?<!:)//+")
 
 
 def get_s3_client(s3_role_arn=None, s3_session_vars=None, s3_client_params=None):

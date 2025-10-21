@@ -45,6 +45,7 @@ from metaflow.plugins.datatools.s3.s3util import (
     get_timestamp,
     TRANSIENT_RETRY_LINE_CONTENT,
     TRANSIENT_RETRY_START_LINE,
+    CONSECUTIVE_SLASHES_REGEX,
 )
 import metaflow.tracing as tracing
 from metaflow.metaflow_config import (
@@ -607,7 +608,7 @@ class S3Ops(object):
                                 and len(key_path) > len(normalized_prefix)
                             ):
                                 continue
-                        url = url_base + key_path
+                        url = CONSECUTIVE_SLASHES_REGEX.sub("/", url_base + key_path)
                         urlobj = S3Url(
                             url=url,
                             bucket=prefix_url.bucket,
@@ -619,7 +620,9 @@ class S3Ops(object):
                 if "CommonPrefixes" in page:
                     # we get CommonPrefixes if Delimiter is a non-empty string
                     for key in page.get("CommonPrefixes", []):
-                        url = url_base + key["Prefix"]
+                        url = CONSECUTIVE_SLASHES_REGEX.sub(
+                            "/", url_base + key["Prefix"]
+                        )
                         urlobj = S3Url(
                             url=url,
                             bucket=prefix_url.bucket,
