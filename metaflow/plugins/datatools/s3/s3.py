@@ -1762,20 +1762,22 @@ class S3(object):
                 transient_retry_count += 1
                 total_ok_count += last_ok_count
 
-                # Extract transient error type from pending retry lines
-                error_info = ""
-                if pending_retries:
-                    try:
-                        # Parse the first line to get transient error type
-                        first_retry = json.loads(
-                            pending_retries[0].decode("utf-8").strip()
-                        )
-                        if "transient_error_type" in first_retry:
-                            error_info = " (%s)" % first_retry["transient_error_type"]
-                    except (json.JSONDecodeError, IndexError, KeyError):
-                        pass
-
                 if S3_LOG_TRANSIENT_RETRIES:
+                    # Extract transient error type from pending retry lines
+                    error_info = ""
+                    if pending_retries:
+                        try:
+                            # Parse the first line to get transient error type
+                            first_retry = json.loads(
+                                pending_retries[0].decode("utf-8").strip()
+                            )
+                            if "transient_error_type" in first_retry:
+                                error_info = (
+                                    " (%s)" % first_retry["transient_error_type"]
+                                )
+                        except (json.JSONDecodeError, IndexError, KeyError):
+                            pass
+
                     print(
                         "Transient S3 failure (attempt #%d) -- total success: %d, "
                         "last attempt %d/%d -- remaining: %d%s"
