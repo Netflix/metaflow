@@ -60,10 +60,12 @@ class ContentAddressedStore(object):
 
         Parameters
         ----------
-        blob_iter : Iterator over bytes objects to save
-        raw : bool, optional
+        blob_iter : Iterator
+            Iterator over bytes objects to save
+        raw : bool, default False
             Whether to save the bytes directly or process them, by default False
-        len_hint : Hint of the number of blobs that will be produced by the
+        len_hint : int, default 0
+            Hint of the number of blobs that will be produced by the
             iterator, by default 0
         is_transfer : bool, default False
             If True, this indicates we are saving blobs directly from the output of another
