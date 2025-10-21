@@ -121,6 +121,8 @@ class ArgoWorkflows(object):
         incident_io_metadata: List[str] = None,
         enable_heartbeat_daemon=True,
         enable_error_msg_capture=False,
+        workflow_title=None,
+        workflow_description=None,
     ):
         # Some high-level notes -
         #
@@ -177,6 +179,8 @@ class ArgoWorkflows(object):
         )
         self.enable_heartbeat_daemon = enable_heartbeat_daemon
         self.enable_error_msg_capture = enable_error_msg_capture
+        self.workflow_title = workflow_title
+        self.workflow_description = workflow_description
         self.parameters = self._process_parameters()
         self.config_parameters = self._process_config_parameters()
         self.triggers, self.trigger_options = self._process_triggers()
@@ -430,6 +434,25 @@ class ArgoWorkflows(object):
                     "metaflow/project_flow_name": current.project_flow_name,
                 }
             )
+
+        # Add Argo Workflows title and description annotations
+        # https://argo-workflows.readthedocs.io/en/latest/title-and-description/
+        # Use CLI-provided values or auto-populate from metadata
+        title = (
+            (self.workflow_title.strip() if self.workflow_title else None)
+            or current.get("project_flow_name")
+            or self.flow.name
+        )
+
+        description = (
+            self.workflow_description.strip() if self.workflow_description else None
+        ) or (self.flow.__doc__.strip() if self.flow.__doc__ else None)
+
+        if title:
+            annotations["workflows.argoproj.io/title"] = title
+        if description:
+            annotations["workflows.argoproj.io/description"] = description
+
         return annotations
 
     def _get_schedule(self):
@@ -586,7 +609,16 @@ class ArgoWorkflows(object):
             # the JSON equivalent of None to please argo-workflows. Unfortunately it
             # has the side effect of casting the parameter value to string null during
             # execution - which needs to be fixed imminently.
-            if not is_required or default_value is not None:
+            if default_value is None:
+                default_value = json.dumps(None)
+            elif param_type == "JSON":
+                if not isinstance(default_value, str):
+                    # once to serialize the default value if needed.
+                    default_value = json.dumps(default_value)
+                # adds outer quotes to param
+                default_value = json.dumps(default_value)
+            else:
+                # Make argo sensors happy
                 default_value = json.dumps(default_value)
 
             parameters[param.name] = dict(
@@ -894,7 +926,16 @@ class ArgoWorkflows(object):
                     .annotations(
                         {
                             **annotations,
-                            **self._base_annotations,
+                            **{
+                                k: v
+                                for k, v in self._base_annotations.items()
+                                if k
+                                # Skip custom title/description for workflows as this makes it harder to find specific runs.
+                                not in [
+                                    "workflows.argoproj.io/title",
+                                    "workflows.argoproj.io/description",
+                                ]
+                            },
                             **{"metaflow/run_id": "argo-{{workflow.name}}"},
                         }
                     )
@@ -909,11 +950,7 @@ class ArgoWorkflows(object):
                     Arguments().parameters(
                         [
                             Parameter(parameter["name"])
-                            .value(
-                                "'%s'" % parameter["value"]
-                                if parameter["type"] == "JSON"
-                                else parameter["value"]
-                            )
+                            .value(parameter["value"])
                             .description(parameter.get("description"))
                             # TODO: Better handle IncludeFile in Argo Workflows UI.
                             for parameter in self.parameters.values()
@@ -1423,11 +1460,7 @@ class ArgoWorkflows(object):
             dag_tasks.append(dag_task)
             # End the workflow if we have reached the end of the flow
             if node.type == "end":
-                return [
-                    Template(self.flow.name).dag(
-                        DAGTemplate().fail_fast().tasks(dag_tasks)
-                    )
-                ] + templates, dag_tasks
+                return templates, dag_tasks
             # For split nodes traverse all the children
             if node.type == "split":
                 for n in node.out_funcs:
@@ -1550,7 +1583,6 @@ class ArgoWorkflows(object):
                         parent_foreach,
                         seen,
                     )
-
                 return _visit(
                     self.graph[self._matching_conditional_join(node)],
                     exit_node,
@@ -1806,7 +1838,11 @@ class ArgoWorkflows(object):
             for daemon_template in self._daemon_templates()
         ]
 
-        templates, _ = _visit(node=self.graph["start"], dag_tasks=daemon_tasks)
+        templates, dag_tasks = _visit(node=self.graph["start"], dag_tasks=daemon_tasks)
+        # Add the DAG template only after fully traversing the graph so we are guaranteed to have all the dag_tasks collected.
+        templates.append(
+            Template(self.flow.name).dag(DAGTemplate().fail_fast().tasks(dag_tasks))
+        )
         return templates
 
     # Visit every node and yield ContainerTemplates.
@@ -2023,7 +2059,7 @@ class ArgoWorkflows(object):
                         # {{foo.bar['param_name']}}.
                         # https://argoproj.github.io/argo-events/tutorials/02-parameterization/
                         # http://masterminds.github.io/sprig/strings.html
-                        "--%s={{workflow.parameters.%s}}"
+                        "--%s=\\\"$(python -m metaflow.plugins.argo.param_val {{=toBase64(workflow.parameters['%s'])}})\\\""
                         % (parameter["name"], parameter["name"])
                         for parameter in self.parameters.values()
                     ]
@@ -3811,37 +3847,27 @@ class ArgoWorkflows(object):
                                                 # NOTE: We need the conditional logic in order to successfully fall back to the default value
                                                 # when the event payload does not contain a key for a parameter.
                                                 # NOTE: Keys might contain dashes, so use the safer 'get' for fetching the value
-                                                data_template='{{ if (hasKey $.Input.body.payload "%s") }}{{- (get $.Input.body.payload "%s" %s) -}}{{- else -}}{{ (fail "use-default-instead") }}{{- end -}}'
+                                                data_template='{{ if (hasKey $.Input.body.payload "%s") }}%s{{- else -}}{{ (fail "use-default-instead") }}{{- end -}}'
                                                 % (
                                                     v,
-                                                    v,
                                                     (
-                                                        "| toRawJson | squote"
+                                                        '{{- $pv:=(get $.Input.body.payload "%s") -}}{{ if kindIs "string" $pv }}{{- $pv | toRawJson -}}{{- else -}}{{ $pv | toRawJson | toRawJson }}{{- end -}}'
+                                                        % v
                                                         if self.parameters[
                                                             parameter_name
                                                         ]["type"]
                                                         == "JSON"
-                                                        else "| toRawJson"
+                                                        else '{{- (get $.Input.body.payload "%s" | toRawJson) -}}'
+                                                        % v
                                                     ),
                                                 ),
                                                 # Unfortunately the sensor needs to
                                                 # record the default values for
                                                 # the parameters - there doesn't seem
                                                 # to be any way for us to skip
-                                                value=(
-                                                    json.dumps(
-                                                        self.parameters[parameter_name][
-                                                            "value"
-                                                        ]
-                                                    )
-                                                    if self.parameters[parameter_name][
-                                                        "type"
-                                                    ]
-                                                    == "JSON"
-                                                    else self.parameters[
-                                                        parameter_name
-                                                    ]["value"]
-                                                ),
+                                                value=self.parameters[parameter_name][
+                                                    "value"
+                                                ],
                                             )
                                             .dest(
                                                 # this undocumented (mis?)feature in

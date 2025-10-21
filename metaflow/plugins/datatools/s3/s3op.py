@@ -611,11 +611,23 @@ class S3Ops(object):
                 # - the trailing slash is significant in S3
                 if "Contents" in page:
                     for key in page.get("Contents", []):
-                        url = url_base + key["Key"]
+                        key_path = key["Key"]
+                        # filter out sibling directories that share the same prefix
+                        if delimiter == "":  # recursive mode
+                            normalized_prefix = prefix_url.path
+                            if not normalized_prefix.endswith("/"):
+                                normalized_prefix += "/"
+                            # Only include keys that are actually under our directory
+                            if not (
+                                key_path.startswith(normalized_prefix)
+                                and len(key_path) > len(normalized_prefix)
+                            ):
+                                continue
+                        url = url_base + key_path
                         urlobj = S3Url(
                             url=url,
                             bucket=prefix_url.bucket,
-                            path=key["Key"],
+                            path=key_path,
                             local=generate_local_path(url),
                             prefix=prefix_url.url,
                         )
