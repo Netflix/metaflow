@@ -150,6 +150,7 @@ class MetaflowTask(object):
             graph_node = self.flow._graph[orig_step_func.name]
             out_funcs = [getattr(self.flow, f) for f in graph_node.out_funcs]
             if out_funcs:
+                self.flow._transition = None
                 if isinstance(fake_next_call_args, dict) and fake_next_call_args:
                     # Not an empty dictionary -- we use this as arguments for the next
                     # call

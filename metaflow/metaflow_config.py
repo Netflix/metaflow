@@ -109,6 +109,9 @@ S3_WORKER_COUNT = from_conf("S3_WORKER_COUNT", 64)
 # top-level retries)
 S3_TRANSIENT_RETRY_COUNT = from_conf("S3_TRANSIENT_RETRY_COUNT", 20)
 
+# Whether to log transient retry messages to stdout
+S3_LOG_TRANSIENT_RETRIES = from_conf("S3_LOG_TRANSIENT_RETRIES", False)
+
 # S3 retry configuration used in the aws client
 # Use the adaptive retry strategy by default
 S3_CLIENT_RETRY_CONFIG = from_conf(
