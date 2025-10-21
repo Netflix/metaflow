@@ -232,15 +232,13 @@ def resume(
     if step_to_rerun is None:
         steps_to_rerun = set()
     else:
-        if clone_only:
-            raise CommandException("Cannot specify both --clone-only and --until")
         # validate step name
         for s in step_to_rerun:
             if s not in obj.graph.nodes:
                 raise CommandException(
                     "Invalid step name {0} specified, must be step present in "
                     "current form of execution graph. Valid step names include: {1}".format(
-                        step_to_rerun, ",".join(list(obj.graph.nodes.keys()))
+                        s, ",".join(list(obj.graph.nodes.keys()))
                     )
                 )
 
@@ -261,6 +259,7 @@ def resume(
     if clone_only and until is not None:
         raise CommandException("Cannot specify both --clone-only and --until")
 
+    until_steps = None
     if until is not None:
         until_steps = set(until.split(","))
         for step in until_steps:

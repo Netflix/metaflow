@@ -163,14 +163,10 @@ class NativeRuntime(object):
                     self._steps_no_run.add(next_step)
             elif step_name in self._steps_to_rerun:
                 for next_step in out_funcs:
-                    # We may add things that are in steps_no_run but
-                    # we will remove them later.
                     self._steps_to_rerun.add(next_step)
+        # Remove any steps that should not be run (--until takes precedence)
         self._steps_to_rerun = self._steps_to_rerun - self._steps_no_run
         self._steps_can_clone = all_steps - self._steps_to_rerun - self._steps_no_run
-        print(f"steps_to_rerun: {self._steps_to_rerun}")
-        print(f"steps_no_run: {self._steps_no_run}")
-        print(f"steps_can_clone: {self._steps_can_clone}")
 
         self._origin_ds_set = None
         if clone_run_id:
