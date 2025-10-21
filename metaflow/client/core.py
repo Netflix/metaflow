@@ -1281,13 +1281,13 @@ class Task(MetaflowObject):
                     # Pattern: "A:10,B:13"
                     parent_step_type = graph_info["steps"][steps[0]]["type"]
                     target_depth = current_depth
-                    if parent_step_type == "split-foreach" and current_depth == 1:
+                    if (parent_step_type == "split-foreach" or parent_step_type == "split-parallel") and current_depth == 1:
                         # (Current task, "A:10") and (Parent task, "")
                         pattern = ".*"
                     else:
                         # (Current task, "A:10,B:13,C:21") and (Parent task, "A:10,B:13")
                         # (Current task, "A:10,B:13") and (Parent task, "A:10,B:13")
-                        if parent_step_type == "split-foreach":
+                        if parent_step_type == "split-foreach" or parent_step_type == "split-parallel":
                             target_depth = current_depth - 1
                         pattern = ",".join(current_path.split(",")[:target_depth])
 
@@ -1328,7 +1328,7 @@ class Task(MetaflowObject):
                 pattern = ".*"
             else:
                 current_depth = len(current_path.split(","))
-                if node_type == "split-foreach":
+                if node_type == "split-foreach" or node_type == "split-parallel":
                     # Foreach split
                     # (Current task, "A:10,B:13") and (Child task, "A:10,B:13,C:21")
                     # Pattern: "A:10,B:13,.*"
