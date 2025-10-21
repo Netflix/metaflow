@@ -9,7 +9,7 @@ import re
 from functools import wraps
 from io import BytesIO
 from itertools import takewhile
-from typing import Dict, Any, Tuple, Optional, List
+from typing import Dict, Any, Tuple, Optional, List, Generator
 
 
 try:
