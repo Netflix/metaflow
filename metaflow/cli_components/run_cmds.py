@@ -191,7 +191,14 @@ def common_run_options(func):
     hidden=True,
     help="If specified, it identifies the task that started this resume call. It is in the form of {step_name}-{task_id}",
 )
-@click.argument("step-to-rerun", required=False)
+@click.option(
+    "--until",
+    default=None,
+    show_default=True,
+    help="If specified, runs up to the specified step(s) (exclusive) and stops. "
+    "Multiple steps can be specified using a comma-separated list.",
+)
+@click.argument("step-to-rerun", required=False, nargs=-1)
 @click.command(help="Resume execution of a previous run of this flow.")
 @tracing.cli("cli/resume")
 @common_run_options
@@ -200,6 +207,7 @@ def resume(
     obj,
     tags=None,
     step_to_rerun=None,
+    until=None,
     origin_run_id=None,
     run_id=None,
     clone_only=False,
@@ -225,13 +233,14 @@ def resume(
         steps_to_rerun = set()
     else:
         # validate step name
-        if step_to_rerun not in obj.graph.nodes:
-            raise CommandException(
-                "invalid step name {0} specified, must be step present in "
-                "current form of execution graph. Valid step names include: {1}".format(
-                    step_to_rerun, ",".join(list(obj.graph.nodes.keys()))
+        for s in step_to_rerun:
+            if s not in obj.graph.nodes:
+                raise CommandException(
+                    "Invalid step name {0} specified, must be step present in "
+                    "current form of execution graph. Valid step names include: {1}".format(
+                        s, ",".join(list(obj.graph.nodes.keys()))
+                    )
                 )
-            )
 
         ## TODO: instead of checking execution path here, can add a warning later
         ## instead of throwing an error. This is for resuming a step which was not
@@ -245,8 +254,22 @@ def resume(
         #         f"part of the original execution path for run '{origin_run_id}'."
         #     )
 
-        steps_to_rerun = {step_to_rerun}
+        steps_to_rerun = set(step_to_rerun)
 
+    if clone_only and until is not None:
+        raise CommandException("Cannot specify both --clone-only and --until")
+
+    until_steps = None
+    if until is not None:
+        until_steps = set(until.split(","))
+        for step in until_steps:
+            if step not in obj.graph.nodes:
+                raise CommandException(
+                    "Invalid until step name {0} specified, must be step present in "
+                    "current form of execution graph. Valid step names include: {1}".format(
+                        step, ",".join(list(obj.graph.nodes.keys()))
+                    )
+                )
     if run_id:
         # Run-ids that are provided by the metadata service are always integers.
         # External providers or run-ids (like external schedulers) always need to
@@ -274,12 +297,16 @@ def resume(
         clone_only=clone_only,
         reentrant=reentrant,
         steps_to_rerun=steps_to_rerun,
+        until_steps=until_steps,
         max_workers=max_workers,
         max_num_splits=max_num_splits,
         max_log_size=max_log_size * 1024 * 1024,
         resume_identifier=resume_identifier,
     )
     write_file(run_id_file, runtime.run_id)
+    if until is not None:
+        write_latest_run_id(obj, runtime.run_id)
+
     runtime.print_workflow_info()
 
     runtime.persist_constants()
