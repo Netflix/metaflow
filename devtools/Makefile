@@ -31,6 +31,7 @@ MAKE_CMD := $(MAKE) -f "$(MKFILE_PATH)"
 MINIKUBE_CPUS ?= 4
 MINIKUBE_MEMORY ?= 6144
 MINIKUBE_DISK_SIZE ?= 20g
+WAIT_TIMEOUT ?= 300
 
 ifeq ($(shell uname), Darwin)
 	minikube_os = darwin
@@ -269,6 +270,9 @@ shell: setup-tilt
 				"$$user_shell" -i; \
 		fi'
 
+wait-until-ready: setup-tilt
+	@echo "Waiting for resources to be ready. Timing out in $(WAIT_TIMEOUT) seconds..."
+	@$(TILT) wait --for=condition=Ready uiresource/generate-configs --timeout=$(WAIT_TIMEOUT)s
 
 # @echo '$(MAKE_CMD) create-dev-shell' >> $(DEVTOOLS_DIR)/start.sh
 # @echo 'rm -f /tmp/metaflow-devshell-*' >> $(DEVTOOLS_DIR)/start.sh
