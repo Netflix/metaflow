@@ -260,7 +260,9 @@ class TaskDataStore(object):
 
     @only_if_not_done
     @require_mode("w")
-    def transfer_artifacts(self, other_datastore : "TaskDataStore", names : Optional[List[str]] = None):
+    def transfer_artifacts(
+        self, other_datastore: "TaskDataStore", names: Optional[List[str]] = None
+    ):
         """
         Copies the blobs from other_datastore to this datastore if the datastore roots
         are different.

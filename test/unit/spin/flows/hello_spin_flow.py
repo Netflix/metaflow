@@ -7,7 +7,7 @@ class HelloSpinFlow(FlowSpec):
     @step
     def start(self):
         chunk_size = 1024 * 1024  # 1 MB
-        total_size = 1024 * 1024 * 1000 # 1000 MB
+        total_size = 1024 * 1024 * 1000  # 1000 MB
 
         data = bytearray()
         for _ in range(total_size // chunk_size):

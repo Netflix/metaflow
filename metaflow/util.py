@@ -250,7 +250,9 @@ def parse_spin_pathspec(pathspec: str, flow_name: str) -> Tuple:
     return step_name, parsed_pathspec
 
 
-def get_latest_task_pathspec(flow_name: str, step_name: str, run_id: str = None) -> "metaflow.Task":
+def get_latest_task_pathspec(
+    flow_name: str, step_name: str, run_id: str = None
+) -> "metaflow.Task":
     """
     Returns a task pathspec from the latest run (or specified run) of the flow for the queried step.
     If the queried step has several tasks, the task pathspec of the first task is returned.

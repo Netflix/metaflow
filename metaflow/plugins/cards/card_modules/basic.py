@@ -501,7 +501,9 @@ class TaskInfoComponent(MetaflowCardComponent):
             param_ids = []
         else:
             param_ids = [
-                p.id for p in self._task.parent.parent["_parameters"].task if p.id != "name"
+                p.id
+                for p in self._task.parent.parent["_parameters"].task
+                if p.id != "name"
             ]
         if len(param_ids) > 0:
             # Extract parameter from the Parameter Task. That is less brittle.

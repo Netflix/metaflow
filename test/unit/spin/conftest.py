@@ -69,7 +69,8 @@ simple_parameter_run = pytest.fixture(scope="session")(
 
 simple_card_run = pytest.fixture(scope="session")(
     create_flow_fixture(
-        "SimpleCardFlow", "simple_card_flow.py",
+        "SimpleCardFlow",
+        "simple_card_flow.py",
     )
 )
 

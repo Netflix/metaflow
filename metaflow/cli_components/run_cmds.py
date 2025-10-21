@@ -8,7 +8,11 @@ from .. import decorators, namespace, parameters, tracing
 from ..exception import CommandException
 from ..graph import FlowGraph
 from ..metaflow_current import current
-from ..metaflow_config import DEFAULT_DECOSPECS, FEAT_ALWAYS_UPLOAD_CODE_PACKAGE, SPIN_PERSIST
+from ..metaflow_config import (
+    DEFAULT_DECOSPECS,
+    FEAT_ALWAYS_UPLOAD_CODE_PACKAGE,
+    SPIN_PERSIST,
+)
 from ..metaflow_profile import from_start
 from ..package import MetaflowPackage
 from ..runtime import NativeRuntime, SpinRuntime

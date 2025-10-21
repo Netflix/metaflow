@@ -167,8 +167,8 @@ def test_inspect_spin_client_access(simple_parameter_run):
         ) as spin:
             spin_task = spin.task
             spin_pathspec = spin_task.pathspec
-            assert spin_task['a'] is not None
-            assert spin_task['b'] is not None
+            assert spin_task["a"] is not None
+            assert spin_task["b"] is not None
 
         assert spin_pathspec is not None
 
@@ -180,7 +180,7 @@ def test_inspect_spin_client_access(simple_parameter_run):
         assert client_task is not None
 
         # Verify artifacts
-        assert hasattr(client_task, 'artifacts')
+        assert hasattr(client_task, "artifacts")
 
         # Verify artifact data
         assert client_task.artifacts.a.data == 10

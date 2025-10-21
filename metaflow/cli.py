@@ -327,7 +327,7 @@ def version(obj):
     type=click.Choice(["spin"]),
     default=None,
     help="Execution mode for metaflow CLI commands. Use 'spin' to enable "
-         "spin metadata and spin datastore for executions"
+    "spin metadata and spin datastore for executions",
 )
 @click.pass_context
 def start(
@@ -379,7 +379,7 @@ def start(
     ctx.obj.check = functools.partial(_check, echo)
     ctx.obj.top_cli = cli
     ctx.obj.package_suffixes = package_suffixes.split(",")
-    ctx.obj.spin_mode = (mode == "spin")
+    ctx.obj.spin_mode = mode == "spin"
 
     ctx.obj.datastore_impl = [d for d in DATASTORES if d.TYPE == datastore][0]
 
@@ -509,7 +509,12 @@ def start(
     ctx.obj.skip_decorators = False
 
     # Override values for spin steps, or if we are in spin mode
-    if hasattr(ctx, "saved_args") and ctx.saved_args and "spin" in ctx.saved_args[0] or ctx.obj.spin_mode:
+    if (
+        hasattr(ctx, "saved_args")
+        and ctx.saved_args
+        and "spin" in ctx.saved_args[0]
+        or ctx.obj.spin_mode
+    ):
         # To minimize side effects for spin, we will only use the following:
         # - local metadata provider,
         # - local datastore,
