@@ -31,6 +31,7 @@ MAKE_CMD := $(MAKE) -f "$(MKFILE_PATH)"
 MINIKUBE_CPUS ?= 4
 MINIKUBE_MEMORY ?= 6144
 MINIKUBE_DISK_SIZE ?= 20g
+WAIT_TIMEOUT ?= 300
 
 ifeq ($(shell uname), Darwin)
 	minikube_os = darwin
@@ -269,6 +270,15 @@ shell: setup-tilt
 				"$$user_shell" -i; \
 		fi'
 
+wait-until-ready:
+	@echo "Waiting for infrastructure to be ready. Timing out in $(WAIT_TIMEOUT) seconds..."
+	@timeout $(WAIT_TIMEOUT) bash -c 'while [ ! -f $(DEVTOOLS_DIR)/start.sh ]; do sleep 10; done; echo "Infra is Ready"' || (echo "Waiting for infra timed out"&&exit 1)
+# buffer to get the tilt api running
+	@timeout 120 bash -c 'while ! $(TILT) get session; do sleep 3;done'
+	@echo "Waiting for services to be ready. Timing out in $(WAIT_TIMEOUT) seconds..."
+# Need to wait for Tiltfile first, as other resources return 404 otherwise
+	@$(TILT) wait --for=condition=Ready "uiresource/(Tiltfile)" --timeout=$(WAIT_TIMEOUT)s
+	@$(TILT) wait --for=condition=Ready uiresource/generate-configs --timeout=$(WAIT_TIMEOUT)s
 
 # @echo '$(MAKE_CMD) create-dev-shell' >> $(DEVTOOLS_DIR)/start.sh
 # @echo 'rm -f /tmp/metaflow-devshell-*' >> $(DEVTOOLS_DIR)/start.sh
