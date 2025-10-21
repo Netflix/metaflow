@@ -270,8 +270,11 @@ shell: setup-tilt
 				"$$user_shell" -i; \
 		fi'
 
-wait-until-ready: setup-tilt
-	@echo "Waiting for resources to be ready. Timing out in $(WAIT_TIMEOUT) seconds..."
+wait-until-ready:
+	@echo "Waiting for infrastructure to be ready. Timing out in $(WAIT_TIMEOUT) seconds..."
+	@timeout $(WAIT_TIMEOUT) bash -c 'while [ ! -f $(DEVTOOLS_DIR)/start.sh ]; do sleep 10; done; echo "Infra is Ready"' || (echo "Waiting for infra timed out"&&exit 1)
+	@sleep 20
+	@echo "Waiting for services to be ready. Timing out in $(WAIT_TIMEOUT) seconds..."
 	@$(TILT) wait --for=condition=Ready uiresource/generate-configs --timeout=$(WAIT_TIMEOUT)s
 
 # @echo '$(MAKE_CMD) create-dev-shell' >> $(DEVTOOLS_DIR)/start.sh
