@@ -114,7 +114,7 @@ class MutableFlow:
         for name, value in self._flow_cls._flow_state.get(
             _FlowState.CONFIGS, {}
         ).items():
-            r = name, ConfigValue(value)
+            r = name, ConfigValue(value) if value is not None else None
             debug.userconf_exec("Mutable flow yielding config: %s" % str(r))
             yield r
 
