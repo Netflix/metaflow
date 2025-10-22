@@ -191,6 +191,7 @@ def create(
                 },
                 f,
             )
+            f.flush()
 
     obj.echo(
         "Deploying *%s* to AWS Step Functions..." % obj.state_machine_name, bold=True
@@ -559,6 +560,7 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
                 },
                 f,
             )
+            f.flush()
 
     obj.echo(
         "Workflow *{name}* triggered on AWS Step Functions "
