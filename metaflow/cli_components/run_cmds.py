@@ -56,7 +56,7 @@ def before_run(obj, tags, decospecs, skip_decorators=False):
             decorators._attach_decorators(obj.flow, all_decospecs)
             decorators._init(obj.flow)
             # Regenerate graph if we attached more decorators
-            obj.flow.__class__._init_attrs()
+            obj.flow.__class__._init_graph()
             obj.graph = obj.flow._graph
 
         obj.check(obj.graph, obj.flow, obj.environment, pylint=obj.pylint)

@@ -542,7 +542,7 @@ def user_step_decorator(*args, **kwargs):
 
     ```
     @user_step_decorator
-    def timing(step_name, flow, inputs):
+    def timing(step_name, flow, inputs, attributes):
         start_time = time.time()
         yield
         end_time = time.time()
@@ -559,6 +559,15 @@ def user_step_decorator(*args, **kwargs):
     ```
 
     Your generator should:
+      - take 3 or 4 arguments: step_name, flow, inputs, and attributes (optional)
+        - step_name: the name of the step
+        - flow: the flow object
+        - inputs: the inputs to the step
+        - attributes: the kwargs passed in when initializing the decorator. In the
+          example above, something like `@timing(arg1="foo", arg2=42)` would make
+          `attributes = {"arg1": "foo", "arg2": 42}`. If you choose to pass arguments
+          to the decorator when you apply it to the step, your function *must* take
+          4 arguments (step_name, flow, inputs, attributes).
       - yield at most once -- if you do not yield, the step will not execute.
       - yield:
           - None

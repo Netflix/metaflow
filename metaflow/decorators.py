@@ -806,7 +806,7 @@ def _init_step_decorators(
                     "expected %s but got %s" % (deco._flow_cls.__name__, cls.__name__)
                 )
             debug.userconf_exec(
-                "Evaluating flow level decorator %s (post)" % deco.__class__.__name__
+                "Evaluating flow level decorator %s (mutate)" % deco.__class__.__name__
             )
             deco.mutate(mutable_flow)
             # We reset cached_parameters on the very off chance that the user added
@@ -824,7 +824,7 @@ def _init_step_decorators(
 
             if isinstance(deco, StepMutator):
                 debug.userconf_exec(
-                    "Evaluating step level decorator %s (post) for %s"
+                    "Evaluating step level decorator %s for %s (mutate)"
                     % (deco.__class__.__name__, step.name)
                 )
                 deco.mutate(
