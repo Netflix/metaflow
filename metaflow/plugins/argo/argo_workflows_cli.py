@@ -287,7 +287,6 @@ def create(
                 },
                 f,
             )
-            f.flush()
 
     obj.echo("Deploying *%s* to Argo Workflows..." % obj.flow.name, bold=True)
 
@@ -945,7 +944,6 @@ def trigger(obj, run_id_file=None, deployer_attribute_file=None, **kwargs):
                 },
                 f,
             )
-            f.flush()
 
     obj.echo(
         "Workflow *{name}* triggered on Argo Workflows "
