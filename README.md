@@ -61,4 +61,7 @@ We'd love to hear from you. Join our community [Slack workspace](http://slack.ou
 ## Contributing
 We welcome contributions to Metaflow. Please see our [contribution guide](https://docs.metaflow.org/introduction/contributing-to-metaflow) for more details.
 
+## Contributors
+[![Contributors](https://contrib.rocks/image?repo=netflix/metaflow)](https://github.com/netflix/metaflow/graphs/contributors)
+
 
