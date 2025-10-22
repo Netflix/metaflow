@@ -207,10 +207,15 @@ def default_namespace() -> str:
     return get_namespace()
 
 
-def inspect_spin(datastore_root):
+def inspect_spin(datastore_root : str = "."):
     """
     Set metadata provider to spin metadata so that users can inspect spin
     steps, tasks, and artifacts.
+
+    Parameters
+    ----------
+    datastore_root : str, default "."
+        The root path to the spin datastore.
     """
     metadata_str = f"spin@{datastore_root}"
     metadata(metadata_str)
