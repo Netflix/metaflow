@@ -27,7 +27,7 @@ from .user_decorators.user_step_decorator import (
     UserStepDecoratorBase,
     UserStepDecoratorMeta,
 )
-
+from .metaflow_config import SPIN_ALLOWED_DECORATORS
 from metaflow._vendor import click
 
 
@@ -658,6 +658,50 @@ def _attach_decorators_to_step(step, decospecs):
             step_deco.add_or_raise(step, False, 1, None)
 
 
+def _should_skip_decorator_for_spin(
+    deco, is_spin, skip_decorators, logger, decorator_type="decorator"
+):
+    """
+    Determine if a decorator should be skipped for spin steps.
+
+    Parameters:
+    -----------
+    deco : Decorator
+        The decorator instance to check
+    is_spin : bool
+        Whether this is a spin step
+    skip_decorators : bool
+        Whether to skip all decorators
+    logger : callable
+        Logger function for warnings
+    decorator_type : str
+        Type of decorator ("Flow decorator" or "Step decorator") for logging
+
+    Returns:
+    --------
+    bool
+        True if the decorator should be skipped, False otherwise
+    """
+    if not is_spin:
+        return False
+
+    # Skip all decorator hooks if skip_decorators is True
+    if skip_decorators:
+        return True
+
+    # Run decorator hooks for spin steps only if they are in the whitelist
+    if deco.name not in SPIN_ALLOWED_DECORATORS:
+        logger(
+            f"[Warning] Ignoring {decorator_type} '{deco.name}' as it is not supported in spin steps.",
+            system_msg=True,
+            timestamp=False,
+            bad=True,
+        )
+        return True
+
+    return False
+
+
 def _init(flow, only_non_static=False):
     for decorators in flow._flow_decorators.values():
         for deco in decorators:
@@ -673,7 +717,16 @@ def _init(flow, only_non_static=False):
 
 
 def _init_flow_decorators(
-    flow, graph, environment, flow_datastore, metadata, logger, echo, deco_options
+    flow,
+    graph,
+    environment,
+    flow_datastore,
+    metadata,
+    logger,
+    echo,
+    deco_options,
+    is_spin=False,
+    skip_decorators=False,
 ):
     # Since all flow decorators are stored as `{key:[deco]}` we iterate through each of them.
     for decorators in flow._flow_decorators.values():
@@ -702,6 +755,10 @@ def _init_flow_decorators(
                 for option, option_info in deco.options.items()
             }
         for deco in decorators:
+            if _should_skip_decorator_for_spin(
+                deco, is_spin, skip_decorators, logger, "Flow decorator"
+            ):
+                continue
             deco.flow_init(
                 flow,
                 graph,
@@ -714,8 +771,16 @@ def _init_flow_decorators(
             )
 
 
-def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
-    # NOTE: We don't need graph but keeping it for backwards compatibility with
+def _init_step_decorators(
+    flow,
+    graph,
+    environment,
+    flow_datastore,
+    logger,
+    is_spin=False,
+    skip_decorators=False,
+):
+    # NOTE: We don't need the graph but keeping it for backwards compatibility with
     # extensions that use it directly. We will remove it at some point.
 
     # We call the mutate method for both the flow and step mutators.
@@ -741,7 +806,7 @@ def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
                     "expected %s but got %s" % (deco._flow_cls.__name__, cls.__name__)
                 )
             debug.userconf_exec(
-                "Evaluating flow level decorator %s (post)" % deco.__class__.__name__
+                "Evaluating flow level decorator %s (mutate)" % deco.__class__.__name__
             )
             deco.mutate(mutable_flow)
             # We reset cached_parameters on the very off chance that the user added
@@ -759,7 +824,7 @@ def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
 
             if isinstance(deco, StepMutator):
                 debug.userconf_exec(
-                    "Evaluating step level decorator %s (post) for %s"
+                    "Evaluating step level decorator %s for %s (mutate)"
                     % (deco.__class__.__name__, step.name)
                 )
                 deco.mutate(
@@ -785,6 +850,10 @@ def _init_step_decorators(flow, graph, environment, flow_datastore, logger):
 
     for step in flow:
         for deco in step.decorators:
+            if _should_skip_decorator_for_spin(
+                deco, is_spin, skip_decorators, logger, "Step decorator"
+            ):
+                continue
             deco.step_init(
                 flow,
                 graph,

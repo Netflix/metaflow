@@ -307,7 +307,8 @@ class FlowSpec(metaclass=FlowSpecMeta):
                         % (deco._flow_cls.__name__, cls.__name__)
                     )
                 debug.userconf_exec(
-                    "Evaluating flow level decorator %s" % deco.__class__.__name__
+                    "Evaluating flow level decorator %s (pre-mutate)"
+                    % deco.__class__.__name__
                 )
                 deco.pre_mutate(mutable_flow)
                 # We reset cached_parameters on the very off chance that the user added
@@ -324,7 +325,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
                 if isinstance(deco, StepMutator):
                     inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
                     debug.userconf_exec(
-                        "Evaluating step level decorator %s for %s"
+                        "Evaluating step level decorator %s for %s (pre-mutate)"
                         % (deco.__class__.__name__, step.name)
                     )
                     deco.pre_mutate(

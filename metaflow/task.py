@@ -6,14 +6,15 @@ import os
 import time
 import traceback
 
-
 from types import MethodType, FunctionType
 
 from metaflow.sidecar import Message, MessageTypes
 from metaflow.datastore.exceptions import DataException
 
+from metaflow.plugins import METADATA_PROVIDERS
 from .metaflow_config import MAX_ATTEMPTS
 from .metadata_provider import MetaDatum
+from .metaflow_profile import from_start
 from .mflog import TASK_LOG_SOURCE
 from .datastore import Inputs, TaskDataStoreSet
 from .exception import (
@@ -49,6 +50,8 @@ class MetaflowTask(object):
         event_logger,
         monitor,
         ubf_context,
+        orig_flow_datastore=None,
+        spin_artifacts=None,
     ):
         self.flow = flow
         self.flow_datastore = flow_datastore
@@ -58,6 +61,8 @@ class MetaflowTask(object):
         self.event_logger = event_logger
         self.monitor = monitor
         self.ubf_context = ubf_context
+        self.orig_flow_datastore = orig_flow_datastore
+        self.spin_artifacts = spin_artifacts
 
     def _exec_step_function(self, step_function, orig_step_func, input_obj=None):
         wrappers_stack = []
@@ -234,7 +239,6 @@ class MetaflowTask(object):
             lambda _, parameter_ds=parameter_ds: parameter_ds["_graph_info"],
         )
         all_vars.append("_graph_info")
-
         if passdown:
             self.flow._datastore.passdown_partial(parameter_ds, all_vars)
         return param_only_vars
@@ -262,6 +266,9 @@ class MetaflowTask(object):
                 run_id,
                 pathspecs=input_paths,
                 prefetch_data_artifacts=prefetch_data_artifacts,
+                join_type=join_type,
+                orig_flow_datastore=self.orig_flow_datastore,
+                spin_artifacts=self.spin_artifacts,
             )
             ds_list = [ds for ds in datastore_set]
             if len(ds_list) != len(input_paths):
@@ -273,10 +280,27 @@ class MetaflowTask(object):
             # initialize directly in the single input case.
             ds_list = []
             for input_path in input_paths:
-                run_id, step_name, task_id = input_path.split("/")
+                parts = input_path.split("/")
+                if len(parts) == 3:
+                    run_id, step_name, task_id = parts
+                    attempt = None
+                else:
+                    run_id, step_name, task_id, attempt = parts
+                    attempt = int(attempt)
+
                 ds_list.append(
-                    self.flow_datastore.get_task_datastore(run_id, step_name, task_id)
+                    self.flow_datastore.get_task_datastore(
+                        run_id,
+                        step_name,
+                        task_id,
+                        attempt=attempt,
+                        join_type=join_type,
+                        orig_flow_datastore=self.orig_flow_datastore,
+                        spin_artifacts=self.spin_artifacts,
+                    )
                 )
+                from_start("MetaflowTask: got datastore for input path %s" % input_path)
+
         if not ds_list:
             # this guards against errors in input paths
             raise MetaflowDataMissing(
@@ -547,6 +571,8 @@ class MetaflowTask(object):
         split_index,
         retry_count,
         max_user_code_retries,
+        whitelist_decorators=None,
+        persist=True,
     ):
         if run_id and task_id:
             self.metadata.register_run_id(run_id)
@@ -605,7 +631,14 @@ class MetaflowTask(object):
 
         step_func = getattr(self.flow, step_name)
         decorators = step_func.decorators
-
+        if self.orig_flow_datastore:
+            # We filter only the whitelisted decorators in case of spin step.
+            decorators = (
+                []
+                if not whitelist_decorators
+                else [deco for deco in decorators if deco.name in whitelist_decorators]
+            )
+        from_start("MetaflowTask: decorators initialized")
         node = self.flow._graph[step_name]
         join_type = None
         if node.type == "join":
@@ -613,17 +646,20 @@ class MetaflowTask(object):
 
         # 1. initialize output datastore
         output = self.flow_datastore.get_task_datastore(
-            run_id, step_name, task_id, attempt=retry_count, mode="w"
+            run_id, step_name, task_id, attempt=retry_count, mode="w", persist=persist
         )
 
         output.init_task()
+        from_start("MetaflowTask: output datastore initialized")
 
         if input_paths:
             # 2. initialize input datastores
             inputs = self._init_data(run_id, join_type, input_paths)
+            from_start("MetaflowTask: input datastores initialized")
 
             # 3. initialize foreach state
             self._init_foreach(step_name, join_type, inputs, split_index)
+            from_start("MetaflowTask: foreach state initialized")
 
             # 4. initialize the iteration state
             is_recursive_step = (
@@ -682,7 +718,7 @@ class MetaflowTask(object):
                         ),
                     ]
                 )
-
+        from_start("MetaflowTask: finished input processing")
         self.metadata.register_metadata(
             run_id,
             step_name,
@@ -736,8 +772,11 @@ class MetaflowTask(object):
             "project_flow_name": current.get("project_flow_name"),
             "trace_id": trace_id or None,
         }
+
+        from_start("MetaflowTask: task metadata initialized")
         start = time.time()
         self.metadata.start_task_heartbeat(self.flow.name, run_id, step_name, task_id)
+        from_start("MetaflowTask: heartbeat started")
         with self.monitor.measure("metaflow.task.duration"):
             try:
                 with self.monitor.count("metaflow.task.start"):
@@ -757,7 +796,6 @@ class MetaflowTask(object):
                 # should either be set prior to running the user code or listed in
                 # FlowSpec._EPHEMERAL to allow for proper merging/importing of
                 # user artifacts in the user's step code.
-
                 if join_type:
                     # Join step:
 
@@ -816,11 +854,19 @@ class MetaflowTask(object):
                                 "graph_info": self.flow._graph_info,
                             }
                         )
+                from_start("MetaflowTask: before pre-step decorators")
                 for deco in decorators:
+                    if deco.name == "card" and self.orig_flow_datastore:
+                        # if spin step and card decorator, pass spin metadata
+                        metadata = [m for m in METADATA_PROVIDERS if m.TYPE == "spin"][
+                            0
+                        ](self.environment, self.flow, self.event_logger, self.monitor)
+                    else:
+                        metadata = self.metadata
                     deco.task_pre_step(
                         step_name,
                         output,
-                        self.metadata,
+                        metadata,
                         run_id,
                         task_id,
                         self.flow,
@@ -846,12 +892,12 @@ class MetaflowTask(object):
                         max_user_code_retries,
                         self.ubf_context,
                     )
-
+                from_start("MetaflowTask: finished decorator processing")
                 if join_type:
                     self._exec_step_function(step_func, orig_step_func, input_obj)
                 else:
                     self._exec_step_function(step_func, orig_step_func)
-
+                from_start("MetaflowTask: step function executed")
                 for deco in decorators:
                     deco.task_post_step(
                         step_name,
@@ -894,6 +940,7 @@ class MetaflowTask(object):
                     raise
 
             finally:
+                from_start("MetaflowTask: decorators finalized")
                 if self.ubf_context == UBF_CONTROL:
                     self._finalize_control_task()
 
@@ -933,7 +980,7 @@ class MetaflowTask(object):
                     )
 
                 output.save_metadata({"task_end": {}})
-
+                from_start("MetaflowTask: output persisted")
                 # this writes a success marker indicating that the
                 # "transaction" is done
                 output.done()
@@ -962,3 +1009,4 @@ class MetaflowTask(object):
                     name="duration",
                     payload={**task_payload, "msg": str(duration)},
                 )
+                from_start("MetaflowTask: task run completed")

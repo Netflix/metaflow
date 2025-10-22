@@ -1,24 +1,29 @@
 import json
 import os
 
-from metaflow.metaflow_config import DATASTORE_LOCAL_DIR, DATASTORE_SYSROOT_LOCAL
+from metaflow.metaflow_config import (
+    DATASTORE_LOCAL_DIR,
+    DATASTORE_SYSROOT_LOCAL,
+)
 from metaflow.datastore.datastore_storage import CloseAfterUse, DataStoreStorage
 
 
 class LocalStorage(DataStoreStorage):
     TYPE = "local"
     METADATA_DIR = "_meta"
+    DATASTORE_DIR = DATASTORE_LOCAL_DIR  # ".metaflow"
+    SYSROOT_VAR = DATASTORE_SYSROOT_LOCAL
 
     @classmethod
     def get_datastore_root_from_config(cls, echo, create_on_absent=True):
-        result = DATASTORE_SYSROOT_LOCAL
+        result = cls.SYSROOT_VAR
         if result is None:
             try:
                 # Python2
                 current_path = os.getcwdu()
             except:  # noqa E722
                 current_path = os.getcwd()
-            check_dir = os.path.join(current_path, DATASTORE_LOCAL_DIR)
+            check_dir = os.path.join(current_path, cls.DATASTORE_DIR)
             check_dir = os.path.realpath(check_dir)
             orig_path = check_dir
             top_level_reached = False
@@ -28,12 +33,13 @@ class LocalStorage(DataStoreStorage):
                     top_level_reached = True
                     break  # We are no longer making upward progress
                 current_path = new_path
-                check_dir = os.path.join(current_path, DATASTORE_LOCAL_DIR)
+                check_dir = os.path.join(current_path, cls.DATASTORE_DIR)
             if top_level_reached:
                 if create_on_absent:
                     # Could not find any directory to use so create a new one
                     echo(
-                        "Creating local datastore in current directory (%s)" % orig_path
+                        "Creating %s datastore in current directory (%s)"
+                        % (cls.TYPE, orig_path)
                     )
                     os.mkdir(orig_path)
                     result = orig_path
@@ -42,7 +48,7 @@ class LocalStorage(DataStoreStorage):
             else:
                 result = check_dir
         else:
-            result = os.path.join(result, DATASTORE_LOCAL_DIR)
+            result = os.path.join(result, cls.DATASTORE_DIR)
         return result
 
     @staticmethod

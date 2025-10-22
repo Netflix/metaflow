@@ -171,6 +171,7 @@ class CardDecorator(StepDecorator):
         self._flow_datastore = flow_datastore
         self._environment = environment
         self._logger = logger
+
         self.card_options = None
 
         # We check for configuration options. We do this here before they are
