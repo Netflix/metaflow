@@ -45,7 +45,6 @@ from metaflow.decorators import add_decorator_options
 from metaflow.exception import MetaflowException
 from metaflow.flowspec import _FlowState
 from metaflow.includefile import FilePathClass
-from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
 from metaflow.parameters import JSONTypeClass, flow_context
 from metaflow.user_configs.config_options import (
     ConfigValue,
@@ -460,75 +459,72 @@ class MetaflowAPI(object):
         self._cached_computed_parameters = []
 
         config_options = None
-        if CLICK_API_PROCESS_CONFIG:
-            with flow_context(self._flow_cls) as _:
-                # We are going to resolve the configs first and then get the parameters.
-                # Note that configs may update/add parameters so the order is important
-                # Since part of the processing of configs happens by click, we need to
-                # "fake" it.
+        with flow_context(self._flow_cls) as _:
+            # We are going to resolve the configs first and then get the parameters.
+            # Note that configs may update/add parameters so the order is important
+            # Since part of the processing of configs happens by click, we need to
+            # "fake" it.
 
-                # Extract any config options as well as datastore and quiet options
-                method_params = self._chain[0][self._API_NAME]
-                opts = method_params["options"]
-                defaults = method_params["defaults"]
+            # Extract any config options as well as datastore and quiet options
+            method_params = self._chain[0][self._API_NAME]
+            opts = method_params["options"]
+            defaults = method_params["defaults"]
 
-                ds = opts.get("datastore", defaults["datastore"])
-                quiet = opts.get("quiet", defaults["quiet"])
-                is_default = False
-                config_file = opts.get("config")
-                if config_file is None:
-                    is_default = True
-                    config_file = defaults.get("config")
+            ds = opts.get("datastore", defaults["datastore"])
+            quiet = opts.get("quiet", defaults["quiet"])
+            is_default = False
+            config_file = opts.get("config")
+            if config_file is None:
+                is_default = True
+                config_file = defaults.get("config")
 
-                if config_file:
-                    config_file = dict(
-                        map(
-                            lambda x: (
-                                x[0],
-                                ConvertPath.convert_value(x[1], is_default),
-                            ),
-                            config_file,
-                        )
+            if config_file:
+                config_file = dict(
+                    map(
+                        lambda x: (
+                            x[0],
+                            ConvertPath.convert_value(x[1], is_default),
+                        ),
+                        config_file,
                     )
+                )
 
-                is_default = False
-                config_value = opts.get("config-value")
-                if config_value is None:
-                    is_default = True
-                    config_value = defaults.get("config_value")
+            is_default = False
+            config_value = opts.get("config-value")
+            if config_value is None:
+                is_default = True
+                config_value = defaults.get("config_value")
 
-                if config_value:
-                    config_value = dict(
-                        map(
-                            lambda x: (
-                                x[0],
-                                ConvertDictOrStr.convert_value(x[1], is_default),
-                            ),
-                            config_value,
-                        )
+            if config_value:
+                config_value = dict(
+                    map(
+                        lambda x: (
+                            x[0],
+                            ConvertDictOrStr.convert_value(x[1], is_default),
+                        ),
+                        config_value,
                     )
+                )
 
-                if (config_file is None) ^ (config_value is None):
-                    # If we have one, we should have the other
-                    raise MetaflowException(
-                        "Options were not properly set -- this is an internal error."
-                    )
+            if (config_file is None) ^ (config_value is None):
+                # If we have one, we should have the other
+                raise MetaflowException(
+                    "Options were not properly set -- this is an internal error."
+                )
 
-                if config_file:
-                    # Process both configurations; the second one will return all the merged
-                    # configuration options properly processed.
-                    self._config_input.process_configs(
-                        self._flow_cls.__name__, "config", config_file, quiet, ds
-                    )
-                    config_options = self._config_input.process_configs(
-                        self._flow_cls.__name__, "config_value", config_value, quiet, ds
-                    )
+            if config_file:
+                # Process both configurations; the second one will return all the merged
+                # configuration options properly processed.
+                self._config_input.process_configs(
+                    self._flow_cls.__name__, "config", config_file, quiet, ds
+                )
+                config_options = self._config_input.process_configs(
+                    self._flow_cls.__name__, "config_value", config_value, quiet, ds
+                )
 
         # At this point, we are like in start() in cli.py -- we obtained the
         # properly processed config_options which we can now use to process
         # the config decorators (including StepMutator/FlowMutator)
-        # Note that if CLICK_API_PROCESS_CONFIG is False, we still do this because
-        # it will init all parameters (config_options will be None)
         # We ignore any errors if we don't check the configs in the click API.
 
         # Init all values in the flow mutators and then process them
@@ -536,7 +532,7 @@ class MetaflowAPI(object):
             decorator.external_init()
 
         new_cls = self._flow_cls._process_config_decorators(
-            config_options, process_configs=CLICK_API_PROCESS_CONFIG
+            config_options, process_configs=True
         )
         if new_cls:
             self._flow_cls = new_cls

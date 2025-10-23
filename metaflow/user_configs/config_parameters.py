@@ -569,10 +569,10 @@ def resolve_delayed_evaluator(
         if ignore_errors:
             # Assumption is that default value of None is always allowed.
             # This code path is *only* used when evaluating Parameters AND they
-            # use configs in their attributes AND the runner/deployer is being used
-            # AND CLICK_API_PROCESS_CONFIG is False. In those cases, all attributes in
-            # Parameter can be set to None except for required and show_default
-            # and even in those cases, a wrong value will have very limited consequence.
+            # use configs in their attributes AND the runner/deployer is being used.
+            # In those cases, all attributes in Parameter can be set to None except
+            # for required and show_default and even in those cases, a wrong value
+            # will have very limited consequence.
             return None
         raise e
 
