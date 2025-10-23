@@ -119,7 +119,13 @@ class Pip(object):
                 else:
                     cmd.append(f"{package}=={version}")
             try:
+                if "torch" in packages.keys():
+                    print(cmd)
                 self._call(prefix, cmd)
+                # We are interested in the outputs 'requires_dist', and whether it contains platform_system == X or platform_machine == Y
+                # where X or Y are different than the environment performing the resolving.
+                # In this case we want to do a second pass, which will try to add these packages _without_ the environment markers
+                # in order to assure that all relevant packages are present in the target environment
             except PipPackageNotFound as ex:
                 # pretty print package errors
                 raise PipException(
