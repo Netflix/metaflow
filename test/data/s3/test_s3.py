@@ -982,10 +982,13 @@ def test_list_recursive_sibling_prefix_filtering(inject_failure_rate):
     ) as s3:
         objects = s3.list_recursive()
 
+        # Use the normalized s3root from the S3 object for accurate path extraction
+        test_prefix_path = f"{s3_setup._s3root}/{test_prefix}/"
+
         found_relative_paths = []
         for obj in objects:
             # Get path relative to our test prefix
-            relative_path = obj.url.replace(f"{base_s3root}/{test_prefix}/", "")
+            relative_path = obj.url.replace(test_prefix_path, "")
             found_relative_paths.append(relative_path)
 
         expected_under_log = ["log/test.txt"]
