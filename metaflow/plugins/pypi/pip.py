@@ -13,7 +13,7 @@ from metaflow.exception import MetaflowException
 
 from .micromamba import Micromamba
 from .utils import pip_tags, wheel_tags, conda_platform, markers_from_platform
-import platform
+from packaging.requirements import Requirement
 
 
 class PipException(MetaflowException):
@@ -166,18 +166,18 @@ class Pip(object):
                 if deps is None:
                     return deps_with_markers
                 for dep in deps:
-                    pkg, *markers = dep.split(";", 1)
-                    if not markers:
+                    req = Requirement(dep)
+                    if not req.marker:
                         continue
                     match_system = re.match(
-                        r"^.*platform_system == (.*?)\s", markers[0]
+                        r"^.*platform_system == (.*?)\s", str(req.marker)
                     )
                     plat_system = (
                         match_system.groups()[0].strip('"') if match_system else None
                     )
 
                     match_machine = re.match(
-                        r"^.*platform_machine == (.*?)\s", markers[0]
+                        r"^.*platform_machine == (.*?)\s", str(req.marker)
                     )
                     plat_machine = (
                         match_machine.groups()[0].strip('"') if match_machine else None
@@ -189,9 +189,10 @@ class Pip(object):
                     if plat_system == target_system or plat_machine == target_machine:
                         # we must make sure that this dependency gets added to the list,
                         # as it will not be carried by the default resolve due to platform/machine mismatch.
-                        # TODO: keep the original constraint, as they might not be strict version pins.
-                        p, v = pkg.split("==")
-                        deps_with_markers[p] = v
+                        version = str(req.specifier)
+                        if version.startswith("=="):
+                            version = version[2:]
+                        deps_with_markers[req.name] = version
 
                 return deps_with_markers
 
