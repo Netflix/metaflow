@@ -12,7 +12,7 @@ from metaflow.debug import debug
 from metaflow.exception import MetaflowException
 
 from .micromamba import Micromamba
-from .utils import pip_tags, wheel_tags
+from .utils import pip_tags, wheel_tags, markers_from_platform, conda_platform
 
 
 class PipException(MetaflowException):
@@ -120,10 +120,12 @@ class Pip(object):
                     cmd.append(f"{package}=={version}")
             try:
                 env = {}
-                if platform == "linux-64":
+                if conda_platform() != platform:
+                    # cross-platform resolving requires patching the machine and system info for pip to pick up all the relevant packages.
+                    platform_system, platform_machine = markers_from_platform(platform)
                     env = {
-                        "PIP_PATCH_SYSTEM": "Linux",
-                        "PIP_PATCH_MACHINE": "x86_64",
+                        "PIP_PATCH_SYSTEM": platform_system,
+                        "PIP_PATCH_MACHINE": platform_machine,
                         "PYTHONPATH": os.path.join(
                             os.path.dirname(__file__), "pip_patcher"
                         ),
