@@ -13,7 +13,6 @@ from metaflow.exception import MetaflowException
 
 from .micromamba import Micromamba
 from .utils import pip_tags, wheel_tags, conda_platform, markers_from_platform
-from packaging.requirements import Requirement
 
 
 class PipException(MetaflowException):
@@ -151,6 +150,8 @@ class Pip(object):
                     # build with enough unique identifiers.
                     res["hash"] = vcs_info["commit_id"]
                 return res
+
+            from packaging.requirements import Requirement
 
             def _extract_platform_specific_deps(
                 pkg_metadata, target_system, target_machine
