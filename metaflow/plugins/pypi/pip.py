@@ -45,6 +45,7 @@ class PipPackageNotFound(Exception):
 
 METADATA_FILE = "{prefix}/.pip/metadata"
 INSTALLATION_MARKER = "{prefix}/.pip/id"
+MAX_SOLVE_ITERATIONS = 1
 
 # TODO:
 #     1. Support local dirs, non-wheel like packages
@@ -70,7 +71,7 @@ class Pip(object):
         except Exception:
             return None
 
-    def solve(self, id_, packages, python, platform):
+    def solve(self, id_, packages, python, platform, iterations=0):
         prefix = self.micromamba.path_to_environment(id_)
         if prefix is None:
             msg = "Unable to locate a Micromamba managed virtual environment\n"
@@ -196,7 +197,7 @@ class Pip(object):
 
             # NOTE: Make sure to run this only if current platform and target platform are a mismatch.
             # i.e. we are doing a cross-platform resolve!
-            if conda_platform() != platform:
+            if (conda_platform() != platform) and iterations < MAX_SOLVE_ITERATIONS:
                 debug.conda_exec(
                     "Current platform differs from target platform. Performing a check for environment markers in package dependencies that might end up being not included otherwise."
                 )
@@ -223,7 +224,9 @@ class Pip(object):
                         debug.conda_exec(
                             "Added dependencies due to environment markers, have to re-solve the environment with new ones."
                         )
-                        return self.solve(id_, packages, python, platform)
+                        return self.solve(
+                            id_, packages, python, platform, iterations=iterations + 1
+                        )
 
             with open(report, mode="r", encoding="utf-8") as f:
                 return [
