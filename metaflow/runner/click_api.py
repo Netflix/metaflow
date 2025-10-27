@@ -57,25 +57,13 @@ from metaflow.user_configs.config_options import (
 )
 from metaflow.user_decorators.user_flow_decorator import FlowMutator
 
+# Import Click type mappings from config (allows extensions to add custom types)
+from metaflow.metaflow_config import get_click_to_python_types
+
+click_to_python_types = get_click_to_python_types()
+
 # Define a recursive type alias for JSON
 JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
-
-click_to_python_types = {
-    StringParamType: str,
-    IntParamType: int,
-    FloatParamType: float,
-    BoolParamType: bool,
-    UUIDParameterType: uuid.UUID,
-    Path: str,
-    DateTime: datetime.datetime,
-    Tuple: tuple,
-    Choice: str,
-    File: str,
-    JSONTypeClass: JSON,
-    FilePathClass: str,
-    LocalFileInput: str,
-    MultipleTuple: TTuple[str, Union[JSON, ConfigValue]],
-}
 
 
 def _method_sanity_check(
@@ -556,6 +544,17 @@ class MetaflowAPI(object):
         # We ignore any errors if we don't check the configs in the click API.
 
         # Init all values in the flow mutators and then process them
+        for mutator in self._flow_cls._flow_state.get(FlowStateItems.FLOW_MUTATORS, []):
+            mutator.external_init()
+
+        # Initialize mutators with top-level options (using defaults for Deployer/Runner)
+        for mutator in self._flow_cls._flow_state.get(FlowStateItems.FLOW_MUTATORS, []):
+            mutator_options = {
+                option: option_info["default"]
+                for option, option_info in mutator.options.items()
+            }
+            mutator.flow_init_options(mutator_options)
+
         for decorator in self._flow_cls._flow_state[FlowStateItems.FLOW_MUTATORS]:
             decorator.external_init()
 

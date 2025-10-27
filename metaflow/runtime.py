@@ -2075,6 +2075,12 @@ class CLIArgs(object):
         for deco in flow_decorators(self.task.flow):
             self.top_level_options.update(deco.get_top_level_options())
 
+        # FlowMutators can also define their own top-level options similar to decorators
+        from metaflow.flowspec import _FlowState
+
+        for mutator in self.task.flow._flow_state.get(_FlowState.FLOW_MUTATORS, []):
+            self.top_level_options.update(mutator.get_top_level_options())
+
         # We also pass configuration options using the kv.<name> syntax which will cause
         # the configuration options to be loaded from the CONFIG file (or local-config-file
         # in the case of the local runtime)
