@@ -1,4 +1,4 @@
-from typing import Dict, Optional, Union, TYPE_CHECKING
+from typing import Dict, Optional, Union, TYPE_CHECKING, Any
 
 from metaflow.exception import MetaflowException
 from metaflow.user_configs.config_parameters import (
@@ -124,6 +124,11 @@ class FlowMutator(metaclass=FlowMutatorMeta):
     modify the steps.
     """
 
+    # Top-level options that can be specified on the command line
+    # Format: {'option-name': {'default': value, 'help': 'help text', ...}}
+    # These options will be registered as CLI arguments and passed to the mutator
+    options = {}
+
     def __init__(self, *args, **kwargs):
         from ..flowspec import FlowSpecMeta
 
@@ -227,6 +232,24 @@ class FlowMutator(metaclass=FlowMutatorMeta):
                 )
         if "init" in self.__class__.__dict__:
             self.init(*self._args, **self._kwargs)
+
+    def flow_init_options(self, options: Dict[str, Any]):
+        """
+        Called to initialize the mutator with top-level CLI options.
+
+        Parameters
+        ----------
+        options : Dict[str, Any]
+            Dictionary of option names to values from the CLI
+        """
+        self._option_values = options
+
+    def get_top_level_options(self):
+        """
+        Return a list of option-value pairs that correspond to top-level
+        options that should be passed to subprocesses (tasks).
+        """
+        return list(self._option_values.items())
 
     def pre_mutate(
         self, mutable_flow: "metaflow.user_decorators.mutable_flow.MutableFlow"

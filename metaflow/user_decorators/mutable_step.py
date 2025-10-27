@@ -44,6 +44,7 @@ class MutableStep:
             pre_mutate=pre_mutate,
             statically_defined=statically_defined,
             inserted_by=inserted_by,
+            mutator=None,  # Step mutators don't have top-level options yet
         )
         self._flow_cls = flow_spec.__class__
         self._my_step = step
