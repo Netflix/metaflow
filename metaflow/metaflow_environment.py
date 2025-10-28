@@ -174,6 +174,7 @@ class MetaflowEnvironment(object):
                 "google-auth",
                 "simple-gcp-object-downloader",
                 "google-cloud-secret-manager",
+                "packaging",
             ],
         }
 
