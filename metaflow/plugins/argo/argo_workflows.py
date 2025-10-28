@@ -2136,6 +2136,8 @@ class ArgoWorkflows(object):
                             foreach_step,
                         )
                     )
+            # NOTE: input-paths might be extremely lengthy so we dump these to disk instead of passing them directly to the cmd
+            step_cmds.append("echo %s >> /tmp/mf-input-paths" % input_paths)
             step = [
                 "step",
                 node.name,
@@ -2143,7 +2145,7 @@ class ArgoWorkflows(object):
                 "--task-id %s" % task_id,
                 "--retry-count %s" % retry_count,
                 "--max-user-code-retries %d" % user_code_retries,
-                "--input-paths %s" % input_paths,
+                "--input-paths-filename /tmp/mf-input-paths",
             ]
             if node.parallel_step:
                 step.append(
