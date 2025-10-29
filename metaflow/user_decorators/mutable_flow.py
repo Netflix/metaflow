@@ -239,7 +239,7 @@ class MutableFlow:
                     "Mutable flow removing parameter %s from flow" % var
                 )
                 # Reset so that we don't list it again
-                del self._flow_cls._flow_state[_FlowState.CACHED_PARAMETERS]
+                self._flow_cls._flow_state.pop(_FlowState.CACHED_PARAMETERS, None)
                 return True
         debug.userconf_exec(
             "Mutable flow failed to remove parameter %s from flow" % parameter_name
