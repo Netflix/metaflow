@@ -630,7 +630,7 @@ if "metadata-service" in enabled_components:
             'metadatadb.database=metaflow',
             'metadatadb.host=postgresql',
             'image.repository=public.ecr.aws/outerbounds/metaflow_metadata_service',
-            'image.tag=2.4.13-2-g70af4ed',
+            'image.tag=2.5.0',
             'resources.requests.cpu=25m',
             'resources.requests.memory=64Mi',
             'resources.limits.cpu=50m',
