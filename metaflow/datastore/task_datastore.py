@@ -6,6 +6,7 @@ import time
 
 from functools import wraps
 from io import BufferedIOBase, FileIO, RawIOBase
+from typing import List, Optional
 from types import MethodType, FunctionType
 
 from .. import metaflow_config
@@ -98,6 +99,7 @@ class TaskDataStore(object):
         data_metadata=None,
         mode="r",
         allow_not_done=False,
+        persist=True,
     ):
         self._storage_impl = flow_datastore._storage_impl
         self.TYPE = self._storage_impl.TYPE
@@ -113,6 +115,7 @@ class TaskDataStore(object):
         self._attempt = attempt
         self._metadata = flow_datastore.metadata
         self._parent = flow_datastore
+        self._persist = persist
 
         # The GZIP encodings are for backward compatibility
         self._encodings = {"pickle-v2", "gzip+pickle-v2"}
@@ -148,6 +151,8 @@ class TaskDataStore(object):
                     )
                     if self.has_metadata(check_meta, add_attempt=False):
                         max_attempt = i
+                    elif max_attempt is not None:
+                        break
                 if self._attempt is None:
                     self._attempt = max_attempt
                 elif max_attempt is None or self._attempt > max_attempt:
@@ -252,6 +257,72 @@ class TaskDataStore(object):
         This method requires mode 'w'.
         """
         self.save_metadata({self.METADATA_ATTEMPT_SUFFIX: {"time": time.time()}})
+
+    @only_if_not_done
+    @require_mode("w")
+    def transfer_artifacts(
+        self, other_datastore: "TaskDataStore", names: Optional[List[str]] = None
+    ):
+        """
+        Copies the blobs from other_datastore to this datastore if the datastore roots
+        are different.
+
+        This is used specifically for spin so we can bring in artifacts from the original
+        datastore.
+
+        Parameters
+        ----------
+        other_datastore : TaskDataStore
+            Other datastore from which to copy artifacts from
+        names : List[str], optional, default None
+            If provided, only transfer the artifacts with these names. If None,
+            transfer all artifacts from the other datastore.
+        """
+        if (
+            other_datastore.TYPE == self.TYPE
+            and other_datastore._storage_impl.datastore_root
+            == self._storage_impl.datastore_root
+        ):
+            # Nothing to transfer -- artifacts are already saved properly
+            return
+
+        # Determine which artifacts need to be transferred
+        if names is None:
+            # Transfer all artifacts from other datastore
+            artifacts_to_transfer = list(other_datastore._objects.keys())
+        else:
+            # Transfer only specified artifacts
+            artifacts_to_transfer = [
+                name for name in names if name in other_datastore._objects
+            ]
+
+        if not artifacts_to_transfer:
+            return
+
+        # Get SHA keys for artifacts to transfer
+        shas_to_transfer = [
+            other_datastore._objects[name] for name in artifacts_to_transfer
+        ]
+
+        # Check which blobs are missing locally
+        missing_shas = []
+        for sha in shas_to_transfer:
+            local_path = self._ca_store._storage_impl.path_join(
+                self._ca_store._prefix, sha[:2], sha
+            )
+            if not self._ca_store._storage_impl.is_file([local_path])[0]:
+                missing_shas.append(sha)
+
+        if not missing_shas:
+            return  # All blobs already exist locally
+
+        # Load blobs from other datastore in transfer mode
+        transfer_blobs = other_datastore._ca_store.load_blobs(
+            missing_shas, is_transfer=True
+        )
+
+        # Save blobs to local datastore in transfer mode
+        self._ca_store.save_blobs(transfer_blobs, is_transfer=True)
 
     @only_if_not_done
     @require_mode("w")
@@ -683,14 +754,16 @@ class TaskDataStore(object):
         flow : FlowSpec
             Flow to persist
         """
+        if not self._persist:
+            return
 
         if flow._datastore:
             self._objects.update(flow._datastore._objects)
             self._info.update(flow._datastore._info)
 
-        # we create a list of valid_artifacts in advance, outside of
-        # artifacts_iter, so we can provide a len_hint below
+        # Scan flow object FIRST
         valid_artifacts = []
+        current_artifact_names = set()
         for var in dir(flow):
             if var.startswith("__") or var in flow._EPHEMERAL:
                 continue
@@ -707,6 +780,16 @@ class TaskDataStore(object):
                 or isinstance(val, Parameter)
             ):
                 valid_artifacts.append((var, val))
+                current_artifact_names.add(var)
+
+        # Transfer ONLY artifacts that aren't being overridden
+        if hasattr(flow._datastore, "orig_datastore"):
+            parent_artifacts = set(flow._datastore._objects.keys())
+            unchanged_artifacts = parent_artifacts - current_artifact_names
+            if unchanged_artifacts:
+                self.transfer_artifacts(
+                    flow._datastore.orig_datastore, names=list(unchanged_artifacts)
+                )
 
         def artifacts_iter():
             # we consume the valid_artifacts list destructively to
@@ -722,6 +805,7 @@ class TaskDataStore(object):
                     delattr(flow, var)
                 yield var, val
 
+        # Save current artifacts
         self.save_artifacts(artifacts_iter(), len_hint=len(valid_artifacts))
 
     @only_if_not_done

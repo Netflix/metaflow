@@ -12,8 +12,10 @@ from .basic import (
 from .card import MetaflowCardComponent, with_default_component_id
 from .convert_to_native_type import TaskToDict, _full_classname
 from .renderer_tools import render_safely
+from .json_viewer import JSONViewer as _JSONViewer, YAMLViewer as _YAMLViewer
 import uuid
 import inspect
+import textwrap
 
 
 def _warning_with_component(component, msg):
@@ -655,19 +657,38 @@ class Markdown(UserComponent):
     )
     ```
 
+    Multi-line strings with indentation are automatically dedented:
+    ```
+    current.card.append(
+        Markdown(f'''
+            # Header
+            - Item 1
+            - Item 2
+        ''')
+    )
+    ```
+
     Parameters
     ----------
     text : str
-        Text formatted in Markdown.
+        Text formatted in Markdown. Leading whitespace common to all lines
+        is automatically removed to support indented multi-line strings.
     """
 
     REALTIME_UPDATABLE = True
 
+    @staticmethod
+    def _dedent_text(text):
+        """Remove common leading whitespace from all lines."""
+        if text is None:
+            return None
+        return textwrap.dedent(text)
+
     def update(self, text=None):
-        self._text = text
+        self._text = self._dedent_text(text)
 
     def __init__(self, text=None):
-        self._text = text
+        self._text = self._dedent_text(text)
 
     @with_default_component_id
     @render_safely
@@ -1099,3 +1120,343 @@ class PythonCode(UserComponent):
         _code_component = PythonCodeComponent(self._code_string)
         _code_component.component_id = self.component_id
         return _code_component.render()
+
+
+class EventsTimeline(UserComponent):
+    """
+    An events timeline component for displaying structured log messages in real-time.
+
+    This component displays events in a timeline format with the latest events at the top.
+    Each event can contain structured data including other UserComponents for rich display.
+
+    Example: Basic usage
+    ```python
+    @card
+    @step
+    def my_step(self):
+        from metaflow.cards import EventsTimeline
+        from metaflow import current
+
+        # Create an events component
+        events = EventsTimeline(title="Processing Events")
+        current.card.append(events)
+
+        # Add events during processing
+        for i in range(10):
+            events.update(
+                event_data={
+                    "timestamp": datetime.now().isoformat(),
+                    "event_type": "processing",
+                    "item_id": i,
+                    "status": "completed",
+                    "duration_ms": random.randint(100, 500)
+                }
+            )
+            time.sleep(1)
+    ```
+
+    Example: With styling and rich components
+    ```python
+    from metaflow.cards import EventsTimeline, Markdown, PythonCode
+
+    events = EventsTimeline(title="Agent Actions")
+    current.card.append(events)
+
+    # Event with styling
+    events.update(
+        event_data={
+            "action": "tool_call",
+            "function": "get_weather",
+            "result": "Success"
+        },
+        style_theme="success"
+    )
+
+    # Event with rich components
+    events.update(
+        event_data={
+            "action": "code_execution",
+            "status": "completed"
+        },
+        payloads={
+            "code": PythonCode(code_string="print('Hello World')"),
+            "notes": Markdown("**Important**: This ran successfully")
+        },
+        style_theme="info"
+    )
+    ```
+
+    Parameters
+    ----------
+    title : str, optional
+        Title for the events timeline.
+    max_events : int, default 100
+        Maximum number of events to display. Older events are removed from display
+        but total count is still tracked. Stats and relative time display are always enabled.
+    """
+
+    type = "eventsTimeline"
+
+    REALTIME_UPDATABLE = True
+
+    # Valid style themes
+    VALID_THEMES = {
+        "default",
+        "success",
+        "warning",
+        "error",
+        "info",
+        "primary",
+        "secondary",
+        "tool_call",
+        "ai_response",
+    }
+
+    def __init__(
+        self,
+        title: Optional[str] = None,
+        max_events: int = 100,
+    ):
+        self._title = title
+        self._max_events = max_events
+        self._events = []
+
+        # Metadata tracking
+        self._total_events_count = 0
+        self._first_event_time = None
+        self._last_update_time = None
+        self._finished = False
+
+    def update(
+        self,
+        event_data: dict,
+        style_theme: Optional[str] = None,
+        priority: Optional[str] = None,
+        payloads: Optional[dict] = None,
+        finished: Optional[bool] = None,
+    ):
+        """
+        Add a new event to the timeline.
+
+        Parameters
+        ----------
+        event_data : dict
+            Basic event metadata (strings, numbers, simple values only).
+            This appears in the main event display area.
+        style_theme : str, optional
+            Visual theme for this event. Valid values: 'default', 'success', 'warning',
+            'error', 'info', 'primary', 'secondary', 'tool_call', 'ai_response'.
+        priority : str, optional
+            Priority level for the event ('low', 'normal', 'high', 'critical').
+            Affects visual prominence.
+        payloads : dict, optional
+            Rich payload components that will be displayed in collapsible sections.
+            Values must be UserComponent instances: ValueBox, Image, Markdown,
+            Artifact, JSONViewer, YAMLViewer. VegaChart is not supported inside EventsTimeline.
+        finished : bool, optional
+            Mark the timeline as finished. When True, the status indicator will show
+            "Finished" in the header.
+        """
+        import time
+
+        # Validate style_theme
+        if style_theme is not None and style_theme not in self.VALID_THEMES:
+            import re
+
+            if not re.match(r"^[a-zA-Z][a-zA-Z0-9_-]*$", style_theme):
+                raise ValueError(
+                    f"Invalid style_theme '{style_theme}'. Must be a valid CSS class name."
+                )
+
+        # Validate payloads contain only allowed UserComponents
+        if payloads is not None:
+            allowed_components = (
+                ValueBox,
+                Image,
+                Markdown,
+                Artifact,
+                PythonCode,
+                _JSONViewer,
+                _YAMLViewer,
+            )
+            for key, payload in payloads.items():
+                if not isinstance(payload, allowed_components):
+                    raise TypeError(
+                        f"Payload '{key}' must be one of: ValueBox, Image, Markdown, "
+                        f"Artifact, JSONViewer, YAMLViewer. Got {type(payload).__name__}"
+                    )
+
+        # Add timestamp if not provided
+        if "timestamp" not in event_data:
+            event_data["timestamp"] = time.time()
+
+        # Create event object with metadata and payloads
+        event = {
+            "metadata": event_data,
+            "payloads": payloads or {},
+            "event_id": f"event_{self._total_events_count}",
+            "received_at": time.time(),
+        }
+
+        # Add styling metadata if provided
+        if style_theme is not None:
+            event["style_theme"] = style_theme
+        if priority is not None:
+            event["priority"] = priority
+
+        # Update metadata
+        self._total_events_count += 1
+        self._last_update_time = time.time()
+        if self._first_event_time is None:
+            self._first_event_time = time.time()
+
+        # Update finished status if provided
+        if finished is not None:
+            self._finished = finished
+
+        # Add the event to the beginning of the list (latest first)
+        self._events.insert(0, event)
+
+        # Trim displayed events if we exceed max_events
+        if len(self._events) > self._max_events:
+            self._events = self._events[: self._max_events]
+
+    def get_stats(self) -> dict:
+        """
+        Get timeline statistics.
+
+        Returns
+        -------
+        dict
+            Statistics including total events, display count, timing info, etc.
+        """
+        import time
+
+        current_time = time.time()
+
+        stats = {
+            "total_events": self._total_events_count,
+            "displayed_events": len(self._events),
+            "last_update": self._last_update_time,
+            "first_event": self._first_event_time,
+        }
+
+        # seconds_since_last_update removed; UI derives recency from last event timestamp
+
+        # Add finished status
+        stats["finished"] = self._finished
+
+        if self._first_event_time and self._total_events_count > 1:
+            runtime = self._last_update_time - self._first_event_time
+            if runtime > 0:
+                stats["events_per_minute"] = round(
+                    (self._total_events_count / runtime) * 60, 1
+                )
+                stats["total_runtime_seconds"] = round(runtime, 1)
+
+        return stats
+
+    def _render_subcomponents(self):
+        """
+        Render any UserComponents within event payloads.
+        """
+        rendered_events = []
+
+        for event in self._events:
+            rendered_event = dict(event)  # Copy event metadata
+
+            # Event metadata should only contain simple values (no components)
+            rendered_event["metadata"] = event["metadata"]
+
+            # Render payload components
+            rendered_payloads = {}
+            for key, payload in event["payloads"].items():
+                if isinstance(payload, MetaflowCardComponent):
+                    # Render the component
+                    rendered_payloads[key] = payload.render()
+                else:
+                    # This shouldn't happen due to validation, but handle gracefully
+                    rendered_payloads[key] = str(payload)
+
+            rendered_event["payloads"] = rendered_payloads
+            rendered_events.append(rendered_event)
+
+        return rendered_events
+
+    @with_default_component_id
+    @render_safely
+    def render(self):
+        data = {
+            "type": self.type,
+            "id": self.component_id,
+            "events": self._render_subcomponents(),
+            "config": {
+                "show_stats": True,
+                "show_relative_time": True,
+                "max_events": self._max_events,
+            },
+        }
+
+        if self._title is not None:
+            data["title"] = self._title
+
+        # Always include stats
+        data["stats"] = self.get_stats()
+
+        return data
+
+
+# Rich viewer components
+class JSONViewer(_JSONViewer, UserComponent):
+    """
+    A component for displaying JSON data with syntax highlighting and collapsible sections.
+
+    This component provides a rich view of JSON data with proper formatting, syntax highlighting,
+    and the ability to collapse/expand sections for better readability.
+
+    Example:
+    ```python
+    from metaflow.cards import JSONViewer, EventsTimeline
+    from metaflow import current
+
+    # Use in events timeline
+    events = EventsTimeline(title="API Calls")
+    events.update({
+        "action": "api_request",
+        "endpoint": "/users",
+        "payload": JSONViewer({"user_id": 123, "fields": ["name", "email"]})
+    })
+
+    # Use standalone
+    data = {"config": {"debug": True, "timeout": 30}}
+    current.card.append(JSONViewer(data, collapsible=True))
+    ```
+    """
+
+    pass
+
+
+class YAMLViewer(_YAMLViewer, UserComponent):
+    """
+    A component for displaying YAML data with syntax highlighting and collapsible sections.
+
+    This component provides a rich view of YAML data with proper formatting and syntax highlighting.
+
+    Example:
+    ```python
+    from metaflow.cards import YAMLViewer, EventsTimeline
+    from metaflow import current
+
+    # Use in events timeline
+    events = EventsTimeline(title="Configuration Changes")
+    events.update({
+        "action": "config_update",
+        "config": YAMLViewer({
+            "database": {"host": "localhost", "port": 5432},
+            "features": ["auth", "logging"]
+        })
+    })
+    ```
+    """
+
+    pass

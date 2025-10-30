@@ -379,7 +379,7 @@ class DelayEvaluator(collections.abc.Mapping):
                 to_eval_expr,
                 self._globals or globals(),
                 {
-                    k: ConfigValue(v)
+                    k: ConfigValue(v) if v is not None else None
                     for k, v in flow_cls._flow_state.get(_FlowState.CONFIGS, {}).items()
                 },
             )
@@ -507,9 +507,7 @@ class Config(Parameter, collections.abc.Mapping):
         self._delayed_evaluator = None
 
     def load_parameter(self, v):
-        if v is None:
-            return None
-        return ConfigValue(v)
+        return ConfigValue(v) if v is not None else None
 
     def _store_value(self, v: Any) -> None:
         self._computed_value = v

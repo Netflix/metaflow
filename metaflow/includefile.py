@@ -7,9 +7,10 @@ import json
 import os
 
 from hashlib import sha1
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Union
 
 from metaflow._vendor import click
+from metaflow._vendor import yaml
 
 from .exception import MetaflowException
 from .parameters import (
@@ -20,7 +21,7 @@ from .parameters import (
 )
 
 from .plugins import DATACLIENTS
-from .user_configs.config_parameters import ConfigValue
+from .user_configs.config_options import ConfigInput
 from .util import get_username
 
 import functools
@@ -261,6 +262,12 @@ class IncludeFile(Parameter):
     show_default : bool, default True
         If True, show the default value in the help text. A value of None is equivalent
         to True.
+    parser : Union[str, Callable[[str], Any]], optional, default None
+        If a callable, it is a function that can parse the file contents
+        into any desired format. If a string, the string should refer to
+        a function (like "my_parser_package.my_parser.my_parser_function") which should
+        be able to parse the file contents. If the name starts with a ".", it is assumed
+        to be relative to "metaflow".
     """
 
     def __init__(
@@ -270,6 +277,7 @@ class IncludeFile(Parameter):
         is_text: Optional[bool] = None,
         encoding: Optional[str] = None,
         help: Optional[str] = None,
+        parser: Optional[Union[str, Callable[[str], Any]]] = None,
         **kwargs: Dict[str, str]
     ):
         self._includefile_overrides = {}
@@ -277,6 +285,7 @@ class IncludeFile(Parameter):
             self._includefile_overrides["is_text"] = is_text
         if encoding is not None:
             self._includefile_overrides["encoding"] = encoding
+        self._parser = parser
         # NOTA: Right now, there is an issue where these can't be overridden by config
         # in all circumstances. Ignoring for now.
         super(IncludeFile, self).__init__(
@@ -336,7 +345,20 @@ class IncludeFile(Parameter):
     def load_parameter(self, v):
         if v is None:
             return v
-        return v.decode(self.name, var_type="Parameter")
+
+        # Get the raw content from the file
+        content = v.decode(self.name, var_type="Parameter")
+        # If a parser is specified, use it to parse the content
+        if self._parser is not None:
+            try:
+                return ConfigInput._call_parser(self._parser, content)
+            except Exception as e:
+                raise MetaflowException(
+                    "Failed to parse content in parameter '%s' using parser: %s"
+                    % (self.name, str(e))
+                ) from e
+
+        return content
 
     @staticmethod
     def _eval_default(is_text, encoding, default_path):

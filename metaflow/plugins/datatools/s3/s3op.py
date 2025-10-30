@@ -285,7 +285,9 @@ def worker(result_file_name, queue, mode, s3config):
                                     "%d %d\n" % (idx, -ERROR_OUT_OF_DISK_SPACE)
                                 )
                             else:
-                                result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
+                                result_file.write(
+                                    "%d %d %s\n" % (idx, -ERROR_TRANSIENT, "OSError")
+                                )
                             result_file.flush()
                             continue
                     except MetaflowException:
@@ -297,7 +299,9 @@ def worker(result_file_name, queue, mode, s3config):
                         tmp.close()
                         os.unlink(tmp.name)
                         # assume anything else is transient
-                        result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
+                        result_file.write(
+                            "%d %d %s\n" % (idx, -ERROR_TRANSIENT, type(e).__name__)
+                        )
                         result_file.flush()
                         continue
                     # If we need the metadata, get it and write it out
@@ -368,7 +372,9 @@ def worker(result_file_name, queue, mode, s3config):
                             raise
                         except (SSLError, Exception) as e:
                             # assume anything else is transient
-                            result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
+                            result_file.write(
+                                "%d %d %s\n" % (idx, -ERROR_TRANSIENT, type(e).__name__)
+                            )
                             result_file.flush()
                             continue
         except:
@@ -399,6 +405,8 @@ def handle_client_error(err, idx, result_file):
         raise err
 
     error_code = normalize_client_error(err)
+    original_error_code = err.response["Error"]["Code"]
+
     if error_code == 404:
         result_file.write("%d %d\n" % (idx, -ERROR_URL_NOT_FOUND))
         result_file.flush()
@@ -406,13 +414,12 @@ def handle_client_error(err, idx, result_file):
         result_file.write("%d %d\n" % (idx, -ERROR_URL_ACCESS_DENIED))
         result_file.flush()
     elif error_code == 503:
-        result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
+        result_file.write("%d %d %s\n" % (idx, -ERROR_TRANSIENT, original_error_code))
         result_file.flush()
     else:
         # optimistically assume it is a transient error
-        result_file.write("%d %d\n" % (idx, -ERROR_TRANSIENT))
+        result_file.write("%d %d %s\n" % (idx, -ERROR_TRANSIENT, original_error_code))
         result_file.flush()
-    # TODO specific error message for out of disk space
 
 
 def start_workers(mode, urls, num_workers, inject_failure, s3config):
@@ -424,6 +431,7 @@ def start_workers(mode, urls, num_workers, inject_failure, s3config):
     random.seed()
 
     sz_results = []
+    transient_error_type = None
     # 1. push sources and destinations to the queue
     # We only push if we don't inject a failure; otherwise, we already set the sz_results
     # appropriately with the result of the injected failure.
@@ -478,13 +486,19 @@ def start_workers(mode, urls, num_workers, inject_failure, s3config):
                     # Read the output file if all went well
                     with open(out_path, "r") as out_file:
                         for line in out_file:
-                            line_split = line.split(" ")
-                            sz_results[int(line_split[0])] = int(line_split[1])
+                            line_split = line.split(" ", 2)
+                            idx = int(line_split[0])
+                            size = int(line_split[1])
+                            sz_results[idx] = size
+
+                            # For transient errors, store the transient error type (should be the same for all)
+                            if size == -ERROR_TRANSIENT and len(line_split) > 2:
+                                transient_error_type = line_split[2].strip()
                 else:
                     # Put this process back in the processes to check
                     new_procs[proc] = out_path
             procs = new_procs
-    return sz_results
+    return sz_results, transient_error_type
 
 
 def process_urls(mode, urls, verbose, inject_failure, num_workers, s3config):
@@ -493,7 +507,9 @@ def process_urls(mode, urls, verbose, inject_failure, num_workers, s3config):
         print("%sing %d files.." % (mode.capitalize(), len(urls)), file=sys.stderr)
 
     start = time.time()
-    sz_results = start_workers(mode, urls, num_workers, inject_failure, s3config)
+    sz_results, transient_error_type = start_workers(
+        mode, urls, num_workers, inject_failure, s3config
+    )
     end = time.time()
 
     if verbose:
@@ -510,7 +526,7 @@ def process_urls(mode, urls, verbose, inject_failure, num_workers, s3config):
             ),
             file=sys.stderr,
         )
-    return sz_results
+    return sz_results, transient_error_type
 
 
 # Utility functions
@@ -595,11 +611,23 @@ class S3Ops(object):
                 # - the trailing slash is significant in S3
                 if "Contents" in page:
                     for key in page.get("Contents", []):
-                        url = url_base + key["Key"]
+                        key_path = key["Key"]
+                        # filter out sibling directories that share the same prefix
+                        if delimiter == "":  # recursive mode
+                            normalized_prefix = prefix_url.path
+                            if not normalized_prefix.endswith("/"):
+                                normalized_prefix += "/"
+                            # Only include keys that are actually under our directory
+                            if not (
+                                key_path.startswith(normalized_prefix)
+                                and len(key_path) > len(normalized_prefix)
+                            ):
+                                continue
+                        url = url_base + key_path
                         urlobj = S3Url(
                             url=url,
                             bucket=prefix_url.bucket,
-                            path=key["Key"],
+                            path=key_path,
                             local=generate_local_path(url),
                             prefix=prefix_url.url,
                         )
@@ -707,9 +735,21 @@ def generate_local_path(url, range="whole", suffix=None):
     quoted = url_quote(url)
     fname = quoted.split(b"/")[-1].replace(b".", b"_").replace(b"-", b"_")
     sha = sha1(quoted).hexdigest()
+
+    # Truncate fname to ensure the final filename doesn't exceed filesystem limits.
+    # Most filesystems have a 255 character limit. The structure is:
+    # <40-char-sha>-<fname>-<range>[-<suffix>]
+    # We need to leave room for: sha (40) + hyphens (2-3) + range (~10) + suffix (~10)
+    # This leaves roughly 190 characters for fname. We use 150 to be safe.
+    fname_decoded = fname.decode("utf-8")
+    max_fname_len = 150
+    if len(fname_decoded) > max_fname_len:
+        # Truncate and add an ellipsis to indicate truncation
+        fname_decoded = fname_decoded[:max_fname_len] + "..."
+
     if suffix:
-        return "-".join((sha, fname.decode("utf-8"), range, suffix))
-    return "-".join((sha, fname.decode("utf-8"), range))
+        return "-".join((sha, fname_decoded, range, suffix))
+    return "-".join((sha, fname_decoded, range))
 
 
 def parallel_op(op, lst, num_workers):
@@ -846,7 +886,7 @@ def lst(
     urllist = []
     to_iterate, _ = _populate_prefixes(prefixes, inputs)
     for _, prefix, url, _ in to_iterate:
-        src = urlparse(url)
+        src = urlparse(url, allow_fragments=False)
         url = S3Url(
             url=url,
             bucket=src.netloc,
@@ -952,7 +992,7 @@ def put(
                 yield input_line_idx, local, url, content_type, metadata, encryption
 
     def _make_url(idx, local, user_url, content_type, metadata, encryption):
-        src = urlparse(user_url)
+        src = urlparse(user_url, allow_fragments=False)
         url = S3Url(
             url=user_url,
             bucket=src.netloc,
@@ -980,7 +1020,7 @@ def put(
     ul_op = "upload"
     if not overwrite:
         ul_op = "info_upload"
-    sz_results = process_urls(
+    sz_results, transient_error_type = process_urls(
         ul_op, urls, verbose, inject_failure, num_workers, s3config
     )
     retry_lines = []
@@ -998,19 +1038,17 @@ def put(
         elif listing and sz == 0:
             out_lines.append(format_result_line(url.idx, url.url) + "\n")
         elif sz == -ERROR_TRANSIENT:
-            retry_lines.append(
-                json.dumps(
-                    {
-                        "idx": url.idx,
-                        "url": url.url,
-                        "local": url.local,
-                        "content_type": url.content_type,
-                        "metadata": url.metadata,
-                        "encryption": url.encryption,
-                    }
-                )
-                + "\n"
-            )
+            retry_data = {
+                "idx": url.idx,
+                "url": url.url,
+                "local": url.local,
+                "content_type": url.content_type,
+                "metadata": url.metadata,
+                "encryption": url.encryption,
+            }
+            if transient_error_type:
+                retry_data["transient_error_type"] = transient_error_type
+            retry_lines.append(json.dumps(retry_data) + "\n")
             # Output something to get a total count the first time around
             if not is_transient_retry:
                 out_lines.append("%d %s\n" % (url.idx, TRANSIENT_RETRY_LINE_CONTENT))
@@ -1048,22 +1086,21 @@ def _populate_prefixes(prefixes, inputs):
             for idx, l in enumerate(f, start=len(prefixes)):
                 s = l.split(b" ")
                 if len(s) == 1:
+                    # User input format: <url>
                     url = url_unquote(s[0].strip())
                     prefixes.append((idx, url, url, None))
                 elif len(s) == 2:
+                    # User input format: <url> <range>
                     url = url_unquote(s[0].strip())
                     prefixes.append((idx, url, url, url_unquote(s[1].strip())))
-                else:
+                elif len(s) in (4, 5):
+                    # Retry format: <idx> <prefix> <url> <range> [<transient_error_type>]
+                    # The transient_error_type (5th field) is optional and only used for logging.
+                    # Lines with other field counts (e.g., 3) are silently ignored as invalid.
                     is_transient_retry = True
-                    if len(s) == 3:
-                        prefix = url = url_unquote(s[1].strip())
-                        range_info = url_unquote(s[2].strip())
-                    else:
-                        # Special case when we have both prefix and URL -- this is
-                        # used in recursive gets for example
-                        prefix = url_unquote(s[1].strip())
-                        url = url_unquote(s[2].strip())
-                        range_info = url_unquote(s[3].strip())
+                    prefix = url_unquote(s[1].strip())
+                    url = url_unquote(s[2].strip())
+                    range_info = url_unquote(s[3].strip())
                     if range_info == "<norange>":
                         range_info = None
                     prefixes.append(
@@ -1127,7 +1164,7 @@ def get(
     urllist = []
     to_iterate, is_transient_retry = _populate_prefixes(prefixes, inputs)
     for idx, prefix, url, r in to_iterate:
-        src = urlparse(url)
+        src = urlparse(url, allow_fragments=False)
         url = S3Url(
             url=url,
             bucket=src.netloc,
@@ -1174,7 +1211,7 @@ def get(
 
     # exclude the non-existent files from loading
     to_load = [url for url, size in urls if size is not None]
-    sz_results = process_urls(
+    sz_results, transient_error_type = process_urls(
         dl_op, to_load, verbose, inject_failure, num_workers, s3config
     )
     # We check if there is any access denied
@@ -1210,21 +1247,19 @@ def get(
                 break
             out_lines.append(format_result_line(url.idx, url.url) + "\n")
         elif sz == -ERROR_TRANSIENT:
-            retry_lines.append(
-                " ".join(
-                    [
-                        str(url.idx),
-                        url_quote(url.prefix).decode(encoding="utf-8"),
-                        url_quote(url.url).decode(encoding="utf-8"),
-                        (
-                            url_quote(url.range).decode(encoding="utf-8")
-                            if url.range
-                            else "<norange>"
-                        ),
-                    ]
-                )
-                + "\n"
-            )
+            retry_line_parts = [
+                str(url.idx),
+                url_quote(url.prefix).decode(encoding="utf-8"),
+                url_quote(url.url).decode(encoding="utf-8"),
+                (
+                    url_quote(url.range).decode(encoding="utf-8")
+                    if url.range
+                    else "<norange>"
+                ),
+            ]
+            if transient_error_type:
+                retry_line_parts.append(transient_error_type)
+            retry_lines.append(" ".join(retry_line_parts) + "\n")
             # First time around, we output something to indicate the total length
             if not is_transient_retry:
                 out_lines.append("%d %s\n" % (url.idx, TRANSIENT_RETRY_LINE_CONTENT))
@@ -1276,7 +1311,7 @@ def info(
     urllist = []
     to_iterate, is_transient_retry = _populate_prefixes(prefixes, inputs)
     for idx, prefix, url, _ in to_iterate:
-        src = urlparse(url)
+        src = urlparse(url, allow_fragments=False)
         url = S3Url(
             url=url,
             bucket=src.netloc,
@@ -1290,7 +1325,7 @@ def info(
             exit(ERROR_INVALID_URL, url)
         urllist.append(url)
 
-    sz_results = process_urls(
+    sz_results, transient_error_type = process_urls(
         "info", urllist, verbose, inject_failure, num_workers, s3config
     )
 
@@ -1303,10 +1338,15 @@ def info(
                 format_result_line(url.idx, url.prefix, url.url, url.local) + "\n"
             )
         else:
-            retry_lines.append(
-                "%d %s <norange>\n"
-                % (url.idx, url_quote(url.url).decode(encoding="utf-8"))
-            )
+            retry_line_parts = [
+                str(url.idx),
+                url_quote(url.prefix).decode(encoding="utf-8"),
+                url_quote(url.url).decode(encoding="utf-8"),
+                "<norange>",
+            ]
+            if transient_error_type:
+                retry_line_parts.append(transient_error_type)
+            retry_lines.append(" ".join(retry_line_parts) + "\n")
             if not is_transient_retry:
                 out_lines.append("%d %s\n" % (url.idx, TRANSIENT_RETRY_LINE_CONTENT))
 

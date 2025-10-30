@@ -14,6 +14,17 @@
 version_settings(constraint='>=0.22.2')
 allow_k8s_contexts('minikube')
 
+# Version configuration for components
+JOBSET_VERSION = os.getenv("JOBSET_VERSION", "v0.8.2")
+
+# Argo Workflows versions
+ARGO_WORKFLOWS_HELM_CHART_VERSION = os.getenv("ARGO_WORKFLOWS_HELM_CHART_VERSION", "0.45.2")  # Helm chart version
+ARGO_WORKFLOWS_IMAGE_TAG = os.getenv("ARGO_WORKFLOWS_IMAGE_TAG", "v3.6.0")  # Argo Workflows application version
+
+# Argo Events versions  
+ARGO_EVENTS_HELM_CHART_VERSION = os.getenv("ARGO_EVENTS_HELM_CHART_VERSION", "2.4.8")  # Helm chart version
+ARGO_EVENTS_IMAGE_TAG = os.getenv("ARGO_EVENTS_IMAGE_TAG", "v1.9.2")  # Argo Events application version
+
 components = {
     "metadata-service": ["postgresql"],
     "ui": ["postgresql", "minio"],
@@ -21,9 +32,10 @@ components = {
     "postgresql": [],
     "argo-workflows": [],
     "argo-events": ["argo-workflows"],
+    "jobset": [],
 }
 
-services_env = os.getenv("SERVICES", "").strip().lower()
+services_env = os.getenv("SERVICES", "all").strip().lower()
 
 if services_env:
     if services_env == "all":
@@ -172,6 +184,7 @@ if "postgresql" in enabled_components:
             'auth.username=metaflow',
             'auth.password=metaflow123',
             'auth.database=metaflow',
+            'image.repository=bitnamilegacy/postgresql',
             'primary.persistence.enabled=false',
             'primary.resources.requests.memory=128Mi',
             'primary.resources.requests.cpu=50m',
@@ -205,6 +218,7 @@ if "postgresql" in enabled_components:
 if "argo-workflows" in enabled_components:
     helm_remote(
         'argo-workflows',
+        version=ARGO_WORKFLOWS_HELM_CHART_VERSION,
         repo_name='argo',
         repo_url='https://argoproj.github.io/argo-helm',
         set=[
@@ -220,7 +234,9 @@ if "argo-workflows" in enabled_components:
             'controller.resources.requests.memory=128Mi',
             'controller.resources.requests.cpu=50m',
             'controller.resources.limits.memory=256Mi',
-            'controller.resources.limits.cpu=100m'
+            'controller.resources.limits.cpu=100m',
+            # Image version overrides
+            'images.tag=%s' % ARGO_WORKFLOWS_IMAGE_TAG,
         ]
     )
 
@@ -307,6 +323,7 @@ if "argo-workflows" in enabled_components:
 if "argo-events" in enabled_components:
     helm_remote(
         'argo-events',
+        version=ARGO_EVENTS_HELM_CHART_VERSION,
         repo_name='argo',
         repo_url='https://argoproj.github.io/argo-helm',
         set=[
@@ -334,6 +351,8 @@ if "argo-events" in enabled_components:
             'configs.jetstream.versions[1].natsImage=nats:2.9.15',
             'configs.jetstream.versions[1].startCommand=/nats-server',
             'configs.jetstream.versions[1].version=2.9.15',
+            # Image version overrides
+            'global.image.tag=%s' % ARGO_EVENTS_IMAGE_TAG,
         ]
     )
 
@@ -542,6 +561,62 @@ if "argo-events" in enabled_components:
     config_resources.append('argo-events-webhook-eventsource-svc')
 
 #################################################
+# JOBSET
+#################################################
+if "jobset" in enabled_components:
+    # Apply JobSet manifests directly from GitHub releases
+    jobset_manifest_url = "https://github.com/kubernetes-sigs/jobset/releases/download/%s/manifests.yaml" % JOBSET_VERSION
+
+    cmd = "curl -sSL %s" % (jobset_manifest_url)
+    k8s_yaml(
+        local(
+            cmd,
+        )
+    )
+
+    k8s_resource(
+        'jobset-controller-manager',
+        labels=['jobset'],
+    )
+
+    metaflow_config["METAFLOW_KUBERNETES_JOBSET_ENABLED"] = "true"
+    
+    config_resources.append('jobset-controller-manager')
+
+    # ClusterRole for jobset operations
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'rbac.authorization.k8s.io/v1',
+        'kind': 'ClusterRole',
+        'metadata': {
+            'name': 'jobset-full-access'
+        },
+        'rules': [{
+            'apiGroups': ['jobset.x-k8s.io'],
+            'resources': ['jobsets'],
+            'verbs': ['*']
+        }]
+    }))
+
+    # ClusterRoleBinding for default service account to access jobsets
+    k8s_yaml(encode_yaml({
+        'apiVersion': 'rbac.authorization.k8s.io/v1',
+        'kind': 'ClusterRoleBinding',
+        'metadata': {
+            'name': 'default-jobset-binding'
+        },
+        'subjects': [{
+            'kind': 'ServiceAccount',
+            'name': 'default',
+            'namespace': 'default'
+        }],
+        'roleRef': {
+            'kind': 'ClusterRole',
+            'name': 'jobset-full-access',
+            'apiGroup': 'rbac.authorization.k8s.io'
+        }
+    }))
+
+#################################################
 # METADATA SERVICE
 #################################################
 if "metadata-service" in enabled_components:
@@ -555,7 +630,7 @@ if "metadata-service" in enabled_components:
             'metadatadb.database=metaflow',
             'metadatadb.host=postgresql',
             'image.repository=public.ecr.aws/outerbounds/metaflow_metadata_service',
-            'image.tag=2.4.13-2-g70af4ed',
+            'image.tag=2.5.0',
             'resources.requests.cpu=25m',
             'resources.requests.memory=64Mi',
             'resources.limits.cpu=50m',

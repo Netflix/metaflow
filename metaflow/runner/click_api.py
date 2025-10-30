@@ -166,6 +166,17 @@ def _method_sanity_check(
     return method_params
 
 
+def _cleanup_flow_parameters(cmd_obj: Union[click.Command, click.Group]):
+    if hasattr(cmd_obj, "original_params"):
+        cmd_obj.params = list(cmd_obj.original_params)
+
+    if isinstance(cmd_obj, click.Group):
+        for sub_cmd_name in cmd_obj.list_commands(None):
+            sub_cmd = cmd_obj.get_command(None, sub_cmd_name)
+            if sub_cmd:
+                _cleanup_flow_parameters(sub_cmd)
+
+
 def _lazy_load_command(
     cli_collection: click.Group,
     flow_parameters: Union[str, List[Parameter]],
@@ -181,6 +192,7 @@ def _lazy_load_command(
         flow_parameters = getattr(_self, flow_parameters)()
     cmd_obj = cli_collection.get_command(None, name)
     if cmd_obj:
+        _cleanup_flow_parameters(cmd_obj)
         if isinstance(cmd_obj, click.Group):
             # TODO: possibly check for fake groups with cmd_obj.name in ["cli", "main"]
             result = functools.partial(extract_group(cmd_obj, flow_parameters), _self)
@@ -339,8 +351,10 @@ class MetaflowAPI(object):
         class_dict = {
             "__module__": "metaflow",
             "_API_NAME": flow_file,
-            "_internal_getattr": functools.partial(
-                _lazy_load_command, cli_collection, "_compute_flow_parameters"
+            "_internal_getattr": staticmethod(
+                functools.partial(
+                    _lazy_load_command, cli_collection, "_compute_flow_parameters"
+                )
             ),
             "__getattr__": getattr_wrapper,
         }
