@@ -432,14 +432,6 @@ class BatchJob(object):
 
         self.num_parallel = num_parallel or 0
         if self.num_parallel >= 1:
-            # Set the ulimit of number of open files to 65536. This is because we cannot set it easily once worker processes start on Batch.
-            # job_definition["containerProperties"]["linuxParameters"]["ulimits"] = [
-            #     {
-            #         "name": "nofile",
-            #         "softLimit": 65536,
-            #         "hardLimit": 65536,
-            #     }
-            # ]
             job_definition["type"] = "multinode"
             job_definition["nodeProperties"] = {
                 "numNodes": self.num_parallel,
