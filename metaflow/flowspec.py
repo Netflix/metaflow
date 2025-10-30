@@ -91,29 +91,29 @@ class _FlowState(MutableMapping):
     # and the ones that are inherited from parent classes.
     # This is NOT a general purpose class and is meant to only work with FlowSpec.
     # For example, it assumes that items are only list, dicts or None and assumes that
-    # self._data has all keys properly initialized.
+    # self._self_data has all keys properly initialized.
 
     def __init__(self, *args, **kwargs):
         self._self_data = dict(*args, **kwargs)
-        self._data = {}
+        self._merged_data = {}
         self._inherited = {}
 
     def __getitem__(self, key):
         # ORDER IS IMPORTANT: we use inherited first and extend by whatever is in
         # the flowspec
-        if key in self._data:
-            return self._data[key]
+        if key in self._merged_data:
+            return self._merged_data[key]
 
         # We haven't accessed this yet so compute it for the first time
         self_value = self._self_data.get(key)
         inherited_value = self._inherited.get(key)
 
         if self_value is not None:
-            self._data[key] = self._merge_value(inherited_value, self_value)
-            return self._data[key]
+            self._merged_data[key] = self._merge_value(inherited_value, self_value)
+            return self._merged_data[key]
         elif key in self._self_data:
             # Case of CACHED_PARAMETERS; a valid value is None. It is never inherited
-            self._data[key] = None
+            self._merged_data[key] = None
             return None
         raise KeyError(key)
 
@@ -121,8 +121,8 @@ class _FlowState(MutableMapping):
         self._self_data[key] = value
 
     def __delitem__(self, key):
-        if key in self._data:
-            del self._data[key]
+        if key in self._merged_data:
+            del self._merged_data[key]
         else:
             raise KeyError(key)
 
@@ -136,7 +136,7 @@ class _FlowState(MutableMapping):
 
     @property
     def self_data(self):
-        self._data.clear()
+        self._merged_data.clear()
         return self._self_data
 
     @property
