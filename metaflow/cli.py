@@ -15,7 +15,7 @@ from .cli_components.utils import LazyGroup, LazyPluginCommandCollection
 from .datastore import FlowDataStore, TaskDataStoreSet
 from .debug import debug
 from .exception import CommandException, MetaflowException
-from .flowspec import _FlowState
+from .flowspec import FlowStateItems
 from .graph import FlowGraph
 from .metaflow_config import (
     DEFAULT_DATASTORE,
@@ -458,8 +458,8 @@ def start(
         # We can now set the the CONFIGS value in the flow properly. This will overwrite
         # anything that may have been passed in by default and we will use exactly what
         # the original flow had. Note that these are accessed through the parameter name
-        ctx.obj.flow._flow_state[_FlowState.CONFIGS].clear()
-        d = ctx.obj.flow._flow_state[_FlowState.CONFIGS]
+        ctx.obj.flow._flow_state[FlowStateItems.CONFIGS].clear()
+        d = ctx.obj.flow._flow_state[FlowStateItems.CONFIGS]
         for param_name, var_name in zip(config_param_names, config_var_names):
             val = param_ds[var_name]
             debug.userconf_exec("Loaded config %s as: %s" % (param_name, val))
@@ -471,7 +471,7 @@ def start(
         raise ctx.obj.delayed_config_exception
 
     # Init all values in the flow mutators and then process them
-    for decorator in ctx.obj.flow._flow_state.get(_FlowState.FLOW_MUTATORS, []):
+    for decorator in ctx.obj.flow._flow_state[FlowStateItems.FLOW_MUTATORS]:
         decorator.external_init()
 
     new_cls = ctx.obj.flow._process_config_decorators(config_options)
@@ -593,9 +593,9 @@ def start(
         ctx.obj.flow_datastore,
         {
             k: ConfigValue(v) if v is not None else None
-            for k, v in ctx.obj.flow.__class__._flow_state.get(
-                _FlowState.CONFIGS, {}
-            ).items()
+            for k, v in ctx.obj.flow.__class__._flow_state[
+                FlowStateItems.CONFIGS
+            ].items()
         },
     )
 
