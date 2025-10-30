@@ -458,7 +458,7 @@ def start(
         # We can now set the the CONFIGS value in the flow properly. This will overwrite
         # anything that may have been passed in by default and we will use exactly what
         # the original flow had. Note that these are accessed through the parameter name
-        # We need to save the "plane-ness" flag to carry it over
+        # We need to save the "plain-ness" flag to carry it over
         config_plain_flags = {
             k: v[1] for k, v in ctx.obj.flow._flow_state[FlowStateItems.CONFIGS].items()
         }
