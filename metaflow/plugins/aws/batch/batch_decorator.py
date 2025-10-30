@@ -426,18 +426,18 @@ class BatchDecorator(StepDecorator):
         # If metadata isn't bound yet but we are on Batch, also prefer Batch API.
         md = getattr(self, "metadata", None)
         if md is not None and md.TYPE == "local":
-            return self._wait_for_mapper_tasks_batch_api(
+            return self._wait_for_mapper_tasks_datastore(
                 flow, step_name, last_completion_timeout
             )
         if md is None and "AWS_BATCH_JOB_ID" in os.environ:
-            return self._wait_for_mapper_tasks_batch_api(
+            return self._wait_for_mapper_tasks_datastore(
                 flow, step_name, last_completion_timeout
             )
         return self._wait_for_mapper_tasks_metadata(
             flow, step_name, last_completion_timeout
         )
 
-    def _wait_for_mapper_tasks_batch_api(
+    def _wait_for_mapper_tasks_datastore(
         self, flow, step_name, last_completion_timeout
     ):
         """
@@ -476,17 +476,14 @@ class BatchDecorator(StepDecorator):
                     if tds.has_metadata(TaskDataStore.METADATA_DONE_SUFFIX):
                         completed += 1
                 except Exception as e:
-                    if os.environ.get("METAFLOW_DEBUG_BATCH_POLL") in (
-                        "1",
-                        "true",
-                        "True",
-                    ):
-                        print("Datastore wait: error checking %s: %s" % (ps, e))
+                    self.logger.warning("Datastore wait: error checking %s: %s", ps, e)
                     continue
             if completed == total:
-                print("All mapper tasks have written DONE markers to datastore")
+                self.logger.info(
+                    "All mapper tasks have written DONE markers to datastore"
+                )
                 return True
-            print(
+            self.logger.info(
                 "Waiting for mapper DONE markers. Finished: %d/%d" % (completed, total)
             )
             poll_sleep = min(poll_sleep * 1.25, 10.0)
@@ -515,7 +512,7 @@ class BatchDecorator(StepDecorator):
                     ):  # for some reason task.finished fails
                         return True
                 else:
-                    print(
+                    self.logger.info(
                         "Waiting for all parallel tasks to finish. Finished: {}/{}".format(
                             len(tasks),
                             len(flow._control_mapper_tasks),
