@@ -59,7 +59,7 @@ class CondaEnvironment(MetaflowEnvironment):
         # Initialize necessary virtual environments for all Metaflow tasks.
         # Use Micromamba for solving conda packages and Pip for solving pypi packages.
         from .micromamba import Micromamba
-        from .pip_resolver import Pip
+        from .pip import Pip
 
         print_lock = threading.Lock()
 
