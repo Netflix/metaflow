@@ -584,7 +584,7 @@ MAX_ATTEMPTS = 6
 # Feature flag (experimental features that are *explicitly* unsupported)
 
 # Process configs even when using the click_api for Runner/Deployer
-CLICK_API_PROCESS_CONFIG = from_conf("CLICK_API_PROCESS_CONFIG", False)
+CLICK_API_PROCESS_CONFIG = from_conf("CLICK_API_PROCESS_CONFIG", True)
 
 
 # PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution
