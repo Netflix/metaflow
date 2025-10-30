@@ -803,7 +803,7 @@ def _init_step_decorators(
     # and then the step level ones to maintain a consistent order with how
     # other decorators are run.
 
-    for deco in cls._flow_state[FlowStateItems.FLOW_MUTATORS]:
+    for deco in cls._flow_mutators:
         if isinstance(deco, FlowMutator):
             inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
             mutable_flow = MutableFlow(

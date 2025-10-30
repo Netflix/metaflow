@@ -351,7 +351,7 @@ class IncludeFile(Parameter):
         # If a parser is specified, use it to parse the content
         if self._parser is not None:
             try:
-                return ConfigInput._call_parser(self._parser, content)
+                return ConfigInput._call_parser(self._parser, content, True)
             except Exception as e:
                 raise MetaflowException(
                     "Failed to parse content in parameter '%s' using parser: %s"

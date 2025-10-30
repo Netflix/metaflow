@@ -331,6 +331,10 @@ class FlowSpec(metaclass=FlowSpecMeta):
         # Backward compatible method to access flow decorators
         return self._flow_state[FlowStateItems.FLOW_DECORATORS]
 
+    @property
+    def _flow_mutators(self):
+        return self._flow_state[FlowStateItems.FLOW_MUTATORS]
+
     @classmethod
     def _check_parameters(cls, config_parameters=False):
         seen = set()
@@ -478,9 +482,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
             seen.add(var)
             if param.IS_CONFIG_PARAMETER:
                 # Use computed value if already evaluated, else get from config_options
-                val = param._computed_value or config_options.get(
-                    param.name.replace("-", "_").lower()
-                )
+                val = param._computed_value or config_options.get(param.name)
             else:
                 val = kwargs[param.name.replace("-", "_").lower()]
             # Support for delayed evaluation of parameters.

@@ -114,8 +114,10 @@ class MutableFlow:
         from metaflow.flowspec import FlowStateItems
 
         # When configs are parsed, they are loaded in _flow_state[FlowStateItems.CONFIGS]
-        for name, value in self._flow_cls._flow_state[FlowStateItems.CONFIGS].items():
-            r = name, ConfigValue(value) if value is not None else None
+        for name, (value, plain_flag) in self._flow_cls._flow_state[
+            FlowStateItems.CONFIGS
+        ].items():
+            r = name, value if plain_flag or value is None else ConfigValue(value)
             debug.userconf_exec("Mutable flow yielding config: %s" % str(r))
             yield r
 
