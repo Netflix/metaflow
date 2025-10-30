@@ -49,6 +49,7 @@ from .s3util import (
     get_timestamp,
     TRANSIENT_RETRY_START_LINE,
     TRANSIENT_RETRY_LINE_CONTENT,
+    CONSECUTIVE_SLASHES_REGEX,
 )
 
 if TYPE_CHECKING:
@@ -550,7 +551,9 @@ class S3(object):
             else:
                 prefix = os.path.join(prefix, run.parent.id, run.id)
 
-            self._s3root = "s3://%s" % os.path.join(bucket, prefix.strip("/"))
+            s3root_raw = "s3://%s" % os.path.join(bucket, prefix.strip("/"))
+            # Normalize the path by collapsing consecutive slashes
+            self._s3root = CONSECUTIVE_SLASHES_REGEX.sub("/", s3root_raw).rstrip("/")
         elif s3root:
             # 2. use an explicit S3 prefix
             parsed = urlparse(to_unicode(s3root))
@@ -558,7 +561,9 @@ class S3(object):
                 raise MetaflowS3URLException(
                     "s3root needs to be an S3 URL prefixed with s3://."
                 )
-            self._s3root = s3root.rstrip("/")
+            # Normalize the path by collapsing consecutive slashes
+            normalized = CONSECUTIVE_SLASHES_REGEX.sub("/", s3root)
+            self._s3root = normalized.rstrip("/")
         else:
             # 3. use the client only with full URLs
             self._s3root = None
