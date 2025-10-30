@@ -556,7 +556,7 @@ class MetaflowAPI(object):
         # We ignore any errors if we don't check the configs in the click API.
 
         # Init all values in the flow mutators and then process them
-        for decorator in self._flow_cls._flow_state[FlowStateItems.FLOW_MUTATORS]:
+        for decorator in self._flow_cls._flow_mutators:
             decorator.external_init()
 
         new_cls = self._flow_cls._process_config_decorators(

@@ -337,6 +337,10 @@ class FlowSpec(metaclass=FlowSpecMeta):
         # Backward compatible method to access flow decorators
         return self._flow_state[FlowStateItems.FLOW_DECORATORS]
 
+    @property
+    def _flow_mutators(self):
+        return self._flow_state[FlowStateItems.FLOW_MUTATORS]
+
     @classmethod
     def _check_parameters(cls, config_parameters=False):
         seen = set()
