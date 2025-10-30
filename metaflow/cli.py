@@ -475,7 +475,7 @@ def start(
         raise ctx.obj.delayed_config_exception
 
     # Init all values in the flow mutators and then process them
-    for decorator in ctx.obj.flow._flow_state[FlowStateItems.FLOW_MUTATORS]:
+    for decorator in ctx.obj.flow._flow_mutators:
         decorator.external_init()
 
     new_cls = ctx.obj.flow._process_config_decorators(config_options)
@@ -596,7 +596,7 @@ def start(
         ctx.obj.echo,
         ctx.obj.flow_datastore,
         {
-            k: v if plain_flag else ConfigValue(v)
+            k: v if plain_flag or v is None else ConfigValue(v)
             for k, (v, plain_flag) in ctx.obj.flow.__class__._flow_state[
                 FlowStateItems.CONFIGS
             ].items()
