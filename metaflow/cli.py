@@ -471,8 +471,16 @@ def start(
         raise ctx.obj.delayed_config_exception
 
     # Init all values in the flow mutators and then process them
-    for decorator in ctx.obj.flow._flow_state.get(_FlowState.FLOW_MUTATORS, []):
-        decorator.external_init()
+    for mutator in ctx.obj.flow._flow_state.get(_FlowState.FLOW_MUTATORS, []):
+        mutator.external_init()
+
+    # Initialize mutators with top-level options
+    for mutator in ctx.obj.flow._flow_state.get(_FlowState.FLOW_MUTATORS, []):
+        mutator_options = {
+            option: deco_options.get(option.replace("-", "_"), option_info["default"])
+            for option, option_info in mutator.options.items()
+        }
+        mutator.flow_init_options(mutator_options)
 
     new_cls = ctx.obj.flow._process_config_decorators(config_options)
     if new_cls:
