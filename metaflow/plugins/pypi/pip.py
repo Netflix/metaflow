@@ -151,7 +151,7 @@ class Pip(object):
                     res["hash"] = vcs_info["commit_id"]
                 return res
 
-            from packaging.requirements import Requirement
+            from metaflow._vendor.packaging.requirements import Requirement
 
             def _extract_platform_specific_deps(
                 pkg_metadata, target_system, target_machine
