@@ -167,7 +167,8 @@ class FlowDataStore(object):
         if attempt is not None and attempt <= metaflow_config.MAX_ATTEMPTS - 1:
             attempt_range = range(attempt + 1) if include_prior else [attempt]
         for task_url in task_urls:
-            task_splits = task_url.split("/")
+            # task_url can have a trailing slash, so strip this to avoid empty strings in the split
+            task_splits = task_url.rstrip("/").split("/")
             # Usually it is flow, run, step, task (so 4 components) -- if we have a
             # fifth one, there is a specific attempt number listed as well.
             task_attempt_range = attempt_range

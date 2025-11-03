@@ -325,6 +325,7 @@ class ArgoClient(object):
                 "failedJobsHistoryLimit": 10000,  # default is unfortunately 1
                 "successfulJobsHistoryLimit": 10000,  # default is unfortunately 3
                 "workflowSpec": {"workflowTemplateRef": {"name": name}},
+                "startingDeadlineSeconds": 3540,  # configuring this to 59 minutes so a failed trigger of cron workflow can succeed at most 59 mins after scheduled execution
             },
         }
         try:

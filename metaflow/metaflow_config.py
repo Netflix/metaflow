@@ -605,6 +605,7 @@ def get_pinned_conda_libs(python_version, datastore_type):
         pins["google-auth"] = ">=2.11.0"
         pins["google-cloud-secret-manager"] = ">=2.10.0"
         pins["simple-gcp-object-downloader"] = ">=0.1.0"
+        pins["packaging"] = ">=24.0"
     elif datastore_type == "local":
         pass
     else:
