@@ -964,7 +964,7 @@ def test_put_files(
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
 def test_list_recursive_sibling_prefix_filtering(inject_failure_rate):
     test_prefix = f"test_log_filtering_{uuid4().hex[:8]}"
-    base_s3root = s3_data.S3ROOT
+    base_s3root = s3_data.S3ROOT.rstrip("/")
 
     test_files = [
         f"{test_prefix}/log/test.txt",
@@ -977,7 +977,7 @@ def test_list_recursive_sibling_prefix_filtering(inject_failure_rate):
             s3_setup.put(file_path, f"test content for {file_path}")
 
     with S3(
-        s3root=f"{base_s3root}/{test_prefix}/log/",
+        s3root=f"{base_s3root}/{test_prefix}/log",
         inject_failure_rate=inject_failure_rate,
     ) as s3:
         objects = s3.list_recursive()
