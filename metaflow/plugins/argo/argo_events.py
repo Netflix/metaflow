@@ -11,6 +11,7 @@ from metaflow.metaflow_config import (
     ARGO_EVENTS_WEBHOOK_AUTH,
     ARGO_EVENTS_WEBHOOK_URL,
     SERVICE_HEADERS,
+    SERVICE_RETRY_COUNT,
 )
 
 
@@ -127,12 +128,11 @@ class ArgoEvent(object):
                     headers={"Content-Type": "application/json", **headers},
                     data=json.dumps(data).encode("utf-8"),
                 )
-                retries = 3
-                backoff_factor = 2
 
-                for i in range(retries):
+                for i in range(SERVICE_RETRY_COUNT):
                     try:
-                        urllib.request.urlopen(request, timeout=10.0)
+                        # we do not want to wait indefinitely for a response on the event broadcast, as this will keep the task running.
+                        urllib.request.urlopen(request, timeout=60)
                         print(
                             "Argo Event (%s) published." % self._name, file=sys.stderr
                         )
@@ -141,10 +141,10 @@ class ArgoEvent(object):
                         # TODO: Retry retryable HTTP error codes
                         raise e
                     except urllib.error.URLError as e:
-                        if i == retries - 1:
+                        if i == SERVICE_RETRY_COUNT - 1:
                             raise e
                         else:
-                            time.sleep(backoff_factor**i)
+                            time.sleep(2**i)
             except Exception as e:
                 msg = "Unable to publish Argo Event (%s): %s" % (self._name, e)
                 if ignore_errors:
