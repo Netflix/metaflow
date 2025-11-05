@@ -1001,10 +1001,11 @@ def test_put_files(
             assert {s3obj.key for s3obj in s3objs} == {key for key, _ in shuffled_blobs}
 
 
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
-def test_list_recursive_sibling_prefix_filtering(inject_failure_rate):
+def test_list_recursive_sibling_prefix_filtering(s3root, inject_failure_rate):
     test_prefix = f"test_log_filtering_{uuid4().hex[:8]}"
-    base_s3root = s3_data.S3ROOT
+    base_s3root = s3root
 
     test_files = [
         f"{test_prefix}/log/test.txt",
@@ -1017,23 +1018,17 @@ def test_list_recursive_sibling_prefix_filtering(inject_failure_rate):
             s3_setup.put(file_path, f"test content for {file_path}")
 
     with S3(
-        s3root=f"{base_s3root}/{test_prefix}/log/",
+        s3root=os.path.join(base_s3root, test_prefix, "log"),
         inject_failure_rate=inject_failure_rate,
     ) as s3:
         objects = s3.list_recursive()
 
-        found_relative_paths = []
-        for obj in objects:
-            # Get path relative to our test prefix
-            relative_path = obj.url.replace(f"{base_s3root}/{test_prefix}/", "")
-            found_relative_paths.append(relative_path)
+        found_relative_paths = [obj.key for obj in objects]
 
-        expected_under_log = ["log/test.txt"]
+        expected_under_log = ["test.txt"]
 
         invalid_paths = [
-            path
-            for path in found_relative_paths
-            if path.startswith(("log_other/", "something/"))
+            path for path in found_relative_paths if path.startswith("_other")
         ]
 
         assert len(invalid_paths) == 0, (
