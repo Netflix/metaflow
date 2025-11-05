@@ -360,9 +360,9 @@ def test_init_options(s3root, inject_failure_rate, pathspecs, expected):
     with S3(s3root=s3root) as s3:
         for url, exp in expected.items():
             # Test that library handles keys with/without leading slash
-            key_input = url[plen:]
+            key_input = url[plen:].lstrip("/")
             s3obj = s3.get(key_input)
-            assert s3obj.key == key_input.lstrip("/")
+            assert s3obj.key == key_input
             assert_results([s3obj], {url: exp})
         with pytest.raises(MetaflowS3URLException):
             s3.get("s3://some/fake/address")
@@ -747,7 +747,7 @@ def test_list_paths(s3root, prefixes, expected):
                 s3objs = s3.list_paths([url])
                 assert [e for e in s3objs if e.exists] == []
         else:
-            suffix = url[len(s3root) :]
+            suffix = url[len(s3root) :].lstrip("/")
             expected_keys = suffix.split("/")
             if len(expected_keys) > 20:
                 # speed optimization: exclude crazy long paths
@@ -817,7 +817,7 @@ def test_get_recursive(s3root, inject_failure_rate, prefixes, expected):
 
         # prefixes must be returned in the order of prefixes requested
         plen = len(s3root)
-        grouped = list(groupby(s3objs, lambda e: e.prefix[plen:]))
+        grouped = list(groupby(s3objs, lambda e: e.prefix[plen:].lstrip("/")))
 
         assert nonempty_prefixes == [prefix for prefix, _ in grouped]
         # for each prefix, the results should be in lexicographic order
@@ -833,7 +833,7 @@ def test_get_recursive(s3root, inject_failure_rate, prefixes, expected):
         if len(prefixes) == 1:
             [prefix] = prefixes
             s3root = os.path.join(s3root, prefix)
-            keys = {url[len(s3root) + 1 :] for url in expected_exists}
+            keys = {url[len(s3root) :].lstrip("/") for url in expected_exists}
             assert {e.key for e in s3objs} == keys
 
         local_files = [s3obj.path for s3obj in s3objs]
@@ -949,6 +949,7 @@ def test_put_files(
             metadata = getattr(blob, "metadata", None)
             encryption = getattr(blob, "encryption", None)
             path = os.path.join(tempdir, key)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, "wb") as f:
                 f.write(data)
             yield S3PutObject(
@@ -992,7 +993,7 @@ def test_put_files(
 
         with S3(inject_failure_rate=inject_failure_rate, encryption=setting) as s3:
             s3objs = s3.get_many(dict(s3urls).values())
-            assert_results(s3objs, expected, encryption=setting)
+            assert_results(s3objs, expected_urls, encryption=setting)
         with S3(
             s3root=s3root, inject_failure_rate=inject_failure_rate, encryption=setting
         ) as s3:
