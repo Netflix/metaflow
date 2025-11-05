@@ -24,13 +24,12 @@ class SecretsDecorator(StepDecorator):
         List of secret specs, defining how the secrets are to be retrieved
     role : str, optional, default: None
         Role to use for fetching secrets
+    allow_override : bool, optional, default: False
+        Toggle whether secrets can replace existing environment variables.
     """
 
     name = "secrets"
-    defaults = {
-        "sources": [],
-        "role": None,
-    }
+    defaults = {"sources": [], "role": None, "allow_override": False}
 
     def task_pre_step(
         self,
@@ -112,7 +111,8 @@ class SecretsDecorator(StepDecorator):
             all_secrets_env_vars.append((secret_spec, env_vars_for_secret))
 
         validate_env_vars_across_secrets(all_secrets_env_vars)
-        validate_env_vars_vs_existing_env(all_secrets_env_vars)
+        if not self.attributes["allow_override"]:
+            validate_env_vars_vs_existing_env(all_secrets_env_vars)
 
         # By this point
         # all_secrets_env_vars contains a list of dictionaries... env maps.
