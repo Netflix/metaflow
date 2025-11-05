@@ -44,15 +44,23 @@ def conda_platform():
 def markers_from_platform(platform):
     plat, mach = platform.split("-")
 
-    platform_system = {"osx": "Darwin", "linux": "Linux"}[plat]
+    platform_system = {"osx": "Darwin", "linux": "Linux"}.get(plat)
     platform_machine = {
         "32": "x86",
         "64": "x86_64",
         "arm64": "aarch64",
         "aarch64": "aarch64",
-    }[mach]
+    }.get(mach)
 
-    return platform_system, platform_machine
+    markers = {
+        k: v
+        for k, v in {
+            "platform_system": platform_system,
+            "platform_machine": platform_machine,
+        }.items()
+        if v is not None
+    }
+    return markers
 
 
 def wheel_tags(wheel):
