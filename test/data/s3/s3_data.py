@@ -315,12 +315,11 @@ def pytest_benchmark_many_case():
                 id_name = "%ds_%dm_%dl" % (small_count, medium_count, large_count)
                 cases.append(
                     (
-                        S3ROOT,
                         [],
                         [
-                            (small_count, small_case[2]),
-                            (medium_count, medium_case[2]),
-                            (large_count, large_case[2]),
+                            (small_count, small_case[1]),
+                            (medium_count, medium_case[1]),
+                            (large_count, large_case[1]),
                         ],
                     )
                 )
@@ -329,7 +328,6 @@ def pytest_benchmark_many_case():
 
 
 def pytest_benchmark_put_case():
-    put_prefix = os.path.join(S3ROOT, PUT_PREFIX)
     cases = []
     ids = []
     for prefix, filespecs in [
@@ -340,7 +338,7 @@ def pytest_benchmark_put_case():
         blobs = []
         for fname, size in filespecs.items():
             blobs.append((prefix, fname, size))
-        cases.append((put_prefix, blobs, None))
+        cases.append((blobs, None))
     ids = ["5gb", "1mb", "1b"]
     return {"argvalues": cases, "ids": ids}
 
@@ -348,10 +346,9 @@ def pytest_benchmark_put_case():
 def pytest_benchmark_put_many_case():
     single_cases_and_ids = pytest_benchmark_put_case()
     single_cases = single_cases_and_ids["argvalues"]
-    large_blob = single_cases[0][1][0]
-    medium_blob = single_cases[1][1][0]
-    small_blob = single_cases[2][1][0]
-    put_prefix = os.path.join(S3ROOT, PUT_PREFIX)
+    large_blob = single_cases[0][0][0]
+    medium_blob = single_cases[1][0][0]
+    small_blob = single_cases[2][0][0]
     # Configuration: we will form groups of up to BENCHMARK_*_ITER_MAX items
     # (count taken from iteration_count). We will also form groups taking from
     # all three sets
@@ -376,7 +373,7 @@ def pytest_benchmark_put_many_case():
                     (medium_count, medium_blob),
                     (large_count, large_blob),
                 ]
-                cases.append((put_prefix, blobs, None))
+                cases.append((blobs, None))
                 ids.append(id_name)
     return {"argvalues": cases, "ids": ids}
 
@@ -395,7 +392,6 @@ def pytest_many_prefixes_case():
 
 
 def pytest_put_strings_case(meta=None):
-    put_prefix = os.path.join(S3ROOT, PUT_PREFIX)
     data = [
         "unicode: \u523a\u8eab means sashimi",
         b"bytes: \x00\x01\x02",
@@ -406,8 +402,9 @@ def pytest_put_strings_case(meta=None):
     for text in data:
         blob = to_bytes(text)
         checksum = sha1(blob).hexdigest()
-        key = str(uuid4())
-        expected[os.path.join(put_prefix, key)] = {
+        # Include PUT_PREFIX in the key so tests don't need to handle it
+        key = os.path.join(PUT_PREFIX, str(uuid4()))
+        expected[key] = {
             None: ExpectedResult(
                 size=len(blob),
                 checksum=checksum,
@@ -419,8 +416,8 @@ def pytest_put_strings_case(meta=None):
         objs.append((key, text))
         if meta is not None:
             for content_type, usermeta in meta.values():
-                key = str(uuid4())
-                expected[os.path.join(put_prefix, key)] = {
+                key = os.path.join(PUT_PREFIX, str(uuid4()))
+                expected[key] = {
                     None: ExpectedResult(
                         size=len(blob),
                         checksum=checksum,
@@ -437,11 +434,10 @@ def pytest_put_strings_case(meta=None):
                         metadata=usermeta,
                     )
                 )
-    return {"argvalues": [(put_prefix, objs, expected)], "ids": ["put_strings"]}
+    return {"argvalues": [(objs, expected)], "ids": ["put_strings"]}
 
 
 def pytest_put_blobs_case(meta=None):
-    put_prefix = os.path.join(S3ROOT, PUT_PREFIX)
     cases = []
     ids = []
     for prefix, filespecs in BIG_DATA:
@@ -450,8 +446,9 @@ def pytest_put_blobs_case(meta=None):
         for fname, size in filespecs.items():
             blob = RandomFile(prefix, fname, size)
             checksum = blob.checksum()
-            key = str(uuid4())
-            expected[os.path.join(put_prefix, key)] = {
+            # Include PUT_PREFIX in the key so tests don't need to handle it
+            key = os.path.join(PUT_PREFIX, str(uuid4()))
+            expected[key] = {
                 None: ExpectedResult(
                     size=blob.size,
                     checksum=checksum,
@@ -463,8 +460,8 @@ def pytest_put_blobs_case(meta=None):
             blobs.append((key, blob.data))
             if meta is not None:
                 for content_type, usermeta in meta.values():
-                    key = str(uuid4())
-                    expected[os.path.join(put_prefix, key)] = {
+                    key = os.path.join(PUT_PREFIX, str(uuid4()))
+                    expected[key] = {
                         None: ExpectedResult(
                             size=len(blob),
                             checksum=checksum,
@@ -482,12 +479,17 @@ def pytest_put_blobs_case(meta=None):
                         )
                     )
         ids.append(prefix)
-        cases.append((put_prefix, blobs, expected))
+        cases.append((blobs, expected))
     return {"argvalues": cases, "ids": ids}
 
 
 def ensure_test_data():
     # update S3ROOT in __init__.py to get a fresh set of data
+    if S3ROOT is None:
+        print(
+            "S3ROOT is not set. Set METAFLOW_S3_TEST_ROOT environment variable to run S3 tests."
+        )
+        return
     print("Ensuring that test data exists at %s" % S3ROOT)
     mark = urlparse(os.path.join(S3ROOT, "ALL_OK"))
     try:

@@ -186,8 +186,9 @@ def tempdir():
     shutil.rmtree(tmpdir)
 
 
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
-    argnames=["s3root", "pathspecs", "expected"], **s3_data.pytest_benchmark_case()
+    argnames=["pathspecs", "expected"], **s3_data.pytest_benchmark_case()
 )
 @pytest.mark.benchmark(max_time=30)
 def test_info_one_benchmark(benchmark, s3root, pathspecs, expected):
@@ -203,8 +204,9 @@ def test_info_one_benchmark(benchmark, s3root, pathspecs, expected):
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
-    argnames=["s3root", "pathspecs", "expected"], **s3_data.pytest_benchmark_many_case()
+    argnames=["pathspecs", "expected"], **s3_data.pytest_benchmark_many_case()
 )
 @pytest.mark.benchmark(max_time=30)
 def test_info_many_benchmark(
@@ -227,8 +229,9 @@ def test_info_many_benchmark(
     assert_results(res, check_expected, info_only=True)
 
 
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
-    argnames=["s3root", "pathspecs", "expected"], **s3_data.pytest_benchmark_case()
+    argnames=["pathspecs", "expected"], **s3_data.pytest_benchmark_case()
 )
 @pytest.mark.benchmark(max_time=60)
 def test_get_one_benchmark(benchmark, s3root, pathspecs, expected):
@@ -247,8 +250,9 @@ def test_get_one_benchmark(benchmark, s3root, pathspecs, expected):
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
-    argnames=["s3root", "pathspecs", "expected"], **s3_data.pytest_benchmark_many_case()
+    argnames=["pathspecs", "expected"], **s3_data.pytest_benchmark_many_case()
 )
 @pytest.mark.benchmark(max_time=60)
 def test_get_many_benchmark(
@@ -272,8 +276,9 @@ def test_get_many_benchmark(
     # assert_results(res, check_expected, info_should_be_empty=True)
 
 
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
-    argnames=["s3root", "blobs", "expected"], **s3_data.pytest_benchmark_put_case()
+    argnames=["blobs", "expected"], **s3_data.pytest_benchmark_put_case()
 )
 @pytest.mark.benchmark(max_time=60)
 def test_put_one_benchmark(benchmark, tempdir, s3root, blobs, expected):
@@ -304,8 +309,9 @@ def test_put_one_benchmark(benchmark, tempdir, s3root, blobs, expected):
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
-    argnames=["s3root", "blobs", "expected"], **s3_data.pytest_benchmark_put_many_case()
+    argnames=["blobs", "expected"], **s3_data.pytest_benchmark_put_many_case()
 )
 @pytest.mark.benchmark(max_time=60)
 def test_put_many_benchmark(
@@ -437,8 +443,9 @@ def test_init_options(s3root, inject_failure_rate, pathspecs, expected):
             assert_results(s3.get_many(names), expected)
 
 
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
-    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case()
+    argnames=["prefixes", "expected"], **s3_data.pytest_basic_case()
 )
 def test_info_one(s3root, prefixes, expected):
     with S3() as s3:
@@ -456,8 +463,9 @@ def test_info_one(s3root, prefixes, expected):
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
-    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case()
+    argnames=["prefixes", "expected"], **s3_data.pytest_basic_case()
 )
 def test_info_many(inject_failure_rate, s3root, prefixes, expected):
     with S3(inject_failure_rate=inject_failure_rate) as s3:
@@ -490,8 +498,9 @@ def test_info_many(inject_failure_rate, s3root, prefixes, expected):
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
-    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_fakerun_cases()
+    argnames=["prefixes", "expected"], **s3_data.pytest_fakerun_cases()
 )
 def test_get_exceptions(inject_failure_rate, s3root, prefixes, expected):
     # get_many() goes via s3op, get() is a method - test both the code paths
@@ -517,8 +526,9 @@ def test_get_exceptions(inject_failure_rate, s3root, prefixes, expected):
             s3.get("this_file_does_not_exist")
 
 
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
-    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case()
+    argnames=["prefixes", "expected"], **s3_data.pytest_basic_case()
 )
 def test_get_one(s3root, prefixes, expected):
     with S3() as s3:
@@ -542,8 +552,9 @@ def test_get_one(s3root, prefixes, expected):
                     assert_results([s3obj], {url: item}, ranges_fetched=[range_info])
 
 
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
-    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case()
+    argnames=["prefixes", "expected"], **s3_data.pytest_basic_case()
 )
 def test_get_one_wo_meta(s3root, prefixes, expected):
     with S3() as s3:
@@ -578,8 +589,9 @@ def test_get_one_wo_meta(s3root, prefixes, expected):
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
-    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_large_case()
+    argnames=["prefixes", "expected"], **s3_data.pytest_large_case()
 )
 def test_get_all(inject_failure_rate, s3root, prefixes, expected):
     expected_exists = {
@@ -596,8 +608,9 @@ def test_get_all(inject_failure_rate, s3root, prefixes, expected):
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
-    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case()
+    argnames=["prefixes", "expected"], **s3_data.pytest_basic_case()
 )
 def test_get_all_with_meta(inject_failure_rate, s3root, prefixes, expected):
     expected_exists = {
@@ -614,8 +627,9 @@ def test_get_all_with_meta(inject_failure_rate, s3root, prefixes, expected):
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
-    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_basic_case()
+    argnames=["prefixes", "expected"], **s3_data.pytest_basic_case()
 )
 def test_get_many(inject_failure_rate, s3root, prefixes, expected):
     def iter_objs(urls, objs):
@@ -847,12 +861,15 @@ def s3_server_side_encryption():
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0])
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
-    argnames=["s3root", "objs", "expected"], **s3_data.pytest_put_strings_case()
+    argnames=["objs", "expected"], **s3_data.pytest_put_strings_case()
 )
 def test_put_many(
     inject_failure_rate, s3root, objs, expected, s3_server_side_encryption
 ):
+    expected_urls = {os.path.join(s3root, key): val for key, val in expected.items()}
+
     encryption_settings = [None, s3_server_side_encryption]
     for setting in encryption_settings:
         with S3(
@@ -865,7 +882,7 @@ def test_put_many(
                 assert objs[i][0] == s3urls[i][0]
         with S3(inject_failure_rate=inject_failure_rate, encryption=setting) as s3:
             s3objs = s3.get_many(dict(s3urls).values())
-            assert_results(s3objs, expected)
+            assert_results(s3objs, expected_urls)
         with S3(
             s3root=s3root, inject_failure_rate=inject_failure_rate, encryption=setting
         ) as s3:
@@ -881,39 +898,49 @@ def test_put_many(
             assert len(overwrite_disabled_s3urls) == 0
         with S3(inject_failure_rate=inject_failure_rate, encryption=setting) as s3:
             s3objs = s3.get_many(dict(s3urls).values())
-            assert_results(s3objs, expected)
+            assert_results(s3objs, expected_urls)
 
 
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
-    argnames=["s3root", "objs", "expected"], **s3_data.pytest_put_strings_case()
+    argnames=["objs", "expected"], **s3_data.pytest_put_strings_case()
 )
 def test_put_one(s3root, objs, expected, s3_server_side_encryption):
+    expected_urls = {os.path.join(s3root, key): val for key, val in expected.items()}
+
     encryption_settings = [None, s3_server_side_encryption]
     for setting in encryption_settings:
         with S3(s3root=s3root, encryption=setting) as s3:
             for key, obj in objs:
                 s3url = s3.put(key, obj)
-                assert s3url in expected
+                assert s3url in expected_urls
                 s3obj = s3.get(key)
                 assert s3obj.key == key
-                assert_results([s3obj], {s3url: expected[s3url]}, encryption=setting)
+                assert_results(
+                    [s3obj], {s3url: expected_urls[s3url]}, encryption=setting
+                )
                 assert s3obj.blob == to_bytes(obj)
                 # put with overwrite disabled
                 s3url = s3.put(key, "random_value", overwrite=False)
-                assert s3url in expected
+                assert s3url in expected_urls
                 s3obj = s3.get(key)
                 assert s3obj.key == key
-                assert_results([s3obj], {s3url: expected[s3url]}, encryption=setting)
+                assert_results(
+                    [s3obj], {s3url: expected_urls[s3url]}, encryption=setting
+                )
                 assert s3obj.blob == to_bytes(obj)
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
-    argnames=["s3root", "blobs", "expected"], **s3_data.pytest_put_blobs_case()
+    argnames=["blobs", "expected"], **s3_data.pytest_put_blobs_case()
 )
 def test_put_files(
     tempdir, inject_failure_rate, s3root, blobs, expected, s3_server_side_encryption
 ):
+    expected_urls = {os.path.join(s3root, key): val for key, val in expected.items()}
+
     def _files(blobs):
         for blob in blobs:
             key = getattr(blob, "key", blob[0])
@@ -943,7 +970,7 @@ def test_put_files(
         with S3(inject_failure_rate=inject_failure_rate, encryption=setting) as s3:
             # get urls
             s3objs = s3.get_many(dict(s3urls).values())
-            assert_results(s3objs, expected, encryption=setting)
+            assert_results(s3objs, expected_urls, encryption=setting)
 
         with S3(
             s3root=s3root, inject_failure_rate=inject_failure_rate, encryption=setting
