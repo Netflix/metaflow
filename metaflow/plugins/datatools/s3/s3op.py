@@ -614,7 +614,8 @@ class S3Ops(object):
                         key_path = key["Key"]
                         # filter out sibling directories that share the same prefix
                         if delimiter == "":  # recursive mode
-                            normalized_prefix = prefix_url.path
+                            # S3 keys never start with /, so strip any leading / from prefix
+                            normalized_prefix = prefix_url.path.lstrip("/")
                             if not normalized_prefix.endswith("/"):
                                 normalized_prefix += "/"
                             # Only include keys that are actually under our directory

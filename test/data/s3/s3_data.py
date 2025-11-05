@@ -250,7 +250,7 @@ def _format_test_cases(dataset, meta=None, ranges=None):
                     )
 
         ids.append(prefix)
-        cases.append((S3ROOT, [prefix], files))
+        cases.append(([prefix], files))
     return cases, ids
 
 
@@ -385,12 +385,12 @@ def pytest_many_prefixes_case():
     cases, ids = _format_test_cases(BASIC_DATA, meta=BASIC_METADATA)
     many_prefixes = []
     many_prefixes_expected = {}
-    for s3root, [prefix], files in cases:
+    for [prefix], files in cases:
         many_prefixes.append(prefix)
         many_prefixes_expected.update(files)
     # add many prefixes cases
     ids.append("many_prefixes")
-    cases.append((S3ROOT, many_prefixes, many_prefixes_expected))
+    cases.append((many_prefixes, many_prefixes_expected))
     return {"argvalues": cases, "ids": ids}
 
 

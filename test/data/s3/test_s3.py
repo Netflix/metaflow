@@ -24,7 +24,7 @@ from metaflow.plugins.datatools.s3 import (
 from metaflow.util import to_bytes, unicode_type
 
 from . import s3_data
-from .. import FakeFlow, DO_TEST_RUN
+from .. import FakeFlow, DO_TEST_RUN, S3ROOT
 
 try:
     # python2
@@ -32,6 +32,13 @@ try:
 except:
     # python3
     from urllib.parse import urlparse
+
+# S3ROOT variants for testing both with and without trailing slash
+if not S3ROOT:
+    raise ValueError(
+        "METAFLOW_S3_TEST_ROOT environment variable must be set to run S3 tests"
+    )
+S3ROOT_VARIANTS = [S3ROOT.rstrip("/"), S3ROOT if S3ROOT.endswith("/") else S3ROOT + "/"]
 
 
 def s3_get_object_from_url_range(url, range_info):
@@ -333,11 +340,12 @@ def test_put_many_benchmark(
     res = benchmark(_do)
 
 
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
 @pytest.mark.parametrize(
-    argnames=["s3root", "pathspecs", "expected"], **s3_data.pytest_fakerun_cases()
+    argnames=["pathspecs", "expected"], **s3_data.pytest_fakerun_cases()
 )
-def test_init_options(inject_failure_rate, s3root, pathspecs, expected):
+def test_init_options(s3root, inject_failure_rate, pathspecs, expected):
     [pathspec] = pathspecs
     flow_name, run_id = pathspec.split("/")
     plen = len(s3root)
@@ -345,9 +353,10 @@ def test_init_options(inject_failure_rate, s3root, pathspecs, expected):
     # option 1) s3root as prefix
     with S3(s3root=s3root) as s3:
         for url, exp in expected.items():
-            # s3root should work as a prefix
-            s3obj = s3.get(url[plen:])
-            assert s3obj.key == url[plen:]
+            # Test that library handles keys with/without leading slash
+            key_input = url[plen:]
+            s3obj = s3.get(key_input)
+            assert s3obj.key == key_input.lstrip("/")
             assert_results([s3obj], {url: exp})
         with pytest.raises(MetaflowS3URLException):
             s3.get("s3://some/fake/address")
@@ -672,8 +681,9 @@ def test_get_many(inject_failure_rate, s3root, prefixes, expected):
         assert_results(s3objs, expected, ranges_fetched=ranges_in_order)
 
 
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
-    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_many_prefixes_case()
+    argnames=["prefixes", "expected"], **s3_data.pytest_many_prefixes_case()
 )
 def test_list_paths(s3root, prefixes, expected):
     def urls_by_prefix(prefix):
@@ -753,8 +763,9 @@ def test_list_paths(s3root, prefixes, expected):
             assert match.url == url
 
 
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
-    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_many_prefixes_case()
+    argnames=["prefixes", "expected"], **s3_data.pytest_many_prefixes_case()
 )
 def test_list_recursive(s3root, prefixes, expected):
     not_missing = [url for url, v in expected.items() if v[None].size is not None]
@@ -767,11 +778,12 @@ def test_list_recursive(s3root, prefixes, expected):
         assert all(e.exists for e in s3objs)
 
 
+@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
 @pytest.mark.parametrize(
-    argnames=["s3root", "prefixes", "expected"], **s3_data.pytest_many_prefixes_case()
+    argnames=["prefixes", "expected"], **s3_data.pytest_many_prefixes_case()
 )
-def test_get_recursive(inject_failure_rate, s3root, prefixes, expected):
+def test_get_recursive(s3root, inject_failure_rate, prefixes, expected):
     expected_exists = {
         url: v for url, v in expected.items() if v[None].size is not None
     }

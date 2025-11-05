@@ -638,7 +638,9 @@ class S3(object):
                     "Don't use absolute S3 URLs when the S3 client is "
                     "initialized with a prefix. URL: %s" % key
                 )
-            return os.path.join(self._s3root, key)
+            # Strip leading slashes to ensure os.path.join works correctly
+            # os.path.join discards the first argument if the second starts with '/'
+            return os.path.join(self._s3root, key.lstrip("/"))
         else:
             return self._s3root
 
