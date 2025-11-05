@@ -186,12 +186,11 @@ def tempdir():
     shutil.rmtree(tmpdir)
 
 
-@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
     argnames=["pathspecs", "expected"], **s3_data.pytest_benchmark_case()
 )
 @pytest.mark.benchmark(max_time=30)
-def test_info_one_benchmark(benchmark, s3root, pathspecs, expected):
+def test_info_one_benchmark(benchmark, pathspecs, expected):
     def _do():
         with S3() as s3:
             res = []
@@ -204,14 +203,11 @@ def test_info_one_benchmark(benchmark, s3root, pathspecs, expected):
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
-@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
     argnames=["pathspecs", "expected"], **s3_data.pytest_benchmark_many_case()
 )
 @pytest.mark.benchmark(max_time=30)
-def test_info_many_benchmark(
-    benchmark, inject_failure_rate, s3root, pathspecs, expected
-):
+def test_info_many_benchmark(benchmark, inject_failure_rate, pathspecs, expected):
     urls = []
     check_expected = {}
     for count, v in expected:
@@ -229,12 +225,11 @@ def test_info_many_benchmark(
     assert_results(res, check_expected, info_only=True)
 
 
-@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
     argnames=["pathspecs", "expected"], **s3_data.pytest_benchmark_case()
 )
 @pytest.mark.benchmark(max_time=60)
-def test_get_one_benchmark(benchmark, s3root, pathspecs, expected):
+def test_get_one_benchmark(benchmark, pathspecs, expected):
     def _do():
         with S3() as s3:
             res = []
@@ -250,14 +245,11 @@ def test_get_one_benchmark(benchmark, s3root, pathspecs, expected):
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
-@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
     argnames=["pathspecs", "expected"], **s3_data.pytest_benchmark_many_case()
 )
 @pytest.mark.benchmark(max_time=60)
-def test_get_many_benchmark(
-    benchmark, inject_failure_rate, s3root, pathspecs, expected
-):
+def test_get_many_benchmark(benchmark, inject_failure_rate, pathspecs, expected):
     urls = []
     check_expected = {}
     for count, v in expected:
@@ -276,12 +268,11 @@ def test_get_many_benchmark(
     # assert_results(res, check_expected, info_should_be_empty=True)
 
 
-@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
     argnames=["blobs", "expected"], **s3_data.pytest_benchmark_put_case()
 )
 @pytest.mark.benchmark(max_time=60)
-def test_put_one_benchmark(benchmark, tempdir, s3root, blobs, expected):
+def test_put_one_benchmark(benchmark, tempdir, blobs, expected):
     # We generate the files here to avoid having them saved in the benchmark
     # result file which then prevents comparisons
     def _generate_files(blobs):
@@ -309,14 +300,11 @@ def test_put_one_benchmark(benchmark, tempdir, s3root, blobs, expected):
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
-@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
     argnames=["blobs", "expected"], **s3_data.pytest_benchmark_put_many_case()
 )
 @pytest.mark.benchmark(max_time=60)
-def test_put_many_benchmark(
-    benchmark, tempdir, inject_failure_rate, s3root, blobs, expected
-):
+def test_put_many_benchmark(benchmark, tempdir, inject_failure_rate, blobs, expected):
     def _generate_files(blobs):
         generated_paths = {}
         for blob in blobs:
@@ -346,21 +334,20 @@ def test_put_many_benchmark(
     res = benchmark(_do)
 
 
-@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
 @pytest.mark.parametrize(
     argnames=["pathspecs", "expected"], **s3_data.pytest_fakerun_cases()
 )
 def test_init_options(s3root, inject_failure_rate, pathspecs, expected):
+    expected_urls = {os.path.join(s3root, key): val for key, val in expected.items()}
     [pathspec] = pathspecs
     flow_name, run_id = pathspec.split("/")
-    plen = len(s3root)
 
     # option 1) s3root as prefix
     with S3(s3root=s3root) as s3:
-        for url, exp in expected.items():
+        for url, exp in expected_urls.items():
             # Test that library handles keys with/without leading slash
-            key_input = url[plen:].lstrip("/")
+            key_input = url[len(s3root) :]
             s3obj = s3.get(key_input)
             assert s3obj.key == key_input
             assert_results([s3obj], {url: exp})
@@ -368,14 +355,14 @@ def test_init_options(s3root, inject_failure_rate, pathspecs, expected):
             s3.get("s3://some/fake/address")
 
     # option 2) full url as s3root
-    for url, exp in expected.items():
+    for url, exp in expected_urls.items():
         with S3(s3root=url) as s3:
             s3obj = s3.get()
             assert_results([s3obj], {url: exp})
 
     # option 3) full urls
     with S3(inject_failure_rate=inject_failure_rate) as s3:
-        for url, exp in expected.items():
+        for url, exp in expected_urls.items():
             # s3root should work as a prefix
             s3obj = s3.get(url)
             assert s3obj.key == url
@@ -395,7 +382,6 @@ def test_init_options(s3root, inject_failure_rate, pathspecs, expected):
     flow = FakeFlow(use_cli=False)
     parsed = urlparse(s3root)
 
-    # Once current is set, we can't test again. It doesn't inject failures anyways so OK
     if inject_failure_rate == 0:
         with pytest.raises(MetaflowS3URLException):
             # current not set yet, so this should fail
@@ -418,16 +404,16 @@ def test_init_options(s3root, inject_failure_rate, pathspecs, expected):
         run=flow,
         inject_failure_rate=inject_failure_rate,
     ) as s3:
-        for url, exp in expected.items():
+        for url, exp in expected_urls.items():
             name = url.split("/")[-1]
             s3obj = s3.get(name)
             assert s3obj.key == name
             assert_results([s3obj], {url: exp})
-        names = [url.split("/")[-1] for url in expected]
+        names = [url.split("/")[-1] for url in expected_urls]
         s3objs = s3.get_many(names)
         assert {e.key for e in s3objs} == set(names)
-        assert_results(s3objs, expected)
-        assert_results(s3.get_all(), expected, info_should_be_empty=True)
+        assert_results(s3objs, expected_urls)
+        assert_results(s3.get_all(), expected_urls, info_should_be_empty=True)
 
     # option 5) run object
     if DO_TEST_RUN:
@@ -439,70 +425,73 @@ def test_init_options(s3root, inject_failure_rate, pathspecs, expected):
             run=Run(pathspec),
             inject_failure_rate=inject_failure_rate,
         ) as s3:
-            names = [url.split("/")[-1] for url in expected]
-            assert_results(s3.get_many(names), expected)
+            names = [url.split("/")[-1] for url in expected_urls]
+            assert_results(s3.get_many(names), expected_urls)
 
 
-@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
     argnames=["prefixes", "expected"], **s3_data.pytest_basic_case()
 )
 def test_info_one(s3root, prefixes, expected):
+    expected_urls = {os.path.join(s3root, key): val for key, val in expected.items()}
     with S3() as s3:
-        for url, item in expected.items():
+        for url, item in expected_urls.items():
             if item[None].size is None:
                 # ensure that the default return_missing=False works
                 with pytest.raises(MetaflowS3NotFound):
                     s3obj = s3.info(url)
                 # test return_missing=True
                 s3obj = s3.info(url, return_missing=True)
-                assert_results([s3obj], {url: expected[url]}, info_only=True)
+                assert_results([s3obj], {url: expected_urls[url]}, info_only=True)
             else:
                 s3obj = s3.info(url)
-                assert_results([s3obj], {url: expected[url]}, info_only=True)
+                assert_results([s3obj], {url: expected_urls[url]}, info_only=True)
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
-@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
     argnames=["prefixes", "expected"], **s3_data.pytest_basic_case()
 )
-def test_info_many(inject_failure_rate, s3root, prefixes, expected):
+def test_info_many(s3root, inject_failure_rate, prefixes, expected):
+    expected_urls = {os.path.join(s3root, key): val for key, val in expected.items()}
     with S3(inject_failure_rate=inject_failure_rate) as s3:
         # 1) test the non-missing case
 
         # to test result ordering, make sure we are requesting
         # keys in a non-lexicographic order
-        not_missing = [url for url, v in expected.items() if v[None].size is not None]
+        not_missing = [
+            url for url, v in expected_urls.items() if v[None].size is not None
+        ]
         urls = list(sorted(not_missing, reverse=True))
         s3objs = s3.info_many(urls)
 
         # results should come out in the order of keys requested
         assert urls == [e.url for e in s3objs]
-        assert_results(s3objs, {k: expected[k] for k in not_missing}, info_only=True)
+        assert_results(
+            s3objs, {k: expected_urls[k] for k in not_missing}, info_only=True
+        )
 
         # 2) test with missing items, default case
-        if not_missing != list(expected):
+        if not_missing != list(expected_urls):
             with pytest.raises(MetaflowS3NotFound):
-                s3objs = s3.info_many(list(expected))
+                s3objs = s3.info_many(list(expected_urls))
 
         # 3) test with missing items, return_missing=True
 
         # to test result ordering, make sure we are requesting
         # keys in a non-lexicographic order. Missing files should
         # be returned in order too
-        urls = list(sorted(expected, reverse=True))
+        urls = list(sorted(expected_urls, reverse=True))
         s3objs = s3.info_many(urls, return_missing=True)
         assert urls == [e.url for e in s3objs]
-        assert_results(s3objs, expected, info_only=True)
+        assert_results(s3objs, expected_urls, info_only=True)
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
-@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
     argnames=["prefixes", "expected"], **s3_data.pytest_fakerun_cases()
 )
-def test_get_exceptions(inject_failure_rate, s3root, prefixes, expected):
+def test_get_exceptions(s3root, inject_failure_rate, prefixes, expected):
     # get_many() goes via s3op, get() is a method - test both the code paths
     with S3(inject_failure_rate=inject_failure_rate) as s3:
         with pytest.raises(
@@ -526,13 +515,13 @@ def test_get_exceptions(inject_failure_rate, s3root, prefixes, expected):
             s3.get("this_file_does_not_exist")
 
 
-@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
     argnames=["prefixes", "expected"], **s3_data.pytest_basic_case()
 )
 def test_get_one(s3root, prefixes, expected):
+    expected_urls = {os.path.join(s3root, key): val for key, val in expected.items()}
     with S3() as s3:
-        for url, item in expected.items():
+        for url, item in expected_urls.items():
             for _, expected_result in item.items():
                 range_info = expected_result.range
                 if expected_result.size is None:
@@ -544,21 +533,25 @@ def test_get_one(s3root, prefixes, expected):
                         s3_get_object_from_url_range(url, range_info),
                         return_missing=True,
                     )
-                    assert_results([s3obj], {url: item}, ranges_fetched=[range_info])
+                    assert_results(
+                        [s3obj], {url: expected_urls[url]}, ranges_fetched=[range_info]
+                    )
                 else:
                     s3obj = s3.get(
                         s3_get_object_from_url_range(url, range_info), return_info=True
                     )
-                    assert_results([s3obj], {url: item}, ranges_fetched=[range_info])
+                    assert_results(
+                        [s3obj], {url: expected_urls[url]}, ranges_fetched=[range_info]
+                    )
 
 
-@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
     argnames=["prefixes", "expected"], **s3_data.pytest_basic_case()
 )
 def test_get_one_wo_meta(s3root, prefixes, expected):
+    expected_urls = {os.path.join(s3root, key): val for key, val in expected.items()}
     with S3() as s3:
-        for url, item in expected.items():
+        for url, item in expected_urls.items():
             for _, expected_result in item.items():
                 range_info = expected_result.range
                 if expected_result.size is None:
@@ -572,7 +565,7 @@ def test_get_one_wo_meta(s3root, prefixes, expected):
                     )
                     assert_results(
                         [s3obj],
-                        {url: item},
+                        {url: expected_urls[url]},
                         info_should_be_empty=True,
                         ranges_fetched=[range_info],
                     )
@@ -582,20 +575,20 @@ def test_get_one_wo_meta(s3root, prefixes, expected):
                     )
                     assert_results(
                         [s3obj],
-                        {url: item},
+                        {url: expected_urls[url]},
                         info_should_be_empty=True,
                         ranges_fetched=[range_info],
                     )
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
-@pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
 @pytest.mark.parametrize(
     argnames=["prefixes", "expected"], **s3_data.pytest_large_case()
 )
 def test_get_all(inject_failure_rate, s3root, prefixes, expected):
+    expected_urls = {os.path.join(s3root, key): val for key, val in expected.items()}
     expected_exists = {
-        url: v for url, v in expected.items() if v[None].size is not None
+        url: v for url, v in expected_urls.items() if v[None].size is not None
     }
     for prefix in prefixes:
         with S3(
@@ -613,8 +606,9 @@ def test_get_all(inject_failure_rate, s3root, prefixes, expected):
     argnames=["prefixes", "expected"], **s3_data.pytest_basic_case()
 )
 def test_get_all_with_meta(inject_failure_rate, s3root, prefixes, expected):
+    expected_urls = {os.path.join(s3root, key): val for key, val in expected.items()}
     expected_exists = {
-        url: v for url, v in expected.items() if v[None].size is not None
+        url: v for url, v in expected_urls.items() if v[None].size is not None
     }
     for prefix in prefixes:
         with S3(
@@ -626,12 +620,14 @@ def test_get_all_with_meta(inject_failure_rate, s3root, prefixes, expected):
             assert_results(s3objs, expected_exists)
 
 
-@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
 @pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
+@pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
 @pytest.mark.parametrize(
     argnames=["prefixes", "expected"], **s3_data.pytest_basic_case()
 )
-def test_get_many(inject_failure_rate, s3root, prefixes, expected):
+def test_get_many(s3root, inject_failure_rate, prefixes, expected):
+    expected_urls = {os.path.join(s3root, key): val for key, val in expected.items()}
+
     def iter_objs(urls, objs):
         for url in urls:
             obj = objs[url]
@@ -646,34 +642,38 @@ def test_get_many(inject_failure_rate, s3root, prefixes, expected):
 
         # to test result ordering, make sure we are requesting
         # keys in a non-lexicographic order
-        not_missing_urls = [k for k, v in expected.items() if v[None].size is not None]
+        not_missing_urls = [
+            k for k, v in expected_urls.items() if v[None].size is not None
+        ]
         urls_in_order = list(sorted(not_missing_urls, reverse=True))
         ranges_in_order = []
         for url in urls_in_order:
-            ranges_in_order.extend(v.range for v in expected[url].values())
+            ranges_in_order.extend(v.range for v in expected_urls[url].values())
 
-        objs_in_order = list(starmap(S3GetObject, iter_objs(urls_in_order, expected)))
+        objs_in_order = list(
+            starmap(S3GetObject, iter_objs(urls_in_order, expected_urls))
+        )
         s3objs = s3.get_many(list(objs_in_order), return_info=True)
 
         fetched_urls = []
         for url in urls_in_order:
-            fetched_urls.extend([url] * len(expected[url]))
+            fetched_urls.extend([url] * len(expected_urls[url]))
         # results should come out in the order of keys requested
         assert fetched_urls == [e.url for e in s3objs]
-        assert_results(s3objs, expected, ranges_fetched=ranges_in_order)
+        assert_results(s3objs, expected_urls, ranges_fetched=ranges_in_order)
 
         # 2) test with missing items, default case
-        if not_missing_urls != list(expected.keys()):
-            urls_in_order = list(sorted(expected.keys(), reverse=True))
+        if not_missing_urls != list(expected_urls.keys()):
+            urls_in_order = list(sorted(expected_urls.keys(), reverse=True))
             ranges_in_order = []
             for url in urls_in_order:
-                ranges_in_order.extend(v.range for v in expected[url].values())
+                ranges_in_order.extend(v.range for v in expected_urls[url].values())
             objs_in_order = list(
-                starmap(S3GetObject, iter_objs(urls_in_order, expected))
+                starmap(S3GetObject, iter_objs(urls_in_order, expected_urls))
             )
             fetched_urls = []
             for url in urls_in_order:
-                fetched_urls.extend([url] * len(expected[url]))
+                fetched_urls.extend([url] * len(expected_urls[url]))
             with pytest.raises(MetaflowS3NotFound):
                 s3objs = s3.get_many(list(objs_in_order), return_info=True)
 
@@ -682,17 +682,19 @@ def test_get_many(inject_failure_rate, s3root, prefixes, expected):
         # to test result ordering, make sure we are requesting
         # keys in a non-lexicographic order. Missing files should
         # be returned in order too
-        urls_in_order = sorted(expected.keys(), reverse=True)
+        urls_in_order = sorted(expected_urls.keys(), reverse=True)
         ranges_in_order = []
         for url in urls_in_order:
-            ranges_in_order.extend(v.range for v in expected[url].values())
-        objs_in_order = list(starmap(S3GetObject, iter_objs(urls_in_order, expected)))
+            ranges_in_order.extend(v.range for v in expected_urls[url].values())
+        objs_in_order = list(
+            starmap(S3GetObject, iter_objs(urls_in_order, expected_urls))
+        )
         fetched_urls = []
         for url in urls_in_order:
-            fetched_urls.extend([url] * len(expected[url]))
+            fetched_urls.extend([url] * len(expected_urls[url]))
         s3objs = s3.get_many(objs_in_order, return_missing=True, return_info=True)
         assert fetched_urls == [e.url for e in s3objs]
-        assert_results(s3objs, expected, ranges_fetched=ranges_in_order)
+        assert_results(s3objs, expected_urls, ranges_fetched=ranges_in_order)
 
 
 @pytest.mark.parametrize("s3root", S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])
@@ -700,9 +702,11 @@ def test_get_many(inject_failure_rate, s3root, prefixes, expected):
     argnames=["prefixes", "expected"], **s3_data.pytest_many_prefixes_case()
 )
 def test_list_paths(s3root, prefixes, expected):
+    expected_urls = {os.path.join(s3root, key): val for key, val in expected.items()}
+
     def urls_by_prefix(prefix):
         root = os.path.join(s3root, prefix)
-        for url, v in expected.items():
+        for url, v in expected_urls.items():
             if url.startswith(root) and v[None].size is not None:
                 yield url
 
@@ -739,7 +743,7 @@ def test_list_paths(s3root, prefixes, expected):
             assert all(e not in exp for e in not_exists)
 
     # 3) eventually list_paths should hit the leaf
-    for url, v in expected.items():
+    for url, v in expected_urls.items():
         if v[None].size is None:
             with S3() as s3:
                 # querying a non-existent object should return
@@ -782,7 +786,8 @@ def test_list_paths(s3root, prefixes, expected):
     argnames=["prefixes", "expected"], **s3_data.pytest_many_prefixes_case()
 )
 def test_list_recursive(s3root, prefixes, expected):
-    not_missing = [url for url, v in expected.items() if v[None].size is not None]
+    expected_urls = {os.path.join(s3root, key): val for key, val in expected.items()}
+    not_missing = [url for url, v in expected_urls.items() if v[None].size is not None]
     with S3(s3root=s3root) as s3:
         s3objs = s3.list_recursive(prefixes)
         assert frozenset(e.url for e in s3objs) == frozenset(not_missing)
@@ -798,8 +803,9 @@ def test_list_recursive(s3root, prefixes, expected):
     argnames=["prefixes", "expected"], **s3_data.pytest_many_prefixes_case()
 )
 def test_get_recursive(s3root, inject_failure_rate, prefixes, expected):
+    expected_urls = {os.path.join(s3root, key): val for key, val in expected.items()}
     expected_exists = {
-        url: v for url, v in expected.items() if v[None].size is not None
+        url: v for url, v in expected_urls.items() if v[None].size is not None
     }
     local_files = []
     with S3(s3root=s3root, inject_failure_rate=inject_failure_rate) as s3:
@@ -922,7 +928,7 @@ def test_put_one(s3root, objs, expected, s3_server_side_encryption):
                 assert s3obj.blob == to_bytes(obj)
                 # put with overwrite disabled
                 s3url = s3.put(key, "random_value", overwrite=False)
-                assert s3url in expected_urls
+                assert s3url in expected
                 s3obj = s3.get(key)
                 assert s3obj.key == key
                 assert_results(

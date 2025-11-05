@@ -197,7 +197,7 @@ class RandomFile(object):
 
     @property
     def url(self):
-        return os.path.join(S3ROOT, self.key)
+        return self.key
 
 
 def _format_test_cases(dataset, meta=None, ranges=None):
@@ -485,11 +485,6 @@ def pytest_put_blobs_case(meta=None):
 
 def ensure_test_data():
     # update S3ROOT in __init__.py to get a fresh set of data
-    if S3ROOT is None:
-        print(
-            "S3ROOT is not set. Set METAFLOW_S3_TEST_ROOT environment variable to run S3 tests."
-        )
-        return
     print("Ensuring that test data exists at %s" % S3ROOT)
     mark = urlparse(os.path.join(S3ROOT, "ALL_OK"))
     try:
