@@ -197,7 +197,8 @@ class RandomFile(object):
 
     @property
     def url(self):
-        return self.key
+        """Returns the full S3 URL including the S3ROOT prefix."""
+        return os.path.join(S3ROOT, self.key)
 
 
 def _format_test_cases(dataset, meta=None, ranges=None):
@@ -205,13 +206,13 @@ def _format_test_cases(dataset, meta=None, ranges=None):
     ids = []
     for prefix, filespecs in dataset:
         objs = [RandomFile(prefix, fname, size) for fname, size in filespecs.items()]
-        objs = {obj.url: (obj, None, None) for obj in objs}
+        objs = {obj.key: (obj, None, None) for obj in objs}
         if meta:
             # We generate one per meta info
             for metaname, (content_type, usermeta) in meta.items():
                 objs.update(
                     {
-                        "%s_%s" % (obj.url, metaname): (obj, content_type, usermeta)
+                        "%s_%s" % (obj.key, metaname): (obj, content_type, usermeta)
                         for (obj, _, _) in objs.values()
                     }
                 )
@@ -519,11 +520,12 @@ def ensure_test_data():
                     print("Test data case %s: uploaded to %s" % (prefix, f.url))
                     if meta is not None:
                         for metaname, metainfo in meta.items():
-                            new_url = "%s_%s" % (f.url, metaname)
-                            url = urlparse(new_url)
+                            new_key = "%s_%s" % (f.key, metaname)
+                            full_new_url = os.path.join(S3ROOT, new_key)
+                            url = urlparse(full_new_url)
                             print(
                                 "Test data case %s: upload to %s started"
-                                % (prefix, new_url)
+                                % (prefix, full_new_url)
                             )
                             extra = {}
                             content_type, user_meta = metainfo
@@ -541,7 +543,8 @@ def ensure_test_data():
                                 ExtraArgs=extra,
                             )
                             print(
-                                "Test data case %s: uploaded to %s" % (prefix, new_url)
+                                "Test data case %s: uploaded to %s"
+                                % (prefix, full_new_url)
                             )
 
         for prefix, filespecs in BIG_DATA + FAKE_RUN_DATA:
