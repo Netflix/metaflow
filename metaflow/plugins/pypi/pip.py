@@ -122,10 +122,9 @@ class Pip(object):
                 env = {}
                 if conda_platform() != platform:
                     # cross-platform resolving requires patching the machine and system info for pip to pick up all the relevant packages.
-                    platform_system, platform_machine = markers_from_platform(platform)
+                    marker_overrides = markers_from_platform(platform)
                     env = {
-                        "PIP_PATCH_SYSTEM": platform_system,
-                        "PIP_PATCH_MACHINE": platform_machine,
+                        "PIP_CUSTOMIZE_OVERRIDES": json.dumps(marker_overrides),
                         "PYTHONPATH": os.path.join(
                             os.path.dirname(__file__), "pip_patcher"
                         ),
