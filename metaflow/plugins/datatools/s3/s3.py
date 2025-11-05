@@ -499,16 +499,18 @@ class S3(object):
 
     Parameters
     ----------
-    tmproot : str, default: '.'
+    tmproot : str, default '.'
         Where to store the temporary directory.
-    bucket : str, optional
+    bucket : str, optional, default None
         Override the bucket from `DATATOOLS_S3ROOT` when `run` is specified.
-    prefix : str, optional
+    prefix : str, optional, default None
         Override the path from `DATATOOLS_S3ROOT` when `run` is specified.
-    run : FlowSpec or Run, optional
+    run : FlowSpec or Run, optional, default None
         Derive path prefix from the current or a past run ID, e.g. S3(run=self).
-    s3root : str, optional
+    s3root : str, optional, default None
         If `run` is not specified, use this as the S3 prefix.
+    encryption : str, optional, default None
+        Server-side encryption to use when uploading objects to S3.
     """
 
     TYPE = "s3"
@@ -579,7 +581,13 @@ class S3(object):
         self._s3_inject_failures = kwargs.get(
             "inject_failure_rate", TEST_INJECT_RETRYABLE_FAILURES
         )
-        self._tmpdir = mkdtemp(dir=tmproot, prefix="metaflow.s3.")
+        # Storing tmproot, bucket, ... as members to allow easier reconstruction
+        # during JSON deserialization
+        self._tmproot = tmproot
+        self._bucket = bucket
+        self._prefix = prefix
+        self._run = run
+        self._tmpdir = mkdtemp(dir=self._tmproot, prefix="metaflow.s3.")
         self._encryption = encryption
 
     def __enter__(self) -> "S3":
