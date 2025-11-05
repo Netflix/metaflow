@@ -45,7 +45,12 @@ def markers_from_platform(platform):
     plat, mach = platform.split("-")
 
     platform_system = {"osx": "Darwin", "linux": "Linux"}[plat]
-    platform_machine = {"32": "x86", "64": "x86_64", "arm64": "aarch64"}[mach]
+    platform_machine = {
+        "32": "x86",
+        "64": "x86_64",
+        "arm64": "aarch64",
+        "aarch64": "aarch64",
+    }[mach]
 
     return platform_system, platform_machine
 
