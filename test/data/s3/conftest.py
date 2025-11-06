@@ -25,12 +25,36 @@ def reset_current_env():
     This prevents test pollution when tests manipulate the global current state.
     The fixture runs automatically for all tests in this directory.
     """
-    # Setup: Save the current state (if any)
-    saved_state = getattr(current, "_flow", None)
+    # Setup: Save all private attributes that might be set by current._set_env
+    saved_state = {
+        attr: getattr(current, attr, None)
+        for attr in dir(current)
+        if attr.startswith("_") and not attr.startswith("__")
+    }
 
     yield
 
-    # Teardown: Reset current to initial state
-    # Clear any environment that was set during the test
-    if hasattr(current, "_flow"):
-        current._flow = saved_state
+    # Teardown: Clear all current environment attributes
+    # First, remove any new attributes that were added
+    for attr in dir(current):
+        if (
+            attr.startswith("_")
+            and not attr.startswith("__")
+            and attr not in saved_state
+        ):
+            try:
+                delattr(current, attr)
+            except AttributeError:
+                pass  # Some attributes may be read-only
+
+    # Then restore original values
+    for attr, value in saved_state.items():
+        try:
+            if value is None:
+                # Remove attribute if it didn't exist before
+                if hasattr(current, attr):
+                    delattr(current, attr)
+            else:
+                setattr(current, attr, value)
+        except AttributeError:
+            pass  # Some attributes may be read-only
