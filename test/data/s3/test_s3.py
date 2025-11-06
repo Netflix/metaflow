@@ -184,15 +184,17 @@ def tempdir():
 )
 @pytest.mark.benchmark(max_time=30)
 def test_info_one_benchmark(benchmark, pathspecs, expected):
+    expected_urls = {os.path.join(S3ROOT, key): val for key, val in expected.items()}
+
     def _do():
         with S3() as s3:
             res = []
-            for url in expected:
+            for url in expected_urls:
                 res.append(s3.info(url))
             return res
 
     res = benchmark(_do)
-    assert_results(res, expected, info_only=True)
+    assert_results(res, expected_urls, info_only=True)
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
@@ -204,9 +206,11 @@ def test_info_many_benchmark(benchmark, inject_failure_rate, pathspecs, expected
     urls = []
     check_expected = {}
     for count, v in expected:
-        urls.extend(list(v) * count)
+        urls.extend([os.path.join(S3ROOT, key) for key in v] * count)
         if count > 0:
-            check_expected.update(v)
+            check_expected.update(
+                {os.path.join(S3ROOT, key): val for key, val in v.items()}
+            )
     random.shuffle(urls)
 
     def _do():
@@ -223,10 +227,12 @@ def test_info_many_benchmark(benchmark, inject_failure_rate, pathspecs, expected
 )
 @pytest.mark.benchmark(max_time=60)
 def test_get_one_benchmark(benchmark, pathspecs, expected):
+    expected_urls = {os.path.join(S3ROOT, key): val for key, val in expected.items()}
+
     def _do():
         with S3() as s3:
             res = []
-            for url in expected:
+            for url in expected_urls:
                 # Use return_missing as this is the most expensive path
                 res.append(s3.get(url, return_missing=True))
             return res
@@ -234,7 +240,7 @@ def test_get_one_benchmark(benchmark, pathspecs, expected):
     res = benchmark(_do)
     # We do not actually check results because the files will be cleared
     # Could be improved if we want to be real precise
-    # assert_results(res, expected, info_should_be_empty=True)
+    # assert_results(res, expected_urls, info_should_be_empty=True)
 
 
 @pytest.mark.parametrize("inject_failure_rate", [0, 10, 50, 90])
@@ -246,9 +252,11 @@ def test_get_many_benchmark(benchmark, inject_failure_rate, pathspecs, expected)
     urls = []
     check_expected = {}
     for count, v in expected:
-        urls.extend(list(v) * count)
+        urls.extend([os.path.join(S3ROOT, key) for key in v] * count)
         if count > 0:
-            check_expected.update(v)
+            check_expected.update(
+                {os.path.join(S3ROOT, key): val for key, val in v.items()}
+            )
     random.shuffle(urls)
 
     def _do():
