@@ -348,7 +348,7 @@ def test_init_options(s3root, inject_failure_rate, pathspecs, expected):
     with S3(s3root=s3root) as s3:
         for url, exp in expected_urls.items():
             # Test that library handles keys with/without leading slash
-            key_input = url[len(s3root) :]
+            key_input = url[len(s3root) :].lstrip("/")
             s3obj = s3.get(key_input)
             assert s3obj.key == key_input.lstrip("/")
             assert_results([s3obj], {url: exp})
