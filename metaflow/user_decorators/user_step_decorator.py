@@ -574,10 +574,13 @@ def user_step_decorator(*args, **kwargs):
           - a callable that will replace whatever is being wrapped (it
             should have the same parameters as the wrapped function, namely, it should
             be a
-            Callable[[FlowSpec, Inputs], Optional[Union[Dict[str, Any]]]]).
+            Callable[[FlowSpec, Inputs], Optional[Union[Dict[str, Any], bool]]]).
             Note that the return type is a bit different -- you can return:
-              - None: no special behavior;
+              - None or False: no special behavior, your callable called `self.next()` as
+                usual.
               - A dictionary containing parameters for `self.next()`.
+              - True to instruct Metaflow to call the `self.next()` statement that
+                would have been called normally by the step function you replaced.
           - a dictionary to skip the step. An empty dictionary is equivalent
             to just skipping the step. A full dictionary will pass the arguments
             to the `self.next()` call -- this allows you to modify the behavior
