@@ -532,8 +532,16 @@ class MetaflowAPI(object):
         # We ignore any errors if we don't check the configs in the click API.
 
         # Init all values in the flow mutators and then process them
-        for decorator in self._flow_cls._flow_state.get(_FlowState.FLOW_MUTATORS, []):
-            decorator.external_init()
+        for mutator in self._flow_cls._flow_state.get(_FlowState.FLOW_MUTATORS, []):
+            mutator.external_init()
+
+        # Initialize mutators with top-level options (using defaults for Deployer/Runner)
+        for mutator in self._flow_cls._flow_state.get(_FlowState.FLOW_MUTATORS, []):
+            mutator_options = {
+                option: option_info["default"]
+                for option, option_info in mutator.options.items()
+            }
+            mutator.flow_init_options(mutator_options)
 
         new_cls = self._flow_cls._process_config_decorators(
             config_options, process_configs=CLICK_API_PROCESS_CONFIG
