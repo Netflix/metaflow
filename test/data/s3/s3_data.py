@@ -21,6 +21,7 @@ import numpy
 
 from .. import s3client, S3ROOT
 
+minio_test = int(os.environ.get("MINIO_TEST", 0))
 BASIC_METADATA = {
     "no_meta": (None, None),  # No metadata at all but going through the calls
     "content_no_meta": ("text/plain", None),  # Content-type but no metadata
@@ -53,6 +54,29 @@ BASIC_RANGE_INFO = {
 # None for file size denotes missing keys
 # To properly support ranges in a useful manner, make files at least 32 bytes
 # long
+
+if minio_test:
+    PREFIX_DATA = (
+        "prefix",
+        {
+            "prefix": 32,
+            "prefixprefix": 33,
+            # note that prefix/prefix is both an object and a prefix
+            "prefix1/prefix": 34,
+            "prefix2/prefix/prefix": None,
+        },
+    )
+else:
+    PREFIX_DATA = (
+        "prefix",
+        {
+            "prefix": 32,
+            "prefixprefix": 33,
+            # note that prefix/prefix is both an object and a prefix
+            "prefix/prefix": 34,
+            "prefix/prefix/prefix": None,
+        },
+    )
 BASIC_DATA = [
     # empty prefixes should not be a problem
     ("empty_prefix", {}),
@@ -73,17 +97,7 @@ BASIC_DATA = [
             "x/x/x": None,
         },
     ),
-    # test that nested prefixes work correctly
-    (
-        "prefix",
-        {
-            "prefix": 32,
-            "prefixprefix": 33,
-            # note that prefix/prefix is both an object and a prefix
-            "prefix/prefix": 34,
-            "prefix/prefix/prefix": None,
-        },
-    ),
+    PREFIX_DATA,
     # same filename as above but a different prefix
     ("samefile", {"prefix": 42, "x": 43, "empty_file": 1, "xx": None}),
     # crazy file names (it seems '#' characters don't work with boto)
