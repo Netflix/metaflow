@@ -54,7 +54,7 @@ jobs:
         
         # Run the same test command as the original workflow
         cd test/data
-        PYTHONPATH=\$(pwd)/../../ python3 -m pytest --benchmark-skip -x -s -v
+        PYTHONPATH=\$(pwd)/../../ python3 -m pytest --benchmark-skip -s -v
         EOF
     - name: Tear down environment
       run: |
