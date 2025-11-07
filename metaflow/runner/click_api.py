@@ -475,8 +475,10 @@ class MetaflowAPI(object):
                 ds = opts.get("datastore", defaults["datastore"])
                 quiet = opts.get("quiet", defaults["quiet"])
 
-                # Check for environment variables first
-
+                # Order to find config or config_value:
+                # 1. Passed directly to the Click API
+                # 2. If not found, check if passed through an environment variable
+                # 3. If not found, use the default value
                 is_default = False
                 config_file = opts.get("config")
                 if config_file is None:
