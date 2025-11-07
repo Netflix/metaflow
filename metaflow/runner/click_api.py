@@ -140,9 +140,9 @@ def _method_sanity_check(
         elif supplied_k in possible_opt_params:
             if possible_opt_params[supplied_k].is_bool_flag:
                 # it is a boolean flag..
-                if supplied_v == True:
+                if supplied_v:
                     cli_name = possible_opt_params[supplied_k].opts[0].strip("-")
-                elif supplied_v == False:
+                else:
                     if possible_opt_params[supplied_k].secondary_opts:
                         cli_name = (
                             possible_opt_params[supplied_k].secondary_opts[0].strip("-")
