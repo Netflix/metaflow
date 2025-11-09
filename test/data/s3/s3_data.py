@@ -21,6 +21,7 @@ import numpy
 
 from .. import s3client, S3ROOT
 
+minio_test = int(os.environ.get("MINIO_TEST", 0))
 BASIC_METADATA = {
     "no_meta": (None, None),  # No metadata at all but going through the calls
     "content_no_meta": ("text/plain", None),  # Content-type but no metadata
@@ -53,6 +54,29 @@ BASIC_RANGE_INFO = {
 # None for file size denotes missing keys
 # To properly support ranges in a useful manner, make files at least 32 bytes
 # long
+
+if minio_test:
+    PREFIX_DATA = (
+        "prefix",
+        {
+            "prefix": 32,
+            "prefixprefix": 33,
+            # note that prefix/prefix is both an object and a prefix
+            "prefix1/prefix": 34,
+            "prefix2/prefix/prefix": None,
+        },
+    )
+else:
+    PREFIX_DATA = (
+        "prefix",
+        {
+            "prefix": 32,
+            "prefixprefix": 33,
+            # note that prefix/prefix is both an object and a prefix
+            "prefix/prefix": 34,
+            "prefix/prefix/prefix": None,
+        },
+    )
 BASIC_DATA = [
     # empty prefixes should not be a problem
     ("empty_prefix", {}),
@@ -73,17 +97,7 @@ BASIC_DATA = [
             "x/x/x": None,
         },
     ),
-    # test that nested prefixes work correctly
-    (
-        "prefix",
-        {
-            "prefix": 32,
-            "prefixprefix": 33,
-            # note that prefix/prefix is both an object and a prefix
-            "prefix/prefix": 34,
-            "prefix/prefix/prefix": None,
-        },
-    ),
+    PREFIX_DATA,
     # same filename as above but a different prefix
     ("samefile", {"prefix": 42, "x": 43, "empty_file": 1, "xx": None}),
     # crazy file names (it seems '#' characters don't work with boto)
@@ -197,6 +211,7 @@ class RandomFile(object):
 
     @property
     def url(self):
+        """Returns the full S3 URL including the S3ROOT prefix."""
         return os.path.join(S3ROOT, self.key)
 
 
@@ -205,13 +220,13 @@ def _format_test_cases(dataset, meta=None, ranges=None):
     ids = []
     for prefix, filespecs in dataset:
         objs = [RandomFile(prefix, fname, size) for fname, size in filespecs.items()]
-        objs = {obj.url: (obj, None, None) for obj in objs}
+        objs = {obj.key: (obj, None, None) for obj in objs}
         if meta:
             # We generate one per meta info
             for metaname, (content_type, usermeta) in meta.items():
                 objs.update(
                     {
-                        "%s_%s" % (obj.url, metaname): (obj, content_type, usermeta)
+                        "%s_%s" % (obj.key, metaname): (obj, content_type, usermeta)
                         for (obj, _, _) in objs.values()
                     }
                 )
@@ -250,7 +265,7 @@ def _format_test_cases(dataset, meta=None, ranges=None):
                     )
 
         ids.append(prefix)
-        cases.append((S3ROOT, [prefix], files))
+        cases.append(([prefix], files))
     return cases, ids
 
 
@@ -315,12 +330,11 @@ def pytest_benchmark_many_case():
                 id_name = "%ds_%dm_%dl" % (small_count, medium_count, large_count)
                 cases.append(
                     (
-                        S3ROOT,
                         [],
                         [
-                            (small_count, small_case[2]),
-                            (medium_count, medium_case[2]),
-                            (large_count, large_case[2]),
+                            (small_count, small_case[1]),
+                            (medium_count, medium_case[1]),
+                            (large_count, large_case[1]),
                         ],
                     )
                 )
@@ -329,7 +343,6 @@ def pytest_benchmark_many_case():
 
 
 def pytest_benchmark_put_case():
-    put_prefix = os.path.join(S3ROOT, PUT_PREFIX)
     cases = []
     ids = []
     for prefix, filespecs in [
@@ -340,7 +353,7 @@ def pytest_benchmark_put_case():
         blobs = []
         for fname, size in filespecs.items():
             blobs.append((prefix, fname, size))
-        cases.append((put_prefix, blobs, None))
+        cases.append((blobs, None))
     ids = ["5gb", "1mb", "1b"]
     return {"argvalues": cases, "ids": ids}
 
@@ -348,10 +361,9 @@ def pytest_benchmark_put_case():
 def pytest_benchmark_put_many_case():
     single_cases_and_ids = pytest_benchmark_put_case()
     single_cases = single_cases_and_ids["argvalues"]
-    large_blob = single_cases[0][1][0]
-    medium_blob = single_cases[1][1][0]
-    small_blob = single_cases[2][1][0]
-    put_prefix = os.path.join(S3ROOT, PUT_PREFIX)
+    large_blob = single_cases[0][0][0]
+    medium_blob = single_cases[1][0][0]
+    small_blob = single_cases[2][0][0]
     # Configuration: we will form groups of up to BENCHMARK_*_ITER_MAX items
     # (count taken from iteration_count). We will also form groups taking from
     # all three sets
@@ -376,7 +388,7 @@ def pytest_benchmark_put_many_case():
                     (medium_count, medium_blob),
                     (large_count, large_blob),
                 ]
-                cases.append((put_prefix, blobs, None))
+                cases.append((blobs, None))
                 ids.append(id_name)
     return {"argvalues": cases, "ids": ids}
 
@@ -385,17 +397,16 @@ def pytest_many_prefixes_case():
     cases, ids = _format_test_cases(BASIC_DATA, meta=BASIC_METADATA)
     many_prefixes = []
     many_prefixes_expected = {}
-    for s3root, [prefix], files in cases:
+    for [prefix], files in cases:
         many_prefixes.append(prefix)
         many_prefixes_expected.update(files)
     # add many prefixes cases
     ids.append("many_prefixes")
-    cases.append((S3ROOT, many_prefixes, many_prefixes_expected))
+    cases.append((many_prefixes, many_prefixes_expected))
     return {"argvalues": cases, "ids": ids}
 
 
 def pytest_put_strings_case(meta=None):
-    put_prefix = os.path.join(S3ROOT, PUT_PREFIX)
     data = [
         "unicode: \u523a\u8eab means sashimi",
         b"bytes: \x00\x01\x02",
@@ -406,8 +417,9 @@ def pytest_put_strings_case(meta=None):
     for text in data:
         blob = to_bytes(text)
         checksum = sha1(blob).hexdigest()
-        key = str(uuid4())
-        expected[os.path.join(put_prefix, key)] = {
+        # Include PUT_PREFIX in the key so tests don't need to handle it
+        key = os.path.join(PUT_PREFIX, str(uuid4()))
+        expected[key] = {
             None: ExpectedResult(
                 size=len(blob),
                 checksum=checksum,
@@ -419,8 +431,8 @@ def pytest_put_strings_case(meta=None):
         objs.append((key, text))
         if meta is not None:
             for content_type, usermeta in meta.values():
-                key = str(uuid4())
-                expected[os.path.join(put_prefix, key)] = {
+                key = os.path.join(PUT_PREFIX, str(uuid4()))
+                expected[key] = {
                     None: ExpectedResult(
                         size=len(blob),
                         checksum=checksum,
@@ -437,11 +449,10 @@ def pytest_put_strings_case(meta=None):
                         metadata=usermeta,
                     )
                 )
-    return {"argvalues": [(put_prefix, objs, expected)], "ids": ["put_strings"]}
+    return {"argvalues": [(objs, expected)], "ids": ["put_strings"]}
 
 
 def pytest_put_blobs_case(meta=None):
-    put_prefix = os.path.join(S3ROOT, PUT_PREFIX)
     cases = []
     ids = []
     for prefix, filespecs in BIG_DATA:
@@ -450,8 +461,9 @@ def pytest_put_blobs_case(meta=None):
         for fname, size in filespecs.items():
             blob = RandomFile(prefix, fname, size)
             checksum = blob.checksum()
-            key = str(uuid4())
-            expected[os.path.join(put_prefix, key)] = {
+            # Include PUT_PREFIX in the key so tests don't need to handle it
+            key = os.path.join(PUT_PREFIX, str(uuid4()))
+            expected[key] = {
                 None: ExpectedResult(
                     size=blob.size,
                     checksum=checksum,
@@ -463,8 +475,8 @@ def pytest_put_blobs_case(meta=None):
             blobs.append((key, blob.data))
             if meta is not None:
                 for content_type, usermeta in meta.values():
-                    key = str(uuid4())
-                    expected[os.path.join(put_prefix, key)] = {
+                    key = os.path.join(PUT_PREFIX, str(uuid4()))
+                    expected[key] = {
                         None: ExpectedResult(
                             size=len(blob),
                             checksum=checksum,
@@ -482,7 +494,7 @@ def pytest_put_blobs_case(meta=None):
                         )
                     )
         ids.append(prefix)
-        cases.append((put_prefix, blobs, expected))
+        cases.append((blobs, expected))
     return {"argvalues": cases, "ids": ids}
 
 
@@ -522,11 +534,12 @@ def ensure_test_data():
                     print("Test data case %s: uploaded to %s" % (prefix, f.url))
                     if meta is not None:
                         for metaname, metainfo in meta.items():
-                            new_url = "%s_%s" % (f.url, metaname)
-                            url = urlparse(new_url)
+                            new_key = "%s_%s" % (f.key, metaname)
+                            full_new_url = os.path.join(S3ROOT, new_key)
+                            url = urlparse(full_new_url)
                             print(
                                 "Test data case %s: upload to %s started"
-                                % (prefix, new_url)
+                                % (prefix, full_new_url)
                             )
                             extra = {}
                             content_type, user_meta = metainfo
@@ -544,7 +557,8 @@ def ensure_test_data():
                                 ExtraArgs=extra,
                             )
                             print(
-                                "Test data case %s: uploaded to %s" % (prefix, new_url)
+                                "Test data case %s: uploaded to %s"
+                                % (prefix, full_new_url)
                             )
 
         for prefix, filespecs in BIG_DATA + FAKE_RUN_DATA:

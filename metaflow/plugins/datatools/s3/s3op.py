@@ -611,18 +611,7 @@ class S3Ops(object):
                 # - the trailing slash is significant in S3
                 if "Contents" in page:
                     for key in page.get("Contents", []):
-                        key_path = key["Key"]
-                        # filter out sibling directories that share the same prefix
-                        if delimiter == "":  # recursive mode
-                            normalized_prefix = prefix_url.path
-                            if not normalized_prefix.endswith("/"):
-                                normalized_prefix += "/"
-                            # Only include keys that are actually under our directory
-                            if not (
-                                key_path.startswith(normalized_prefix)
-                                and len(key_path) > len(normalized_prefix)
-                            ):
-                                continue
+                        key_path = key["Key"].lstrip("/")
                         url = url_base + key_path
                         urlobj = S3Url(
                             url=url,
@@ -887,10 +876,15 @@ def lst(
     to_iterate, _ = _populate_prefixes(prefixes, inputs)
     for _, prefix, url, _ in to_iterate:
         src = urlparse(url, allow_fragments=False)
+        # We always consider the path being passed in to be a directory path so
+        # we add a trailing slash to the path if it doesn't already have one.
+        path_with_slash = src.path.lstrip("/")
+        if not path_with_slash.endswith("/"):
+            path_with_slash += "/"
         url = S3Url(
             url=url,
             bucket=src.netloc,
-            path=src.path.lstrip("/"),
+            path=path_with_slash,
             local=None,
             prefix=prefix,
         )

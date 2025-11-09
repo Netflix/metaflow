@@ -474,11 +474,24 @@ class MetaflowAPI(object):
 
                 ds = opts.get("datastore", defaults["datastore"])
                 quiet = opts.get("quiet", defaults["quiet"])
+
+                # Order to find config or config_value:
+                # 1. Passed directly to the Click API
+                # 2. If not found, check if passed through an environment variable
+                # 3. If not found, use the default value
                 is_default = False
                 config_file = opts.get("config")
                 if config_file is None:
-                    is_default = True
-                    config_file = defaults.get("config")
+                    # Check if it was set through an environment variable -- we
+                    # don't have click process them here so we need to "fake" it.
+                    env_config_file = os.environ.get("METAFLOW_FLOW_CONFIG")
+                    if env_config_file:
+                        # Convert dict items to list of tuples
+                        config_file = list(json.loads(env_config_file).items())
+                        is_default = False
+                    else:
+                        is_default = True
+                        config_file = defaults.get("config")
 
                 if config_file:
                     config_file = dict(
@@ -494,8 +507,19 @@ class MetaflowAPI(object):
                 is_default = False
                 config_value = opts.get("config-value")
                 if config_value is None:
-                    is_default = True
-                    config_value = defaults.get("config_value")
+                    env_config_value = os.environ.get("METAFLOW_FLOW_CONFIG_VALUE")
+                    if env_config_value:
+                        # Parse environment variable using MultipleTuple logic
+                        loaded = json.loads(env_config_value)
+                        # Convert dict items to list of tuples with JSON-serialized values
+                        config_value = [
+                            (k, json.dumps(v) if not isinstance(v, str) else v)
+                            for k, v in loaded.items()
+                        ]
+                        is_default = False
+                    else:
+                        is_default = True
+                        config_value = defaults.get("config_value")
 
                 if config_value:
                     config_value = dict(

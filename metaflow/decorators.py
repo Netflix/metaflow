@@ -40,7 +40,7 @@ class BadStepDecoratorException(MetaflowException):
             "not declared as a @step. Make sure you apply this decorator "
             "on a function which has @step on the line just before the "
             "function name and @{deco} is above @step.".format(
-                deco=deco, func=func.__name__
+                deco=deco, func=getattr(func, "__name__", str(func))
             )
         )
         super(BadStepDecoratorException, self).__init__(msg)
@@ -521,7 +521,7 @@ def _base_step_decorator(decotype, *args, **kwargs):
         # No keyword arguments specified for the decorator, e.g. @foobar.
         # The first argument is the function to be decorated.
         func = args[0]
-        if isinstance(func, StepMutator):
+        if isinstance(func, (StepMutator, UserStepDecoratorBase)):
             func = func._my_step
         if not hasattr(func, "is_step"):
             raise BadStepDecoratorException(decotype.name, func)
