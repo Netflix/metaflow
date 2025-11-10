@@ -1902,6 +1902,9 @@ class ArgoWorkflows(object):
                     self._is_conditional_join_node(node)
                     or self._many_in_funcs_all_conditional(node)
                     or self._is_conditional_skip_node(node)
+                ) and not (
+                    node.type == "join"
+                    and self.graph[node.split_parents[-1]].type == "foreach"
                 ):
                     # NOTE: Argo template expressions that fail to resolve, output the expression itself as a value.
                     # With conditional steps, some of the input-paths are therefore 'broken' due to containing a nil expression
