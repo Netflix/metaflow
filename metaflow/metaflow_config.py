@@ -641,7 +641,11 @@ def get_click_to_python_types():
     )
     from metaflow.parameters import JSONTypeClass
     from metaflow.includefile import FilePathClass
-    from metaflow.user_configs.config_options import LocalFileInput, MultipleTuple, ConfigValue
+    from metaflow.user_configs.config_options import (
+        LocalFileInput,
+        MultipleTuple,
+        ConfigValue,
+    )
 
     # Define JSON type for type hints
     JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
