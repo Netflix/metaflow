@@ -57,25 +57,13 @@ from metaflow.user_configs.config_options import (
 )
 from metaflow.user_decorators.user_flow_decorator import FlowMutator
 
+# Import Click type mappings from config (allows extensions to add custom types)
+from metaflow.metaflow_config import get_click_to_python_types
+
+click_to_python_types = get_click_to_python_types()
+
 # Define a recursive type alias for JSON
 JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
-
-click_to_python_types = {
-    StringParamType: str,
-    IntParamType: int,
-    FloatParamType: float,
-    BoolParamType: bool,
-    UUIDParameterType: uuid.UUID,
-    Path: str,
-    DateTime: datetime.datetime,
-    Tuple: tuple,
-    Choice: str,
-    File: str,
-    JSONTypeClass: JSON,
-    FilePathClass: str,
-    LocalFileInput: str,
-    MultipleTuple: TTuple[str, Union[JSON, ConfigValue]],
-}
 
 
 def _method_sanity_check(
@@ -474,24 +462,11 @@ class MetaflowAPI(object):
 
                 ds = opts.get("datastore", defaults["datastore"])
                 quiet = opts.get("quiet", defaults["quiet"])
-
-                # Order to find config or config_value:
-                # 1. Passed directly to the Click API
-                # 2. If not found, check if passed through an environment variable
-                # 3. If not found, use the default value
                 is_default = False
                 config_file = opts.get("config")
                 if config_file is None:
-                    # Check if it was set through an environment variable -- we
-                    # don't have click process them here so we need to "fake" it.
-                    env_config_file = os.environ.get("METAFLOW_FLOW_CONFIG")
-                    if env_config_file:
-                        # Convert dict items to list of tuples
-                        config_file = list(json.loads(env_config_file).items())
-                        is_default = False
-                    else:
-                        is_default = True
-                        config_file = defaults.get("config")
+                    is_default = True
+                    config_file = defaults.get("config")
 
                 if config_file:
                     config_file = dict(
@@ -507,19 +482,8 @@ class MetaflowAPI(object):
                 is_default = False
                 config_value = opts.get("config-value")
                 if config_value is None:
-                    env_config_value = os.environ.get("METAFLOW_FLOW_CONFIG_VALUE")
-                    if env_config_value:
-                        # Parse environment variable using MultipleTuple logic
-                        loaded = json.loads(env_config_value)
-                        # Convert dict items to list of tuples with JSON-serialized values
-                        config_value = [
-                            (k, json.dumps(v) if not isinstance(v, str) else v)
-                            for k, v in loaded.items()
-                        ]
-                        is_default = False
-                    else:
-                        is_default = True
-                        config_value = defaults.get("config_value")
+                    is_default = True
+                    config_value = defaults.get("config_value")
 
                 if config_value:
                     config_value = dict(
@@ -556,8 +520,16 @@ class MetaflowAPI(object):
         # We ignore any errors if we don't check the configs in the click API.
 
         # Init all values in the flow mutators and then process them
-        for decorator in self._flow_cls._flow_state.get(_FlowState.FLOW_MUTATORS, []):
-            decorator.external_init()
+        for mutator in self._flow_cls._flow_state.get(_FlowState.FLOW_MUTATORS, []):
+            mutator.external_init()
+
+        # Initialize mutators with top-level options (using defaults for Deployer/Runner)
+        for mutator in self._flow_cls._flow_state.get(_FlowState.FLOW_MUTATORS, []):
+            mutator_options = {
+                option: option_info["default"]
+                for option, option_info in mutator.options.items()
+            }
+            mutator.flow_init_options(mutator_options)
 
         new_cls = self._flow_cls._process_config_decorators(
             config_options, process_configs=CLICK_API_PROCESS_CONFIG
