@@ -222,6 +222,7 @@ class MutableFlow:
                 "method and not the `mutate` method" % (name, self._inserted_by)
             )
         from metaflow.parameters import Parameter
+        from metaflow.flowspec import _FlowState
 
         if hasattr(self._flow_cls, name) and not overwrite:
             raise MetaflowException(
@@ -236,6 +237,7 @@ class MutableFlow:
             )
         debug.userconf_exec("Mutable flow adding parameter %s to flow" % name)
         setattr(self._flow_cls, name, value)
+        self._flow_cls._flow_state.pop(_FlowState.CACHED_PARAMETERS, None)
 
     def remove_parameter(self, parameter_name: str) -> bool:
         """

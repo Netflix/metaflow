@@ -455,8 +455,8 @@ def start(
         ):
             param_ds = d
 
-        # We can now set the the CONFIGS value in the flow properly. This will overwrite
-        # anything that may have been passed in by default and we will use exactly what
+        # We can now set the CONFIGS value in the flow properly. This will overwrite
+        # anything that may have been passed in by default, and we will use exactly what
         # the original flow had. Note that these are accessed through the parameter name
         ctx.obj.flow._flow_state[_FlowState.CONFIGS].clear()
         d = ctx.obj.flow._flow_state[_FlowState.CONFIGS]
