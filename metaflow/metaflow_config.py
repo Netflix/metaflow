@@ -5,6 +5,7 @@ import uuid
 import datetime
 
 from typing import Dict, List, Union, Tuple as TTuple
+
 from metaflow.exception import MetaflowException
 from metaflow.metaflow_config_funcs import from_conf, get_validate_choice_fn
 
@@ -587,7 +588,7 @@ MAX_ATTEMPTS = 6
 # Feature flag (experimental features that are *explicitly* unsupported)
 
 # Process configs even when using the click_api for Runner/Deployer
-CLICK_API_PROCESS_CONFIG = from_conf("CLICK_API_PROCESS_CONFIG", False)
+CLICK_API_PROCESS_CONFIG = from_conf("CLICK_API_PROCESS_CONFIG", True)
 
 
 # PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution
