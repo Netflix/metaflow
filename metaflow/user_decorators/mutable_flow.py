@@ -184,6 +184,8 @@ class MutableFlow:
         overwrite : bool, default False
             If True, overwrite the parameter if it already exists
         """
+        from metaflow.flowspec import FlowStateItems
+
         if not self._pre_mutate:
             raise MetaflowException(
                 "Adding parameter '%s' from %s is only allowed in the `pre_mutate` "
@@ -204,6 +206,7 @@ class MutableFlow:
             )
         debug.userconf_exec("Mutable flow adding parameter %s to flow" % name)
         setattr(self._flow_cls, name, value)
+        self._flow_cls._flow_state[FlowStateItems.CACHED_PARAMETERS] = None
 
     def remove_parameter(self, parameter_name: str) -> bool:
         """
@@ -240,7 +243,7 @@ class MutableFlow:
                     "Mutable flow removing parameter %s from flow" % var
                 )
                 # Reset so that we don't list it again
-                self._flow_cls._flow_state.pop(FlowStateItems.CACHED_PARAMETERS, None)
+                self._flow_cls._flow_state[FlowStateItems.CACHED_PARAMETERS] = None
                 return True
         debug.userconf_exec(
             "Mutable flow failed to remove parameter %s from flow" % parameter_name

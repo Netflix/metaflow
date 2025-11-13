@@ -288,7 +288,7 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
                 and kls.__module__ == module_name
                 and issubclass(kls, FlowSpec)
             ):
-                if flow_cls is not None:
+                if flow_cls is not None and flow_cls != kls:
                     raise MetaflowException(
                         "Multiple FlowSpec classes found in %s" % flow_file
                     )
