@@ -317,7 +317,24 @@ class Pip(object):
         indices = []
         extra_indices = []
         try:
-            config = self._call(prefix, args=["config", "list"], isolated=False)
+            # NOTE: We need to use the hosts Python interpreter and not the one in the conda environment,
+            # as the latter will not have visibility to any site-specific pip configs that the host might have.
+            config = (
+                subprocess.check_output(
+                    [
+                        "python",
+                        "-m",
+                        "pip",
+                        "--disable-pip-version-check",
+                        "--no-color",
+                        "config",
+                        "list",
+                    ],
+                    stderr=subprocess.PIPE,
+                )
+                .decode()
+                .strip()
+            )
             for line in config.splitlines():
                 key, value = line.split("=", 1)
                 _, key = key.split(".")
