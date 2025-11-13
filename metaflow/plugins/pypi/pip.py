@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import re
 import shutil
 import subprocess
@@ -10,7 +11,6 @@ from urllib.parse import unquote
 
 from metaflow.debug import debug
 from metaflow.exception import MetaflowException
-from metaflow.util import which
 
 from .micromamba import Micromamba
 from .utils import pip_tags, wheel_tags, markers_from_platform, conda_platform
@@ -60,9 +60,6 @@ class Pip(object):
             self.logger = logger
         else:
             self.logger = lambda *args, **kwargs: None  # No-op logger if not provided
-
-        # Resolve the host system pip for calls to fetch config
-        self._host_pip = which("pip3") or which("pip")
 
     def _get_resolved_python_version(self, prefix):
         try:
@@ -327,7 +324,9 @@ class Pip(object):
             config = (
                 subprocess.check_output(
                     [
-                        self._host_pip,
+                        sys.executable,
+                        "-m",
+                        "pip",
                         "--disable-pip-version-check",
                         "--no-color",
                         "config",
