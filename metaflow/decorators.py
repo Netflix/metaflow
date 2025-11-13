@@ -825,8 +825,7 @@ def _init_step_decorators(
             deco.mutate(mutable_flow)
             # We reset cached_parameters on the very off chance that the user added
             # more configurations based on the configuration
-            if cls._flow_state[FlowStateItems.CACHED_PARAMETERS] is not None:
-                cls._flow_state[FlowStateItems.CACHED_PARAMETERS] = None
+            cls._flow_state[FlowStateItems.CACHED_PARAMETERS] = None
         else:
             raise MetaflowInternalError(
                 "A non FlowMutator found in flow custom decorators"

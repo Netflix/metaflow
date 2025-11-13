@@ -77,12 +77,13 @@ class ParallelUBF(UnboundedForeachInput):
         return item or 0  # item is None for the control task, but it is also split 0
 
 
+# First two items are inherited from parent classes; last three are not
 class FlowStateItems(Enum):
-    CONFIGS = 1
-    FLOW_MUTATORS = 2
-    CACHED_PARAMETERS = 3
-    SET_CONFIG_PARAMETERS = 4  # Parameters that now have a ConfigValue (converted)
-    FLOW_DECORATORS = 5
+    FLOW_MUTATORS = 1
+    FLOW_DECORATORS = 2
+    CONFIGS = 3
+    CACHED_PARAMETERS = 4
+    SET_CONFIG_PARAMETERS = 5  # Parameters that now have a ConfigValue (converted)
 
 
 class _FlowState(MutableMapping):
@@ -93,14 +94,21 @@ class _FlowState(MutableMapping):
     # For example, it assumes that items are only list, dicts or None and assumes that
     # self._self_data has all keys properly initialized.
 
+    _non_inherited_items = [
+        FlowStateItems.CONFIGS,
+        FlowStateItems.CACHED_PARAMETERS,
+        FlowStateItems.SET_CONFIG_PARAMETERS,
+    ]
+
     def __init__(self, *args, **kwargs):
         self._self_data = dict(*args, **kwargs)
         self._merged_data = {}
         self._inherited = {}
 
     def __getitem__(self, key):
-        # ORDER IS IMPORTANT: we use inherited first and extend by whatever is in
-        # the flowspec
+        if key in self._non_inherited_items:
+            return self._self_data[key]
+
         if key in self._merged_data:
             return self._merged_data[key]
 
@@ -109,22 +117,20 @@ class _FlowState(MutableMapping):
         inherited_value = self._inherited.get(key)
 
         if self_value is not None:
+            # ORDER IS IMPORTANT: we use inherited first and extend by whatever is in
+            # the flowspec
             self._merged_data[key] = self._merge_value(inherited_value, self_value)
             return self._merged_data[key]
-        elif key in self._self_data:
-            # Case of CACHED_PARAMETERS; a valid value is None. It is never inherited
-            self._merged_data[key] = None
-            return None
         raise KeyError(key)
 
     def __setitem__(self, key, value):
         self._self_data[key] = value
 
     def __delitem__(self, key):
-        if key in self._merged_data:
-            del self._merged_data[key]
-        else:
-            raise KeyError(key)
+        if key in self._non_inherited_items:
+            del self._self_data[key]
+
+        del self._merged_data[key]
 
     def __iter__(self):
         # All keys are in self._self_data
@@ -178,11 +184,11 @@ class FlowSpecMeta(type):
         # Keys are FlowStateItems enum values
         cls._flow_state = _FlowState(
             {
-                FlowStateItems.CONFIGS: {},
                 FlowStateItems.FLOW_MUTATORS: [],
+                FlowStateItems.FLOW_DECORATORS: {},
+                FlowStateItems.CONFIGS: {},
                 FlowStateItems.CACHED_PARAMETERS: None,
                 FlowStateItems.SET_CONFIG_PARAMETERS: [],
-                FlowStateItems.FLOW_DECORATORS: {},
             }
         )
 
@@ -416,10 +422,6 @@ class FlowSpec(metaclass=FlowSpecMeta):
                     % deco.__class__.__name__
                 )
                 deco.pre_mutate(mutable_flow)
-                # We reset cached_parameters on the very off chance that the user added
-                # more configurations based on the configuration
-                if cls._flow_state[FlowStateItems.CACHED_PARAMETERS] is not None:
-                    cls._flow_state[FlowStateItems.CACHED_PARAMETERS] = None
             else:
                 raise MetaflowInternalError(
                     "A non FlowMutator found in flow custom decorators"
