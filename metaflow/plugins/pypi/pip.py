@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import re
 import shutil
 import subprocess
@@ -91,7 +92,7 @@ class Pip(object):
                     for tag in pip_tags(resolved_python, platform)
                 ]
             )
-            custom_index_url, extra_index_urls = self.indices(prefix)
+            custom_index_url, extra_index_urls = self.indices()
             cmd = [
                 "install",
                 "--dry-run",
@@ -183,7 +184,7 @@ class Pip(object):
                     return
 
         metadata = {}
-        custom_index_url, extra_index_urls = self.indices(prefix)
+        custom_index_url, extra_index_urls = self.indices()
 
         # build wheels if needed
         debug.conda_exec("Building wheels for PyPI environment %s if necessary" % id_)
@@ -313,11 +314,29 @@ class Pip(object):
         with open(metadata_file, "r") as file:
             return json.loads(file.read())
 
-    def indices(self, prefix):
+    def indices(self):
         indices = []
         extra_indices = []
         try:
-            config = self._call(prefix, args=["config", "list"], isolated=False)
+            # NOTE: We need to use the hosts Pip and not the one in the conda environment,
+            # as the latter will not have visibility to any site-specific pip configs that the host might have,
+            # because these are bound to the Python interpreter being used.
+            config = (
+                subprocess.check_output(
+                    [
+                        sys.executable,
+                        "-m",
+                        "pip",
+                        "--disable-pip-version-check",
+                        "--no-color",
+                        "config",
+                        "list",
+                    ],
+                    stderr=subprocess.PIPE,
+                )
+                .decode()
+                .strip()
+            )
             for line in config.splitlines():
                 key, value = line.split("=", 1)
                 _, key = key.split(".")
