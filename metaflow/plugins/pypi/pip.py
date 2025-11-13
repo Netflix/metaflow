@@ -10,6 +10,7 @@ from urllib.parse import unquote
 
 from metaflow.debug import debug
 from metaflow.exception import MetaflowException
+from metaflow.util import which
 
 from .micromamba import Micromamba
 from .utils import pip_tags, wheel_tags, markers_from_platform, conda_platform
@@ -60,6 +61,9 @@ class Pip(object):
         else:
             self.logger = lambda *args, **kwargs: None  # No-op logger if not provided
 
+        # Resolve the host system pip for calls to fetch config
+        self._host_pip = which("pip3") or which("pip")
+
     def _get_resolved_python_version(self, prefix):
         try:
             result = self.micromamba._call(["list", "--prefix", prefix, "--json"])
@@ -91,7 +95,7 @@ class Pip(object):
                     for tag in pip_tags(resolved_python, platform)
                 ]
             )
-            custom_index_url, extra_index_urls = self.indices(prefix)
+            custom_index_url, extra_index_urls = self.indices()
             cmd = [
                 "install",
                 "--dry-run",
@@ -183,7 +187,7 @@ class Pip(object):
                     return
 
         metadata = {}
-        custom_index_url, extra_index_urls = self.indices(prefix)
+        custom_index_url, extra_index_urls = self.indices()
 
         # build wheels if needed
         debug.conda_exec("Building wheels for PyPI environment %s if necessary" % id_)
@@ -313,18 +317,17 @@ class Pip(object):
         with open(metadata_file, "r") as file:
             return json.loads(file.read())
 
-    def indices(self, prefix):
+    def indices(self):
         indices = []
         extra_indices = []
         try:
-            # NOTE: We need to use the hosts Python interpreter and not the one in the conda environment,
-            # as the latter will not have visibility to any site-specific pip configs that the host might have.
+            # NOTE: We need to use the hosts Pip and not the one in the conda environment,
+            # as the latter will not have visibility to any site-specific pip configs that the host might have,
+            # because these are bound to the Python interpreter being used.
             config = (
                 subprocess.check_output(
                     [
-                        "python",
-                        "-m",
-                        "pip",
+                        self._host_pip,
                         "--disable-pip-version-check",
                         "--no-color",
                         "config",
