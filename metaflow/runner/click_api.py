@@ -43,7 +43,7 @@ from metaflow._vendor.click.types import (
 )
 from metaflow.decorators import add_decorator_options
 from metaflow.exception import MetaflowException
-from metaflow.flowspec import _FlowState
+from metaflow.flowspec import FlowStateItems
 from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
 from metaflow.parameters import JSONTypeClass, flow_context
@@ -288,7 +288,7 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
                 and kls.__module__ == module_name
                 and issubclass(kls, FlowSpec)
             ):
-                if flow_cls is not None:
+                if flow_cls is not None and flow_cls != kls:
                     raise MetaflowException(
                         "Multiple FlowSpec classes found in %s" % flow_file
                     )
@@ -556,7 +556,7 @@ class MetaflowAPI(object):
         # We ignore any errors if we don't check the configs in the click API.
 
         # Init all values in the flow mutators and then process them
-        for decorator in self._flow_cls._flow_state.get(_FlowState.FLOW_MUTATORS, []):
+        for decorator in self._flow_cls._flow_state[FlowStateItems.FLOW_MUTATORS]:
             decorator.external_init()
 
         new_cls = self._flow_cls._process_config_decorators(

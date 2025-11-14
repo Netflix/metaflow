@@ -5,7 +5,7 @@ import re
 from functools import partial
 from typing import Any, Callable, Dict, List, NewType, Tuple, TypeVar, Union, overload
 
-from .flowspec import FlowSpec, _FlowState
+from .flowspec import FlowSpec, FlowStateItems
 from .exception import (
     MetaflowInternalError,
     MetaflowException,
@@ -294,7 +294,11 @@ def add_decorator_options(cmd):
 
 
 def flow_decorators(flow_cls):
-    return [d for deco_list in flow_cls._flow_decorators.values() for d in deco_list]
+    return [
+        d
+        for deco_list in flow_cls._flow_state[FlowStateItems.FLOW_DECORATORS].values()
+        for d in deco_list
+    ]
 
 
 class StepDecorator(Decorator):
@@ -492,12 +496,20 @@ def _base_flow_decorator(decofunc, *args, **kwargs):
         cls = args[0]
         if isinstance(cls, type) and issubclass(cls, FlowSpec):
             # flow decorators add attributes in the class dictionary,
-            # _flow_decorators. _flow_decorators is of type `{key:[decos]}`
-            if decofunc.name in cls._flow_decorators and not decofunc.allow_multiple:
+            # cls._flow_state[FlowStateItems.FLOW_DECORATORS]. This is of type `{key:[decos]}`
+            self_flow_decos = cls._flow_state.self_data[FlowStateItems.FLOW_DECORATORS]
+            inherited_flow_decos = cls._flow_state.inherited_data.get(
+                FlowStateItems.FLOW_DECORATORS, {}
+            )
+
+            if (
+                decofunc.name in self_flow_decos
+                or decofunc.name in inherited_flow_decos
+            ) and not decofunc.allow_multiple:
                 raise DuplicateFlowDecoratorException(decofunc.name)
             else:
                 deco_instance = decofunc(attributes=kwargs, statically_defined=True)
-                cls._flow_decorators.setdefault(decofunc.name, []).append(deco_instance)
+                self_flow_decos.setdefault(decofunc.name, []).append(deco_instance)
         else:
             raise BadFlowDecoratorException(decofunc.name)
         return cls
@@ -703,7 +715,8 @@ def _should_skip_decorator_for_spin(
 
 
 def _init(flow, only_non_static=False):
-    for decorators in flow._flow_decorators.values():
+    flow_decos = flow._flow_state[FlowStateItems.FLOW_DECORATORS]
+    for decorators in flow_decos.values():
         for deco in decorators:
             deco.external_init()
 
@@ -729,7 +742,8 @@ def _init_flow_decorators(
     skip_decorators=False,
 ):
     # Since all flow decorators are stored as `{key:[deco]}` we iterate through each of them.
-    for decorators in flow._flow_decorators.values():
+    flow_decos = flow._flow_state[FlowStateItems.FLOW_DECORATORS]
+    for decorators in flow_decos.values():
         # First resolve the `options` for the flow decorator.
         # Options are passed from cli.
         # For example `@project` can take a `--name` / `--branch` from the cli as options.
@@ -789,7 +803,7 @@ def _init_step_decorators(
     # and then the step level ones to maintain a consistent order with how
     # other decorators are run.
 
-    for deco in cls._flow_state.get(_FlowState.FLOW_MUTATORS, []):
+    for deco in cls._flow_state[FlowStateItems.FLOW_MUTATORS]:
         if isinstance(deco, FlowMutator):
             inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
             mutable_flow = MutableFlow(
@@ -811,8 +825,7 @@ def _init_step_decorators(
             deco.mutate(mutable_flow)
             # We reset cached_parameters on the very off chance that the user added
             # more configurations based on the configuration
-            if _FlowState.CACHED_PARAMETERS in cls._flow_state:
-                del cls._flow_state[_FlowState.CACHED_PARAMETERS]
+            cls._flow_state[FlowStateItems.CACHED_PARAMETERS] = None
         else:
             raise MetaflowInternalError(
                 "A non FlowMutator found in flow custom decorators"
