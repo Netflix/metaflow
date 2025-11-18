@@ -7,7 +7,11 @@ import base64
 def generate_input_paths(input_paths, skippable_steps):
     # => run_id/step/:foo,bar
     # input_paths are base64 encoded due to Argo shenanigans
-    decoded = base64.b64decode(input_paths).decode("utf-8")
+    try:
+        decoded = base64.b64decode(input_paths).decode("utf-8")
+    except Exception:
+        # input_paths might not be base64 encoded inside foreach tasks
+        decoded = input_paths
     paths = decompress_list(decoded)
 
     # some of the paths are going to be malformed due to never having executed per conditional.

@@ -1899,12 +1899,19 @@ class ArgoWorkflows(object):
                     "export INPUT_PATHS={{inputs.parameters.input-paths}}"
                 )
                 if (
-                    self._is_conditional_join_node(node)
-                    or self._many_in_funcs_all_conditional(node)
-                    or self._is_conditional_skip_node(node)
-                ) and not (
-                    node.type == "join"
-                    and self.graph[node.split_parents[-1]].type == "foreach"
+                    (
+                        self._is_conditional_join_node(node)
+                        or self._many_in_funcs_all_conditional(node)
+                        or self._is_conditional_skip_node(node)
+                    )
+                    and not (
+                        node.type == "join"
+                        and self.graph[node.split_parents[-1]].type == "foreach"
+                    )
+                    and not (
+                        node.is_inside_foreach
+                        and self.graph[node.out_funcs[0]].type == "join"
+                    )
                 ):
                     # NOTE: Argo template expressions that fail to resolve, output the expression itself as a value.
                     # With conditional steps, some of the input-paths are therefore 'broken' due to containing a nil expression
