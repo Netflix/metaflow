@@ -1907,11 +1907,11 @@ class ArgoWorkflows(object):
                     and not (
                         node.type == "join"
                         and self.graph[node.split_parents[-1]].type == "foreach"
-                    )
+                    )  # base64 encoding input-paths for foreach joins is unnecessary, as this is simply the task id of the splitting step.
                     and not (
                         node.is_inside_foreach
                         and self.graph[node.out_funcs[0]].type == "join"
-                    )
+                    )  # do not base64 encode the input-paths of a step inside a foreach that leads to a join, as this would not match the task-id generation logic that the join relies on.
                 ):
                     # NOTE: Argo template expressions that fail to resolve, output the expression itself as a value.
                     # With conditional steps, some of the input-paths are therefore 'broken' due to containing a nil expression
