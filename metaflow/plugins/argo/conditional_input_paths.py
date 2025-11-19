@@ -10,7 +10,7 @@ def generate_input_paths(input_paths, skippable_steps):
     try:
         decoded = base64.b64decode(input_paths).decode("utf-8")
     except Exception:
-        # input_paths might not be base64 encoded inside foreach tasks
+        # depending on graph structure, input_paths might not be base64 encoded inside foreach tasks.
         decoded = input_paths
     paths = decompress_list(decoded)
 
