@@ -110,7 +110,7 @@ if __name__ == "__main__":
             [f"--no-install-package {dep}" for dep in skip_metaflow_dependencies()]
         )
         cmd = f"""set -e;
-            uv sync --frozen {skip_pkgs};
+            uv sync --frozen --no-dev {skip_pkgs};
             uv pip install {dependencies} --strict
             """
         run_cmd(cmd)
