@@ -1310,9 +1310,11 @@ class ArgoWorkflows(object):
                 max_error_retries = 0
                 for decorator in node.decorators:
                     user_code_retries, error_retries = decorator.step_task_retry_count()
-                    max_user_code_retries = max(max_user_code_retries, user_code_retries)
+                    max_user_code_retries = max(
+                        max_user_code_retries, user_code_retries
+                    )
                     max_error_retries = max(max_error_retries, error_retries)
-                
+
                 total_retries = max_user_code_retries + max_error_retries
                 if total_retries > 0:
                     parameters.extend(
