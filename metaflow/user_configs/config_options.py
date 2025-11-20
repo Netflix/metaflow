@@ -377,15 +377,18 @@ class ConfigInput:
                 if parser:
                     read_value = self._call_parser(parser, val, is_plain)
                 else:
-                    try:
-                        read_value = json.loads(val)
-                    except json.JSONDecodeError as e:
-                        msgs.append(
-                            "configuration value for '%s' is not valid JSON: %s"
-                            % (name, e)
-                        )
-                        continue
-                    # TODO: Support YAML
+                    if is_plain:
+                        read_value = val
+                    else:
+                        try:
+                            read_value = json.loads(val)
+                        except json.JSONDecodeError as e:
+                            msgs.append(
+                                "configuration value for '%s' is not valid JSON: %s"
+                                % (name, e)
+                            )
+                            continue
+                        # TODO: Support YAML
                 flow_cls._flow_state.self_data[FlowStateItems.CONFIGS][name] = (
                     read_value,
                     True if read_value is None else is_plain,
