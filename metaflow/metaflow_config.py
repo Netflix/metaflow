@@ -26,6 +26,9 @@ DATASTORE_SPIN_LOCAL_DIR = ".metaflow_spin"
 # Local configuration file (in .metaflow) containing overrides per-project
 LOCAL_CONFIG_FILE = "config.json"
 
+# Current runtime configuration
+CURRENT_RUNTIME = from_conf("CURRENT_RUNTIME", "local")
+
 ###
 # Default configuration
 ###
