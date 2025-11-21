@@ -1304,7 +1304,19 @@ class ArgoWorkflows(object):
                         "{{=sprig.int(sprig.sub(sprig.int(inputs.parameters['num-parallel']),1))}}"
                     ),
                 ]
-                if any(d.name == "retry" for d in node.decorators):
+                # Resolve retry strategy to determine if we should add retry-related parameters.
+                # {{retries}} is only available if retryStrategy is specified in the template.
+                max_user_code_retries = 0
+                max_error_retries = 0
+                for decorator in node.decorators:
+                    user_code_retries, error_retries = decorator.step_task_retry_count()
+                    max_user_code_retries = max(
+                        max_user_code_retries, user_code_retries
+                    )
+                    max_error_retries = max(max_error_retries, error_retries)
+
+                total_retries = max_user_code_retries + max_error_retries
+                if total_retries > 0:
                     parameters.extend(
                         [
                             Parameter("retryCount").value("{{retries}}"),
@@ -1899,12 +1911,19 @@ class ArgoWorkflows(object):
                     "export INPUT_PATHS={{inputs.parameters.input-paths}}"
                 )
                 if (
-                    self._is_conditional_join_node(node)
-                    or self._many_in_funcs_all_conditional(node)
-                    or self._is_conditional_skip_node(node)
-                ) and not (
-                    node.type == "join"
-                    and self.graph[node.split_parents[-1]].type == "foreach"
+                    (
+                        self._is_conditional_join_node(node)
+                        or self._many_in_funcs_all_conditional(node)
+                        or self._is_conditional_skip_node(node)
+                    )
+                    and not (
+                        node.type == "join"
+                        and self.graph[node.split_parents[-1]].type == "foreach"
+                    )  # base64 encoding input-paths for foreach joins is unnecessary, as this is simply the task id of the splitting step.
+                    and not (
+                        node.is_inside_foreach
+                        and self.graph[node.out_funcs[0]].type == "join"
+                    )  # do not base64 encode the input-paths of a step inside a foreach that leads to a join, as this would not match the task-id generation logic that the join relies on.
                 ):
                     # NOTE: Argo template expressions that fail to resolve, output the expression itself as a value.
                     # With conditional steps, some of the input-paths are therefore 'broken' due to containing a nil expression
@@ -2374,7 +2393,9 @@ class ArgoWorkflows(object):
                         Parameter("workerCount"),
                     ]
                 )
-                if any(d.name == "retry" for d in node.decorators):
+                # {{retries}} is only available if retryStrategy is specified in the template.
+                # Only add retryCount input parameter if total_retries > 0.
+                if total_retries > 0:
                     inputs.append(Parameter("retryCount"))
 
             if node.is_inside_foreach and self.graph[node.out_funcs[0]].type == "join":
