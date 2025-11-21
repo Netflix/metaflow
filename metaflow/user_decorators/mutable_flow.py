@@ -22,11 +22,15 @@ class MutableFlow:
         pre_mutate: bool = False,
         statically_defined: bool = False,
         inserted_by: Optional[str] = None,
+        mutator: Optional[
+            "metaflow.user_decorators.user_flow_decorator.FlowMutator"
+        ] = None,
     ):
         self._flow_cls = flow_spec
         self._pre_mutate = pre_mutate
         self._statically_defined = statically_defined
         self._inserted_by = inserted_by
+        self._mutator = mutator
         if self._inserted_by is None:
             # This is an error because MutableSteps should only be created by
             # StepMutators or FlowMutators. We need to catch it now because otherwise
@@ -139,6 +143,35 @@ class MutableFlow:
             yield var, param
 
     @property
+    def tl_options(self) -> Dict[str, Any]:
+        """
+        Get the top-level CLI options for this mutator.
+
+        Returns a dictionary of option names to values that were passed via the CLI.
+        This allows mutators to access their own top-level options similar to how
+        they can access configs and parameters.
+
+        Example:
+        ```
+        class MyMutator(FlowMutator):
+            options = {
+                'my-option': {'default': 'value', 'help': 'My option'}
+            }
+
+            def pre_mutate(self, mutable_flow):
+                # Access the option value
+                val = mutable_flow.tl_options.get('my-option')
+                print(f'Option value: {val}')
+        ```
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary of option names to values
+        """
+        return self._mutator._option_values if self._mutator else {}
+
+    @property
     def steps(
         self,
     ) -> Generator[
@@ -189,6 +222,7 @@ class MutableFlow:
                 "method and not the `mutate` method" % (name, self._inserted_by)
             )
         from metaflow.parameters import Parameter
+        from metaflow.flowspec import _FlowState
 
         if hasattr(self._flow_cls, name) and not overwrite:
             raise MetaflowException(
@@ -203,6 +237,7 @@ class MutableFlow:
             )
         debug.userconf_exec("Mutable flow adding parameter %s to flow" % name)
         setattr(self._flow_cls, name, value)
+        self._flow_cls._flow_state.pop(_FlowState.CACHED_PARAMETERS, None)
 
     def remove_parameter(self, parameter_name: str) -> bool:
         """
