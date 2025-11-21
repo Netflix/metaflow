@@ -1,5 +1,5 @@
 """
-Pytest configuration for inheritance tests.
+Pytest configuration for Config tests.
 
 Provides fixtures to run flows and access their results.
 """
@@ -47,26 +47,10 @@ def create_flow_fixture(flow_name, flow_file, run_params=None, runner_params=Non
 
 
 # Create fixtures for each test flow
-comprehensive_linear_run = pytest.fixture(scope="session")(
-    create_flow_fixture("ComprehensiveLinearFlow", "comprehensive_linear_flow.py")
+config_naming_run = pytest.fixture(scope="session")(
+    create_flow_fixture("ConfigNamingFlow", "config_naming_flow.py")
 )
 
-mutator_with_base_config_run = pytest.fixture(scope="session")(
-    create_flow_fixture("MutatorWithBaseConfigFlow", "mutator_with_base_config_flow.py")
-)
-
-mutator_with_derived_config_run = pytest.fixture(scope="session")(
-    create_flow_fixture(
-        "MutatorWithDerivedConfigFlow", "mutator_with_derived_config_flow.py"
-    )
-)
-
-comprehensive_diamond_run = pytest.fixture(scope="session")(
-    create_flow_fixture("ComprehensiveDiamondFlow", "comprehensive_diamond_flow.py")
-)
-
-comprehensive_multi_hierarchy_run = pytest.fixture(scope="session")(
-    create_flow_fixture(
-        "ComprehensiveMultiHierarchyFlow", "comprehensive_multi_hierarchy_flow.py"
-    )
+config_plain_run = pytest.fixture(scope="session")(
+    create_flow_fixture("ConfigPlainFlow", "config_plain_flow.py")
 )
