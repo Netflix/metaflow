@@ -1,7 +1,7 @@
 import importlib
 import json
 import os
-
+from collections.abc import Mapping
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from metaflow._vendor import click
@@ -157,7 +157,7 @@ class ConfigInput:
         # Special mark to indicate that the configuration value is not content or a file
         # name but a value that should be read in the config file (effectively where
         # the value has already been materialized).
-        return "kv." + name.lower()
+        return "kv." + name
 
     @classmethod
     def set_config_file(cls, config_file: str):
@@ -186,7 +186,7 @@ class ConfigInput:
         click_obj: Optional[Any] = None,
     ):
         from ..cli import echo_always, echo_dev_null  # Prevent circular import
-        from ..flowspec import _FlowState  # Prevent circular import
+        from ..flowspec import FlowStateItems  # Prevent circular import
 
         flow_cls = getattr(current_flow, "flow_cls", None)
         if flow_cls is None:
@@ -225,13 +225,13 @@ class ConfigInput:
         # and is clearer
         if param_name == "config_value":
             self._value_values = {
-                k.lower(): v
+                k: v
                 for k, v in param_value.items()
                 if v is not None and not v.startswith(_CONVERTED_DEFAULT)
             }
         else:
             self._path_values = {
-                k.lower(): v
+                k: v
                 for k, v in param_value.items()
                 if v is not None and not v.startswith(_CONVERTED_DEFAULT)
             }
@@ -260,7 +260,6 @@ class ConfigInput:
             for k in all_keys
         )
 
-        flow_cls._flow_state[_FlowState.CONFIGS] = {}
         to_return = {}
 
         if not has_all_kv:
@@ -287,7 +286,7 @@ class ConfigInput:
             merged_configs = {}
             # Now look at everything (including defaults)
             for name, (val, is_path) in self._defaults.items():
-                n = name.lower()
+                n = name
                 if n in all_values:
                     # We have the value provided by the user -- use that.
                     merged_configs[n] = all_values[n]
@@ -332,7 +331,10 @@ class ConfigInput:
             if val is None:
                 missing_configs.add(name)
                 to_return[name] = None
-                flow_cls._flow_state[_FlowState.CONFIGS][name] = None
+                flow_cls._flow_state.self_data[FlowStateItems.CONFIGS][name] = (
+                    None,
+                    True,
+                )
                 continue
             if val.startswith(_CONVERTED_NO_FILE):
                 no_file.append(name)
@@ -341,13 +343,14 @@ class ConfigInput:
                 no_default_file.append(name)
                 continue
 
+            parser, is_plain = self._parsers[name]
             val = val[len(_CONVERT_PREFIX) :]  # Remove the _CONVERT_PREFIX
             if val.startswith(_DEFAULT_PREFIX):  # Remove the _DEFAULT_PREFIX if needed
                 val = val[len(_DEFAULT_PREFIX) :]
             if val.startswith("kv."):
                 # This means to load it from a file
                 try:
-                    read_value = self.get_config(val[3:])
+                    read_value, read_is_plain = self.get_config(val[3:])
                 except KeyError as e:
                     exc = click.UsageError(
                         "Could not find configuration '%s' in INFO file" % val
@@ -356,26 +359,44 @@ class ConfigInput:
                         click_obj.delayed_config_exception = exc
                         return None
                     raise exc from e
-                flow_cls._flow_state[_FlowState.CONFIGS][name] = read_value
+                if read_is_plain != is_plain:
+                    raise click.UsageError(
+                        "Configuration '%s' mismatched `plain` attribute -- "
+                        "this is a bug, please report it." % val[3:]
+                    )
+                flow_cls._flow_state.self_data[FlowStateItems.CONFIGS][name] = (
+                    read_value,
+                    True if read_value is None else is_plain,
+                )
                 to_return[name] = (
-                    ConfigValue(read_value) if read_value is not None else None
+                    read_value
+                    if read_value is None or is_plain
+                    else ConfigValue(read_value)
                 )
             else:
-                if self._parsers[name]:
-                    read_value = self._call_parser(self._parsers[name], val)
+                if parser:
+                    read_value = self._call_parser(parser, val, is_plain)
                 else:
-                    try:
-                        read_value = json.loads(val)
-                    except json.JSONDecodeError as e:
-                        msgs.append(
-                            "configuration value for '%s' is not valid JSON: %s"
-                            % (name, e)
-                        )
-                        continue
-                    # TODO: Support YAML
-                flow_cls._flow_state[_FlowState.CONFIGS][name] = read_value
+                    if is_plain:
+                        read_value = val
+                    else:
+                        try:
+                            read_value = json.loads(val)
+                        except json.JSONDecodeError as e:
+                            msgs.append(
+                                "configuration value for '%s' is not valid JSON: %s"
+                                % (name, e)
+                            )
+                            continue
+                        # TODO: Support YAML
+                flow_cls._flow_state.self_data[FlowStateItems.CONFIGS][name] = (
+                    read_value,
+                    True if read_value is None else is_plain,
+                )
                 to_return[name] = (
-                    ConfigValue(read_value) if read_value is not None else None
+                    read_value
+                    if read_value is None or is_plain
+                    else ConfigValue(read_value)
                 )
 
         reqs = missing_configs.intersection(self._req_configs)
@@ -420,7 +441,7 @@ class ConfigInput:
         return "ConfigInput"
 
     @staticmethod
-    def _call_parser(parser, val):
+    def _call_parser(parser, val, is_plain):
         if isinstance(parser, str):
             if len(parser) and parser[0] == ".":
                 parser = "metaflow" + parser
@@ -435,7 +456,13 @@ class ConfigInput:
                     "Parser %s is either not part of %s or not a callable"
                     % (func, path)
                 )
-        return parser(val)
+        return_value = parser(val)
+        if not is_plain and not isinstance(return_value, Mapping):
+            raise ValueError(
+                "Parser %s returned a value that is not a mapping (got type %s): %s"
+                % (str(parser), type(return_value), return_value)
+            )
+        return return_value
 
 
 class LocalFileInput(click.Path):
@@ -471,23 +498,22 @@ def config_options_with_config_input(cmd):
     # List all the configuration options
     for arg in parameters[::-1]:
         kwargs = arg.option_kwargs(False)
-        if arg.name.lower() in config_seen:
+        if arg.name in config_seen:
             msg = (
-                "Multiple configurations use the same name '%s'. Note that names are "
-                "case-insensitive. Please change the "
+                "Multiple configurations use the same name '%s'. Please change the "
                 "names of some of your configurations" % arg.name
             )
             raise MetaflowException(msg)
-        config_seen.add(arg.name.lower())
+        config_seen.add(arg.name)
         if kwargs["required"]:
             required_names.append(arg.name)
 
-        defaults[arg.name.lower()] = (
+        defaults[arg.name] = (
             arg.kwargs.get("default", None),
             arg._default_is_file,
         )
-        help_strs.append("  - %s: %s" % (arg.name.lower(), kwargs.get("help", "")))
-        parsers[arg.name.lower()] = arg.parser
+        help_strs.append("  - %s: %s" % (arg.name, kwargs.get("help", "")))
+        parsers[arg.name] = (arg.parser, arg.kwargs["plain"])
 
     if not config_seen:
         # No configurations -- don't add anything; we set it to False so that it

@@ -55,9 +55,9 @@ UNPACK_KEY = "_unpacked_delayed_"
 
 
 def dump_config_values(flow: "FlowSpec"):
-    from ..flowspec import _FlowState  # Prevent circular import
+    from ..flowspec import FlowStateItems  # Prevent circular import
 
-    configs = flow._flow_state.get(_FlowState.CONFIGS)
+    configs = flow._flow_state[FlowStateItems.CONFIGS]
     if configs:
         return {"user_configs": configs}
     return {}
@@ -344,7 +344,7 @@ class DelayEvaluator(collections.abc.Mapping):
         return c
 
     def __call__(self, ctx=None, deploy_time=False):
-        from ..flowspec import _FlowState  # Prevent circular import
+        from ..flowspec import FlowStateItems  # Prevent circular import
 
         # Two additional arguments are only used by DeployTimeField which will call
         # this function with those two additional arguments. They are ignored.
@@ -379,8 +379,10 @@ class DelayEvaluator(collections.abc.Mapping):
                 to_eval_expr,
                 self._globals or globals(),
                 {
-                    k: ConfigValue(v) if v is not None else None
-                    for k, v in flow_cls._flow_state.get(_FlowState.CONFIGS, {}).items()
+                    k: v if plain_flag or v is None else ConfigValue(v)
+                    for k, (v, plain_flag) in flow_cls._flow_state[
+                        FlowStateItems.CONFIGS
+                    ].items()
                 },
             )
         except NameError as e:
@@ -467,6 +469,13 @@ class Config(Parameter, collections.abc.Mapping):
         If the name starts with a ".", it is assumed to be relative to "metaflow".
     show_default : bool, default True
         If True, show the default value in the help text.
+    plain : bool, default False
+        If True, the configuration value is just returned as is and not converted to
+        a ConfigValue. Use this is you just want to directly access your configuration.
+        Note that modifications are not persisted across steps (ie: ConfigValue prevents
+        modifications and raises and error -- if you have your own object, no error
+        is raised but no modifications are persisted). You can also use this to return
+        any arbitrary object (not just dictionary-like objects).
     """
 
     IS_CONFIG_PARAMETER = True
@@ -485,6 +494,7 @@ class Config(Parameter, collections.abc.Mapping):
         help: Optional[str] = None,
         required: Optional[bool] = None,
         parser: Optional[Union[str, Callable[[str], Dict[Any, Any]]]] = None,
+        plain: Optional[bool] = False,
         **kwargs: Dict[str, str]
     ):
         if default is not None and default_value is not None:
@@ -494,6 +504,7 @@ class Config(Parameter, collections.abc.Mapping):
             )
         self._default_is_file = default is not None
         kwargs["default"] = default if default is not None else default_value
+        kwargs["plain"] = plain
         super(Config, self).__init__(
             name, required=required, help=help, type=str, **kwargs
         )
@@ -507,20 +518,20 @@ class Config(Parameter, collections.abc.Mapping):
         self._delayed_evaluator = None
 
     def load_parameter(self, v):
-        return ConfigValue(v) if v is not None else None
+        return v if v is None or self.kwargs["plain"] else ConfigValue(v)
 
     def _store_value(self, v: Any) -> None:
         self._computed_value = v
 
     def _init_delayed_evaluator(self) -> None:
         if self._delayed_evaluator is None:
-            self._delayed_evaluator = DelayEvaluator(self.name.lower())
+            self._delayed_evaluator = DelayEvaluator(self.name)
 
     # Support <config>.<var> syntax
     def __getattr__(self, name):
         # Need to return a new DelayEvaluator everytime because the evaluator will
         # contain the "path" (ie: .name) and can be further accessed.
-        return getattr(DelayEvaluator(self.name.lower()), name)
+        return getattr(DelayEvaluator(self.name), name)
 
     # Next three methods are to implement mapping to support **<config> syntax. We
     # need to be careful, however, to also support a regular `config["key"]` syntax
@@ -537,7 +548,7 @@ class Config(Parameter, collections.abc.Mapping):
         self._init_delayed_evaluator()
         if isinstance(key, str) and key.startswith(UNPACK_KEY):
             return self._delayed_evaluator[key]
-        return DelayEvaluator(self.name.lower())[key]
+        return DelayEvaluator(self.name)[key]
 
 
 def resolve_delayed_evaluator(

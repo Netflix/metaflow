@@ -15,7 +15,7 @@ from .cli_components.utils import LazyGroup, LazyPluginCommandCollection
 from .datastore import FlowDataStore, TaskDataStoreSet
 from .debug import debug
 from .exception import CommandException, MetaflowException
-from .flowspec import _FlowState
+from .flowspec import FlowStateItems
 from .graph import FlowGraph
 from .metaflow_config import (
     DEFAULT_DATASTORE,
@@ -458,12 +458,16 @@ def start(
         # We can now set the the CONFIGS value in the flow properly. This will overwrite
         # anything that may have been passed in by default and we will use exactly what
         # the original flow had. Note that these are accessed through the parameter name
-        ctx.obj.flow._flow_state[_FlowState.CONFIGS].clear()
-        d = ctx.obj.flow._flow_state[_FlowState.CONFIGS]
+        # We need to save the "plain-ness" flag to carry it over
+        config_plain_flags = {
+            k: v[1] for k, v in ctx.obj.flow._flow_state[FlowStateItems.CONFIGS].items()
+        }
+        ctx.obj.flow._flow_state[FlowStateItems.CONFIGS].clear()
+        d = ctx.obj.flow._flow_state[FlowStateItems.CONFIGS]
         for param_name, var_name in zip(config_param_names, config_var_names):
             val = param_ds[var_name]
             debug.userconf_exec("Loaded config %s as: %s" % (param_name, val))
-            d[param_name] = val
+            d[param_name] = (val, config_plain_flags[param_name])
 
     elif getattr(ctx.obj, "delayed_config_exception", None):
         # If we are not doing a resume, any exception we had parsing configs needs to
@@ -471,7 +475,7 @@ def start(
         raise ctx.obj.delayed_config_exception
 
     # Init all values in the flow mutators and then process them
-    for decorator in ctx.obj.flow._flow_state.get(_FlowState.FLOW_MUTATORS, []):
+    for decorator in ctx.obj.flow._flow_mutators:
         decorator.external_init()
 
     new_cls = ctx.obj.flow._process_config_decorators(config_options)
@@ -592,10 +596,10 @@ def start(
         ctx.obj.echo,
         ctx.obj.flow_datastore,
         {
-            k: ConfigValue(v) if v is not None else None
-            for k, v in ctx.obj.flow.__class__._flow_state.get(
-                _FlowState.CONFIGS, {}
-            ).items()
+            k: v if plain_flag or v is None else ConfigValue(v)
+            for k, (v, plain_flag) in ctx.obj.flow.__class__._flow_state[
+                FlowStateItems.CONFIGS
+            ].items()
         },
     )
 
