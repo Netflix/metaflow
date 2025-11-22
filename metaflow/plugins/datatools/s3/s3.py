@@ -1566,7 +1566,11 @@ class S3(object):
             # SlowDown handling) so we never inject a failure rate
             if mode == "list":
                 return 0
-            # Otherwise, we cap the failure rate at 90%
+            # Otherwise, we cap the failure rate at 90% to avoid excessive retries
+            # in normal testing scenarios. However, if explicitly set to 100,
+            # respect that for testing retry exhaustion paths.
+            if self._s3_inject_failures >= 100:
+                return self._s3_inject_failures
             return min(90, self._s3_inject_failures)
 
         transient_retry_count = 0  # Number of transient retries (per top-level retry)
@@ -1811,4 +1815,13 @@ class S3(object):
 
         # At this point, we check out_lines; strip None which can happen for puts that
         # didn't upload files
+
+        # If there are still pending retries after exhausting all attempts, report error
+        if len(pending_retries) > 0 and err_out is None:
+            err_out = (
+                "S3 operation failed after exhausting all %d transient retry attempts. "
+                "%d operations failed."
+                % (S3_TRANSIENT_RETRY_COUNT, len(pending_retries))
+            )
+
         return [o for o in out_lines if o is not None], err_out
