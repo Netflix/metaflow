@@ -210,6 +210,7 @@ DATATOOLS_LOCALROOT = from_conf(
 
 # Secrets Backend - AWS Secrets Manager configuration
 AWS_SECRETS_MANAGER_DEFAULT_REGION = from_conf("AWS_SECRETS_MANAGER_DEFAULT_REGION")
+AWS_SECRETS_MANAGER_DEFAULT_ROLE = from_conf("AWS_SECRETS_MANAGER_DEFAULT_ROLE")
 
 # Secrets Backend - GCP Secrets name prefix. With this, users don't have
 # to specify the full secret name in the @secret decorator.
