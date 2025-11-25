@@ -1678,18 +1678,22 @@ class S3(object):
                     # Check if we want to inject failures (for testing)
                     if inject_failures > 0:
                         addl_cmdline.extend(["--inject-failure", str(inject_failures)])
-                        # Logic here is to have higher and lower failure rates to try to
-                        # exercise as much of the code as possible. The failure rate
-                        # trends towards 0.
-                        if loop_count % 2 == 0:
-                            inject_failures = int(inject_failures / 3)
-                        else:
-                            # We cap at 90 (and not 100) for injection of failures to
-                            # reduce the likelihood of having flaky test. If the
-                            # failure injection rate is too high, this can cause actual
-                            # retries more often and then lead to too many actual
-                            # retries
-                            inject_failures = min(90, int(inject_failures * 1.5))
+                        # When testing retry exhaustion (inject_failure_rate >= 100),
+                        # keep the failure rate constant. Otherwise vary it to exercise
+                        # different code paths.
+                        if self._s3_inject_failures < 100:
+                            # Logic here is to have higher and lower failure rates to try to
+                            # exercise as much of the code as possible. The failure rate
+                            # trends towards 0.
+                            if loop_count % 2 == 0:
+                                inject_failures = int(inject_failures / 3)
+                            else:
+                                # We cap at 90 (and not 100) for injection of failures to
+                                # reduce the likelihood of having flaky test. If the
+                                # failure injection rate is too high, this can cause actual
+                                # retries more often and then lead to too many actual
+                                # retries
+                                inject_failures = min(90, int(inject_failures * 1.5))
                     try:
                         debug.s3client_exec(cmdline + addl_cmdline)
                         # Run the operation.
