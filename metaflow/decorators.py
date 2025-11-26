@@ -495,6 +495,14 @@ def _base_flow_decorator(decofunc, *args, **kwargs):
         # The first argument is the class to be decorated.
         cls = args[0]
 
+        """
+        When stacking decorators, cls may be another FlowMutator, for example
+
+        @flow_decorator
+        @flow_mutator
+        class MyFlow(FlowSpec):
+            ...
+        """
         if isinstance(cls, (FlowMutator,)):
             cls = cls._flow_cls
 
