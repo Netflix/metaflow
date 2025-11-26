@@ -149,10 +149,10 @@ class FlowMutator(metaclass=FlowMutatorMeta):
                 self._set_flow_cls(args[0]._flow_cls)
             self._args = self._args[1:]  # Remove the first argument
 
-            # When a flow mutator is used behind a flow decorator wrapped by 
+            # When a flow mutator is used behind a flow decorator wrapped by
             # metaflow/decorators.py::_base_flow_decorator(), on the same
             # Flow, the mutator will be treated as a decorated (target) class
-            # by the flow decorator. 
+            # by the flow decorator.
             # We add this mechanism in this line, coupled with the unwrapping
             # loop at _base_flow_decorator(), to ensure the flow decorator
             # can correct target the actual FlowSpec class.
