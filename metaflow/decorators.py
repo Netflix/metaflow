@@ -495,15 +495,8 @@ def _base_flow_decorator(decofunc, *args, **kwargs):
         # The first argument is the class to be decorated.
         cls = args[0]
 
-        # When a flow mutator is used behind a flow decorator wrapped by
-        # metaflow/decorators.py::_base_flow_decorator(), on the same
-        # Flow, the mutator will be treated as a decorated (target) class
-        # by the flow decorator.
-        # We added a __wrapped__ attribute in the mutator's __init__,
-        # coupled with the unwrapping here, to ensure the flow decorator can
-        # correct target the actual FlowSpec class.
-        while hasattr(cls, "__wrapped__"):
-            cls = cls.__wrapped__
+        if isinstance(cls, (FlowMutator,)):
+            cls = cls._flow_cls
 
         if isinstance(cls, type) and issubclass(cls, FlowSpec):
             # flow decorators add attributes in the class dictionary,
