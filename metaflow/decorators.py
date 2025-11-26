@@ -494,6 +494,18 @@ def _base_flow_decorator(decofunc, *args, **kwargs):
         # No keyword arguments specified for the decorator, e.g. @foobar.
         # The first argument is the class to be decorated.
         cls = args[0]
+
+        """
+        When stacking decorators, cls may be another FlowMutator, for example
+
+        @flow_decorator
+        @flow_mutator
+        class MyFlow(FlowSpec):
+            ...
+        """
+        if isinstance(cls, (FlowMutator,)):
+            cls = cls._flow_cls
+
         if isinstance(cls, type) and issubclass(cls, FlowSpec):
             # flow decorators add attributes in the class dictionary,
             # cls._flow_state[FlowStateItems.FLOW_DECORATORS]. This is of type `{key:[decos]}`
