@@ -148,9 +148,6 @@ class FlowMutator(metaclass=FlowMutatorMeta):
             else:
                 self._set_flow_cls(args[0]._flow_cls)
             self._args = self._args[1:]  # Remove the first argument
-            
-            #### TESTING FIX
-            #### TODO: add explanation of this.
             self.__wrapped__ = args[0]
 
     def __mro_entries__(self, bases):
