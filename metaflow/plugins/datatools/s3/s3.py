@@ -1598,7 +1598,7 @@ class S3(object):
         # Use the maximum of both retry counts to ensure consistent behavior
         # between single-op and multi-op cases
         max_retry_count = max(S3_TRANSIENT_RETRY_COUNT, S3_RETRY_COUNT)
-        transient_retry_count = 0  # Number of transient retries (per top-level retry)
+        transient_retry_count = 0  # Number of transient retries
         inject_failures = _inject_failure_rate()
         out_lines = []  # List to contain the lines returned by _s3op_with_retries
         pending_retries = (
@@ -1712,15 +1712,11 @@ class S3(object):
                         return (len(ok_lines), 0, inject_failures, None, None)
                     except subprocess.CalledProcessError as ex:
                         if ex.returncode == s3op.ERROR_TRANSIENT:
-                            # In this special case, we failed transiently on *some* of
-                            # the files but not necessarily all. This is typically
-                            # caused by limits on the number of operations that can
-                            # occur per second or some other temporary limitation.
-                            # We will retry only those that we failed on and we will not
-                            # count this as a retry *unless* we are making no forward
-                            # progress. In effect, we consider that as long as *some*
-                            # operations are going through, we should just keep going as
-                            # if it was a single operation.
+                            # Transient failure occurred on some operations, but not all.
+                            # This is typically caused by rate limits or temporary service issues.
+                            # We retry only the failed operations without incrementing the retry count,
+                            # unless no forward progress is made. As long as some operations succeed,
+                            # we continue as if it was a single continuous operation.
                             ok_lines = ex.stdout.splitlines()
                             stderr.seek(0)
                             do_output = False
