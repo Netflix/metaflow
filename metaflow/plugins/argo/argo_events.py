@@ -58,7 +58,7 @@ class ArgoEvent(object):
             Value
         """
 
-        self._payload[key] = value
+        self._payload[key] = str(value)
         return self
 
     def safe_publish(self, payload=None, ignore_errors=True):
