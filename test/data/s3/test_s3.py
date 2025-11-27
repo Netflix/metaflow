@@ -17,6 +17,7 @@ from metaflow.plugins.datatools.s3 import (
     MetaflowS3NotFound,
     MetaflowS3URLException,
     MetaflowS3InvalidObject,
+    MetaflowS3Exception,
     S3PutObject,
     S3GetObject,
 )
@@ -1053,3 +1054,26 @@ def test_list_recursive_sibling_prefix_filtering(s3root, inject_failure_rate):
         assert objects[0].url.endswith(
             "/log/test.txt"
         ), f"Expected object to end with '/log/test.txt', got: {objects[0].url}"
+
+
+def test_put_many_exhausted_retries(s3root, monkeypatch):
+    """Test that put_many raises exception when transient retries are exhausted."""
+    import metaflow.plugins.datatools.s3.s3 as s3_module
+
+    # Set retry count to 0 to immediately exhaust retries
+    # monkeypatch automatically restores the original value after the test
+    monkeypatch.setattr(s3_module, "S3_TRANSIENT_RETRY_COUNT", 0)
+
+    test_prefix = f"test_retry_exhaustion_{uuid4().hex}"
+    test_root = os.path.join(s3root, test_prefix)
+
+    test_data = [
+        ("file1.txt", "test data 1"),
+        ("file2.txt", "test data 2"),
+        ("file3.txt", "test data 3"),
+    ]
+
+    # With inject_failure_rate=100 and 0 retries, all uploads should fail
+    with S3(s3root=test_root, inject_failure_rate=100) as s3:
+        with pytest.raises(MetaflowS3Exception, match="failed"):
+            s3.put_many(test_data)
