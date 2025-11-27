@@ -1,5 +1,5 @@
 import os
-import imp
+import importlib.util
 from tempfile import NamedTemporaryFile
 
 from .util import to_bytes
@@ -100,7 +100,9 @@ def run(
     full_cmdline[0] = os.path.basename(full_cmdline[0])
     with NamedTemporaryFile(prefix="metaflowR.", delete=False) as tmp:
         tmp.write(to_bytes(flow_script))
-    module = imp.load_source("metaflowR", tmp.name)
+    spec = importlib.util.spec_from_file_location("metaflowR", tmp.name)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
     flow = module.FLOW(use_cli=False)
 
     from . import exception
