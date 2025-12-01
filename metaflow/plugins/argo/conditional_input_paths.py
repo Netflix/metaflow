@@ -20,12 +20,15 @@ def generate_input_paths(input_paths, skippable_steps):
     # all pathspecs of leading steps that executed.
     trimmed = [path for path in paths if not "{{" in path]
 
+    # If the input-path is from a conditional, we want to pick the one that is last-in-line in the DAG.
+    # The order of graph parsing ensures that the steps are in reverse order of occurence, so the first one is the latest.
+    latest_conditional_in_graph = trimmed[:1]
     # pathspecs of leading steps that are conditional, and should be used instead of non-conditional ones
     # e.g. the case of skipping switches: start -> case_step -> conditional_a or end
     conditionals = [
         path for path in trimmed if not any(step in path for step in skippable_steps)
     ]
-    pathspecs_to_use = conditionals if conditionals else trimmed
+    pathspecs_to_use = conditionals if conditionals else latest_conditional_in_graph
     return compress_list(pathspecs_to_use, zlibmin=inf)
 
 
