@@ -1439,10 +1439,16 @@ class ArgoWorkflows(object):
                     or self._is_conditional_skip_node(node)
                     or self._is_conditional_join_node(node)
                 ) and switch_in_funcs:
+                    # It is possible that the some of the leading steps did not execute at all. In this case the switch-step output would be missing and needs to be accounted for.
+                    # NOTE: Due to an issue in Argo Workflows 'when' clauses, we can not use ternaries or 'safe' getters directly on a tasks['step-name'] due to this leading to errors when the step has not executed.
                     conditional_when = "||".join(
                         [
-                            "{{tasks.%s.outputs.parameters.switch-step}}==%s"
-                            % (self._sanitize(switch_in_func), node.name)
+                            "({{=(tasks['%s'].status == 'Succeeded' ? tasks['%s'].outputs.parameters['switch-step'] : nil) == '%s'}})"
+                            % (
+                                self._sanitize(switch_in_func),
+                                self._sanitize(switch_in_func),
+                                node.name,
+                            )
                             for switch_in_func in switch_in_funcs
                         ]
                     )
