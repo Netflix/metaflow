@@ -57,25 +57,13 @@ from metaflow.user_configs.config_options import (
 )
 from metaflow.user_decorators.user_flow_decorator import FlowMutator
 
+# Import Click type mappings from config (allows extensions to add custom types)
+from metaflow.metaflow_config import get_click_to_python_types
+
+click_to_python_types = get_click_to_python_types()
+
 # Define a recursive type alias for JSON
 JSON = Union[Dict[str, "JSON"], List["JSON"], str, int, float, bool, None]
-
-click_to_python_types = {
-    StringParamType: str,
-    IntParamType: int,
-    FloatParamType: float,
-    BoolParamType: bool,
-    UUIDParameterType: uuid.UUID,
-    Path: str,
-    DateTime: datetime.datetime,
-    Tuple: tuple,
-    Choice: str,
-    File: str,
-    JSONTypeClass: JSON,
-    FilePathClass: str,
-    LocalFileInput: str,
-    MultipleTuple: TTuple[str, Union[JSON, ConfigValue]],
-}
 
 
 def _method_sanity_check(
