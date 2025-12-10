@@ -136,7 +136,9 @@ class ConfigPlainFlow(FlowSpec):
         assert (
             self.plain_none_config is None
         ), f"Expected None, got {self.plain_none_config}"
+        print(f"✓ Plain None config validated")
         assert self.none_config is None, f"Expected None, got {self.none_config}"
+        print(f"✓ Non-plain None config validated")
         self.next(self.end)
 
     @step

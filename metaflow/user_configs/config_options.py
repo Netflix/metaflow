@@ -366,7 +366,7 @@ class ConfigInput:
                     )
                 flow_cls._flow_state.self_data[FlowStateItems.CONFIGS][name] = (
                     read_value,
-                    True if read_value is None else is_plain,
+                    is_plain,
                 )
                 to_return[name] = (
                     read_value
@@ -391,7 +391,7 @@ class ConfigInput:
                         # TODO: Support YAML
                 flow_cls._flow_state.self_data[FlowStateItems.CONFIGS][name] = (
                     read_value,
-                    True if read_value is None else is_plain,
+                    is_plain,
                 )
                 to_return[name] = (
                     read_value
