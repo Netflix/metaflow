@@ -330,11 +330,11 @@ class CondaFlowDecorator(FlowDecorator):
         decorators._attach_decorators(flow, ["conda"])
         decorators._process_late_attached_decorator(
             ["conda"],
-            obj.flow,
-            obj.graph,
-            obj.environment,
-            obj.flow_datastore,
-            obj.logger,
+            flow,
+            graph,
+            environment,
+            flow_datastore,
+            logger,
         )
 
         # @conda uses a conda environment to create a virtual environment.

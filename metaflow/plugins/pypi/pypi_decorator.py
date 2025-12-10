@@ -143,11 +143,11 @@ class PyPIFlowDecorator(FlowDecorator):
         decorators._attach_decorators(flow, ["pypi"])
         decorators._process_late_attached_decorator(
             ["pypi"],
-            obj.flow,
-            obj.graph,
-            obj.environment,
-            obj.flow_datastore,
-            obj.logger,
+            flow,
+            graph,
+            environment,
+            flow_datastore,
+            logger,
         )
 
         # @pypi uses a conda environment to create a virtual environment.
