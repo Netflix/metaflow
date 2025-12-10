@@ -713,10 +713,13 @@ def make_flow(
     decorators._attach_decorators(
         obj.flow, [KubernetesDecorator.name, EnvironmentDecorator.name]
     )
-    decorators._init(obj.flow)
-
-    decorators._init_step_decorators(
-        obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
+    decorators._process_late_attached_decorator(
+        [KubernetesDecorator.name, EnvironmentDecorator.name],
+        obj.flow,
+        obj.graph,
+        obj.environment,
+        obj.flow_datastore,
+        obj.logger,
     )
     obj.graph = obj.flow._graph
 
