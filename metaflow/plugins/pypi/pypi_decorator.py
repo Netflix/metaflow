@@ -141,7 +141,14 @@ class PyPIFlowDecorator(FlowDecorator):
         from metaflow import decorators
 
         decorators._attach_decorators(flow, ["pypi"])
-        decorators._init(flow)
+        decorators._process_late_attached_decorator(
+            ["pypi"],
+            obj.flow,
+            obj.graph,
+            obj.environment,
+            obj.flow_datastore,
+            obj.logger,
+        )
 
         # @pypi uses a conda environment to create a virtual environment.
         # The conda environment can be created through micromamba.

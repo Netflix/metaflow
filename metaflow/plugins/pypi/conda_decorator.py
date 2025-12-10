@@ -328,6 +328,14 @@ class CondaFlowDecorator(FlowDecorator):
         from metaflow import decorators
 
         decorators._attach_decorators(flow, ["conda"])
+        decorators._process_late_attached_decorator(
+            ["conda"],
+            obj.flow,
+            obj.graph,
+            obj.environment,
+            obj.flow_datastore,
+            obj.logger,
+        )
 
         # @conda uses a conda environment to create a virtual environment.
         # The conda environment can be created through micromamba.

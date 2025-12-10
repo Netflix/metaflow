@@ -890,6 +890,40 @@ def _init_step_decorators(
             )
 
 
+def _process_late_attached_decorator(
+    deco_names,
+    flow,
+    graph,
+    environment,
+    flow_datastore,
+    logger,
+    is_spin=False,
+    skip_decorators=False,
+):
+
+    for s in flow:
+        for deco in s.decorators:
+            if deco.name in deco_names:
+                deco.external_init()
+
+    for s in flow:
+        for deco in s.decorators:
+            if deco.name in deco_names:
+                if _should_skip_decorator_for_spin(
+                    deco, is_spin, skip_decorators, logger, "Step decorator"
+                ):
+                    continue
+                deco.step_init(
+                    flow,
+                    graph,
+                    s.__name__,
+                    s.decorators,
+                    environment,
+                    flow_datastore,
+                    logger,
+                )
+
+
 FlowSpecDerived = TypeVar("FlowSpecDerived", bound=FlowSpec)
 
 # The StepFlag is a "fake" input item to be able to distinguish
