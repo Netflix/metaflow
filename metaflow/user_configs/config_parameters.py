@@ -494,7 +494,7 @@ class Config(Parameter, collections.abc.Mapping):
         help: Optional[str] = None,
         required: Optional[bool] = None,
         parser: Optional[Union[str, Callable[[str], Dict[Any, Any]]]] = None,
-        plain: Optional[bool] = False,
+        plain: bool = False,
         **kwargs: Dict[str, str]
     ):
         if default is not None and default_value is not None:

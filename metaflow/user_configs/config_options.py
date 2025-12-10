@@ -144,7 +144,7 @@ class ConfigInput:
         self,
         req_configs: List[str],
         defaults: Dict[str, Tuple[Union[str, Dict[Any, Any]], bool]],
-        parsers: Dict[str, Union[str, Callable[[str], Dict[Any, Any]]]],
+        parsers: Dict[str, Tuple[Union[str, Callable[[str], Dict[Any, Any]]], bool]],
     ):
         self._req_configs = set(req_configs)
         self._defaults = defaults
@@ -333,7 +333,7 @@ class ConfigInput:
                 to_return[name] = None
                 flow_cls._flow_state.self_data[FlowStateItems.CONFIGS][name] = (
                     None,
-                    True,
+                    self._parsers[name][1],
                 )
                 continue
             if val.startswith(_CONVERTED_NO_FILE):

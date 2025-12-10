@@ -48,6 +48,15 @@ class ConfigPlainFlow(FlowSpec):
         plain=True,
     )
 
+    # None config and plain flag work properlty
+    plain_none_config = Config(
+        "plain-none-config",
+        default_value=None,
+        plain=True,
+    )
+    # None config works well
+    none_config = Config("none-config", default_value=None)
+
     @step
     def start(self):
         """Access plain configs with different types and validate values."""
@@ -124,6 +133,10 @@ class ConfigPlainFlow(FlowSpec):
             f"✓ Plain tuple validated: {self.plain_tuple_value} (type: {self.plain_tuple_type})"
         )
 
+        assert (
+            self.plain_none_config is None
+        ), f"Expected None, got {self.plain_none_config}"
+        assert self.none_config is None, f"Expected None, got {self.none_config}"
         self.next(self.end)
 
     @step
