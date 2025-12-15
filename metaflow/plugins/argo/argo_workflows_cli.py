@@ -446,7 +446,7 @@ def check_metadata_service_version(obj):
             "version (>= 2.0.2), visit:"
         )
         obj.echo(
-            "    https://docs.outerbounds.com/engineering/operations/migration/"
+            "    https://docs.outerbounds.com/engineering/operations/migration/",
             fg="green",
         )
         obj.echo(
