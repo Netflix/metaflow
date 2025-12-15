@@ -446,8 +446,7 @@ def check_metadata_service_version(obj):
             "version (>= 2.0.2), visit:"
         )
         obj.echo(
-            "    https://admin-docs.metaflow.org/metaflow-on-aws/operation"
-            "s-guide/metaflow-service-migration-guide",
+            "    https://docs.outerbounds.com/engineering/operations/migration/"
             fg="green",
         )
         obj.echo(
