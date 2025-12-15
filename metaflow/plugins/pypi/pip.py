@@ -83,12 +83,13 @@ class Pip(object):
             )
 
         debug.conda_exec("Solving packages for PyPI environment %s" % id_)
+        freethreaded = python.endswith("t")
         with tempfile.TemporaryDirectory() as tmp_dir:
             report = "{tmp_dir}/report.json".format(tmp_dir=tmp_dir)
             implementations, platforms, abis = zip(
                 *[
                     (tag.interpreter, tag.platform, tag.abi)
-                    for tag in pip_tags(resolved_python, platform)
+                    for tag in pip_tags(resolved_python, platform, freethreaded)
                 ]
             )
             custom_index_url, extra_index_urls = self.indices(prefix)
