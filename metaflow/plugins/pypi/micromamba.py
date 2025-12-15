@@ -159,7 +159,9 @@ class Micromamba(object):
         # This is to ensure that no irrelevant packages get bundled relative to the resolved environment.
         # NOTE: download always happens before create, so we want to do the cleanup here instead.
         if self.force_rebuild:
-            shutil.rmtree(self.path_to_environment(id_, platform), ignore_errors=True)
+            env_path = self.path_to_environment(id_, platform)
+            if env_path:
+                shutil.rmtree(env_path, ignore_errors=True)
 
         # cheap check
         if os.path.exists(f"{prefix}/fake.done"):
