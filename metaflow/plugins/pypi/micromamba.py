@@ -132,7 +132,11 @@ class Micromamba(object):
                 version_string = "%s==%s" % (package, version)
                 cmd.append(_double_equal_match.sub("", version_string))
             if python:
-                cmd.append("python==%s" % python)
+                if python.endswith("t"):
+                    cmd.append("python==%s" % python[:-1])
+                    cmd.append("python-freethreading")
+                else:
+                    cmd.append("python==%s" % python)
             # TODO: Ensure a human readable message is returned when the environment
             #       can't be resolved for any and all reasons.
             solved_packages = [
