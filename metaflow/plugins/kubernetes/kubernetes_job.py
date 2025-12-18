@@ -4,10 +4,12 @@ import random
 import time
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import KUBERNETES_SECRETS
+from metaflow.metaflow_config import KUBERNETES_SECRETS, KUBERNETES_JOB_TERMINATE_MODE
 from metaflow.tracing import inject_tracing_vars
 
 CLIENT_REFRESH_INTERVAL_SECONDS = 300
+DELETE_JOB_PROPAGATION_POLICY = "Background"
+DELETE_JOB_TERMINATION_MODE = "delete"
 
 from .kube_utils import qos_requests_and_limits
 from .kubernetes_jobsets import (
@@ -501,6 +503,27 @@ class RunningJob(object):
         # 3. If the pod object hasn't shown up yet, we set the parallelism to 0
         #    to preempt it.
         client = self._client.get()
+        termination_mode = KUBERNETES_JOB_TERMINATE_MODE
+
+        def _kill_pod():
+            try:
+                if termination_mode == DELETE_JOB_TERMINATION_MODE:
+                    client.BatchV1Api().delete_namespaced_job(
+                        name=self._name,
+                        namespace=self._namespace,
+                        propagation_policy=DELETE_JOB_PROPAGATION_POLICY,
+                    )
+                else:
+                    client.BatchV1Api().patch_namespaced_job(
+                        name=self._name,
+                        namespace=self._namespace,
+                        field_manager="metaflow",
+                        body={"spec": {"parallelism": 0}},
+                    )
+            except:
+                # Best effort.
+                pass
+                # raise
 
         if not self.is_done:
             if self.is_running:
@@ -536,31 +559,11 @@ class RunningJob(object):
                     # "Killed" status on the Kubernetes pod.
                     #
                     # This has the effect of pausing the job.
-                    try:
-                        client.BatchV1Api().patch_namespaced_job(
-                            name=self._name,
-                            namespace=self._namespace,
-                            field_manager="metaflow",
-                            body={"spec": {"parallelism": 0}},
-                        )
-                    except:
-                        # Best effort.
-                        pass
-                        # raise
+                    _kill_pod()
             else:
                 # Case 2.
                 # This has the effect of pausing the job.
-                try:
-                    client.BatchV1Api().patch_namespaced_job(
-                        name=self._name,
-                        namespace=self._namespace,
-                        field_manager="metaflow",
-                        body={"spec": {"parallelism": 0}},
-                    )
-                except:
-                    # Best effort.
-                    pass
-                    # raise
+                _kill_pod()
         return self
 
     @property
