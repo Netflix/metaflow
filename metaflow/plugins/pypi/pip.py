@@ -169,6 +169,7 @@ class Pip(object):
     def download(self, id_, packages, python, platform):
         prefix = self.micromamba.path_to_environment(id_)
 
+        freethreaded = python.endswith("t")
         resolved_python = self._get_resolved_python_version(prefix)
         if not resolved_python:
             raise PipException(
@@ -226,9 +227,9 @@ class Pip(object):
                 ]
                 if (
                     len(
-                        set(pip_tags(resolved_python, platform)).intersection(
-                            wheel_tags(wheel)
-                        )
+                        set(
+                            pip_tags(resolved_python, platform, freethreaded)
+                        ).intersection(wheel_tags(wheel))
                     )
                     == 0
                 ):
@@ -248,7 +249,7 @@ class Pip(object):
         implementations, platforms, abis = zip(
             *[
                 (tag.interpreter, tag.platform, tag.abi)
-                for tag in pip_tags(resolved_python, platform)
+                for tag in pip_tags(resolved_python, platform, freethreaded)
             ]
         )
 
