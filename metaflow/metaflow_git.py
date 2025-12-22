@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Get git repository information for the package
 
-Functions to retrieve git repository details like URL, branch name, 
+Functions to retrieve git repository details like URL, branch name,
 and commit SHA for Metaflow code provenance tracking.
 """
 
