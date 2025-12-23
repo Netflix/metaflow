@@ -182,7 +182,7 @@ up: install-brew check-docker install-curl install-gum setup-minikube install-he
 	@echo 'set -e' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'trap "exit" INT TERM' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'trap "kill 0" EXIT' >> $(DEVTOOLS_DIR)/start.sh
-	@echo 'eval $$($(MINIKUBE) docker-env)' >> $(DEVTOOLS_DIR)/start.sh
+	@echo 'eval $$($(MINIKUBE) docker-env --shell bash)' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'if [ -n "$$SERVICES_OVERRIDE" ]; then' >> "$(DEVTOOLS_DIR)/start.sh"
 	@echo '    echo "🌐 Using user-provided list of services: $$SERVICES_OVERRIDE"' >> "$(DEVTOOLS_DIR)/start.sh"
 	@echo '    SERVICES="$$SERVICES_OVERRIDE"' >> "$(DEVTOOLS_DIR)/start.sh"
@@ -259,7 +259,7 @@ shell: setup-tilt
 		echo "🐍 If you installed Metaflow in a virtual environment, activate it now."; \
 		if [ -f "$(DEVTOOLS_DIR)/aws_config" ]; then \
 			env -u AWS_PROFILE \
-				-u AWS_SHARED_CREDENTIALS_FILE \
+				AWS_SHARED_CREDENTIALS_FILE= \
 				METAFLOW_HOME="$(DEVTOOLS_DIR)" \
 				METAFLOW_PROFILE=local \
 				AWS_CONFIG_FILE="$(DEVTOOLS_DIR)/aws_config" \
