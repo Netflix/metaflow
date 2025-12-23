@@ -80,7 +80,7 @@ Set the environment variable `METAFLOW_DEBUG_SUBCOMMAND=1` to see the
 exact command line that is used to launch a subcommand task. You can
 re-execute the task simply by re-executing the command line manually.
 However, be careful when re-executing commands from real runs, as you
-will rewrite data in the datastore. To be safe, preferably rerun only 
+will rewrite data in the datastore. To be safe, preferably rerun only
 commands executed with `--datastore=local` and `--metadata=local`.
 
 You can observe running subprocesses with `ps` and attach to them using
@@ -118,9 +118,9 @@ than TCP.
 
 We send heart beats to metadata service in a sidecar, `heartbeat.py` to
 detect whether the task is alive. Since heart beats are purely informational,
-we didn't want to increase the latency of the main process due to these 
-service calls, nor we wanted to fail the whole parent process in case of a 
-request failing. A sidecar that handles communication with the metadata 
+we didn't want to increase the latency of the main process due to these
+service calls, nor we wanted to fail the whole parent process in case of a
+request failing. A sidecar that handles communication with the metadata
 service was a perfect solution.
 
 #### How to Observe
@@ -206,8 +206,8 @@ tasks is very easy and practically zero-cost.
 
 #### Example Uses
 
-Many sidecars, e.g. `heartbeat.py`, use a separate worker thread to make 
-sure that the main process consuming messages from the parent will not 
+Many sidecars, e.g. `heartbeat.py`, use a separate worker thread to make
+sure that the main process consuming messages from the parent will not
 block for an extended amount of time.
 
 ### 5. Multiprocessing

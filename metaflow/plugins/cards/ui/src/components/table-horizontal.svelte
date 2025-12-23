@@ -1,4 +1,4 @@
-<!-- This is the standard table component.  It will attempt to make fixed headers, and 
+<!-- This is the standard table component.  It will attempt to make fixed headers, and
       allow you to scroll -->
 <script lang="ts">
   import type * as types from "../types";

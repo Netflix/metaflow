@@ -14,7 +14,7 @@ test_that("@batch parses correctly", {
 
 test_that("@resources wrapper parsed correctly", {
   skip_if_no_metaflow()
-  
+
   actual <- resources()[1]
   expected <- paste0("@resources(",
                      "cpu=1, ",
@@ -23,7 +23,7 @@ test_that("@resources wrapper parsed correctly", {
                      "shared_memory=None",
                      ")")
   expect_equal(actual, expected)
-  
+
   expect_match(resources(gpu = 1)[1], "gpu=1")
   expect_match(resources(memory = 60000)[1], "memory=60000")
 })
@@ -36,7 +36,7 @@ test_that("@batch wrapper parsed correctly", {
   pkg.env$mf$metaflow_config$BATCH_JOB_QUEUE <- "foo"
   pkg.env$mf$metaflow_config$ECS_S3_ACCESS_IAM_ROLE <- "bar"
   pkg.env$mf$metaflow_config$ECS_FARGATE_EXECUTION_ROLE <- "baz"
-  
+
   actual <- batch()[1]
   expected <- paste0("@batch(",
                        "cpu=1, ",
@@ -51,7 +51,7 @@ test_that("@batch wrapper parsed correctly", {
                        "swappiness=None",
                      ")")
   expect_equal(actual, expected)
-  
+
   expect_match(batch(gpu = 1)[1], "gpu=1")
   expect_match(batch(iam_role = "cassowary")[1], "iam_role='cassowary'")
 })

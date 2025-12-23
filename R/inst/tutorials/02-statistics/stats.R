@@ -14,13 +14,13 @@ compute_stats <- function(self){
     self$genre <- self$input
     message("Computing statistics for ", self$genre)
 
-    # Find all the movies that have this genre 
+    # Find all the movies that have this genre
     self$df_by_genre <- self$df[self$df$genre == self$genre, ]
 
     gross <- self$df_by_genre$gross
 
     # Get some statistics on the gross box office for these titles.
-    self$median <- median(gross) 
+    self$median <- median(gross)
     self$mean <- mean(gross)
 }
 
@@ -30,7 +30,7 @@ join <- function(self, inputs){
         "genres" = unlist(lapply(inputs, function(inp){inp$genre})),
         "median" = unlist(lapply(inputs, function(inp){inp$median})),
         "mean" = unlist(lapply(inputs, function(inp){inp$mean})))
-    
+
     print(head(self$stats))
 }
 
@@ -48,5 +48,5 @@ metaflow("MovieStatsFlow") %>%
          join = TRUE) %>%
     step(step = "end") %>%
     run()
-    
+
 

@@ -9,7 +9,7 @@ install_dep <- function(dep) {
 # dependencies for metaflow
 invisible(lapply(c("R6", "reticulate", "magrittr", "cli", "lubridate", "digest"), install_dep))
 
-# install numpy and pandas in Python to handle R matrix and data.frame 
+# install numpy and pandas in Python to handle R matrix and data.frame
 system("python3 -m pip install numpy pandas -qqq")
 Sys.setenv(METAFLOW_PYTHON = system("which python3", intern=TRUE))
 

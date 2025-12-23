@@ -221,7 +221,7 @@ def list_available_cards(
         cpr = """
         Card Id: %s
         Card Type: %s
-        Card Hash: %s 
+        Card Hash: %s
         Card Path: %s
         """ % (
             path_tuple.id,

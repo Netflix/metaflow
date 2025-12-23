@@ -110,7 +110,7 @@ additional operations:
    identical blobs of data will only be stored once)
  - transforms the data prior to storing; we currently only compress the data but
    other operations are possible.
-   
+
 Data is always de-duplicated, but you can choose to skip the transformation step
 by telling the content address store that the data should be stored `raw` (ie:
 with no transformation). Note that the de-duplication logic happens *prior* to

@@ -8,7 +8,7 @@ test_that("SFN create", {
   run_cmd <- strsplit(trimws(readRDS("run_cmd.RDS")), split=" ")[[1]]
   actual <- paste(run_cmd[3:length(run_cmd)], collapse=" ")
 
-  expected <- "--flowRDS=flow.RDS --no-pylint  step-functions create" 
+  expected <- "--flowRDS=flow.RDS --no-pylint  step-functions create"
 
   expect_equal(actual, expected)
   on.exit(file.remove("run_cmd.RDS"))
@@ -23,7 +23,7 @@ test_that("SFN create --help", {
   run_cmd <- strsplit(trimws(readRDS("run_cmd.RDS")), split=" ")[[1]]
   actual <- paste(run_cmd[3:length(run_cmd)], collapse=" ")
 
-  expected <- "--flowRDS=flow.RDS --no-pylint step-functions create --help" 
+  expected <- "--flowRDS=flow.RDS --no-pylint step-functions create --help"
 
   expect_equal(actual, expected)
   on.exit(file.remove("run_cmd.RDS"))
@@ -38,7 +38,7 @@ test_that("SFN create --package-suffixes", {
   run_cmd <- strsplit(trimws(readRDS("run_cmd.RDS")), split=" ")[[1]]
   actual <- paste(run_cmd[3:length(run_cmd)], collapse=" ")
 
-  expected <- "--flowRDS=flow.RDS --no-pylint --package-suffixes=.csv,.RDS,.R step-functions create" 
+  expected <- "--flowRDS=flow.RDS --no-pylint --package-suffixes=.csv,.RDS,.R step-functions create"
 
   expect_equal(actual, expected)
   on.exit(file.remove("run_cmd.RDS"))
@@ -53,7 +53,7 @@ test_that("SFN create --generate-new-token", {
   run_cmd <- strsplit(trimws(readRDS("run_cmd.RDS")), split=" ")[[1]]
   actual <- paste(run_cmd[3:length(run_cmd)], collapse=" ")
 
-  expected <- "--flowRDS=flow.RDS --no-pylint  step-functions create --generate-new-token" 
+  expected <- "--flowRDS=flow.RDS --no-pylint  step-functions create --generate-new-token"
 
   expect_equal(actual, expected)
   on.exit(file.remove("run_cmd.RDS"))
@@ -68,7 +68,7 @@ test_that("SFN create --generate-new-token --max-workers 100 --lr 0.01", {
   run_cmd <- strsplit(trimws(readRDS("run_cmd.RDS")), split=" ")[[1]]
   actual <- paste(run_cmd[3:length(run_cmd)], collapse=" ")
 
-  expected <- "--flowRDS=flow.RDS --no-pylint  step-functions create --generate-new-token --max-workers 100 --lr 0.01" 
+  expected <- "--flowRDS=flow.RDS --no-pylint  step-functions create --generate-new-token --max-workers 100 --lr 0.01"
   expect_equal(actual, expected)
   on.exit(file.remove("run_cmd.RDS"))
 })
@@ -83,7 +83,7 @@ test_that("SFN trigger", {
   run_cmd <- strsplit(trimws(readRDS("run_cmd.RDS")), split=" ")[[1]]
   actual <- paste(run_cmd[3:length(run_cmd)], collapse=" ")
 
-  expected <- "--flowRDS=flow.RDS --no-pylint  step-functions trigger" 
+  expected <- "--flowRDS=flow.RDS --no-pylint  step-functions trigger"
 
   expect_equal(actual, expected)
   on.exit(file.remove("run_cmd.RDS"))
@@ -99,7 +99,7 @@ test_that("SFN list-runs --running", {
   run_cmd <- strsplit(trimws(readRDS("run_cmd.RDS")), split=" ")[[1]]
   actual <- paste(run_cmd[3:length(run_cmd)], collapse=" ")
 
-  expected <- "--flowRDS=flow.RDS --no-pylint  step-functions list-runs --running" 
+  expected <- "--flowRDS=flow.RDS --no-pylint  step-functions list-runs --running"
 
   expect_equal(actual, expected)
   on.exit(file.remove("run_cmd.RDS"))

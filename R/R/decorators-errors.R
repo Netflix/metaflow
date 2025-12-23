@@ -1,10 +1,10 @@
 #' Decorator that configures a step to retry upon failure
-#' 
-#' @description 
+#'
+#' @description
 #' Use this decorator to configure a step to retry if it fails. Alternatively,
 #' retry _any_ failing steps in an entire flow with `run(with = c("retry")`.
-#' 
-#' See \url{https://docs.metaflow.org/v/r/metaflow/failures} for more 
+#'
+#' See \url{https://docs.metaflow.org/v/r/metaflow/failures} for more
 #' information on how to use this decorator.
 #'
 #' @param times Integer number of times to retry this step. Defaults to `3`. Set
@@ -13,9 +13,9 @@
 #'   retried.
 #' @param minutes_between_retries Integer Number of minutes between retries.
 #'   Defaults to `2`.
-#'   
+#'
 #' @inherit decorator return
-#'   
+#'
 #' @export
 #'
 #' @examples \dontrun{
@@ -24,23 +24,23 @@
 #' start <- function(self){
 #'   n <- rbinom(n=1, size=1, prob=0.5)
 #'   if (n==0){
-#'     stop("Bad Luck!") 
+#'     stop("Bad Luck!")
 #'   } else{
 #'     print("Lucky you!")
 #'   }
 #' }
-#' 
+#'
 #' end <- function(self){
 #'   print("Phew!")
 #' }
-#' 
+#'
 #' metaflow("RetryFlow") %>%
-#'   step(step="start", 
+#'   step(step="start",
 #'        retry(times=3),
-#'        r_function=start, 
+#'        r_function=start,
 #'        next_step="end") %>%
-#'   step(step="end", 
-#'        r_function=end) %>% 
+#'   step(step="end",
+#'        r_function=end) %>%
 #'   run()
 #' }
 retry <- function(times = 3L, minutes_between_retries = 2L) {
@@ -53,11 +53,11 @@ retry <- function(times = 3L, minutes_between_retries = 2L) {
 
 #' Decorator that configures a step to catch an error
 #'
-#' @description 
+#' @description
 #' Use this decorator to configure a step to catch any errors that occur during
 #' evaluation. For steps that can't be safely retried, it is a good idea to use
 #' this decorator along with `retry(times = 0)`.
-#' 
+#'
 #' See \url{https://docs.metaflow.org/v/r/metaflow/failures#catching-exceptions-with-the-catch-decorator}
 #' for more information on how to use this decorator.
 #'
@@ -65,23 +65,23 @@ retry <- function(times = 3L, minutes_between_retries = 2L) {
 #' exception. If `NULL` (the default), the exception is not stored.
 #' @param print_exception Boolean. Determines whether or not the exception is
 #'   printed to stdout when caught. Defaults to `TRUE`.
-#'   
+#'
 #' @inherit decorator return
 #'
 #' @export
 #'
 #' @examples \donttest{
-#' 
+#'
 #' start <- function(self) {
 #'   stop("Oh no!")
 #' }
-#' 
+#'
 #' end <- function(self) {
 #'   message(
 #'     "Error is : ", self$start_failed
 #'   )
 #' }
-#' 
+#'
 #' metaflow("AlwaysErrors") %>%
 #'   step(
 #'     catch(var = "start_failed"),
