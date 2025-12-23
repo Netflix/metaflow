@@ -8,7 +8,7 @@
 {#if data && spec}
   <Vega data={data} spec={spec} options={options} />
 {:else}
-  <Vega spec={spec} options={options}/>  
+  <Vega spec={spec} options={options}/>
 {/if}
 
 
