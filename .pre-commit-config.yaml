@@ -3,8 +3,33 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
+      - id: check-added-large-files
+      - id: check-ast
+      - id: check-case-conflict
+      - id: check-illegal-windows-names
       - id: check-json
+      - id: check-merge-conflict
+      - id: check-symlinks
+      - id: check-toml
+      - id: check-xml
       - id: check-yaml
+      - id: debug-statements
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: fix-byte-order-marker
+      - id: forbid-submodules
+      - id: mixed-line-ending
+      - id: requirements-txt-fixer
+      # - id: check-builtin-literals
+      # - id: check-executables-have-shebangs
+      # - id: check-shebang-scripts-are-executable
+      # - id: check-vcs-permalinks
+      # - id: detect-aws-credentials
+      # - id: name-tests-test
+      # - id: pretty-format-json
+      # - id: trailing-whitespace
+      #   exclude: metaflow/plugins/cards/card_modules/main.js
+
   - repo: https://github.com/ambv/black
     rev: 25.12.0
     hooks:

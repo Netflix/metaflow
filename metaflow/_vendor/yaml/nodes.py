@@ -46,4 +46,3 @@ class SequenceNode(CollectionNode):
 
 class MappingNode(CollectionNode):
     id = 'mapping'
-

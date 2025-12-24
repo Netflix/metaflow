@@ -586,4 +586,3 @@ class Parser:
 
     def process_empty_scalar(self, mark):
         return ScalarEvent(None, None, (True, False), '', mark, mark)
-

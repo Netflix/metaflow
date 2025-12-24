@@ -227,6 +227,3 @@ PYTHONPATH=`pwd`/../../ python run_tests.py --debug --contexts dev-local --graph
 ```
 
 This chooses a single context, a single graph, and a single test. If you are developing a new test, this is the fastest way to test the test.
-
-
-
