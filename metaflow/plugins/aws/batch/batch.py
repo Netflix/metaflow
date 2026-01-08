@@ -122,11 +122,19 @@ class Batch(object):
         # Get the command that was created
         # Upload the command to S3 during deployment
         try:
-            command_bytes = cmd_str.encode("utf-8")
+            # IMPORTANT: Save the shlex-processed command (command[-1]), NOT the raw cmd_str.
+            # The escaping in _get_download_code_package_cmd uses \" which is designed to be
+            # processed by shlex.split('bash -c "%s"' % cmd_str). When we save to a file and
+            # execute with 'bash /tmp/step_command.sh', there's no shlex processing, so we
+            # must save the already-processed command where \" has been converted to ".
+            processed_cmd = command[-1]  # This is the bash -c argument after shlex processing
+            command_bytes = processed_cmd.encode("utf-8")
             result_paths = self.flow_datastore.save_data([command_bytes], len_hint=1)
             s3_path, _key = result_paths[0]
 
             bucket, s3_object = parse_s3_full_path(s3_path)
+            # NOTE: the script quoting is extremely sensitive due to the way shlex.split operates
+            # and this being inserted into a quoted command elsewhere. Use escaped quotes.
             download_script = "{python} -c '{script}'".format(
                 python=self.environment._python(),
                 script='import boto3, os; ep=os.getenv(\\"METAFLOW_S3_ENDPOINT_URL\\"); boto3.client(\\"s3\\", **({\\"endpoint_url\\":ep} if ep else {})).download_file(\\"%s\\", \\"%s\\", \\"/tmp/step_command.sh\\")'
