@@ -327,9 +327,7 @@ def flow_decorators(flow_cls):
 
 
 def flow_mutators(flow_cls):
-    from metaflow.flowspec import _FlowState
-
-    return flow_cls._flow_state.get(_FlowState.FLOW_MUTATORS, [])
+    return flow_cls._flow_state.get(FlowStateItems.FLOW_MUTATORS, [])
 
 
 class StepDecorator(Decorator):
