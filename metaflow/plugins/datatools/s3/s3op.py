@@ -215,6 +215,36 @@ def worker(result_file_name, queue, mode, s3config):
                 s3_session_vars=s3config.session_vars,
                 s3_client_params=s3config.client_params,
             )
+
+            # Get the actual caller identity being used by the S3 client
+            # Write it to a file so the parent process can read it
+            import json
+            from metaflow.plugins.aws.aws_client import get_aws_client
+
+            caller_identity = None
+            identity_file = result_file_name + ".identity"
+            try:
+                # Use the same get_aws_client with same parameters to create STS client
+                # This guarantees we're using the exact same credentials as S3
+                sts, sts_error = get_aws_client(
+                    "sts",
+                    with_error=True,
+                    role_arn=s3config.role,
+                    session_vars=s3config.session_vars,
+                    client_params=s3config.client_params,
+                )
+                identity = sts.get_caller_identity()
+                caller_identity = {
+                    "arn": identity.get("Arn"),
+                    "account": identity.get("Account"),
+                    "user_id": identity.get("UserId"),
+                }
+                with open(identity_file, "w") as f:
+                    json.dump(caller_identity, f)
+            except Exception as e:
+                # If we can't get caller identity, write error to file
+                with open(identity_file, "w") as f:
+                    json.dump({"error": str(e)}, f)
             while True:
                 url, idx = queue.get()
                 if url is None:
@@ -269,13 +299,13 @@ def worker(result_file_name, queue, mode, s3config):
                         except client_error as err:
                             tmp.close()
                             os.unlink(tmp.name)
-                            handle_client_error(err, idx, result_file)
+                            handle_client_error(err, idx, result_file, caller_identity)
                             continue
                         except RetriesExceededError as e:
                             tmp.close()
                             os.unlink(tmp.name)
                             err = convert_to_client_error(e)
-                            handle_client_error(err, idx, result_file)
+                            handle_client_error(err, idx, result_file, caller_identity)
                             continue
                         except OSError as e:
                             tmp.close()
@@ -361,11 +391,15 @@ def worker(result_file_name, queue, mode, s3config):
                                 # Shouldn't get here, but just in case.
                                 # Internally, botocore catches ClientError and returns a S3UploadFailedError.
                                 # See https://github.com/boto/boto3/blob/develop/boto3/s3/transfer.py#L377
-                                handle_client_error(err, idx, result_file)
+                                handle_client_error(
+                                    err, idx, result_file, caller_identity
+                                )
                                 continue
                             except S3UploadFailedError as e:
                                 err = convert_to_client_error(e)
-                                handle_client_error(err, idx, result_file)
+                                handle_client_error(
+                                    err, idx, result_file, caller_identity
+                                )
                                 continue
                         except MetaflowException:
                             # Re-raise Metaflow exceptions (including TimeoutException)
@@ -399,7 +433,7 @@ def convert_to_client_error(e):
     return ClientError(response, operation_name)
 
 
-def handle_client_error(err, idx, result_file):
+def handle_client_error(err, idx, result_file, caller_identity=None):
     # Handle all MetaflowExceptions as fatal
     if isinstance(err, MetaflowException):
         raise err
@@ -432,6 +466,7 @@ def start_workers(mode, urls, num_workers, inject_failure, s3config):
 
     sz_results = []
     transient_error_type = None
+    caller_identity = None
     # 1. push sources and destinations to the queue
     # We only push if we don't inject a failure; otherwise, we already set the sz_results
     # appropriately with the result of the injected failure.
@@ -494,11 +529,23 @@ def start_workers(mode, urls, num_workers, inject_failure, s3config):
                             # For transient errors, store the transient error type (should be the same for all)
                             if size == -ERROR_TRANSIENT and len(line_split) > 2:
                                 transient_error_type = line_split[2].strip()
+
+                    # Read caller identity file if it exists (for debugging access denied errors)
+                    identity_file = out_path + ".identity"
+                    if os.path.exists(identity_file):
+                        import json
+
+                        try:
+                            with open(identity_file, "r") as f:
+                                caller_identity = json.load(f)
+                        except Exception:
+                            # Ignore errors reading identity file
+                            pass
                 else:
                     # Put this process back in the processes to check
                     new_procs[proc] = out_path
             procs = new_procs
-    return sz_results, transient_error_type
+    return sz_results, transient_error_type, caller_identity
 
 
 def process_urls(mode, urls, verbose, inject_failure, num_workers, s3config):
@@ -507,7 +554,7 @@ def process_urls(mode, urls, verbose, inject_failure, num_workers, s3config):
         print("%sing %d files.." % (mode.capitalize(), len(urls)), file=sys.stderr)
 
     start = time.time()
-    sz_results, transient_error_type = start_workers(
+    sz_results, transient_error_type, caller_identity = start_workers(
         mode, urls, num_workers, inject_failure, s3config
     )
     end = time.time()
@@ -526,7 +573,7 @@ def process_urls(mode, urls, verbose, inject_failure, num_workers, s3config):
             ),
             file=sys.stderr,
         )
-    return sz_results, transient_error_type
+    return sz_results, transient_error_type, caller_identity
 
 
 # Utility functions
@@ -666,7 +713,7 @@ def op_list_prefix_nonrecursive(s3config, prefix_urls):
     return [s3.list_prefix(prefix, delimiter="/") for prefix in prefix_urls]
 
 
-def exit(exit_code, url):
+def exit(exit_code, url, caller_identity=None):
     if exit_code == ERROR_INVALID_URL:
         msg = "Invalid url: %s" % url.url
     elif exit_code == ERROR_NOT_FULL_PATH:
@@ -675,6 +722,17 @@ def exit(exit_code, url):
         msg = "URL not found: %s" % url.url
     elif exit_code == ERROR_URL_ACCESS_DENIED:
         msg = "Access denied to URL: %s" % url.url
+        if caller_identity:
+            if "error" in caller_identity:
+                msg += "\nCaller identity lookup failed: %s" % caller_identity["error"]
+            else:
+                msg += "\nUsing IAM identity:"
+                if caller_identity.get("arn"):
+                    msg += "\n  ARN: %s" % caller_identity["arn"]
+                if caller_identity.get("account"):
+                    msg += "\n  Account: %s" % caller_identity["account"]
+                if caller_identity.get("user_id"):
+                    msg += "\n  User ID: %s" % caller_identity["user_id"]
     elif exit_code == ERROR_WORKER_EXCEPTION:
         msg = "Download failed"
     elif exit_code == ERROR_VERIFY_FAILED:
@@ -1014,7 +1072,7 @@ def put(
     ul_op = "upload"
     if not overwrite:
         ul_op = "info_upload"
-    sz_results, transient_error_type = process_urls(
+    sz_results, transient_error_type, caller_identity = process_urls(
         ul_op, urls, verbose, inject_failure, num_workers, s3config
     )
     retry_lines = []
@@ -1051,7 +1109,7 @@ def put(
             # the files uploaded after retries.
             denied_url = url
     if denied_url is not None:
-        exit(ERROR_URL_ACCESS_DENIED, denied_url)
+        exit(ERROR_URL_ACCESS_DENIED, denied_url, caller_identity)
 
     if out_lines:
         sys.stdout.writelines(out_lines)
@@ -1205,7 +1263,7 @@ def get(
 
     # exclude the non-existent files from loading
     to_load = [url for url, size in urls if size is not None]
-    sz_results, transient_error_type = process_urls(
+    sz_results, transient_error_type, caller_identity = process_urls(
         dl_op, to_load, verbose, inject_failure, num_workers, s3config
     )
     # We check if there is any access denied
@@ -1259,7 +1317,7 @@ def get(
                 out_lines.append("%d %s\n" % (url.idx, TRANSIENT_RETRY_LINE_CONTENT))
 
     if denied_url is not None:
-        exit(ERROR_URL_ACCESS_DENIED, denied_url)
+        exit(ERROR_URL_ACCESS_DENIED, denied_url, caller_identity)
 
     if not allow_missing and missing_url is not None:
         exit(ERROR_URL_NOT_FOUND, missing_url)
