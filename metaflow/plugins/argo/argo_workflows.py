@@ -2261,6 +2261,7 @@ class ArgoWorkflows(object):
                         "METAFLOW_DEFAULT_METADATA": DEFAULT_METADATA,
                         "METAFLOW_CARD_S3ROOT": CARD_S3ROOT,
                         "METAFLOW_KUBERNETES_WORKLOAD": 1,
+                        "METAFLOW_KUBERNETES_CONTAINER_IMAGE": resources["image"],
                         "METAFLOW_KUBERNETES_FETCH_EC2_METADATA": KUBERNETES_FETCH_EC2_METADATA,
                         "METAFLOW_RUNTIME_ENVIRONMENT": "kubernetes",
                         "METAFLOW_OWNER": self.username,
