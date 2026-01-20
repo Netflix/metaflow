@@ -1,0 +1,53 @@
+import sys
+import base64
+import json
+import os
+from typing import Dict
+
+
+def parse_parameter_value(base64_value):
+    val = base64.b64decode(base64_value).decode("utf-8")
+
+    try:
+        return json.loads(val)
+    except json.decoder.JSONDecodeError:
+        # fallback to using the original value.
+        return val
+
+
+def export_parameters(output_file: str, params: Dict[str, str]) -> None:
+    with open(output_file, "w") as f:
+        for k in params:
+            # Replace `-` with `_` is parameter names since `-` isn't an
+            # allowed character for environment variables. cli.py will
+            # correctly translate the replaced `-`s.
+            f.write(
+                "export METAFLOW_INIT_%s=%s\n"
+                % (
+                    k.upper().replace("-", "_"),
+                    json.dumps(parse_parameter_value(params[k])),
+                )
+            )
+    os.chmod(output_file, 509)
+
+
+if __name__ == "__main__":
+    try:
+        output_filename = sys.argv[1]
+    except IndexError:
+        raise Exception("an output filename is required.")
+
+    params = {}
+    try:
+        raw_params = sys.argv[2:]
+    except Exception:
+        pass
+
+    try:
+        for p in raw_params:
+            k, v = p.split(",")
+            params[k] = v
+    except ValueError:
+        raise Exception("Pass in the parameter values as name,value")
+
+    export_parameters(output_filename, params)

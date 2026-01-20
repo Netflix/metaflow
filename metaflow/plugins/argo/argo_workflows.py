@@ -1,8 +1,10 @@
 import base64
 import json
 import os
+import random
 import re
 import shlex
+import string
 import sys
 from collections import defaultdict
 from hashlib import sha1
@@ -2083,21 +2085,32 @@ class ArgoWorkflows(object):
                         "--task-id %s" % task_id_params,
                     ]
                 )
-                # TODO: Could save some characters from the cmd by making the bulk of the exports be written to a file instead.
-                # We can't easily get around having to pass the parameter values through the template though.
-                export_params = "&&".join(
+                # Export user-defined parameters into runtime environment
+                # NOTE: We save some characters from the cmd by making the bulk of the exports be written to a file instead.
+                # We can't easily get around having to pass the parameter values through the template though, as the source of these could change depending on Argo implementation.
+                param_file = "".join(
+                    random.choice(string.ascii_lowercase) for _ in range(10)
+                )
+                # Setup Parameters as environment variables which are stored in a dictionary.
+                param_csv = " ".join(
                     [
                         # Parameter names can be hyphenated, hence we use
                         # {{foo.bar['param_name']}}.
                         # https://argoproj.github.io/argo-events/tutorials/02-parameterization/
                         # http://masterminds.github.io/sprig/strings.html
-                        "export METAFLOW_INIT_%s=\\\"$(python -m metaflow.plugins.argo.param_val {{=toBase64(workflow.parameters['%s'])}})\\\""
+                        "%s,{{=toBase64(workflow.parameters['%s'])}}"
                         % (
-                            parameter["name"].upper().replace("-", "_"),
+                            parameter["name"],
                             parameter["name"],
                         )
                         for parameter in self.parameters.values()
                     ]
+                )
+
+                export_params = (
+                    "python -m "
+                    "metaflow.plugins.argo.set_parameters %s %s"
+                    "&& . `pwd`/%s" % (param_file, param_csv, param_file)
                 )
 
                 if self.tags:
@@ -2112,11 +2125,10 @@ class ArgoWorkflows(object):
                 ]
                 step_cmds.extend(
                     [
-                        "if ! %s >/dev/null 2>/dev/null; then %s %s %s; fi"
+                        "if ! %s >/dev/null 2>/dev/null; then %s && %s; fi"
                         % (
                             " ".join(exists),
                             export_params,
-                            " && " if export_params else "",
                             " ".join(init),
                         )
                     ]
