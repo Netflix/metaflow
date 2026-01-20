@@ -2099,6 +2099,7 @@ class ArgoWorkflows(object):
                         for parameter in self.parameters.values()
                     ]
                 )
+
                 if self.tags:
                     init.extend("--tag %s" % tag for tag in self.tags)
                 # if the start step gets retried, we must be careful
@@ -2111,8 +2112,13 @@ class ArgoWorkflows(object):
                 ]
                 step_cmds.extend(
                     [
-                        "if ! %s >/dev/null 2>/dev/null; then %s && %s; fi"
-                        % (" ".join(exists), export_params, " ".join(init))
+                        "if ! %s >/dev/null 2>/dev/null; then %s %s %s; fi"
+                        % (
+                            " ".join(exists),
+                            export_params,
+                            " && " if export_params else "",
+                            " ".join(init),
+                        )
                     ]
                 )
                 input_paths = "%s/_parameters/%s" % (run_id, task_id_params)
