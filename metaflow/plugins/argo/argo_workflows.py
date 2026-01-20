@@ -2082,13 +2082,20 @@ class ArgoWorkflows(object):
                         "--run-id %s" % run_id,
                         "--task-id %s" % task_id_params,
                     ]
-                    + [
+                )
+                # TODO: Could save some characters from the cmd by making the bulk of the exports be written to a file instead.
+                # We can't easily get around having to pass the parameter values through the template though.
+                export_params = "&&".join(
+                    [
                         # Parameter names can be hyphenated, hence we use
                         # {{foo.bar['param_name']}}.
                         # https://argoproj.github.io/argo-events/tutorials/02-parameterization/
                         # http://masterminds.github.io/sprig/strings.html
-                        "--%s=\\\"$(python -m metaflow.plugins.argo.param_val {{=toBase64(workflow.parameters['%s'])}})\\\""
-                        % (parameter["name"], parameter["name"])
+                        "export METAFLOW_INIT_%s=\\\"$(python -m metaflow.plugins.argo.param_val {{=toBase64(workflow.parameters['%s'])}})\\\""
+                        % (
+                            parameter["name"].upper().replace("-", "_"),
+                            parameter["name"],
+                        )
                         for parameter in self.parameters.values()
                     ]
                 )
@@ -2104,8 +2111,8 @@ class ArgoWorkflows(object):
                 ]
                 step_cmds.extend(
                     [
-                        "if ! %s >/dev/null 2>/dev/null; then %s; fi"
-                        % (" ".join(exists), " ".join(init))
+                        "if ! %s >/dev/null 2>/dev/null; then %s && %s; fi"
+                        % (" ".join(exists), export_params, " ".join(init))
                     ]
                 )
                 input_paths = "%s/_parameters/%s" % (run_id, task_id_params)
