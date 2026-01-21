@@ -127,7 +127,9 @@ class Batch(object):
             # processed by shlex.split('bash -c "%s"' % cmd_str). When we save to a file and
             # execute with 'bash /tmp/step_command.sh', there's no shlex processing, so we
             # must save the already-processed command where \" has been converted to ".
-            processed_cmd = command[-1]  # This is the bash -c argument after shlex processing
+
+            # This is the bash -c argument after shlex processing
+            processed_cmd = command[-1]
             command_bytes = processed_cmd.encode("utf-8")
             result_paths = self.flow_datastore.save_data([command_bytes], len_hint=1)
             s3_path, _key = result_paths[0]
