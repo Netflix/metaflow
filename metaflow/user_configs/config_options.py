@@ -178,7 +178,7 @@ class ConfigInput:
         #### DEBUG NO CHECKIN
         ret = cls.loaded_configs[config_name]
         print(f'###### get_config(): {ret=}')
-        print(f'###### get_config(): {all_configs=}')
+        print(f'###### get_config(): {cls.loaded_configs=}')
 
         return ret
 
