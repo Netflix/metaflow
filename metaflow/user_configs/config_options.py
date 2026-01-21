@@ -174,7 +174,13 @@ class ConfigInput:
                     "Please contact support."
                 )
             cls.loaded_configs = all_configs
-        return cls.loaded_configs[config_name]
+
+        #### DEBUG NO CHECKIN
+        ret = cls.loaded_configs[config_name]
+        print(f'###### get_config(): {ret=}')
+        print(f'###### get_config(): {all_configs=}')
+
+        return ret
 
     def process_configs(
         self,
@@ -344,12 +350,14 @@ class ConfigInput:
                 continue
 
             parser, is_plain = self._parsers[name]
+            print(f'#### DEBUG: {self._parsers=}')
             val = val[len(_CONVERT_PREFIX) :]  # Remove the _CONVERT_PREFIX
             if val.startswith(_DEFAULT_PREFIX):  # Remove the _DEFAULT_PREFIX if needed
                 val = val[len(_DEFAULT_PREFIX) :]
             if val.startswith("kv."):
                 # This means to load it from a file
                 try:
+                    print(f"#### debug: {val=}, {val[3:]=}")
                     read_value, read_is_plain = self.get_config(val[3:])
                 except KeyError as e:
                     exc = click.UsageError(
@@ -360,6 +368,8 @@ class ConfigInput:
                         return None
                     raise exc from e
                 if read_is_plain != is_plain:
+                    print(f'##### DEBUGin config_options.py L369: {read_is_plain=}, {is_plain=}')
+
                     raise click.UsageError(
                         "Configuration '%s' mismatched `plain` attribute -- "
                         "this is a bug, please report it." % val[3:]
