@@ -290,22 +290,29 @@ def create(
 
     obj.echo("Deploying *%s* to Argo Workflows..." % obj.flow.name, bold=True)
 
-    if SERVICE_VERSION_CHECK:
-        # TODO: Consider dispelling with this check since it's been 2 years since the
-        #       needed metadata service changes have been available in open-source. It's
-        #       likely that Metaflow users may not have access to metadata service from
-        #       within their workstations.
-        check_metadata_service_version(obj)
+    if only_json:
+        # When only generating JSON, we skip cluster access operations:
+        # - Metadata service version check (requires service access)
+        # - Token resolution (requires Kubernetes cluster access to check existing deployments)
+        # Instead, we use a placeholder token since the JSON is just for inspection.
+        token = "__PLACEHOLDER_PRODUCTION_TOKEN__"
+    else:
+        if SERVICE_VERSION_CHECK:
+            # TODO: Consider dispelling with this check since it's been 2 years since the
+            #       needed metadata service changes have been available in open-source. It's
+            #       likely that Metaflow users may not have access to metadata service from
+            #       within their workstations.
+            check_metadata_service_version(obj)
 
-    token = resolve_token(
-        obj.workflow_name,
-        obj.token_prefix,
-        obj,
-        authorize,
-        given_token,
-        generate_new_token,
-        obj.is_project,
-    )
+        token = resolve_token(
+            obj.workflow_name,
+            obj.token_prefix,
+            obj,
+            authorize,
+            given_token,
+            generate_new_token,
+            obj.is_project,
+        )
 
     flow = make_flow(
         obj,
