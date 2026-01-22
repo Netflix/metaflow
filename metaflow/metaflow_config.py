@@ -121,6 +121,7 @@ CLIENT_CACHE_MAX_TASKDATASTORE_COUNT = from_conf(
 ###
 S3_ENDPOINT_URL = from_conf("S3_ENDPOINT_URL")
 S3_VERIFY_CERTIFICATE = from_conf("S3_VERIFY_CERTIFICATE")
+S3_SIGN_REQUEST = from_conf("S3_SIGN_REQUEST", True)
 
 # Set ServerSideEncryption for S3 uploads
 S3_SERVER_SIDE_ENCRYPTION = from_conf("S3_SERVER_SIDE_ENCRYPTION")
@@ -173,6 +174,11 @@ if S3_ENDPOINT_URL:
     DATATOOLS_CLIENT_PARAMS["endpoint_url"] = S3_ENDPOINT_URL
 if S3_VERIFY_CERTIFICATE:
     DATATOOLS_CLIENT_PARAMS["verify"] = S3_VERIFY_CERTIFICATE
+if not S3_SIGN_REQUEST:
+    # TODO: possible to achieve this without importing botocore?
+    from botocore import UNSIGNED
+    from botocore.config import Config
+    DATATOOLS_CLIENT_PARAMS["config"] = Config(signature_version=UNSIGNED)
 
 DATATOOLS_SESSION_VARS = from_conf("DATATOOLS_SESSION_VARS", {})
 
