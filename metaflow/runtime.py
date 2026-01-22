@@ -900,7 +900,11 @@ class NativeRuntime(object):
                             self._logger(msg, system_msg=True)
 
             except KeyboardInterrupt as ex:
-                self._logger("Workflow interrupted.", system_msg=True, bad=True)
+                self._logger(
+                    "Workflow interrupted. Please avoid pressing Ctrl+C again to let the workflow clean up process finish.",
+                    system_msg=True,
+                    bad=True,
+                )
                 self._killall()
                 exception = ex
                 raise
