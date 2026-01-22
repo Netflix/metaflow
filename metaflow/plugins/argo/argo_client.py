@@ -315,7 +315,9 @@ class ArgoClient(object):
                 json.loads(e.body)["message"] if e.body is not None else e.reason
             )
 
-    def schedule_workflow_template(self, name, schedule=None, timezone=None):
+    def schedule_workflow_template(
+        self, name, schedule=None, timezone=None, concurrency_policy=None
+    ):
         # Unfortunately, Kubernetes client does not handle optimistic
         # concurrency control by itself unlike kubectl
         client = self._client.get()
@@ -327,6 +329,7 @@ class ArgoClient(object):
                 "suspend": schedule is None,
                 "schedule": schedule,
                 "timezone": timezone,
+                "concurrencyPolicy": concurrency_policy,
                 "failedJobsHistoryLimit": 10000,  # default is unfortunately 1
                 "successfulJobsHistoryLimit": 10000,  # default is unfortunately 3
                 "workflowSpec": {"workflowTemplateRef": {"name": name}},
