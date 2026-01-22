@@ -29,18 +29,6 @@ from typing import Union
 
 from metaflow import FlowSpec, Parameter
 from metaflow._vendor import click
-from metaflow._vendor.click.types import (
-    BoolParamType,
-    Choice,
-    DateTime,
-    File,
-    FloatParamType,
-    IntParamType,
-    Path,
-    StringParamType,
-    Tuple,
-    UUIDParameterType,
-)
 from metaflow.decorators import add_decorator_options
 from metaflow.exception import MetaflowException
 from metaflow.flowspec import FlowStateItems
@@ -51,8 +39,6 @@ from metaflow.user_configs.config_options import (
     ConfigValue,
     ConvertDictOrStr,
     ConvertPath,
-    LocalFileInput,
-    MultipleTuple,
     config_options_with_config_input,
 )
 from metaflow.user_decorators.user_flow_decorator import FlowMutator
