@@ -1369,6 +1369,70 @@ class S3(object):
 
         return self._put_many_files(_check(), overwrite)
 
+    def delete(self, key: str):
+        """
+        Delete a single object in S3.
+        Parameters
+        ----------
+        key : str
+            Object to delete. It can be an S3 url or a path suffix.
+        """
+
+        url = self._url(key)
+        src = urlparse(url)
+
+        def _delete(s3, tmp):
+            if not src.path.lstrip("/"):
+                raise TypeError("'None' type object cannot be deleted.")
+            else:
+                return s3.delete_object(Bucket=src.netloc, Key=src.path.lstrip("/"))
+
+        self._one_boto_op(_delete, url, create_tmp_file=False)
+
+    def delete_many(self, keys: List[str]):
+        """
+        Delete multiple objects from s3
+        Parameters
+        ----------
+        keys: List[str]
+            List of keys to delete.
+        """
+
+        urls = [self._url(key) for key in keys]
+        src = [urlparse(u) for u in urls]
+
+        Bucket_names = set([s.netloc for s in src])
+        if len(Bucket_names) > 1:
+            raise Exception("Cannot delete from multiple buckets at once")
+        else:
+            bucket_name = Bucket_names.pop()
+
+        resp = self._s3_client.client.delete_objects(
+            Bucket=bucket_name,
+            Delete={
+                "Objects": [{"Key": s.path.lstrip("/")} for s in src],
+                'Quiet': True
+            }
+        )
+
+    def delete_recursive(self, key):
+        """
+        Delete multiple objects given a prefix
+        Parameters
+        ----------
+        key: Prefix to delete
+        """
+
+        url = self._url(key)
+        src = urlparse(url)
+
+        if not src.path.lstrip('/'):
+            raise TypeError("'None' type object cannot be deleted.")
+        else:
+            objects = self._s3_client.client.list_objects(Bucket=src.netloc, Prefix=src.path.lstrip("/"))
+            for object in objects['Contents']:
+                self._s3_client.client.delete_object(Bucket=src.netloc, Key=object['Key'])
+
     def _one_boto_op(self, op, url, create_tmp_file=True):
         error = ""
         # Use the maximum of both retry counts for consistency with multi-op case
