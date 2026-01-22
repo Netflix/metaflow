@@ -296,6 +296,31 @@ def create(
         # - Token resolution (requires Kubernetes cluster access to check existing deployments)
         # Instead, we use a placeholder token since the JSON is just for inspection.
         token = "__PLACEHOLDER_PRODUCTION_TOKEN__"
+
+        if given_token:
+            if obj.is_project:
+                # we rely on a known prefix for @project tokens, so we can't
+                # allow the user to specify a custom token with an arbitrary prefix
+                raise MetaflowException(
+                    "--new-token is not supported for @projects. Use --generate-new-token "
+                    "to create a new token."
+                )
+            if given_token.startswith("production:"):
+                given_token = given_token[11:]
+            token = given_token
+            obj.echo("")
+            obj.echo("Using the given token, *%s*." % token)
+
+        if generate_new_token:
+            token = new_token(obj.token_prefix, None)
+            if token is None:
+                raise MetaflowException(
+                    "--generate-new-token option is not supported after using "
+                    "--new-token. Use --new-token to make a new namespace."
+                )
+            obj.echo("")
+            obj.echo("A new production token generated.")
+
     else:
         if SERVICE_VERSION_CHECK:
             # TODO: Consider dispelling with this check since it's been 2 years since the
