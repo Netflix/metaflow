@@ -290,22 +290,54 @@ def create(
 
     obj.echo("Deploying *%s* to Argo Workflows..." % obj.flow.name, bold=True)
 
-    if SERVICE_VERSION_CHECK:
-        # TODO: Consider dispelling with this check since it's been 2 years since the
-        #       needed metadata service changes have been available in open-source. It's
-        #       likely that Metaflow users may not have access to metadata service from
-        #       within their workstations.
-        check_metadata_service_version(obj)
+    if only_json:
+        # When only generating JSON, we skip cluster access operations:
+        # - Metadata service version check (requires service access)
+        # - Token resolution (requires Kubernetes cluster access to check existing deployments)
+        # Instead, we use a placeholder token since the JSON is just for inspection.
+        token = "__PLACEHOLDER_PRODUCTION_TOKEN__"
 
-    token = resolve_token(
-        obj.workflow_name,
-        obj.token_prefix,
-        obj,
-        authorize,
-        given_token,
-        generate_new_token,
-        obj.is_project,
-    )
+        if given_token:
+            if obj.is_project:
+                # we rely on a known prefix for @project tokens, so we can't
+                # allow the user to specify a custom token with an arbitrary prefix
+                raise MetaflowException(
+                    "--new-token is not supported for @projects. Use --generate-new-token "
+                    "to create a new token."
+                )
+            if given_token.startswith("production:"):
+                given_token = given_token[11:]
+            token = given_token
+            obj.echo("")
+            obj.echo("Using the given token, *%s*." % token)
+
+        if generate_new_token:
+            token = new_token(obj.token_prefix, None)
+            if token is None:
+                raise MetaflowException(
+                    "--generate-new-token option is not supported after using "
+                    "--new-token. Use --new-token to make a new namespace."
+                )
+            obj.echo("")
+            obj.echo("A new production token generated.")
+
+    else:
+        if SERVICE_VERSION_CHECK:
+            # TODO: Consider dispelling with this check since it's been 2 years since the
+            #       needed metadata service changes have been available in open-source. It's
+            #       likely that Metaflow users may not have access to metadata service from
+            #       within their workstations.
+            check_metadata_service_version(obj)
+
+        token = resolve_token(
+            obj.workflow_name,
+            obj.token_prefix,
+            obj,
+            authorize,
+            given_token,
+            generate_new_token,
+            obj.is_project,
+        )
 
     flow = make_flow(
         obj,
