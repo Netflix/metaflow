@@ -879,7 +879,8 @@ def lst(
         # We always consider the path being passed in to be a directory path so
         # we add a trailing slash to the path if it doesn't already have one.
         path_with_slash = src.path.lstrip("/")
-        if not path_with_slash.endswith("/"):
+        # NOTE: Adding a slash to an empty path messes with listing bucket root.
+        if path_with_slash and not path_with_slash.endswith("/"):
             path_with_slash += "/"
         url = S3Url(
             url=url,
