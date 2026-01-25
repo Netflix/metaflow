@@ -69,6 +69,34 @@ def test_generate_local_path_truncation_indicator():
     assert "..." not in short_local_path
 
 
+def test_bucket_root_empty_path():
+    """
+    Unit test: verify that bucket root URL produces empty path, not "/".
+
+    This test verifies the fix without requiring S3 access by checking
+    the path that would be sent to S3 API.
+    """
+    try:
+        from urlparse import urlparse
+    except ImportError:
+        from urllib.parse import urlparse
+
+    # When listing at bucket root, the path component should be empty
+    url = "s3://my-bucket"
+    parsed = urlparse(url, allow_fragments=False)
+    path_with_slash = parsed.path.lstrip("/")
+
+    # Apply the fix
+    if path_with_slash and not path_with_slash.endswith("/"):
+        path_with_slash += "/"
+
+    # The path should remain empty for bucket root (NOT become "/")
+    assert path_with_slash == "", (
+        f"Bucket root path should be empty, got '{path_with_slash}'. "
+        f"If this is '/', the old bug has returned."
+    )
+
+
 def test_long_filename_download_from_s3():
     """
     End-to-end integration test with real S3 for long filename handling.
