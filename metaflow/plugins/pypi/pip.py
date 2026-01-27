@@ -12,7 +12,7 @@ from metaflow.debug import debug
 from metaflow.exception import MetaflowException
 
 from .micromamba import Micromamba
-from .utils import pip_tags, wheel_tags
+from .utils import pip_tags, wheel_tags, markers_from_platform, conda_platform
 
 
 class PipException(MetaflowException):
@@ -83,12 +83,13 @@ class Pip(object):
             )
 
         debug.conda_exec("Solving packages for PyPI environment %s" % id_)
+        freethreaded = python.endswith("t")
         with tempfile.TemporaryDirectory() as tmp_dir:
             report = "{tmp_dir}/report.json".format(tmp_dir=tmp_dir)
             implementations, platforms, abis = zip(
                 *[
                     (tag.interpreter, tag.platform, tag.abi)
-                    for tag in pip_tags(resolved_python, platform)
+                    for tag in pip_tags(resolved_python, platform, freethreaded)
                 ]
             )
             custom_index_url, extra_index_urls = self.indices(prefix)
@@ -119,7 +120,17 @@ class Pip(object):
                 else:
                     cmd.append(f"{package}=={version}")
             try:
-                self._call(prefix, cmd)
+                env = {}
+                if conda_platform() != platform:
+                    # cross-platform resolving requires patching the machine and system info for pip to pick up all the relevant packages.
+                    marker_overrides = markers_from_platform(platform)
+                    env = {
+                        "PIP_CUSTOMIZE_OVERRIDES": json.dumps(marker_overrides),
+                        "PYTHONPATH": os.path.join(
+                            os.path.dirname(__file__), "pip_patcher"
+                        ),
+                    }
+                self._call(prefix, cmd, env)
             except PipPackageNotFound as ex:
                 # pretty print package errors
                 raise PipException(
@@ -158,6 +169,7 @@ class Pip(object):
     def download(self, id_, packages, python, platform):
         prefix = self.micromamba.path_to_environment(id_)
 
+        freethreaded = python.endswith("t")
         resolved_python = self._get_resolved_python_version(prefix)
         if not resolved_python:
             raise PipException(
@@ -215,9 +227,9 @@ class Pip(object):
                 ]
                 if (
                     len(
-                        set(pip_tags(resolved_python, platform)).intersection(
-                            wheel_tags(wheel)
-                        )
+                        set(
+                            pip_tags(resolved_python, platform, freethreaded)
+                        ).intersection(wheel_tags(wheel))
                     )
                     == 0
                 ):
@@ -237,7 +249,7 @@ class Pip(object):
         implementations, platforms, abis = zip(
             *[
                 (tag.interpreter, tag.platform, tag.abi)
-                for tag in pip_tags(resolved_python, platform)
+                for tag in pip_tags(resolved_python, platform, freethreaded)
             ]
         )
 

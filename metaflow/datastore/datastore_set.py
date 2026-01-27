@@ -21,9 +21,18 @@ class TaskDataStoreSet(object):
         pathspecs=None,
         prefetch_data_artifacts=None,
         allow_not_done=False,
+        join_type=None,
+        orig_flow_datastore=None,
+        spin_artifacts=None,
     ):
         self.task_datastores = flow_datastore.get_task_datastores(
-            run_id, steps=steps, pathspecs=pathspecs, allow_not_done=allow_not_done
+            run_id,
+            steps=steps,
+            pathspecs=pathspecs,
+            allow_not_done=allow_not_done,
+            join_type=join_type,
+            orig_flow_datastore=orig_flow_datastore,
+            spin_artifacts=spin_artifacts,
         )
 
         if prefetch_data_artifacts:

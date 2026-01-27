@@ -86,11 +86,16 @@ class ArgoClient(object):
                 if not continue_token:
                     break
             except client.rest.ApiException as e:
+                error_body = json.loads(e.body) if e.body else {}
+                error_message = error_body.get("message", e.reason)
                 if e.status == 404:
                     return None
-                raise ArgoClientException(
-                    json.loads(e.body)["message"] if e.body is not None else e.reason
-                )
+                elif e.status == 410 and error_body.get("reason") == "Expired":
+                    new_token = error_body.get("metadata", {}).get("continue")
+                    if new_token:
+                        continue_token = new_token
+                        continue
+                raise ArgoClientException(error_message)
 
     def register_workflow_template(self, name, workflow_template):
         # Unfortunately, Kubernetes client does not handle optimistic
@@ -325,6 +330,7 @@ class ArgoClient(object):
                 "failedJobsHistoryLimit": 10000,  # default is unfortunately 1
                 "successfulJobsHistoryLimit": 10000,  # default is unfortunately 3
                 "workflowSpec": {"workflowTemplateRef": {"name": name}},
+                "startingDeadlineSeconds": 3540,  # configuring this to 59 minutes so a failed trigger of cron workflow can succeed at most 59 mins after scheduled execution
             },
         }
         try:

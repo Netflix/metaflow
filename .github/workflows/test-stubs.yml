@@ -18,8 +18,10 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-22.04]
-        ver: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
+        ver: ['3.7', '3.8', '3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
         include:
+          - os: macos-latest
+            ver: "3.14"
           - os: macos-latest
             ver: "3.13"
           - os: macos-latest
@@ -30,10 +32,10 @@ jobs:
             ver: "3.10"
 
     steps:
-    - uses: actions/checkout@ee0669bd1cc54295c223e0bb666b733df41de1c5 # v2.7.0
+    - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
 
     - name: Set up Python
-      uses: actions/setup-python@75f3110429a8c05be0e1bf360334e4cced2b63fa # v2.3.3
+      uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
       with:
         python-version: ${{ matrix.ver }}
 

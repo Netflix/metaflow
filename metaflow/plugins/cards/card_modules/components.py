@@ -15,6 +15,7 @@ from .renderer_tools import render_safely
 from .json_viewer import JSONViewer as _JSONViewer, YAMLViewer as _YAMLViewer
 import uuid
 import inspect
+import textwrap
 
 
 def _warning_with_component(component, msg):
@@ -656,19 +657,38 @@ class Markdown(UserComponent):
     )
     ```
 
+    Multi-line strings with indentation are automatically dedented:
+    ```
+    current.card.append(
+        Markdown(f'''
+            # Header
+            - Item 1
+            - Item 2
+        ''')
+    )
+    ```
+
     Parameters
     ----------
     text : str
-        Text formatted in Markdown.
+        Text formatted in Markdown. Leading whitespace common to all lines
+        is automatically removed to support indented multi-line strings.
     """
 
     REALTIME_UPDATABLE = True
 
+    @staticmethod
+    def _dedent_text(text):
+        """Remove common leading whitespace from all lines."""
+        if text is None:
+            return None
+        return textwrap.dedent(text)
+
     def update(self, text=None):
-        self._text = text
+        self._text = self._dedent_text(text)
 
     def __init__(self, text=None):
-        self._text = text
+        self._text = self._dedent_text(text)
 
     @with_default_component_id
     @render_safely

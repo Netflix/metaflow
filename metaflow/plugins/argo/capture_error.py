@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 ###
 # Algorithm to determine 1st error:
@@ -26,6 +26,9 @@ def parse_workflow_failures():
 def group_failures_by_template(failures):
     groups = {}
     for failure in failures:
+        if failure.get("finishedAt", None) is None:
+            timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            failure["finishedAt"] = timestamp
         groups.setdefault(failure["templateName"], []).append(failure)
     return groups
 
@@ -53,7 +56,7 @@ def determine_first_error():
     grouped_failures = group_failures_by_template(failures)
     for group in grouped_failures.values():
         group.sort(
-            key=lambda x: datetime.strptime(x["finishedAt"], "%Y-%m-%dT%H:%M:%SZ")
+            key=lambda g: datetime.strptime(g["finishedAt"], "%Y-%m-%dT%H:%M:%SZ")
         )
 
     earliest_group = grouped_failures[

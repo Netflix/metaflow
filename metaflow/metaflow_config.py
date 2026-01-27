@@ -21,6 +21,7 @@ if sys.platform == "darwin":
 
 # Path to the local directory to store artifacts for 'local' datastore.
 DATASTORE_LOCAL_DIR = ".metaflow"
+DATASTORE_SPIN_LOCAL_DIR = ".metaflow_spin"
 
 # Local configuration file (in .metaflow) containing overrides per-project
 LOCAL_CONFIG_FILE = "config.json"
@@ -48,6 +49,38 @@ DEFAULT_FROM_DEPLOYMENT_IMPL = from_conf(
 )
 
 ###
+# Spin configuration
+###
+# Essentially a whitelist of decorators that are allowed in Spin steps
+SPIN_ALLOWED_DECORATORS = from_conf(
+    "SPIN_ALLOWED_DECORATORS",
+    [
+        "conda",
+        "pypi",
+        "conda_base",
+        "pypi_base",
+        "environment",
+        "project",
+        "timeout",
+        "conda_env_internal",
+        "card",
+    ],
+)
+
+# Essentially a blacklist of decorators that are not allowed in Spin steps
+# Note: decorators not in either SPIN_ALLOWED_DECORATORS or SPIN_DISALLOWED_DECORATORS
+# are simply ignored in Spin steps
+SPIN_DISALLOWED_DECORATORS = from_conf(
+    "SPIN_DISALLOWED_DECORATORS",
+    [
+        "parallel",
+    ],
+)
+
+# Default value for persist option in spin command
+SPIN_PERSIST = from_conf("SPIN_PERSIST", False)
+
+###
 # User configuration
 ###
 USER = from_conf("USER")
@@ -57,6 +90,7 @@ USER = from_conf("USER")
 # Datastore configuration
 ###
 DATASTORE_SYSROOT_LOCAL = from_conf("DATASTORE_SYSROOT_LOCAL")
+DATASTORE_SYSROOT_SPIN = from_conf("DATASTORE_SYSROOT_SPIN")
 # S3 bucket and prefix to store artifacts for 's3' datastore.
 DATASTORE_SYSROOT_S3 = from_conf("DATASTORE_SYSROOT_S3")
 # Azure Blob Storage container and blob prefix
@@ -108,6 +142,9 @@ S3_WORKER_COUNT = from_conf("S3_WORKER_COUNT", 64)
 # operations that have not succeeded retry as opposed to all operations for the
 # top-level retries)
 S3_TRANSIENT_RETRY_COUNT = from_conf("S3_TRANSIENT_RETRY_COUNT", 20)
+
+# Whether to log transient retry messages to stdout
+S3_LOG_TRANSIENT_RETRIES = from_conf("S3_LOG_TRANSIENT_RETRIES", False)
 
 # S3 retry configuration used in the aws client
 # Use the adaptive retry strategy by default
@@ -173,6 +210,7 @@ DATATOOLS_LOCALROOT = from_conf(
 
 # Secrets Backend - AWS Secrets Manager configuration
 AWS_SECRETS_MANAGER_DEFAULT_REGION = from_conf("AWS_SECRETS_MANAGER_DEFAULT_REGION")
+AWS_SECRETS_MANAGER_DEFAULT_ROLE = from_conf("AWS_SECRETS_MANAGER_DEFAULT_ROLE")
 
 # Secrets Backend - GCP Secrets name prefix. With this, users don't have
 # to specify the full secret name in the @secret decorator.
@@ -399,6 +437,8 @@ ARGO_WORKFLOWS_ENV_VARS_TO_SKIP = from_conf("ARGO_WORKFLOWS_ENV_VARS_TO_SKIP", "
 KUBERNETES_JOBSET_GROUP = from_conf("KUBERNETES_JOBSET_GROUP", "jobset.x-k8s.io")
 KUBERNETES_JOBSET_VERSION = from_conf("KUBERNETES_JOBSET_VERSION", "v1alpha2")
 
+KUBERNETES_JOB_TERMINATE_MODE = from_conf("KUBERNETES_JOB_TERMINATE_MODE", "stop")
+
 ##
 # Argo Events Configuration
 ##
@@ -460,6 +500,10 @@ ESCAPE_HATCH_WARNING = from_conf("ESCAPE_HATCH_WARNING", True)
 # Features
 ###
 FEAT_ALWAYS_UPLOAD_CODE_PACKAGE = from_conf("FEAT_ALWAYS_UPLOAD_CODE_PACKAGE", False)
+###
+# Profile
+###
+PROFILE_FROM_START = from_conf("PROFILE_FROM_START", False)
 ###
 # Debug configuration
 ###
@@ -543,7 +587,7 @@ MAX_ATTEMPTS = 6
 # Feature flag (experimental features that are *explicitly* unsupported)
 
 # Process configs even when using the click_api for Runner/Deployer
-CLICK_API_PROCESS_CONFIG = from_conf("CLICK_API_PROCESS_CONFIG", False)
+CLICK_API_PROCESS_CONFIG = from_conf("CLICK_API_PROCESS_CONFIG", True)
 
 
 # PINNED_CONDA_LIBS are the libraries that metaflow depends on for execution
@@ -564,6 +608,7 @@ def get_pinned_conda_libs(python_version, datastore_type):
         pins["google-auth"] = ">=2.11.0"
         pins["google-cloud-secret-manager"] = ">=2.10.0"
         pins["simple-gcp-object-downloader"] = ">=0.1.0"
+        pins["packaging"] = ">=24.0"
     elif datastore_type == "local":
         pass
     else:

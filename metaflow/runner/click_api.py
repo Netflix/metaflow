@@ -43,7 +43,7 @@ from metaflow._vendor.click.types import (
 )
 from metaflow.decorators import add_decorator_options
 from metaflow.exception import MetaflowException
-from metaflow.flowspec import _FlowState
+from metaflow.flowspec import FlowStateItems
 from metaflow.includefile import FilePathClass
 from metaflow.metaflow_config import CLICK_API_PROCESS_CONFIG
 from metaflow.parameters import JSONTypeClass, flow_context
@@ -288,7 +288,7 @@ def extract_flow_class_from_file(flow_file: str) -> FlowSpec:
                 and kls.__module__ == module_name
                 and issubclass(kls, FlowSpec)
             ):
-                if flow_cls is not None:
+                if flow_cls is not None and flow_cls != kls:
                     raise MetaflowException(
                         "Multiple FlowSpec classes found in %s" % flow_file
                     )
@@ -351,8 +351,10 @@ class MetaflowAPI(object):
         class_dict = {
             "__module__": "metaflow",
             "_API_NAME": flow_file,
-            "_internal_getattr": functools.partial(
-                _lazy_load_command, cli_collection, "_compute_flow_parameters"
+            "_internal_getattr": staticmethod(
+                functools.partial(
+                    _lazy_load_command, cli_collection, "_compute_flow_parameters"
+                )
             ),
             "__getattr__": getattr_wrapper,
         }
@@ -472,11 +474,24 @@ class MetaflowAPI(object):
 
                 ds = opts.get("datastore", defaults["datastore"])
                 quiet = opts.get("quiet", defaults["quiet"])
+
+                # Order to find config or config_value:
+                # 1. Passed directly to the Click API
+                # 2. If not found, check if passed through an environment variable
+                # 3. If not found, use the default value
                 is_default = False
                 config_file = opts.get("config")
                 if config_file is None:
-                    is_default = True
-                    config_file = defaults.get("config")
+                    # Check if it was set through an environment variable -- we
+                    # don't have click process them here so we need to "fake" it.
+                    env_config_file = os.environ.get("METAFLOW_FLOW_CONFIG")
+                    if env_config_file:
+                        # Convert dict items to list of tuples
+                        config_file = list(json.loads(env_config_file).items())
+                        is_default = False
+                    else:
+                        is_default = True
+                        config_file = defaults.get("config")
 
                 if config_file:
                     config_file = dict(
@@ -492,8 +507,19 @@ class MetaflowAPI(object):
                 is_default = False
                 config_value = opts.get("config-value")
                 if config_value is None:
-                    is_default = True
-                    config_value = defaults.get("config_value")
+                    env_config_value = os.environ.get("METAFLOW_FLOW_CONFIG_VALUE")
+                    if env_config_value:
+                        # Parse environment variable using MultipleTuple logic
+                        loaded = json.loads(env_config_value)
+                        # Convert dict items to list of tuples with JSON-serialized values
+                        config_value = [
+                            (k, json.dumps(v) if not isinstance(v, str) else v)
+                            for k, v in loaded.items()
+                        ]
+                        is_default = False
+                    else:
+                        is_default = True
+                        config_value = defaults.get("config_value")
 
                 if config_value:
                     config_value = dict(
@@ -530,7 +556,7 @@ class MetaflowAPI(object):
         # We ignore any errors if we don't check the configs in the click API.
 
         # Init all values in the flow mutators and then process them
-        for decorator in self._flow_cls._flow_state.get(_FlowState.FLOW_MUTATORS, []):
+        for decorator in self._flow_cls._flow_state[FlowStateItems.FLOW_MUTATORS]:
             decorator.external_init()
 
         new_cls = self._flow_cls._process_config_decorators(

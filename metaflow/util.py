@@ -4,10 +4,12 @@ import sys
 import tempfile
 import zlib
 import base64
+import re
+
 from functools import wraps
 from io import BytesIO
 from itertools import takewhile
-import re
+from typing import Dict, Any, Tuple, Optional, List, Generator
 
 
 try:
@@ -176,6 +178,119 @@ def resolve_identity_as_tuple():
 def resolve_identity():
     identity_type, identity_value = resolve_identity_as_tuple()
     return "%s:%s" % (identity_type, identity_value)
+
+
+def parse_spin_pathspec(pathspec: str, flow_name: str) -> Tuple:
+    """
+    Parse various pathspec formats for the spin command.
+
+    Parameters
+    ----------
+    pathspec : str
+        The pathspec string in one of the following formats:
+        - step_name (e.g., 'start')
+        - run_id/step_name (e.g., '221165/start')
+        - run_id/step_name/task_id (e.g., '221165/start/1350987')
+        - flow_name/run_id/step_name (e.g., 'ScalableFlow/221165/start')
+        - flow_name/run_id/step_name/task_id (e.g., 'ScalableFlow/221165/start/1350987')
+    flow_name : str
+        The name of the current flow.
+
+    Returns
+    -------
+    Tuple
+        A tuple of (step_name, full_pathspec_or_none)
+
+    Raises
+    ------
+    CommandException
+        If the pathspec format is invalid or flow name doesn't match.
+    """
+    from .exception import CommandException
+
+    parts = pathspec.split("/")
+
+    if len(parts) == 1:
+        # Just step name: 'start'
+        step_name = parts[0]
+        parsed_pathspec = None
+    elif len(parts) == 2:
+        # run_id/step_name: '221165/start'
+        run_id, step_name = parts
+        parsed_pathspec = f"{flow_name}/{run_id}/{step_name}"
+    elif len(parts) == 3:
+        # Could be run_id/step_name/task_id or flow_name/run_id/step_name
+        if parts[0] == flow_name:
+            # flow_name/run_id/step_name
+            _, run_id, step_name = parts
+            parsed_pathspec = f"{flow_name}/{run_id}/{step_name}"
+        else:
+            # run_id/step_name/task_id
+            run_id, step_name, task_id = parts
+            parsed_pathspec = f"{flow_name}/{run_id}/{step_name}/{task_id}"
+    elif len(parts) == 4:
+        # flow_name/run_id/step_name/task_id
+        parsed_flow_name, run_id, step_name, task_id = parts
+        if parsed_flow_name != flow_name:
+            raise CommandException(
+                f"Flow name '{parsed_flow_name}' in pathspec does not match current flow '{flow_name}'."
+            )
+        parsed_pathspec = pathspec
+    else:
+        raise CommandException(
+            f"Invalid pathspec format: '{pathspec}'. \n"
+            "Expected formats:\n"
+            "  - step_name (e.g., 'start')\n"
+            "  - run_id/step_name (e.g., '221165/start')\n"
+            "  - run_id/step_name/task_id (e.g., '221165/start/1350987')\n"
+            "  - flow_name/run_id/step_name (e.g., 'ScalableFlow/221165/start')\n"
+            "  - flow_name/run_id/step_name/task_id (e.g., 'ScalableFlow/221165/start/1350987')"
+        )
+
+    return step_name, parsed_pathspec
+
+
+def get_latest_task_pathspec(
+    flow_name: str, step_name: str, run_id: str = None
+) -> "metaflow.Task":
+    """
+    Returns a task pathspec from the latest run (or specified run) of the flow for the queried step.
+    If the queried step has several tasks, the task pathspec of the first task is returned.
+
+    Parameters
+    ----------
+    flow_name : str
+        The name of the flow.
+    step_name : str
+        The name of the step.
+    run_id : str, optional
+        The run ID to use. If None, uses the latest run.
+
+    Returns
+    -------
+    Task
+        A Metaflow Task instance containing the latest task for the queried step.
+
+    Raises
+    ------
+    MetaflowNotFound
+        If no task or run is found for the queried step.
+    """
+    from metaflow import Flow, Step
+    from metaflow.exception import MetaflowNotFound
+
+    if not run_id:
+        flow = Flow(flow_name)
+        run = flow.latest_run
+        if run is None:
+            raise MetaflowNotFound(f"No run found for flow {flow_name}")
+        run_id = run.id
+
+    try:
+        task = Step(f"{flow_name}/{run_id}/{step_name}").task
+        return task
+    except:
+        raise MetaflowNotFound(f"No task found for step {step_name} in run {run_id}")
 
 
 def get_latest_run_id(echo, flow_name):
@@ -471,3 +586,78 @@ def to_pod(value):
 
 
 from metaflow._vendor.packaging.version import parse as version_parse
+
+
+def read_artifacts_module(file_path: str) -> Dict[str, Any]:
+    """
+    Read a Python module from the given file path and return its ARTIFACTS variable.
+
+    Parameters
+    ----------
+    file_path : str
+        The path to the Python file containing the ARTIFACTS variable.
+
+    Returns
+    -------
+    Dict[str, Any]
+        A dictionary containing the ARTIFACTS variable from the module.
+
+    Raises
+    -------
+    MetaflowInternalError
+        If the file cannot be read or does not contain the ARTIFACTS variable.
+    """
+    import importlib.util
+    import os
+
+    try:
+        module_name = os.path.splitext(os.path.basename(file_path))[0]
+        spec = importlib.util.spec_from_file_location(module_name, file_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        variables = vars(module)
+        if "ARTIFACTS" not in variables:
+            raise MetaflowInternalError(
+                f"Module {file_path} does not contain ARTIFACTS variable"
+            )
+        return variables.get("ARTIFACTS")
+    except Exception as e:
+        raise MetaflowInternalError(f"Error reading file {file_path}") from e
+
+
+# this is os.walk(follow_symlinks=True) with cycle detection
+def walk_without_cycles(
+    top_root: str,
+    exclude_dirs: Optional[List[str]] = None,
+) -> Generator[Tuple[str, List[str], List[str]], None, None]:
+    default_skip_dirs = ["__pycache__"]
+
+    def _recurse(root, skip_dirs, seen):
+        for parent, dirs, files in os.walk(root):
+            dirs[:] = [d for d in dirs if d not in skip_dirs]
+            for d in dirs:
+                path = os.path.join(parent, d)
+                if os.path.islink(path):
+                    # Breaking loops: never follow the same symlink twice
+                    #
+                    # NOTE: this also means that links to sibling links are
+                    # not followed. In this case:
+                    #
+                    #   x -> y
+                    #   y -> oo
+                    #   oo/real_file
+                    #
+                    # real_file is only included twice, not three times
+                    reallink = os.path.realpath(path)
+                    if reallink not in seen:
+                        # Make a copy of the set of seen nodes, as we only want to break loops on a per-branch basis.
+                        recursive_seen = set().union(seen)
+                        recursive_seen.add(reallink)
+                        for x in _recurse(path, default_skip_dirs, recursive_seen):
+                            yield x
+            yield parent, dirs, files
+
+    skip_dirs = set(default_skip_dirs + (exclude_dirs or []))
+    for x in _recurse(top_root, skip_dirs, set()):
+        skip_dirs = default_skip_dirs
+        yield x

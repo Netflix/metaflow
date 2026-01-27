@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Metaflow
         run: |
@@ -27,7 +27,7 @@ jobs:
           echo "Starting environment in the background..."
           MINIKUBE_CPUS=2 metaflow-dev all-up &
           # Give time to spin up. Adjust as needed:
-          sleep 150
+          WAIT_TIMEOUT=600 metaflow-dev wait-until-ready
 
       - name: Wait & run flow
         run: |

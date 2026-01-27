@@ -41,57 +41,80 @@ def conda_platform():
             return "osx-64"
 
 
+def markers_from_platform(platform):
+    plat, mach = platform.split("-")
+
+    platform_system = {"osx": "Darwin", "linux": "Linux"}.get(plat)
+    platform_machine = {
+        "32": "x86",
+        "64": "x86_64",
+        "arm64": "aarch64",
+        "aarch64": "aarch64",
+    }.get(mach)
+
+    markers = {
+        k: v
+        for k, v in {
+            "platform_system": platform_system,
+            "platform_machine": platform_machine,
+        }.items()
+        if v is not None
+    }
+    return markers
+
+
 def wheel_tags(wheel):
     _, _, _, tags = parse_wheel_filename(wheel)
     return list(tags)
 
 
-def pip_tags(python_version, mamba_platform):
+def pip_tags(python_version, mamba_platform, freetheaded=False):
     # Returns a list of pip tags containing (implementation, platforms, abis) tuples
     # assuming a CPython implementation for Python interpreter.
 
     # Inspired by https://github.com/pypa/pip/blob/0442875a68f19b0118b0b88c747bdaf6b24853ba/src/pip/_internal/utils/compatibility_tags.py
     py_version = tuple(map(int, python_version.split(".")[:2]))
+    glibc_tags = [
+        "_2_17",
+        "_2_18",
+        "_2_19",
+        "_2_20",
+        "_2_21",
+        "_2_23",
+        "_2_24",
+        "_2_25",
+        "_2_26",
+        "_2_27",
+        "_2_28",
+        "_2_29",
+        "_2_30",
+        "_2_31",
+        "_2_32",
+        "_2_33",
+        "_2_34",
+        "_2_35",
+        "_2_36",
+        "_2_37",
+        "_2_38",
+    ]
     if mamba_platform == "linux-64":
         platforms = [
             "manylinux%s_x86_64" % s
-            for s in (
+            for s in [
                 "1",
                 "2010",
                 "2014",
-                "_2_17",
-                "_2_18",
-                "_2_19",
-                "_2_20",
-                "_2_21",
-                "_2_23",
-                "_2_24",
-                "_2_25",
-                "_2_26",
-                "_2_27",
-                "_2_28",
-                "_2_29",
-            )
+            ]
+            + glibc_tags
         ]
         platforms.append("linux_x86_64")
     elif mamba_platform == "linux-aarch64":
         platforms = [
             "manylinux%s_aarch64" % s
-            for s in (
+            for s in [
                 "2014",
-                "_2_17",
-                "_2_18",
-                "_2_19",
-                "_2_20",
-                "_2_21",
-                "_2_23",
-                "_2_24",
-                "_2_25",
-                "_2_26",
-                "_2_27",
-                "_2_28",
-                "_2_29",
-            )
+            ]
+            + glibc_tags
         ]
         platforms.append("linux_aarch64")
     elif mamba_platform == "osx-64":
@@ -104,6 +127,8 @@ def pip_tags(python_version, mamba_platform):
     interpreter = "cp%s" % ("".join(map(str, py_version)))
 
     abis = tags._cpython_abis(py_version)
+    if freetheaded:
+        abis = [f"{abi}t" for abi in abis]
 
     supported = []
     supported.extend(tags.cpython_tags(py_version, abis, platforms))

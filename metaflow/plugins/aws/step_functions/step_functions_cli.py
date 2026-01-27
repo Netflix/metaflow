@@ -265,8 +265,7 @@ def check_metadata_service_version(obj):
             "service to a compatible version (>= 2.0.2), visit:"
         )
         obj.echo(
-            "    https://admin-docs.metaflow.org/metaflow-on-aws/operation"
-            "s-guide/metaflow-service-migration-guide",
+            "    https://docs.outerbounds.com/engineering/operations/migration/",
             fg="green",
         )
         obj.echo(
@@ -348,9 +347,13 @@ def make_flow(
 
     # Attach AWS Batch decorator to the flow
     decorators._attach_decorators(obj.flow, [BatchDecorator.name])
-    decorators._init(obj.flow)
-    decorators._init_step_decorators(
-        obj.flow, obj.graph, obj.environment, obj.flow_datastore, obj.logger
+    decorators._process_late_attached_decorator(
+        [BatchDecorator.name],
+        obj.flow,
+        obj.graph,
+        obj.environment,
+        obj.flow_datastore,
+        obj.logger,
     )
     obj.graph = obj.flow._graph
 

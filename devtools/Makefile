@@ -31,6 +31,7 @@ MAKE_CMD := $(MAKE) -f "$(MKFILE_PATH)"
 MINIKUBE_CPUS ?= 4
 MINIKUBE_MEMORY ?= 6144
 MINIKUBE_DISK_SIZE ?= 20g
+WAIT_TIMEOUT ?= 300
 
 ifeq ($(shell uname), Darwin)
 	minikube_os = darwin
@@ -181,7 +182,7 @@ up: install-brew check-docker install-curl install-gum setup-minikube install-he
 	@echo 'set -e' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'trap "exit" INT TERM' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'trap "kill 0" EXIT' >> $(DEVTOOLS_DIR)/start.sh
-	@echo 'eval $$($(MINIKUBE) docker-env)' >> $(DEVTOOLS_DIR)/start.sh
+	@echo 'eval $$($(MINIKUBE) docker-env --shell bash)' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'if [ -n "$$SERVICES_OVERRIDE" ]; then' >> "$(DEVTOOLS_DIR)/start.sh"
 	@echo '    echo "🌐 Using user-provided list of services: $$SERVICES_OVERRIDE"' >> "$(DEVTOOLS_DIR)/start.sh"
 	@echo '    SERVICES="$$SERVICES_OVERRIDE"' >> "$(DEVTOOLS_DIR)/start.sh"
@@ -258,7 +259,7 @@ shell: setup-tilt
 		echo "🐍 If you installed Metaflow in a virtual environment, activate it now."; \
 		if [ -f "$(DEVTOOLS_DIR)/aws_config" ]; then \
 			env -u AWS_PROFILE \
-				-u AWS_SHARED_CREDENTIALS_FILE \
+				AWS_SHARED_CREDENTIALS_FILE= \
 				METAFLOW_HOME="$(DEVTOOLS_DIR)" \
 				METAFLOW_PROFILE=local \
 				AWS_CONFIG_FILE="$(DEVTOOLS_DIR)/aws_config" \
@@ -269,6 +270,15 @@ shell: setup-tilt
 				"$$user_shell" -i; \
 		fi'
 
+wait-until-ready:
+	@echo "Waiting for infrastructure to be ready. Timing out in $(WAIT_TIMEOUT) seconds..."
+	@timeout $(WAIT_TIMEOUT) bash -c 'while [ ! -f $(DEVTOOLS_DIR)/start.sh ]; do sleep 10; done; echo "Infra is Ready"' || (echo "Waiting for infra timed out"&&exit 1)
+# buffer to get the tilt api running
+	@timeout 120 bash -c 'while ! $(TILT) get session; do sleep 3;done'
+	@echo "Waiting for services to be ready. Timing out in $(WAIT_TIMEOUT) seconds..."
+# Need to wait for Tiltfile first, as other resources return 404 otherwise
+	@$(TILT) wait --for=condition=Ready "uiresource/(Tiltfile)" --timeout=$(WAIT_TIMEOUT)s
+	@$(TILT) wait --for=condition=Ready uiresource/generate-configs --timeout=$(WAIT_TIMEOUT)s
 
 # @echo '$(MAKE_CMD) create-dev-shell' >> $(DEVTOOLS_DIR)/start.sh
 # @echo 'rm -f /tmp/metaflow-devshell-*' >> $(DEVTOOLS_DIR)/start.sh

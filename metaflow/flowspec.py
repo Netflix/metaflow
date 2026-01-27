@@ -4,10 +4,11 @@ import sys
 import traceback
 import reprlib
 
+from collections.abc import MutableMapping
 from enum import Enum
 from itertools import islice
 from types import FunctionType, MethodType
-from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 from . import cmd_with_io, parameters
 from .debug import debug
@@ -76,14 +77,90 @@ class ParallelUBF(UnboundedForeachInput):
         return item or 0  # item is None for the control task, but it is also split 0
 
 
-class _FlowState(Enum):
-    CONFIGS = 1
-    FLOW_MUTATORS = 2
-    CACHED_PARAMETERS = 3
-    SET_CONFIG_PARAMETERS = (
-        4  # These are Parameters that now have a ConfigValue (converted)
-    )
-    # but we need to remember them.
+# First two items are inherited from parent classes; last three are not
+class FlowStateItems(Enum):
+    FLOW_MUTATORS = 1
+    FLOW_DECORATORS = 2
+    CONFIGS = 3
+    CACHED_PARAMETERS = 4
+    SET_CONFIG_PARAMETERS = 5  # Parameters that now have a ConfigValue (converted)
+
+
+class _FlowState(MutableMapping):
+    # Dict like structure to hold state information about the flow but it holds
+    # the key/values in two sub dictionaries: the ones that are specific to the flow
+    # and the ones that are inherited from parent classes.
+    # This is NOT a general purpose class and is meant to only work with FlowSpec.
+    # For example, it assumes that items are only list, dicts or None and assumes that
+    # self._self_data has all keys properly initialized.
+
+    _non_inherited_items = [
+        FlowStateItems.CONFIGS,
+        FlowStateItems.CACHED_PARAMETERS,
+        FlowStateItems.SET_CONFIG_PARAMETERS,
+    ]
+
+    def __init__(self, *args, **kwargs):
+        self._self_data = dict(*args, **kwargs)
+        self._merged_data = {}
+        self._inherited = {}
+
+    def __getitem__(self, key):
+        if key in self._non_inherited_items:
+            return self._self_data[key]
+
+        if key in self._merged_data:
+            return self._merged_data[key]
+
+        # We haven't accessed this yet so compute it for the first time
+        self_value = self._self_data.get(key)
+        inherited_value = self._inherited.get(key)
+
+        if self_value is not None:
+            # ORDER IS IMPORTANT: we use inherited first and extend by whatever is in
+            # the flowspec
+            self._merged_data[key] = self._merge_value(inherited_value, self_value)
+            return self._merged_data[key]
+        raise KeyError(key)
+
+    def __setitem__(self, key, value):
+        self._self_data[key] = value
+
+    def __delitem__(self, key):
+        if key in self._non_inherited_items:
+            del self._self_data[key]
+
+        del self._merged_data[key]
+
+    def __iter__(self):
+        # All keys are in self._self_data
+        for key in self._self_data:
+            yield self[key]
+
+    def __len__(self):
+        return len(self._self_data)
+
+    @property
+    def self_data(self):
+        self._merged_data.clear()
+        return self._self_data
+
+    @property
+    def inherited_data(self):
+        return self._inherited
+
+    def _merge_value(self, inherited_value, self_value):
+        if self_value is None:
+            return None
+        inherited_value = inherited_value or type(self_value)()
+        if isinstance(self_value, dict):
+            return {**inherited_value, **self_value}
+        elif isinstance(self_value, list):
+            return inherited_value + self_value
+        raise RuntimeError(
+            f"Cannot merge values of type {type(inherited_value)} and {type(self_value)} -- "
+            "please report this as a bug"
+        )
 
 
 class FlowSpecMeta(type):
@@ -104,12 +181,16 @@ class FlowSpecMeta(type):
         # Runner/NBRunner. This is also created here in the meta class to avoid it being
         # shared between different children classes.
 
-        # We should move _flow_decorators into this structure as well but keeping it
-        # out to limit the changes for now.
-        cls._flow_decorators = {}
-
-        # Keys are _FlowState enum values
-        cls._flow_state = {}
+        # Keys are FlowStateItems enum values
+        cls._flow_state = _FlowState(
+            {
+                FlowStateItems.FLOW_MUTATORS: [],
+                FlowStateItems.FLOW_DECORATORS: {},
+                FlowStateItems.CONFIGS: {},
+                FlowStateItems.CACHED_PARAMETERS: None,
+                FlowStateItems.SET_CONFIG_PARAMETERS: [],
+            }
+        )
 
         # Keep track if configs have been processed -- this is particularly applicable
         # for the Runner/Deployer where calling multiple APIs on the same flow could
@@ -119,7 +200,7 @@ class FlowSpecMeta(type):
 
         # We inherit stuff from our parent classes as well -- we need to be careful
         # in terms of the order; we will follow the MRO with the following rules:
-        #  - decorators (cls._flow_decorators) will cause an error if they do not
+        #  - decorators will cause an error if they do not
         #    support multiple and we see multiple instances of the same
         #  - config decorators will be joined
         #  - configs will be added later directly by the class; base class configs will
@@ -127,25 +208,51 @@ class FlowSpecMeta(type):
 
         # We only need to do this for the base classes since the current class will
         # get updated as decorators are parsed.
+
+        # We also need to be sure to not duplicate things. Consider something like
+        # class A(FlowSpec):
+        #   pass
+        #
+        # class B(A):
+        #   pass
+        #
+        # class C(B):
+        #   pass
+        #
+        # C inherits from both B and A but we need to duplicate things from A only
+        # ONCE. To do this, we only propagate the self data from each class.
+
         for base in cls.__mro__:
             if base != cls and base != FlowSpec and issubclass(base, FlowSpec):
                 # Take care of decorators
-                for deco_name, deco in base._flow_decorators.items():
-                    if deco_name in cls._flow_decorators and not deco.allow_multiple:
-                        raise DuplicateFlowDecoratorException(deco_name)
-                    cls._flow_decorators.setdefault(deco_name, []).extend(deco)
+                base_flow_decorators = base._flow_state.self_data[
+                    FlowStateItems.FLOW_DECORATORS
+                ]
 
-                # Take care of configs and flow mutators
-                base_configs = base._flow_state.get(_FlowState.CONFIGS)
-                if base_configs:
-                    cls._flow_state.setdefault(_FlowState.CONFIGS, {}).update(
-                        base_configs
+                inherited_cls_flow_decorators = (
+                    cls._flow_state.inherited_data.setdefault(
+                        FlowStateItems.FLOW_DECORATORS, {}
                     )
-                base_mutators = base._flow_state.get(_FlowState.FLOW_MUTATORS)
+                )
+                for deco_name, deco in base_flow_decorators.items():
+                    if not deco:
+                        continue
+                    deco_allow_multiple = deco[0].allow_multiple
+                    if (
+                        deco_name in inherited_cls_flow_decorators
+                        and not deco_allow_multiple
+                    ):
+                        raise DuplicateFlowDecoratorException(deco_name)
+                    inherited_cls_flow_decorators.setdefault(deco_name, []).extend(deco)
+
+                # Take care of flow mutators -- configs are just objects in the class
+                # so they are naturally inherited. We do not need to do anything special
+                # for them.
+                base_mutators = base._flow_state.self_data[FlowStateItems.FLOW_MUTATORS]
                 if base_mutators:
-                    cls._flow_state.setdefault(_FlowState.FLOW_MUTATORS, []).extend(
-                        base_mutators
-                    )
+                    cls._flow_state.inherited_data.setdefault(
+                        FlowStateItems.FLOW_MUTATORS, []
+                    ).extend(base_mutators)
 
         cls._init_graph()
 
@@ -175,7 +282,6 @@ class FlowSpec(metaclass=FlowSpecMeta):
         "_datastore",
         "_cached_input",
         "_graph",
-        "_flow_decorators",
         "_flow_state",
         "_steps",
         "index",
@@ -226,6 +332,15 @@ class FlowSpec(metaclass=FlowSpecMeta):
             fname = fname[:-1]
         return os.path.basename(fname)
 
+    @property
+    def _flow_decorators(self):
+        # Backward compatible method to access flow decorators
+        return self._flow_state[FlowStateItems.FLOW_DECORATORS]
+
+    @property
+    def _flow_mutators(self):
+        return self._flow_state[FlowStateItems.FLOW_MUTATORS]
+
     @classmethod
     def _check_parameters(cls, config_parameters=False):
         seen = set()
@@ -250,7 +365,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
         # Fast path for no user configurations
         if not process_configs or (
-            not cls._flow_state.get(_FlowState.FLOW_MUTATORS)
+            not cls._flow_state[FlowStateItems.FLOW_MUTATORS]
             and all(len(step.config_decorators) == 0 for step in cls._steps)
         ):
             # Process parameters to allow them to also use config values easily
@@ -284,12 +399,12 @@ class FlowSpec(metaclass=FlowSpecMeta):
             debug.userconf_exec("Setting config %s to %s" % (var, str(val)))
             setattr(cls, var, val)
 
-        cls._flow_state[_FlowState.SET_CONFIG_PARAMETERS] = to_save_configs
+        cls._flow_state[FlowStateItems.SET_CONFIG_PARAMETERS] = to_save_configs
         # Run all the decorators. We first run the flow-level decorators
         # and then the step level ones to maintain a consistent order with how
         # other decorators are run.
 
-        for deco in cls._flow_state.get(_FlowState.FLOW_MUTATORS, []):
+        for deco in cls._flow_state[FlowStateItems.FLOW_MUTATORS]:
             if isinstance(deco, FlowMutator):
                 inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
                 mutable_flow = MutableFlow(
@@ -307,13 +422,10 @@ class FlowSpec(metaclass=FlowSpecMeta):
                         % (deco._flow_cls.__name__, cls.__name__)
                     )
                 debug.userconf_exec(
-                    "Evaluating flow level decorator %s" % deco.__class__.__name__
+                    "Evaluating flow level decorator %s (pre-mutate)"
+                    % deco.__class__.__name__
                 )
                 deco.pre_mutate(mutable_flow)
-                # We reset cached_parameters on the very off chance that the user added
-                # more configurations based on the configuration
-                if _FlowState.CACHED_PARAMETERS in cls._flow_state:
-                    del cls._flow_state[_FlowState.CACHED_PARAMETERS]
             else:
                 raise MetaflowInternalError(
                     "A non FlowMutator found in flow custom decorators"
@@ -324,7 +436,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
                 if isinstance(deco, StepMutator):
                     inserted_by_value = [deco.decorator_name] + (deco.inserted_by or [])
                     debug.userconf_exec(
-                        "Evaluating step level decorator %s for %s"
+                        "Evaluating step level decorator %s for %s (pre-mutate)"
                         % (deco.__class__.__name__, step.name)
                     )
                     deco.pre_mutate(
@@ -372,9 +484,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
             seen.add(var)
             if param.IS_CONFIG_PARAMETER:
                 # Use computed value if already evaluated, else get from config_options
-                val = param._computed_value or config_options.get(
-                    param.name.replace("-", "_").lower()
-                )
+                val = param._computed_value or config_options.get(param.name)
             else:
                 val = kwargs[param.name.replace("-", "_").lower()]
             # Support for delayed evaluation of parameters.
@@ -428,7 +538,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
                     "statically_defined": deco.statically_defined,
                     "inserted_by": deco.inserted_by,
                 }
-                for deco in self._flow_state.get(_FlowState.FLOW_MUTATORS, [])
+                for deco in self._flow_state[FlowStateItems.FLOW_MUTATORS]
             ],
             "extensions": extension_info(),
         }
@@ -436,10 +546,10 @@ class FlowSpec(metaclass=FlowSpecMeta):
 
     @classmethod
     def _get_parameters(cls):
-        cached = cls._flow_state.get(_FlowState.CACHED_PARAMETERS)
+        cached = cls._flow_state[FlowStateItems.CACHED_PARAMETERS]
         returned = set()
         if cached is not None:
-            for set_config in cls._flow_state.get(_FlowState.SET_CONFIG_PARAMETERS, []):
+            for set_config in cls._flow_state[FlowStateItems.SET_CONFIG_PARAMETERS]:
                 returned.add(set_config[0])
                 yield set_config[0], set_config[1]
             for var in cached:
@@ -447,7 +557,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
                     yield var, getattr(cls, var)
             return
         build_list = []
-        for set_config in cls._flow_state.get(_FlowState.SET_CONFIG_PARAMETERS, []):
+        for set_config in cls._flow_state[FlowStateItems.SET_CONFIG_PARAMETERS]:
             returned.add(set_config[0])
             yield set_config[0], set_config[1]
         for var in dir(cls):
@@ -460,7 +570,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
             if isinstance(val, Parameter) and var not in returned:
                 build_list.append(var)
                 yield var, val
-        cls._flow_state[_FlowState.CACHED_PARAMETERS] = build_list
+        cls._flow_state[FlowStateItems.CACHED_PARAMETERS] = build_list
 
     def _set_datastore(self, datastore):
         self._datastore = datastore

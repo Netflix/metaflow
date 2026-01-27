@@ -4,7 +4,10 @@ from json import JSONDecodeError
 
 
 from metaflow.exception import MetaflowException
-from metaflow.metaflow_config import AWS_SECRETS_MANAGER_DEFAULT_REGION
+from metaflow.metaflow_config import (
+    AWS_SECRETS_MANAGER_DEFAULT_REGION,
+    AWS_SECRETS_MANAGER_DEFAULT_ROLE,
+)
 from metaflow.plugins.secrets import SecretsProvider
 import re
 
@@ -88,6 +91,9 @@ class AwsSecretsManagerSecretsProvider(SecretsProvider):
         # This might still be OK, if there is fallback AWS region info in environment like:
         # .aws/config or AWS_REGION env var or AWS_DEFAULT_REGION env var, etc.
         try:
+            if AWS_SECRETS_MANAGER_DEFAULT_ROLE and not role:
+                role = AWS_SECRETS_MANAGER_DEFAULT_ROLE
+
             secrets_manager_client = get_aws_client(
                 "secretsmanager",
                 client_params={"region_name": effective_aws_region},

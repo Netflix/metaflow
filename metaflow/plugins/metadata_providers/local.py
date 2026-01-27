@@ -18,6 +18,14 @@ from metaflow.tagging_util import MAX_USER_TAG_SET_SIZE, validate_tags
 
 class LocalMetadataProvider(MetadataProvider):
     TYPE = "local"
+    DATASTORE_DIR = DATASTORE_LOCAL_DIR  # ".metaflow"
+
+    @classmethod
+    def _get_storage_class(cls):
+        # This method is meant to be overridden
+        from metaflow.plugins.datastores.local_storage import LocalStorage
+
+        return LocalStorage
 
     def __init__(self, environment, flow, event_logger, monitor):
         super(LocalMetadataProvider, self).__init__(
@@ -26,30 +34,28 @@ class LocalMetadataProvider(MetadataProvider):
 
     @classmethod
     def compute_info(cls, val):
-        from metaflow.plugins.datastores.local_storage import LocalStorage
+        storage_class = cls._get_storage_class()
 
-        v = os.path.realpath(os.path.join(val, DATASTORE_LOCAL_DIR))
+        v = os.path.realpath(os.path.join(val, cls.DATASTORE_DIR))
         if os.path.isdir(v):
-            LocalStorage.datastore_root = v
+            storage_class.datastore_root = v
             return val
         raise ValueError(
-            "Could not find directory %s in directory %s" % (DATASTORE_LOCAL_DIR, val)
+            "Could not find directory %s in directory %s" % (cls.DATASTORE_DIR, val)
         )
 
     @classmethod
     def default_info(cls):
-        from metaflow.plugins.datastores.local_storage import LocalStorage
+        storage_class = cls._get_storage_class()
 
         def print_clean(line, **kwargs):
             print(line)
 
-        v = LocalStorage.get_datastore_root_from_config(
+        v = storage_class.get_datastore_root_from_config(
             print_clean, create_on_absent=False
         )
         if v is None:
-            return (
-                "<No %s directory found in current working tree>" % DATASTORE_LOCAL_DIR
-            )
+            return "<No %s directory found in current working tree>" % cls.DATASTORE_DIR
         return os.path.dirname(v)
 
     def version(self):
@@ -102,7 +108,7 @@ class LocalMetadataProvider(MetadataProvider):
     def register_data_artifacts(
         self, run_id, step_name, task_id, attempt_id, artifacts
     ):
-        meta_dir = self._create_and_get_metadir(
+        meta_dir = self.__class__._create_and_get_metadir(
             self._flow_name, run_id, step_name, task_id
         )
         artlist = self._artifacts_to_json(
@@ -112,7 +118,7 @@ class LocalMetadataProvider(MetadataProvider):
         self._save_meta(meta_dir, artdict)
 
     def register_metadata(self, run_id, step_name, task_id, metadata):
-        meta_dir = self._create_and_get_metadir(
+        meta_dir = self.__class__._create_and_get_metadir(
             self._flow_name, run_id, step_name, task_id
         )
         metalist = self._metadata_to_json(run_id, step_name, task_id, metadata)
@@ -132,9 +138,7 @@ class LocalMetadataProvider(MetadataProvider):
 
         def _optimistically_mutate():
             # get existing tags
-            run = LocalMetadataProvider.get_object(
-                "run", "self", {}, None, flow_id, run_id
-            )
+            run = cls.get_object("run", "self", {}, None, flow_id, run_id)
             if not run:
                 raise MetaflowTaggingError(
                     msg="Run not found (%s, %s)" % (flow_id, run_id)
@@ -167,15 +171,13 @@ class LocalMetadataProvider(MetadataProvider):
             validate_tags(next_user_tags_set, existing_tags=existing_user_tag_set)
 
             # write new tag set to file system
-            LocalMetadataProvider._persist_tags_for_run(
+            cls._persist_tags_for_run(
                 flow_id, run_id, next_user_tags_set, existing_system_tag_set
             )
 
             # read tags back from file system to see if our optimism is misplaced
             # I.e. did a concurrent mutate overwrite our change
-            run = LocalMetadataProvider.get_object(
-                "run", "self", {}, None, flow_id, run_id
-            )
+            run = cls.get_object("run", "self", {}, None, flow_id, run_id)
             if not run:
                 raise MetaflowTaggingError(
                     msg="Run not found for read-back check (%s, %s)" % (flow_id, run_id)
@@ -279,8 +281,6 @@ class LocalMetadataProvider(MetadataProvider):
         if obj_type not in ("root", "flow", "run", "step", "task", "artifact"):
             raise MetaflowInternalError(msg="Unexpected object type %s" % obj_type)
 
-        from metaflow.plugins.datastores.local_storage import LocalStorage
-
         if obj_type == "artifact":
             # Artifacts are actually part of the tasks in the filesystem
             # E.g. we get here for (obj_type, sub_type) == (artifact, self)
@@ -307,13 +307,13 @@ class LocalMetadataProvider(MetadataProvider):
 
         # Special handling of self, artifact, and metadata
         if sub_type == "self":
-            meta_path = LocalMetadataProvider._get_metadir(*args[:obj_order])
+            meta_path = cls._get_metadir(*args[:obj_order])
             if meta_path is None:
                 return None
             self_file = os.path.join(meta_path, "_self.json")
             if os.path.isfile(self_file):
                 obj = MetadataProvider._apply_filter(
-                    [LocalMetadataProvider._read_json_file(self_file)], filters
+                    [cls._read_json_file(self_file)], filters
                 )[0]
                 # For non-descendants of a run, we are done
 
@@ -324,7 +324,7 @@ class LocalMetadataProvider(MetadataProvider):
                     raise MetaflowInternalError(
                         msg="Unexpected object type %s" % obj_type
                     )
-                run = LocalMetadataProvider.get_object(
+                run = cls.get_object(
                     "run", "self", {}, None, *args[:RUN_ORDER]  # *[flow_id, run_id]
                 )
                 if not run:
@@ -341,7 +341,7 @@ class LocalMetadataProvider(MetadataProvider):
             if obj_type not in ("root", "flow", "run", "step", "task"):
                 raise MetaflowInternalError(msg="Unexpected object type %s" % obj_type)
 
-            meta_path = LocalMetadataProvider._get_metadir(*args[:obj_order])
+            meta_path = cls._get_metadir(*args[:obj_order])
             result = []
             if meta_path is None:
                 return result
@@ -352,9 +352,7 @@ class LocalMetadataProvider(MetadataProvider):
                 attempts_done = sorted(glob.iglob(attempt_done_files))
                 if attempts_done:
                     successful_attempt = int(
-                        LocalMetadataProvider._read_json_file(attempts_done[-1])[
-                            "value"
-                        ]
+                        cls._read_json_file(attempts_done[-1])["value"]
                     )
             if successful_attempt is not None:
                 which_artifact = "*"
@@ -365,10 +363,10 @@ class LocalMetadataProvider(MetadataProvider):
                     "%d_artifact_%s.json" % (successful_attempt, which_artifact),
                 )
                 for obj in glob.iglob(artifact_files):
-                    result.append(LocalMetadataProvider._read_json_file(obj))
+                    result.append(cls._read_json_file(obj))
 
             # We are getting artifacts. We should overlay with ancestral run's tags
-            run = LocalMetadataProvider.get_object(
+            run = cls.get_object(
                 "run", "self", {}, None, *args[:RUN_ORDER]  # *[flow_id, run_id]
             )
             if not run:
@@ -388,12 +386,12 @@ class LocalMetadataProvider(MetadataProvider):
             if obj_type not in ("root", "flow", "run", "step", "task"):
                 raise MetaflowInternalError(msg="Unexpected object type %s" % obj_type)
             result = []
-            meta_path = LocalMetadataProvider._get_metadir(*args[:obj_order])
+            meta_path = cls._get_metadir(*args[:obj_order])
             if meta_path is None:
                 return result
             files = os.path.join(meta_path, "sysmeta_*")
             for obj in glob.iglob(files):
-                result.append(LocalMetadataProvider._read_json_file(obj))
+                result.append(cls._read_json_file(obj))
             return result
 
         # For the other types, we locate all the objects we need to find and return them
@@ -401,14 +399,13 @@ class LocalMetadataProvider(MetadataProvider):
             raise MetaflowInternalError(msg="Unexpected object type %s" % obj_type)
         if sub_type not in ("flow", "run", "step", "task"):
             raise MetaflowInternalError(msg="unexpected sub type %s" % sub_type)
-        obj_path = LocalMetadataProvider._make_path(
-            *args[:obj_order], create_on_absent=False
-        )
+        obj_path = cls._make_path(*args[:obj_order], create_on_absent=False)
         result = []
         if obj_path is None:
             return result
         skip_dirs = "*/" * (sub_order - obj_order)
-        all_meta = os.path.join(obj_path, skip_dirs, LocalStorage.METADATA_DIR)
+        storage_class = cls._get_storage_class()
+        all_meta = os.path.join(obj_path, skip_dirs, storage_class.METADATA_DIR)
         SelfInfo = collections.namedtuple("SelfInfo", ["filepath", "run_id"])
         self_infos = []
         for meta_path in glob.iglob(all_meta):
@@ -418,9 +415,7 @@ class LocalMetadataProvider(MetadataProvider):
             run_id = None
             # flow and run do not need info from ancestral run
             if sub_type in ("step", "task"):
-                run_id = LocalMetadataProvider._deduce_run_id_from_meta_dir(
-                    meta_path, sub_type
-                )
+                run_id = cls._deduce_run_id_from_meta_dir(meta_path, sub_type)
                 # obj_type IS run, or more granular than run, let's do sanity check vs args
                 if obj_order >= RUN_ORDER:
                     if run_id != args[RUN_ORDER - 1]:
@@ -430,10 +425,10 @@ class LocalMetadataProvider(MetadataProvider):
             self_infos.append(SelfInfo(filepath=self_file, run_id=run_id))
 
         for self_info in self_infos:
-            obj = LocalMetadataProvider._read_json_file(self_info.filepath)
+            obj = cls._read_json_file(self_info.filepath)
             if self_info.run_id:
                 flow_id_from_args = args[0]
-                run = LocalMetadataProvider.get_object(
+                run = cls.get_object(
                     "run",
                     "self",
                     {},
@@ -452,8 +447,8 @@ class LocalMetadataProvider(MetadataProvider):
 
         return MetadataProvider._apply_filter(result, filters)
 
-    @staticmethod
-    def _deduce_run_id_from_meta_dir(meta_dir_path, sub_type):
+    @classmethod
+    def _deduce_run_id_from_meta_dir(cls, meta_dir_path, sub_type):
         curr_order = ObjectOrder.type_to_order(sub_type)
         levels_to_ascend = curr_order - ObjectOrder.type_to_order("run")
         if levels_to_ascend < 0:
@@ -468,8 +463,8 @@ class LocalMetadataProvider(MetadataProvider):
             )
         return run_id
 
-    @staticmethod
-    def _makedirs(path):
+    @classmethod
+    def _makedirs(cls, path):
         # this is for python2 compatibility.
         # Python3 has os.makedirs(exist_ok=True).
         try:
@@ -481,17 +476,15 @@ class LocalMetadataProvider(MetadataProvider):
             else:
                 raise
 
-    @staticmethod
-    def _persist_tags_for_run(flow_id, run_id, tags, system_tags):
-        subpath = LocalMetadataProvider._create_and_get_metadir(
-            flow_name=flow_id, run_id=run_id
-        )
+    @classmethod
+    def _persist_tags_for_run(cls, flow_id, run_id, tags, system_tags):
+        subpath = cls._create_and_get_metadir(flow_name=flow_id, run_id=run_id)
         selfname = os.path.join(subpath, "_self.json")
         if not os.path.isfile(selfname):
             raise MetaflowInternalError(
                 msg="Could not verify Run existence on disk - missing %s" % selfname
             )
-        LocalMetadataProvider._save_meta(
+        cls._save_meta(
             subpath,
             {
                 "_self": MetadataProvider._run_to_json_static(
@@ -508,11 +501,11 @@ class LocalMetadataProvider(MetadataProvider):
             tags = set()
         if sys_tags is None:
             sys_tags = set()
-        subpath = self._create_and_get_metadir(
+        subpath = self.__class__._create_and_get_metadir(
             self._flow_name, run_id, step_name, task_id
         )
         selfname = os.path.join(subpath, "_self.json")
-        self._makedirs(subpath)
+        self.__class__._makedirs(subpath)
         if os.path.isfile(selfname):
             # There is a race here, but we are not aiming to make this as solid as
             # the metadata service. This is used primarily for concurrent resumes,
@@ -549,26 +542,31 @@ class LocalMetadataProvider(MetadataProvider):
         self._register_system_metadata(run_id, step_name, task_id, attempt)
         return to_return
 
-    @staticmethod
+    @classmethod
     def _make_path(
-        flow_name=None, run_id=None, step_name=None, task_id=None, create_on_absent=True
+        cls,
+        flow_name=None,
+        run_id=None,
+        step_name=None,
+        task_id=None,
+        create_on_absent=True,
     ):
 
-        from metaflow.plugins.datastores.local_storage import LocalStorage
+        storage_class = cls._get_storage_class()
 
-        if LocalStorage.datastore_root is None:
+        if storage_class.datastore_root is None:
 
             def print_clean(line, **kwargs):
                 print(line)
 
-            LocalStorage.datastore_root = LocalStorage.get_datastore_root_from_config(
+            storage_class.datastore_root = storage_class.get_datastore_root_from_config(
                 print_clean, create_on_absent=create_on_absent
             )
-        if LocalStorage.datastore_root is None:
+        if storage_class.datastore_root is None:
             return None
 
         if flow_name is None:
-            return LocalStorage.datastore_root
+            return storage_class.datastore_root
         components = []
         if flow_name:
             components.append(flow_name)
@@ -578,37 +576,35 @@ class LocalMetadataProvider(MetadataProvider):
                     components.append(step_name)
                     if task_id:
                         components.append(task_id)
-        return LocalStorage().full_uri(LocalStorage.path_join(*components))
+        return storage_class().full_uri(storage_class.path_join(*components))
 
-    @staticmethod
+    @classmethod
     def _create_and_get_metadir(
-        flow_name=None, run_id=None, step_name=None, task_id=None
+        cls, flow_name=None, run_id=None, step_name=None, task_id=None
     ):
-        from metaflow.plugins.datastores.local_storage import LocalStorage
+        storage_class = cls._get_storage_class()
 
-        root_path = LocalMetadataProvider._make_path(
-            flow_name, run_id, step_name, task_id
-        )
-        subpath = os.path.join(root_path, LocalStorage.METADATA_DIR)
-        LocalMetadataProvider._makedirs(subpath)
+        root_path = cls._make_path(flow_name, run_id, step_name, task_id)
+        subpath = os.path.join(root_path, storage_class.METADATA_DIR)
+        cls._makedirs(subpath)
         return subpath
 
-    @staticmethod
-    def _get_metadir(flow_name=None, run_id=None, step_name=None, task_id=None):
-        from metaflow.plugins.datastores.local_storage import LocalStorage
+    @classmethod
+    def _get_metadir(cls, flow_name=None, run_id=None, step_name=None, task_id=None):
+        storage_class = cls._get_storage_class()
 
-        root_path = LocalMetadataProvider._make_path(
+        root_path = cls._make_path(
             flow_name, run_id, step_name, task_id, create_on_absent=False
         )
         if root_path is None:
             return None
-        subpath = os.path.join(root_path, LocalStorage.METADATA_DIR)
+        subpath = os.path.join(root_path, storage_class.METADATA_DIR)
         if os.path.isdir(subpath):
             return subpath
         return None
 
-    @staticmethod
-    def _dump_json_to_file(filepath, data, allow_overwrite=False):
+    @classmethod
+    def _dump_json_to_file(cls, filepath, data, allow_overwrite=False):
         if os.path.isfile(filepath) and not allow_overwrite:
             return
         try:
@@ -622,15 +618,13 @@ class LocalMetadataProvider(MetadataProvider):
             if f and os.path.isfile(f.name):
                 os.remove(f.name)
 
-    @staticmethod
-    def _read_json_file(filepath):
+    @classmethod
+    def _read_json_file(cls, filepath):
         with open(filepath, "r") as f:
             return json.load(f)
 
-    @staticmethod
-    def _save_meta(root_dir, metadict, allow_overwrite=False):
+    @classmethod
+    def _save_meta(cls, root_dir, metadict, allow_overwrite=False):
         for name, datum in metadict.items():
             filename = os.path.join(root_dir, "%s.json" % name)
-            LocalMetadataProvider._dump_json_to_file(
-                filename, datum, allow_overwrite=allow_overwrite
-            )
+            cls._dump_json_to_file(filename, datum, allow_overwrite=allow_overwrite)

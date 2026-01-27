@@ -4,6 +4,7 @@ import time
 import asyncio
 import tempfile
 import select
+import fcntl
 from contextlib import contextmanager
 from subprocess import CalledProcessError
 from typing import Any, Dict, TYPE_CHECKING, ContextManager, Tuple
@@ -109,7 +110,6 @@ def read_from_fifo_when_ready(
     content = bytearray()
     poll = select.poll()
     poll.register(fifo_fd, select.POLLIN)
-    max_timeout = 3  # Wait for 10 * 3 = 30 ms after last write
     while True:
         if check_process_exited(command_obj) and command_obj.process.returncode != 0:
             raise CalledProcessError(
@@ -130,6 +130,21 @@ def read_from_fifo_when_ready(
             data = os.read(fifo_fd, 8192)
             if data:
                 content += data
+                # We got data! Now switch to blocking mode for guaranteed complete reads.
+                # In blocking mode, read() won't return 0 until writer closes AND all
+                # kernel buffers are drained - this is POSIX guaranteed.
+                flags = fcntl.fcntl(fifo_fd, fcntl.F_GETFL)
+                fcntl.fcntl(fifo_fd, fcntl.F_SETFL, flags & ~os.O_NONBLOCK)
+
+                # Now do blocking reads until true EOF
+                while True:
+                    chunk = os.read(fifo_fd, 8192)
+                    if not chunk:
+                        # True EOF - all data drained
+                        break
+                    content += chunk
+                # All data read, exit main loop
+                break
             else:
                 if len(events):
                     # We read an EOF -- consider the file done
@@ -137,22 +152,10 @@ def read_from_fifo_when_ready(
                 else:
                     # We had no events (just a timeout) and the read didn't return
                     # an exception so the file is still open; we continue waiting for data
-                    # Unfortunately, on MacOS, it seems that even *after* the file is
-                    # closed on the other end, we still don't get a BlockingIOError so
-                    # we hack our way and timeout if there is no write in 30ms which is
-                    # a relative eternity for file writes.
-                    if content:
-                        if max_timeout <= 0:
-                            break
-                        max_timeout -= 1
-                        continue
+                    pass
         except BlockingIOError:
-            has_blocking_error = True
-            if content:
-                # The file was closed
-                break
-            # else, if we have no content, we continue waiting for the file to be open
-            # and written to.
+            # File not ready yet, continue waiting
+            pass
 
     if not content and check_process_exited(command_obj):
         raise CalledProcessError(command_obj.process.returncode, command_obj.command)
