@@ -7,7 +7,7 @@
 
 #### Before playing this episode:
 1. Run 'Episode 02-statistics: Is this Data Science?'
-2. Configure your metadata provider to a user-wise global provider, if you haven't done it already. 
+2. Configure your metadata provider to a user-wise global provider, if you haven't done it already.
 ```bash
 $mkdir -p /path/to/home/.metaflow
 $export METAFLOW_DEFAULT_METADATA=local

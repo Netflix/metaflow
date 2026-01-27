@@ -11,4 +11,4 @@ monitor all of your Metaflow flows.**
 
 #### To play this episode:
 1. ```cd tutorials/06-worldview/```
-2. Open ```worldview.Rmd``` in RStudio on your local computer 
+2. Open ```worldview.Rmd``` in RStudio on your local computer

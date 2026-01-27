@@ -10,7 +10,7 @@
 
 library(metaflow)
 
-# Parse the CSV file 
+# Parse the CSV file
 start <- function(self){
     self$df <- read.csv("./movies.csv", stringsAsFactors=FALSE)
 }
@@ -48,20 +48,20 @@ end <- function(self){
     for (i in 1:nrow(self$playlist)){
         message(sprintf("Pick %d: %s", i, self$playlist$movie_title[i]))
 
-        if (i >= self$top_k) break; 
+        if (i >= self$top_k) break;
     }
 }
 
-metaflow("PlayListFlow") %>% 
-    parameter("genre", 
-              help = "Filter movies for a particular genre.", 
-              default = "Sci-Fi") %>%    
+metaflow("PlayListFlow") %>%
+    parameter("genre",
+              help = "Filter movies for a particular genre.",
+              default = "Sci-Fi") %>%
     parameter("top_k",
               help = "The number of movies to recommend in the playlist.",
               default = 5,
               type = "int") %>%
-    step(step = "start", 
-         r_function = start, 
+    step(step = "start",
+         r_function = start,
          next_step = c("pick_movie", "bonus_movie")) %>%
     step(step = "pick_movie",
          r_function = pick_movie,
@@ -73,7 +73,7 @@ metaflow("PlayListFlow") %>%
          r_function = join,
          join = TRUE,
          next_step = "end") %>%
-    step(step = "end", 
+    step(step = "end",
          r_function = end) %>%
     run()
 

@@ -25,11 +25,11 @@ start <- function(self) {
 }
 
 metaflow("EnvironmentVariables") \%>\%
-  step(step="start", 
+  step(step="start",
        environment_variables(CUTEST_ANIMAL = "corgi", ALSO_CUTE = "penguin"),
-       r_function=start, 
+       r_function=start,
        next_step="end") \%>\%
-  step(step="end") \%>\% 
+  step(step="end") \%>\%
   run()
 }
 }

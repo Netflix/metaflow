@@ -10,7 +10,7 @@ plots.**
 - Plotting results in a Markdown Notebook.
 
 #### Before playing this episode:
-1. Configure your metadata provider to a user-wise global provider, if you haven't done it already. 
+1. Configure your metadata provider to a user-wise global provider, if you haven't done it already.
 ```bash
 $mkdir -p /path/to/home/.metaflow
 $export METAFLOW_DEFAULT_METADATA=local

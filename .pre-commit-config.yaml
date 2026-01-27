@@ -5,6 +5,8 @@ repos:
     hooks:
       - id: check-json
       - id: check-yaml
+      - id: trailing-whitespace
+        exclude: metaflow/plugins/cards/card_modules/main.js
   - repo: https://github.com/ambv/black
     rev: 25.12.0
     hooks:

@@ -21,7 +21,7 @@ jobs:
       matrix:
         os: [ubuntu-22.04]
         ver: ['3.8', '3.9', '3.10', '3.11', '3.12']
-    
+
     steps:
     - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
       with:
@@ -52,7 +52,7 @@ jobs:
         export METAFLOW_DATASTORE_SYSROOT_S3=s3://metaflow-test/metaflow/
         export AWS_ENDPOINT_URL_S3=http://localhost:9000
         export MINIO_TEST=1
-        
+
         # Run the same test command as the original workflow
         cd test/data
         PYTHONPATH=\$(pwd)/../../ python3 -m pytest --benchmark-skip -s -v

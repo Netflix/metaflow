@@ -21,7 +21,7 @@ run_tests() {
 
 # We run realtime cards tests separately because there these tests validate the asynchronous updates to the
 # information stored in the datastore. So if there are other processes starving resources then these tests will
-# surely fail since a lot of checks have timeouts. 
+# surely fail since a lot of checks have timeouts.
 run_runtime_card_tests() {
   CARD_GRAPHS="small-foreach,small-parallel,nested-branches,single-linear-step,simple-foreach"
   cd test/core && PYTHONPATH=`pwd`/../../ python3 run_tests.py --num-parallel 8 --contexts python3-all-local-cards-realtime --graphs $CARD_GRAPHS && cd ../../
