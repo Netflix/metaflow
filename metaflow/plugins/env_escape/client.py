@@ -378,16 +378,16 @@ class Client(object):
         else:
             lookup_name = name
 
-        if name == "function":
-            # Special handling of pickled functions. We create a new class that
+        if name in ("function", "method"):
+            # Special handling of pickled functions and methods. We create a new class that
             # simply has a __call__ method that will forward things back to
             # the server side.
             if obj_id is None:
-                raise RuntimeError("Local function unpickling without an object ID")
+                raise RuntimeError("Local %s unpickling without an object ID" % name)
             if obj_id not in self._proxied_standalone_functions:
                 self._proxied_standalone_functions[obj_id] = create_class(
                     self,
-                    "__main__.__function_%s" % obj_id,
+                    "__main__.__%s_%s" % (name, obj_id),
                     {},
                     {},
                     {},
