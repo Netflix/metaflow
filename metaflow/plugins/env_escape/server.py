@@ -37,6 +37,7 @@ from .consts import (
     OP_SETVAL,
     OP_INIT,
     OP_SUBCLASSCHECK,
+    OP_GETCLASSATTR,
     VALUE_LOCAL,
     VALUE_REMOTE,
     CONTROL_GETEXPORTS,
@@ -257,6 +258,7 @@ class Server(object):
             OP_SETVAL: self._handle_setval,
             OP_INIT: self._handle_init,
             OP_SUBCLASSCHECK: self._handle_subclasscheck,
+            OP_GETCLASSATTR: self._handle_getclassattr,
         }
 
         self._local_objects = {}
@@ -391,9 +393,9 @@ class Server(object):
     def unpickle_object(self, obj):
         if (not isinstance(obj, ObjReference)) or obj.value_type != VALUE_LOCAL:
             raise ValueError("Invalid transferred object: %s" % str(obj))
-        obj = self._local_objects.get(obj.identifier)
-        if obj:
-            return obj
+        result = self._local_objects.get(obj.identifier)
+        if result is not None:
+            return result
         raise ValueError("Invalid object -- id %s not known" % obj.identifier)
 
     @staticmethod
@@ -526,6 +528,15 @@ class Server(object):
         if reverse:
             return issubclass(class_type, getattr(sys.modules[sub_module], sub_name))
         return issubclass(getattr(sys.modules[sub_module], sub_name), class_type)
+
+    def _handle_getclassattr(self, target, class_name, attr_name):
+        # Handle class-level attribute access like EnumClass.MEMBER
+        class_type = self._known_classes.get(class_name)
+        if class_type is None:
+            class_type = self._proxied_types.get(class_name)
+        if class_type is None:
+            raise ValueError("Unknown class %s" % class_name)
+        return getattr(class_type, attr_name)
 
 
 if __name__ == "__main__":
