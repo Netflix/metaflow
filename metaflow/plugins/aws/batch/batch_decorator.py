@@ -99,6 +99,8 @@ class BatchDecorator(StepDecorator):
         List of strings containing options for the chosen log driver. The configurable values
         depend on the `log driver` chosen. Validation of these options is not supported yet.
         Example: [`awslogs-group:aws/batch/job`]
+    privileged: bool, default False
+        Control whether the task can run as a privileged process on AWS Batch
     """
 
     name = "batch"
@@ -127,6 +129,7 @@ class BatchDecorator(StepDecorator):
         "log_driver": None,
         "log_options": None,
         "executable": None,
+        "privileged": False,
     }
     resource_defaults = {
         "cpu": "1",
