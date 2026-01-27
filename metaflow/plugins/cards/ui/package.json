@@ -40,8 +40,8 @@
     "@iconify/svelte": "^3.1.4",
     "svelte-markdown": "^0.4.0",
     "svelte-vega": "^2.1.0",
-    "vega": "^5.26.1",
-    "vega-embed": "^6.28.0",
-    "vega-lite": "^5.16.3"
+    "vega": "^6.2.0",
+    "vega-embed": "^7.1.0",
+    "vega-lite": "^6.4.1"
   }
 }
