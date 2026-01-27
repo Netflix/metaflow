@@ -143,6 +143,39 @@ class MetaflowS3InsufficientDiskSpace(MetaflowException):
     headline = "Insufficient disk space"
 
 
+def _s3_path_join(*parts):
+    """
+    Join S3 path components, ensuring no double slashes.
+
+    This function properly joins S3 path components by:
+    1. Stripping trailing slashes from all parts except the last
+    2. Stripping leading slashes from all parts except the first
+    3. Joining with single forward slashes
+
+    Args:
+        *parts: Path components to join
+
+    Returns:
+        str: Joined path with no double slashes
+    """
+    if not parts:
+        return ""
+
+    # Filter out empty parts
+    non_empty_parts = [p for p in parts if p]
+    if not non_empty_parts:
+        return ""
+
+    # Process first part: keep as-is but strip trailing slash
+    result = non_empty_parts[0].rstrip("/")
+
+    # Process remaining parts: strip both leading and trailing slashes
+    for part in non_empty_parts[1:]:
+        result = result + "/" + part.strip("/")
+
+    return result
+
+
 class S3Object(object):
     """
     This object represents a path or an object in S3,
@@ -543,16 +576,16 @@ class S3(object):
                 prefix = parsed.path
             if isinstance(run, FlowSpec):
                 if current.is_running_flow:
-                    prefix = os.path.join(prefix, current.flow_name, current.run_id)
+                    prefix = _s3_path_join(prefix, current.flow_name, current.run_id)
                 else:
                     raise MetaflowS3URLException(
                         "Initializing S3 with a FlowSpec outside of a running "
                         "flow is not supported."
                     )
             else:
-                prefix = os.path.join(prefix, run.parent.id, run.id)
+                prefix = _s3_path_join(prefix, run.parent.id, run.id)
 
-            self._s3root = "s3://%s" % os.path.join(bucket, prefix.strip("/"))
+            self._s3root = "s3://%s" % _s3_path_join(bucket, prefix)
         elif s3root:
             # 2. use an explicit S3 prefix
             parsed = urlparse(to_unicode(s3root))
@@ -638,9 +671,8 @@ class S3(object):
                     "Don't use absolute S3 URLs when the S3 client is "
                     "initialized with a prefix. URL: %s" % key
                 )
-            # Strip leading slashes to ensure os.path.join works correctly
-            # os.path.join discards the first argument if the second starts with '/'
-            return os.path.join(self._s3root, key.lstrip("/"))
+            # Use _s3_path_join to properly join S3 paths without double slashes
+            return _s3_path_join(self._s3root, key)
         else:
             return self._s3root
 
