@@ -22,11 +22,15 @@ class MutableFlow:
         pre_mutate: bool = False,
         statically_defined: bool = False,
         inserted_by: Optional[str] = None,
+        mutator: Optional[
+            "metaflow.user_decorators.user_flow_decorator.FlowMutator"
+        ] = None,
     ):
         self._flow_cls = flow_spec
         self._pre_mutate = pre_mutate
         self._statically_defined = statically_defined
         self._inserted_by = inserted_by
+        self._mutator = mutator
         if self._inserted_by is None:
             # This is an error because MutableSteps should only be created by
             # StepMutators or FlowMutators. We need to catch it now because otherwise
@@ -140,6 +144,35 @@ class MutableFlow:
                 "Mutable flow yielding parameter: %s" % str((var, param))
             )
             yield var, param
+
+    @property
+    def tl_options(self) -> Dict[str, Any]:
+        """
+        Get the top-level CLI options for this mutator.
+
+        Returns a dictionary of option names to values that were passed via the CLI.
+        This allows mutators to access their own top-level options similar to how
+        they can access configs and parameters.
+
+        Example:
+        ```
+        class MyMutator(FlowMutator):
+            options = {
+                'my-option': {'default': 'value', 'help': 'My option'}
+            }
+
+            def pre_mutate(self, mutable_flow):
+                # Access the option value
+                val = mutable_flow.tl_options.get('my-option')
+                print(f'Option value: {val}')
+        ```
+
+        Returns
+        -------
+        Dict[str, Any]
+            Dictionary of option names to values
+        """
+        return self._mutator._option_values if self._mutator else {}
 
     @property
     def steps(

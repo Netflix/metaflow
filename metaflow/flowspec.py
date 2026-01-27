@@ -412,6 +412,7 @@ class FlowSpec(metaclass=FlowSpecMeta):
                     pre_mutate=True,
                     statically_defined=deco.statically_defined,
                     inserted_by=inserted_by_value,
+                    mutator=deco,
                 )
                 # Sanity check to make sure we are applying the decorator to the right
                 # class
