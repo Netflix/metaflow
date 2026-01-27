@@ -137,6 +137,27 @@ def run_test(through_escape=False):
     # assert issubclass(test.ChildClass, HTMLParser)
     assert issubclass(test.ChildClass, object)
 
+    print("-- Test enum class attribute access --")
+    assert test.TestIntEnum.ZERO == 0  # Also tests falsy value (0)
+    assert test.TestIntEnum.ONE == 1
+    assert test.TestIntEnum.TWO == 2
+    assert test.TestStrEnum.EMPTY == ""  # Also tests falsy value (empty string)
+    assert test.TestStrEnum.FOO == "foo"
+    assert test.TestStrEnum.BAR == "bar"
+
+    print("-- Test bound method returns --")
+    o1_for_method = test.TestClass1(5)
+
+    # Get a bound method (not functools.partial)
+    bound_method = o1_for_method.get_bound_method()
+
+    # Verify it's callable
+    assert callable(bound_method)
+
+    # Call the bound method - returns the raw value (no override applied)
+    result = bound_method()
+    assert result == 5, f"Expected 5, got {result}"
+
     print("-- Test exceptions --")
     # Non proxied exceptions can't be returned as objects
     try:
