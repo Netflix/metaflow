@@ -190,6 +190,7 @@ def kill(ctx, run_id, user, my_runs):
     type=int,
     help="Number of parallel nodes to run as a multi-node job.",
 )
+@click.option("--privileged", is_flag=True, help="Run the AWS Batch Job as privileged")
 @click.pass_context
 def step(
     ctx,
@@ -222,6 +223,7 @@ def step(
     log_driver=None,
     log_options=None,
     num_parallel=None,
+    privileged=None,
     **kwargs
 ):
     def echo(msg, stream="stderr", batch_id=None, **kwargs):
@@ -366,6 +368,7 @@ def step(
                 log_driver=log_driver,
                 log_options=log_options,
                 num_parallel=num_parallel,
+                privileged=privileged,
             )
     except Exception:
         traceback.print_exc()
