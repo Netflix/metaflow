@@ -255,6 +255,7 @@ class Batch(object):
         ephemeral_storage=None,
         log_driver=None,
         log_options=None,
+        container_secrets=None,
         offload_command_to_s3=False,
     ):
         job_name = self._job_name(
@@ -313,6 +314,7 @@ class Batch(object):
                 ephemeral_storage=ephemeral_storage,
                 log_driver=log_driver,
                 log_options=log_options,
+                container_secrets=container_secrets,
             )
             .task_id(attrs.get("metaflow.task_id"))
             .environment_variable("AWS_DEFAULT_REGION", self._client.region())
@@ -437,6 +439,7 @@ class Batch(object):
         ephemeral_storage=None,
         log_driver=None,
         log_options=None,
+        container_secrets=None,
     ):
         if queue is None:
             queue = next(self._client.active_job_queues(), None)
@@ -479,6 +482,7 @@ class Batch(object):
             ephemeral_storage=ephemeral_storage,
             log_driver=log_driver,
             log_options=log_options,
+            container_secrets=container_secrets,
         )
         self.num_parallel = num_parallel
         self.job = job.execute()
