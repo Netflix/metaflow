@@ -1,4 +1,5 @@
 import base64
+import itertools
 import json
 import os
 import re
@@ -51,7 +52,8 @@ from metaflow.metaflow_config import (
 )
 from metaflow.metaflow_config_funcs import config_values
 from metaflow.mflog import BASH_SAVE_LOGS, bash_capture_logs, export_mflog_env_vars
-from metaflow.parameters import deploy_time_eval
+from metaflow.parameters import deploy_time_eval, Parameter as MetaflowParameter
+
 from metaflow.plugins.kubernetes.kube_utils import qos_requests_and_limits
 
 from metaflow.plugins.kubernetes.kubernetes_jobsets import KubernetesArgoJobSet
@@ -561,10 +563,22 @@ class ArgoWorkflows(object):
         return None
 
     def _process_parameters(self):
+        # Define list of parameters that are internal to Metaflow
+        internal_paramters = [
+            (
+                "auto_emit_argo_events", 
+                MetaflowParameter(
+                    name="auto_emit_argo_events",
+                    default=self.auto_emit_argo_events,
+                    help="Toggle to specify whether workflow will emit events",
+                    required=False,
+                )
+            )
+        ]
         parameters = {}
         has_schedule = self.flow._flow_decorators.get("schedule") is not None
         seen = set()
-        for var, param in self.flow._get_parameters():
+        for var, param in itertools.chain(self.flow._get_parameters(), internal_paramters):
             # Throw an exception if the parameter is specified twice.
             norm = param.name.lower()
             if norm in seen:
@@ -2067,8 +2081,7 @@ class ArgoWorkflows(object):
                 "--event-logger=%s" % self.event_logger.TYPE,
                 "--monitor=%s" % self.monitor.TYPE,
                 "--no-pylint",
-                "--with=argo_workflows_internal:auto-emit-argo-events=%i"
-                % self.auto_emit_argo_events,
+                "--with=argo_workflows_internal:auto-emit-argo-events={{workflow.parameters.auto_emit_argo_events}}",
             ]
 
             if node.name == "start":
@@ -3519,8 +3532,7 @@ class ArgoWorkflows(object):
             "--event-logger=%s" % self.event_logger.TYPE,
             "--monitor=%s" % self.monitor.TYPE,
             "--no-pylint",
-            "--with=argo_workflows_internal:auto-emit-argo-events=%i"
-            % self.auto_emit_argo_events,
+            "--with=argo_workflows_internal:auto-emit-argo-events={{workflow.parameters.auto_emit_argo_events}}",
         ]
         heartbeat_cmds = "{entrypoint} {top_level} argo-workflows heartbeat --run_id {run_id} {tags}".format(
             entrypoint=" ".join(entrypoint),
