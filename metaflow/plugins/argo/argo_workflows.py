@@ -967,8 +967,10 @@ class ArgoWorkflows(object):
                         ]
                         + [
                             Parameter("auto_emit_argo_events")
-                            .value(self.auto_emit_argo_events)
-                            .description("Toggle used to control emission of events to Argo Events.")
+                            .value(1 if self.auto_emit_argo_events else 0)
+                            .description(
+                                "Toggle used to control emission of events to Argo Events."
+                            )
                         ]
 
                     )
