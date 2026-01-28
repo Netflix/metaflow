@@ -1,5 +1,4 @@
 import base64
-import itertools
 import json
 import os
 import re
@@ -563,22 +562,10 @@ class ArgoWorkflows(object):
         return None
 
     def _process_parameters(self):
-        # Define list of parameters that are internal to Metaflow
-        internal_paramters = [
-            (
-                "auto_emit_argo_events", 
-                MetaflowParameter(
-                    name="auto_emit_argo_events",
-                    default=self.auto_emit_argo_events,
-                    help="Toggle to specify whether workflow will emit events",
-                    required=False,
-                )
-            )
-        ]
         parameters = {}
         has_schedule = self.flow._flow_decorators.get("schedule") is not None
         seen = set()
-        for var, param in itertools.chain(self.flow._get_parameters(), internal_paramters):
+        for var, param in self.flow._get_parameters():
             # Throw an exception if the parameter is specified twice.
             norm = param.name.lower()
             if norm in seen:
@@ -979,6 +966,12 @@ class ArgoWorkflows(object):
                             .description("auto-set by metaflow. safe to ignore.")
                             for event in self.triggers
                         ]
+                        + [
+                            Parameter("auto_emit_argo_events")
+                            .value(self.auto_emit_argo_events)
+                            .description("Toggle used to control emission of events to Argo Events.")
+                        ]
+
                     )
                 )
                 # Set common pod metadata.
