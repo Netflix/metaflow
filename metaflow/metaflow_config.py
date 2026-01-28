@@ -455,6 +455,9 @@ ARGO_EVENTS_SENSOR_NAMESPACE = from_conf(
     "ARGO_EVENTS_SENSOR_NAMESPACE", KUBERNETES_NAMESPACE
 )
 
+# Prefix for namespaced events (used by @trigger with namespaced=True)
+NAMESPACED_EVENTS_PREFIX = from_conf("NAMESPACED_EVENTS_PREFIX", "mfns")
+
 ARGO_WORKFLOWS_UI_URL = from_conf("ARGO_WORKFLOWS_UI_URL")
 
 ##
