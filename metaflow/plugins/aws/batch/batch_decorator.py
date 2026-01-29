@@ -127,6 +127,7 @@ class BatchDecorator(StepDecorator):
         "log_driver": None,
         "log_options": None,
         "executable": None,
+        "ulimits": None,
     }
     resource_defaults = {
         "cpu": "1",
