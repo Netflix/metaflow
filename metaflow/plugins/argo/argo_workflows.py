@@ -972,7 +972,6 @@ class ArgoWorkflows(object):
                                 "Toggle used to control emission of events to Argo Events."
                             )
                         ]
-
                     )
                 )
                 # Set common pod metadata.
