@@ -162,6 +162,7 @@ class BatchJob(object):
         ephemeral_storage,
         log_driver,
         log_options,
+        ulimits
     ):
         # identify platform from any compute environment associated with the
         # queue
@@ -285,6 +286,40 @@ class BatchJob(object):
                 raise BatchJobException(
                     "The ephemeral_storage parameter is only available for FARGATE compute environments"
                 )
+            if ulimits is not None:
+                if not isinstance(ulimits, (list,tuple)):
+                    raise BatchJobException(
+                "invalid ulimits value: ({}) (should be a list or tuple of dictionaries)".format(ulimits)
+            )
+                valid_names = {
+                    "core", "cpu", "data", "fsize", "locks", "memlock", "msgqueue",
+                    "nice", "nofile", "nproc", "rss", "rtprio", "rttime", 
+                    "sigpending", "stack"
+                }
+                for item in ulimits:
+                    # Check if item is a dictionary
+                    if not isinstance(item, dict):
+                        raise BatchJobException(
+                            "invalid ulimit item: ({}) (must be a dictionary)".format(item)
+                        )
+
+                    # Check if 'name' exists and is valid
+                    name = item.get("name")
+                    if name not in valid_names:
+                        raise BatchJobException(
+                            "invalid ulimit name: '{}'. Valid values are: {}".format(
+                                name, ", ".join(sorted(valid_names))
+                            )
+                        )
+
+                    # Check for softLimit and hardLimit (AWS requirement)
+                    if "softLimit" not in item or "hardLimit" not in item:
+                        raise BatchJobException(
+                            "ulimit '{}' is missing 'softLimit' or 'hardLimit'".format(name)
+                        )  
+                
+                job_definition["containerProperties"]["ulimits"]=ulimits
+                
 
         if inferentia:
             if not (isinstance(inferentia, (int, unicode, basestring))):
