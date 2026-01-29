@@ -174,6 +174,7 @@ DEPLOYER_IMPL_PROVIDERS_DESC = [
 TL_PLUGINS_DESC = [
     ("yaml_parser", ".parsers.yaml_parser"),
     ("requirements_txt_parser", ".pypi.parsers.requirements_txt_parser"),
+    ("namespaced_event_name", ".namespaced_events.namespaced_event_name"),
     ("pyproject_toml_parser", ".pypi.parsers.pyproject_toml_parser"),
     ("conda_environment_yml_parser", ".pypi.parsers.conda_environment_yml_parser"),
 ]
