@@ -5,7 +5,7 @@ from metaflow import current
 from metaflow.decorators import FlowDecorator
 from metaflow.exception import MetaflowException
 from metaflow.util import is_stringish
-from metaflow.parameters import DeployTimeField, deploy_time_eval
+from metaflow.parameters import DeployTimeField, deploy_time_eval, ParameterContext
 
 # TODO: Support dynamic parameter mapping through a context object that exposes
 #       flow name and user name similar to parameter context
@@ -43,12 +43,23 @@ class TriggerDecorator(FlowDecorator):
     @trigger(event={'name':'foo', 'parameters':{'common_name': 'common_name', 'flow_param': 'event_field'}})
     ```
 
+    For namespaced events, you can use `namespaced_event_name` which resolves the
+    full event name at deploy time based on @project settings:
+    ```
+    from metaflow import namespaced_event_name
+
+    @trigger(event=namespaced_event_name('foo'))
+
+    @trigger(event={'name': namespaced_event_name('foo'), 'parameters': {'x': 'y'}})
+    ```
+
     Parameters
     ----------
-    event : Union[str, Dict[str, Any]], optional, default None
-        Event dependency for this flow.
-    events : List[Union[str, Dict[str, Any]]], default []
-        Events dependency for this flow.
+    event : Union[str, Dict[str, Any], Callable[[ParameterContext], Union[str, Dict[str, Any]]]], optional, default None
+        Event dependency for this flow. Can be a string, dict, or a callable that
+        returns a string or dict at deploy time.
+    events : List[Union[str, Dict[str, Any],Callable[[ParameterContext], Union[str, Dict[str, Any]]]]], default []
+        Events dependency for this flow. Each element can be a string, dict, or callable.
     options : Dict[str, Any], default {}
         Backend-specific configuration for tuning eventing behavior.
 

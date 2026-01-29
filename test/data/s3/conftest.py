@@ -3,7 +3,14 @@ from metaflow import current
 from .. import S3ROOT
 
 # S3ROOT variants for testing both with and without trailing slash
-S3ROOT_VARIANTS = [S3ROOT.rstrip("/"), S3ROOT if S3ROOT.endswith("/") else S3ROOT + "/"]
+# Handle case where S3ROOT is None (for unit tests that don't need S3 access)
+if S3ROOT:
+    S3ROOT_VARIANTS = [
+        S3ROOT.rstrip("/"),
+        S3ROOT if S3ROOT.endswith("/") else S3ROOT + "/",
+    ]
+else:
+    S3ROOT_VARIANTS = [None]
 
 
 @pytest.fixture(params=S3ROOT_VARIANTS, ids=["no_slash", "with_slash"])

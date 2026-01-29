@@ -1056,6 +1056,39 @@ def test_list_recursive_sibling_prefix_filtering(s3root, inject_failure_rate):
         ), f"Expected object to end with '/log/test.txt', got: {objects[0].url}"
 
 
+def test_list_paths_bucket_root(s3root):
+    """
+    Test that list_paths() works correctly when s3root points to a bucket root.
+
+    Regression test for a bug where listing at bucket root (s3://bucket-name)
+    used "/" as the prefix instead of "", causing list_paths() to return nothing
+    (or only objects with keys starting with "/" if any exist).
+    """
+    if not s3root:
+        pytest.skip("S3ROOT not set")
+
+    # Extract just the bucket name from the test S3ROOT
+    parsed = urlparse(s3root)
+    bucket_root = f"s3://{parsed.netloc}"
+
+    # We know the test bucket has content under the path from s3root
+    # Extract the first path component that we know exists
+    first_component = parsed.path.lstrip("/").split("/")[0]
+
+    # List paths at bucket root
+    with S3(s3root=bucket_root) as s3:
+        objs = s3.list_paths()
+        found_keys = [obj.key for obj in objs]
+
+        # The known path component should be present
+        # Bug caused this to fail because "/" prefix doesn't match normal paths
+        assert first_component in found_keys, (
+            f"Expected path '{first_component}' not found in bucket root listing. "
+            f"Found: {found_keys}. This indicates the bug where empty path was "
+            f"converted to '/' prefix, preventing normal paths from being listed."
+        )
+
+
 def test_put_many_exhausted_retries(s3root, monkeypatch):
     """Test that put_many raises exception when transient retries are exhausted."""
     import metaflow.plugins.datatools.s3.s3 as s3_module
