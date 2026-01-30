@@ -143,39 +143,6 @@ class MetaflowS3InsufficientDiskSpace(MetaflowException):
     headline = "Insufficient disk space"
 
 
-def _s3_path_join(*parts):
-    """
-    Join S3 path components, ensuring no double slashes.
-
-    This function properly joins S3 path components by:
-    1. Stripping trailing slashes from all parts except the last
-    2. Stripping leading slashes from all parts except the first
-    3. Joining with single forward slashes
-
-    Args:
-        *parts: Path components to join
-
-    Returns:
-        str: Joined path with no double slashes
-    """
-    if not parts:
-        return ""
-
-    # Filter out empty parts
-    non_empty_parts = [p for p in parts if p]
-    if not non_empty_parts:
-        return ""
-
-    # Process first part: keep as-is but strip trailing slash
-    result = non_empty_parts[0].rstrip("/")
-
-    # Process remaining parts: strip both leading and trailing slashes
-    for part in non_empty_parts[1:]:
-        result = result + "/" + part.strip("/")
-
-    return result
-
-
 class S3Object(object):
     """
     This object represents a path or an object in S3,
@@ -576,16 +543,26 @@ class S3(object):
                 prefix = parsed.path
             if isinstance(run, FlowSpec):
                 if current.is_running_flow:
-                    prefix = _s3_path_join(prefix, current.flow_name, current.run_id)
+                    prefix = os.path.join(prefix, current.flow_name, current.run_id)
                 else:
                     raise MetaflowS3URLException(
                         "Initializing S3 with a FlowSpec outside of a running "
                         "flow is not supported."
                     )
             else:
-                prefix = _s3_path_join(prefix, run.parent.id, run.id)
+                prefix = os.path.join(prefix, run.parent.id, run.id)
 
-            self._s3root = "s3://%s" % _s3_path_join(bucket, prefix)
+            # IMPORTANT: We use os.path.join() which may create paths with double
+            # slashes if prefix has a trailing slash. This is INTENTIONAL.
+            # S3 object keys are literal strings - "path//file" and "path/file"
+            # are DIFFERENT objects according to S3 spec. boto3 explicitly
+            # disables path normalization for S3. See:
+            # - https://github.com/boto/botocore/blob/develop/botocore/auth.py#L531-L533
+            # - AWS Signature V4 test suite documentation
+            #
+            # RECOMMENDATION: Configure METAFLOW_DATASTORE_SYSROOT_S3 WITHOUT
+            # a trailing slash to avoid double slashes in generated paths.
+            self._s3root = "s3://%s" % os.path.join(bucket, prefix.strip("/"))
         elif s3root:
             # 2. use an explicit S3 prefix
             parsed = urlparse(to_unicode(s3root))
@@ -593,6 +570,12 @@ class S3(object):
                 raise MetaflowS3URLException(
                     "s3root needs to be an S3 URL prefixed with s3://."
                 )
+            # IMPORTANT: We strip trailing slash here for consistency with the
+            # run-based initialization above. However, note that "path/" and
+            # "path" create DIFFERENT S3 paths when combined with keys.
+            # S3 does NOT normalize paths - double slashes are preserved.
+            #
+            # RECOMMENDATION: Provide s3root WITHOUT a trailing slash.
             self._s3root = s3root.rstrip("/")
         else:
             # 3. use the client only with full URLs
@@ -671,8 +654,34 @@ class S3(object):
                     "Don't use absolute S3 URLs when the S3 client is "
                     "initialized with a prefix. URL: %s" % key
                 )
-            # Use _s3_path_join to properly join S3 paths without double slashes
-            return _s3_path_join(self._s3root, key)
+            # IMPORTANT: S3 Path Handling Notes
+            # ===================================
+            # 1. We strip leading slashes from the key because os.path.join()
+            #    discards the first argument if the second starts with '/'.
+            #    This ensures the key is joined to the s3root.
+            #
+            # 2. We use os.path.join() which may create double slashes if
+            #    self._s3root has a trailing slash. This is INTENTIONAL.
+            #
+            # 3. S3 object keys are literal strings. According to S3 spec:
+            #    - "bucket/path//file" and "bucket/path/file" are DIFFERENT objects
+            #    - boto3 explicitly does NOT normalize paths for S3
+            #    - Normalizing paths would violate AWS S3 specifications
+            #
+            # 4. From AWS Signature V4 documentation:
+            #    "You do not normalize URI paths for requests to Amazon S3.
+            #    For example, if you have a bucket with an object named
+            #    'my-object//example//photo.user', use that path. Normalizing
+            #    the path to 'my-object/example/photo.user' will cause the
+            #    request to fail."
+            #
+            # RECOMMENDATION: Configure s3root WITHOUT trailing slashes to
+            # avoid unintended double slashes in your S3 object keys.
+            #
+            # References:
+            # - https://github.com/boto/botocore/blob/develop/botocore/auth.py#L531-L533
+            # - https://github.com/boto/botocore/blob/develop/tests/unit/auth/aws4_testsuite/normalize-path/
+            return os.path.join(self._s3root, key.lstrip("/"))
         else:
             return self._s3root
 
