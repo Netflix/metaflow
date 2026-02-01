@@ -458,90 +458,129 @@ filesystem restrictions, and resource limits for sandboxed execution.
 
 **Duration:** 350 hours (Large project)
 
-**Technologies:** Python, Metaflow, Kubernetes, Redis (optional)
+**Technologies:** Python, Metaflow, Kubernetes/Argo Workflows
 
 **Mentors:** TBD
 
 ### Description
 
-Metaflow's `foreach` construct creates one container per item, which works well
-when per-item computation significantly exceeds container startup time. However,
-for short-lived tasks (seconds rather than minutes), container overhead
-dominates:
+Metaflow's `foreach` construct creates one task per item. For local execution,
+this means lightweight subprocesses with minimal overhead. However, when running
+on **Kubernetes** (via Argo Workflows) or **AWS Batch**, each task becomes a
+separate container, and startup overhead dominates for short-lived tasks:
 
 | Component | Typical Time |
 |-----------|-------------|
-| Kubernetes pod scheduling | 5-15 seconds |
-| Container image pull | 10-60 seconds |
+| Pod/container scheduling | 5-15 seconds |
+| Container image pull (cached) | 5-30 seconds |
 | Python interpreter + imports | 5-20 seconds |
 | **Actual task work** | **1-5 seconds** |
 
 For a foreach over 10,000 items with 5-second tasks, the current model spends
 more time on container overhead than actual computation—even with `--max-workers`
-limiting concurrency.
+limiting concurrency. Users must either batch items manually within each task
+or accept the overhead.
 
-This project introduces a **worker pool** execution model: instead of N
-containers for N items, spin up a fixed pool of persistent workers that
-each process multiple items from a shared queue. This amortizes container
-startup cost across many items and provides natural load balancing (faster
-workers grab more items).
+This project introduces a **worker pool** execution model for remote backends:
+instead of N containers for N items, spin up a fixed pool of persistent
+worker pods that each process multiple items. This amortizes container startup
+cost across many items and provides natural load balancing (faster workers
+process more items).
+
+```python
+class MyFlow(FlowSpec):
+
+    @step
+    def start(self):
+        self.items = range(10000)  # 10k items to process
+        self.next(self.process, foreach='items')
+
+    @worker_pool(size=10, max_items_per_worker=1000)
+    @kubernetes(cpu=2, memory=4096)
+    @step
+    def process(self):
+        # Called once per item, but workers are reused
+        self.result = expensive_compute(self.input)
+        self.next(self.join)
+
+    @step
+    def join(self, inputs):
+        # Receives all 10k results, same as regular foreach
+        self.results = [inp.result for inp in inputs]
+        self.next(self.end)
+```
+
+Instead of 10,000 pod launches, only 10 persistent workers are created. Each
+worker processes ~1,000 items sequentially, writing per-item artifacts that
+the join step consumes normally.
 
 This pattern is proven in systems like [Celery](https://docs.celeryq.dev/),
 [Ray actors](https://docs.ray.io/en/latest/ray-core/actors.html), and
 [Dask distributed](https://distributed.dask.org/), but is not currently
-available in Metaflow.
+available in Metaflow for remote execution.
 
 ### Goals
 
-1. **`@worker_pool` decorator** - Mark a foreach step to use pooled execution,
-specifying pool size and optional configuration.
+1. **`@worker_pool` decorator** - Mark a foreach step to use pooled execution
+with configurable pool size and optional per-worker item limits (to bound
+memory accumulation).
 
-```python
-@worker_pool(size=10)
-@kubernetes(cpu=2, memory=4096)
-@step
-def process(self):
-    # Each worker processes multiple items from the pool
-    result = compute(self.input)
-    self.output = result
-    self.next(self.join)
-```
+2. **Kubernetes/Argo backend** - Workers as long-running pods that process
+item batches and write per-item artifacts to the Metaflow datastore.
 
-2. **Local backend implementation** - Worker pool execution using Python
+3. **Artifact compatibility** - Each item produces its own task artifacts,
+ensuring the join step works identically to regular foreach (no user code
+changes required in join).
+
+4. **Failure handling** - Define clear semantics: if a worker crashes, its
+in-progress item fails and can be retried. Completed items are durable.
+Integration with `@retry` decorator for per-item retries.
+
+5. **Local backend for testing** - Worker pool execution using Python
 multiprocessing, enabling development and testing without cloud infrastructure.
 
-3. **Kubernetes backend implementation** - Workers as long-running pods that
-pull items from a coordination mechanism and write per-item artifacts.
+6. [Stretch Goal] **Dynamic work distribution** - Replace static
+pre-partitioning with a queue-based approach for better load balancing when
+item processing times vary significantly.
 
-4. **Artifact compatibility** - Ensure the join step receives artifacts from
-all items, maintaining compatibility with existing foreach/join patterns.
+7. [Stretch Goal] **AWS Batch backend** - Extend worker pool support to
+AWS Batch, potentially leveraging Batch array jobs.
 
-5. [Stretch Goal] **Queue-based work distribution** - Replace simple
-pre-partitioning with a Redis or in-memory queue for dynamic load balancing
-and better handling of variable-duration items.
+### Design Considerations
+
+The project should address these trade-offs:
+
+- **Pool sizing**: Too few workers = underutilization; too many = diminishing
+  returns. Consider auto-sizing based on item count.
+- **Memory management**: Long-running workers may accumulate memory.
+  `max_items_per_worker` allows recycling workers periodically.
+- **Observability**: Metaflow UI shows per-task status. With worker pools,
+  need to show per-item progress within each worker.
+- **Cost trade-off**: Idle workers still cost money. Document when worker
+  pools help vs. hurt.
 
 ### Deliverables
 
 - `@worker_pool` decorator implementation
-- Local backend using multiprocessing pool
-- Kubernetes backend with persistent worker pods
-- Coordination mechanism for work distribution (pre-partitioned MVP,
-  queue-based stretch)
+- Kubernetes/Argo backend with persistent worker pods
+- Local backend using multiprocessing (for development/testing)
 - Per-item artifact storage compatible with join steps
-- Documentation with performance benchmarks
-- Test suite covering failure scenarios
+- Failure handling with `@retry` integration
+- Documentation with performance benchmarks and sizing guidance
+- Test suite covering normal operation, failures, and retries
 
 ### Skills Required
 
 - Python (intermediate/advanced)
-- Metaflow internals (decorators, runtime)
+- Metaflow internals (decorators, runtime, datastore)
 - Kubernetes basics
-- Distributed systems concepts (work queues, coordination)
+- Distributed systems concepts (work distribution, failure handling)
 
 ### Links
 
 - [Metaflow Foreach Documentation](https://docs.metaflow.org/metaflow/basics#foreach)
 - [Controlling Parallelism](https://docs.metaflow.org/scaling/remote-tasks/controlling-parallelism)
+- [Scheduling with Argo Workflows](https://docs.metaflow.org/production/scheduling-metaflow-flows/scheduling-with-argo-workflows)
 - [Celery Worker Pools](https://docs.celeryq.dev/en/stable/userguide/workers.html)
 - [Ray Actor Pool](https://docs.ray.io/en/latest/ray-core/actors.html)
 - [Metaflow Extensions Template](https://github.com/Netflix/metaflow-extensions-template)
