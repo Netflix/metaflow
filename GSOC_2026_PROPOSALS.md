@@ -34,8 +34,7 @@ Functions for the broader community by implementing two production-ready backend
 - **Ray backend** for distributed batch/offline inference
 - **FastAPI backend** for real-time online serving
 
-See [Metaflow Functions Expected API](#metaflow-functions-expected-api) for code
-examples.
+See [Expected API](#expected-api) below for code examples.
 
 ### Goals
 
@@ -93,6 +92,64 @@ to their deployment context.
 - [Existing Implementation](https://github.com/Netflix/metaflow_rc/tree/master/nflx-metaflow-function)
 - [Metaflow Documentation](https://docs.metaflow.org)
 - [Metaflow Extensions Template](https://github.com/Netflix/metaflow-extensions-template)
+
+### Expected API
+
+#### 1. Creating a Function
+
+Define a function using the `@json_function` decorator:
+
+```python
+from metaflow import json_function, FunctionParameters
+
+@json_function
+def predict(data: dict, params: FunctionParameters) -> dict:
+    """Run inference using the bound model."""
+    features = [data[f] for f in params.feature_names]
+    prediction = params.model.predict([features])[0]
+    return {"prediction": int(prediction)}
+```
+
+The function receives:
+- `data`: JSON-serializable input (dict, list, str, etc.)
+- `params`: Access to artifacts from the bound task
+
+#### 2. Binding to a Task
+
+Bind the function to a completed task to capture its environment and artifacts:
+
+```python
+from metaflow import JsonFunction, Task
+
+task = Task("MyTrainFlow/123/train/456")
+inference_fn = JsonFunction(predict, task=task)
+
+# Export portable reference
+reference = inference_fn.reference
+```
+
+#### 3. Deploying with Ray (Batch Inference)
+
+```python
+from metaflow import function_from_json
+
+fn = function_from_json(reference, backend="ray")
+results = [fn(record) for record in batch_data]
+```
+
+#### 4. Deploying with FastAPI (Real-time Serving)
+
+```python
+from fastapi import FastAPI
+from metaflow import function_from_json
+
+app = FastAPI()
+fn = function_from_json(reference)
+
+@app.post("/predict")
+def predict(payload: dict):
+    return fn(payload)
+```
 
 ---
 
@@ -810,63 +867,3 @@ with keys sealed to the TEE, ensuring only attested enclaves can decrypt them.
 - [Intel SGX Overview](https://www.intel.com/content/www/us/en/architecture-and-technology/software-guard-extensions.html)
 - [Metaflow Extensions Template](https://github.com/Netflix/metaflow-extensions-template)
 - [Confidential Computing Consortium](https://confidentialcomputing.io/)
-
----
-
-### Metaflow Functions Expected API
-
-#### 1. Creating a Function
-
-Define a function using the `@json_function` decorator:
-
-```python
-from metaflow import json_function, FunctionParameters
-
-@json_function
-def predict(data: dict, params: FunctionParameters) -> dict:
-    """Run inference using the bound model."""
-    features = [data[f] for f in params.feature_names]
-    prediction = params.model.predict([features])[0]
-    return {"prediction": int(prediction)}
-```
-
-The function receives:
-- `data`: JSON-serializable input (dict, list, str, etc.)
-- `params`: Access to artifacts from the bound task
-
-#### 2. Binding to a Task
-
-Bind the function to a completed task to capture its environment and artifacts:
-
-```python
-from metaflow import JsonFunction, Task
-
-task = Task("MyTrainFlow/123/train/456")
-inference_fn = JsonFunction(predict, task=task)
-
-# Export portable reference
-reference = inference_fn.reference
-```
-
-#### 3. Deploying with Ray (Batch Inference)
-
-```python
-from metaflow import function_from_json
-
-fn = function_from_json(reference, backend="ray")
-results = [fn(record) for record in batch_data]
-```
-
-#### 4. Deploying with FastAPI (Real-time Serving)
-
-```python
-from fastapi import FastAPI
-from metaflow import function_from_json
-
-app = FastAPI()
-fn = function_from_json(reference)
-
-@app.post("/predict")
-def predict(payload: dict):
-    return fn(payload)
-```
