@@ -867,3 +867,83 @@ with keys sealed to the TEE, ensuring only attested enclaves can decrypt them.
 - [Intel SGX Overview](https://www.intel.com/content/www/us/en/architecture-and-technology/software-guard-extensions.html)
 - [Metaflow Extensions Template](https://github.com/Netflix/metaflow-extensions-template)
 - [Confidential Computing Consortium](https://confidentialcomputing.io/)
+
+---
+
+## Metaflow Nomad Integration
+
+**Difficulty:** Medium
+
+**Duration:** 350 hours (Large project)
+
+**Technologies:** Python, HashiCorp Nomad, Metaflow
+
+**Mentors:** Madhur Tandon
+
+### Description
+
+Metaflow supports various compute backends for executing steps remotely: `@kubernetes`, `@batch` (AWS Batch), and community extensions like [`@slurm`](https://github.com/outerbounds/metaflow-slurm) for HPC clusters. However, many organizations use [HashiCorp Nomad](https://www.nomadproject.io/) as their workload orchestrator — a lightweight alternative to Kubernetes that's simpler to operate and supports diverse workload types (containers, VMs, binaries).
+
+Nomad is particularly popular in organizations already using HashiCorp's stack (Vault, Consul) and in edge computing scenarios where Kubernetes' complexity is overkill. Despite this, there's currently no way to run Metaflow steps on Nomad clusters.
+
+This project aims to implement a `@nomad` decorator that executes Metaflow steps as Nomad jobs, bringing Metaflow's workflow capabilities to the Nomad ecosystem. The [`@slurm` extension](https://github.com/outerbounds/metaflow-slurm) provides a reference implementation for integrating custom compute backends.
+
+### Goals
+
+1. **`@nomad` decorator** - Execute Metaflow steps as Nomad batch jobs with basic resource configuration (CPU, memory).
+
+2. **Docker task driver support** - Run steps in Docker containers, similar to how `@kubernetes` and `@batch` work.
+
+3. **Job submission and monitoring** - Submit jobs to Nomad, poll for completion, and retrieve exit codes.
+
+4. **Log streaming** - Capture and display stdout/stderr from Nomad allocations in the Metaflow CLI.
+
+5. **Basic retry support** - Integrate with Metaflow's `@retry` decorator to resubmit failed jobs.
+
+6. [Stretch Goal] **Exec driver support** - Support Nomad's exec driver for running binaries directly without containers.
+
+7. [Stretch Goal] **GPU resource allocation** - Support GPU constraints using Nomad's device plugins.
+
+### Deliverables
+
+- `@nomad` decorator implementation following Metaflow extension patterns
+- Nomad job submission and monitoring backend
+- Docker task driver support
+- Basic resource configuration (CPU, memory)
+- Log streaming from Nomad allocations
+- Documentation with setup guide and basic examples
+- Test scenarios covering job submission, execution, and failures
+- Example flows demonstrating Docker-based execution
+
+### Why This Matters
+
+**For users:**
+- **Use existing Nomad infrastructure** - Leverage Nomad clusters without needing Kubernetes or cloud batch services
+- **Simpler operations** - Nomad's lightweight architecture reduces operational complexity compared to Kubernetes
+- **HashiCorp ecosystem integration** - Natural fit for teams already using Vault, Consul, or Terraform
+- **Edge and hybrid deployments** - Run ML workflows on edge infrastructure where Kubernetes is too heavy
+
+**For the contributor:**
+- Learn HashiCorp Nomad—increasingly popular in the infrastructure space
+- Understand how to extend Metaflow with custom compute backends (applicable to other schedulers)
+- Gain experience with job orchestration, lifecycle management, and failure handling
+- Work with a real-world reference implementation (`@slurm`) as a guide
+- Build a foundation that the community can enhance with advanced features later
+
+### Skills Required
+
+- Python (intermediate)
+- Basic familiarity with HashiCorp Nomad
+- Docker
+- Understanding of Metaflow decorators (or willingness to learn)
+
+### Links
+
+- [HashiCorp Nomad Documentation](https://www.nomadproject.io/docs)
+- [Nomad Jobs API](https://developer.hashicorp.com/nomad/api-docs/jobs)
+- [Metaflow Slurm Extension (Reference)](https://github.com/outerbounds/metaflow-slurm)
+- [Metaflow Extensions Template](https://github.com/Netflix/metaflow-extensions-template)
+- [Metaflow Step Decorators](https://docs.metaflow.org/api/step-decorators)
+- [Metaflow Documentation](https://docs.metaflow.org)
+
+---
