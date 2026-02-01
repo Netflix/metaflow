@@ -891,17 +891,11 @@ This project aims to implement a `@nomad` decorator that executes Metaflow steps
 ### Goals
 
 1. **`@nomad` decorator** - Execute Metaflow steps as Nomad batch jobs with basic resource configuration (CPU, memory).
-
 2. **Docker task driver support** - Run steps in Docker containers, similar to how `@kubernetes` and `@batch` work.
-
 3. **Job submission and monitoring** - Submit jobs to Nomad, poll for completion, and retrieve exit codes.
-
 4. **Log streaming** - Capture and display stdout/stderr from Nomad allocations in the Metaflow CLI.
-
 5. **Basic retry support** - Integrate with Metaflow's `@retry` decorator to resubmit failed jobs.
-
 6. [Stretch Goal] **Exec driver support** - Support Nomad's exec driver for running binaries directly without containers.
-
 7. [Stretch Goal] **GPU resource allocation** - Support GPU constraints using Nomad's device plugins.
 
 ### Deliverables
