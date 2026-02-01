@@ -63,6 +63,24 @@ to their deployment context.
 - Documentation and end-to-end examples
 - Test suite
 
+### Why This Matters
+
+**For users:**
+- **Eliminate the training-serving gap** - Deploy models with the exact same
+  environment used during training, eliminating "works in training, breaks in
+  production" issues
+- **Simplify ML deployment** - No need to manually recreate environments or
+  manage dependency versions across teams
+- **Flexible deployment targets** - Same function works for batch inference
+  (Ray) and real-time serving (FastAPI) without code changes
+
+**For the contributor:**
+- Work on a production-proven system used at Netflix scale
+- Gain deep experience with ML deployment patterns and challenges
+- Build a portfolio piece that demonstrates end-to-end ML engineering skills
+- Learn Ray for distributed computing and FastAPI for API development
+- Contribute to a widely-used open source project
+
 ### Skills Required
 
 - Python (intermediate/advanced)
@@ -131,6 +149,23 @@ run specific tests against the dev stack, keeping CI times reasonable.
 - GitHub check run integration with formatted test summaries
 - Documentation for contributors on running Kubernetes tests locally
 - Test markers for backend-specific test selection
+
+### Why This Matters
+
+**For users:**
+- **Catch integration bugs early** - Issues with Kubernetes/Argo are discovered
+  in CI, not after merging to main
+- **Confidence in contributions** - Contributors can verify their changes work
+  on production-like infrastructure before submitting PRs
+- **Faster release cycles** - Automated testing reduces manual QA burden and
+  enables more frequent releases
+
+**For the contributor:**
+- Learn modern CI/CD practices with GitHub Actions
+- Gain hands-on Kubernetes experience in a real-world context
+- Understand how large open source projects maintain quality at scale
+- Build expertise in test infrastructure—a highly valued skill
+- Great entry point for becoming a long-term Metaflow contributor
 
 ### Skills Required
 
@@ -206,6 +241,25 @@ the editor without spinning up a local server.
 - Run launcher with parameter and backend selection
 - Documentation and demo video
 - Test suite
+
+### Why This Matters
+
+**For users:**
+- **Stay in flow state** - No context switching between editor and browser to
+  monitor runs or inspect artifacts
+- **Faster debugging** - One-click debugging eliminates manual configuration
+  that trips up new users
+- **Lower barrier to entry** - Visual DAG and artifact browser make Metaflow
+  more approachable for newcomers
+- **Competitive parity** - Brings Metaflow's IDE experience up to par with
+  Prefect and Dagster
+
+**For the contributor:**
+- Build a widely-used developer tool from scratch
+- Learn the VS Code Extension API—a valuable skill for any developer tools role
+- Gain experience with TypeScript and modern frontend development
+- Create a highly visible portfolio piece (published to VS Code marketplace)
+- Understand workflow orchestration systems from a tooling perspective
 
 ### Skills Required
 
@@ -283,6 +337,26 @@ entire DAG at once).
 - Interactive DAG widget (ipywidgets)
 - Documentation with example notebooks
 - Test suite
+
+### Why This Matters
+
+**For users:**
+- **Natural notebook workflow** - Define flows the same way you write notebooks,
+  not crammed into a single cell
+- **Seamless prototyping-to-production** - Convert notebook experiments to
+  production flows with one command
+- **Inline feedback** - See DAG structure and artifact values without leaving
+  the notebook
+- **Lower friction** - Data scientists can adopt Metaflow without changing
+  their preferred development style
+
+**For the contributor:**
+- Deep dive into Jupyter's extension architecture
+- Learn how notebook-to-pipeline tools work (applicable to Kubeflow, Airflow,
+  etc.)
+- Build interactive widgets with ipywidgets
+- Understand the data science workflow and tooling ecosystem
+- Create a tool that directly impacts data scientists' daily experience
 
 ### Skills Required
 
@@ -363,6 +437,25 @@ through the DAG across steps and runs.
 - Documentation and migration guide from existing UI
 - Test suite (Cypress)
 
+### Why This Matters
+
+**For users:**
+- **Zero-infrastructure local UI** - View and debug local runs without deploying
+  any backend services
+- **Real-time visibility** - Watch flows execute live instead of refreshing
+  static pages
+- **Debug faster** - Compare runs side-by-side to identify what changed when
+  something breaks
+- **Modern developer experience** - Dark mode and polished UX that meets 2025
+  expectations
+
+**For the contributor:**
+- Work on a full-stack application (React frontend + Python backend)
+- Learn real-time data visualization techniques
+- Gain experience with the Metaflow datastore and client APIs
+- Build a standalone product that can be demoed and showcased
+- Opportunity to improve UX for thousands of Metaflow users
+
 ### Skills Required
 
 - TypeScript/React (intermediate/advanced)
@@ -434,6 +527,27 @@ filesystem restrictions, and resource limits for sandboxed execution.
 - Optional DevPod/Daytona backend plugins
 - Documentation with examples
 - Test suite
+
+### Why This Matters
+
+**For users:**
+- **Reproducible local execution** - Run steps in isolated containers locally,
+  matching production behavior
+- **Safe code execution** - Sandbox untrusted or experimental code without
+  risking host system
+- **Smooth local-to-cloud transition** - Same container spec works locally
+  and on Kubernetes
+- **CI-friendly** - Run integration tests in isolated environments without
+  cloud costs
+
+**For the contributor:**
+- Learn the devcontainer specification used by VS Code, Codespaces, and modern
+  dev tools
+- Understand container isolation and security at a practical level
+- Gain experience writing Metaflow decorators (extensible pattern used
+  throughout the ecosystem)
+- Work with Docker APIs and container lifecycle management
+- Build a feature that bridges local development and production deployment
 
 ### Skills Required
 
@@ -569,6 +683,25 @@ The project should address these trade-offs:
 - Documentation with performance benchmarks and sizing guidance
 - Test suite covering normal operation, failures, and retries
 
+### Why This Matters
+
+**For users:**
+- **10-100x faster foreach for short tasks** - Eliminate container startup
+  overhead that dominates short-lived computations
+- **Lower cloud costs** - Fewer container launches means less scheduling
+  overhead and potentially lower bills
+- **No code changes to existing flows** - Just add `@worker_pool` decorator;
+  join steps work unchanged
+- **Natural load balancing** - Faster workers automatically process more items
+
+**For the contributor:**
+- Deep dive into Metaflow's runtime and execution model
+- Learn distributed systems patterns (work queues, coordination, failure
+  handling) through hands-on implementation
+- Gain Kubernetes experience with long-running pods and job management
+- Understand the trade-offs in distributed task execution (Celery, Ray, Dask)
+- Work on a performance-critical feature with measurable impact
+
 ### Skills Required
 
 - Python (intermediate/advanced)
@@ -641,6 +774,26 @@ with keys sealed to the TEE, ensuring only attested enclaves can decrypt them.
 - Documentation covering threat model and security properties
 - Test suite (simulation mode)
 - Example flow demonstrating confidential ML inference
+
+### Why This Matters
+
+**For users:**
+- **Process sensitive data safely** - Run ML on medical, financial, or
+  proprietary data with hardware-level protection
+- **Zero-trust infrastructure** - Even cloud providers cannot access your
+  computation or data
+- **Compliance enablement** - Meet regulatory requirements (HIPAA, GDPR) for
+  data processing
+- **Verifiable computation** - Attestation proves code ran in a secure enclave
+  without tampering
+
+**For the contributor:**
+- Learn cutting-edge confidential computing technology (TEEs, SGX, attestation)
+- Understand security at the hardware level—a rare and valuable skill
+- Work with emerging cloud infrastructure (confidential VMs are becoming
+  mainstream)
+- Build expertise applicable to blockchain, secure enclaves, and privacy tech
+- Contribute to an increasingly important area as AI privacy concerns grow
 
 ### Skills Required
 
