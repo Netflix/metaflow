@@ -68,8 +68,8 @@ install-helm:
 	fi
 
 check-docker:
-	@command -v docker >/dev/null 2>&1 || (echo "❌ docker CLI not found" && exit 1)
-	@docker info >/dev/null 2>&1 || (echo "❌ Docker daemon not reachable. Start your engine." && exit 1)
+	@command -v docker >/dev/null 2>&1 || (echo "❌ 'docker' CLI not found. Please install a Docker-compatible CLI (e.g., Docker Desktop, OrbStack, Colima, Rancher Desktop) and ensure 'docker' is on your PATH." && exit 1)
+	@docker info >/dev/null 2>&1 || (echo "❌ Cannot connect to Docker daemon. Start your local Docker-compatible engine and check your current Docker context or DOCKER_HOST." && exit 1)
 	@echo "✅ Docker is ready"
 
 install-brew:
