@@ -965,13 +965,6 @@ class ArgoWorkflows(object):
                             .description("auto-set by metaflow. safe to ignore.")
                             for event in self.triggers
                         ]
-                        + [
-                            Parameter("auto_emit_argo_events")
-                            .value(1 if self.auto_emit_argo_events else 0)
-                            .description(
-                                "Toggle used to control emission of events to Argo Events."
-                            )
-                        ]
                     )
                 )
                 # Set common pod metadata.
@@ -2074,7 +2067,8 @@ class ArgoWorkflows(object):
                 "--event-logger=%s" % self.event_logger.TYPE,
                 "--monitor=%s" % self.monitor.TYPE,
                 "--no-pylint",
-                "--with=argo_workflows_internal:auto-emit-argo-events={{workflow.parameters.auto_emit_argo_events}}",
+                "--with=argo_workflows_internal:auto-emit-argo-events=%i"
+                % self.auto_emit_argo_events,
             ]
 
             if node.name == "start":
@@ -3527,7 +3521,8 @@ class ArgoWorkflows(object):
             "--event-logger=%s" % self.event_logger.TYPE,
             "--monitor=%s" % self.monitor.TYPE,
             "--no-pylint",
-            "--with=argo_workflows_internal:auto-emit-argo-events={{workflow.parameters.auto_emit_argo_events}}",
+            "--with=argo_workflows_internal:auto-emit-argo-events=%i"
+            % self.auto_emit_argo_events,
         ]
         heartbeat_cmds = "{entrypoint} {top_level} argo-workflows heartbeat --run_id {run_id} {tags}".format(
             entrypoint=" ".join(entrypoint),
