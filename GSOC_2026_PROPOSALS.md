@@ -941,3 +941,85 @@ This project aims to implement a `@nomad` decorator that executes Metaflow steps
 - [Metaflow Documentation](https://docs.metaflow.org)
 
 ---
+
+## Metaflow local steps with containers
+
+**Difficulty:** Medium
+
+**Duration:** 175 hours (Medium project)
+
+**Technologies:** Python, Bash, Container runtimes (Docker etc.)
+
+**Mentors:** Sakari Ikonen
+
+### Description
+
+Some workflows with Metaflow are driven purely by container images without additional dependencies on top. There is a slight disconnect in operating such flows as containers are not supported for local steps, making testing these harder than it should be.
+
+Introducing a way to run local steps within containers on custom images would solve this issue.
+
+### Goals
+Have a working prototype of a `@local` decorator that can
+- utilize a container runtime for executing the steps
+- run with a specified image `@local(image="custom-image:1.2.3")`
+
+
+---
+
+## Metadata service request improvements
+
+**Difficulty:** Easy
+
+**Duration:** 175 hours (Medium project)
+
+**Technologies:** Python, Docker, PostgreSQL
+
+**Mentors:** Sakari Ikonen
+
+### Description
+
+The current metadata service for Metaflow does not provide paginated responses for its endpoints. Introducing pagination is required for some backfill-patterns that need to iterate over existing resources, in order to keep the resource requirements of these operations limited. Currently the payloads returned over the wire are not capped, and can be significant in size with more established deployments.
+
+Resources can also be filtered by tags in the Metaflow client. This is currently still happening in-memory over the response payload, as the API does not support filtering. Being able to apply filters on the request level would also cut down on the resource use.
+
+### Goals
+
+1. Being able to return filtered, paginated responses from metadata-service
+
+2. Backwards compatibility with older Metaflow clients that do not support pagination. Possibly by feature-gating via client version in request headers.
+
+3. Handling paginated responses in Metaflow client
+
+4. handling filtering by tag in Metaflow client on the request level, not in-memory.
+
+
+---
+
+## Metaflow-services eventing rework to a message broker architecture
+
+**Difficulty**: Hard
+
+**Duration**: 300 hours (Large project)
+
+**Technologies**: Python, Docker, PostgreSQL, Language of choice (f.ex. Rust/Go)
+
+**Mentors**: Sakari Ikonen
+
+### Description
+
+The current backend architecture relies heavily on PostgreSQL features for broadcasting and subscribing to database events (INSERT/UPDATE) in order to be able to provide real-time updates. This is a hard vendor-lock to PostgreSQL which is imposed by the architecture choice. The messaging mechanism in the database has proven to fall short in high-volume deployments more than once, so exploring alternatives to this is expected to be beneficial.
+
+As all data insertion and updates are handled by the metadata-service, and currently the only service that is interested in the events is the ui_backend service, a simple message broker between these two services should be the most straightforward solution.
+
+### Considerations
+
+Some considerations for the implementation are
+- The usual ui backend db is a replica. If the events come off a broker that receives its messages based on inserts on a main db, then there is no guarantee that the replica is up-to-date when the message gets processed. Therefore some retry logic needs to be introduced on top of the message handling
+- The volume of messages is significant on large deployments, so performance of the broker is of utmost importance
+- Messages need to have some guarantee of in-order arrival within certain scopes (flow level for runs, run level for tasks etc.)
+
+### Goals
+
+- Develop a PoC message broker service that metadata-service can publish messages to, and ui_backend can subscribe to topic in order to receive only messages of interest.
+- Completely replace currently used LISTEN/NOTIFY mechanism in favour of message broker service.
+- Being able to deploy ui service with a pure read-replica instead of a logical replica
