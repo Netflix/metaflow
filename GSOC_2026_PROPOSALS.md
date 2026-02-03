@@ -16,9 +16,7 @@ Metaflow Functions is a construct that enables relocatable compute; the
 ability to package a computation along with its dependencies, environment, and 
 bound artifacts into a self-contained unit that can be deployed anywhere. 
 The core implementation already exists and has been 
-[presented publicly](https://www.infoq.com/presentations/ml-netflix/) with 
-code available 
-[here](https://github.com/Netflix/metaflow_rc/tree/master/nflx-metaflow-function).
+[presented publicly](https://www.infoq.com/presentations/ml-netflix/).
 
 The `@function` decorator solves a key pain point in ML workflows: 
 dependency management across the training-to-serving boundary. When you train a 
@@ -220,9 +218,6 @@ run specific tests against the dev stack, keeping CI times reasonable.
 **For the contributor:**
 - Learn modern CI/CD practices with GitHub Actions
 - Gain hands-on Kubernetes experience in a real-world context
-- Understand how large open source projects maintain quality at scale
-- Build expertise in test infrastructure—a highly valued skill
-- Great entry point for becoming a long-term Metaflow contributor
 
 ### Skills Required
 
@@ -313,9 +308,7 @@ the editor without spinning up a local server.
 
 **For the contributor:**
 - Build a widely-used developer tool from scratch
-- Learn the VS Code Extension API—a valuable skill for any developer tools role
 - Gain experience with TypeScript and modern frontend development
-- Create a highly visible portfolio piece (published to VS Code marketplace)
 - Understand workflow orchestration systems from a tooling perspective
 
 ### Skills Required
@@ -456,9 +449,6 @@ tools like Dagster and Prefect:
   between runs
 - **No dark mode** - A common
   [user request](https://github.com/Netflix/metaflow-ui/issues/157)
-- **Complex deployment** - Docker/nginx setup has
-  [multiple](https://github.com/Netflix/metaflow-ui/issues/123)
-  [reported](https://github.com/Netflix/metaflow-ui/issues/144) issues
 
 Dagster's asset-centric lineage visualization and Prefect's polished
 developer experience set user expectations that Metaflow's UI currently
@@ -509,8 +499,6 @@ through the DAG across steps and runs.
 **For the contributor:**
 - Work on a full-stack application (React frontend + Python backend)
 - Learn real-time data visualization techniques
-- Gain experience with the Metaflow datastore and client APIs
-- Build a standalone product that can be demoed and showcased
 - Opportunity to improve UX for thousands of Metaflow users
 
 ### Skills Required
@@ -601,9 +589,6 @@ filesystem restrictions, and resource limits for sandboxed execution.
 - Learn the devcontainer specification used by VS Code, Codespaces, and modern
   dev tools
 - Understand container isolation and security at a practical level
-- Gain experience writing Metaflow decorators (extensible pattern used
-  throughout the ecosystem)
-- Work with Docker APIs and container lifecycle management
 - Build a feature that bridges local development and production deployment
 
 ### Skills Required
@@ -619,160 +604,6 @@ filesystem restrictions, and resource limits for sandboxed execution.
 - [DevPod](https://github.com/loft-sh/devpod)
 - [Daytona](https://github.com/daytonaio/daytona)
 - [Metaflow Decorators](https://docs.metaflow.org/api/decorators)
-- [Metaflow Extensions Template](https://github.com/Netflix/metaflow-extensions-template)
-
----
-
-## Worker Pools for Efficient Foreach Execution
-
-**Difficulty:** Medium/Advanced
-
-**Duration:** 350 hours (Large project)
-
-**Technologies:** Python, Metaflow, Kubernetes/Argo Workflows
-
-**Mentors:** TBD
-
-### Description
-
-Metaflow's `foreach` construct creates one task per item. For local execution,
-this means lightweight subprocesses with minimal overhead. However, when running
-on **Kubernetes** (via Argo Workflows) or **AWS Batch**, each task becomes a
-separate container, and startup overhead dominates for short-lived tasks:
-
-| Component | Typical Time |
-|-----------|-------------|
-| Pod/container scheduling | 5-15 seconds |
-| Container image pull (cached) | 5-30 seconds |
-| Python interpreter + imports | 5-20 seconds |
-| **Actual task work** | **1-5 seconds** |
-
-For a foreach over 10,000 items with 5-second tasks, the current model spends
-more time on container overhead than actual computation—even with `--max-workers`
-limiting concurrency. Users must either batch items manually within each task
-or accept the overhead.
-
-This project introduces a **worker pool** execution model for remote backends:
-instead of N containers for N items, spin up a fixed pool of persistent
-worker pods that each process multiple items. This amortizes container startup
-cost across many items and provides natural load balancing (faster workers
-process more items).
-
-```python
-class MyFlow(FlowSpec):
-
-    @step
-    def start(self):
-        self.items = range(10000)  # 10k items to process
-        self.next(self.process, foreach='items')
-
-    @worker_pool(size=10, max_items_per_worker=1000)
-    @kubernetes(cpu=2, memory=4096)
-    @step
-    def process(self):
-        # Called once per item, but workers are reused
-        self.result = expensive_compute(self.input)
-        self.next(self.join)
-
-    @step
-    def join(self, inputs):
-        # Receives all 10k results, same as regular foreach
-        self.results = [inp.result for inp in inputs]
-        self.next(self.end)
-```
-
-Instead of 10,000 pod launches, only 10 persistent workers are created. Each
-worker processes ~1,000 items sequentially, writing per-item artifacts that
-the join step consumes normally.
-
-This pattern is proven in systems like [Celery](https://docs.celeryq.dev/),
-[Ray actors](https://docs.ray.io/en/latest/ray-core/actors.html), and
-[Dask distributed](https://distributed.dask.org/), but is not currently
-available in Metaflow for remote execution.
-
-### Goals
-
-1. **`@worker_pool` decorator** - Mark a foreach step to use pooled execution
-with configurable pool size and optional per-worker item limits (to bound
-memory accumulation).
-
-2. **Kubernetes/Argo backend** - Workers as long-running pods that process
-item batches and write per-item artifacts to the Metaflow datastore.
-
-3. **Artifact compatibility** - Each item produces its own task artifacts,
-ensuring the join step works identically to regular foreach (no user code
-changes required in join).
-
-4. **Failure handling** - Define clear semantics: if a worker crashes, its
-in-progress item fails and can be retried. Completed items are durable.
-Integration with `@retry` decorator for per-item retries.
-
-5. **Local backend for testing** - Worker pool execution using Python
-multiprocessing, enabling development and testing without cloud infrastructure.
-
-6. [Stretch Goal] **Dynamic work distribution** - Replace static
-pre-partitioning with a queue-based approach for better load balancing when
-item processing times vary significantly.
-
-7. [Stretch Goal] **AWS Batch backend** - Extend worker pool support to
-AWS Batch, potentially leveraging Batch array jobs.
-
-### Design Considerations
-
-The project should address these trade-offs:
-
-- **Pool sizing**: Too few workers = underutilization; too many = diminishing
-  returns. Consider auto-sizing based on item count.
-- **Memory management**: Long-running workers may accumulate memory.
-  `max_items_per_worker` allows recycling workers periodically.
-- **Observability**: Metaflow UI shows per-task status. With worker pools,
-  need to show per-item progress within each worker.
-- **Cost trade-off**: Idle workers still cost money. Document when worker
-  pools help vs. hurt.
-
-### Deliverables
-
-- `@worker_pool` decorator implementation
-- Kubernetes/Argo backend with persistent worker pods
-- Local backend using multiprocessing (for development/testing)
-- Per-item artifact storage compatible with join steps
-- Failure handling with `@retry` integration
-- Documentation with performance benchmarks and sizing guidance
-- Test suite covering normal operation, failures, and retries
-
-### Why This Matters
-
-**For users:**
-- **10-100x faster foreach for short tasks** - Eliminate container startup
-  overhead that dominates short-lived computations
-- **Lower cloud costs** - Fewer container launches means less scheduling
-  overhead and potentially lower bills
-- **No code changes to existing flows** - Just add `@worker_pool` decorator;
-  join steps work unchanged
-- **Natural load balancing** - Faster workers automatically process more items
-
-**For the contributor:**
-- Deep dive into Metaflow's runtime and execution model
-- Learn distributed systems patterns (work queues, coordination, failure
-  handling) through hands-on implementation
-- Gain Kubernetes experience with long-running pods and job management
-- Understand the trade-offs in distributed task execution (Celery, Ray, Dask)
-- Work on a performance-critical feature with measurable impact
-
-### Skills Required
-
-- Python (intermediate/advanced)
-- Metaflow internals (decorators, runtime, datastore)
-- Kubernetes basics
-- Distributed systems concepts (work distribution, failure handling)
-
-### Links
-
-- [Metaflow Foreach Documentation](https://docs.metaflow.org/metaflow/basics#foreach)
-- [Controlling Parallelism](https://docs.metaflow.org/scaling/remote-tasks/controlling-parallelism)
-- [Scheduling with Argo Workflows](https://docs.metaflow.org/production/scheduling-metaflow-flows/scheduling-with-argo-workflows)
-- [Celery Worker Pools](https://docs.celeryq.dev/en/stable/userguide/workers.html)
-- [Ray Actor Pool](https://docs.ray.io/en/latest/ray-core/actors.html)
 - [Metaflow Extensions Template](https://github.com/Netflix/metaflow-extensions-template)
 
 ---
@@ -846,11 +677,9 @@ with keys sealed to the TEE, ensuring only attested enclaves can decrypt them.
 
 **For the contributor:**
 - Learn cutting-edge confidential computing technology (TEEs, SGX, attestation)
-- Understand security at the hardware level—a rare and valuable skill
 - Work with emerging cloud infrastructure (confidential VMs are becoming
   mainstream)
 - Build expertise applicable to blockchain, secure enclaves, and privacy tech
-- Contribute to an increasingly important area as AI privacy concerns grow
 
 ### Skills Required
 
@@ -939,30 +768,6 @@ This project aims to implement a `@nomad` decorator that executes Metaflow steps
 - [Metaflow Extensions Template](https://github.com/Netflix/metaflow-extensions-template)
 - [Metaflow Step Decorators](https://docs.metaflow.org/api/step-decorators)
 - [Metaflow Documentation](https://docs.metaflow.org)
-
----
-
-## Metaflow local steps with containers
-
-**Difficulty:** Medium
-
-**Duration:** 175 hours (Medium project)
-
-**Technologies:** Python, Bash, Container runtimes (Docker etc.)
-
-**Mentors:** Sakari Ikonen
-
-### Description
-
-Some workflows with Metaflow are driven purely by container images without additional dependencies on top. There is a slight disconnect in operating such flows as containers are not supported for local steps, making testing these harder than it should be.
-
-Introducing a way to run local steps within containers on custom images would solve this issue.
-
-### Goals
-Have a working prototype of a `@local` decorator that can
-- utilize a container runtime for executing the steps
-- run with a specified image `@local(image="custom-image:1.2.3")`
-
 
 ---
 
