@@ -18,6 +18,8 @@ If you want to propose your own idea, include an outline of the project, the goa
 for, and the same kind of weekly schedule. Talk to the mentors or org admins before submitting so
 they can point you toward the right project fit.
 
+Submit your application to `help@metaflow.org` with the subject as **[GSOC 2026 Proposal]: Your Name**. 
+
 ## Metaflow-Specific Requirements
 
 On top of the above, we expect the following from applicants:
