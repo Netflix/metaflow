@@ -68,17 +68,9 @@ install-helm:
 	fi
 
 check-docker:
-	@if ! command -v docker >/dev/null 2>&1; then \
-		echo "❌ Docker is not installed. Please install Docker first: https://docs.docker.com/get-docker/"; \
-		exit 1; \
-	fi
-	@echo "🔍 Checking Docker daemon..."
-	@if [ "$(shell uname)" = "Darwin" ]; then \
-		open -a Docker || (echo "❌ Please start Docker Desktop" && exit 1); \
-	else \
-                docker info >/dev/null 2>&1 || (echo "❌ Docker daemon is not running." && exit 1); \
-	fi
-	@echo "✅ Docker is running"
+	@command -v docker >/dev/null 2>&1 || (echo "❌ 'docker' CLI not found. Please install a Docker-compatible CLI (e.g., Docker Desktop, OrbStack, Colima, Rancher Desktop) and ensure 'docker' is on your PATH." && exit 1)
+	@docker info >/dev/null 2>&1 || (echo "❌ Cannot connect to Docker daemon. Start your local Docker-compatible engine and check your current Docker context or DOCKER_HOST." && exit 1)
+	@echo "✅ Docker is ready"
 
 install-brew:
 	@if [ "$(shell uname)" = "Darwin" ] && ! command -v brew >/dev/null 2>&1; then \
@@ -182,7 +174,7 @@ up: install-brew check-docker install-curl install-gum setup-minikube install-he
 	@echo 'set -e' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'trap "exit" INT TERM' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'trap "kill 0" EXIT' >> $(DEVTOOLS_DIR)/start.sh
-	@echo 'eval $$($(MINIKUBE) docker-env)' >> $(DEVTOOLS_DIR)/start.sh
+	@echo 'eval $$($(MINIKUBE) docker-env --shell bash)' >> $(DEVTOOLS_DIR)/start.sh
 	@echo 'if [ -n "$$SERVICES_OVERRIDE" ]; then' >> "$(DEVTOOLS_DIR)/start.sh"
 	@echo '    echo "🌐 Using user-provided list of services: $$SERVICES_OVERRIDE"' >> "$(DEVTOOLS_DIR)/start.sh"
 	@echo '    SERVICES="$$SERVICES_OVERRIDE"' >> "$(DEVTOOLS_DIR)/start.sh"
@@ -259,7 +251,7 @@ shell: setup-tilt
 		echo "🐍 If you installed Metaflow in a virtual environment, activate it now."; \
 		if [ -f "$(DEVTOOLS_DIR)/aws_config" ]; then \
 			env -u AWS_PROFILE \
-				-u AWS_SHARED_CREDENTIALS_FILE \
+				AWS_SHARED_CREDENTIALS_FILE= \
 				METAFLOW_HOME="$(DEVTOOLS_DIR)" \
 				METAFLOW_PROFILE=local \
 				AWS_CONFIG_FILE="$(DEVTOOLS_DIR)/aws_config" \

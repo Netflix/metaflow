@@ -630,11 +630,9 @@ def walk_without_cycles(
     top_root: str,
     exclude_dirs: Optional[List[str]] = None,
 ) -> Generator[Tuple[str, List[str], List[str]], None, None]:
-    seen = set()
-
     default_skip_dirs = ["__pycache__"]
 
-    def _recurse(root, skip_dirs):
+    def _recurse(root, skip_dirs, seen):
         for parent, dirs, files in os.walk(root):
             dirs[:] = [d for d in dirs if d not in skip_dirs]
             for d in dirs:
@@ -652,12 +650,14 @@ def walk_without_cycles(
                     # real_file is only included twice, not three times
                     reallink = os.path.realpath(path)
                     if reallink not in seen:
-                        seen.add(reallink)
-                        for x in _recurse(path, default_skip_dirs):
+                        # Make a copy of the set of seen nodes, as we only want to break loops on a per-branch basis.
+                        recursive_seen = set().union(seen)
+                        recursive_seen.add(reallink)
+                        for x in _recurse(path, default_skip_dirs, recursive_seen):
                             yield x
             yield parent, dirs, files
 
     skip_dirs = set(default_skip_dirs + (exclude_dirs or []))
-    for x in _recurse(top_root, skip_dirs):
+    for x in _recurse(top_root, skip_dirs, set()):
         skip_dirs = default_skip_dirs
         yield x

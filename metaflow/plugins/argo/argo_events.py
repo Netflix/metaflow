@@ -27,8 +27,8 @@ class ArgoEvent(object):
 
     Parameters
     ----------
-    name : str,
-        Name of the event
+    name : Union[str, Callable[[], str]]
+        Name of the event, or a callable (invoked with no arguments) that returns the event name (e.g., `namespaced_event_name('foo')`).
     url : str, optional
         Override the event endpoint from `ARGO_EVENTS_WEBHOOK_URL`.
     payload : Dict, optional
@@ -39,6 +39,13 @@ class ArgoEvent(object):
         self, name, url=ARGO_EVENTS_WEBHOOK_URL, payload=None, access_token=None
     ):
         # TODO: Introduce support for NATS
+        if callable(name):
+            name = name()
+            if not isinstance(name, str):
+                raise ArgoEventException(
+                    "Callable for 'name' must return a string, got %s"
+                    % type(name).__name__
+                )
         self._name = name
         self._url = url
         self._payload = payload or {}

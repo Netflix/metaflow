@@ -68,7 +68,7 @@ def wheel_tags(wheel):
     return list(tags)
 
 
-def pip_tags(python_version, mamba_platform):
+def pip_tags(python_version, mamba_platform, freetheaded=False):
     # Returns a list of pip tags containing (implementation, platforms, abis) tuples
     # assuming a CPython implementation for Python interpreter.
 
@@ -127,6 +127,8 @@ def pip_tags(python_version, mamba_platform):
     interpreter = "cp%s" % ("".join(map(str, py_version)))
 
     abis = tags._cpython_abis(py_version)
+    if freetheaded:
+        abis = [f"{abi}t" for abi in abis]
 
     supported = []
     supported.extend(tags.cpython_tags(py_version, abis, platforms))
