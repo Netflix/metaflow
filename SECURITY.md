@@ -1,6 +1,6 @@
 # Security Policy
 
-We currently accept reports for vulnerabilities on all published versions of the project. 
+We currently accept reports for vulnerabilities on all published versions of the project.
 
 ## Reporting a Vulnerability
 

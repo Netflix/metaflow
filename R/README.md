@@ -24,6 +24,6 @@ or jump straight into the [docs](https://docs.metaflow.org/v/r).
 ## Get in Touch
 There are several ways to get in touch with us:
 
-* Open an issue at: https://github.com/Netflix/metaflow 
+* Open an issue at: https://github.com/Netflix/metaflow
 * Email us at: help@metaflow.org
-* Chat with us on: http://chat.metaflow.org 
+* Chat with us on: http://chat.metaflow.org

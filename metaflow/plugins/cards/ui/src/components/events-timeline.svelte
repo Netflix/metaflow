@@ -2,20 +2,20 @@
   import type * as types from "../types";
   import ComponentRenderer from "./card-component-renderer.svelte";
   import { onMount, onDestroy } from "svelte";
-  
+
   export let componentData: types.EventsTimelineComponent;
 
   $: ({ id, title, events, config, stats } = componentData);
-  
+
   // Get all unique keys from all event metadata to create column headers
-  $: allKeys = events.length > 0 ? 
+  $: allKeys = events.length > 0 ?
     Array.from(new Set(events.flatMap(event => Object.keys(event.metadata)))) : [];
-  
-  
+
+
   // Reactive variables for live updates
   let currentTime = Date.now();
   let updateInterval: ReturnType<typeof setInterval>;
-  
+
   // Update current time every second for relative timestamps (only if not finished)
   onMount(() => {
     if (config.show_relative_time) {
@@ -24,49 +24,49 @@
       }, 1000);
     }
   });
-  
+
   onDestroy(() => {
     if (updateInterval) {
       clearInterval(updateInterval);
     }
   });
-  
+
   // Keep relative time ticking even if finished; do not stop interval
-  
+
   // Format timestamp values for display
   function formatValue(value: any): string {
     if (value === null || value === undefined) {
       return '';
     }
-    
+
     // Handle timestamp formatting
     if (typeof value === 'number' && value > 1000000000 && value < 10000000000) {
       // Looks like a Unix timestamp
       return new Date(value * 1000).toLocaleString();
     }
-    
+
     // Handle ISO date strings
     if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
       return new Date(value).toLocaleString();
     }
-    
+
     // Handle objects and arrays (but not rendered components)
     if (typeof value === 'object' && !isRenderedComponent(value)) {
       return JSON.stringify(value);
     }
-    
+
     return String(value);
   }
-  
+
   // Check if a value is a rendered component
   function isRenderedComponent(value: any): boolean {
     return value && typeof value === 'object' && 'type' in value;
   }
-  
+
   // Get relative time string
   function getRelativeTime(timestamp: number): string {
     const diff = (currentTime - timestamp * 1000) / 1000; // Convert to seconds
-    
+
     if (diff < 60) {
       return `${Math.floor(diff)}s ago`;
     } else if (diff < 3600) {
@@ -110,7 +110,7 @@
 
   // local ref for keyed details blocks
   let detailsEl: HTMLDetailsElement | null = null;
-  
+
   // Get CSS class for different value types
   function getValueClass(key: string, value: any): string {
     if (key.toLowerCase().includes('timestamp') || key.toLowerCase().includes('time')) {
@@ -136,7 +136,7 @@
     }
     return 'default';
   }
-  
+
   // Get theme class for event styling
   function getEventThemeClass(event: types.EventsTimelineEvent): string {
     if (event.style_theme) {
@@ -144,7 +144,7 @@
     }
     return 'theme-default';
   }
-  
+
   // Get priority class for event styling
   function getPriorityClass(event: types.EventsTimelineEvent): string {
     if (event.priority) {
@@ -152,7 +152,7 @@
     }
     return 'priority-normal';
   }
-  
+
   // Format stats for display (for non-time fields)
   function formatStatsValue(key: string, value: any): string {
     if (key === 'events_per_minute' && typeof value === 'number') {
@@ -163,7 +163,7 @@
     }
     return String(value);
   }
-  
+
   // Get staleness indicator class (time-based only)
   function getStalenessClass(): string {
     if (stats?.finished) return 'finished';
@@ -174,7 +174,7 @@
     if (seconds < 600) return 'stale';
     return 'finished';
   }
-  
+
   // Get status text (time-based; finished only affects label)
   function getStatusText(): string {
     const seconds = getAgeSeconds();
@@ -191,7 +191,7 @@
   {#if title}
     <h3 class="events-title">{title}</h3>
   {/if}
-  
+
   <!-- Stats Header -->
   {#if config.show_stats && stats}
     <div class="stats-header {getStalenessClass()}">
@@ -201,7 +201,7 @@
           {getStatusText()}
         </span>
       </div>
-      
+
       <div class="stats-info">
         <span class="stat-item">
           {stats.displayed_events} of {stats.total_events} events
@@ -219,7 +219,7 @@
       </div>
     </div>
   {/if}
-  
+
   {#if events.length === 0}
     <div class="no-events">
       <p>No events recorded yet.</p>
@@ -227,7 +227,7 @@
   {:else}
     <div class="events-timeline">
       {#each events as event, index}
-        <div class="event-item {getEventThemeClass(event)} {getPriorityClass(event)}" 
+        <div class="event-item {getEventThemeClass(event)} {getPriorityClass(event)}"
              class:latest={index === 0}>
           <div class="event-marker"></div>
           <div class="event-content">
@@ -242,7 +242,7 @@
                 {/if}
               </div>
             {/if}
-            
+
             <!-- Event metadata -->
             <div class="event-metadata">
               {#each allKeys as key}
@@ -256,7 +256,7 @@
                 {/if}
               {/each}
             </div>
-            
+
             <!-- Event payloads (collapsible) -->
             {#if Object.keys(event.payloads).length > 0}
               <div class="event-payloads">
@@ -292,7 +292,7 @@
     padding: 1rem;
     margin-bottom: 1rem;
   }
-  
+
   .events-title {
     font-size: 1.25rem;
     font-weight: 600;
@@ -301,7 +301,7 @@
     padding-bottom: 0.5rem;
     border-bottom: 2px solid #e5e7eb;
   }
-  
+
   /* Stats Header */
   .stats-header {
     display: flex;
@@ -313,28 +313,28 @@
     font-size: 0.875rem;
     border: 1px solid #e5e7eb;
   }
-  
+
   .stats-header.live {
     background: #f0fdf4;
     border-color: #bbf7d0;
   }
-  
+
   .stats-header.recent {
     background: #fffbeb;
     border-color: #fed7aa;
   }
-  
+
   .stats-header.stale {
     background: #fef2f2;
     border-color: #fecaca;
   }
-  
+
   .stats-indicator {
     display: flex;
     align-items: center;
     gap: 0.5rem;
   }
-  
+
   .live-dot {
     width: 10px;
     height: 10px;
@@ -343,61 +343,61 @@
     box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
     transition: all 0.3s ease;
   }
-  
+
   .stats-header.live .live-dot {
     background: #10b981;
     box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3), 0 0 8px rgba(16, 185, 129, 0.4);
     animation: livePulse 2s infinite;
   }
-  
+
   .stats-header.recent .live-dot {
     background: #f59e0b;
     box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
   }
-  
+
   .stats-header.stale .live-dot {
     background: #ef4444;
     box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
   }
-  
+
   .stats-header.finished {
     background: #f0f9ff;
     border-color: #bae6fd;
   }
-  
+
   .stats-header.finished .live-dot {
     background: #0ea5e9;
     box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
   }
-  
+
   .status-text {
     font-weight: 500;
     color: #374151;
   }
-  
+
   .stats-info {
     display: flex;
     gap: 1rem;
     font-size: 0.8125rem;
     color: #6b7280;
   }
-  
+
   .stat-item {
     white-space: nowrap;
   }
-  
+
   .no-events {
     text-align: center;
     padding: 2rem;
     color: #6b7280;
     font-style: italic;
   }
-  
+
   .events-timeline {
     position: relative;
     padding-left: 2rem;
   }
-  
+
   .events-timeline::before {
     content: '';
     position: absolute;
@@ -407,17 +407,17 @@
     width: 2px;
     background: linear-gradient(to bottom, #3b82f6, #e5e7eb);
   }
-  
+
   .event-item {
     position: relative;
     margin-bottom: 1.5rem;
     padding-left: 1rem;
   }
-  
+
   .event-item:last-child {
     margin-bottom: 0;
   }
-  
+
   .event-marker {
     position: absolute;
     left: -1.525rem;
@@ -430,13 +430,13 @@
     box-shadow: 0 0 0 2px #3b82f6;
     z-index: 1;
   }
-  
+
   .event-item.latest .event-marker {
     background: #10b981;
     box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
     animation: markerPulse 2s infinite;
   }
-  
+
   @keyframes livePulse {
     0%, 100% {
       transform: scale(1);
@@ -447,7 +447,7 @@
       box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2), 0 0 12px rgba(16, 185, 129, 0.6);
     }
   }
-  
+
   @keyframes markerPulse {
     0%, 100% {
       box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
@@ -456,7 +456,7 @@
       box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.5);
     }
   }
-  
+
   .event-content {
     background: #f9fafb;
     border: 1px solid #e5e7eb;
@@ -464,82 +464,82 @@
     padding: 0.75rem;
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   }
-  
+
   .event-item.latest .event-content {
     background: #f0f9ff;
     border-color: #3b82f6;
   }
-  
+
   /* Event Theme Styles */
   .event-item.theme-success .event-content {
     background: #f0fdf4;
     border-color: #bbf7d0;
   }
-  
+
   .event-item.theme-success .event-marker {
     background: #10b981;
     box-shadow: 0 0 0 2px #10b981;
   }
-  
+
   .event-item.theme-error .event-content {
     background: #fef2f2;
     border-color: #fecaca;
   }
-  
+
   .event-item.theme-error .event-marker {
     background: #ef4444;
     box-shadow: 0 0 0 2px #ef4444;
   }
-  
+
   .event-item.theme-warning .event-content {
     background: #fffbeb;
     border-color: #fed7aa;
   }
-  
+
   .event-item.theme-warning .event-marker {
     background: #f59e0b;
     box-shadow: 0 0 0 2px #f59e0b;
   }
-  
+
   .event-item.theme-info .event-content {
     background: #eff6ff;
     border-color: #bfdbfe;
   }
-  
+
   .event-item.theme-info .event-marker {
     background: #3b82f6;
     box-shadow: 0 0 0 2px #3b82f6;
   }
-  
+
   .event-item.theme-tool_call .event-content {
     background: #f3e8ff;
     border-color: #c4b5fd;
   }
-  
+
   .event-item.theme-tool_call .event-marker {
     background: #8b5cf6;
     box-shadow: 0 0 0 2px #8b5cf6;
   }
-  
+
   .event-item.theme-ai_response .event-content {
     background: #fdf4ff;
     border-color: #e9d5ff;
   }
-  
+
   .event-item.theme-ai_response .event-marker {
     background: #a855f7;
     box-shadow: 0 0 0 2px #a855f7;
   }
-  
+
   /* Priority Styles */
   .event-item.priority-high {
     border-left: 4px solid #f59e0b;
   }
-  
+
   .event-item.priority-critical {
     border-left: 4px solid #ef4444;
   }
-  
+
   /* Event Metadata */
   .event-meta {
     display: flex;
@@ -551,39 +551,39 @@
     font-size: 0.75rem;
     color: #6b7280;
   }
-  
+
   .event-time {
     font-weight: 500;
   }
-  
+
   .event-id {
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
     opacity: 0.7;
   }
-  
+
   .event-metadata {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 0.5rem;
   }
-  
+
   .event-payloads {
     margin-top: 1rem;
     border-top: 1px solid #e5e7eb;
     padding-top: 0.75rem;
   }
-  
+
   .payload-section {
     margin-bottom: 0.75rem;
     border: 1px solid #e5e7eb;
     border-radius: 0.375rem;
     overflow: hidden;
   }
-  
+
   .payload-section:last-child {
     margin-bottom: 0;
   }
-  
+
   .payload-header {
     display: flex;
     justify-content: space-between;
@@ -595,16 +595,16 @@
     border-bottom: 1px solid #e5e7eb;
     font-weight: 500;
   }
-  
+
   .payload-header:hover {
     background: #f3f4f6;
   }
-  
+
   .payload-title {
     font-size: 0.875rem;
     color: #374151;
   }
-  
+
   .payload-type {
     font-size: 0.75rem;
     color: #6b7280;
@@ -614,7 +614,7 @@
     text-transform: uppercase;
     letter-spacing: 0.025em;
   }
-  
+
   .payload-content {
     padding: 1rem;
     background: white;
@@ -623,16 +623,16 @@
     line-height: inherit;
     color: inherit;
   }
-  
+
   /* Ensure nested components have proper spacing */
   .payload-content :global(> *) {
     margin-bottom: 0;
   }
-  
+
   .payload-content :global(> *:not(:last-child)) {
     margin-bottom: 1rem;
   }
-  
+
   /* Allow Prism's default CSS to control PythonCode styling */
   .payload-content :global(pre[data-component="pythonCode"]) {
     margin: 0;
@@ -646,7 +646,7 @@
   /* Remove token color overrides to defer to Prism theme */
 
   /* Avoid overriding generic <pre> blocks; let embedded components style themselves */
-  
+
   .payload-content :global(code:not(pre code)) {
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
     font-size: 0.875rem;
@@ -654,13 +654,13 @@
     padding: 0.125rem 0.25rem;
     border-radius: 0.25rem;
   }
-  
+
   .event-field {
     display: flex;
     flex-direction: column;
     gap: 0.125rem;
   }
-  
+
   .field-key {
     font-size: 0.75rem;
     font-weight: 500;
@@ -668,7 +668,7 @@
     text-transform: uppercase;
     letter-spacing: 0.025em;
   }
-  
+
   .field-value {
     font-size: 0.875rem;
     font-weight: 400;
@@ -677,18 +677,18 @@
     display: inline-block;
     width: auto;
   }
-  
+
   .field-value.timestamp {
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
     font-size: 0.8125rem;
     color: #6366f1;
   }
-  
+
   .field-value.number {
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
     color: #059669;
   }
-  
+
   .field-value.status,
   .field-value.status-success,
   .field-value.status-error,
@@ -713,70 +713,70 @@
     flex-shrink: 0;
     white-space: nowrap;
   }
-  
+
   .field-value.status-success {
     color: #059669;
     background: #d1fae5;
   }
-  
+
   .field-value.status-error {
     color: #dc2626;
     background: #fee2e2;
   }
-  
+
   .field-value.status-warning {
     color: #d97706;
     background: #fef3c7;
   }
-  
+
   .field-value.status-milestone {
     color: #7c3aed;
     background: #ede9fe;
   }
-  
+
   .field-value.status-completed {
     color: #059669;
     background: #d1fae5;
   }
-  
+
   .field-value.status-finished {
     color: #0ea5e9;
     background: #e0f2fe;
   }
-  
+
   /* Responsive adjustments */
   @media (max-width: 640px) {
     .events-container {
       padding: 0.75rem;
     }
-    
+
     .events-timeline {
       padding-left: 1.5rem;
     }
-    
+
     .stats-info {
       flex-direction: column;
       gap: 0.25rem;
       align-items: flex-end;
     }
-    
+
     .event-metadata {
       grid-template-columns: 1fr;
       gap: 0.375rem;
     }
-    
+
     .event-field {
       flex-direction: row;
       align-items: flex-start;
       gap: 0.5rem;
     }
-    
+
     .field-key {
       min-width: 80px;
       flex-shrink: 0;
     }
   }
-  
+
   /* Table context adjustments */
   :global(table .events-container) {
     margin: 0.25rem 0;
@@ -784,15 +784,15 @@
     background: transparent;
     padding: 0.5rem;
   }
-  
+
   :global(table .events-timeline) {
     padding-left: 1rem;
   }
-  
+
   :global(table .event-content) {
     padding: 0.5rem;
   }
-  
+
   :global(table .stats-header) {
     font-size: 0.75rem;
     padding: 0.375rem 0.5rem;

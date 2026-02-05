@@ -120,15 +120,15 @@ class AwsSecretsManagerSecretsProvider(SecretsProvider):
 
         """
         These are the exceptions that can be raised by the AWS SDK:
-        
+
         SecretsManager.Client.exceptions.ResourceNotFoundException
         SecretsManager.Client.exceptions.InvalidParameterException
         SecretsManager.Client.exceptions.InvalidRequestException
         SecretsManager.Client.exceptions.DecryptionFailure
         SecretsManager.Client.exceptions.InternalServiceError
-        
+
         Looks pretty informative already, so we won't catch here directly.
-        
+
         1/27/2023(jackie) - We will evolve this over time as we learn more.
         """
         response = secrets_manager_client.get_secret_value(SecretId=secret_id)

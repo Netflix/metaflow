@@ -43,15 +43,15 @@ for more information about how to execute `pytest` tests.
 ## The Integration Test Harness for Metaflow
 
 The integration test harness for the core Metaflow at `test/core`
-generates and executes synthetic Metaflow flows, exercising all 
-aspects of Metaflow. The test suite is executed using 
-[tox](http://tox.readthedocs.io) as configured in `tox.ini`. 
-You can run the tests by hand using `pytest` or 
+generates and executes synthetic Metaflow flows, exercising all
+aspects of Metaflow. The test suite is executed using
+[tox](http://tox.readthedocs.io) as configured in `tox.ini`.
+You can run the tests by hand using `pytest` or
 `run_tests.py` as described below.
 
 What happens when you execute `python helloworld.py run`? The execution
-involves multiple layers of the Metaflow stack. The stack looks like 
-following, starting from the most fundamental layer all the way to the 
+involves multiple layers of the Metaflow stack. The stack looks like
+following, starting from the most fundamental layer all the way to the
 user interface:
 
  0. Python interpreter (`python2`, `python3`)

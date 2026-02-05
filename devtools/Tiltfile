@@ -21,7 +21,7 @@ JOBSET_VERSION = os.getenv("JOBSET_VERSION", "v0.8.2")
 ARGO_WORKFLOWS_HELM_CHART_VERSION = os.getenv("ARGO_WORKFLOWS_HELM_CHART_VERSION", "0.45.2")  # Helm chart version
 ARGO_WORKFLOWS_IMAGE_TAG = os.getenv("ARGO_WORKFLOWS_IMAGE_TAG", "v3.6.0")  # Argo Workflows application version
 
-# Argo Events versions  
+# Argo Events versions
 ARGO_EVENTS_HELM_CHART_VERSION = os.getenv("ARGO_EVENTS_HELM_CHART_VERSION", "2.4.8")  # Helm chart version
 ARGO_EVENTS_IMAGE_TAG = os.getenv("ARGO_EVENTS_IMAGE_TAG", "v1.9.2")  # Argo Events application version
 
@@ -580,7 +580,7 @@ if "jobset" in enabled_components:
     )
 
     metaflow_config["METAFLOW_KUBERNETES_JOBSET_ENABLED"] = "true"
-    
+
     config_resources.append('jobset-controller-manager')
 
     # ClusterRole for jobset operations

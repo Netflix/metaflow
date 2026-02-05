@@ -8,7 +8,7 @@ flags <- function(...) {
 parse_flags <- function(arguments = commandArgs(TRUE)) {
   config_name <- Sys.getenv("R_CONFIG_ACTIVE", unset = "default")
 
-  configs <- pkg.env$configs 
+  configs <- pkg.env$configs
   loaded_configs <- list()
   for (key in names(configs[[config_name]])) {
     loaded_configs[[key]] <- eval(configs[[config_name]][[key]])
@@ -44,7 +44,7 @@ parse_arguments <- function(arguments = NULL) {
       if (i <= n){
         values$step_functions <- arguments[i]
       } else {
-        values$step_functions <- "" 
+        values$step_functions <- ""
       }
       next
     }
@@ -143,12 +143,12 @@ split_parameters <- function(flags) {
     "help", "resume",
     "max_num_splits", "max_workers",
     "other_args", "show", "user",
-    "my_runs", "run_id", 
+    "my_runs", "run_id",
     "origin_run_id", "with", "tag",
     # step-functions subcommands and options
-    "step_functions", 
+    "step_functions",
     "only_json", "generate_new_token",
-    "running", "succeeded", "failed", 
+    "running", "succeeded", "failed",
     "timed_out", "aborted", "namespace",
     "new_token", "workflow_timeout"
   )
