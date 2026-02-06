@@ -828,3 +828,219 @@ Some considerations for the implementation are
 - Develop a PoC message broker service that metadata-service can publish messages to, and ui_backend can subscribe to topic in order to receive only messages of interest.
 - Completely replace currently used LISTEN/NOTIFY mechanism in favour of message broker service.
 - Being able to deploy ui service with a pure read-replica instead of a logical replica
+
+---
+
+## Agent-Friendly Metaflow Client: Analyzing and Addressing Client API Inefficiencies
+
+**Difficulty:** Hard
+
+**Duration:** 350 hours (Large project)
+
+**Technologies:** Python, Metaflow Client API, Metaflow Metadata Service
+
+**Mentors:** Valay Dave
+
+### Description
+
+AI coding agents (Cursor, Claude Code, Codex, etc.) are increasingly used to
+author, execute, and debug Metaflow workflows. These agentic tools get a window into 
+all current/past metaflow executions through the 
+[Metaflow Client API](https://docs.metaflow.org/api/client).
+
+The Client API is powerful but when agents use it programmatically at scale 
+as a means for search then, several inefficiencies emerge that are not obvious 
+from the API surface alone. These inefficiencies span two layers:
+
+**At the Client API layer** (`metaflow.client`):
+- Finding a failed task requires iterating `Run → Steps → Tasks` and
+  checking `.successful` on each object. On runs with many parallel tasks
+  (e.g., `foreach` over 1000 items), this triggers hundreds of individual
+  metadata requests.
+- `task.stdout` loads the entire log as a single string. For training steps
+  that produce megabytes of output, this is wasteful when the agent only
+  needs the last few lines or lines matching an error pattern.
+- Filtering is limited to tags (`flow.runs("my_tag")` or `namespace("foo")`). 
+  There is no way to filter by status, date range, or failure type without 
+  iterating all runs and checking each one in memory.
+- Time-based queries are not first-class. There is no efficient way to ask
+  "show me runs from the last 24 hours" or "find tasks that ran between
+  Tuesday and Wednesday." The `created_at` property exists on client objects,
+  but using it requires fetching every run first and filtering in Python —
+  the metadata service does not support time-range predicates on its
+  endpoints.
+- Searching across artifacts is expensive and unsupported. An agent asking
+  "which run produced an artifact called `model` with size > 100MB?" or
+  "find the task where `accuracy` was highest" must iterate runs, steps,
+  and tasks, then inspect each artifact individually. There is no
+  cross-run or cross-task artifact search capability — neither in the
+  Client API nor the metadata service.
+
+**At the metadata provider / service layer:**
+
+The Client API fetches data through a
+[metadata provider](https://github.com/Netflix/metaflow/blob/master/metaflow/plugins/metadata_providers/service.py)
+(`ServiceMetadataProvider`), which translates client queries into HTTP
+requests against the
+[metadata service](https://github.com/Netflix/metaflow-service). The
+provider's single query method (`_get_object_internal`) constructs REST
+paths like `/flows/{id}/runs` and returns full, unfiltered JSON responses.
+Several gaps exist at this layer:
+
+- No pagination — collection endpoints (e.g., listing all runs for a
+  flow) return unbounded responses that grow with deployment age. The
+  provider's `_get_object_internal` issues bare GET requests with no
+  `limit` or `offset` parameters.
+- Limited server-side filtering — the provider does support server-side
+  metadata filtering via `filter_tasks_by_metadata` (service >= 2.5.0),
+  but tag-based filters from `_apply_filter` are applied client-side
+  after the full response is returned. There is no server-side status
+  or time-range filtering.
+- Certain compound queries (e.g., "which tasks in this run failed?") have
+  no direct endpoint, forcing the provider to make many individual
+  requests.
+- The mapping from Client API operations to HTTP requests is implicit,
+  making it hard to reason about the true cost of a client call.
+
+This project has two parts: **analysis** and **implementation**. The
+contributor will first systematically map out how the Client API translates
+to metadata service calls, identify the specific inefficiencies that arise
+for common agent use cases, and then build a set of utility functions that
+work around or address those inefficiencies.
+
+### Goals
+
+#### 1. Client API Efficiency Audit
+
+Trace the common agent use cases (listed below) through the Client API
+and metadata service, documenting exactly which HTTP requests each
+operation triggers and where the performance bottlenecks are. The use
+cases to analyze:
+
+- Listing recent runs for a flow, filtered by success/failure status
+- Listing runs/tasks for a flow, filtered based on time range
+- Finding the failed task(s) in a run and retrieving error details
+- Getting artifact metadata (names, sizes, types) for a task without
+  loading artifact data
+- Retrieving bounded/filtered log output for a task
+- Searching for artifacts across runs and tasks (name/size/type/data
+  in artifact etc.)
+
+For each use case, the contributor should determine whether the current
+metadata service already supports the query via its existing endpoints.
+The implementation strategy depends on where the gap is:
+
+- If the service supports it but the existing provider doesn't expose
+  it efficiently → the extension implements a new metadata provider
+  that inherits from `ServiceMetadataProvider` in the Metaflow
+  codebase and adds or overrides methods to expose the capability.
+  Utility functions are built on top of this extended provider.
+- If the service doesn't support the query at all and a new endpoint
+  is needed → add the endpoint to the
+  [metadata service](https://github.com/Netflix/metaflow-service),
+  and wire it through the extended provider in the extension.
+- If the query can be answered client-side with bounded cost using
+  existing endpoints → build utility functions directly, with
+  explicit bounds and structured output.
+
+#### 2. Metadata Service Gap Analysis
+
+Review the
+[metaflow-service](https://github.com/Netflix/metaflow-service) API
+routes and identify what is missing or insufficient for efficient agent
+queries. This includes examining:
+
+- Which endpoints support pagination and which do not
+- Whether status-based or time-range filtering is available server-side
+- Whether there are endpoints that return lightweight summaries vs
+  full objects
+- Whether artifact-level queries (by name, size, type) are possible
+  without loading artifact data
+- What new endpoints or query parameters would eliminate the need for
+  expensive client-side iteration
+
+The output is a concrete list of gaps, and for each gap, a determination
+of where the fix belongs: a new method on the extended provider
+(inheriting from `ServiceMetadataProvider`), a new endpoint on the
+metadata service, or a client-side utility with bounded iteration.
+
+#### 3. Query Utilities via Extensions Package
+
+Build a `metaflow-agent` extensions package containing an extended
+metadata provider (inheriting from `ServiceMetadataProvider`) and
+utility functions for the analyzed use cases. Some utilities will wrap
+existing provider capabilities with bounds and structured output. Others
+will use new methods on the extended provider, or new metadata service
+endpoints identified in Goals 1 and 2. Target utilities:
+
+- **Run listing with filters** — By status, tags, and time range,
+  with bounded results
+- **Run summary** — Structured overview of a run's status, steps,
+  and failure info
+- **Failure details** — Failed task(s) with error type, message,
+  and traceback
+- **Artifact search** — Find artifacts across runs/tasks by name,
+  size threshold, or type, without unpickling data
+- **Bounded log access** — Last N lines or pattern-matched lines
+  from task logs
+
+#### 4. [Stretch Goal] New Metadata Service Endpoints
+
+For the highest-impact gaps that require server-side support (e.g.,
+paginated listing, time-range filtering, failed-task queries), implement
+the endpoints in the
+[metadata service](https://github.com/Netflix/metaflow-service), add
+corresponding methods to the extended provider, and demonstrate the
+efficiency improvement over client-side workarounds.
+
+### Deliverables
+
+- **Audit and gap analysis document** — A combined report covering the
+  Client API efficiency audit (Goal 1) and the metadata service gap
+  analysis (Goal 2): which use cases are supported by existing endpoints,
+  which require provider-level changes, and which need new service
+  endpoints. For each utility built, documents the metadata service calls
+  it makes and how it scales with run complexity.
+- **An extensions package** — An extended metadata provider
+  (inheriting from `ServiceMetadataProvider`) and utility functions for
+  run listing/filtering, run summary, failure details, artifact search,
+  and bounded log access.
+- **Test suite** covering the utility functions and extended provider
+
+### Why This Matters
+
+**For users:**
+- **Agents can debug flows without hammering the backend** — Today, naive
+  agent use of the Client API can generate hundreds of metadata service
+  requests for a single inspection task. Utilities designed with awareness
+  of the backend cost prevent this.
+- **Informs future Metaflow development** — The audit and gap analysis
+  produce actionable insight for improving both the Client API and the
+  metadata service, benefiting all users — not just agents.
+- **Structured utilities for any programmatic use** — While motivated by
+  agents, the utilities are useful for any programmatic Metaflow consumer:
+  CI/CD pipelines, monitoring scripts, dashboards.
+
+**For the contributor:**
+- Gain deep understanding of the Metaflow Client API, metadata service
+  architecture, and how they interact
+- Learn to analyze and design APIs with performance constraints in mind
+- Develop skills in systems-level profiling and efficiency analysis
+- Build a practical tool at the intersection of AI agents and ML
+  infrastructure
+
+### Skills Required
+
+- Python (intermediate)
+- Ability to read and trace through library code (the Client API
+  internals and metadata service routes)
+- Understanding of REST APIs and database-backed services
+- Familiarity with performance analysis (request counting, response
+  size estimation)
+
+### Links
+
+- [Metaflow Client API](https://docs.metaflow.org/api/client)
+- [Metaflow Metadata Service](https://github.com/Netflix/metaflow-service)
+- [Metaflow Extensions Template](https://github.com/Netflix/metaflow-extensions-template)
+- [Metaflow Documentation](https://docs.metaflow.org)
