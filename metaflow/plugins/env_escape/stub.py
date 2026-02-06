@@ -17,6 +17,7 @@ from .consts import (
     OP_DIR,
     OP_INIT,
     OP_SUBCLASSCHECK,
+    OP_GETCLASSATTR,
 )
 
 from .exception_transferer import ExceptionMetaClass
@@ -310,6 +311,14 @@ class MetaWithConnection(StubMetaClass):
             return True
         # Goes to __subclasscheck__ above
         return cls.__subclasscheck__(type(instance))
+
+    def __getattr__(cls, name):
+        # This handles class-level attribute access like EnumClass.MEMBER
+        # When accessing an attribute on the stub class itself (not an instance),
+        # forward the request to the server to get the class attribute.
+        return cls.___class_connection___.stub_request(
+            None, OP_GETCLASSATTR, cls.___class_remote_class_name___, name
+        )
 
 
 class MetaExceptionWithConnection(StubMetaClass, ExceptionMetaClass):
