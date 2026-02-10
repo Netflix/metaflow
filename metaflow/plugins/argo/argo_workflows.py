@@ -2123,12 +2123,13 @@ class ArgoWorkflows(object):
                     "--max-value-size=0",
                     "%s/_parameters/%s" % (run_id, task_id_params),
                 ]
+                # params export needs to happen before bootstrap commands
+                step_cmds.insert(0, export_params)
                 step_cmds.extend(
                     [
-                        "if ! %s >/dev/null 2>/dev/null; then %s && %s; fi"
+                        "if ! %s >/dev/null 2>/dev/null; then %s; fi"
                         % (
                             " ".join(exists),
-                            export_params,
                             " ".join(init),
                         )
                     ]
