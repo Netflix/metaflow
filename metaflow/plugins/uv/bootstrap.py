@@ -50,11 +50,23 @@ if __name__ == "__main__":
             "User-Agent": "python-urllib",
         }
 
-        def _tar_filter(member: tarfile.TarInfo, path):
-            if os.path.basename(member.name) != "uv":
-                return None  # skip
-            member.path = os.path.basename(member.path)
-            return member
+        def _extract_uv_binary(tar, dest):
+            """Extract just the uv binary from the tarball, flattening the path."""
+            if sys.version_info >= (3, 12):
+
+                def _tar_filter(member, path):
+                    if os.path.basename(member.name) != "uv":
+                        return None
+                    member.path = os.path.basename(member.path)
+                    return member
+
+                tar.extractall(dest, filter=_tar_filter)
+            else:
+                for member in tar.getmembers():
+                    if os.path.basename(member.name) == "uv":
+                        member.name = os.path.basename(member.name)
+                        tar.extract(member, dest)
+                        break
 
         max_retries = 3
         for attempt in range(max_retries):
@@ -62,7 +74,7 @@ if __name__ == "__main__":
                 req = Request(UV_URL, headers=headers)
                 with urlopen(req) as response:
                     with tarfile.open(fileobj=response, mode="r:gz") as tar:
-                        tar.extractall(uv_install_path, filter=_tar_filter)
+                        _extract_uv_binary(tar, uv_install_path)
                 break
             except (URLError, IOError) as e:
                 if attempt == max_retries - 1:
