@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import json
 import os
+import re
 import tarfile
 from collections import namedtuple
 from datetime import datetime
@@ -59,6 +60,16 @@ filecache = None
 current_namespace = False
 
 current_metadata = False
+
+# Pathspec validation patterns
+# Flow names and step names should be valid Python identifiers (start with letter/underscore)
+_FLOW_NAME_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+# Run IDs and Task IDs are numeric
+_NUMERIC_ID_PATTERN = re.compile(r'^[0-9]+$')
+# Step names should be valid Python identifiers
+_STEP_NAME_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
+# Artifact names should be valid Python identifiers
+_ARTIFACT_NAME_PATTERN = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
 
 
 def metadata(ms: str) -> str:
@@ -269,6 +280,97 @@ class MetaflowObject(object):
     _CHILD_CLASS = None
     _PARENT_CLASS = None
 
+    @staticmethod
+    def _validate_pathspec_format(pathspec: str, object_type: str) -> List[str]:
+        """
+        Validate the format of a pathspec and return its components.
+
+        Parameters
+        ----------
+        pathspec : str
+            The pathspec string to validate
+        object_type : str
+            The type of object ('flow', 'run', 'step', 'task', 'artifact')
+
+        Returns
+        -------
+        List[str]
+            The validated path components
+
+        Raises
+        ------
+        MetaflowInvalidPathspec
+            If the pathspec format is invalid
+        """
+        if not pathspec:
+            raise MetaflowInvalidPathspec(
+                f"Pathspec cannot be empty for {object_type}"
+            )
+
+        # Check for leading or trailing slashes
+        if pathspec.startswith('/') or pathspec.endswith('/'):
+            raise MetaflowInvalidPathspec(
+                f"Pathspec '{pathspec}' cannot start or end with '/'"
+            )
+
+        ids = pathspec.split("/")
+
+        # Check for empty components (e.g., "Flow//Step")
+        if any(not component.strip() for component in ids):
+            raise MetaflowInvalidPathspec(
+                f"Pathspec '{pathspec}' contains empty components"
+            )
+
+        # Validate the number of components based on object type
+        expected_lengths = {
+            'flow': (1, "Flow('FlowName')"),
+            'run': (2, "Run('FlowName/RunID')"),
+            'step': (3, "Step('FlowName/RunID/StepName')"),
+            'task': (4, "Task('FlowName/RunID/StepName/TaskID')"),
+            'artifact': (5, "DataArtifact('FlowName/RunID/StepName/TaskID/ArtifactName')")
+        }
+
+        if object_type in expected_lengths:
+            expected_len, example = expected_lengths[object_type]
+            if len(ids) != expected_len:
+                raise MetaflowInvalidPathspec(f"Expects {example}")
+
+        # Validate each component based on its position
+        for idx, component in enumerate(ids):
+            if idx == 0:  # Flow name
+                if not _FLOW_NAME_PATTERN.match(component):
+                    raise MetaflowInvalidPathspec(
+                        f"Invalid flow name '{component}'. "
+                        f"Flow names must start with a letter or underscore and contain only "
+                        f"alphanumeric characters and underscores."
+                    )
+            elif idx == 1:  # Run ID
+                if not _NUMERIC_ID_PATTERN.match(component):
+                    raise MetaflowInvalidPathspec(
+                        f"Invalid run ID '{component}'. Run IDs must be numeric."
+                    )
+            elif idx == 2:  # Step name
+                if not _STEP_NAME_PATTERN.match(component):
+                    raise MetaflowInvalidPathspec(
+                        f"Invalid step name '{component}'. "
+                        f"Step names must start with a letter or underscore and contain only "
+                        f"alphanumeric characters and underscores."
+                    )
+            elif idx == 3:  # Task ID
+                if not _NUMERIC_ID_PATTERN.match(component):
+                    raise MetaflowInvalidPathspec(
+                        f"Invalid task ID '{component}'. Task IDs must be numeric."
+                    )
+            elif idx == 4:  # Artifact name
+                if not _ARTIFACT_NAME_PATTERN.match(component):
+                    raise MetaflowInvalidPathspec(
+                        f"Invalid artifact name '{component}'. "
+                        f"Artifact names must start with a letter or underscore and contain only "
+                        f"alphanumeric characters and underscores."
+                    )
+
+        return ids
+
     def __init__(
         self,
         pathspec: Optional[str] = None,
@@ -319,22 +421,8 @@ class MetaflowObject(object):
             # attempt exists".
 
         if pathspec and _object is None:
-            ids = pathspec.split("/")
-
-            if self._NAME == "flow" and len(ids) != 1:
-                raise MetaflowInvalidPathspec("Expects Flow('FlowName')")
-            elif self._NAME == "run" and len(ids) != 2:
-                raise MetaflowInvalidPathspec("Expects Run('FlowName/RunID')")
-            elif self._NAME == "step" and len(ids) != 3:
-                raise MetaflowInvalidPathspec("Expects Step('FlowName/RunID/StepName')")
-            elif self._NAME == "task" and len(ids) != 4:
-                raise MetaflowInvalidPathspec(
-                    "Expects Task('FlowName/RunID/StepName/TaskID')"
-                )
-            elif self._NAME == "artifact" and len(ids) != 5:
-                raise MetaflowInvalidPathspec(
-                    "Expects DataArtifact('FlowName/RunID/StepName/TaskID/ArtifactName')"
-                )
+            # Validate pathspec format and get components
+            ids = self._validate_pathspec_format(pathspec, self._NAME)
 
             self.id = ids[-1]
             self._pathspec = pathspec
