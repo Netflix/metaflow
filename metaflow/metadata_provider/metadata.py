@@ -218,6 +218,46 @@ class MetadataProvider(object):
         """
         raise NotImplementedError()
 
+    def update_task_status(
+        self, run_id, step_name, task_id, attempt=0, status="running"
+    ):
+        """
+        No-op operation in this implementation.
+
+        Parameters
+        ----------
+        run_id : int or convertible to int
+            Run ID for this run
+        step_name : string
+            Name of the step
+        task_id : int
+            Task ID
+        attempt : int, default 0
+            Attempt number of the task
+        status : str, default "running"
+            The status to set for the task
+        Returns
+        -------
+            None
+        """
+        raise NotImplementedError()
+
+    def update_run_status(self, run_id, status="running"):
+        """
+        No-op operation in this implementation.
+
+        Parameters
+        ----------
+        run_id : int or convertible to int
+            Run ID for this run
+        status : str, default "running"
+            The status to set for the run
+        Returns
+        -------
+            None
+        """
+        raise NotImplementedError()
+
     def get_runtime_environment(self, runtime_name):
         """
         Returns a dictionary of environment variables to be set

@@ -577,6 +577,7 @@ class MetaflowTask(object):
         if run_id and task_id:
             self.metadata.register_run_id(run_id)
             self.metadata.register_task_id(run_id, step_name, task_id, retry_count)
+            self.metadata.update_task_status(run_id, step_name, task_id, retry_count)
         else:
             raise MetaflowInternalError(
                 "task.run_step needs a valid run_id and task_id"
@@ -959,6 +960,16 @@ class MetaflowTask(object):
                     self.flow._task_ok = False
                     raise ex
                 finally:
+                    # update task and run status directly.
+                    if not self.flow._task_ok:
+                        self.metadata.update_run_status(run_id, status="failed")
+                    self.metadata.update_task_status(
+                        run_id,
+                        step_name,
+                        task_id,
+                        retry_count,
+                        status=("completed" if self.flow._task_ok else "failed"),
+                    )
                     # The attempt_ok metadata is used to determine task status so it is important
                     # we ensure that it is written even in case of preceding failures.
                     # f.ex. failing to serialize artifacts leads to a non-zero exit code for the process,
