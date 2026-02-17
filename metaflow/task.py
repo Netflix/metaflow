@@ -960,16 +960,16 @@ class MetaflowTask(object):
                     self.flow._task_ok = False
                     raise ex
                 finally:
-                    # update task and run status directly.
-                    if not self.flow._task_ok:
+                    # update task and run status if failure is terminal.
+                    if not self.flow._task_ok and retry_count >= max_user_code_retries:
                         self.metadata.update_run_status(run_id, status="failed")
-                    self.metadata.update_task_status(
-                        run_id,
-                        step_name,
-                        task_id,
-                        retry_count,
-                        status=("completed" if self.flow._task_ok else "failed"),
-                    )
+                        self.metadata.update_task_status(
+                            run_id,
+                            step_name,
+                            task_id,
+                            retry_count,
+                            status="failed",
+                        )
                     # The attempt_ok metadata is used to determine task status so it is important
                     # we ensure that it is written even in case of preceding failures.
                     # f.ex. failing to serialize artifacts leads to a non-zero exit code for the process,

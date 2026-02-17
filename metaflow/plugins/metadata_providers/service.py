@@ -16,6 +16,7 @@ from metaflow.metaflow_config import SERVICE_HEADERS, SERVICE_RETRY_COUNT, SERVI
 from metaflow.sidecar import Message, MessageTypes, Sidecar
 from urllib.parse import urlencode
 from metaflow.util import version_parse
+from functools import cache
 
 
 # Define message enums
@@ -106,6 +107,19 @@ class ServiceMetadataProvider(MetadataProvider):
             _, did_create = self._new_run(run_id, tags=tags, sys_tags=sys_tags)
             return did_create
 
+    def update_run_status(self, run_id, status="running"):
+        if not self._service_supports_statuses:
+            return
+
+        status_path = self._status_path(self._flow_name, run_id)
+        self._request(
+            self._monitor,
+            status_path,
+            "PATCH",
+            data={"status": status},
+            retry_409_path=status_path,
+        )
+
     def new_task_id(self, run_id, step_name, tags=None, sys_tags=None):
         v, _ = self._new_task(run_id, step_name, tags=tags, sys_tags=sys_tags)
         return v
@@ -130,6 +144,20 @@ class ServiceMetadataProvider(MetadataProvider):
         else:
             self._register_system_metadata(run_id, step_name, task_id, attempt)
             return False
+
+    def update_task_status(
+        self, run_id, step_name, task_id, attempt=0, status="running"
+    ):
+        if not self._service_supports_statuses:
+            return
+        status_path = self._status_path(self._flow_name, run_id, step_name, task_id)
+        self._request(
+            self._monitor,
+            status_path,
+            "PATCH",
+            data={"status": status, "attempt": attempt},
+            retry_409_path=status_path,
+        )
 
     def _start_heartbeat(
         self, heartbeat_type, flow_id, run_id, step_name=None, task_id=None
@@ -416,6 +444,13 @@ class ServiceMetadataProvider(MetadataProvider):
             return create_path + "/step"
         return create_path + "/task"
 
+    @staticmethod
+    def _status_path(flow_name, run_id, step_name=None, task_id=None):
+        status_path = f"/flows/{flow_name}/runs/{run_id}"
+        if step_name is not None and task_id is not None:
+            return f"{status_path}/steps/{step_name}/tasks/{task_id}/status"
+        return f"{status_path}/status"
+
     def _get_or_create(
         self,
         obj_type,
@@ -608,3 +643,13 @@ class ServiceMetadataProvider(MetadataProvider):
             )
         else:
             raise ServiceException("Metadata request (%s) failed" % url)
+
+    @property
+    @cache
+    def _service_supports_statuses(self):
+        service_version = self.version()
+        if service_version is None or version_parse(service_version) < version_parse(
+            "2.6.0"
+        ):
+            False
+        return True
