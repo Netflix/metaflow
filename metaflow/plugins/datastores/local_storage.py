@@ -115,16 +115,18 @@ class LocalStorage(DataStoreStorage):
         """Write data to full_path atomically using a temp file + rename."""
         dir_name = os.path.dirname(full_path)
         fd, tmp_path = tempfile.mkstemp(dir=dir_name)
+        success = False
         try:
             with os.fdopen(fd, mode) as f:
                 f.write(data)
             os.rename(tmp_path, full_path)
-        except BaseException:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-            raise
+            success = True
+        finally:
+            if not success:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
 
     def save_bytes(self, path_and_bytes_iter, overwrite=False, len_hint=0):
         for path, obj in path_and_bytes_iter:
