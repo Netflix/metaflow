@@ -577,7 +577,6 @@ class MetaflowTask(object):
         if run_id and task_id:
             self.metadata.register_run_id(run_id)
             self.metadata.register_task_id(run_id, step_name, task_id, retry_count)
-            self.metadata.update_task_status(run_id, step_name, task_id, retry_count)
         else:
             raise MetaflowInternalError(
                 "task.run_step needs a valid run_id and task_id"
