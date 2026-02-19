@@ -494,6 +494,11 @@ CONDA_DEPENDENCY_RESOLVER = from_conf("CONDA_DEPENDENCY_RESOLVER", "conda")
 CONDA_USE_FAST_INIT = from_conf("CONDA_USE_FAST_INIT", False)
 
 ###
+# UV configuration
+###
+UV_VERSION = from_conf("UV_VERSION", "0.6.11")
+
+###
 # Escape hatch configuration
 ###
 # Print out warning if escape hatch is not used for the target packages
