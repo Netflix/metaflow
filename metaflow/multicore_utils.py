@@ -94,9 +94,9 @@ def parallel_imap_unordered(
     func : Callable[[Any], Any]
         Function taking a single argument and returning a result
     iterable : Iterable[Any]
-        Iterable over arguments to pass to fun
+        Iterable over arguments to pass to func
     max_parallel int, optional, default None
-        Maximum parallelism. If not specified, it uses the number of CPUs
+        Maximum parallelism. If not specified, it uses the number of assigned CPUs
     dir : str, optional, default None
         If specified, it's the directory where temporary files are created
 
@@ -109,7 +109,11 @@ def parallel_imap_unordered(
         # Lazy import to save on startup time for metaflow as a whole
         from multiprocessing import cpu_count
 
-        max_parallel = cpu_count()
+        max_parallel = (
+            len(getattr(os, "sched_getaffinity", lambda _: [])(0))
+            or os.cpu_count()
+            or 1
+        )
 
     args_iter = iter(iterable)
     pids = [_spawn(func, arg, dir) for arg in islice(args_iter, max_parallel)]
@@ -152,9 +156,9 @@ def parallel_map(
     func : Callable[[Any], Any]
         Function taking a single argument and returning a result
     iterable : Iterable[Any]
-        Iterable over arguments to pass to fun
+        Iterable over arguments to pass to func
     max_parallel int, optional, default None
-        Maximum parallelism. If not specified, it uses the number of CPUs
+        Maximum parallelism. If not specified, it uses the number of assigned CPUs
     dir : str, optional, default None
         If specified, it's the directory where temporary files are created
 
