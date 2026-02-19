@@ -2108,7 +2108,7 @@ class ArgoWorkflows(object):
                         "%s,%s,{{=toBase64(workflow.parameters['%s'])}}"
                         % (
                             parameter["name"],
-                            "t" if parameter["value"] is "null" else "f",
+                            "t" if parameter["value"] == "null" else "f",
                             parameter["name"],
                         )
                         for parameter in self.parameters.values()
