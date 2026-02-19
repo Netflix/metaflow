@@ -680,6 +680,7 @@ def create(
 
     # Backward compatibility: map "html" type to "blank" card
     # This allows @card(type="html") to work as it did historically
+    orig_type = type
     card_type = type
     if card_type == "html":
         card_type = "blank"
@@ -689,9 +690,9 @@ def create(
 
     if len(filtered_cards) == 0 or card_type is None:
         if render_error_card:
-            error_stack_trace = str(CardClassFoundException(card_type))
+            error_stack_trace = str(CardClassFoundException(orig_type))
         else:
-            raise CardClassFoundException(card_type)
+            raise CardClassFoundException(orig_type)
 
     if len(filtered_cards) > 0:
         filtered_card = filtered_cards[0]

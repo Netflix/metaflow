@@ -3,11 +3,11 @@ from metaflow_test import MetaflowTest, ExpectationFailed, steps, tag
 
 class CardHTMLBackwardCompatTest(MetaflowTest):
     """
-    Regression test for issue #2794.
+    Regression test for backward compatibility of @card(type="html").
 
-    Test that @card(type="html") works for backward compatibility.
+    Ensures strict card lookup does not break existing flows that use type="html".
     Historically, type="html" was mapped to the blank/default card.
-    This test ensures that regression doesn't happen again.
+    This test ensures that behavior is preserved.
     """
 
     PRIORITY = 3
