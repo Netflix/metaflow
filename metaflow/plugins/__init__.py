@@ -10,6 +10,7 @@ from metaflow.extension_support.plugins import (
 CLIS_DESC = [
     ("package", ".package_cli.cli"),
     ("batch", ".aws.batch.batch_cli.cli"),
+    ("conda", ".pypi.conda_cli.cli"),
     ("kubernetes", ".kubernetes.kubernetes_cli.cli"),
     ("step-functions", ".aws.step_functions.step_functions_cli.cli"),
     ("airflow", ".airflow.airflow_cli.cli"),
