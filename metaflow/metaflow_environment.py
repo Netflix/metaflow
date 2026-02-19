@@ -157,8 +157,17 @@ class MetaflowEnvironment(object):
             )
 
     def _get_install_dependencies_cmd(self, datastore_type):
+        python = self._python()
+        # bootstrap pip if missing; try ensurepip (may not be available on all distros)
+        ensure_pip_cmd = (
+            "{python} -m pip --version > /dev/null 2>&1"
+            " || {{ {python} -m ensurepip --upgrade --default-pip > /dev/null 2>&1; }}"
+            " || {{ echo 'ERROR: pip is not available and ensurepip failed."
+            " Please use a base image that includes pip.' >&2 && exit 1; }}"
+        ).format(python=python)
+
         base_cmd = "{} -m pip install -qqq --no-compile --no-cache-dir --disable-pip-version-check".format(
-            self._python()
+            python
         )
 
         datastore_packages = {
@@ -187,7 +196,11 @@ class MetaflowEnvironment(object):
             base_cmd, " ".join(datastore_packages[datastore_type] + ["requests"])
         )
         # skip pip installs if we know that packages might already be available
-        return "if [ -z $METAFLOW_SKIP_INSTALL_DEPENDENCIES ]; then {}; fi".format(cmd)
+        return (
+            "if [ -z $METAFLOW_SKIP_INSTALL_DEPENDENCIES ]; then {} && {}; fi".format(
+                ensure_pip_cmd, cmd
+            )
+        )
 
     def get_package_commands(
         self, code_package_url, datastore_type, code_package_metadata=None
