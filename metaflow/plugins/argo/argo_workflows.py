@@ -2098,9 +2098,10 @@ class ArgoWorkflows(object):
                         # {{foo.bar['param_name']}}.
                         # https://argoproj.github.io/argo-events/tutorials/02-parameterization/
                         # http://masterminds.github.io/sprig/strings.html
-                        "%s,{{=toBase64(workflow.parameters['%s'])}}"
+                        "%s,%s,{{=toBase64(workflow.parameters['%s'])}}"
                         % (
                             parameter["name"],
+                            "t" if parameter["value"] is "null" else "f",
                             parameter["name"],
                         )
                         for parameter in self.parameters.values()

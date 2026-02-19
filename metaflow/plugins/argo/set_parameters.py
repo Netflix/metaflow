@@ -20,15 +20,19 @@ def parse_parameter_value(base64_value):
 
 def export_parameters(output_file: str, params: Dict[str, str]) -> None:
     with open(output_file, "w") as f:
-        for k in params:
+        for k, v in params.items():
+            val, none_default = v
             # Replace `-` with `_` is parameter names since `-` isn't an
             # allowed character for environment variables. cli.py will
             # correctly translate the replaced `-`s.
+            parsed_value = parse_parameter_value(val)
+            if none_default and parsed_value == "null":
+                continue
             f.write(
                 "export METAFLOW_INIT_%s=%s\n"
                 % (
                     k.upper().replace("-", "_"),
-                    parse_parameter_value(params[k]),
+                    parsed_value,
                 )
             )
     os.chmod(output_file, 509)
@@ -48,9 +52,10 @@ if __name__ == "__main__":
 
     try:
         for p in raw_params:
-            k, v = p.split(",")
-            params[k] = v
+            k, req, v = p.split(",")
+            none_default = req == "t"
+            params[k] = (v, none_default)
     except ValueError:
-        raise Exception("Pass in the parameter values as name,value")
+        raise Exception("Pass in the parameter values as name,default_is_none,value")
 
     export_parameters(output_filename, params)
