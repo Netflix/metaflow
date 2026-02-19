@@ -906,6 +906,7 @@ class NativeRuntime(object):
                     bad=True,
                 )
                 self._killall()
+                self._metadata.update_run_status(self.run_id, "failed")
                 exception = ex
                 raise
             except Exception as ex:
@@ -2325,6 +2326,14 @@ class Worker(object):
             for fileobj, buf in self._logs.values():
                 msg = b"[KILLED BY ORCHESTRATOR]\n"
                 self.emit_log(msg, buf, system_msg=True)
+            self.task.metadata.update_task_status(
+                self.task.run_id,
+                self.task.step,
+                self.task.task_id,
+                self.task.retries,
+                "failed",
+            )
+
             self.cleaned = True
         return self._proc.poll() is not None
 
