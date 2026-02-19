@@ -966,8 +966,104 @@ class MetaflowCode(object):
         """
         return self._info["script"]
 
+    @property
+    def repo_url(self) -> Optional[str]:
+        """
+        Git repository URL (HTTPS format) associated with this code package,
+        or None if the code was not in a git repository.
+
+        Returns
+        -------
+        Optional[str]
+            Repository URL or None
+        """
+        return self._info.get("repo_url")
+
+    @property
+    def git_branch(self) -> Optional[str]:
+        """
+        Git branch name at the time this code was packaged,
+        or None if the code was not in a git repository.
+
+        Returns
+        -------
+        Optional[str]
+            Branch name or None
+        """
+        return self._info.get("branch_name")
+
+    @property
+    def git_commit(self) -> Optional[str]:
+        """
+        Full git commit SHA at the time this code was packaged,
+        or None if the code was not in a git repository.
+
+        Returns
+        -------
+        Optional[str]
+            Commit SHA or None
+        """
+        return self._info.get("commit_sha")
+
+    @property
+    def is_dirty(self) -> Optional[bool]:
+        """
+        Whether the git working tree had uncommitted changes when this code
+        was packaged, or None if the code was not in a git repository.
+
+        Returns
+        -------
+        Optional[bool]
+            True if there were uncommitted changes, False if clean, None if unknown
+        """
+        return self._info.get("has_uncommitted_changes")
+
+    def describe(self) -> str:
+        """
+        Return a human-readable summary of this code package, including
+        git provenance information when available.
+
+        Returns
+        -------
+        str
+            Multi-line description of the code package
+        """
+        lines = [
+            "Code package: %s" % self.script_name,
+            "  Path: %s" % self._path,
+        ]
+        if self.git_commit:
+            lines.append("  Git commit: %s" % self.git_commit)
+        if self.git_branch:
+            lines.append("  Git branch: %s" % self.git_branch)
+        if self.repo_url:
+            lines.append("  Repository: %s" % self.repo_url)
+        if self.is_dirty is not None:
+            lines.append(
+                "  Working tree: %s"
+                % ("dirty (uncommitted changes)" if self.is_dirty else "clean")
+            )
+        if not self.git_commit and not self.git_branch:
+            lines.append("  Git info: not available (code was not in a git repository)")
+        return "\n".join(lines)
+
     def __str__(self):
-        return "<MetaflowCode: %s>" % self._info["script"]
+        dirty = ""
+        if self.is_dirty is not None:
+            dirty = " dirty" if self.is_dirty else ""
+        if self.git_commit:
+            short_sha = self.git_commit[:7]
+            branch = self.git_branch or "detached"
+            return "<MetaflowCode: %s @ %s (%s%s)>" % (
+                self.script_name,
+                short_sha,
+                branch,
+                dirty,
+            )
+        return "<MetaflowCode: %s>" % self.script_name
+
+    def __repr__(self):
+        return self.__str__()
 
 
 class DataArtifact(MetaflowObject):
