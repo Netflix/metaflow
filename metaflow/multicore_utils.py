@@ -114,27 +114,38 @@ def parallel_imap_unordered(
     args_iter = iter(iterable)
     pids = [_spawn(func, arg, dir) for arg in islice(args_iter, max_parallel)]
 
-    while pids:
-        for idx, pid_info in enumerate(pids):
-            pid, output_file = pid_info
-            pid, exit_code = os.waitpid(pid, os.WNOHANG)
-            if pid:
-                pids.pop(idx)
-                break
-        else:
-            time.sleep(0.1)  # Wait a bit before re-checking
-            continue
+    try:
+        while pids:
+            for idx, pid_info in enumerate(pids):
+                pid, output_file = pid_info
+                pid, exit_code = os.waitpid(pid, os.WNOHANG)
+                if pid:
+                    pids.pop(idx)
+                    break
+            else:
+                time.sleep(0.1)  # Wait a bit before re-checking
+                continue
 
-        if exit_code:
-            raise MulticoreException("Child failed")
+            if exit_code:
+                try:
+                    os.remove(output_file)
+                except OSError:
+                    pass
+                raise MulticoreException("Child failed")
 
-        with open(output_file, "rb") as f:
-            yield pickle.load(f)
-        os.remove(output_file)
+            with open(output_file, "rb") as f:
+                yield pickle.load(f)
+            os.remove(output_file)
 
-        arg = list(islice(args_iter, 1))
-        if arg:
-            pids.insert(0, _spawn(func, arg[0], dir))
+            arg = list(islice(args_iter, 1))
+            if arg:
+                pids.insert(0, _spawn(func, arg[0], dir))
+    finally:
+        for _, remaining_file in pids:
+            try:
+                os.remove(remaining_file)
+            except OSError:
+                pass
 
 
 def parallel_map(
