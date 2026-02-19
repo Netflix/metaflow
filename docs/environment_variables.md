@@ -44,7 +44,9 @@ export METAFLOW\_DEFAULT\_DATASTORE=s3
 
 
 
-Environment variables take precedence over configuration files.
+Environment variables take precedence over configuration files,
+
+which in turn override internal defaults.
 
 
 
@@ -81,6 +83,62 @@ Useful in CI environments or containers where the system user cannot be determin
 ```bash
 
 export METAFLOW\_USER=your\_username
+
+```
+
+
+
+---
+
+
+
+\### METAFLOW\_RUNTIME\_NAME
+
+
+
+Defines the runtime environment name associated with a run.
+
+
+
+If not set, it defaults to `dev`.
+
+
+
+Used by the metadata service to identify the runtime context of executions.
+
+
+
+```bash
+
+export METAFLOW\_RUNTIME\_NAME=prod
+
+```
+
+
+
+---
+
+
+
+\### METAFLOW\_PRODUCTION\_TOKEN
+
+
+
+Defines a production token used for identifying or managing
+
+production deployments.
+
+
+
+This variable is used by deployment backends such as
+
+AWS Step Functions, Argo Workflows, and Airflow.
+
+
+
+```bash
+
+export METAFLOW\_PRODUCTION\_TOKEN=<token>
 
 ```
 
@@ -380,7 +438,7 @@ export METAFLOW\_DEBUG\_TRACING=True
 
 
 
-\# Naming Rule (Important)
+\# Naming Rule
 
 
 
@@ -408,9 +466,9 @@ METAFLOW\_SOME\_NAME
 
 
 
-Refer to `metaflow/metaflow\_config.py` for the authoritative
+Refer to `metaflow/metaflow\_config.py`
 
-and complete list of supported configuration values.
+for the authoritative and complete list of configuration values.
 
 
 
@@ -438,7 +496,19 @@ export METAFLOW\_USER=your\_username
 
 
 
-To list active Metaflow environment variables:
+---
+
+
+
+\## Environment variable not taking effect
+
+
+
+1\. Ensure the variable is exported in your shell.
+
+2\. Restart your shell session if necessary.
+
+3\. Confirm it is set:
 
 
 
@@ -447,6 +517,40 @@ To list active Metaflow environment variables:
 env | grep METAFLOW
 
 ```
+
+
+
+4\. Verify that the variable name matches the pattern:
+
+
+
+```
+
+METAFLOW\_<CONFIG\_NAME>
+
+```
+
+
+
+---
+
+
+
+\# Notes
+
+
+
+\- Environment variables override configuration files.
+
+\- Configuration files override internal defaults.
+
+\- Some runtime-specific variables (e.g., `METAFLOW\_RUNTIME\_NAME`,
+
+&nbsp; `METAFLOW\_PRODUCTION\_TOKEN`) are read directly from the environment.
+
+\- The complete and authoritative list of configuration values
+
+&nbsp; is defined in `metaflow/metaflow\_config.py`.
 
 
 
