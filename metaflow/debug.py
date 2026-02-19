@@ -16,6 +16,9 @@ from .util import is_stringish
 #   to see command lines used by the S3 client. Note that this environment
 #   variable also disables automatic cleaning of subdirectories, which can
 #   fill up disk space quickly
+# - METAFLOW_DEBUG_BOTO3=1
+#   to see the profile, region, and credential method used by boto3 when
+#   creating sessions/clients.
 
 
 class Debug(object):

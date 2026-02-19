@@ -62,6 +62,10 @@ class Boto3ClientProvider(object):
                     cached_aws_sandbox_creds = r.json()
                 except requests.exceptions.HTTPError as e:
                     raise MetaflowException(repr(e))
+            from metaflow.debug import debug
+
+            if debug.boto3:
+                debug.boto3_exec(["Boto3 session created for AWS sandbox"])
             if with_error:
                 return (
                     boto3.session.Session(**cached_aws_sandbox_creds).client(
@@ -73,6 +77,24 @@ class Boto3ClientProvider(object):
                 module, **client_params
             )
         session = boto3.session.Session()
+        from metaflow.debug import debug
+
+        if debug.boto3:
+            _creds = session.get_credentials()
+            if _creds:
+                debug.boto3_exec(
+                    [
+                        "Boto3 session created with profile '%s', region '%s', credential method '%s'"
+                        % (session.profile_name, session.region_name, _creds.method)
+                    ]
+                )
+            else:
+                debug.boto3_exec(
+                    [
+                        "Boto3 session created with profile '%s', region '%s', no credentials found"
+                        % (session.profile_name, session.region_name)
+                    ]
+                )
         if role_arn:
             fetcher = botocore.credentials.AssumeRoleCredentialFetcher(
                 client_creator=session._session.create_client,
@@ -86,6 +108,8 @@ class Boto3ClientProvider(object):
             botocore_session = botocore.session.Session(session_vars=session_vars)
             botocore_session._credentials = creds
             session = boto3.session.Session(botocore_session=botocore_session)
+            if debug.boto3:
+                debug.boto3_exec(["Session configured to assume role: %s" % role_arn])
         if with_error:
             return session.client(module, **client_params), ClientError
         return session.client(module, **client_params)
