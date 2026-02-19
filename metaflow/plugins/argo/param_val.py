@@ -14,6 +14,12 @@ def parse_parameter_value(base64_value):
 
 
 if __name__ == "__main__":
-    base64_val = sys.argv[1]
+    param_name = sys.argv[1]
+    default_null = sys.argv[2] == "t"
+    base64_val = sys.argv[3]
 
-    print(parse_parameter_value(base64_val))
+    val = parse_parameter_value(base64_val)
+    if default_null and val == None:
+        sys.exit(0)
+    else:
+        print(f'--{param_name}="{val}"')
