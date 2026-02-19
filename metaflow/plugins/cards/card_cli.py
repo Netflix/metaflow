@@ -677,14 +677,21 @@ def create(
     from metaflow.cards import ErrorCard
 
     error_card = ErrorCard
-    filtered_cards = [CardClass for CardClass in CARDS if CardClass.type == type]
+
+    # Backward compatibility: map "html" type to "blank" card
+    # This allows @card(type="html") to work as it did historically
+    card_type = type
+    if card_type == "html":
+        card_type = "blank"
+
+    filtered_cards = [CardClass for CardClass in CARDS if CardClass.type == card_type]
     card_datastore = CardDatastore(ctx.obj.flow_datastore, pathspec=full_pathspec)
 
-    if len(filtered_cards) == 0 or type is None:
+    if len(filtered_cards) == 0 or card_type is None:
         if render_error_card:
-            error_stack_trace = str(CardClassFoundException(type))
+            error_stack_trace = str(CardClassFoundException(card_type))
         else:
-            raise CardClassFoundException(type)
+            raise CardClassFoundException(card_type)
 
     if len(filtered_cards) > 0:
         filtered_card = filtered_cards[0]
