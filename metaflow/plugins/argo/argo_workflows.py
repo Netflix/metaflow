@@ -563,10 +563,17 @@ class ArgoWorkflows(object):
         return None
 
     def _process_parameters(self):
+        reserved_argo_params = ["script"]
         parameters = {}
         has_schedule = self.flow._flow_decorators.get("schedule") is not None
         seen = set()
         for var, param in self.flow._get_parameters():
+            # protect the reserved params
+            if param.name.lower() in reserved_argo_params:
+                raise MetaflowException(
+                    "Parameter name *%s* is a reserved word when running on Argo Workflows. Please use a different name for your parameter."
+                    % param.name.lower()
+                )
             # Throw an exception if the parameter is specified twice.
             norm = param.name.lower()
             if norm in seen:
