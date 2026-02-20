@@ -2023,6 +2023,27 @@ class ArgoWorkflows(object):
                 retry_count=retry_count,
             )
 
+            # construct parameters cmd partial so we can cleanly fall back to defaults in case of missing values.
+            params_csv = " ".join(
+                [
+                    "%s,%s,{{=toBase64(workflow.parameters['%s'])}}"
+                    % (
+                        parameter["name"],
+                        "t" if parameter["value"] == "null" else "f",
+                        parameter["name"],
+                    )
+                    for parameter in self.parameters.values()
+                ]
+            )
+            # Parameter names can be hyphenated, hence we use
+            # {{foo.bar['param_name']}}.
+            # https://argoproj.github.io/argo-events/tutorials/02-parameterization/
+            # http://masterminds.github.io/sprig/strings.html
+            param_partial = (
+                "param_opts=$(python -m metaflow.plugins.argo.set_parameters %s)"
+                % params_csv
+            )
+
             init_cmds = " && ".join(
                 [
                     # For supporting sandboxes, ensure that a custom script is executed
@@ -2039,6 +2060,7 @@ class ArgoWorkflows(object):
                     self.flow_datastore.TYPE,
                     self.code_package_metadata,
                 )
+                + [param_partial]
             )
             step_cmds = self.environment.bootstrap_commands(
                 node.name, self.flow_datastore.TYPE
@@ -2083,17 +2105,8 @@ class ArgoWorkflows(object):
                         "--task-id %s" % task_id_params,
                     ]
                     + [
-                        # Parameter names can be hyphenated, hence we use
-                        # {{foo.bar['param_name']}}.
-                        # https://argoproj.github.io/argo-events/tutorials/02-parameterization/
-                        # http://masterminds.github.io/sprig/strings.html
-                        "\\\"$(python -m metaflow.plugins.argo.param_val %s %s {{=toBase64(workflow.parameters['%s'])}})\\\""
-                        % (
-                            parameter["name"],
-                            "t" if parameter["value"] == "null" else "f",
-                            parameter["name"],
-                        )
-                        for parameter in self.parameters.values()
+                        # '"$param_opts"',
+                        '${param_opts:+"$param_opts"}',
                     ]
                 )
                 if self.tags:
