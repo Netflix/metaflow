@@ -37,8 +37,8 @@ if __name__ == "__main__":
 
     try:
         for p in raw_params:
-            k, req, v = p.split(",")
-            none_default = req == "t"
+            k, isnull, v = p.split(",")
+            none_default = isnull == "t"
             params[k] = (v, none_default)
     except ValueError:
         raise Exception("Pass in the parameter values as name,default_is_none,value")
