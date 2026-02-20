@@ -192,18 +192,40 @@ class CliCheck(MetaflowCheck):
         completed_process = self.run_cli(cmd)
         return completed_process.stdout.decode("utf-8")
 
+    @staticmethod
+    def _decoded_stderr_or_stdout(completed_process):
+        stderr_lines = completed_process.stderr.decode("utf-8").splitlines()
+        if stderr_lines:
+            return stderr_lines
+        return completed_process.stdout.decode("utf-8").splitlines()
+
+    def get_tag_list_json(self):
+        completed_process = self.run_cli(
+            ["--quiet", "tag", "list", "--json", "--run-id", self.run_id]
+        )
+        payload = "\n".join(self._decoded_stderr_or_stdout(completed_process)).strip()
+        return json.loads(payload)
+
     def get_user_tags(self):
         completed_process = self.run_cli(
-            ["tag", "list", "--flat", "--hide-system-tags", "--run-id", self.run_id]
+            [
+                "--quiet",
+                "tag",
+                "list",
+                "--flat",
+                "--hide-system-tags",
+                "--run-id",
+                self.run_id,
+            ]
         )
-        lines = completed_process.stderr.decode("utf-8").splitlines()[1:]
+        lines = self._decoded_stderr_or_stdout(completed_process)
         return frozenset(lines)
 
     def get_system_tags(self):
         completed_process = self.run_cli(
-            ["tag", "list", "--flat", "--run-id", self.run_id]
+            ["--quiet", "tag", "list", "--flat", "--run-id", self.run_id]
         )
-        lines = completed_process.stderr.decode("utf-8").splitlines()[1:]
+        lines = self._decoded_stderr_or_stdout(completed_process)
         return frozenset(lines) - self.get_user_tags()
 
     def add_tag(self, tag):
