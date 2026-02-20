@@ -280,6 +280,7 @@ SERVICE_URL = from_conf("SERVICE_URL")
 SERVICE_RETRY_COUNT = from_conf("SERVICE_RETRY_COUNT", 5)
 SERVICE_AUTH_KEY = from_conf("SERVICE_AUTH_KEY")
 SERVICE_HEADERS = from_conf("SERVICE_HEADERS", {})
+SERVICE_REQUEST_PROVIDER = from_conf("SERVICE_REQUEST_PROVIDER", "default")
 if SERVICE_AUTH_KEY is not None:
     SERVICE_HEADERS["x-api-key"] = SERVICE_AUTH_KEY
 # Checks version compatibility with Metadata service

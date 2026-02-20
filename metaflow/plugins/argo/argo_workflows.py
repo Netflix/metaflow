@@ -46,6 +46,7 @@ from metaflow.metaflow_config import (
     S3_ENDPOINT_URL,
     S3_SERVER_SIDE_ENCRYPTION,
     SERVICE_HEADERS,
+    SERVICE_REQUEST_PROVIDER,
     SERVICE_INTERNAL_URL,
     UI_URL,
 )
@@ -2254,6 +2255,7 @@ class ArgoWorkflows(object):
                         "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
                         "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
                         "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
+                        "METAFLOW_SERVICE_REQUEST_PROVIDER": SERVICE_REQUEST_PROVIDER,
                         "METAFLOW_USER": "argo-workflows",
                         "METAFLOW_DATASTORE_SYSROOT_S3": DATASTORE_SYSROOT_S3,
                         "METAFLOW_DATATOOLS_S3ROOT": DATATOOLS_S3ROOT,
@@ -2915,6 +2917,7 @@ class ArgoWorkflows(object):
             "METAFLOW_CODE_DS": self.flow_datastore.TYPE,
             "METAFLOW_SERVICE_URL": SERVICE_INTERNAL_URL,
             "METAFLOW_SERVICE_HEADERS": json.dumps(SERVICE_HEADERS),
+            "METAFLOW_SERVICE_REQUEST_PROVIDER": SERVICE_REQUEST_PROVIDER,
             "METAFLOW_USER": "argo-workflows",
             "METAFLOW_S3_ENDPOINT_URL": S3_ENDPOINT_URL,
             "METAFLOW_DEFAULT_DATASTORE": self.flow_datastore.TYPE,

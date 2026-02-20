@@ -2,8 +2,6 @@ import os
 import random
 import time
 
-import requests
-
 from typing import List
 from metaflow.exception import (
     MetaflowException,
@@ -12,16 +10,48 @@ from metaflow.exception import (
 )
 from metaflow.metadata_provider import MetadataProvider
 from metaflow.metadata_provider.heartbeat import HB_URL_KEY
-from metaflow.metaflow_config import SERVICE_HEADERS, SERVICE_RETRY_COUNT, SERVICE_URL
+from metaflow.metaflow_config import (
+    SERVICE_HEADERS,
+    SERVICE_RETRY_COUNT,
+    SERVICE_URL,
+    SERVICE_REQUEST_PROVIDER,
+)
 from metaflow.sidecar import Message, MessageTypes, Sidecar
+import importlib
+from .request_provider import MetaflowServiceRequestProvider, DefaultRequestProvider
 from urllib.parse import urlencode
 from metaflow.util import version_parse
+
+
+class _NullContext:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        pass
+
+
+_NULL_CTX = _NullContext()
 
 
 # Define message enums
 class HeartbeatTypes(object):
     RUN = 1
     TASK = 2
+
+
+def _load_request_provider(spec: str) -> "MetaflowServiceRequestProvider":
+    if spec == "default":
+        return DefaultRequestProvider()
+    try:
+        module_path, class_name = spec.rsplit(".", 1)
+        module = importlib.import_module(module_path)
+        provider_cls = getattr(module, class_name)
+        return provider_cls()
+    except Exception as e:
+        raise MetaflowException(
+            "Failed to load custom service request provider '%s': %s" % (spec, e)
+        )
 
 
 class ServiceException(MetaflowException):
@@ -36,22 +66,13 @@ class ServiceException(MetaflowException):
 class ServiceMetadataProvider(MetadataProvider):
     TYPE = "service"
 
-    _session = requests.Session()
-    _session.mount(
-        "http://",
-        requests.adapters.HTTPAdapter(
-            pool_connections=20,
-            pool_maxsize=20,
-            max_retries=0,  # Handle retries explicitly
-            pool_block=False,
-        ),
-    )
-    _session.mount(
-        "https://",
-        requests.adapters.HTTPAdapter(
-            pool_connections=20, pool_maxsize=20, max_retries=0, pool_block=False
-        ),
-    )
+    _provider = None
+
+    @classmethod
+    def _get_provider(cls) -> "MetaflowServiceRequestProvider":
+        if cls._provider is None:
+            cls._provider = _load_request_provider(SERVICE_REQUEST_PROVIDER)
+        return cls._provider
 
     _supports_attempt_gets = None
     _supports_tag_mutation = None
@@ -74,10 +95,13 @@ class ServiceMetadataProvider(MetadataProvider):
         v = val.rstrip("/")
         for i in range(SERVICE_RETRY_COUNT):
             try:
-                resp = cls._session.get(
-                    os.path.join(v, "ping"), headers=SERVICE_HEADERS.copy()
+                resp, _ = cls._request(
+                    None,
+                    os.path.join(v, "ping"),
+                    "GET",
+                    is_absolute_url=True,
+                    return_raw_resp=True,
                 )
-                resp.raise_for_status()
             except:  # noqa E722
                 time.sleep(2 ** (i - 1))
             else:
@@ -472,8 +496,9 @@ class ServiceMetadataProvider(MetadataProvider):
         data=None,
         retry_409_path=None,
         return_raw_resp=False,
+        is_absolute_url=False,
     ):
-        if cls.INFO is None:
+        if not is_absolute_url and cls.INFO is None:
             raise MetaflowException(
                 "Missing Metaflow Service URL. "
                 "Specify with METAFLOW_SERVICE_URL environment variable"
@@ -484,37 +509,21 @@ class ServiceMetadataProvider(MetadataProvider):
                 "Only these methods are supported: %s, but got %s"
                 % (supported_methods, method)
             )
-        url = os.path.join(cls.INFO, path.lstrip("/"))
+        url = path if is_absolute_url else os.path.join(cls.INFO, path.lstrip("/"))
+
+        provider = cls._get_provider()
+
         for i in range(SERVICE_RETRY_COUNT):
             try:
-                if method == "GET":
-                    if monitor:
-                        with monitor.measure("metaflow.service_metadata.get"):
-                            resp = cls._session.get(url, headers=SERVICE_HEADERS.copy())
-                    else:
-                        resp = cls._session.get(url, headers=SERVICE_HEADERS.copy())
-                elif method == "POST":
-                    if monitor:
-                        with monitor.measure("metaflow.service_metadata.post"):
-                            resp = cls._session.post(
-                                url, headers=SERVICE_HEADERS.copy(), json=data
-                            )
-                    else:
-                        resp = cls._session.post(
-                            url, headers=SERVICE_HEADERS.copy(), json=data
-                        )
-                elif method == "PATCH":
-                    if monitor:
-                        with monitor.measure("metaflow.service_metadata.patch"):
-                            resp = cls._session.patch(
-                                url, headers=SERVICE_HEADERS.copy(), json=data
-                            )
-                    else:
-                        resp = cls._session.patch(
-                            url, headers=SERVICE_HEADERS.copy(), json=data
-                        )
-                else:
-                    raise MetaflowInternalError("Unexpected HTTP method %s" % (method,))
+                measure_key = "metaflow.service_metadata.%s" % method.lower()
+                ctx = monitor.measure(measure_key) if monitor else _NULL_CTX
+                with ctx:
+                    resp = provider.request(
+                        method=method,
+                        url=url,
+                        base_headers=SERVICE_HEADERS.copy(),
+                        json=data if method in ("POST", "PATCH") else None,
+                    )
             except MetaflowInternalError:
                 raise
             except:  # noqa E722
@@ -570,41 +579,5 @@ class ServiceMetadataProvider(MetadataProvider):
                 "Missing Metaflow Service URL. "
                 "Specify with METAFLOW_SERVICE_URL environment variable"
             )
-        path = "ping"
-        url = os.path.join(cls.INFO, path)
-        for i in range(SERVICE_RETRY_COUNT):
-            try:
-                if monitor:
-                    with monitor.measure("metaflow.service_metadata.get"):
-                        resp = cls._session.get(url, headers=SERVICE_HEADERS.copy())
-                else:
-                    resp = cls._session.get(url, headers=SERVICE_HEADERS.copy())
-            except:
-                if monitor:
-                    with monitor.count("metaflow.service_metadata.failed_request"):
-                        if i == SERVICE_RETRY_COUNT - 1:
-                            raise
-                else:
-                    if i == SERVICE_RETRY_COUNT - 1:
-                        raise
-                resp = None
-            else:
-                if resp.status_code < 300:
-                    return resp.headers.get("METADATA_SERVICE_VERSION", None)
-                elif resp.status_code not in (503, 500):
-                    raise ServiceException(
-                        "Metadata request (%s) failed"
-                        " (code %s): %s" % (url, resp.status_code, resp.text),
-                        resp.status_code,
-                        resp.text,
-                    )
-            time.sleep(2**i)
-        if resp:
-            raise ServiceException(
-                "Metadata request (%s) failed (code %s): %s"
-                % (url, resp.status_code, resp.text),
-                resp.status_code,
-                resp.text,
-            )
-        else:
-            raise ServiceException("Metadata request (%s) failed" % url)
+        resp, _ = cls._request(monitor, "ping", "GET", return_raw_resp=True)
+        return resp.headers.get("METADATA_SERVICE_VERSION", None)

@@ -37,6 +37,7 @@ from metaflow.metaflow_config import (
     S3_ENDPOINT_URL,
     S3_SERVER_SIDE_ENCRYPTION,
     SERVICE_HEADERS,
+    SERVICE_REQUEST_PROVIDER,
     KUBERNETES_SECRETS,
     SERVICE_INTERNAL_URL,
 )
@@ -243,6 +244,9 @@ class Kubernetes(object):
             .environment_variable(
                 "METAFLOW_SERVICE_HEADERS",
                 json.dumps(SERVICE_HEADERS),
+            )
+            .environment_variable(
+                "METAFLOW_SERVICE_REQUEST_PROVIDER", SERVICE_REQUEST_PROVIDER
             )
             .environment_variable("METAFLOW_DATASTORE_SYSROOT_S3", DATASTORE_SYSROOT_S3)
             .environment_variable("METAFLOW_DATATOOLS_S3ROOT", DATATOOLS_S3ROOT)
@@ -554,6 +558,9 @@ class Kubernetes(object):
             .environment_variable(
                 "METAFLOW_SERVICE_HEADERS",
                 json.dumps(SERVICE_HEADERS),
+            )
+            .environment_variable(
+                "METAFLOW_SERVICE_REQUEST_PROVIDER", SERVICE_REQUEST_PROVIDER
             )
             .environment_variable("METAFLOW_DATASTORE_SYSROOT_S3", DATASTORE_SYSROOT_S3)
             .environment_variable("METAFLOW_DATATOOLS_S3ROOT", DATATOOLS_S3ROOT)

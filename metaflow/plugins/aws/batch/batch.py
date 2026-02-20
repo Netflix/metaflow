@@ -17,6 +17,7 @@ from metaflow.metaflow_config import (
     DATASTORE_SYSROOT_S3,
     DEFAULT_METADATA,
     SERVICE_HEADERS,
+    SERVICE_REQUEST_PROVIDER,
     BATCH_EMIT_TAGS,
     CARD_S3ROOT,
     S3_ENDPOINT_URL,
@@ -74,7 +75,7 @@ class Batch(object):
             datastore_type="s3",
             stdout_path=STDOUT_PATH,
             stderr_path=STDERR_PATH,
-            **task_spec
+            **task_spec,
         )
         init_cmds = environment.get_package_commands(
             code_package_url, "s3", code_package_metadata
@@ -326,6 +327,9 @@ class Batch(object):
             .environment_variable("METAFLOW_SERVICE_URL", SERVICE_INTERNAL_URL)
             .environment_variable(
                 "METAFLOW_SERVICE_HEADERS", json.dumps(SERVICE_HEADERS)
+            )
+            .environment_variable(
+                "METAFLOW_SERVICE_REQUEST_PROVIDER", SERVICE_REQUEST_PROVIDER
             )
             .environment_variable("METAFLOW_DATASTORE_SYSROOT_S3", DATASTORE_SYSROOT_S3)
             .environment_variable("METAFLOW_DATATOOLS_S3ROOT", DATATOOLS_S3ROOT)
