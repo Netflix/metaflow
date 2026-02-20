@@ -1,6 +1,6 @@
 import json
 import time
-from threading import Thread
+from threading import Event, Thread
 
 import requests
 
@@ -18,9 +18,13 @@ class HeartBeatException(MetaflowException):
         super(HeartBeatException, self).__init__(msg)
 
 
+MAX_HEARTBEAT_RETRY_COUNT = 10  # caps backoff at 1.5**10 ≈ 57 seconds
+
+
 class MetadataHeartBeat(object):
     def __init__(self):
         self.headers = SERVICE_HEADERS
+        self._stop = Event()
         self.req_thread = Thread(target=self._ping)
         self.req_thread.daemon = True
         self.default_frequency_secs = 10
@@ -42,19 +46,19 @@ class MetadataHeartBeat(object):
 
     def _ping(self):
         retry_counter = 0
-        while True:
+        while not self._stop.is_set():
             try:
                 frequency_secs = self._heartbeat()
 
                 if frequency_secs is None or frequency_secs <= 0:
                     frequency_secs = self.default_frequency_secs
 
-                time.sleep(frequency_secs)
+                self._stop.wait(timeout=frequency_secs)
                 retry_counter = 0
             except HeartBeatException as e:
                 print(e)
-                retry_counter = retry_counter + 1
-                time.sleep(1.5**retry_counter)
+                retry_counter = min(retry_counter + 1, MAX_HEARTBEAT_RETRY_COUNT)
+                self._stop.wait(timeout=1.5**retry_counter)
 
     def _heartbeat(self):
         if self.hb_url is not None:
@@ -89,5 +93,6 @@ class MetadataHeartBeat(object):
         return None
 
     def _shutdown(self):
-        # attempts sending one last heartbeat
+        # signal the ping loop to stop, then attempt one last heartbeat
+        self._stop.set()
         self._heartbeat()
