@@ -328,17 +328,13 @@ def worker(result_file_name, queue, mode, s3config):
                     # the size is used for verification and other purposes, and
                     # we want to avoid file operations for this simple process
                     result_file.write("%d %d\n" % (idx, resp["ContentLength"]))
-                else:
-                    # This is upload, if we have a pre_op, it means we do not
-                    # want to overwrite
+                elif mode == "upload":
                     do_upload = False
                     if pre_op_info:
                         result_info = op_info(url)
                         if result_info["error"] == ERROR_URL_NOT_FOUND:
-                            # We only upload if the file is not found
                             do_upload = True
                     else:
-                        # No pre-op so we upload
                         do_upload = True
                     if do_upload:
                         extra = None
@@ -355,12 +351,8 @@ def worker(result_file_name, queue, mode, s3config):
                                 s3.upload_file(
                                     url.local, url.bucket, url.path, ExtraArgs=extra
                                 )
-                                # We indicate that the file was uploaded
                                 result_file.write("%d %d\n" % (idx, 0))
                             except client_error as err:
-                                # Shouldn't get here, but just in case.
-                                # Internally, botocore catches ClientError and returns a S3UploadFailedError.
-                                # See https://github.com/boto/boto3/blob/develop/boto3/s3/transfer.py#L377
                                 handle_client_error(err, idx, result_file)
                                 continue
                             except S3UploadFailedError as e:
@@ -377,6 +369,20 @@ def worker(result_file_name, queue, mode, s3config):
                             )
                             result_file.flush()
                             continue
+                elif mode == "delete":
+                    try:
+                        s3.delete_object(Bucket=url.bucket, Key=url.path)
+                        result_file.write("%d %d\n" % (idx, 0))
+                    except client_error as err:
+                        handle_client_error(err, idx, result_file)
+                        continue
+                    except (SSLError, Exception) as e:
+                        # assume anything else is transient
+                        result_file.write(
+                            "%d %d %s\n" % (idx, -ERROR_TRANSIENT, type(e).__name__)
+                        )
+                        result_file.flush()
+                        continue
         except:
             traceback.print_exc()
             result_file.flush()
@@ -1344,6 +1350,122 @@ def info(
             retry_lines.append(" ".join(retry_line_parts) + "\n")
             if not is_transient_retry:
                 out_lines.append("%d %s\n" % (url.idx, TRANSIENT_RETRY_LINE_CONTENT))
+
+    if out_lines:
+        sys.stdout.writelines(out_lines)
+        sys.stdout.flush()
+
+    if retry_lines:
+        sys.stderr.write("%s\n" % TRANSIENT_RETRY_START_LINE)
+        sys.stderr.writelines(retry_lines)
+        sys.stderr.flush()
+        sys.exit(ERROR_TRANSIENT)
+
+
+@cli.command(help="Delete files from S3")
+@tracing.cli("s3op/delete")
+@click.option(
+    "--recursive/--no-recursive",
+    default=False,
+    show_default=True,
+    help="Delete prefixes recursively.",
+)
+@common_options
+@non_lst_common_options
+@click.argument("prefixes", nargs=-1)
+def delete(
+    prefixes,
+    recursive=None,
+    num_workers=None,
+    inputs=None,
+    verbose=None,
+    listing=None,
+    s3role=None,
+    s3sessionvars=None,
+    s3clientparams=None,
+    inject_failure=0,
+):
+
+    s3config = S3Config(
+        s3role,
+        json.loads(s3sessionvars) if s3sessionvars else None,
+        json.loads(s3clientparams) if s3clientparams else None,
+    )
+
+    urllist = []
+    to_iterate, is_transient_retry = _populate_prefixes(prefixes, inputs)
+    for idx, prefix, url, r in to_iterate:
+        src = urlparse(url, allow_fragments=False)
+        url = S3Url(
+            url=url,
+            bucket=src.netloc,
+            path=src.path.lstrip("/"),
+            local=None,
+            prefix=prefix,
+            range=r,
+            idx=idx,
+        )
+        if src.scheme != "s3":
+            exit(ERROR_INVALID_URL, url)
+        if not recursive and not src.path:
+            exit(ERROR_NOT_FULL_PATH, url)
+        urllist.append(url)
+
+    op = None
+    if recursive:
+        op = partial(op_list_prefix, s3config)
+
+    if op:
+        if is_transient_retry:
+            raise RuntimeError("--recursive not allowed for transient retries")
+        urls = []
+        for success, prefix_url, ret in parallel_op(op, urllist, num_workers):
+            if success:
+                urls.extend(ret)
+            else:
+                exit(ret, prefix_url)
+        for idx, (url, _) in enumerate(urls):
+            url.idx = idx
+    else:
+        urls = [(prefix_url, 0) for prefix_url in urllist]
+
+    to_delete = [url for url, size in urls if size is not None]
+    sz_results, transient_error_type = process_urls(
+        "delete", to_delete, verbose, inject_failure, num_workers, s3config
+    )
+
+    retry_lines = []
+    out_lines = []
+    denied_url = None
+    idx_in_sz = 0
+    for url, _ in urls:
+        sz = None
+        if idx_in_sz != len(to_delete) and url.url == to_delete[idx_in_sz].url:
+            sz = sz_results[idx_in_sz]
+            idx_in_sz += 1
+
+        if listing and sz is None:
+            out_lines.append(format_result_line(url.idx, url.url) + "\n")
+        elif listing and sz >= 0:
+            out_lines.append(format_result_line(url.idx, url.prefix, url.url) + "\n")
+        elif sz == -ERROR_URL_ACCESS_DENIED:
+            denied_url = url
+            break
+        elif sz == -ERROR_TRANSIENT:
+            retry_line_parts = [
+                str(url.idx),
+                url_quote(url.prefix).decode(encoding="utf-8"),
+                url_quote(url.url).decode(encoding="utf-8"),
+                "<norange>",
+            ]
+            if transient_error_type:
+                retry_line_parts.append(transient_error_type)
+            retry_lines.append(" ".join(retry_line_parts) + "\n")
+            if not is_transient_retry:
+                out_lines.append("%d %s\n" % (url.idx, TRANSIENT_RETRY_LINE_CONTENT))
+
+    if denied_url is not None:
+        exit(ERROR_URL_ACCESS_DENIED, denied_url)
 
     if out_lines:
         sys.stdout.writelines(out_lines)

@@ -1369,6 +1369,81 @@ class S3(object):
 
         return self._put_many_files(_check(), overwrite)
 
+    def delete(self, key: str = None) -> str:
+        """
+        Delete a single object from S3.
+
+        Parameters
+        ----------
+        key : str, optional, default None
+            Object to delete. It can be an S3 url or a path suffix. If None,
+            the S3 root is used.
+
+        Returns
+        -------
+        str
+            URL of the deleted object.
+        """
+        url = self._url(key)
+        src = urlparse(url, allow_fragments=False)
+
+        def _delete(s3, _):
+            s3.delete_object(Bucket=src.netloc, Key=src.path.lstrip("/"))
+
+        self._one_boto_op(_delete, url, create_tmp_file=False)
+        return url
+
+    def delete_many(self, keys: Iterable[str]) -> List[str]:
+        """
+        Delete many objects from S3 in parallel.
+
+        Parameters
+        ----------
+        keys : Iterable[str]
+            Objects to delete. Each object can be an S3 url or a path suffix.
+
+        Returns
+        -------
+        List[str]
+            URLs of the deleted objects.
+        """
+        return self._delete_many_files(keys)
+
+    def delete_recursive(self, keys: Iterable[str]) -> List[str]:
+        """
+        Delete many objects from S3 recursively in parallel.
+
+        Parameters
+        ----------
+        keys : Iterable[str]
+            Prefixes to delete recursively. Each prefix can be an S3 url or a path suffix.
+
+        Returns
+        -------
+        List[str]
+            URLs of the deleted objects.
+        """
+        return self._delete_many_files(keys, recursive=True)
+
+    def delete_all(self) -> List[str]:
+        """
+        Delete all objects under the prefix set in the `S3` constructor.
+
+        This method requires that the `S3` object is initialized either with `run` or
+        `s3root`.
+
+        Returns
+        -------
+        List[str]
+            URLs of the deleted objects.
+        """
+        if self._s3root is None:
+            raise MetaflowS3URLException(
+                "Can't delete_all() when S3 is initialized without a prefix"
+            )
+        else:
+            return self.delete_recursive([None])
+
     def _one_boto_op(self, op, url, create_tmp_file=True):
         error = ""
         # Use the maximum of both retry counts for consistency with multi-op case
@@ -1532,6 +1607,45 @@ class S3(object):
                     url, _, _ = map(url_unquote, line.strip(b"\n").split(b" "))
                     urls.add(url)
                 return [(info["key"], url) for _, url, info in url_info if url in urls]
+
+    def _delete_many_files(self, keys, recursive=False):
+        prefixes_and_ranges = [(self._url(key), None) for key in keys]
+        with NamedTemporaryFile(
+            dir=self._tmpdir,
+            mode="wb",
+            delete=not debug.s3client,
+            prefix="metaflow.s3.delete_inputs.",
+        ) as inputfile:
+            inputfile.write(
+                b"\n".join(
+                    [
+                        b" ".join([url_quote(prefix)] + ([url_quote(r)] if r else []))
+                        for prefix, r in prefixes_and_ranges
+                    ]
+                )
+            )
+            inputfile.flush()
+            stdout_lines, stderr, err_code = self._s3op_with_retries(
+                "delete", inputs=inputfile.name, recursive=recursive, listing=True
+            )
+            if stderr:
+                from . import s3op
+
+                if err_code == s3op.ERROR_URL_ACCESS_DENIED:
+                    raise MetaflowS3AccessDenied(stderr)
+                else:
+                    raise MetaflowS3Exception(
+                        "Deleting S3 files failed.\n"
+                        "First key requested: %s\n"
+                        "Error: %s" % (prefixes_and_ranges[0][0], stderr)
+                    )
+            else:
+                urls = []
+                for line in stdout_lines:
+                    parts = list(map(url_unquote, line.strip(b"\n").split(b" ")))
+                    if len(parts) >= 2:
+                        urls.append(parts[1])
+                return urls
 
     def _s3op_with_retries(self, mode, **options):
         from . import s3op
