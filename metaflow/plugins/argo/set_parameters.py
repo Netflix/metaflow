@@ -21,7 +21,7 @@ def param_opts(params: Dict[str, str]) -> str:
     for k, v in params.items():
         val, none_default = v
         parsed_value = parse_parameter_value(val)
-        if none_default and parsed_value == "null":
+        if none_default and parsed_value is None:
             continue
         param_opts.append(f"--{k}={parsed_value}")
 
