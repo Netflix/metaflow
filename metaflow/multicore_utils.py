@@ -3,6 +3,7 @@ import os
 import traceback
 from itertools import islice
 from tempfile import NamedTemporaryFile
+import signal
 import time
 import metaflow.tracing as tracing
 
@@ -145,8 +146,13 @@ def parallel_imap_unordered(
             if arg:
                 pids.insert(0, _spawn(func, arg[0], dir))
     finally:
-        # Clean up temp files for any remaining in-flight children
-        for _, output_file in pids:
+        # Kill remaining in-flight children and clean up their temp files
+        for pid, output_file in pids:
+            try:
+                os.kill(pid, signal.SIGTERM)
+                os.waitpid(pid, 0)
+            except OSError:
+                pass
             _try_remove(output_file)
 
 
