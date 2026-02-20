@@ -79,11 +79,6 @@ class BatchJob(object):
             raise BatchJobException(
                 "Unable to launch AWS Batch job. No docker image specified."
             )
-        if self._iam_role is None:
-            raise BatchJobException(
-                "Unable to launch AWS Batch job. No IAM role specified."
-            )
-
         # Multinode
         if getattr(self, "num_parallel", 0) >= 1:
             num_nodes = self.num_parallel
@@ -188,7 +183,6 @@ class BatchJob(object):
             "type": "container",
             "containerProperties": {
                 "image": image,
-                "jobRoleArn": job_role,
                 "command": ["echo", "hello world"],
                 "resourceRequirements": [
                     {"value": "1", "type": "VCPU"},
@@ -199,6 +193,12 @@ class BatchJob(object):
             # ECS tasks.
             "propagateTags": True,
         }
+        # jobRoleArn is optional per the AWS Batch ContainerProperties API.
+        # Omit it when unset so containers can use ambient credentials from
+        # the compute environment's EC2 instance profile or ECS task role.
+        # Mirrors the pattern used for executionRoleArn (Fargate-only below).
+        if job_role:
+            job_definition["containerProperties"]["jobRoleArn"] = job_role
 
         if privileged:
             job_definition["containerProperties"]["privileged"] = privileged
