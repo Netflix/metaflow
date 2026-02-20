@@ -3,6 +3,77 @@ import re
 from metaflow.exception import MetaflowException
 
 
+def get_credential_debug_info():
+    """
+    Return a human-readable string describing the active AWS credentials.
+
+    This should be called from within the s3op subprocess, where the live
+    boto3 session exists. Never raises — failures are reported inline.
+    """
+    lines = []
+    try:
+        import boto3
+
+        session = boto3.session.Session()
+        credentials = session.get_credentials()
+
+        if credentials is None:
+            lines.append("  No AWS credentials found in the credential chain.")
+        else:
+            credentials = credentials.resolve()
+
+            method = getattr(credentials, "method", None) or "unknown"
+            method_labels = {
+                "env": "Environment variables (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)",
+                "shared-credentials-file": "Shared credentials file (~/.aws/credentials)",
+                "config-file": "AWS config file (~/.aws/config)",
+                "iam-role": "EC2 instance IAM role (IMDS)",
+                "container-role": "ECS / EKS container IAM role",
+                "web-identity": "Web identity token (OIDC / IRSA)",
+                "assume-role": "AssumeRole",
+                "process": "Credential process",
+            }
+            lines.append(
+                "  Credential source : %s" % method_labels.get(method, method)
+            )
+
+            access_key = getattr(credentials, "access_key", None) or ""
+            if len(access_key) >= 8:
+                masked = "%s...%s" % (access_key[:4], access_key[-4:])
+            elif access_key:
+                masked = access_key[:4] + "..."
+            else:
+                masked = "(not available)"
+            lines.append("  Access key ID     : %s" % masked)
+
+            region = session.region_name or "(not set)"
+            lines.append("  AWS region        : %s" % region)
+
+            try:
+                sts = session.client("sts")
+                identity = sts.get_caller_identity()
+                lines.append(
+                    "  Caller ARN        : %s" % identity.get("Arn", "(unknown)")
+                )
+                lines.append(
+                    "  AWS account ID    : %s" % identity.get("Account", "(unknown)")
+                )
+            except Exception as sts_err:
+                lines.append(
+                    "  Caller ARN        : (STS lookup failed: %s)" % str(sts_err)
+                )
+
+    except Exception as e:
+        lines.append("  (Could not retrieve credential info: %s)" % str(e))
+
+    header = "Credential debug info (METAFLOW_DEBUG_S3CLIENT=1):"
+    tip = (
+        "Tip: Verify this identity has the required S3 permissions\n"
+        "     (s3:GetObject, s3:PutObject, s3:ListBucket) on the target bucket."
+    )
+    return "\n".join([header] + lines + ["", tip])
+
+
 def parse_s3_full_path(s3_uri):
     from urllib.parse import urlparse
 

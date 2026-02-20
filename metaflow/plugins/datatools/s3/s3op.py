@@ -34,6 +34,7 @@ if __name__ == "__main__":
     )
 
 from metaflow._vendor import click
+from metaflow.debug import debug
 
 # we use Metaflow's parallel_imap_unordered instead of
 # multiprocessing.Pool because https://bugs.python.org/issue31886
@@ -675,6 +676,22 @@ def exit(exit_code, url):
         msg = "URL not found: %s" % url.url
     elif exit_code == ERROR_URL_ACCESS_DENIED:
         msg = "Access denied to URL: %s" % url.url
+        # Append credential debug info here, inside the subprocess, where the
+        # live boto3 session exists. The parent reads this from stderr and
+        # surfaces it directly in MetaflowS3AccessDenied. We reuse the existing
+        # METAFLOW_DEBUG_S3CLIENT flag — no new flag needed.
+        if debug.s3client:
+            try:
+                from metaflow.plugins.aws.aws_utils import get_credential_debug_info
+
+                msg = "%s\n\n%s" % (msg, get_credential_debug_info())
+            except Exception as e:
+                msg = "%s\n\n(credential info unavailable: %s)" % (msg, str(e))
+        else:
+            msg = (
+                "%s\n\nTip: Set METAFLOW_DEBUG_S3CLIENT=1 to see which AWS "
+                "credentials are being used." % msg
+            )
     elif exit_code == ERROR_WORKER_EXCEPTION:
         msg = "Download failed"
     elif exit_code == ERROR_VERIFY_FAILED:
