@@ -20,9 +20,9 @@ def get_credential_debug_info():
         if credentials is None:
             lines.append("  No AWS credentials found in the credential chain.")
         else:
-            credentials = credentials.resolve()
-
-            method = getattr(credentials, "method", None) or "unknown"
+            method = getattr(credentials, 'method', None) or 'unknown'  # read BEFORE freezing
+            if hasattr(credentials, 'get_frozen_credentials'):
+                credentials = credentials.get_frozen_credentials()
             method_labels = {
                 "env": "Environment variables (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)",
                 "shared-credentials-file": "Shared credentials file (~/.aws/credentials)",
