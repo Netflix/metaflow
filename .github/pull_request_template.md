@@ -54,7 +54,7 @@ paste here
 
 <!-- Required for Core Runtime. Recommended for all bug fixes. -->
 <!-- Explain the causal chain: what invariant was violated, where in the code. -->
-<!-- See PR #2811 for an example of the level of detail we're looking for. -->
+<!-- See PRs #2796, #2751, #2714 for examples of the level of detail we're looking for. -->
 
 ## Why This Fix Is Correct
 

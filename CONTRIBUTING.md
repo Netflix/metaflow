@@ -131,7 +131,10 @@ PRs that don't meet these requirements may be closed without further review.
 
 Because Metaflow uses subprocesses and worker processes, printing to stderr inside a worker **does not necessarily appear where you expect** unless you explicitly propagate it. Tests must validate behavior across that boundary.
 
-**Example of a good Core Runtime PR:** [PR #2811](https://github.com/Netflix/metaflow/pull/2811) -- concrete env-var leakage mechanism identified, exact code path where the invariant fails, fix is minimal and targeted, test reproduces the real failure mode.
+**Examples of good Core Runtime PRs:**
+- [PR #2796](https://github.com/Netflix/metaflow/pull/2796) -- race condition in local storage: identifies the exact interleaving that causes `json.load()` to fail on partial writes, fix is a single atomic write helper, links to CI failure as evidence.
+- [PR #2751](https://github.com/Netflix/metaflow/pull/2751) -- symlink traversal edge case: concrete directory structure that reproduces the bug, explains the global-vs-per-branch invariant that was violated, minimal fix.
+- [PR #2714](https://github.com/Netflix/metaflow/pull/2714) -- Argo input-paths with nested conditionals: links to issue, identifies the template generation bug, scoped fix.
 
 ### Feature PRs touching Core Runtime
 
@@ -224,8 +227,8 @@ How you tested these changes:
 ```
 
 **Examples of excellent PR descriptions:**
-- [PR #2743](https://github.com/Netflix/metaflow/pull/2743): Skip Kubernetes cluster access when using `--only-json` flag
-- [PR #2744](https://github.com/Netflix/metaflow/pull/2744): Better command processing for compress state machine
+- [PR #2796](https://github.com/Netflix/metaflow/pull/2796): Fix race condition in local storage with atomic writes
+- [PR #2751](https://github.com/Netflix/metaflow/pull/2751): Fix symlink traversal edge case in packaging
 
 **Common mistakes to avoid:**
 - ❌ Empty or one-line descriptions
