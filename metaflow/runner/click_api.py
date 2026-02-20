@@ -460,7 +460,13 @@ class MetaflowAPI(object):
         self._cached_computed_parameters = []
 
         config_options = None
-        if CLICK_API_PROCESS_CONFIG:
+        # self._config_input is False when the flow has no Config parameters
+        # (set by config_options_with_config_input). In that case we must skip
+        # all config-resolution logic; otherwise env-vars like
+        # METAFLOW_FLOW_CONFIG_VALUE that were injected for the *triggering*
+        # flow leak into this context and cause the XOR assertion below to fire
+        # (config_file=None, config_value=<inherited value>).
+        if CLICK_API_PROCESS_CONFIG and self._config_input:
             with flow_context(self._flow_cls) as _:
                 # We are going to resolve the configs first and then get the parameters.
                 # Note that configs may update/add parameters so the order is important
