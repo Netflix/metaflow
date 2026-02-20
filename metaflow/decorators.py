@@ -644,7 +644,7 @@ def extract_flow_decorator_from_decospec(decospec: str):
         raise UnknownFlowDecoratorException(deconame)
 
 
-def _attach_decorators(flow, decospecs):
+def _attach_decorators(flow, decospecs, respect_local_decorator=False):
     """
     Attach decorators to all steps during runtime. This has the same
     effect as if you defined the decorators statically in the source for
@@ -658,16 +658,35 @@ def _attach_decorators(flow, decospecs):
     # so decorator can maintain step-specific state.
 
     for step in flow:
-        _attach_decorators_to_step(step, decospecs)
+        _attach_decorators_to_step(
+            step, decospecs, respect_local_decorator=respect_local_decorator
+        )
 
 
-def _attach_decorators_to_step(step, decospecs):
+def _attach_decorators_to_step(step, decospecs, respect_local_decorator=False):
     """
     Attach decorators to a step during runtime. This has the same
     effect as if you defined the decorators statically in the source for
     the step.
     """
+    is_local = None
     for decospec in decospecs:
+        if respect_local_decorator:
+            if is_local is None:
+                is_local = any(d.name == "local" for d in step.decorators)
+            if is_local:
+                # We check the name from the decospec string first to avoid
+                # unnecessary decorator instantiation as suggested in PR review.
+                deco_name = decospec.split(":", 1)[0]
+                if deco_name in ("batch", "kubernetes"):
+                    click.secho(
+                        "Step %s has @local. Skipping remote decorator @%s."
+                        % (step.__name__, deco_name),
+                        fg="yellow",
+                        err=True,
+                    )
+                    continue
+
         step_deco, _ = extract_step_decorator_from_decospec(decospec)
         if isinstance(step_deco, StepDecorator):
             # Check multiple

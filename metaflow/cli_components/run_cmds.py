@@ -53,8 +53,11 @@ def before_run(obj, tags, decospecs, skip_decorators=False):
         if all_decospecs:
             # These decospecs are the ones from run/resume/spin PLUS the ones from the
             # environment (for example the @conda)
-            decorators._attach_decorators(obj.flow, all_decospecs)
+            decorators._attach_decorators(
+                obj.flow, all_decospecs, respect_local_decorator=True
+            )
             decorators._init(obj.flow)
+
             # Regenerate graph if we attached more decorators
             obj.flow.__class__._init_graph()
             obj.graph = obj.flow._graph

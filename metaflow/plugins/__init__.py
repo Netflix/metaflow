@@ -30,6 +30,7 @@ from .test_unbounded_foreach_decorator import InternalTestUnboundedForeachInput
 # Add new step decorators here
 STEP_DECORATORS_DESC = [
     ("catch", ".catch_decorator.CatchDecorator"),
+    ("local", ".local_decorator.LocalDecorator"),
     ("timeout", ".timeout_decorator.TimeoutDecorator"),
     ("environment", ".environment_decorator.EnvironmentDecorator"),
     ("secrets", ".secrets.secrets_decorator.SecretsDecorator"),
