@@ -74,7 +74,7 @@ class Batch(object):
             datastore_type="s3",
             stdout_path=STDOUT_PATH,
             stderr_path=STDERR_PATH,
-            **task_spec
+            **task_spec,
         )
         init_cmds = environment.get_package_commands(
             code_package_url, "s3", code_package_metadata
@@ -398,9 +398,13 @@ class Batch(object):
                     k, v = sanitize_batch_tag(key, attrs.get(key))
                     job.tag(k, v)
 
-            if aws_batch_tags is not None:
-                for key, value in aws_batch_tags.items():
-                    job.tag(key, value)
+        # User-defined tags (from @batch(aws_batch_tags=...) or METAFLOW_BATCH_DEFAULT_TAGS)
+        # are applied unconditionally - independent of BATCH_EMIT_TAGS - so that cost
+        # attribution and ownership tags are always present when configured, without
+        # requiring the broader Metaflow metadata tagging permission (Batch:TagResource).
+        if aws_batch_tags:
+            for key, value in aws_batch_tags.items():
+                job.tag(key, value)
 
         return job
 
