@@ -1,4 +1,7 @@
+import sys
+import time
 from typing import Any, Dict, Optional
+
 import requests
 
 try:
@@ -33,20 +36,25 @@ class MetaflowServiceRequestProvider(Protocol):
     def close(self) -> None: ...
 
 
+def _make_adapter():
+    """Shared HTTPAdapter factory with standard Metaflow pool config."""
+    return requests.adapters.HTTPAdapter(
+        pool_connections=20,
+        pool_maxsize=20,
+        max_retries=0,  # retries handled explicitly in _request()
+        pool_block=False,
+    )
+
+
 class DefaultRequestProvider:
     """
     Default transport provider. Wraps requests.Session with the same
-    pool config currently hardcoded in ServiceMetadataProvider.
+    pool config previously hardcoded in ServiceMetadataProvider.
     """
 
     def __init__(self) -> None:
         self._session = requests.Session()
-        adapter = requests.adapters.HTTPAdapter(
-            pool_connections=20,
-            pool_maxsize=20,
-            max_retries=0,  # retries handled explicitly outside
-            pool_block=False,
-        )
+        adapter = _make_adapter()
         self._session.mount("http://", adapter)
         self._session.mount("https://", adapter)
 
@@ -63,6 +71,64 @@ class DefaultRequestProvider:
             headers=base_headers,
             json=json,
         )
+
+    def close(self) -> None:
+        self._session.close()
+
+
+class TracingRequestProvider:
+    """
+    Example provider that logs all metadata service HTTP calls to stderr.
+
+    Useful for debugging connectivity issues or profiling service latency
+    without modifying application code. Each request line includes method,
+    URL, HTTP status code, and round-trip latency in milliseconds.
+
+    Enable via environment variable or Metaflow config:
+
+        export METAFLOW_SERVICE_REQUEST_PROVIDER=\\
+            metaflow.plugins.metadata_providers.request_provider.TracingRequestProvider
+
+    Example output::
+
+        [METAFLOW_TRACE] POST https://metaflow-svc/flows/MyFlow/run -> 201 (43.2ms)
+        [METAFLOW_TRACE] GET  https://metaflow-svc/flows/MyFlow/runs/5 -> 200 (11.8ms)
+    """
+
+    def __init__(self) -> None:
+        self._session = requests.Session()
+        adapter = _make_adapter()
+        self._session.mount("http://", adapter)
+        self._session.mount("https://", adapter)
+
+    def request(
+        self,
+        method: str,
+        url: str,
+        base_headers: Dict[str, str],
+        json: Optional[Any] = None,
+    ) -> requests.Response:
+        start = time.time()
+        try:
+            resp = self._session.request(
+                method=method,
+                url=url,
+                headers=base_headers,
+                json=json,
+            )
+            elapsed_ms = (time.time() - start) * 1000
+            sys.stderr.write(
+                "[METAFLOW_TRACE] %-6s %s -> %s (%.1fms)\n"
+                % (method, url, resp.status_code, elapsed_ms)
+            )
+            return resp
+        except Exception as exc:
+            elapsed_ms = (time.time() - start) * 1000
+            sys.stderr.write(
+                "[METAFLOW_TRACE] %-6s %s -> ERROR: %s (%.1fms)\n"
+                % (method, url, type(exc).__name__, elapsed_ms)
+            )
+            raise
 
     def close(self) -> None:
         self._session.close()
