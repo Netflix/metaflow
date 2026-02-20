@@ -42,6 +42,34 @@ can be captured by the Datadog Agent and forwarded into Datadog log
 pipelines using standard agent configuration. Metrics collection can be
 added by instrumenting the execution environment alongside log ingestion.
 
+### CloudWatch Forwarder Pattern
+
+When running flows on AWS Batch, Metaflow sends logs to CloudWatch
+using the default `awslogs` driver. A common integration pattern is to
+forward CloudWatch logs to Datadog using the Datadog Forwarder Lambda.
+
+Metaflow Batch logs are typically written to the `/aws/batch/job`
+log group with streams prefixed by `metaflow_`. These logs can be
+forwarded to Datadog using the official Datadog Forwarder:
+
+https://docs.datadoghq.com/serverless/libraries_integrations/forwarder/
+
+Using the Metaflow Client API, it is also possible to retrieve the
+CloudWatch log group and stream associated with a task:
+
+```
+from metaflow import Run
+
+run = Run("MyFlow/42")
+run["start"].task.metadata_dict["aws-batch-awslogs-stream"]
+run["start"].task.metadata_dict["aws-batch-awslogs-group"]
+```
+
+This approach works with the default Metaflow Batch configuration and
+does not require modifying the job definition. It provides a simple
+bridge between CloudWatch and Datadog without introducing additional
+runtime dependencies.
+
 ## Example: Splunk Integration
 
 Splunk integrations generally rely on forwarding logs generated during
