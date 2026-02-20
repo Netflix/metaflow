@@ -185,19 +185,26 @@ class MetaflowTask(object):
     def _init_parameters(self, parameter_ds, passdown=True):
         cls = self.flow.__class__
 
-        def _set_cls_var(_, __):
-            raise AttributeError(
-                "Flow level attributes and Parameters are not modifiable"
-            )
+        def make_setter(var):
+            def _set_cls_var(self, value):
+                raise AttributeError(
+                    f"Cannot assign to '{var}' inside a step because it is "
+                    "defined as a flow-level attribute or Parameter. "
+                    "Rename the artifact or remove the class-level definition."
+                )
+            return _set_cls_var
 
         def set_as_parameter(name, value):
             if callable(value):
-                setattr(cls, name, property(fget=value, fset=_set_cls_var))
+                setattr(cls, name, property(fget=value, fset=make_setter(name)))
             else:
                 setattr(
                     cls,
                     name,
-                    property(fget=lambda _, val=value: val, fset=_set_cls_var),
+                    property(
+                        fget=lambda _, val=value: val,
+                        fset=make_setter(name),
+                    ),
                 )
 
         # overwrite Parameters in the flow object

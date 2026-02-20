@@ -802,7 +802,8 @@ class TaskDataStore(object):
                     # NOTE: Destructive mutation of the flow object. We keep
                     # around artifacts called 'name' and anything starting with
                     # '_' as they are used by the Metaflow runtime.
-                    delattr(flow, var)
+                    if hasattr(flow, var):
+                        delattr(flow, var)
                 yield var, val
 
         # Save current artifacts
