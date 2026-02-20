@@ -1,9 +1,17 @@
 import sys
 import json
+import tempfile
 from typing import ClassVar, Optional, List
 
+from metaflow.client.core import get_metadata
+from metaflow.exception import MetaflowException
 from metaflow.plugins.aws.step_functions.step_functions import StepFunctions
-from metaflow.runner.deployer import DeployedFlow, TriggeredRun
+from metaflow.runner.deployer import (
+    Deployer,
+    DeployedFlow,
+    TriggeredRun,
+    generate_fake_flow_file_contents,
+)
 
 from metaflow.runner.utils import get_lower_level_group, handle_timeout, temporary_fifo
 
@@ -59,45 +67,110 @@ class StepFunctionsDeployedFlow(DeployedFlow):
     @classmethod
     def list_deployed_flows(cls, flow_name: Optional[str] = None):
         """
-        This method is not currently implemented for Step Functions.
+        List all deployed AWS Step Functions state machines.
 
-        Raises
+        Parameters
+        ----------
+        flow_name : str, optional, default None
+            If specified, only list deployed flows for this specific flow name.
+            If None, list all deployed flows.
+
+        Yields
         ------
-        NotImplementedError
-            This method is not implemented for Step Functions.
+        StepFunctionsDeployedFlow
+            `StepFunctionsDeployedFlow` objects representing deployed
+            state machines on AWS Step Functions.
         """
-        raise NotImplementedError(
-            "list_deployed_flows is not implemented for StepFunctions"
-        )
+        for template_name in StepFunctions.list_templates(flow_name=flow_name):
+            try:
+                deployed_flow = cls.from_deployment(template_name)
+                yield deployed_flow
+            except Exception:
+                # Skip state machines that can't be converted to DeployedFlow objects
+                continue
 
     @classmethod
     def from_deployment(cls, identifier: str, metadata: Optional[str] = None):
         """
-        This method is not currently implemented for Step Functions.
+        Retrieves a `StepFunctionsDeployedFlow` object from an identifier and optional
+        metadata.
 
-        Raises
-        ------
-        NotImplementedError
-            This method is not implemented for Step Functions.
+        Parameters
+        ----------
+        identifier : str
+            The state machine name for the deployment to retrieve.
+        metadata : str, optional, default None
+            Optional deployer specific metadata.
+
+        Returns
+        -------
+        StepFunctionsDeployedFlow
+            A `StepFunctionsDeployedFlow` object representing the
+            deployed flow on AWS Step Functions.
         """
-        raise NotImplementedError(
-            "from_deployment is not implemented for StepFunctions"
+        deployment_metadata = StepFunctions.get_deployment_metadata(identifier)
+
+        if deployment_metadata is None:
+            raise MetaflowException("No deployed flow found for: %s" % identifier)
+
+        flow_name, username, _ = deployment_metadata
+
+        fake_flow_file_contents = generate_fake_flow_file_contents(
+            flow_name=flow_name, param_info={}
         )
+
+        with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as fake_flow_file:
+            with open(fake_flow_file.name, "w") as fp:
+                fp.write(fake_flow_file_contents)
+
+            d = Deployer(
+                fake_flow_file.name, env={"METAFLOW_USER": username}
+            ).step_functions(name=identifier)
+
+            d.name = identifier
+            d.flow_name = flow_name
+            if metadata is None:
+                d.metadata = get_metadata()
+            else:
+                d.metadata = metadata
+
+        return cls(deployer=d)
 
     @classmethod
     def get_triggered_run(
         cls, identifier: str, run_id: str, metadata: Optional[str] = None
     ):
         """
-        This method is not currently implemented for Step Functions.
+        Retrieves a `StepFunctionsTriggeredRun` object from an identifier, a run id and
+        optional metadata.
 
-        Raises
-        ------
-        NotImplementedError
-            This method is not implemented for Step Functions.
+        Parameters
+        ----------
+        identifier : str
+            The state machine name for the deployment to retrieve.
+        run_id : str
+            Run ID for which to fetch the triggered run object.
+        metadata : str, optional, default None
+            Optional deployer specific metadata.
+
+        Returns
+        -------
+        StepFunctionsTriggeredRun
+            A `StepFunctionsTriggeredRun` object representing the
+            triggered run on AWS Step Functions.
         """
-        raise NotImplementedError(
-            "get_triggered_run is not implemented for StepFunctions"
+        deployed_flow_obj = cls.from_deployment(identifier, metadata)
+        return StepFunctionsTriggeredRun(
+            deployer=deployed_flow_obj.deployer,
+            content=json.dumps(
+                {
+                    "metadata": deployed_flow_obj.deployer.metadata,
+                    "pathspec": "/".join(
+                        (deployed_flow_obj.deployer.flow_name, run_id)
+                    ),
+                    "name": run_id,
+                }
+            ),
         )
 
     @property

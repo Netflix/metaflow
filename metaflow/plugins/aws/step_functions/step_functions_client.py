@@ -23,6 +23,12 @@ class StepFunctionsClient(object):
             None,
         )
 
+    def list_state_machines(self):
+        paginator = self._client.get_paginator("list_state_machines")
+        for page in paginator.paginate():
+            for state_machine in page["stateMachines"]:
+                yield state_machine["name"]
+
     def push(self, name, definition, role_arn, log_execution_history):
         try:
             response = self._client.create_state_machine(

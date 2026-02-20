@@ -258,6 +258,43 @@ class StepFunctions(object):
         return None
 
     @classmethod
+    def get_deployment_metadata(cls, name):
+        """
+        Get deployment metadata for a state machine.
+
+        Returns a tuple of (flow_name, owner, production_token) or None
+        if the state machine doesn't exist or is not a Metaflow deployment.
+        """
+        workflow = StepFunctionsClient().get(name)
+        if workflow is not None:
+            try:
+                start = json.loads(workflow["definition"])["States"]["start"]
+                parameters = start["Parameters"]["Parameters"]
+                return (
+                    parameters.get("metaflow.flow_name"),
+                    parameters.get("metaflow.owner"),
+                    parameters.get("metaflow.production_token"),
+                )
+            except (KeyError, json.JSONDecodeError):
+                return None
+        return None
+
+    @classmethod
+    def list_templates(cls, flow_name=None):
+        """
+        Yield state machine names that are Metaflow deployments,
+        optionally filtered by flow_name.
+        """
+        client = StepFunctionsClient()
+        for name in client.list_state_machines():
+            metadata = cls.get_deployment_metadata(name)
+            if metadata is None:
+                continue
+            sm_flow_name, _, _ = metadata
+            if flow_name is None or sm_flow_name == flow_name:
+                yield name
+
+    @classmethod
     def get_execution(cls, state_machine_name, name):
         client = StepFunctionsClient()
         try:
