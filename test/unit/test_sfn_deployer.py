@@ -101,6 +101,26 @@ class TestStepFunctionsClientListStateMachines:
         names = list(client.list_state_machines())
         assert names == []
 
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_client.AWS_SANDBOX_ENABLED",
+        True,
+    )
+    @patch(
+        "metaflow.plugins.aws.step_functions.step_functions_client.get_aws_client",
+        create=True,
+    )
+    def test_list_state_machines_raises_in_sandbox(self, _):
+        from metaflow.exception import MetaflowException
+        from metaflow.plugins.aws.step_functions.step_functions_client import (
+            StepFunctionsClient,
+        )
+
+        client = StepFunctionsClient.__new__(StepFunctionsClient)
+        client._client = MagicMock()
+
+        with pytest.raises(MetaflowException, match="sandbox"):
+            list(client.list_state_machines())
+
 
 # ==============================================================================
 # Tests for StepFunctions.get_deployment_metadata

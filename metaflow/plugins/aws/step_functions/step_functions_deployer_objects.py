@@ -1,3 +1,4 @@
+import os
 import sys
 import json
 import tempfile
@@ -120,11 +121,14 @@ class StepFunctionsDeployedFlow(DeployedFlow):
         )
 
         with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as fake_flow_file:
-            with open(fake_flow_file.name, "w") as fp:
+            tmp_path = fake_flow_file.name
+
+        try:
+            with open(tmp_path, "w") as fp:
                 fp.write(fake_flow_file_contents)
 
             d = Deployer(
-                fake_flow_file.name, env={"METAFLOW_USER": username}
+                tmp_path, env={"METAFLOW_USER": username}
             ).step_functions(name=identifier)
 
             d.name = identifier
@@ -133,6 +137,8 @@ class StepFunctionsDeployedFlow(DeployedFlow):
                 d.metadata = get_metadata()
             else:
                 d.metadata = metadata
+        finally:
+            os.unlink(tmp_path)
 
         return cls(deployer=d)
 

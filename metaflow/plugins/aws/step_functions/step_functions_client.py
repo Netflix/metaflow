@@ -1,3 +1,4 @@
+from metaflow.exception import MetaflowException
 from metaflow.metaflow_config import (
     AWS_SANDBOX_ENABLED,
     AWS_SANDBOX_REGION,
@@ -24,6 +25,11 @@ class StepFunctionsClient(object):
         )
 
     def list_state_machines(self):
+        if AWS_SANDBOX_ENABLED:
+            raise MetaflowException(
+                "Listing state machines is not supported in the AWS sandbox environment. "
+                "Use from_deployment(name) to reconstruct a specific deployed flow."
+            )
         paginator = self._client.get_paginator("list_state_machines")
         for page in paginator.paginate():
             for state_machine in page["stateMachines"]:
