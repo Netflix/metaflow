@@ -84,13 +84,23 @@ Use the [PR Description Template](#pr-description-template) below. PRs with vagu
 
 ## Core Runtime Contributions (Higher Bar)
 
-Changes touching the following areas are **Core Runtime** and have a higher acceptance bar:
+Changes touching any of the following files or directories are **Core Runtime** and have a higher acceptance bar:
 
-- Step execution lifecycle, task runner, subprocess management, stdout/stderr capture and forwarding
-- Datastore and metadata IO, retry semantics, logging and telemetry behavior
-- AWS client/session/credential resolution and any code used in worker processes
-- CLI runner/deployer plumbing where env-var state can leak across process contexts
-- Config resolution and parameter propagation across subprocess boundaries
+| Area | Paths |
+|------|-------|
+| **Execution engine** | `metaflow/runtime.py`, `metaflow/task.py`, `metaflow/flowspec.py` |
+| **Subprocess management** | `metaflow/runner/metaflow_runner.py`, `metaflow/runner/subprocess_manager.py`, `metaflow/runner/deployer_impl.py` |
+| **CLI plumbing** | `metaflow/cli.py`, `metaflow/cli_components/`, `metaflow/runner/click_api.py` |
+| **Datastore** | `metaflow/datastore/`, `metaflow/plugins/datastores/` |
+| **Metadata** | `metaflow/metadata_provider/`, `metaflow/plugins/metadata_providers/` |
+| **AWS client/credentials** | `metaflow/plugins/aws/aws_client.py`, `metaflow/plugins/datatools/s3/` |
+| **Config/parameters** | `metaflow/metaflow_config.py`, `metaflow/parameters.py`, `metaflow/user_configs/` |
+| **Logging/capture** | `metaflow/mflog/`, `metaflow/system/`, `metaflow/debug.py` |
+| **Decorators (core)** | `metaflow/decorators.py` |
+| **Graph/DAG** | `metaflow/graph.py` |
+| **Orchestrator plugins** | `metaflow/plugins/argo/`, `metaflow/plugins/aws/batch/`, `metaflow/plugins/aws/step_functions/`, `metaflow/plugins/kubernetes/` |
+
+If you're unsure whether your change is Core Runtime, it probably is. When in doubt, open an issue first.
 
 ### Why the higher bar?
 
