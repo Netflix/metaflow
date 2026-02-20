@@ -519,7 +519,6 @@ DEBUG_OPTIONS = [
     "userconf",
     "conda",
     "package",
-    "boto3",
 ]
 
 for typ in DEBUG_OPTIONS:

@@ -1709,6 +1709,12 @@ class S3(object):
                         # Here we did not have any error -- transient or otherwise.
                         ok_lines = stdout.splitlines()
                         _update_out_lines(out_lines, ok_lines, resize=loop_count == 0)
+                        if debug.boto3 or debug.s3client:
+                            stderr.seek(0)
+                            err_out = stderr.read().decode("utf-8", errors="replace")
+                            for line in err_out.splitlines():
+                                if line.startswith("debug["):
+                                    print(line, file=sys.stderr)
                         return (len(ok_lines), 0, inject_failures, None, None)
                     except subprocess.CalledProcessError as ex:
                         if ex.returncode == s3op.ERROR_TRANSIENT:
@@ -1722,13 +1728,14 @@ class S3(object):
                             do_output = False
                             retry_lines = []
                             for l in stderr:
+                                line_str = l.decode(encoding="utf-8")
+                                if debug.boto3 or debug.s3client:
+                                    if line_str.startswith("debug["):
+                                        print(line_str.rstrip(), file=sys.stderr)
                                 if do_output:
                                     retry_lines.append(l)
                                     continue
-                                if (
-                                    l.decode(encoding="utf-8")
-                                    == "%s\n" % TRANSIENT_RETRY_START_LINE
-                                ):
+                                if line_str == "%s\n" % TRANSIENT_RETRY_START_LINE:
                                     # Look for a special marker as the start of the
                                     # "failed inputs that need to be retried"
                                     do_output = True

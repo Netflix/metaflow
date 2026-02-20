@@ -13,12 +13,10 @@ from .util import is_stringish
 # - METAFLOW_DEBUG_SIDECAR=1
 #   to see command lines used to launch sidecars
 # - METAFLOW_DEBUG_S3CLIENT=1
-#   to see command lines used by the S3 client. Note that this environment
-#   variable also disables automatic cleaning of subdirectories, which can
-#   fill up disk space quickly
-# - METAFLOW_DEBUG_BOTO3=1
-#   to see the profile, region, and credential method used by boto3 when
-#   creating sessions/clients.
+#   to see command lines used by the S3 client and the profile, region,
+#   and credential method active during Boto3 session creation. Note that
+#   this environment variable also disables automatic cleaning of
+#   subdirectories, which can fill up disk space quickly.
 
 
 class Debug(object):
