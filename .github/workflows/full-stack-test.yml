@@ -42,7 +42,7 @@ jobs:
         run: |
           cat <<EOF | metaflow-dev shell
           echo "Environment is ready; running QA tests..."
-          pytest tests/qa
+          pytest test/qa
           EOF
 
       - name: Tear down environment
