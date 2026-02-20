@@ -2039,10 +2039,10 @@ class ArgoWorkflows(object):
             # {{foo.bar['param_name']}}.
             # https://argoproj.github.io/argo-events/tutorials/02-parameterization/
             # http://masterminds.github.io/sprig/strings.html
-            param_partial = (
-                "param_opts=$(python -m metaflow.plugins.argo.set_parameters %s)"
-                % params_csv
-            )
+            param_partial = [
+                "mapfile -t param_args < <(python -m metaflow.plugins.argo.set_parameters %s)"
+                % params_csv,
+            ]
 
             init_cmds = " && ".join(
                 [
@@ -2060,7 +2060,7 @@ class ArgoWorkflows(object):
                     self.flow_datastore.TYPE,
                     self.code_package_metadata,
                 )
-                + [param_partial]
+                + param_partial
             )
             step_cmds = self.environment.bootstrap_commands(
                 node.name, self.flow_datastore.TYPE
@@ -2105,8 +2105,7 @@ class ArgoWorkflows(object):
                         "--task-id %s" % task_id_params,
                     ]
                     + [
-                        # '"$param_opts"',
-                        '${param_opts:+"$param_opts"}',
+                        '\\"${param_args[@]}\\"',
                     ]
                 )
                 if self.tags:

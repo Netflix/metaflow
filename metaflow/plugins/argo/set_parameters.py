@@ -13,8 +13,7 @@ def parse_parameter_value(base64_value):
         # fallback to using the original value.
         res = val
 
-    # (re)serialize for storing in an environment variable
-    return json.dumps(res)
+    return res
 
 
 def param_opts(params: Dict[str, str]) -> str:
@@ -26,13 +25,13 @@ def param_opts(params: Dict[str, str]) -> str:
             continue
         param_opts.append(f"--{k}={parsed_value}")
 
-    return " ".join(param_opts)
+    return "\n".join(param_opts)
 
 
 if __name__ == "__main__":
     params = {}
     try:
-        raw_params = sys.argv[2:]
+        raw_params = sys.argv[1:]
     except Exception:
         pass
 
