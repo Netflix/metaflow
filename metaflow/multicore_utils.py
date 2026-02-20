@@ -41,6 +41,13 @@ class MulticoreException(Exception):
     pass
 
 
+def _try_remove(path: str) -> None:
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
 _A = TypeVar("_A")
 _R = TypeVar("_R")
 
@@ -114,27 +121,33 @@ def parallel_imap_unordered(
     args_iter = iter(iterable)
     pids = [_spawn(func, arg, dir) for arg in islice(args_iter, max_parallel)]
 
-    while pids:
-        for idx, pid_info in enumerate(pids):
-            pid, output_file = pid_info
-            pid, exit_code = os.waitpid(pid, os.WNOHANG)
-            if pid:
-                pids.pop(idx)
-                break
-        else:
-            time.sleep(0.1)  # Wait a bit before re-checking
-            continue
+    try:
+        while pids:
+            for idx, pid_info in enumerate(pids):
+                pid, output_file = pid_info
+                pid, exit_code = os.waitpid(pid, os.WNOHANG)
+                if pid:
+                    pids.pop(idx)
+                    break
+            else:
+                time.sleep(0.1)  # Wait a bit before re-checking
+                continue
 
-        if exit_code:
-            raise MulticoreException("Child failed")
+            if exit_code:
+                _try_remove(output_file)
+                raise MulticoreException("Child failed")
 
-        with open(output_file, "rb") as f:
-            yield pickle.load(f)
-        os.remove(output_file)
+            with open(output_file, "rb") as f:
+                yield pickle.load(f)
+            os.remove(output_file)
 
-        arg = list(islice(args_iter, 1))
-        if arg:
-            pids.insert(0, _spawn(func, arg[0], dir))
+            arg = list(islice(args_iter, 1))
+            if arg:
+                pids.insert(0, _spawn(func, arg[0], dir))
+    finally:
+        # Clean up temp files for any remaining in-flight children
+        for _, output_file in pids:
+            _try_remove(output_file)
 
 
 def parallel_map(
