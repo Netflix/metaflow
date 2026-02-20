@@ -153,7 +153,7 @@ def run_test(formatter, context, debug, checks, env_base, executor):
         _, _, param_opts, _, _ = extract_all_params(run)
         run_level_options = context["run_options"]
         run_level_dict = construct_arg_dict(param_opts, run_level_options)
-        run_level_dict["run_id_file"] = "run-id"
+        run_level_dict["_mf_run_id_file"] = "run-id"
 
         return top_level_dict, run_level_dict
 

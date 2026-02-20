@@ -91,6 +91,7 @@ def before_run(obj, tags, decospecs, skip_decorators=False):
 def common_runner_options(func):
     @click.option(
         "--run-id-file",
+        "_mf_run_id_file",
         default=None,
         show_default=True,
         type=str,
@@ -98,6 +99,7 @@ def common_runner_options(func):
     )
     @click.option(
         "--runner-attribute-file",
+        "_mf_runner_attribute_file",
         default=None,
         show_default=True,
         type=str,
@@ -137,7 +139,7 @@ def config_callback(ctx, param, value):
 def common_run_options(func):
     @click.option(
         "--tag",
-        "tags",
+        "_mf_tags",
         multiple=True,
         default=None,
         help="Annotate this run with the given tag. You can specify "
@@ -146,12 +148,14 @@ def common_run_options(func):
     )
     @click.option(
         "--max-workers",
+        "_mf_max_workers",
         default=16,
         show_default=True,
         help="Maximum number of parallel processes.",
     )
     @click.option(
         "--max-num-splits",
+        "_mf_max_num_splits",
         default=100,
         show_default=True,
         help="Maximum number of splits allowed in a foreach. This "
@@ -160,6 +164,7 @@ def common_run_options(func):
     )
     @click.option(
         "--max-log-size",
+        "_mf_max_log_size",
         default=10,
         show_default=True,
         help="Maximum size of stdout and stderr captured in "
@@ -168,7 +173,7 @@ def common_run_options(func):
     )
     @click.option(
         "--with",
-        "decospecs",
+        "_mf_decospecs",
         multiple=True,
         help="Add a decorator to all steps. You can specify this "
         "option multiple times to attach multiple decorators "
@@ -190,6 +195,7 @@ def common_run_options(func):
 )
 @click.option(
     "--run-id",
+    "_mf_run_id",
     default=None,
     help="Run ID for the new run. By default, a new run-id will be generated",
     hidden=True,
@@ -223,21 +229,21 @@ def common_run_options(func):
 @click.pass_obj
 def resume(
     obj,
-    tags=None,
+    _mf_tags=None,
     step_to_rerun=None,
     origin_run_id=None,
-    run_id=None,
+    _mf_run_id=None,
     clone_only=False,
     reentrant=False,
-    max_workers=None,
-    max_num_splits=None,
-    max_log_size=None,
-    decospecs=None,
-    run_id_file=None,
+    _mf_max_workers=None,
+    _mf_max_num_splits=None,
+    _mf_max_log_size=None,
+    _mf_decospecs=None,
+    _mf_run_id_file=None,
     resume_identifier=None,
-    runner_attribute_file=None,
+    _mf_runner_attribute_file=None,
 ):
-    before_run(obj, tags, decospecs)
+    before_run(obj, _mf_tags, _mf_decospecs)
 
     if origin_run_id is None:
         origin_run_id = get_latest_run_id(obj.echo, obj.flow.name)
@@ -272,16 +278,16 @@ def resume(
 
         steps_to_rerun = {step_to_rerun}
 
-    if run_id:
+    if _mf_run_id:
         # Run-ids that are provided by the metadata service are always integers.
         # External providers or run-ids (like external schedulers) always need to
         # be non-integers to avoid any clashes. This condition ensures this.
         try:
-            int(run_id)
+            int(_mf_run_id)
         except:
             pass
         else:
-            raise CommandException("run-id %s cannot be an integer" % run_id)
+            raise CommandException("run-id %s cannot be an integer" % _mf_run_id)
 
     runtime = NativeRuntime(
         obj.flow,
@@ -294,23 +300,23 @@ def resume(
         obj.entrypoint,
         obj.event_logger,
         obj.monitor,
-        run_id=run_id,
+        run_id=_mf_run_id,
         clone_run_id=origin_run_id,
         clone_only=clone_only,
         reentrant=reentrant,
         steps_to_rerun=steps_to_rerun,
-        max_workers=max_workers,
-        max_num_splits=max_num_splits,
-        max_log_size=max_log_size * 1024 * 1024,
+        max_workers=_mf_max_workers,
+        max_num_splits=_mf_max_num_splits,
+        max_log_size=_mf_max_log_size * 1024 * 1024,
         resume_identifier=resume_identifier,
     )
-    write_file(run_id_file, runtime.run_id)
+    write_file(_mf_run_id_file, runtime.run_id)
     runtime.print_workflow_info()
 
     runtime.persist_constants()
 
-    if runner_attribute_file:
-        with open(runner_attribute_file, "w", encoding="utf-8") as f:
+    if _mf_runner_attribute_file:
+        with open(_mf_runner_attribute_file, "w", encoding="utf-8") as f:
             json.dump(
                 {
                     "run_id": runtime.run_id,
@@ -354,7 +360,7 @@ def resume(
 @common_runner_options
 @click.option(
     "--namespace",
-    "user_namespace",
+    "_mf_user_namespace",
     default=None,
     help="Change namespace from the default (your username) to "
     "the specified tag. Note that this option does not alter "
@@ -366,19 +372,19 @@ def resume(
 @click.pass_obj
 def run(
     obj,
-    tags=None,
-    max_workers=None,
-    max_num_splits=None,
-    max_log_size=None,
-    decospecs=None,
-    run_id_file=None,
-    runner_attribute_file=None,
-    user_namespace=None,
+    _mf_tags=None,
+    _mf_max_workers=None,
+    _mf_max_num_splits=None,
+    _mf_max_log_size=None,
+    _mf_decospecs=None,
+    _mf_run_id_file=None,
+    _mf_runner_attribute_file=None,
+    _mf_user_namespace=None,
     **kwargs,
 ):
-    if user_namespace is not None:
-        namespace(user_namespace or None)
-    before_run(obj, tags, decospecs)
+    if _mf_user_namespace is not None:
+        namespace(_mf_user_namespace or None)
+    before_run(obj, _mf_tags, _mf_decospecs)
 
     runtime = NativeRuntime(
         obj.flow,
@@ -391,12 +397,12 @@ def run(
         obj.entrypoint,
         obj.event_logger,
         obj.monitor,
-        max_workers=max_workers,
-        max_num_splits=max_num_splits,
-        max_log_size=max_log_size * 1024 * 1024,
+        max_workers=_mf_max_workers,
+        max_num_splits=_mf_max_num_splits,
+        max_log_size=_mf_max_log_size * 1024 * 1024,
     )
     write_latest_run_id(obj, runtime.run_id)
-    write_file(run_id_file, runtime.run_id)
+    write_file(_mf_run_id_file, runtime.run_id)
 
     obj.flow._set_constants(obj.graph, kwargs, obj.config_options)
     current._update_env(
@@ -415,8 +421,8 @@ def run(
 
     runtime.print_workflow_info()
     runtime.persist_constants()
-    if runner_attribute_file:
-        with open(runner_attribute_file, "w", encoding="utf-8") as f:
+    if _mf_runner_attribute_file:
+        with open(_mf_runner_attribute_file, "w", encoding="utf-8") as f:
             json.dump(
                 {
                     "run_id": runtime.run_id,
@@ -462,6 +468,7 @@ def run(
 )
 @click.option(
     "--max-log-size",
+    "_mf_max_log_size",
     default=10,
     show_default=True,
     help="Maximum size of stdout and stderr captured in "
@@ -476,9 +483,9 @@ def spin(
     persist=True,
     artifacts_module=None,
     skip_decorators=False,
-    max_log_size=None,
-    run_id_file=None,
-    runner_attribute_file=None,
+    _mf_max_log_size=None,
+    _mf_run_id_file=None,
+    _mf_runner_attribute_file=None,
     **kwargs,
 ):
     # Parse the pathspec argument to extract step name and full pathspec
@@ -520,10 +527,10 @@ def spin(
         skip_decorators,
         artifacts_module,
         persist,
-        max_log_size * 1024 * 1024,
+        _mf_max_log_size * 1024 * 1024,
     )
     write_latest_run_id(obj, spin_runtime.run_id)
-    write_file(run_id_file, spin_runtime.run_id)
+    write_file(_mf_run_id_file, spin_runtime.run_id)
     # We only need the root for the metadata, i.e. the portion before DATASTORE_LOCAL_DIR
     datastore_root = spin_runtime._flow_datastore._storage_impl.datastore_root
     orig_task_metadata_root = datastore_root.rsplit("/", 1)[0]
@@ -531,8 +538,8 @@ def spin(
     spin_runtime.execute()
     from_start("Spin: after spin runtime execute")
 
-    if runner_attribute_file:
-        with open(runner_attribute_file, "w") as f:
+    if _mf_runner_attribute_file:
+        with open(_mf_runner_attribute_file, "w") as f:
             json.dump(
                 {
                     "task_id": spin_runtime.task.task_id,

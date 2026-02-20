@@ -690,9 +690,9 @@ if __name__ == "__main__":
     api = MetaflowAPI.from_cli("../try.py", start)
 
     command = api(metadata="local").run(
-        tags=["abc", "def"],
-        decospecs=["kubernetes"],
-        max_workers=5,
+        _mf_tags=["abc", "def"],
+        _mf_decospecs=["kubernetes"],
+        _mf_max_workers=5,
         alpha=3,
         myfile="path/to/file",
     )
@@ -713,5 +713,5 @@ if __name__ == "__main__":
     command = api().tag().add(tags=["abc", "def"])
     print(" ".join(command))
 
-    command = getattr(api(decospecs=["retry"]), "argo-workflows")().create()
+    command = getattr(api(_mf_decospecs=["retry"]), "argo-workflows")().create()
     print(" ".join(command))

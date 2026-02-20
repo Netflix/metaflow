@@ -8,22 +8,27 @@ from ..runtime import NativeRuntime
 @click.command(help="Internal command to initialize a run.", hidden=True)
 @click.option(
     "--run-id",
+    "_mf_run_id",
     default=None,
     required=True,
     help="ID for one execution of all steps in the flow.",
 )
 @click.option(
-    "--task-id", default=None, required=True, help="ID for this instance of the step."
+    "--task-id",
+    "_mf_task_id",
+    default=None,
+    required=True,
+    help="ID for this instance of the step.",
 )
 @click.option(
     "--tag",
-    "tags",
+    "_mf_tags",
     multiple=True,
     default=None,
     help="Tags for this instance of the step.",
 )
 @click.pass_obj
-def init(obj, run_id=None, task_id=None, tags=None, **kwargs):
+def init(obj, _mf_run_id=None, _mf_task_id=None, _mf_tags=None, **kwargs):
     # init is a separate command instead of an option in 'step'
     # since we need to capture user-specified parameters with
     # @add_custom_parameters. Adding custom parameters to 'step'
@@ -32,7 +37,7 @@ def init(obj, run_id=None, task_id=None, tags=None, **kwargs):
     # user-specified parameters are often defined as environment
     # variables.
 
-    obj.metadata.add_sticky_tags(tags=tags)
+    obj.metadata.add_sticky_tags(tags=_mf_tags)
 
     runtime = NativeRuntime(
         obj.flow,
@@ -45,8 +50,8 @@ def init(obj, run_id=None, task_id=None, tags=None, **kwargs):
         obj.entrypoint,
         obj.event_logger,
         obj.monitor,
-        run_id=run_id,
+        run_id=_mf_run_id,
         skip_decorator_hooks=True,
     )
     obj.flow._set_constants(obj.graph, kwargs, obj.config_options)
-    runtime.persist_constants(task_id=task_id)
+    runtime.persist_constants(task_id=_mf_task_id)

@@ -124,7 +124,7 @@ def argo_workflows(obj, name=None):
 )
 @click.option(
     "--tag",
-    "tags",
+    "_mf_tags",
     multiple=True,
     default=None,
     help="Annotate all objects produced by Argo Workflows runs "
@@ -133,7 +133,7 @@ def argo_workflows(obj, name=None):
 )
 @click.option(
     "--namespace",
-    "user_namespace",
+    "_mf_user_namespace",
     default=None,
     help="Change the namespace from the default (production token) "
     "to the given tag. See run --help for more information.",
@@ -147,6 +147,7 @@ def argo_workflows(obj, name=None):
 )
 @click.option(
     "--max-workers",
+    "_mf_max_workers",
     default=100,
     show_default=True,
     help="Maximum number of parallel processes.",
@@ -242,13 +243,13 @@ def argo_workflows(obj, name=None):
 @click.pass_obj
 def create(
     obj,
-    tags=None,
-    user_namespace=None,
+    _mf_tags=None,
+    _mf_user_namespace=None,
     only_json=False,
     authorize=None,
     generate_new_token=False,
     given_token=None,
-    max_workers=None,
+    _mf_max_workers=None,
     workflow_timeout=None,
     workflow_priority=None,
     auto_emit_argo_events=False,
@@ -275,7 +276,7 @@ def create(
             if any([d.name == decorator for d in node.decorators]):
                 raise MetaflowException(error_message % node.name)
 
-    validate_tags(tags)
+    validate_tags(_mf_tags)
 
     if deployer_attribute_file:
         with open(deployer_attribute_file, "w", encoding="utf-8") as f:
@@ -343,9 +344,9 @@ def create(
         obj,
         token,
         obj.workflow_name,
-        tags,
-        user_namespace,
-        max_workers,
+        _mf_tags,
+        _mf_user_namespace,
+        _mf_max_workers,
         workflow_timeout,
         workflow_priority,
         auto_emit_argo_events,

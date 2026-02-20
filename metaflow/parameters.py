@@ -394,21 +394,11 @@ class Parameter(object):
         param_type = self.kwargs["type"] = self._get_type(self.kwargs)
 
         reserved_params = [
-            "params",
-            "with",
-            "tag",
-            "namespace",
-            "obj",
-            "tags",
-            "decospecs",
-            "run-id-file",
-            "max-num-splits",
-            "max-workers",
-            "max-log-size",
-            "user-namespace",
-            "run-id",
-            "task-id",
-            "runner-attribute-file",
+            "params",  # Click internal command attribute
+            "with",  # Python keyword
+            "tag",  # CLI flag --tag would conflict with Parameter("tag") adding another --tag
+            "namespace",  # CLI flag --namespace would conflict with Parameter("namespace")
+            "obj",  # Click @pass_obj mechanism
         ]
         reserved = set(reserved_params)
         # due to the way Click maps cli args to function args we also want to add underscored params to the set

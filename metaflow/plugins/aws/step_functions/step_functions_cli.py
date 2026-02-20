@@ -93,7 +93,7 @@ def step_functions(obj, name=None):
 )
 @click.option(
     "--tag",
-    "tags",
+    "_mf_tags",
     multiple=True,
     default=None,
     help="Annotate all objects produced by AWS Step Functions runs "
@@ -109,7 +109,7 @@ def step_functions(obj, name=None):
 )
 @click.option(
     "--namespace",
-    "user_namespace",
+    "_mf_user_namespace",
     default=None,
     help="Change the namespace from the default (production token) "
     "to the given tag. See run --help for more information.",
@@ -122,6 +122,7 @@ def step_functions(obj, name=None):
 )
 @click.option(
     "--max-workers",
+    "_mf_max_workers",
     default=100,
     show_default=True,
     help="Maximum number of parallel processes.",
@@ -158,14 +159,14 @@ def step_functions(obj, name=None):
 @click.pass_obj
 def create(
     obj,
-    tags=None,
+    _mf_tags=None,
     aws_batch_tags=None,
-    user_namespace=None,
+    _mf_user_namespace=None,
     only_json=False,
     authorize=None,
     generate_new_token=False,
     given_token=None,
-    max_workers=None,
+    _mf_max_workers=None,
     workflow_timeout=None,
     log_execution_history=False,
     use_distributed_map=False,
@@ -179,7 +180,7 @@ def create(
                 % node.name
             )
 
-    validate_tags(tags)
+    validate_tags(_mf_tags)
 
     if deployer_attribute_file:
         with open(deployer_attribute_file, "w") as f:
@@ -213,10 +214,10 @@ def create(
         obj,
         token,
         obj.state_machine_name,
-        tags,
+        _mf_tags,
         aws_batch_tags,
-        user_namespace,
-        max_workers,
+        _mf_user_namespace,
+        _mf_max_workers,
         workflow_timeout,
         obj.is_project,
         use_distributed_map,
