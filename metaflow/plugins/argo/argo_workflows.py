@@ -4,6 +4,7 @@ import os
 import re
 import shlex
 import sys
+import warnings
 from collections import defaultdict
 from hashlib import sha1
 from math import inf
@@ -2502,6 +2503,18 @@ class ArgoWorkflows(object):
             # twice, but due to issues with variable substitution, we will have to
             # live with this routine.
             if node.parallel_step:
+                # Warn if @parallel has resource overrides — Argo does not support them yet.
+                for deco in node.decorators:
+                    if deco.name == "parallel":
+                        for param_name in ("worker_resources", "control_resources"):
+                            if deco.attributes.get(param_name):
+                                warnings.warn(
+                                    "@parallel *%s* is not supported with Argo Workflows "
+                                    "and will be ignored." % param_name,
+                                    UserWarning,
+                                    stacklevel=2,
+                                )
+                        break
                 jobset_name = "{{inputs.parameters.jobset-name}}"
                 jobset = KubernetesArgoJobSet(
                     kubernetes_sdk=kubernetes_sdk,
