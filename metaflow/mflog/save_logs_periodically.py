@@ -2,7 +2,7 @@ import os
 import sys
 import time
 import subprocess
-from threading import Thread
+from threading import Event, Thread
 
 from metaflow.sidecar import MessageTypes
 from . import update_delay, BASH_SAVE_LOGS_ARGS
@@ -10,13 +10,23 @@ from . import update_delay, BASH_SAVE_LOGS_ARGS
 
 class SaveLogsPeriodicallySidecar(object):
     def __init__(self):
+        self._stop = Event()
         self._thread = Thread(target=self._update_loop)
-        self.is_alive = True
+        self._thread.daemon = True
         self._thread.start()
 
     def process_message(self, msg):
         if msg.msg_type == MessageTypes.SHUTDOWN:
-            self.is_alive = False
+            self.shutdown()
+
+    def shutdown(self):
+        self._stop.set()
+        self._thread.join()
+        # flush any log output written since the last periodic upload
+        try:
+            subprocess.call(BASH_SAVE_LOGS_ARGS)
+        except:
+            pass
 
     @classmethod
     def get_worker(cls):
@@ -33,7 +43,7 @@ class SaveLogsPeriodicallySidecar(object):
         FILES = [os.environ["MFLOG_STDOUT"], os.environ["MFLOG_STDERR"]]
         start_time = time.time()
         sizes = [0 for _ in FILES]
-        while self.is_alive:
+        while not self._stop.is_set():
             new_sizes = list(map(_file_size, FILES))
             if new_sizes != sizes:
                 sizes = new_sizes
@@ -41,4 +51,4 @@ class SaveLogsPeriodicallySidecar(object):
                     subprocess.call(BASH_SAVE_LOGS_ARGS)
                 except:
                     pass
-            time.sleep(update_delay(time.time() - start_time))
+            self._stop.wait(timeout=update_delay(time.time() - start_time))
