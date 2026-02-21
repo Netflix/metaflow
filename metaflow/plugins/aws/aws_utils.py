@@ -20,7 +20,9 @@ def get_credential_debug_info(s3config=None):
 
         # Build session (respect session vars if provided)
         if s3config and getattr(s3config, "session_vars", None):
-            session = boto3.session.Session(**s3config.session_vars)
+            import botocore.session as bc_session
+            bc_sess = bc_session.Session(session_vars=s3config.session_vars)
+            session = boto3.session.Session(botocore_session=bc_sess)
         else:
             session = boto3.session.Session()
 
