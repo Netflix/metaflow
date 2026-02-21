@@ -11,7 +11,7 @@ task role.  These tests verify that:
   3. BatchJob.execute() no longer raises when iam_role is None.
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
