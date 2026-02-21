@@ -360,6 +360,8 @@ def worker(result_file_name, queue, mode, s3config):
                     except client_error as err:
                         handle_client_error(err, idx, result_file)
                         continue
+                    except MetaflowException:
+                        raise
                     except (SSLError, Exception) as e:
                         # assume anything else is transient
                         result_file.write(
@@ -1434,7 +1436,8 @@ def delete(
                 retry_line_parts.append(transient_error_type)
             retry_lines.append(" ".join(retry_line_parts) + "\n")
             if not is_transient_retry:
-                out_lines.append("%d %s\n" % (url.idx, TRANSIENT_RETRY_LINE_CONTENT))
+                msg = "%d %s\n" % (url.idx, TRANSIENT_RETRY_LINE_CONTENT)
+                out_lines.append(msg)
 
     if denied_url is not None:
         exit(ERROR_URL_ACCESS_DENIED, denied_url)

@@ -1662,16 +1662,16 @@ class S3(object):
         # 3. The number of transient errors is far more than fatal errors, so we
         #    can be optimistic and assume the unknown errors are transient.
         cmdline = [sys.executable, os.path.abspath(s3op.__file__), mode]
-        recursive_get = False
+        recursive_op = False
         for key, value in options.items():
             key = key.replace("_", "-")
             if isinstance(value, bool):
                 if value:
-                    if mode == "get" and key == "recursive":
+                    if mode in ("get", "delete") and key == "recursive":
                         # We make a note of this because for transient retries, we
                         # don't pass the recursive flag since we already did all the
                         # listing we needed
-                        recursive_get = True
+                        recursive_op = True
                     else:
                         cmdline.append("--%s" % key)
                 else:
@@ -1731,7 +1731,7 @@ class S3(object):
             # NOTE: Make sure to update pending_retries and out_lines in place
             # Returns: (last_ok_count, last_retry_count, inject_failures, err_out, err_code)
             addl_cmdline = []
-            if len(pending_retries) == 0 and recursive_get:
+            if len(pending_retries) == 0 and recursive_op:
                 # First time around (when pending_retries is still empty)
                 addl_cmdline = ["--recursive"]
             with NamedTemporaryFile(
