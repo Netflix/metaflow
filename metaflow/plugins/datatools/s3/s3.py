@@ -968,9 +968,13 @@ class S3(object):
         objs = self.list_recursive(keys)
         if not objs:
             return
-        # Extract S3 keys relative to s3root to pass to delete_many.
+        # Extract S3 keys to pass to delete_many.
+        # When s3root is set, extract the key relative to s3root.
+        # When s3root is not set, use the full obj.url so _url() can process it.
+        #
+        # Relative key extraction:
         # obj.url is the full s3://bucket/path/to/object
-        # When s3root is set (e.g., s3://bucket/data), we must extract only the
+        # When s3root is set (e.g., s3://bucket/data), extract only the
         # key relative to s3root (e.g., logs/file.txt), not the full path after
         # the bucket (e.g., data/logs/file.txt).
         # Otherwise delete_many will pass "data/logs/file.txt" to _url(), which
@@ -985,27 +989,50 @@ class S3(object):
         
         keys_to_delete = []
         for obj in objs:
-            parsed = urlparse(obj.url, allow_fragments=False)
-            # Full S3 key from URL: strip leading slash and bucket name
-            full_key = parsed.path.lstrip("/")
-            
-            # If s3root is set, strip it from the full key to get the relative key
-            if s3root_key:
-                # Check for path boundary match: s3root_key must be followed by "/"
-                # to avoid false matches like "data" matching "data-backup/file.txt"
-                prefix_with_sep = s3root_key + "/"
-                if full_key.startswith(prefix_with_sep):
-                    # Skip the s3root_key and the "/" separator
-                    s3_key = full_key[len(prefix_with_sep):]
-                elif full_key == s3root_key:
-                    # Exact match to root (edge case for deleting root itself)
-                    s3_key = ""
+            if self._s3root:
+                # s3root is configured: extract key relative to s3root
+                parsed = urlparse(obj.url, allow_fragments=False)
+                full_key = parsed.path.lstrip("/")
+                
+                # Handle two cases:
+                # 1. s3root is just bucket (no prefix): s3root_key is empty string
+                # 2. s3root includes prefix: s3root_key is the prefix path
+                
+                if s3root_key:
+                    # s3root includes a prefix (e.g., s3://bucket/data)
+                    # Check for path boundary match: s3root_key must be followed by "/"
+                    # to avoid false matches like "data" matching "data-backup/file.txt"
+                    prefix_with_sep = s3root_key + "/"
+                    if full_key.startswith(prefix_with_sep):
+                        # Skip the s3root_key and the "/" separator
+                        s3_key = full_key[len(prefix_with_sep):]
+                    elif full_key == s3root_key:
+                        # Exact match to root prefix itself, which list_recursive should
+                        # not return (it returns leaf objects only). Raise error.
+                        raise MetaflowS3URLException(
+                            "Unexpected: list_recursive returned an object matching "
+                            "the s3root prefix itself. This should not occur; "
+                            "list_recursive should only return leaf objects."
+                        )
+                    else:
+                        # Prefix doesn't match: full_key is not under s3root.
+                        # This should not happen if list_recursive is working correctly.
+                        # Raise error instead of silently proceeding with incorrect path.
+                        raise MetaflowS3URLException(
+                            "Unexpected: list_recursive returned an object outside "
+                            "the s3root prefix: %s (obj.url=%s, s3root=%s). "
+                            "This indicates a bug in list_recursive."
+                            % (full_key, obj.url, self._s3root)
+                        )
                 else:
-                    # Prefix doesn't match
+                    # s3root is just a bucket (no prefix path)
+                    # full_key includes everything after the bucket (e.g., "logs/file.txt")
+                    # Use it directly as the relative key
                     s3_key = full_key
             else:
-                # No s3root, use full key as-is
-                s3_key = full_key
+                # No s3root: use the full obj.url so _url() can recognize and
+                # process the fully-qualified S3 URL.
+                s3_key = obj.url
             
             keys_to_delete.append(s3_key)
         if keys_to_delete:

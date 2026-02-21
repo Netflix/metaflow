@@ -329,3 +329,132 @@ def test_s3_delete_recursive_with_s3root_prefix_boundary():
             assert (
                 len(remaining_backup) == 1
             ), "Objects under data-backup/ should NOT be affected by data/ prefix"
+
+
+@mock_aws
+def test_s3_delete_recursive_without_s3root():
+    """
+    Test delete_recursive works without s3root (using full S3 URLs).
+    
+    This tests that delete_recursive uses obj.url (full S3 URL) when s3root
+    is not configured, allowing _url() to recognize fully-qualified URLs.
+    """
+    # Setup: Create bucket with objects
+    s3_res = boto3.resource("s3", region_name="us-east-1")
+    s3_res.create_bucket(Bucket="test-bucket")
+    
+    s3_res.Object("test-bucket", "logs/app.log").put(Body=b"log")
+    s3_res.Object("test-bucket", "logs/error.log").put(Body=b"error")
+    s3_res.Object("test-bucket", "other/file.txt").put(Body=b"other")
+    
+    # Initialize S3 client WITHOUT s3root (using full URLs)
+    with S3() as s3_client:
+        # Mock list_recursive to return objects with full S3 URLs
+        mock_objects = [
+            S3Object(
+                prefix="s3://test-bucket/logs/",
+                url="s3://test-bucket/logs/app.log",
+                path="",
+                size=3,
+            ),
+            S3Object(
+                prefix="s3://test-bucket/logs/",
+                url="s3://test-bucket/logs/error.log",
+                path="",
+                size=5,
+            ),
+        ]
+        
+        with patch.object(s3_client, "list_recursive", return_value=mock_objects):
+            # Call delete_recursive with full S3 URL prefix
+            s3_client.delete_recursive(["s3://test-bucket/logs/"])
+            
+            # Verify logs/ objects are deleted
+            remaining_logs = list(
+                s3_res.Bucket("test-bucket").objects.filter(Prefix="logs/")
+            )
+            assert len(remaining_logs) == 0, "Objects under logs/ should be deleted"
+            
+            # Verify other/ objects remain
+            remaining_other = list(
+                s3_res.Bucket("test-bucket").objects.filter(Prefix="other/")
+            )
+            assert len(remaining_other) == 1, "Objects under other/ should remain"
+
+
+@mock_aws
+def test_s3_delete_recursive_raises_on_prefix_mismatch():
+    """
+    Test delete_recursive raises error on unexpected prefix mismatch.
+    
+    This validates that delete_recursive raises an error when list_recursive
+    returns objects outside the s3root prefix, rather than silently producing
+    incorrect delete targets.
+    """
+    s3_res = boto3.resource("s3", region_name="us-east-1")
+    s3_res.create_bucket(Bucket="test-bucket")
+    
+    s3_res.Object("test-bucket", "data/logs/app.log").put(Body=b"log")
+    s3_res.Object("test-bucket", "other/file.txt").put(Body=b"other")
+    
+    # Initialize S3 client with s3root="data"
+    with S3(s3root="s3://test-bucket/data") as s3_client:
+        # Mock list_recursive to return an object OUTSIDE the s3root
+        # (simulating a bug in list_recursive)
+        mock_objects = [
+            S3Object(
+                prefix="s3://test-bucket/other/",
+                url="s3://test-bucket/other/file.txt",  # Outside s3root!
+                path="",
+                size=5,
+            ),
+        ]
+        
+        with patch.object(s3_client, "list_recursive", return_value=mock_objects):
+            # Should raise MetaflowS3URLException for unexpected object
+            from metaflow.plugins.datatools.s3.s3 import MetaflowS3URLException
+            
+            with pytest.raises(MetaflowS3URLException) as exc_info:
+                s3_client.delete_recursive(["logs/"])
+            
+            # Verify error message indicates the unexpected prefix
+            assert "list_recursive returned an object outside" in str(exc_info.value)
+            assert "other/file.txt" in str(exc_info.value)
+
+
+@mock_aws
+def test_s3_delete_recursive_raises_on_root_match():
+    """
+    Test delete_recursive raises error when list_recursive returns root itself.
+    
+    This validates that delete_recursive raises an error when an S3Object
+    exactly matches s3root (which should not happen for leaf objects),
+    rather than silently creating an empty key that would target the root.
+    """
+    s3_res = boto3.resource("s3", region_name="us-east-1")
+    s3_res.create_bucket(Bucket="test-bucket")
+    
+    s3_res.Object("test-bucket", "data/logs/app.log").put(Body=b"log")
+    
+    # Initialize S3 client with s3root="data"
+    with S3(s3root="s3://test-bucket/data") as s3_client:
+        # Mock list_recursive to return an object that exactly matches s3root
+        # (this should not happen in real usage)
+        mock_objects = [
+            S3Object(
+                prefix="s3://test-bucket/data/",
+                url="s3://test-bucket/data",  # Exact match to s3root!
+                path="",
+                size=0,
+            ),
+        ]
+        
+        with patch.object(s3_client, "list_recursive", return_value=mock_objects):
+            # Should raise MetaflowS3URLException for exact root match
+            from metaflow.plugins.datatools.s3.s3 import MetaflowS3URLException
+            
+            with pytest.raises(MetaflowS3URLException) as exc_info:
+                s3_client.delete_recursive(["logs/"])
+            
+            # Verify error message indicates the root match
+            assert "matching the s3root prefix itself" in str(exc_info.value)
