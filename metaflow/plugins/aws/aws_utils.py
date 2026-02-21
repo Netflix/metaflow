@@ -7,37 +7,35 @@ def get_credential_debug_info(s3config=None):
     """
     Return a human-readable string describing the active AWS credentials.
 
-    This should be called from within the s3op subprocess, where the live
-    boto3 session exists. Never raises — failures are reported inline.
+    This function reflects the *effective* identity used by boto3,
+    including assumed-role contexts (via STS get_caller_identity).
+
+    Never raises — failures are reported inline.
     """
     lines = []
+
     try:
         import boto3
         import botocore.config
-        
-        session = boto3.session.Session()
-        
-        # Check if a role will be assumed
-        role_arn = s3config.role if s3config and hasattr(s3config, 'role') else None
-        
-        if role_arn:
-            lines.append(
-                "  Note: S3 operations use assumed role: %s" % role_arn
-            )
-            lines.append(
-                "        Showing base credentials below (not the assumed role identity):"
-            )
-        
+
+        # Build session (respect session vars if provided)
+        if s3config and getattr(s3config, "session_vars", None):
+            session = boto3.session.Session(**s3config.session_vars)
+        else:
+            session = boto3.session.Session()
+
         credentials = session.get_credentials()
 
         if credentials is None:
             lines.append("  No AWS credentials found in the credential chain.")
         else:
-            method = getattr(credentials, 'method', None) or 'unknown'  # read BEFORE freezing
-            if hasattr(credentials, 'get_frozen_credentials'):
+            method = getattr(credentials, "method", None) or "unknown"
+
+            if hasattr(credentials, "get_frozen_credentials"):
                 credentials = credentials.get_frozen_credentials()
+
             method_labels = {
-                "env": "Environment variables (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)",
+                "env": "Environment variables",
                 "shared-credentials-file": "Shared credentials file (~/.aws/credentials)",
                 "config-file": "AWS config file (~/.aws/config)",
                 "iam-role": "EC2 instance IAM role (IMDS)",
@@ -46,51 +44,49 @@ def get_credential_debug_info(s3config=None):
                 "assume-role": "AssumeRole",
                 "process": "Credential process",
             }
+
             lines.append(
-                "  Credential source : %s" % method_labels.get(method, method)
+                f"  Credential source : {method_labels.get(method, method)}"
             )
 
             access_key = getattr(credentials, "access_key", None) or ""
             if len(access_key) >= 8:
-                masked = "%s...%s" % (access_key[:4], access_key[-4:])
+                masked = f"{access_key[:4]}...{access_key[-4:]}"
             elif access_key:
-                if len(access_key) <= 4:
-                    masked = "(too short to display safely)"
-                else:
-                    masked = access_key[:4] + "..."
+                masked = "(too short to display safely)"
             else:
                 masked = "(not available)"
-            lines.append("  Access key ID     : %s" % masked)
 
-            region = session.region_name or "(not set)"
-            lines.append("  AWS region        : %s" % region)
+            lines.append(f"  Access key ID     : {masked}")
 
-            try:
-                config = botocore.config.Config(
-                    connect_timeout=5,
-                    read_timeout=5
-                )
-                sts = session.client("sts",config=config)
-                identity = sts.get_caller_identity()
-                lines.append(
-                    "  Caller ARN        : %s" % identity.get("Arn", "(unknown)")
-                )
-                lines.append(
-                    "  AWS account ID    : %s" % identity.get("Account", "(unknown)")
-                )
-            except Exception as sts_err:
-                lines.append(
-                    "  Caller ARN        : (STS lookup failed: %s)" % str(sts_err)
-                )
+        region = session.region_name or "(not set)"
+        lines.append(f"  AWS region        : {region}")
+
+        # Authoritative identity via STS
+        try:
+            config = botocore.config.Config(connect_timeout=5, read_timeout=5)
+            sts = session.client("sts", config=config)
+            identity = sts.get_caller_identity()
+
+            lines.append("  Effective identity (STS):")
+            lines.append(f"    ARN        : {identity.get('Arn', '(unknown)')}")
+            lines.append(f"    Account ID : {identity.get('Account', '(unknown)')}")
+            lines.append(f"    User ID    : {identity.get('UserId', '(unknown)')}")
+
+        except Exception as sts_err:
+            lines.append(
+                f"  Effective identity (STS lookup failed): {sts_err}"
+            )
 
     except Exception as e:
-        lines.append("  (Could not retrieve credential info: %s)" % str(e))
+        lines.append(f"  (Could not retrieve credential info: {e})")
 
     header = "Credential debug info (METAFLOW_DEBUG_S3CLIENT=1):"
     tip = (
-        "Tip: Verify this identity has the required S3 permissions\n"
-        "     (s3:GetObject, s3:PutObject, s3:ListBucket) on the target bucket."
+        "Tip: Verify this identity has required S3 permissions "
+        "(s3:GetObject, s3:PutObject, s3:ListBucket) on the target bucket."
     )
+
     return "\n".join([header] + lines + ["", tip])
 
 
