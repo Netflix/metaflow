@@ -90,7 +90,6 @@ def get_credential_debug_info(s3config=None):
     )
     return "\n".join([header] + lines + ["", tip])
 
-    return "\n".join([header] + lines + ["", tip])
 
 
 def parse_s3_full_path(s3_uri):
