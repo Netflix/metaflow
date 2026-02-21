@@ -4,10 +4,9 @@ Unit tests for S3 delete APIs (delete, delete_many, delete_recursive).
 Tests use moto to mock S3 without requiring real AWS credentials or services.
 """
 
-import pytest
 from moto import mock_aws
 import boto3
-from metaflow.plugins.datatools.s3.s3 import S3, S3Client
+from metaflow.plugins.datatools.s3.s3 import S3
 
 
 @mock_aws
