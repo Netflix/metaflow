@@ -23,6 +23,7 @@ class RunIdFileTest(MetaflowTest):
     def step_start(self):
         import os
         from metaflow import current
+        from metaflow.util import get_latest_run_id
 
         # Whether we are in "run" or "resume" mode, --run-id-file must be written prior to execution
         assert os.path.isfile(
@@ -31,6 +32,8 @@ class RunIdFileTest(MetaflowTest):
         with open("run-id", "r") as f:
             run_id_from_file = f.read()
         assert run_id_from_file == current.run_id
+        latest_run_id = get_latest_run_id(lambda *_: None, current.flow_name)
+        assert latest_run_id == current.run_id
 
         # Test both regular run and resume paths
         if not is_resumed():

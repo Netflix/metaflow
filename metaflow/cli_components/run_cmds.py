@@ -304,6 +304,7 @@ def resume(
         max_log_size=max_log_size * 1024 * 1024,
         resume_identifier=resume_identifier,
     )
+    write_latest_run_id(obj, runtime.run_id)
     write_file(run_id_file, runtime.run_id)
     runtime.print_workflow_info()
 
