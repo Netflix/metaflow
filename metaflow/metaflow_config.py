@@ -352,7 +352,10 @@ SERVICE_INTERNAL_URL = from_conf("SERVICE_INTERNAL_URL", SERVICE_URL)
 # in all Metaflow deployments. Hopefully, some day we can flip the
 # default to True.
 BATCH_EMIT_TAGS = from_conf("BATCH_EMIT_TAGS", False)
-# Default tags to add to AWS Batch jobs. These are in addition to the defaults set when BATCH_EMIT_TAGS is true.
+# User-defined tags applied to every AWS Batch job (Dict[str, str]).
+# Applied independently of BATCH_EMIT_TAGS so that cost attribution and
+# ownership tags work without also enabling Metaflow internal metadata tags.
+# When BATCH_EMIT_TAGS is also true, both tag sets are emitted.
 BATCH_DEFAULT_TAGS = from_conf("BATCH_DEFAULT_TAGS", {})
 
 ###
